@@ -9,12 +9,22 @@ global:
   useTTY: true
   dev: false
 
+snapshotLoad:
+  enabled: true
+  config:
+    provider: Cloudflare
+    accessKeyId: 0d8d8005e468dd86498bde6dfa02044f
+    secretAccessKey: e33ea43e00d9b655cb72d8a8107fa2957bd6b77e5718df0a26f259956532bba8
+    region: auto
+    endpoint: https://fb1caa337c8e4e3101363ca1240e03ca.r2.cloudflarestorage.com
+    acl: private
+
 # sequencer core images
 images:
   init:
-    repo: ghcr.io/tomwright/dasel
+    repo: rclone/rclone
     pullPolicy: IfNotPresent
-    tag: alpine
+    tag: 1.56.0
   cometBFT:
     repo: docker.io/cometbft/cometbft
     pullPolicy: IfNotPresent
@@ -24,7 +34,7 @@ images:
     repo: ghcr.io/astriaorg/sequencer
     pullPolicy: IfNotPresent
     tag: 1.0.0
-    devTag: latest
+    devTag: local
 
 moniker: ""
 genesis:
@@ -54,49 +64,49 @@ genesis:
     maxAgeNumBlocks: "4000000"
     maxBytes: "1048576"
 
-  fees:
-    feeChange:
-      base: "0"
-      multiplier: "0"
-    bridgeLock:
-      base: "0"
-      multiplier: "1"
-    bridgeSudoChange:
-      base: "24"
-      multiplier: "0"
-    bridgeUnlock:
-      base: "0"
-      multiplier: "0"
-    feeAssetChange:
-      base: "0"
-      multiplier: "0"
-    ibcRelay:
-      base: "0"
-      multiplier: "0"
-    ibcRelayerChange:
-      base: "0"
-      multiplier: "0"
-    ibcSudoChange:
-      base: "0"
-      multiplier: "0"
-    ics20Withdrawal:
-      base: "24"
-      multiplier: "0"
-    initBridgeAccount:
-      base: "48"
-      multiplier: "0"
-    rollupDataSubmission:
-      base: "32"
-      multiplier: "1"
-    sudoAddressChange:
-      base: "0"
-      multiplier: "0"
-    transfer:
-      base: "12"
-      multiplier: "0"
-    validatorUpdate:
-      base: "0"
-      multiplier: "0"
+  fees: {}
+#    feeChange:
+#      base: "0"
+#      multiplier: "0"
+#    bridgeLock:
+#      base: "0"
+#      multiplier: "1"
+#    bridgeSudoChange:
+#      base: "24"
+#      multiplier: "0"
+#    bridgeUnlock:
+#      base: "0"
+#      multiplier: "0"
+#    feeAssetChange:
+#      base: "0"
+#      multiplier: "0"
+#    ibcRelay:
+#      base: "0"
+#      multiplier: "0"
+#    ibcRelayerChange:
+#      base: "0"
+#      multiplier: "0"
+#    ibcSudoChange:
+#      base: "0"
+#      multiplier: "0"
+#    ics20Withdrawal:
+#      base: "24"
+#      multiplier: "0"
+#    initBridgeAccount:
+#      base: "48"
+#      multiplier: "0"
+#    rollupDataSubmission:
+#      base: "32"
+#      multiplier: "1"
+#    sudoAddressChange:
+#      base: "0"
+#      multiplier: "0"
+#    transfer:
+#      base: "12"
+#      multiplier: "0"
+#    validatorUpdate:
+#      base: "0"
+#      multiplier: "0"
 
   validators: []
     # - name: core
@@ -307,7 +317,7 @@ alerting:
         description: "chain node '{{ $labels.namespace }}' has disappeared from Prometheus target discovery.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
 
 storage:
-  enabled: false
+  enabled: true
   local: true
   entities:
     sequencerSharedStorage:
