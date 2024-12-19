@@ -30,8 +30,8 @@ use astria_core::{
                 RollupDataSubmission,
                 SudoAddressChange,
                 Transfer,
+                UpdateMarketMapParams,
                 UpdateMarkets,
-                UpdateParams,
                 UpsertMarkets,
                 ValidatorUpdate,
             },
@@ -308,7 +308,8 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
     let upsert_markets_fees: OnceCell<Option<FeeComponents<UpsertMarkets>>> = OnceCell::new();
     let create_markets_fees: OnceCell<Option<FeeComponents<CreateMarkets>>> = OnceCell::new();
     let update_markets_fees: OnceCell<Option<FeeComponents<UpdateMarkets>>> = OnceCell::new();
-    let update_params_fees: OnceCell<Option<FeeComponents<UpdateParams>>> = OnceCell::new();
+    let update_market_map_params_fees: OnceCell<Option<FeeComponents<UpdateMarketMapParams>>> =
+        OnceCell::new();
     let remove_market_authorities_fees: OnceCell<Option<FeeComponents<RemoveMarketAuthorities>>> =
         OnceCell::new();
     let remove_markets_fees: OnceCell<Option<FeeComponents<RemoveMarkets>>> = OnceCell::new();
@@ -384,8 +385,8 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                 let fees = get_or_init_fees(state, &update_markets_fees).await?;
                 calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
-            Action::UpdateParams(act) => {
-                let fees = get_or_init_fees(state, &update_params_fees).await?;
+            Action::UpdateMarketMapParams(act) => {
+                let fees = get_or_init_fees(state, &update_market_map_params_fees).await?;
                 calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
             Action::RemoveMarketAuthorities(act) => {

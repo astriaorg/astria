@@ -29,8 +29,8 @@ use crate::{
         RollupDataSubmission,
         SudoAddressChange,
         Transfer,
+        UpdateMarketMapParams,
         UpdateMarkets,
-        UpdateParams,
         UpsertMarkets,
         ValidatorUpdate,
     },
@@ -117,7 +117,7 @@ impl_protobuf_for_fee_components!(
     FeeComponents<UpsertMarkets> => raw::UpsertMarketsFeeComponents,
     FeeComponents<CreateMarkets> => raw::CreateMarketsFeeComponents,
     FeeComponents<UpdateMarkets> => raw::UpdateMarketsFeeComponents,
-    FeeComponents<UpdateParams> => raw::UpdateParamsFeeComponents,
+    FeeComponents<UpdateMarketMapParams> => raw::UpdateMarketMapParamsFeeComponents,
     FeeComponents<RemoveMarketAuthorities> => raw::RemoveMarketAuthoritiesFeeComponents,
     FeeComponents<RemoveMarkets> => raw::RemoveMarketsFeeComponents,
 );

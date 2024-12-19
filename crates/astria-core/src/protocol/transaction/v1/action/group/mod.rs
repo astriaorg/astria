@@ -26,8 +26,8 @@ use super::{
     RollupDataSubmission,
     SudoAddressChange,
     Transfer,
+    UpdateMarketMapParams,
     UpdateMarkets,
-    UpdateParams,
     UpsertMarkets,
     ValidatorUpdate,
 };
@@ -64,7 +64,7 @@ impl_belong_to_group!(
     (UpsertMarkets, Group::BundleableGeneral),
     (CreateMarkets, Group::BundleableGeneral),
     (UpdateMarkets, Group::BundleableGeneral),
-    (UpdateParams, Group::BundleableSudo),
+    (UpdateMarketMapParams, Group::BundleableSudo),
     (RemoveMarketAuthorities, Group::BundleableGeneral),
     (RemoveMarkets, Group::BundleableGeneral),
 );
@@ -89,7 +89,7 @@ impl Action {
             Action::UpsertMarkets(_) => UpsertMarkets::GROUP,
             Action::CreateMarkets(_) => CreateMarkets::GROUP,
             Action::UpdateMarkets(_) => UpdateMarkets::GROUP,
-            Action::UpdateParams(_) => UpdateParams::GROUP,
+            Action::UpdateMarketMapParams(_) => UpdateMarketMapParams::GROUP,
             Action::RemoveMarketAuthorities(_) => RemoveMarketAuthorities::GROUP,
             Action::RemoveMarkets(_) => RemoveMarkets::GROUP,
         }

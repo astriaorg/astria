@@ -1,4 +1,4 @@
-use astria_core::protocol::transaction::v1::action::UpdateParams;
+use astria_core::protocol::transaction::v1::action::UpdateMarketMapParams;
 use astria_eyre::eyre::{
     self,
     ensure,
@@ -13,7 +13,7 @@ use crate::{
 };
 
 #[async_trait::async_trait]
-impl ActionHandler for UpdateParams {
+impl ActionHandler for UpdateMarketMapParams {
     async fn check_stateless(&self) -> eyre::Result<()> {
         Ok(())
     }
@@ -56,7 +56,7 @@ mod tests {
     };
 
     #[tokio::test]
-    async fn update_params_executes_as_expected() {
+    async fn update_market_map_params_executes_as_expected() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = cnidarium::StateDelta::new(snapshot);
@@ -73,7 +73,7 @@ mod tests {
 
         assert!(state.get_params().await.unwrap().is_none());
 
-        let action = UpdateParams {
+        let action = UpdateMarketMapParams {
             params: Params {
                 market_authorities: vec![authority_address],
                 admin: authority_address,
@@ -89,7 +89,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn update_params_fails_if_signer_is_invalid() {
+    async fn update_market_map_params_fails_if_signer_is_invalid() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = cnidarium::StateDelta::new(snapshot);
@@ -105,7 +105,7 @@ mod tests {
             position_in_transaction: 0,
         });
 
-        let action = UpdateParams {
+        let action = UpdateMarketMapParams {
             params: Params {
                 market_authorities: vec![invalid_address],
                 admin: invalid_address,

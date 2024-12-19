@@ -5,6 +5,7 @@ use astria_core::{
 use astria_eyre::eyre::{
     self,
     bail,
+    ensure,
     Context as _,
     OptionExt as _,
 };
@@ -44,9 +45,10 @@ impl ActionHandler for CreateMarkets {
             .await?
             .ok_or_eyre("market map params not found in state")?
             .market_authorities;
-        if !market_authorities.contains(&from) {
-            bail!("address {from} is not a market authority");
-        }
+        ensure!(
+            market_authorities.contains(&from),
+            "address {from} is not a market authority"
+        );
 
         // create markets, erroring if any already exist
         let mut market_map = state
@@ -100,7 +102,7 @@ mod tests {
             astria_address,
             ASTRIA_PREFIX,
         },
-        test_utils::example_ticker,
+        test_utils::example_ticker_with_metadata,
         transaction::{
             StateWriteExt as _,
             TransactionContext,
@@ -129,7 +131,7 @@ mod tests {
             position_in_transaction: 0,
         });
 
-        let ticker = example_ticker(String::new());
+        let ticker = example_ticker_with_metadata(String::new());
         let market = Market {
             ticker: ticker.clone(),
             provider_configs: vec![],

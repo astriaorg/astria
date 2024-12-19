@@ -18,8 +18,8 @@ use astria_core::{
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
+            UpdateMarketMapParams,
             UpdateMarkets,
-            UpdateParams,
             UpsertMarkets,
             ValidatorUpdate,
         },
@@ -530,7 +530,7 @@ impl FeeHandler for UpdateMarkets {
     }
 }
 
-impl FeeHandler for UpdateParams {
+impl FeeHandler for UpdateMarketMapParams {
     fn name() -> &'static str {
         <Self as Protobuf>::Raw::NAME
     }
@@ -540,7 +540,7 @@ impl FeeHandler for UpdateParams {
     }
 
     fn snake_case_name() -> &'static str {
-        "update_params"
+        "update_market_map_params"
     }
 
     fn variable_component(&self) -> u128 {

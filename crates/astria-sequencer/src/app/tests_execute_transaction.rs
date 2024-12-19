@@ -27,8 +27,8 @@ use astria_core::{
                 RollupDataSubmission,
                 SudoAddressChange,
                 Transfer,
+                UpdateMarketMapParams,
                 UpdateMarkets,
-                UpdateParams,
                 UpsertMarkets,
                 ValidatorUpdate,
             },
@@ -91,8 +91,8 @@ use crate::{
     ibc::StateReadExt as _,
     test_utils::{
         calculate_rollup_data_submission_fee_from_state,
-        example_ticker,
         example_ticker_from_currency_pair,
+        example_ticker_with_metadata,
     },
     utils::create_deposit_event,
 };
@@ -1357,7 +1357,7 @@ async fn upsert_markets_executes_as_expected() {
 
     let alice_signing_key = get_alice_signing_key();
 
-    let ticker_1 = example_ticker("create_market_1".to_string());
+    let ticker_1 = example_ticker_with_metadata("create_market_1".to_string());
     let market_1 = Market {
         ticker: ticker_1.clone(),
         provider_configs: vec![],
@@ -1373,7 +1373,7 @@ async fn upsert_markets_executes_as_expected() {
     app.apply(state_tx);
 
     // market_2 should replace market_1, since they share the same currency pair
-    let ticker_2 = example_ticker("update market 1 to market 2".to_string());
+    let ticker_2 = example_ticker_with_metadata("update market 1 to market 2".to_string());
     let market_2 = Market {
         ticker: ticker_2.clone(),
         provider_configs: vec![],
@@ -1421,7 +1421,7 @@ async fn create_markets_executes_as_expected() {
 
     let alice_signing_key = get_alice_signing_key();
 
-    let ticker_1 = example_ticker("create market 1".to_string());
+    let ticker_1 = example_ticker_with_metadata("create market 1".to_string());
     let market_1 = Market {
         ticker: ticker_1.clone(),
         provider_configs: vec![],
@@ -1465,7 +1465,7 @@ async fn update_markets_executes_as_expected() {
 
     let alice_signing_key = get_alice_signing_key();
 
-    let ticker_1 = example_ticker("create market 1".to_string());
+    let ticker_1 = example_ticker_with_metadata("create market 1".to_string());
     let market_1 = Market {
         ticker: ticker_1.clone(),
         provider_configs: vec![],
@@ -1491,7 +1491,7 @@ async fn update_markets_executes_as_expected() {
     app.apply(state_tx);
 
     // market_3 should replace market_1, since they share the same currency pair
-    let ticker_3 = example_ticker("update market 1 to market 2".to_string());
+    let ticker_3 = example_ticker_with_metadata("update market 1 to market 2".to_string());
     let market_3 = Market {
         ticker: ticker_3.clone(),
         provider_configs: vec![],
@@ -1533,7 +1533,7 @@ async fn remove_markets_executes_as_expected() {
 
     let alice_signing_key = get_alice_signing_key();
 
-    let ticker_1 = example_ticker("create market 1".to_string());
+    let ticker_1 = example_ticker_with_metadata("create market 1".to_string());
     let market_1 = Market {
         ticker: ticker_1.clone(),
         provider_configs: vec![],
@@ -1621,7 +1621,7 @@ async fn remove_market_authorities_executes_as_expected() {
 }
 
 #[tokio::test]
-async fn update_params_executes_as_expected() {
+async fn update_market_map_params_executes_as_expected() {
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
 
@@ -1642,12 +1642,12 @@ async fn update_params_executes_as_expected() {
         market_authorities: vec![bob_address, carol_address],
         admin: alice_address,
     };
-    let update_params_action = UpdateParams {
+    let update_market_map_params_action = UpdateMarketMapParams {
         params: params_2.clone(),
     };
 
     let tx = TransactionBody::builder()
-        .actions(vec![update_params_action.into()])
+        .actions(vec![update_market_map_params_action.into()])
         .chain_id("test")
         .try_build()
         .unwrap();

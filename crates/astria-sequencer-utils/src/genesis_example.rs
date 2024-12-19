@@ -52,8 +52,8 @@ use astria_core::{
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
+            UpdateMarketMapParams,
             UpdateMarkets,
-            UpdateParams,
             UpsertMarkets,
             ValidatorUpdate,
         },
@@ -256,7 +256,9 @@ fn proto_genesis_state() -> astria_core::generated::astria::protocol::genesis::v
             upsert_markets: Some(FeeComponents::<UpsertMarkets>::new(0, 0).to_raw()),
             create_markets: Some(FeeComponents::<CreateMarkets>::new(0, 0).to_raw()),
             update_markets: Some(FeeComponents::<UpdateMarkets>::new(0, 0).to_raw()),
-            update_params: Some(FeeComponents::<UpdateParams>::new(0, 0).to_raw()),
+            update_market_map_params: Some(
+                FeeComponents::<UpdateMarketMapParams>::new(0, 0).to_raw(),
+            ),
             remove_market_authorities: Some(
                 FeeComponents::<RemoveMarketAuthorities>::new(0, 0).to_raw(),
             ),

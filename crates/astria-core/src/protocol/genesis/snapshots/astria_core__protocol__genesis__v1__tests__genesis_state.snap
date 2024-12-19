@@ -144,7 +144,7 @@ expression: genesis_state()
       "base": {},
       "multiplier": {}
     },
-    "updateParams": {
+    "updateMarketMapParams": {
       "base": {},
       "multiplier": {}
     },

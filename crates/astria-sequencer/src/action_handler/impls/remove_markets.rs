@@ -4,7 +4,7 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
-    bail,
+    ensure,
     Context as _,
     OptionExt as _,
 };
@@ -44,9 +44,10 @@ impl ActionHandler for RemoveMarkets {
             .await?
             .ok_or_eyre("market map params not found in state")?
             .market_authorities;
-        if !market_authorities.contains(&from) {
-            bail!("address {from} is not a market authority");
-        }
+        ensure!(
+            market_authorities.contains(&from),
+            "address {from} is not a market authority"
+        );
 
         // remove markets, skipping any which do not exist
         let mut market_map = state
@@ -96,8 +97,8 @@ mod tests {
             ASTRIA_PREFIX,
         },
         test_utils::{
-            example_ticker,
             example_ticker_from_currency_pair,
+            example_ticker_with_metadata,
         },
         transaction::{
             StateWriteExt as _,
@@ -127,7 +128,7 @@ mod tests {
         };
         state.put_params(params).unwrap();
 
-        let ticker = example_ticker(String::new());
+        let ticker = example_ticker_with_metadata(String::new());
 
         let mut markets = IndexMap::new();
         markets.insert(
@@ -230,7 +231,7 @@ mod tests {
         };
         state.put_params(params).unwrap();
 
-        let ticker = example_ticker(String::new());
+        let ticker = example_ticker_with_metadata(String::new());
         let market = Market {
             ticker: ticker.clone(),
             provider_configs: vec![],

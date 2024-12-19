@@ -160,8 +160,8 @@ pub struct GenesisFees {
         super::super::fees::v1::UpdateMarketsFeeComponents,
     >,
     #[prost(message, optional, tag = "18")]
-    pub update_params: ::core::option::Option<
-        super::super::fees::v1::UpdateParamsFeeComponents,
+    pub update_market_map_params: ::core::option::Option<
+        super::super::fees::v1::UpdateMarketMapParamsFeeComponents,
     >,
     #[prost(message, optional, tag = "19")]
     pub remove_market_authorities: ::core::option::Option<

@@ -37,8 +37,8 @@ use astria_core::{
                 RemoveMarkets,
                 RollupDataSubmission,
                 Transfer,
+                UpdateMarketMapParams,
                 UpdateMarkets,
-                UpdateParams,
                 UpsertMarkets,
                 ValidatorUpdate,
             },
@@ -312,7 +312,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             FeeAssetChange::Addition("test-0".parse().unwrap()).into(),
             FeeAssetChange::Addition("test-1".parse().unwrap()).into(),
             FeeAssetChange::Removal("test-0".parse().unwrap()).into(),
-            UpdateParams {
+            UpdateMarketMapParams {
                 params: Params {
                     market_authorities: vec![bob_address, carol_address],
                     admin: bob_address,

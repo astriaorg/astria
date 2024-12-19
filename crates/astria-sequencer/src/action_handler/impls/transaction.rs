@@ -153,10 +153,10 @@ impl ActionHandler for Transaction {
                     .check_stateless()
                     .await
                     .wrap_err("stateless check failed for UpdateMarkets action")?,
-                Action::UpdateParams(act) => act
+                Action::UpdateMarketMapParams(act) => act
                     .check_stateless()
                     .await
-                    .wrap_err("stateless check failed for UpdateParams action")?,
+                    .wrap_err("stateless check failed for UpdateMarketMapParams action")?,
                 Action::RemoveMarketAuthorities(act) => act
                     .check_stateless()
                     .await
@@ -300,7 +300,7 @@ impl ActionHandler for Transaction {
                 Action::UpdateMarkets(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("failed executing update markets")?,
-                Action::UpdateParams(act) => check_execute_and_pay_fees(act, &mut state)
+                Action::UpdateMarketMapParams(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("failed executing update params")?,
                 Action::RemoveMarketAuthorities(act) => check_execute_and_pay_fees(act, &mut state)

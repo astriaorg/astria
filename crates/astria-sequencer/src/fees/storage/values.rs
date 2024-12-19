@@ -16,8 +16,8 @@ use astria_core::protocol::{
         RollupDataSubmission,
         SudoAddressChange,
         Transfer,
+        UpdateMarketMapParams,
         UpdateMarkets,
-        UpdateParams,
         UpsertMarkets,
         ValidatorUpdate,
     },
@@ -55,7 +55,7 @@ enum ValueImpl {
     UpsertMarketsFees(FeeComponents),
     CreateMarketsFees(FeeComponents),
     UpdateMarketsFees(FeeComponents),
-    UpdateParamsFees(FeeComponents),
+    UpdateMarketMapParamsFees(FeeComponents),
     RemoveMarketAuthoritiesFees(FeeComponents),
     RemoveMarketsFees(FeeComponents),
 }
@@ -124,7 +124,7 @@ impl_from_for_fee_storage!(
     DomainFeeComponents<UpsertMarkets> => UpsertMarketsFees,
     DomainFeeComponents<CreateMarkets> => CreateMarketsFees,
     DomainFeeComponents<UpdateMarkets> =>  UpdateMarketsFees,
-    DomainFeeComponents<UpdateParams> => UpdateParamsFees,
+    DomainFeeComponents<UpdateMarketMapParams> => UpdateMarketMapParamsFees,
     DomainFeeComponents<RemoveMarketAuthorities> => RemoveMarketAuthoritiesFees,
     DomainFeeComponents<RemoveMarkets> => RemoveMarketsFees,
 );

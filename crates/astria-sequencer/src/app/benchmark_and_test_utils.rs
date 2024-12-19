@@ -33,8 +33,8 @@ use astria_core::{
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
+            UpdateMarketMapParams,
             UpdateMarkets,
-            UpdateParams,
             UpsertMarkets,
             ValidatorUpdate,
         },
@@ -100,7 +100,7 @@ pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1::GenesisFees 
         upsert_markets: Some(FeeComponents::<UpsertMarkets>::new(0, 0)),
         create_markets: Some(FeeComponents::<CreateMarkets>::new(0, 0)),
         update_markets: Some(FeeComponents::<UpdateMarkets>::new(0, 0)),
-        update_params: Some(FeeComponents::<UpdateParams>::new(0, 0)),
+        update_market_map_params: Some(FeeComponents::<UpdateMarketMapParams>::new(0, 0)),
         remove_market_authorities: Some(FeeComponents::<RemoveMarketAuthorities>::new(0, 0)),
         remove_markets: Some(FeeComponents::<RemoveMarkets>::new(0, 0)),
     }

@@ -4,7 +4,7 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
-    bail,
+    ensure,
     Context as _,
     OptionExt as _,
 };
@@ -44,9 +44,10 @@ impl ActionHandler for UpsertMarkets {
             .await?
             .ok_or_eyre("market map params not found in state")?
             .market_authorities;
-        if !market_authorities.contains(&from) {
-            bail!("address {from} is not a market authority");
-        }
+        ensure!(
+            market_authorities.contains(&from),
+            "address {from} is not a market authority"
+        );
 
         // upsert markets, updating any that already exist and creating any that do not
         let mut market_map = state
@@ -103,7 +104,7 @@ mod tests {
             astria_address,
             ASTRIA_PREFIX,
         },
-        test_utils::example_ticker,
+        test_utils::example_ticker_with_metadata,
         transaction::{
             StateWriteExt as _,
             TransactionContext,
@@ -132,7 +133,7 @@ mod tests {
         };
         state.put_params(params).unwrap();
 
-        let ticker = example_ticker(String::new());
+        let ticker = example_ticker_with_metadata(String::new());
         let market = Market {
             ticker: ticker.clone(),
             provider_configs: vec![],
@@ -176,7 +177,7 @@ mod tests {
             position_in_transaction: 0,
         });
 
-        let ticker_1 = example_ticker("ticker_1".to_string());
+        let ticker_1 = example_ticker_with_metadata("ticker_1".to_string());
         let market_1 = Market {
             ticker: ticker_1.clone(),
             provider_configs: vec![],
@@ -198,7 +199,7 @@ mod tests {
             market_1,
         );
 
-        let ticker_2 = example_ticker("ticker_2".to_string());
+        let ticker_2 = example_ticker_with_metadata("ticker_2".to_string());
         let market_2 = Market {
             ticker: ticker_2.clone(),
             provider_configs: vec![],

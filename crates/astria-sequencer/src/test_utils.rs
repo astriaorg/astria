@@ -58,7 +58,7 @@ pub(crate) async fn calculate_rollup_data_submission_fee_from_state<
         .expect("fee addition should not overflow")
 }
 
-pub(crate) fn example_ticker(metadata: String) -> Ticker {
+pub(crate) fn example_ticker_with_metadata(metadata: String) -> Ticker {
     Ticker {
         currency_pair: CurrencyPair::from_parts(
             Base::from_str("BTC").unwrap(),

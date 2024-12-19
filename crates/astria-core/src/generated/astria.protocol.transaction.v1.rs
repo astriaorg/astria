@@ -54,7 +54,7 @@ pub mod action {
         #[prost(message, tag = "73")]
         UpdateMarkets(super::UpdateMarkets),
         #[prost(message, tag = "74")]
-        UpdateParams(super::UpdateParams),
+        UpdateMarketMapParams(super::UpdateMarketMapParams),
         #[prost(message, tag = "75")]
         RemoveMarketAuthorities(super::RemoveMarketAuthorities),
         #[prost(message, tag = "76")]
@@ -462,7 +462,9 @@ pub mod fee_change {
         #[prost(message, tag = "17")]
         UpdateMarkets(super::super::super::fees::v1::UpdateMarketsFeeComponents),
         #[prost(message, tag = "18")]
-        UpdateParams(super::super::super::fees::v1::UpdateParamsFeeComponents),
+        UpdateMarketMapParams(
+            super::super::super::fees::v1::UpdateMarketMapParamsFeeComponents,
+        ),
         #[prost(message, tag = "19")]
         RemoveMarketAuthorities(
             super::super::super::fees::v1::RemoveMarketAuthoritiesFeeComponents,
@@ -545,15 +547,15 @@ impl ::prost::Name for UpdateMarkets {
 /// Updates the market map parameters.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct UpdateParams {
+pub struct UpdateMarketMapParams {
     /// Params defines the new parameters for the x/marketmap module.
     #[prost(message, optional, tag = "1")]
     pub params: ::core::option::Option<
         super::super::super::super::connect::marketmap::v2::Params,
     >,
 }
-impl ::prost::Name for UpdateParams {
-    const NAME: &'static str = "UpdateParams";
+impl ::prost::Name for UpdateMarketMapParams {
+    const NAME: &'static str = "UpdateMarketMapParams";
     const PACKAGE: &'static str = "astria.protocol.transaction.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)

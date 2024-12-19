@@ -165,10 +165,10 @@ impl Component for FeesComponent {
                 .wrap_err("failed to store remove market authorities fee components")?;
         }
 
-        let update_params_fees = app_state.fees().update_params;
-        if let Some(update_params_fees) = update_params_fees {
+        let update_market_map_params_fees = app_state.fees().update_market_map_params;
+        if let Some(update_market_map_params_fees) = update_market_map_params_fees {
             state
-                .put_fees(update_params_fees)
+                .put_fees(update_market_map_params_fees)
                 .wrap_err("failed to store update params fee components")?;
         }
 

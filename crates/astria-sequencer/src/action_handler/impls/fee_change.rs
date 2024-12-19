@@ -86,7 +86,7 @@ impl ActionHandler for FeeChange {
             Self::UpdateMarkets(fees) => state
                 .put_fees(*fees)
                 .wrap_err("failed to put update markets fees"),
-            Self::UpdateParams(fees) => state
+            Self::UpdateMarketMapParams(fees) => state
                 .put_fees(*fees)
                 .wrap_err("failed to put update params fees"),
             Self::RemoveMarketAuthorities(fees) => state

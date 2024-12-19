@@ -16,7 +16,7 @@ pub(crate) mod sudo_address_change;
 pub(crate) mod test_utils;
 pub(crate) mod transaction;
 pub(crate) mod transfer;
+pub(crate) mod update_market_map_params;
 pub(crate) mod update_markets;
-pub(crate) mod update_params;
 pub(crate) mod upsert_markets;
 pub(crate) mod validator_update;

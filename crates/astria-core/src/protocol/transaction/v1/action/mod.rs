@@ -62,7 +62,7 @@ pub enum Action {
     UpsertMarkets(UpsertMarkets),
     CreateMarkets(CreateMarkets),
     UpdateMarkets(UpdateMarkets),
-    UpdateParams(UpdateParams),
+    UpdateMarketMapParams(UpdateMarketMapParams),
     RemoveMarketAuthorities(RemoveMarketAuthorities),
     RemoveMarkets(RemoveMarkets),
 }
@@ -92,7 +92,7 @@ impl Protobuf for Action {
             Action::UpsertMarkets(act) => Value::UpsertMarkets(act.to_raw()),
             Action::CreateMarkets(act) => Value::CreateMarkets(act.to_raw()),
             Action::UpdateMarkets(act) => Value::UpdateMarkets(act.to_raw()),
-            Action::UpdateParams(act) => Value::UpdateParams(act.to_raw()),
+            Action::UpdateMarketMapParams(act) => Value::UpdateMarketMapParams(act.to_raw()),
             Action::RemoveMarketAuthorities(act) => Value::RemoveMarketAuthorities(act.to_raw()),
             Action::RemoveMarkets(act) => Value::RemoveMarkets(act.to_raw()),
         };
@@ -177,9 +177,10 @@ impl Protobuf for Action {
             Value::UpdateMarkets(act) => Self::UpdateMarkets(
                 UpdateMarkets::try_from_raw(act).map_err(Error::update_markets)?,
             ),
-            Value::UpdateParams(act) => {
-                Self::UpdateParams(UpdateParams::try_from_raw(act).map_err(Error::update_params)?)
-            }
+            Value::UpdateMarketMapParams(act) => Self::UpdateMarketMapParams(
+                UpdateMarketMapParams::try_from_raw(act)
+                    .map_err(Error::update_market_map_params)?,
+            ),
             Value::RemoveMarketAuthorities(act) => Self::RemoveMarketAuthorities(
                 RemoveMarketAuthorities::try_from_raw(act)
                     .map_err(Error::remove_market_authorities)?,
@@ -315,9 +316,9 @@ impl From<UpdateMarkets> for Action {
     }
 }
 
-impl From<UpdateParams> for Action {
-    fn from(value: UpdateParams) -> Self {
-        Self::UpdateParams(value)
+impl From<UpdateMarketMapParams> for Action {
+    fn from(value: UpdateMarketMapParams) -> Self {
+        Self::UpdateMarketMapParams(value)
     }
 }
 
@@ -373,7 +374,7 @@ impl ActionName for Action {
             Action::UpsertMarkets(_) => "UpsertMarkets",
             Action::CreateMarkets(_) => "CreateMarkets",
             Action::UpdateMarkets(_) => "UpdateMarkets",
-            Action::UpdateParams(_) => "UpdateParams",
+            Action::UpdateMarketMapParams(_) => "UpdateMarketMapParams",
             Action::RemoveMarketAuthorities(_) => "RemoveMarketAuthorities",
             Action::RemoveMarkets(_) => "RemoveMarkets",
         }
@@ -457,8 +458,8 @@ impl Error {
         Self(ActionErrorKind::UpdateMarkets(inner))
     }
 
-    fn update_params(inner: UpdateParamsError) -> Self {
-        Self(ActionErrorKind::UpdateParams(inner))
+    fn update_market_map_params(inner: UpdateMarketMapParamsError) -> Self {
+        Self(ActionErrorKind::UpdateMarketMapParams(inner))
     }
 
     fn remove_market_authorities(inner: RemoveMarketAuthoritiesError) -> Self {
@@ -509,7 +510,7 @@ enum ActionErrorKind {
     #[error("update markets action was not valid")]
     UpdateMarkets(#[source] UpdateMarketsError),
     #[error("update params action was not valid")]
-    UpdateParams(#[source] UpdateParamsError),
+    UpdateMarketMapParams(#[source] UpdateMarketMapParamsError),
     #[error("remove market authorities action was not valid")]
     RemoveMarketAuthorities(#[source] RemoveMarketAuthoritiesError),
     #[error("remove markets action was not valid")]
@@ -2063,7 +2064,7 @@ pub enum FeeChange {
     UpsertMarkets(FeeComponents<UpsertMarkets>),
     CreateMarkets(FeeComponents<CreateMarkets>),
     UpdateMarkets(FeeComponents<UpdateMarkets>),
-    UpdateParams(FeeComponents<UpdateParams>),
+    UpdateMarketMapParams(FeeComponents<UpdateMarketMapParams>),
     RemoveMarketAuthorities(FeeComponents<RemoveMarketAuthorities>),
     RemoveMarkets(FeeComponents<RemoveMarkets>),
 }
@@ -2127,8 +2128,8 @@ impl Protobuf for FeeChange {
                 Self::UpdateMarkets(fee_change) => {
                     raw::fee_change::FeeComponents::UpdateMarkets(fee_change.to_raw())
                 }
-                Self::UpdateParams(fee_change) => {
-                    raw::fee_change::FeeComponents::UpdateParams(fee_change.to_raw())
+                Self::UpdateMarketMapParams(fee_change) => {
+                    raw::fee_change::FeeComponents::UpdateMarketMapParams(fee_change.to_raw())
                 }
                 Self::RemoveMarketAuthorities(fee_change) => {
                     raw::fee_change::FeeComponents::RemoveMarketAuthorities(fee_change.to_raw())
@@ -2215,8 +2216,10 @@ impl Protobuf for FeeChange {
             Some(raw::fee_change::FeeComponents::UpdateMarkets(fee_change)) => Self::UpdateMarkets(
                 FeeComponents::<UpdateMarkets>::try_from_raw_ref(fee_change)?,
             ),
-            Some(raw::fee_change::FeeComponents::UpdateParams(fee_change)) => {
-                Self::UpdateParams(FeeComponents::<UpdateParams>::try_from_raw_ref(fee_change)?)
+            Some(raw::fee_change::FeeComponents::UpdateMarketMapParams(fee_change)) => {
+                Self::UpdateMarketMapParams(
+                    FeeComponents::<UpdateMarketMapParams>::try_from_raw_ref(fee_change)?,
+                )
             }
             Some(raw::fee_change::FeeComponents::RemoveMarketAuthorities(fee_change)) => {
                 Self::RemoveMarketAuthorities(
@@ -2514,22 +2517,22 @@ pub enum UpdateMarketsErrorKind {
 /// address. This will execute whether there are params in the state already or not. Must be signed
 /// by the sequencer network authority sudo address.
 #[derive(Debug, Clone)]
-pub struct UpdateParams {
+pub struct UpdateMarketMapParams {
     /// The new parameters for the `connect/marketmap` module.
     pub params: Params,
 }
 
-impl Protobuf for UpdateParams {
-    type Error = UpdateParamsError;
-    type Raw = raw::UpdateParams;
+impl Protobuf for UpdateMarketMapParams {
+    type Error = UpdateMarketMapParamsError;
+    type Raw = raw::UpdateMarketMapParams;
 
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let params = Params::try_from_raw(
             raw.params
                 .clone()
-                .ok_or(UpdateParamsError::missing_params())?,
+                .ok_or(UpdateMarketMapParamsError::missing_params())?,
         )
-        .map_err(UpdateParamsError::invalid_params)?;
+        .map_err(UpdateMarketMapParamsError::invalid_params)?;
         Ok(Self {
             params,
         })
@@ -2544,22 +2547,22 @@ impl Protobuf for UpdateParams {
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct UpdateParamsError(UpdateParamsErrorKind);
+pub struct UpdateMarketMapParamsError(UpdateMarketMapParamsErrorKind);
 
-impl UpdateParamsError {
+impl UpdateMarketMapParamsError {
     #[must_use]
     pub fn missing_params() -> Self {
-        Self(UpdateParamsErrorKind::MissingParams)
+        Self(UpdateMarketMapParamsErrorKind::MissingParams)
     }
 
     #[must_use]
     pub fn invalid_params(err: ParamsError) -> Self {
-        Self(UpdateParamsErrorKind::InvalidParams(err))
+        Self(UpdateMarketMapParamsErrorKind::InvalidParams(err))
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum UpdateParamsErrorKind {
+pub enum UpdateMarketMapParamsErrorKind {
     #[error("missing params")]
     MissingParams,
     #[error("invalid params")]

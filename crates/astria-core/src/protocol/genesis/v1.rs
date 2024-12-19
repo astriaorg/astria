@@ -41,8 +41,8 @@ use crate::{
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
+            UpdateMarketMapParams,
             UpdateMarkets,
-            UpdateParams,
             UpsertMarkets,
             ValidatorUpdate,
         },
@@ -772,7 +772,7 @@ pub struct GenesisFees {
     pub upsert_markets: Option<FeeComponents<UpsertMarkets>>,
     pub create_markets: Option<FeeComponents<CreateMarkets>>,
     pub update_markets: Option<FeeComponents<UpdateMarkets>>,
-    pub update_params: Option<FeeComponents<UpdateParams>>,
+    pub update_market_map_params: Option<FeeComponents<UpdateMarketMapParams>>,
     pub remove_market_authorities: Option<FeeComponents<RemoveMarketAuthorities>>,
     pub remove_markets: Option<FeeComponents<RemoveMarkets>>,
 }
@@ -804,7 +804,7 @@ impl Protobuf for GenesisFees {
             upsert_markets,
             create_markets,
             update_markets,
-            update_params,
+            update_market_map_params,
             remove_market_authorities,
             remove_markets,
         } = raw;
@@ -911,11 +911,11 @@ impl Protobuf for GenesisFees {
             .transpose()
             .map_err(|e| FeesError::fee_components("update_markets", e))?;
 
-        let update_params = update_params
+        let update_market_map_params = update_market_map_params
             .clone()
-            .map(FeeComponents::<UpdateParams>::try_from_raw)
+            .map(FeeComponents::<UpdateMarketMapParams>::try_from_raw)
             .transpose()
-            .map_err(|e| FeesError::fee_components("update_params", e))?;
+            .map_err(|e| FeesError::fee_components("update_market_map_params", e))?;
 
         let remove_market_authorities = remove_market_authorities
             .clone()
@@ -947,7 +947,7 @@ impl Protobuf for GenesisFees {
             upsert_markets,
             create_markets,
             update_markets,
-            update_params,
+            update_market_map_params,
             remove_market_authorities,
             remove_markets,
         })
@@ -972,7 +972,7 @@ impl Protobuf for GenesisFees {
             upsert_markets,
             create_markets,
             update_markets,
-            update_params,
+            update_market_map_params,
             remove_market_authorities,
             remove_markets,
         } = self;
@@ -1003,7 +1003,8 @@ impl Protobuf for GenesisFees {
             upsert_markets: upsert_markets.map(|act| FeeComponents::<UpsertMarkets>::to_raw(&act)),
             create_markets: create_markets.map(|act| FeeComponents::<CreateMarkets>::to_raw(&act)),
             update_markets: update_markets.map(|act| FeeComponents::<UpdateMarkets>::to_raw(&act)),
-            update_params: update_params.map(|act| FeeComponents::<UpdateParams>::to_raw(&act)),
+            update_market_map_params: update_market_map_params
+                .map(|act| FeeComponents::<UpdateMarketMapParams>::to_raw(&act)),
             remove_market_authorities: remove_market_authorities
                 .map(|act| FeeComponents::<RemoveMarketAuthorities>::to_raw(&act)),
             remove_markets: remove_markets.map(|act| FeeComponents::<RemoveMarkets>::to_raw(&act)),
@@ -1133,6 +1134,37 @@ mod tests {
         }
     }
 
+    fn genesis_fees() -> raw::GenesisFees {
+        raw::GenesisFees {
+            transfer: Some(FeeComponents::<Transfer>::new(12, 0).to_raw()),
+            rollup_data_submission: Some(
+                FeeComponents::<RollupDataSubmission>::new(32, 1).to_raw(),
+            ),
+            init_bridge_account: Some(FeeComponents::<InitBridgeAccount>::new(48, 0).to_raw()),
+            bridge_lock: Some(FeeComponents::<BridgeLock>::new(12, 1).to_raw()),
+            bridge_unlock: Some(FeeComponents::<BridgeUnlock>::new(12, 0).to_raw()),
+            bridge_sudo_change: Some(FeeComponents::<BridgeSudoChange>::new(24, 0).to_raw()),
+            ics20_withdrawal: Some(FeeComponents::<Ics20Withdrawal>::new(24, 0).to_raw()),
+            ibc_relay: Some(FeeComponents::<IbcRelay>::new(0, 0).to_raw()),
+            validator_update: Some(FeeComponents::<ValidatorUpdate>::new(0, 0).to_raw()),
+            fee_asset_change: Some(FeeComponents::<FeeAssetChange>::new(0, 0).to_raw()),
+            fee_change: Some(FeeComponents::<FeeChange>::new(0, 0).to_raw()),
+            ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0).to_raw()),
+            sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0).to_raw()),
+            ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0).to_raw()),
+            upsert_markets: Some(FeeComponents::<UpsertMarkets>::new(0, 0).to_raw()),
+            create_markets: Some(FeeComponents::<CreateMarkets>::new(0, 0).to_raw()),
+            update_markets: Some(FeeComponents::<UpdateMarkets>::new(0, 0).to_raw()),
+            update_market_map_params: Some(
+                FeeComponents::<UpdateMarketMapParams>::new(0, 0).to_raw(),
+            ),
+            remove_market_authorities: Some(
+                FeeComponents::<RemoveMarketAuthorities>::new(0, 0).to_raw(),
+            ),
+            remove_markets: Some(FeeComponents::<RemoveMarkets>::new(0, 0).to_raw()),
+        }
+    }
+
     fn proto_genesis_state() -> raw::GenesisAppState {
         use crate::connect::{
             oracle::v2::{
@@ -1176,32 +1208,7 @@ mod tests {
                 outbound_ics20_transfers_enabled: true,
             }),
             allowed_fee_assets: vec!["nria".into()],
-            fees: Some(raw::GenesisFees {
-                transfer: Some(FeeComponents::<Transfer>::new(12, 0).to_raw()),
-                rollup_data_submission: Some(
-                    FeeComponents::<RollupDataSubmission>::new(32, 1).to_raw(),
-                ),
-                init_bridge_account: Some(FeeComponents::<InitBridgeAccount>::new(48, 0).to_raw()),
-                bridge_lock: Some(FeeComponents::<BridgeLock>::new(12, 1).to_raw()),
-                bridge_unlock: Some(FeeComponents::<BridgeUnlock>::new(12, 0).to_raw()),
-                bridge_sudo_change: Some(FeeComponents::<BridgeSudoChange>::new(24, 0).to_raw()),
-                ics20_withdrawal: Some(FeeComponents::<Ics20Withdrawal>::new(24, 0).to_raw()),
-                ibc_relay: Some(FeeComponents::<IbcRelay>::new(0, 0).to_raw()),
-                validator_update: Some(FeeComponents::<ValidatorUpdate>::new(0, 0).to_raw()),
-                fee_asset_change: Some(FeeComponents::<FeeAssetChange>::new(0, 0).to_raw()),
-                fee_change: Some(FeeComponents::<FeeChange>::new(0, 0).to_raw()),
-                ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0).to_raw()),
-                sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0).to_raw()),
-                ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0).to_raw()),
-                upsert_markets: Some(FeeComponents::<UpsertMarkets>::new(0, 0).to_raw()),
-                create_markets: Some(FeeComponents::<CreateMarkets>::new(0, 0).to_raw()),
-                update_markets: Some(FeeComponents::<UpdateMarkets>::new(0, 0).to_raw()),
-                update_params: Some(FeeComponents::<UpdateParams>::new(0, 0).to_raw()),
-                remove_market_authorities: Some(
-                    FeeComponents::<RemoveMarketAuthorities>::new(0, 0).to_raw(),
-                ),
-                remove_markets: Some(FeeComponents::<RemoveMarkets>::new(0, 0).to_raw()),
-            }),
+            fees: Some(genesis_fees()),
             connect: Some(
                 ConnectGenesis {
                     market_map: market_map::v2::GenesisState {

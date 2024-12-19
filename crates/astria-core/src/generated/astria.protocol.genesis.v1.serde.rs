@@ -652,7 +652,7 @@ impl serde::Serialize for GenesisFees {
         if self.update_markets.is_some() {
             len += 1;
         }
-        if self.update_params.is_some() {
+        if self.update_market_map_params.is_some() {
             len += 1;
         }
         if self.remove_market_authorities.is_some() {
@@ -713,8 +713,8 @@ impl serde::Serialize for GenesisFees {
         if let Some(v) = self.update_markets.as_ref() {
             struct_ser.serialize_field("updateMarkets", v)?;
         }
-        if let Some(v) = self.update_params.as_ref() {
-            struct_ser.serialize_field("updateParams", v)?;
+        if let Some(v) = self.update_market_map_params.as_ref() {
+            struct_ser.serialize_field("updateMarketMapParams", v)?;
         }
         if let Some(v) = self.remove_market_authorities.as_ref() {
             struct_ser.serialize_field("removeMarketAuthorities", v)?;
@@ -765,8 +765,8 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
             "createMarkets",
             "update_markets",
             "updateMarkets",
-            "update_params",
-            "updateParams",
+            "update_market_map_params",
+            "updateMarketMapParams",
             "remove_market_authorities",
             "removeMarketAuthorities",
             "remove_markets",
@@ -792,7 +792,7 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
             UpsertMarkets,
             CreateMarkets,
             UpdateMarkets,
-            UpdateParams,
+            UpdateMarketMapParams,
             RemoveMarketAuthorities,
             RemoveMarkets,
         }
@@ -833,7 +833,7 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                             "upsertMarkets" | "upsert_markets" => Ok(GeneratedField::UpsertMarkets),
                             "createMarkets" | "create_markets" => Ok(GeneratedField::CreateMarkets),
                             "updateMarkets" | "update_markets" => Ok(GeneratedField::UpdateMarkets),
-                            "updateParams" | "update_params" => Ok(GeneratedField::UpdateParams),
+                            "updateMarketMapParams" | "update_market_map_params" => Ok(GeneratedField::UpdateMarketMapParams),
                             "removeMarketAuthorities" | "remove_market_authorities" => Ok(GeneratedField::RemoveMarketAuthorities),
                             "removeMarkets" | "remove_markets" => Ok(GeneratedField::RemoveMarkets),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
@@ -872,7 +872,7 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                 let mut upsert_markets__ = None;
                 let mut create_markets__ = None;
                 let mut update_markets__ = None;
-                let mut update_params__ = None;
+                let mut update_market_map_params__ = None;
                 let mut remove_market_authorities__ = None;
                 let mut remove_markets__ = None;
                 while let Some(k) = map_.next_key()? {
@@ -979,11 +979,11 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                             }
                             update_markets__ = map_.next_value()?;
                         }
-                        GeneratedField::UpdateParams => {
-                            if update_params__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("updateParams"));
+                        GeneratedField::UpdateMarketMapParams => {
+                            if update_market_map_params__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("updateMarketMapParams"));
                             }
-                            update_params__ = map_.next_value()?;
+                            update_market_map_params__ = map_.next_value()?;
                         }
                         GeneratedField::RemoveMarketAuthorities => {
                             if remove_market_authorities__.is_some() {
@@ -1017,7 +1017,7 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                     upsert_markets: upsert_markets__,
                     create_markets: create_markets__,
                     update_markets: update_markets__,
-                    update_params: update_params__,
+                    update_market_map_params: update_market_map_params__,
                     remove_market_authorities: remove_market_authorities__,
                     remove_markets: remove_markets__,
                 })

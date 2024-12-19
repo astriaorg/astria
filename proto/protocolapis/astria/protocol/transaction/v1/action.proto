@@ -37,7 +37,7 @@ message Action {
     UpsertMarkets upsert_markets = 71;
     CreateMarkets create_markets = 72;
     UpdateMarkets update_markets = 73;
-    UpdateParams update_params = 74;
+    UpdateMarketMapParams update_market_map_params = 74;
     RemoveMarketAuthorities remove_market_authorities = 75;
     RemoveMarkets remove_markets = 76;
   }
@@ -241,7 +241,7 @@ message FeeChange {
     astria.protocol.fees.v1.UpsertMarketsFeeComponents upsert_markets = 15;
     astria.protocol.fees.v1.CreateMarketsFeeComponents create_markets = 16;
     astria.protocol.fees.v1.UpdateMarketsFeeComponents update_markets = 17;
-    astria.protocol.fees.v1.UpdateParamsFeeComponents update_params = 18;
+    astria.protocol.fees.v1.UpdateMarketMapParamsFeeComponents update_market_map_params = 18;
     astria.protocol.fees.v1.RemoveMarketAuthoritiesFeeComponents remove_market_authorities = 19;
     astria.protocol.fees.v1.RemoveMarketsFeeComponents remove_markets = 20;
   }
@@ -270,7 +270,7 @@ message UpdateMarkets {
 }
 
 // Updates the market map parameters.
-message UpdateParams {
+message UpdateMarketMapParams {
   // Params defines the new parameters for the x/marketmap module.
   connect.marketmap.v2.Params params = 1;
 }
