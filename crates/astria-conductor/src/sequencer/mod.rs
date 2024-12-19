@@ -78,9 +78,6 @@ pub(crate) struct Reader {
     /// height.
     sequencer_block_time: Duration,
 
-    /// The chain ID of the sequencer network the reader should be communicating with.
-    expected_sequencer_chain_id: String,
-
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
 }
@@ -107,9 +104,14 @@ impl Reader {
             get_sequencer_chain_id(self.sequencer_cometbft_client.clone())
                 .await
                 .wrap_err("failed to get chain ID from Sequencer")?;
-        let expected_sequencer_chain_id = &self.expected_sequencer_chain_id;
+        let expected_sequencer_chain_id = self
+            .executor
+            .wait_for_init()
+            .await
+            .wrap_err("handle to executor failed while waiting for it being initialized")?
+            .sequencer_chain_id();
         ensure!(
-            self.expected_sequencer_chain_id == actual_sequencer_chain_id.as_str(),
+            expected_sequencer_chain_id == actual_sequencer_chain_id.as_str(),
             "expected chain id `{expected_sequencer_chain_id}` does not match actual: \
              `{actual_sequencer_chain_id}`"
         );
