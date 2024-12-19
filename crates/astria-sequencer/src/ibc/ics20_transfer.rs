@@ -768,7 +768,6 @@ mod tests {
         },
         sequencerblock::v1::block::Deposit,
     };
-    use cnidarium::StateDelta;
     use ibc_types::{
         core::channel::{
             packet::Sequence,
@@ -803,6 +802,7 @@ mod tests {
             StateReadExt as _,
             StateWriteExt,
         },
+        storage::Storage,
         test_utils::astria_compat_address,
         transaction::{
             StateWriteExt as _,
@@ -839,18 +839,19 @@ mod tests {
 
     #[tokio::test]
     async fn receive_source_zone_asset_on_sequencer_account() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state_tx = StateDelta::new(snapshot.clone());
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let recipient_address = astria_address(&[1; 20]);
         let amount = 100;
 
-        state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-        state_tx
+        state_delta
+            .put_base_prefix(ASTRIA_PREFIX.to_string())
+            .unwrap();
+        state_delta
             .put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX.to_string())
             .unwrap();
-        state_tx
+        state_delta
             .put_ibc_channel_balance(&packet().chan_on_b, &nria(), amount)
             .unwrap();
 
@@ -863,7 +864,7 @@ mod tests {
         };
 
         receive_tokens(
-            &mut state_tx,
+            &mut state_delta,
             &Packet {
                 data: serde_json::to_vec(&packet_data).unwrap(),
                 ..packet()
@@ -872,12 +873,12 @@ mod tests {
         .await
         .unwrap();
 
-        let user_balance = state_tx
+        let user_balance = state_delta
             .get_account_balance(&recipient_address, &nria())
             .await
             .expect("ics20 transfer to user account should succeed");
         assert_eq!(user_balance, amount);
-        let escrow_balance = state_tx
+        let escrow_balance = state_delta
             .get_ibc_channel_balance(&packet().chan_on_b, &nria())
             .await
             .expect("ics20 transfer to user account from escrow account should succeed");
@@ -886,12 +887,13 @@ mod tests {
 
     #[tokio::test]
     async fn receive_sink_zone_asset_on_sequencer_account() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state_tx = StateDelta::new(snapshot.clone());
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
-        state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-        state_tx
+        state_delta
+            .put_base_prefix(ASTRIA_PREFIX.to_string())
+            .unwrap();
+        state_delta
             .put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX.to_string())
             .unwrap();
 
@@ -909,7 +911,7 @@ mod tests {
         };
 
         receive_tokens(
-            &mut state_tx,
+            &mut state_delta,
             &Packet {
                 data: serde_json::to_vec(&packet_data).unwrap(),
                 ..packet()
@@ -918,11 +920,11 @@ mod tests {
         .await
         .unwrap();
 
-        assert!(state_tx.has_ibc_asset(&sink_asset()).await.expect(
+        assert!(state_delta.has_ibc_asset(&sink_asset()).await.expect(
             "a new asset with <sequencer_port>/<sequencer_channel>/<asset> should be registered \
              in the state"
         ));
-        let user_balance = state_tx
+        let user_balance = state_delta
             .get_account_balance(&recipient_address, &sink_asset())
             .await
             .expect(
@@ -933,18 +935,19 @@ mod tests {
 
     #[tokio::test]
     async fn receive_source_zone_asset_on_bridge_account_and_emit_to_rollup() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state_tx = StateDelta::new(snapshot.clone());
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let bridge_address = astria_address(&[99; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
-        state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-        state_tx
+        state_delta
+            .put_base_prefix(ASTRIA_PREFIX.to_string())
+            .unwrap();
+        state_delta
             .put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX.to_string())
             .unwrap();
-        state_tx.put_transaction_context(TransactionContext {
+        state_delta.put_transaction_context(TransactionContext {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
             position_in_transaction: 0,
@@ -953,13 +956,13 @@ mod tests {
         let rollup_deposit_address = "rollupaddress";
         let amount = 100;
 
-        state_tx
+        state_delta
             .put_bridge_account_rollup_id(&bridge_address, rollup_id)
             .unwrap();
-        state_tx
+        state_delta
             .put_bridge_account_ibc_asset(&bridge_address, nria())
             .unwrap();
-        state_tx
+        state_delta
             .put_ibc_channel_balance(&packet().chan_on_b, &nria(), amount)
             .unwrap();
 
@@ -974,7 +977,7 @@ mod tests {
             .unwrap(),
         };
         receive_tokens(
-            &mut state_tx,
+            &mut state_delta,
             &Packet {
                 data: serde_json::to_vec(&packet_data).unwrap(),
                 ..packet()
@@ -983,7 +986,7 @@ mod tests {
         .await
         .unwrap();
 
-        let balance = state_tx
+        let balance = state_delta
             .get_account_balance(&bridge_address, &nria())
             .await
             .expect(
@@ -992,7 +995,7 @@ mod tests {
             );
         assert_eq!(balance, 100);
 
-        let deposits = state_tx.get_cached_block_deposits();
+        let deposits = state_delta.get_cached_block_deposits();
         assert_eq!(deposits.len(), 1);
 
         let expected_deposit = Deposit {
@@ -1015,18 +1018,19 @@ mod tests {
 
     #[tokio::test]
     async fn receive_sink_zone_asset_on_bridge_account_and_emit_to_rollup() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state_tx = StateDelta::new(snapshot.clone());
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let bridge_address = astria_address(&[99; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
-        state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-        state_tx
+        state_delta
+            .put_base_prefix(ASTRIA_PREFIX.to_string())
+            .unwrap();
+        state_delta
             .put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX.to_string())
             .unwrap();
-        state_tx.put_transaction_context(TransactionContext {
+        state_delta.put_transaction_context(TransactionContext {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
             position_in_transaction: 0,
@@ -1043,10 +1047,10 @@ mod tests {
         )
         .parse::<Denom>()
         .unwrap();
-        state_tx
+        state_delta
             .put_bridge_account_rollup_id(&bridge_address, rollup_id)
             .unwrap();
-        state_tx
+        state_delta
             .put_bridge_account_ibc_asset(&bridge_address, &remote_asset_on_sequencer)
             .unwrap();
 
@@ -1061,7 +1065,7 @@ mod tests {
             .unwrap(),
         };
         receive_tokens(
-            &mut state_tx,
+            &mut state_delta,
             &Packet {
                 data: serde_json::to_vec(&packet_data).unwrap(),
                 ..packet()
@@ -1070,13 +1074,13 @@ mod tests {
         .await
         .unwrap();
 
-        let balance = state_tx
+        let balance = state_delta
             .get_account_balance(&bridge_address, &remote_asset_on_sequencer)
             .await
             .expect("receipt of funds to a rollup should have updated funds in the bridge account");
         assert_eq!(balance, amount);
 
-        let deposits = state_tx.get_cached_block_deposits();
+        let deposits = state_delta.get_cached_block_deposits();
         assert_eq!(deposits.len(), 1);
 
         let expected_deposit = Deposit {
@@ -1094,17 +1098,16 @@ mod tests {
 
     #[tokio::test]
     async fn transfer_to_bridge_is_rejected_due_to_invalid_memo() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state_tx = StateDelta::new(snapshot.clone());
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let bridge_address = astria_address(&[99; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
-        state_tx
+        state_delta
             .put_bridge_account_rollup_id(&bridge_address, rollup_id)
             .unwrap();
-        state_tx
+        state_delta
             .put_bridge_account_ibc_asset(&bridge_address, sink_asset())
             .unwrap();
 
@@ -1118,7 +1121,7 @@ mod tests {
         // FIXME(janis): assert that the failure is actually due to the malformed memo
         // and not becase of some other input.
         let _ = receive_tokens(
-            &mut state_tx,
+            &mut state_delta,
             &Packet {
                 data: serde_json::to_vec(&packet_data).unwrap(),
                 ..packet()
@@ -1130,17 +1133,16 @@ mod tests {
 
     #[tokio::test]
     async fn transfer_to_bridge_account_is_rejected_due_to_not_permitted_token() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state_tx = StateDelta::new(snapshot.clone());
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let bridge_address = astria_address(&[99; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
-        state_tx
+        state_delta
             .put_bridge_account_rollup_id(&bridge_address, rollup_id)
             .unwrap();
-        state_tx
+        state_delta
             .put_bridge_account_ibc_asset(&bridge_address, sink_asset())
             .unwrap();
 
@@ -1157,7 +1159,7 @@ mod tests {
         // FIXME(janis): assert that the failure is actually due to the not permitted asset
         // and not because of some other input.
         let _ = receive_tokens(
-            &mut state_tx,
+            &mut state_delta,
             &Packet {
                 data: serde_json::to_vec(&packet_data).unwrap(),
                 ..packet()
@@ -1169,18 +1171,19 @@ mod tests {
 
     #[tokio::test]
     async fn refund_sequencer_account_with_source_zone_asset() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state_tx = StateDelta::new(snapshot.clone());
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
-        state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-        state_tx
+        state_delta
+            .put_base_prefix(ASTRIA_PREFIX.to_string())
+            .unwrap();
+        state_delta
             .put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX.to_string())
             .unwrap();
 
         let recipient_address = astria_address(&[1; 20]);
         let amount = 100;
-        state_tx
+        state_delta
             .put_ibc_channel_balance(&packet().chan_on_a, &nria(), amount)
             .unwrap();
 
@@ -1193,7 +1196,7 @@ mod tests {
         };
 
         refund_tokens(
-            &mut state_tx,
+            &mut state_delta,
             &Packet {
                 data: serde_json::to_vec(&packet_data).unwrap(),
                 ..packet()
@@ -1202,12 +1205,12 @@ mod tests {
         .await
         .expect("valid ics20 refund to user account; recipient, memo, and asset ID are valid");
 
-        let balance = state_tx
+        let balance = state_delta
             .get_account_balance(&recipient_address, &nria())
             .await
             .expect("ics20 refund to user account should succeed");
         assert_eq!(balance, amount);
-        let balance = state_tx
+        let balance = state_delta
             .get_ibc_channel_balance(&packet().chan_on_a, &nria())
             .await
             .expect("ics20 refund to user account from escrow account should succeed");
@@ -1216,18 +1219,19 @@ mod tests {
 
     #[tokio::test]
     async fn refund_sequencer_account_with_sink_zone_asset() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state_tx = StateDelta::new(snapshot.clone());
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
-        state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-        state_tx
+        state_delta
+            .put_base_prefix(ASTRIA_PREFIX.to_string())
+            .unwrap();
+        state_delta
             .put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX.to_string())
             .unwrap();
 
         let recipient_address = astria_address(&[1; 20]);
         let amount = 100;
-        state_tx
+        state_delta
             .put_ibc_channel_balance(&packet().chan_on_a, &sink_asset(), amount)
             .unwrap();
 
@@ -1240,7 +1244,7 @@ mod tests {
         };
 
         refund_tokens(
-            &mut state_tx,
+            &mut state_delta,
             &Packet {
                 data: serde_json::to_vec(&packet_data).unwrap(),
                 ..packet()
@@ -1249,12 +1253,12 @@ mod tests {
         .await
         .expect("valid ics20 refund to user account; recipient, memo, and asset ID are valid");
 
-        let balance = state_tx
+        let balance = state_delta
             .get_account_balance(&recipient_address, &sink_asset())
             .await
             .expect("ics20 refund to user account should succeed");
         assert_eq!(balance, amount);
-        let balance = state_tx
+        let balance = state_delta
             .get_ibc_channel_balance(&packet().chan_on_a, &sink_asset())
             .await
             .expect("ics20 refund to user account from escrow account should succeed");
@@ -1263,12 +1267,13 @@ mod tests {
 
     #[tokio::test]
     async fn refund_rollup_with_sink_zone_asset() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state_tx = StateDelta::new(snapshot.clone());
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
-        state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-        state_tx
+        state_delta
+            .put_base_prefix(ASTRIA_PREFIX.to_string())
+            .unwrap();
+        state_delta
             .put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX.to_string())
             .unwrap();
 
@@ -1276,21 +1281,21 @@ mod tests {
 
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
-        state_tx.put_transaction_context(TransactionContext {
+        state_delta.put_transaction_context(TransactionContext {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
             position_in_transaction: 0,
         });
 
-        state_tx
+        state_delta
             .put_bridge_account_rollup_id(&bridge_address, rollup_id)
             .unwrap();
-        state_tx
+        state_delta
             .put_bridge_account_ibc_asset(&bridge_address, sink_asset())
             .unwrap();
 
         let amount = 100;
-        state_tx
+        state_delta
             .put_ibc_channel_balance(&packet().chan_on_a, &sink_asset(), amount)
             .unwrap();
 
@@ -1311,7 +1316,7 @@ mod tests {
             .unwrap(),
         };
         refund_tokens(
-            &mut state_tx,
+            &mut state_delta,
             &Packet {
                 data: serde_json::to_vec(&packet_data).unwrap(),
                 ..packet()
@@ -1320,13 +1325,13 @@ mod tests {
         .await
         .expect("valid rollup withdrawal refund");
 
-        let balance = state_tx
+        let balance = state_delta
             .get_account_balance(&bridge_address, &sink_asset())
             .await
             .expect("rollup withdrawal refund should have updated funds in the bridge address");
         assert_eq!(balance, amount);
 
-        let deposit = state_tx.get_cached_block_deposits();
+        let deposit = state_delta.get_cached_block_deposits();
 
         let expected_deposit = Deposit {
             bridge_address,
@@ -1342,17 +1347,18 @@ mod tests {
 
     #[tokio::test]
     async fn refund_rollup_with_source_zone_asset() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state_tx = StateDelta::new(snapshot.clone());
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
-        state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-        state_tx
+        state_delta
+            .put_base_prefix(ASTRIA_PREFIX.to_string())
+            .unwrap();
+        state_delta
             .put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX.to_string())
             .unwrap();
 
         let amount = 100;
-        state_tx
+        state_delta
             .put_ibc_channel_balance(&packet().chan_on_a, &nria(), amount)
             .unwrap();
 
@@ -1360,16 +1366,16 @@ mod tests {
         let destination_chain_address = "rollup-defined";
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
-        state_tx.put_transaction_context(TransactionContext {
+        state_delta.put_transaction_context(TransactionContext {
             address_bytes: bridge_address.bytes(),
             transaction_id: TransactionId::new([0; 32]),
             position_in_transaction: 0,
         });
 
-        state_tx
+        state_delta
             .put_bridge_account_rollup_id(&bridge_address, rollup_id)
             .unwrap();
-        state_tx
+        state_delta
             .put_bridge_account_ibc_asset(&bridge_address, nria())
             .unwrap();
 
@@ -1388,7 +1394,7 @@ mod tests {
         };
 
         refund_tokens(
-            &mut state_tx,
+            &mut state_delta,
             &Packet {
                 data: serde_json::to_vec(&packet_denom).unwrap(),
                 ..packet()
@@ -1397,13 +1403,13 @@ mod tests {
         .await
         .unwrap();
 
-        let balance = state_tx
+        let balance = state_delta
             .get_account_balance(&bridge_address, &nria())
             .await
             .expect("refunds of rollup withdrawals should be credited to the bridge account");
         assert_eq!(balance, amount);
 
-        let deposits = state_tx.get_cached_block_deposits();
+        let deposits = state_delta.get_cached_block_deposits();
 
         let deposit = deposits
             .get(&rollup_id)
@@ -1424,12 +1430,13 @@ mod tests {
 
     #[tokio::test]
     async fn refund_rollup_with_source_zone_asset_compat_prefix() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state_tx = StateDelta::new(snapshot.clone());
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
-        state_tx.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-        state_tx
+        state_delta
+            .put_base_prefix(ASTRIA_PREFIX.to_string())
+            .unwrap();
+        state_delta
             .put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX.to_string())
             .unwrap();
 
@@ -1438,16 +1445,16 @@ mod tests {
         let destination_chain_address = "rollup-defined-address".to_string();
 
         let amount = 100;
-        state_tx
+        state_delta
             .put_ibc_channel_balance(&packet().chan_on_a, &nria(), amount)
             .unwrap();
 
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
-        state_tx
+        state_delta
             .put_bridge_account_rollup_id(&bridge_address, rollup_id)
             .unwrap();
-        state_tx
+        state_delta
             .put_bridge_account_ibc_asset(&bridge_address, nria())
             .unwrap();
 
@@ -1470,10 +1477,10 @@ mod tests {
             transaction_id: TransactionId::new([0; 32]),
             position_in_transaction: 0,
         };
-        state_tx.put_transaction_context(transaction_context);
+        state_delta.put_transaction_context(transaction_context);
 
         refund_tokens(
-            &mut state_tx,
+            &mut state_delta,
             &Packet {
                 data: serde_json::to_vec(&packet_data).unwrap(),
                 ..packet()
@@ -1482,13 +1489,13 @@ mod tests {
         .await
         .unwrap();
 
-        let balance = state_tx
+        let balance = state_delta
             .get_account_balance(&bridge_address, &nria())
             .await
             .expect("refunding a rollup should add the tokens to its bridge address");
         assert_eq!(balance, amount);
 
-        let deposits = state_tx.get_cached_block_deposits();
+        let deposits = state_delta.get_cached_block_deposits();
         assert_eq!(deposits.len(), 1);
 
         let deposit = deposits.get(&rollup_id).unwrap().first().unwrap();

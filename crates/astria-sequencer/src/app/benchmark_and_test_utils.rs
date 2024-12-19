@@ -31,11 +31,7 @@ use astria_core::{
     Protobuf,
 };
 use astria_eyre::eyre::WrapErr as _;
-use cnidarium::{
-    Snapshot,
-    StateDelta,
-    Storage,
-};
+use cnidarium::StateDelta;
 use penumbra_ibc::IbcRelay;
 use telemetry::Metrics as _;
 
@@ -50,6 +46,10 @@ use crate::{
     fees::StateWriteExt as _,
     mempool::Mempool,
     metrics::Metrics,
+    storage::{
+        Snapshot,
+        Storage,
+    },
 };
 
 pub(crate) const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
@@ -124,9 +124,7 @@ pub(crate) async fn initialize_app_with_storage(
     genesis_state: Option<GenesisAppState>,
     genesis_validators: Vec<ValidatorUpdate>,
 ) -> (App, Storage) {
-    let storage = cnidarium::TempStorage::new()
-        .await
-        .expect("failed to create temp storage backing chain state");
+    let storage = Storage::new_temp().await;
     let snapshot = storage.latest_snapshot();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
     let mempool = Mempool::new(metrics, 100);
@@ -248,121 +246,120 @@ pub(crate) fn mock_state_put_account_nonce(
 }
 
 pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
-    let storage = cnidarium::TempStorage::new().await.unwrap();
-    let snapshot = storage.latest_snapshot();
-    let mut state: StateDelta<cnidarium::Snapshot> = StateDelta::new(snapshot);
+    let storage = Storage::new_temp().await;
+    let mut state_delta = storage.new_delta_of_latest_snapshot();
 
     // setup denoms
-    state
+    state_delta
         .put_ibc_asset(denom_0().unwrap_trace_prefixed())
         .unwrap();
-    state
+    state_delta
         .put_ibc_asset(denom_1().unwrap_trace_prefixed())
         .unwrap();
-    state
+    state_delta
         .put_ibc_asset(denom_2().unwrap_trace_prefixed())
         .unwrap();
-    state
+    state_delta
         .put_ibc_asset(denom_3().unwrap_trace_prefixed())
         .unwrap();
-    state
+    state_delta
         .put_ibc_asset(denom_4().unwrap_trace_prefixed())
         .unwrap();
-    state
+    state_delta
         .put_ibc_asset(denom_5().unwrap_trace_prefixed())
         .unwrap();
-    state
+    state_delta
         .put_ibc_asset(denom_6().unwrap_trace_prefixed())
         .unwrap();
 
     // setup tx fees
     let transfer_fees = FeeComponents::<Transfer>::new(0, 0);
-    state
+    state_delta
         .put_fees(transfer_fees)
         .wrap_err("failed to initiate transfer fee components")
         .unwrap();
 
     let rollup_data_submission_fees =
         FeeComponents::<RollupDataSubmission>::new(MOCK_SEQUENCE_FEE, 0);
-    state
+    state_delta
         .put_fees(rollup_data_submission_fees)
         .wrap_err("failed to initiate rollup data submission fee components")
         .unwrap();
 
     let ics20_withdrawal_fees = FeeComponents::<Ics20Withdrawal>::new(0, 0);
-    state
+    state_delta
         .put_fees(ics20_withdrawal_fees)
         .wrap_err("failed to initiate ics20 withdrawal fee components")
         .unwrap();
 
     let init_bridge_account_fees = FeeComponents::<InitBridgeAccount>::new(0, 0);
-    state
+    state_delta
         .put_fees(init_bridge_account_fees)
         .wrap_err("failed to initiate init bridge account fee components")
         .unwrap();
 
     let bridge_lock_fees = FeeComponents::<BridgeLock>::new(0, 0);
-    state
+    state_delta
         .put_fees(bridge_lock_fees)
         .wrap_err("failed to initiate bridge lock fee components")
         .unwrap();
 
     let bridge_unlock_fees = FeeComponents::<BridgeUnlock>::new(0, 0);
-    state
+    state_delta
         .put_fees(bridge_unlock_fees)
         .wrap_err("failed to initiate bridge unlock fee components")
         .unwrap();
 
     let bridge_sudo_change_fees = FeeComponents::<BridgeSudoChange>::new(0, 0);
-    state
+    state_delta
         .put_fees(bridge_sudo_change_fees)
         .wrap_err("failed to initiate bridge sudo change fee components")
         .unwrap();
 
     let ibc_relay_fees = FeeComponents::<IbcRelay>::new(0, 0);
-    state
+    state_delta
         .put_fees(ibc_relay_fees)
         .wrap_err("failed to initiate ibc relay fee components")
         .unwrap();
 
     let validator_update_fees = FeeComponents::<ValidatorUpdate>::new(0, 0);
-    state
+    state_delta
         .put_fees(validator_update_fees)
         .wrap_err("failed to initiate validator update fee components")
         .unwrap();
 
     let fee_asset_change_fees = FeeComponents::<FeeAssetChange>::new(0, 0);
-    state
+    state_delta
         .put_fees(fee_asset_change_fees)
         .wrap_err("failed to initiate fee asset change fee components")
         .unwrap();
 
     let fee_change_fees = FeeComponents::<FeeChange>::new(0, 0);
-    state
+    state_delta
         .put_fees(fee_change_fees)
         .wrap_err("failed to initiate fee change fees fee components")
         .unwrap();
 
     let ibc_relayer_change_fees = FeeComponents::<IbcRelayerChange>::new(0, 0);
-    state
+    state_delta
         .put_fees(ibc_relayer_change_fees)
         .wrap_err("failed to initiate ibc relayer change fee components")
         .unwrap();
 
     let sudo_address_change_fees = FeeComponents::<SudoAddressChange>::new(0, 0);
-    state
+    state_delta
         .put_fees(sudo_address_change_fees)
         .wrap_err("failed to initiate sudo address change fee components")
         .unwrap();
 
     let ibc_sudo_change_fees = FeeComponents::<IbcSudoChange>::new(0, 0);
-    state
+    state_delta
         .put_fees(ibc_sudo_change_fees)
         .wrap_err("failed to initiate ibc sudo change fee components")
         .unwrap();
 
     // put denoms as allowed fee asset
-    state.put_allowed_fee_asset(&denom_0()).unwrap();
+    state_delta.put_allowed_fee_asset(&denom_0()).unwrap();
 
-    state
+    state_delta
 }

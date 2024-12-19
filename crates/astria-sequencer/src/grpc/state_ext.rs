@@ -341,11 +341,13 @@ mod tests {
         protocol::test_utils::ConfigureSequencerBlock,
         sequencerblock::v1::block::Deposit,
     };
-    use cnidarium::StateDelta;
     use rand::Rng;
 
     use super::*;
-    use crate::benchmark_and_test_utils::astria_address;
+    use crate::{
+        benchmark_and_test_utils::astria_address,
+        storage::Storage,
+    };
 
     // creates new sequencer block, optionally shifting all values except the height by 1
     fn make_test_sequencer_block(height: u32) -> SequencerBlock {
@@ -383,18 +385,17 @@ mod tests {
 
     #[tokio::test]
     async fn put_sequencer_block() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // can write one
         let block_0 = make_test_sequencer_block(2u32);
-        state
+        state_delta
             .put_sequencer_block(block_0.clone())
             .expect("writing block to database should work");
 
         assert_eq!(
-            state
+            state_delta
                 .get_sequencer_block_by_height(block_0.height().into())
                 .await
                 .expect("a block was written to the database and should exist"),
@@ -404,11 +405,11 @@ mod tests {
 
         // can write another and both are ok
         let block_1 = make_test_sequencer_block(3u32);
-        state
+        state_delta
             .put_sequencer_block(block_1.clone())
             .expect("writing another block to database should work");
         assert_eq!(
-            state
+            state_delta
                 .get_sequencer_block_by_height(block_0.height().into())
                 .await
                 .expect("a block was written to the database and should exist"),
@@ -416,7 +417,7 @@ mod tests {
             "original stored block does not match expected"
         );
         assert_eq!(
-            state
+            state_delta
                 .get_sequencer_block_by_height(block_1.height().into())
                 .await
                 .expect("a block was written to the database and should exist"),
@@ -427,17 +428,16 @@ mod tests {
 
     #[tokio::test]
     async fn put_sequencer_block_update() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // write original block
         let mut block = make_test_sequencer_block(2u32);
-        state
+        state_delta
             .put_sequencer_block(block.clone())
             .expect("writing block to database should work");
         assert_eq!(
-            state
+            state_delta
                 .get_sequencer_block_by_height(block.height().into())
                 .await
                 .expect("a block was written to the database and should exist"),
@@ -447,13 +447,13 @@ mod tests {
 
         // write to same height but with new values
         block = make_test_sequencer_block(2u32);
-        state
+        state_delta
             .put_sequencer_block(block.clone())
             .expect("writing block update to database should work");
 
         // block was updates
         assert_eq!(
-            state
+            state_delta
                 .get_sequencer_block_by_height(block.height().into())
                 .await
                 .expect("a block was written to the database and should exist"),
@@ -464,19 +464,18 @@ mod tests {
 
     #[tokio::test]
     async fn get_block_hash_by_height() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // write block
         let block = make_test_sequencer_block(2u32);
-        state
+        state_delta
             .put_sequencer_block(block.clone())
             .expect("writing block to database should work");
 
         // grab block hash by block height
         assert_eq!(
-            state
+            state_delta
                 .get_block_hash_by_height(block.height().into())
                 .await
                 .expect(
@@ -490,19 +489,18 @@ mod tests {
 
     #[tokio::test]
     async fn get_sequencer_block_header_by_hash() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // write block
         let block = make_test_sequencer_block(2u32);
-        state
+        state_delta
             .put_sequencer_block(block.clone())
             .expect("writing block to database should work");
 
         // grab block header by block hash
         assert_eq!(
-            state
+            state_delta
                 .get_sequencer_block_header_by_hash(block.block_hash())
                 .await
                 .expect(
@@ -516,18 +514,17 @@ mod tests {
 
     #[tokio::test]
     async fn get_rollup_ids_by_block_hash() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // write block
         let block = make_test_sequencer_block(2u32);
-        state
+        state_delta
             .put_sequencer_block(block.clone())
             .expect("writing block to database should work");
 
         // grab rollup ids by block hash
-        let stored_rollup_ids = state
+        let stored_rollup_ids = state_delta
             .get_rollup_ids_by_block_hash(block.block_hash())
             .await
             .expect(
@@ -543,19 +540,18 @@ mod tests {
 
     #[tokio::test]
     async fn get_sequencer_block_by_hash() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // write block
         let block = make_test_sequencer_block(2u32);
-        state
+        state_delta
             .put_sequencer_block(block.clone())
             .expect("writing block to database should work");
 
         // grab block by block hash
         assert_eq!(
-            super::get_sequencer_block_by_hash(&state, block.block_hash())
+            super::get_sequencer_block_by_hash(&state_delta, block.block_hash())
                 .await
                 .expect(
                     "a block was written to the database and we should be able to query its block \
@@ -568,13 +564,12 @@ mod tests {
 
     #[tokio::test]
     async fn get_rollup_data() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // write block
         let block = make_test_sequencer_block(2u32);
-        state
+        state_delta
             .put_sequencer_block(block.clone())
             .expect("writing block to database should work");
 
@@ -587,7 +582,7 @@ mod tests {
         let rollup_data = block.rollup_transactions().get(&rollup_id).unwrap();
 
         // grab rollup's data by block hash
-        let stored_rollup_data = state
+        let stored_rollup_data = state_delta
             .get_rollup_data(block.block_hash(), &rollup_id)
             .await
             .expect(
@@ -602,16 +597,15 @@ mod tests {
 
     #[tokio::test]
     async fn get_rollup_transactions_proof_by_block_hash() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let block = make_test_sequencer_block(2u32);
-        state
+        state_delta
             .put_sequencer_block(block.clone())
             .expect("writing block to database should work");
 
-        let transactions_proof = state
+        let transactions_proof = state_delta
             .get_rollup_transactions_proof_by_block_hash(block.block_hash())
             .await
             .expect("should have txs proof in state");
@@ -620,16 +614,15 @@ mod tests {
 
     #[tokio::test]
     async fn get_rollup_ids_proof_by_block_hash() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         let block = make_test_sequencer_block(2u32);
-        state
+        state_delta
             .put_sequencer_block(block.clone())
             .expect("writing block to database should work");
 
-        let ids_proof = state
+        let ids_proof = state_delta
             .get_rollup_ids_proof_by_block_hash(block.block_hash())
             .await
             .expect("should have ids proof in state");

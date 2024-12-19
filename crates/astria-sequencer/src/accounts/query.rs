@@ -13,11 +13,7 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
-use cnidarium::{
-    Snapshot,
-    StateRead,
-    Storage,
-};
+use cnidarium::StateRead;
 use futures::TryStreamExt as _;
 use prost::Message as _;
 use tendermint::{
@@ -37,6 +33,10 @@ use crate::{
     accounts::StateReadExt as _,
     app::StateReadExt as _,
     assets::StateReadExt as _,
+    storage::{
+        Snapshot,
+        Storage,
+    },
 };
 
 #[instrument(skip_all, fields(%asset), err(level = Level::DEBUG))]

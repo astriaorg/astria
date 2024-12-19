@@ -107,7 +107,10 @@ mod tests {
             FeeHandler,
             StateReadExt as _,
         },
-        storage::StoredValue,
+        storage::{
+            Storage,
+            StoredValue,
+        },
         transaction::{
             StateWriteExt as _,
             TransactionContext,
@@ -190,20 +193,19 @@ mod tests {
         FeeComponents<F>: TryFrom<StoredValue<'a>, Error = Report> + Debug,
         FeeChange: From<FeeComponents<F>>,
     {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = cnidarium::StateDelta::new(snapshot);
+        let storage = Storage::new_temp().await;
+        let mut state_delta = storage.new_delta_of_latest_snapshot();
 
         // Put the context to enable the txs to execute.
-        state.put_transaction_context(TransactionContext {
+        state_delta.put_transaction_context(TransactionContext {
             address_bytes: [1; 20],
             transaction_id: TransactionId::new([0; 32]),
             position_in_transaction: 0,
         });
-        state.put_sudo_address([1; 20]).unwrap();
+        state_delta.put_sudo_address([1; 20]).unwrap();
 
         assert!(
-            state
+            state_delta
                 .get_fees::<F>()
                 .await
                 .expect("should not error fetching unstored action fees")
@@ -214,11 +216,11 @@ mod tests {
         let initial_fees = FeeComponents::<F>::new(1, 2);
         let initial_fee_change = FeeChange::from(initial_fees);
         initial_fee_change
-            .check_and_execute(&mut state)
+            .check_and_execute(&mut state_delta)
             .await
             .unwrap();
 
-        let retrieved_fees = state
+        let retrieved_fees = state_delta
             .get_fees::<F>()
             .await
             .expect("should not error fetching initial action fees")
@@ -228,9 +230,12 @@ mod tests {
         // Execute a second fee change tx to overwrite the fees.
         let new_fees = FeeComponents::<F>::new(3, 4);
         let new_fee_change = FeeChange::from(new_fees);
-        new_fee_change.check_and_execute(&mut state).await.unwrap();
+        new_fee_change
+            .check_and_execute(&mut state_delta)
+            .await
+            .unwrap();
 
-        let retrieved_fees = state
+        let retrieved_fees = state_delta
             .get_fees::<F>()
             .await
             .expect("should not error fetching new action fees")
