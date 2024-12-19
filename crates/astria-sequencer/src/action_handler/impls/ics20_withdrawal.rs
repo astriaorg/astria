@@ -37,6 +37,10 @@ use penumbra_ibc::component::packet::{
     Unchecked,
 };
 use penumbra_proto::core::component::ibc::v1::FungibleTokenPacketData;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     accounts::{
@@ -60,6 +64,7 @@ use crate::{
 #[async_trait]
 impl ActionHandler for action::Ics20Withdrawal {
     // TODO(https://github.com/astriaorg/astria/issues/1430): move checks to the `Ics20Withdrawal` parsing.
+    #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn check_stateless(&self) -> Result<()> {
         ensure!(self.timeout_time() != 0, "timeout time must be non-zero",);
         ensure!(self.amount() > 0, "amount must be greater than zero",);
@@ -95,6 +100,7 @@ impl ActionHandler for action::Ics20Withdrawal {
         Ok(())
     }
 
+    #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
             .get_transaction_context()

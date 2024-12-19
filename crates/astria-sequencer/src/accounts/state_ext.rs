@@ -25,7 +25,10 @@ use cnidarium::{
 };
 use futures::Stream;
 use pin_project_lite::pin_project;
-use tracing::instrument;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use super::storage::{
     self,
@@ -141,7 +144,7 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
         }
     }
 
-    #[instrument(skip_all, fields(address = %address.display_address(), %asset), err)]
+    #[instrument(skip_all, fields(address = %address.display_address(), %asset), err(level = Level::WARN))]
     async fn get_account_balance<'a, TAddress, TAsset>(
         &self,
         address: &TAddress,
@@ -165,7 +168,7 @@ pub(crate) trait StateReadExt: StateRead + crate::assets::StateReadExt {
             .wrap_err("invalid balance bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn get_account_nonce<T: AddressBytes>(&self, address: &T) -> Result<u32> {
         let bytes = self
             .get_raw(&keys::nonce(address))
@@ -186,7 +189,7 @@ impl<T: StateRead + ?Sized> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip_all, fields(address = %address.display_address(), %asset, balance), err)]
+    #[instrument(skip_all, fields(address = %address.display_address(), %asset, balance), err(level = Level::WARN))]
     fn put_account_balance<'a, TAddress, TAsset>(
         &mut self,
         address: &TAddress,
@@ -205,7 +208,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(address = %address.display_address(), nonce), err(level = Level::WARN))]
     fn put_account_nonce<T: AddressBytes>(&mut self, address: &T, nonce: u32) -> Result<()> {
         let bytes = StoredValue::from(storage::Nonce::from(nonce))
             .serialize()
@@ -214,7 +217,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all, fields(address = %address.display_address(), %asset, amount), err)]
+    #[instrument(skip_all, fields(address = %address.display_address(), %asset, amount), err(level = Level::WARN))]
     async fn increase_balance<'a, TAddress, TAsset>(
         &mut self,
         address: &TAddress,
@@ -241,7 +244,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all, fields(address = %address.display_address(), %asset, amount))]
+    #[instrument(skip_all, fields(address = %address.display_address(), %asset, amount), err(level = Level::DEBUG))]
     async fn decrease_balance<'a, TAddress, TAsset>(
         &mut self,
         address: &TAddress,
