@@ -3,14 +3,17 @@ use std::collections::HashMap;
 use astria_core::primitive::v1::asset;
 use astria_eyre::eyre::Result;
 use cnidarium::StateRead;
-use tracing::instrument;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::accounts::{
     AddressBytes,
     StateReadExt as _,
 };
 
-#[instrument(skip_all)]
+#[instrument(skip_all, fields(address = %address.display_address()), err(level = Level::DEBUG))]
 pub(crate) async fn get_account_balances<S: StateRead, T: AddressBytes>(
     state: S,
     address: &T,

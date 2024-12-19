@@ -9,7 +9,10 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
-use tracing::instrument;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use super::{
     StateReadExt,
@@ -34,7 +37,7 @@ pub(crate) struct AuthorityComponentAppState {
 impl Component for AuthorityComponent {
     type AppState = AuthorityComponentAppState;
 
-    #[instrument(name = "AuthorityComponent::init_chain", skip_all)]
+    #[instrument(name = "AuthorityComponent::init_chain", skip_all, err)]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
         // set sudo key and initial validator set
         state
@@ -47,7 +50,7 @@ impl Component for AuthorityComponent {
         Ok(())
     }
 
-    #[instrument(name = "AuthorityComponent::prepare_state_for_tx_execution", skip_all)]
+    #[instrument(name = "AuthorityComponent::prepare_state_for_tx_execution", skip_all, err(level = Level::WARN))]
     async fn prepare_state_for_tx_execution<S: StateWriteExt + 'static>(
         state: &mut Arc<S>,
         prepare_state_info: &PrepareStateInfo,
@@ -69,7 +72,7 @@ impl Component for AuthorityComponent {
         Ok(())
     }
 
-    #[instrument(name = "AuthorityComponent::handle_post_tx_execution", skip_all)]
+    #[instrument(name = "AuthorityComponent::handle_post_tx_execution", skip_all, err(level = Level::WARN))]
     async fn handle_post_tx_execution<S: StateWriteExt + StateReadExt + 'static>(
         state: &mut Arc<S>,
     ) -> Result<()> {

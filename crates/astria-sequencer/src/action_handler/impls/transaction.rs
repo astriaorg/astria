@@ -1,8 +1,11 @@
 use std::fmt;
 
-use astria_core::protocol::transaction::v1::{
-    Action,
-    Transaction,
+use astria_core::protocol::{
+    fees::v1::FeeComponents,
+    transaction::v1::{
+        Action,
+        Transaction,
+    },
 };
 use astria_eyre::{
     anyhow_to_eyre,
@@ -10,10 +13,15 @@ use astria_eyre::{
         ensure,
         Context as _,
         OptionExt as _,
+        Report,
         Result,
     },
 };
 use cnidarium::StateWrite;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     accounts::{
@@ -31,6 +39,7 @@ use crate::{
         host_interface::AstriaHost,
         StateReadExt as _,
     },
+    storage::StoredValue,
     transaction::{
         check_balance_for_total_fees_and_transfers,
         StateWriteExt as _,
@@ -69,6 +78,7 @@ impl std::error::Error for InvalidNonce {}
 
 #[async_trait::async_trait]
 impl ActionHandler for Transaction {
+    #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn check_stateless(&self) -> Result<()> {
         ensure!(!self.actions().is_empty(), "must have at least one action");
 
@@ -144,7 +154,7 @@ impl ActionHandler for Transaction {
     // FIXME (https://github.com/astriaorg/astria/issues/1584): because most lines come from delegating (and error wrapping) to the
     // individual actions. This could be tidied up by implementing `ActionHandler for Action`
     // and letting it delegate.
-    #[expect(clippy::too_many_lines, reason = "should be refactored")]
+    #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         // Add the current signed transaction into the ephemeral state in case
         // downstream actions require access to it.
@@ -271,10 +281,12 @@ impl ActionHandler for Transaction {
     }
 }
 
-async fn check_execute_and_pay_fees<T: ActionHandler + FeeHandler + Sync, S: StateWrite>(
-    action: &T,
-    mut state: S,
-) -> Result<()> {
+async fn check_execute_and_pay_fees<'a, T, S>(action: &T, mut state: S) -> Result<()>
+where
+    T: ActionHandler + FeeHandler + Sync,
+    FeeComponents<T>: TryFrom<StoredValue<'a>, Error = Report>,
+    S: StateWrite,
+{
     action.check_and_execute(&mut state).await?;
     action.check_and_pay_fees(&mut state).await?;
     Ok(())

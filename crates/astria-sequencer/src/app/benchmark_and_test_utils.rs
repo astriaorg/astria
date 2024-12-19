@@ -6,28 +6,27 @@ use astria_core::{
         IbcPrefixed,
     },
     protocol::{
-        fees::v1::{
-            BridgeLockFeeComponents,
-            BridgeSudoChangeFeeComponents,
-            BridgeUnlockFeeComponents,
-            FeeAssetChangeFeeComponents,
-            FeeChangeFeeComponents,
-            IbcRelayFeeComponents,
-            IbcRelayerChangeFeeComponents,
-            IbcSudoChangeFeeComponents,
-            Ics20WithdrawalFeeComponents,
-            InitBridgeAccountFeeComponents,
-            RollupDataSubmissionFeeComponents,
-            SudoAddressChangeFeeComponents,
-            TransferFeeComponents,
-            ValidatorUpdateFeeComponents,
-        },
+        fees::v1::FeeComponents,
         genesis::v1::{
             Account,
             AddressPrefixes,
             GenesisAppState,
         },
-        transaction::v1::action::ValidatorUpdate,
+        transaction::v1::action::{
+            BridgeLock,
+            BridgeSudoChange,
+            BridgeUnlock,
+            FeeAssetChange,
+            FeeChange,
+            IbcRelayerChange,
+            IbcSudoChange,
+            Ics20Withdrawal,
+            InitBridgeAccount,
+            RollupDataSubmission,
+            SudoAddressChange,
+            Transfer,
+            ValidatorUpdate,
+        },
     },
     Protobuf,
 };
@@ -37,6 +36,7 @@ use cnidarium::{
     StateDelta,
     Storage,
 };
+use penumbra_ibc::IbcRelay;
 use telemetry::Metrics as _;
 
 use crate::{
@@ -70,62 +70,22 @@ pub(crate) fn address_prefixes() -> AddressPrefixes {
 
 pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1::GenesisFees {
     astria_core::protocol::genesis::v1::GenesisFees {
-        transfer: Some(TransferFeeComponents {
-            base: 12,
-            multiplier: 0,
-        }),
-        rollup_data_submission: Some(RollupDataSubmissionFeeComponents {
-            base: 32,
-            multiplier: 1,
-        }),
-        init_bridge_account: Some(InitBridgeAccountFeeComponents {
-            base: 48,
-            multiplier: 0,
-        }),
-        bridge_lock: Some(BridgeLockFeeComponents {
-            base: 12, // should reflect transfer fee
-            multiplier: 1,
-        }),
-        bridge_sudo_change: Some(BridgeSudoChangeFeeComponents {
-            base: 24,
-            multiplier: 0,
-        }),
-        ics20_withdrawal: Some(Ics20WithdrawalFeeComponents {
-            base: 24,
-            multiplier: 0,
-        }),
-        bridge_unlock: Some(BridgeUnlockFeeComponents {
-            base: 12, // should reflect transfer fee
-            multiplier: 0,
-        }),
-        ibc_relay: Some(IbcRelayFeeComponents {
-            base: 0,
-            multiplier: 0,
-        }),
-        validator_update: Some(ValidatorUpdateFeeComponents {
-            base: 0,
-            multiplier: 0,
-        }),
-        fee_asset_change: Some(FeeAssetChangeFeeComponents {
-            base: 0,
-            multiplier: 0,
-        }),
-        fee_change: FeeChangeFeeComponents {
-            base: 0,
-            multiplier: 0,
-        },
-        ibc_relayer_change: Some(IbcRelayerChangeFeeComponents {
-            base: 0,
-            multiplier: 0,
-        }),
-        sudo_address_change: Some(SudoAddressChangeFeeComponents {
-            base: 0,
-            multiplier: 0,
-        }),
-        ibc_sudo_change: Some(IbcSudoChangeFeeComponents {
-            base: 0,
-            multiplier: 0,
-        }),
+        transfer: Some(FeeComponents::<Transfer>::new(12, 0)),
+        rollup_data_submission: Some(FeeComponents::<RollupDataSubmission>::new(32, 1)),
+        init_bridge_account: Some(FeeComponents::<InitBridgeAccount>::new(48, 0)),
+        // should reflect transfer fee
+        bridge_lock: Some(FeeComponents::<BridgeLock>::new(12, 1)),
+        bridge_sudo_change: Some(FeeComponents::<BridgeSudoChange>::new(24, 0)),
+        ics20_withdrawal: Some(FeeComponents::<Ics20Withdrawal>::new(24, 0)),
+        // should reflect transfer fee
+        bridge_unlock: Some(FeeComponents::<BridgeUnlock>::new(12, 0)),
+        ibc_relay: Some(FeeComponents::<IbcRelay>::new(0, 0)),
+        validator_update: Some(FeeComponents::<ValidatorUpdate>::new(0, 0)),
+        fee_asset_change: Some(FeeComponents::<FeeAssetChange>::new(0, 0)),
+        fee_change: FeeComponents::<FeeChange>::new(0, 0),
+        ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0)),
+        sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0)),
+        ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0)),
     }
 }
 
@@ -287,10 +247,6 @@ pub(crate) fn mock_state_put_account_nonce(
     state.put_account_nonce(address, nonce).unwrap();
 }
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "lines come from necessary fees setup"
-)]
 pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
     let storage = cnidarium::TempStorage::new().await.unwrap();
     let snapshot = storage.latest_snapshot();
@@ -320,130 +276,88 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .unwrap();
 
     // setup tx fees
-    // setup tx fees
-    let transfer_fees = TransferFeeComponents {
-        base: 0,
-        multiplier: 0,
-    };
+    let transfer_fees = FeeComponents::<Transfer>::new(0, 0);
     state
-        .put_transfer_fees(transfer_fees)
+        .put_fees(transfer_fees)
         .wrap_err("failed to initiate transfer fee components")
         .unwrap();
 
-    let rollup_data_submission_fees = RollupDataSubmissionFeeComponents {
-        base: MOCK_SEQUENCE_FEE,
-        multiplier: 0,
-    };
+    let rollup_data_submission_fees =
+        FeeComponents::<RollupDataSubmission>::new(MOCK_SEQUENCE_FEE, 0);
     state
-        .put_rollup_data_submission_fees(rollup_data_submission_fees)
-        .wrap_err("failed to initiate sequence action fee components")
+        .put_fees(rollup_data_submission_fees)
+        .wrap_err("failed to initiate rollup data submission fee components")
         .unwrap();
 
-    let ics20_withdrawal_fees = Ics20WithdrawalFeeComponents {
-        base: 0,
-        multiplier: 0,
-    };
+    let ics20_withdrawal_fees = FeeComponents::<Ics20Withdrawal>::new(0, 0);
     state
-        .put_ics20_withdrawal_fees(ics20_withdrawal_fees)
+        .put_fees(ics20_withdrawal_fees)
         .wrap_err("failed to initiate ics20 withdrawal fee components")
         .unwrap();
 
-    let init_bridge_account_fees = InitBridgeAccountFeeComponents {
-        base: 0,
-        multiplier: 0,
-    };
+    let init_bridge_account_fees = FeeComponents::<InitBridgeAccount>::new(0, 0);
     state
-        .put_init_bridge_account_fees(init_bridge_account_fees)
+        .put_fees(init_bridge_account_fees)
         .wrap_err("failed to initiate init bridge account fee components")
         .unwrap();
 
-    let bridge_lock_fees = BridgeLockFeeComponents {
-        base: 0,
-        multiplier: 0,
-    };
+    let bridge_lock_fees = FeeComponents::<BridgeLock>::new(0, 0);
     state
-        .put_bridge_lock_fees(bridge_lock_fees)
+        .put_fees(bridge_lock_fees)
         .wrap_err("failed to initiate bridge lock fee components")
         .unwrap();
 
-    let bridge_unlock_fees = BridgeUnlockFeeComponents {
-        base: 0,
-        multiplier: 0,
-    };
+    let bridge_unlock_fees = FeeComponents::<BridgeUnlock>::new(0, 0);
     state
-        .put_bridge_unlock_fees(bridge_unlock_fees)
+        .put_fees(bridge_unlock_fees)
         .wrap_err("failed to initiate bridge unlock fee components")
         .unwrap();
 
-    let bridge_sudo_change_fees = BridgeSudoChangeFeeComponents {
-        base: 0,
-        multiplier: 0,
-    };
+    let bridge_sudo_change_fees = FeeComponents::<BridgeSudoChange>::new(0, 0);
     state
-        .put_bridge_sudo_change_fees(bridge_sudo_change_fees)
+        .put_fees(bridge_sudo_change_fees)
         .wrap_err("failed to initiate bridge sudo change fee components")
         .unwrap();
 
-    let ibc_relay_fees = IbcRelayFeeComponents {
-        base: 0,
-        multiplier: 0,
-    };
+    let ibc_relay_fees = FeeComponents::<IbcRelay>::new(0, 0);
     state
-        .put_ibc_relay_fees(ibc_relay_fees)
+        .put_fees(ibc_relay_fees)
         .wrap_err("failed to initiate ibc relay fee components")
         .unwrap();
 
-    let validator_update_fees = ValidatorUpdateFeeComponents {
-        base: 0,
-        multiplier: 0,
-    };
+    let validator_update_fees = FeeComponents::<ValidatorUpdate>::new(0, 0);
     state
-        .put_validator_update_fees(validator_update_fees)
+        .put_fees(validator_update_fees)
         .wrap_err("failed to initiate validator update fee components")
         .unwrap();
 
-    let fee_asset_change_fees = FeeAssetChangeFeeComponents {
-        base: 0,
-        multiplier: 0,
-    };
+    let fee_asset_change_fees = FeeComponents::<FeeAssetChange>::new(0, 0);
     state
-        .put_fee_asset_change_fees(fee_asset_change_fees)
+        .put_fees(fee_asset_change_fees)
         .wrap_err("failed to initiate fee asset change fee components")
         .unwrap();
 
-    let fee_change_fees = FeeChangeFeeComponents {
-        base: 0,
-        multiplier: 0,
-    };
+    let fee_change_fees = FeeComponents::<FeeChange>::new(0, 0);
     state
-        .put_fee_change_fees(fee_change_fees)
+        .put_fees(fee_change_fees)
         .wrap_err("failed to initiate fee change fees fee components")
         .unwrap();
 
-    let ibc_relayer_change_fees = IbcRelayerChangeFeeComponents {
-        base: 0,
-        multiplier: 0,
-    };
+    let ibc_relayer_change_fees = FeeComponents::<IbcRelayerChange>::new(0, 0);
     state
-        .put_ibc_relayer_change_fees(ibc_relayer_change_fees)
+        .put_fees(ibc_relayer_change_fees)
         .wrap_err("failed to initiate ibc relayer change fee components")
         .unwrap();
 
-    let sudo_address_change_fees = SudoAddressChangeFeeComponents {
-        base: 0,
-        multiplier: 0,
-    };
+    let sudo_address_change_fees = FeeComponents::<SudoAddressChange>::new(0, 0);
     state
-        .put_sudo_address_change_fees(sudo_address_change_fees)
+        .put_fees(sudo_address_change_fees)
         .wrap_err("failed to initiate sudo address change fee components")
         .unwrap();
 
-    let ibc_sudo_change_fees = IbcSudoChangeFeeComponents {
-        base: 0,
-        multiplier: 0,
-    };
+    let ibc_sudo_change_fees = FeeComponents::<IbcSudoChange>::new(0, 0);
     state
-        .put_ibc_sudo_change_fees(ibc_sudo_change_fees)
+        .put_fees(ibc_sudo_change_fees)
         .wrap_err("failed to initiate ibc sudo change fee components")
         .unwrap();
 

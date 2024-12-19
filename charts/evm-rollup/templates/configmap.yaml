@@ -8,7 +8,7 @@ data:
   ASTRIA_CONDUCTOR_CELESTIA_NODE_HTTP_URL: "{{ .Values.config.celestia.rpc }}"
   ASTRIA_CONDUCTOR_EXPECTED_CELESTIA_CHAIN_ID: "{{ tpl .Values.config.conductor.celestiaChainId . }}"
   ASTRIA_CONDUCTOR_CELESTIA_BEARER_TOKEN: "{{ .Values.config.celestia.token }}"
-  ASTRIA_CONDUCTOR_CELESTIA_BLOCK_TIME_MS: "12000"
+  ASTRIA_CONDUCTOR_CELESTIA_BLOCK_TIME_MS: "{{ .Values.config.conductor.celestiaBlockTimeMs }}"
   ASTRIA_CONDUCTOR_EXECUTION_RPC_URL: "http://127.0.0.1:{{ .Values.ports.executionGRPC }}"
   ASTRIA_CONDUCTOR_EXECUTION_COMMIT_LEVEL: "{{ .Values.config.conductor.executionCommitLevel }}"
   ASTRIA_CONDUCTOR_SEQUENCER_GRPC_URL: "{{ tpl .Values.config.conductor.sequencerGrpc . }}"

@@ -30,11 +30,7 @@ enum SubCommand {
 #[derive(Debug, clap::Args)]
 struct Get {
     /// The url of the Sequencer node
-    #[arg(
-        long,
-        env = "SEQUENCER_URL",
-        default_value = crate::DEFAULT_SEQUENCER_RPC
-    )]
+    #[arg(long, env = "SEQUENCER_URL")]
     pub(crate) sequencer_url: String,
     /// The bridge account address on the Sequencer
     pub(crate) address: Address,

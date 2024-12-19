@@ -17,7 +17,10 @@ use tendermint::{
     block::Header,
     Hash,
 };
-use tracing::instrument;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     component::{
@@ -37,7 +40,7 @@ pub(crate) struct IbcComponent;
 impl Component for IbcComponent {
     type AppState = GenesisAppState;
 
-    #[instrument(name = "IbcComponent::init_chain", skip_all)]
+    #[instrument(name = "IbcComponent::init_chain", skip_all, err)]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
         Ibc::init_chain(
             &mut state,
@@ -60,7 +63,7 @@ impl Component for IbcComponent {
         Ok(())
     }
 
-    #[instrument(name = "IbcComponent::prepare_state_for_tx_execution", skip_all)]
+    #[instrument(name = "IbcComponent::prepare_state_for_tx_execution", skip_all, err(level = Level::WARN))]
     async fn prepare_state_for_tx_execution<S: StateWriteExt + 'static>(
         state: &mut Arc<S>,
         prepare_state_info: &PrepareStateInfo,
@@ -96,7 +99,7 @@ impl Component for IbcComponent {
         Ok(())
     }
 
-    #[instrument(name = "IbcComponent::handle_post_tx_execution", skip_all)]
+    #[instrument(name = "IbcComponent::handle_post_tx_execution", skip_all, er(level = Level::WARN))]
     async fn handle_post_tx_execution<S: StateWriteExt + 'static>(
         _state: &mut Arc<S>,
     ) -> Result<()> {

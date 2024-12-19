@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use astria_core::{
     protocol::{
-        fees::v1::TransferFeeComponents,
+        fees::v1::FeeComponents,
         genesis::v1::Account,
         transaction::v1::{
             action::{
@@ -55,11 +55,7 @@ async fn trigger_cleaning() {
     // create tx which will cause mempool cleaning flag to be set
     let tx_trigger = TransactionBody::builder()
         .actions(vec![
-            FeeChange::Transfer(TransferFeeComponents {
-                base: 10,
-                multiplier: 0,
-            })
-            .into(),
+            FeeChange::Transfer(FeeComponents::<Transfer>::new(10, 0)).into(),
         ])
         .chain_id("test")
         .try_build()
@@ -151,11 +147,7 @@ async fn do_not_trigger_cleaning() {
     // (wrong sudo signer)
     let tx_fail = TransactionBody::builder()
         .actions(vec![
-            FeeChange::Transfer(TransferFeeComponents {
-                base: 10,
-                multiplier: 0,
-            })
-            .into(),
+            FeeChange::Transfer(FeeComponents::<Transfer>::new(10, 0)).into(),
         ])
         .chain_id("test")
         .try_build()
@@ -252,11 +244,7 @@ async fn maintenance_recosting_promotes() {
     // create tx which will enable recost tx to pass
     let tx_recost = TransactionBody::builder()
         .actions(vec![
-            FeeChange::Transfer(TransferFeeComponents {
-                base: 10,
-                multiplier: 0,
-            })
-            .into(),
+            FeeChange::Transfer(FeeComponents::<Transfer>::new(10, 0)).into(),
         ])
         .chain_id("test")
         .try_build()

@@ -7,6 +7,10 @@ use astria_eyre::eyre::{
 };
 use async_trait::async_trait;
 use cnidarium::StateWrite;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     action_handler::ActionHandler,
@@ -24,6 +28,7 @@ impl ActionHandler for BridgeSudoChange {
         Ok(())
     }
 
+    #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
             .get_transaction_context()
@@ -83,7 +88,7 @@ mod tests {
     use astria_core::{
         primitive::v1::TransactionId,
         protocol::{
-            fees::v1::BridgeSudoChangeFeeComponents,
+            fees::v1::FeeComponents,
             transaction::v1::action::BridgeSudoChange,
         },
     };
@@ -164,10 +169,7 @@ mod tests {
         });
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
         state
-            .put_bridge_sudo_change_fees(BridgeSudoChangeFeeComponents {
-                base: 10,
-                multiplier: 0,
-            })
+            .put_fees(FeeComponents::<BridgeSudoChange>::new(10, 0))
             .unwrap();
 
         let fee_asset = test_asset();
