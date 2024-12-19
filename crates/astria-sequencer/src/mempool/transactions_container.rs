@@ -20,7 +20,6 @@ use astria_core::{
 use astria_eyre::eyre::{
     eyre,
     Result,
-    WrapErr as _,
 };
 use tokio::time::{
     Duration,
@@ -773,7 +772,7 @@ impl PendingTransactions {
     pub(super) async fn builder_queue<S: accounts::StateReadExt>(
         &self,
         state: &S,
-    ) -> Result<Vec<([u8; 32], Arc<Transaction>)>> {
+    ) -> Vec<([u8; 32], Arc<Transaction>)> {
         // Used to hold the values in Vec for sorting.
         struct QueueEntry {
             tx: Arc<Transaction>,
@@ -784,10 +783,27 @@ impl PendingTransactions {
         let mut queue = Vec::with_capacity(self.len());
         // Add all transactions to the queue.
         for (address, account_txs) in &self.txs {
-            let current_account_nonce = state
-                .get_account_nonce(address)
-                .await
-                .wrap_err("failed to fetch account nonce for builder queue")?;
+            let current_account_nonce = match state.get_account_nonce(address).await {
+                Ok(nonce) => nonce,
+                Err(error) => {
+                    error!(address = %telemetry::display::base64(address), "failed to fetch account nonce for builder queue: {error:#}");
+                    // use the lowest nonce in pending as the current nonce, this should be the
+                    // same value as the nonce returned by the state. the pending queue shouldn't
+                    // be empty, if it is we can continue to the next account
+                    if let Some(nonce) = account_txs
+                        .txs()
+                        .values()
+                        .map(TimemarkedTransaction::nonce)
+                        .min()
+                    {
+                        nonce
+                    } else {
+                        error!(address = %telemetry::display::base64(address), "pending queue is empty during builder queue step");
+                        continue;
+                    }
+                }
+            };
+
             for ttx in account_txs.txs.values() {
                 let priority = match ttx.priority(current_account_nonce) {
                     Ok(priority) => priority,
@@ -811,11 +827,11 @@ impl PendingTransactions {
         // Sort the queue and return the relevant data. Note that the sorted queue will be ordered
         // from lowest to highest priority, so we need to reverse the order before returning.
         queue.sort_unstable_by_key(|entry| entry.priority);
-        Ok(queue
+        queue
             .into_iter()
             .rev()
             .map(|entry| (entry.tx_hash, entry.tx))
-            .collect())
+            .collect()
     }
 }
 
@@ -2011,10 +2027,7 @@ mod tests {
         );
 
         // get builder queue
-        let builder_queue = pending_txs
-            .builder_queue(&mock_state)
-            .await
-            .expect("building builders queue should work");
+        let builder_queue = pending_txs.builder_queue(&mock_state).await;
         assert_eq!(
             builder_queue.len(),
             3,
@@ -2291,10 +2304,7 @@ mod tests {
 
         // get the builder queue
         // note: the account nonces are set to zero when not initialized in the mock state
-        let builder_queue = pending_txs
-            .builder_queue(&mock_state)
-            .await
-            .expect("building builders queue should work");
+        let builder_queue = pending_txs.builder_queue(&mock_state).await;
 
         // check that the transactions are in the expected order
         let (first_tx_hash, _) = builder_queue[0];
