@@ -17,9 +17,9 @@ use crate::utils::submit_transaction;
 
 #[derive(clap::Args, Debug)]
 pub(super) struct Command {
-    // The address of the Sequencer account to send amount to
+    /// The address of the Sequencer account to send amount to
     to_address: Address,
-    // The amount being sent
+    /// The amount being sent
     #[arg(long)]
     amount: u128,
     /// The bech32m prefix that will be used for constructing addresses using the private key
