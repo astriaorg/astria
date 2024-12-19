@@ -111,7 +111,7 @@ grpc_laddr = ""
 # 0 - unlimited.
 # Should be < {ulimit -Sn} - {MaxNumInboundPeers} - {MaxNumOutboundPeers} - {N of wal, db and other open files}
 # 1024 - 40 - 10 - 50 = 924 = ~900
-grpc_max_open_connections = {{ .Values.cometbft.config.grpc.maxOpenConnections }} 
+grpc_max_open_connections = {{ .Values.cometbft.config.grpc.maxOpenConnections }}
 
 # Activate unsafe RPC commands like /dial_seeds and /unsafe_flush_mempool
 unsafe = false
