@@ -1,3 +1,5 @@
+use std::str::FromStr as _;
+
 use bytes::Bytes;
 use ibc_types::{
     core::{
@@ -11,6 +13,12 @@ use prost::Name as _;
 
 use super::raw;
 use crate::{
+    connect::market_map::v2::{
+        Market,
+        MarketError,
+        Params,
+        ParamsError,
+    },
     primitive::v1::{
         asset::{
             self,
@@ -51,6 +59,12 @@ pub enum Action {
     BridgeUnlock(BridgeUnlock),
     BridgeSudoChange(BridgeSudoChange),
     FeeChange(FeeChange),
+    UpsertMarkets(UpsertMarkets),
+    CreateMarkets(CreateMarkets),
+    UpdateMarkets(UpdateMarkets),
+    UpdateMarketMapParams(UpdateMarketMapParams),
+    RemoveMarketAuthorities(RemoveMarketAuthorities),
+    RemoveMarkets(RemoveMarkets),
 }
 
 impl Protobuf for Action {
@@ -75,6 +89,12 @@ impl Protobuf for Action {
             Action::BridgeUnlock(act) => Value::BridgeUnlock(act.to_raw()),
             Action::BridgeSudoChange(act) => Value::BridgeSudoChange(act.to_raw()),
             Action::FeeChange(act) => Value::FeeChange(act.to_raw()),
+            Action::UpsertMarkets(act) => Value::UpsertMarkets(act.to_raw()),
+            Action::CreateMarkets(act) => Value::CreateMarkets(act.to_raw()),
+            Action::UpdateMarkets(act) => Value::UpdateMarkets(act.to_raw()),
+            Action::UpdateMarketMapParams(act) => Value::UpdateMarketMapParams(act.to_raw()),
+            Action::RemoveMarketAuthorities(act) => Value::RemoveMarketAuthorities(act.to_raw()),
+            Action::RemoveMarkets(act) => Value::RemoveMarkets(act.to_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -148,6 +168,26 @@ impl Protobuf for Action {
             Value::FeeChange(act) => {
                 Self::FeeChange(FeeChange::try_from_raw_ref(&act).map_err(Error::fee_change)?)
             }
+            Value::UpsertMarkets(act) => Self::UpsertMarkets(
+                UpsertMarkets::try_from_raw(act).map_err(Error::upsert_markets)?,
+            ),
+            Value::CreateMarkets(act) => Self::CreateMarkets(
+                CreateMarkets::try_from_raw(act).map_err(Error::create_markets)?,
+            ),
+            Value::UpdateMarkets(act) => Self::UpdateMarkets(
+                UpdateMarkets::try_from_raw(act).map_err(Error::update_markets)?,
+            ),
+            Value::UpdateMarketMapParams(act) => Self::UpdateMarketMapParams(
+                UpdateMarketMapParams::try_from_raw(act)
+                    .map_err(Error::update_market_map_params)?,
+            ),
+            Value::RemoveMarketAuthorities(act) => Self::RemoveMarketAuthorities(
+                RemoveMarketAuthorities::try_from_raw(act)
+                    .map_err(Error::remove_market_authorities)?,
+            ),
+            Value::RemoveMarkets(act) => Self::RemoveMarkets(
+                RemoveMarkets::try_from_raw(act).map_err(Error::remove_markets)?,
+            ),
         };
         Ok(action)
     }
@@ -258,6 +298,42 @@ impl From<FeeChange> for Action {
     }
 }
 
+impl From<UpsertMarkets> for Action {
+    fn from(value: UpsertMarkets) -> Self {
+        Self::UpsertMarkets(value)
+    }
+}
+
+impl From<CreateMarkets> for Action {
+    fn from(value: CreateMarkets) -> Self {
+        Self::CreateMarkets(value)
+    }
+}
+
+impl From<UpdateMarkets> for Action {
+    fn from(value: UpdateMarkets) -> Self {
+        Self::UpdateMarkets(value)
+    }
+}
+
+impl From<UpdateMarketMapParams> for Action {
+    fn from(value: UpdateMarketMapParams) -> Self {
+        Self::UpdateMarketMapParams(value)
+    }
+}
+
+impl From<RemoveMarketAuthorities> for Action {
+    fn from(value: RemoveMarketAuthorities) -> Self {
+        Self::RemoveMarketAuthorities(value)
+    }
+}
+
+impl From<RemoveMarkets> for Action {
+    fn from(value: RemoveMarkets) -> Self {
+        Self::RemoveMarkets(value)
+    }
+}
+
 impl From<Action> for raw::Action {
     fn from(value: Action) -> Self {
         value.into_raw()
@@ -295,6 +371,12 @@ impl ActionName for Action {
             Action::BridgeUnlock(_) => "BridgeUnlock",
             Action::BridgeSudoChange(_) => "BridgeSudoChange",
             Action::FeeChange(_) => "FeeChange",
+            Action::UpsertMarkets(_) => "UpsertMarkets",
+            Action::CreateMarkets(_) => "CreateMarkets",
+            Action::UpdateMarkets(_) => "UpdateMarkets",
+            Action::UpdateMarketMapParams(_) => "UpdateMarketMapParams",
+            Action::RemoveMarketAuthorities(_) => "RemoveMarketAuthorities",
+            Action::RemoveMarkets(_) => "RemoveMarkets",
         }
     }
 }
@@ -363,6 +445,30 @@ impl Error {
     fn fee_change(inner: FeeChangeError) -> Self {
         Self(ActionErrorKind::FeeChange(inner))
     }
+
+    fn upsert_markets(inner: UpsertMarketsError) -> Self {
+        Self(ActionErrorKind::UpsertMarkets(inner))
+    }
+
+    fn create_markets(inner: CreateMarketsError) -> Self {
+        Self(ActionErrorKind::CreateMarkets(inner))
+    }
+
+    fn update_markets(inner: UpdateMarketsError) -> Self {
+        Self(ActionErrorKind::UpdateMarkets(inner))
+    }
+
+    fn update_market_map_params(inner: UpdateMarketMapParamsError) -> Self {
+        Self(ActionErrorKind::UpdateMarketMapParams(inner))
+    }
+
+    fn remove_market_authorities(inner: RemoveMarketAuthoritiesError) -> Self {
+        Self(ActionErrorKind::RemoveMarketAuthorities(inner))
+    }
+
+    fn remove_markets(inner: RemoveMarketsError) -> Self {
+        Self(ActionErrorKind::RemoveMarkets(inner))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -397,6 +503,18 @@ enum ActionErrorKind {
     BridgeSudoChange(#[source] BridgeSudoChangeError),
     #[error("fee change action was not valid")]
     FeeChange(#[source] FeeChangeError),
+    #[error("upsert markets action was not valid")]
+    UpsertMarkets(#[source] UpsertMarketsError),
+    #[error("create markets action was not valid")]
+    CreateMarkets(#[source] CreateMarketsError),
+    #[error("update markets action was not valid")]
+    UpdateMarkets(#[source] UpdateMarketsError),
+    #[error("update params action was not valid")]
+    UpdateMarketMapParams(#[source] UpdateMarketMapParamsError),
+    #[error("remove market authorities action was not valid")]
+    RemoveMarketAuthorities(#[source] RemoveMarketAuthoritiesError),
+    #[error("remove markets action was not valid")]
+    RemoveMarkets(#[source] RemoveMarketsError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1943,6 +2061,12 @@ pub enum FeeChange {
     IbcRelayerChange(FeeComponents<IbcRelayerChange>),
     SudoAddressChange(FeeComponents<SudoAddressChange>),
     IbcSudoChange(FeeComponents<IbcSudoChange>),
+    UpsertMarkets(FeeComponents<UpsertMarkets>),
+    CreateMarkets(FeeComponents<CreateMarkets>),
+    UpdateMarkets(FeeComponents<UpdateMarkets>),
+    UpdateMarketMapParams(FeeComponents<UpdateMarketMapParams>),
+    RemoveMarketAuthorities(FeeComponents<RemoveMarketAuthorities>),
+    RemoveMarkets(FeeComponents<RemoveMarkets>),
 }
 
 impl Protobuf for FeeChange {
@@ -1994,6 +2118,24 @@ impl Protobuf for FeeChange {
                 }
                 Self::IbcSudoChange(fee_change) => {
                     raw::fee_change::FeeComponents::IbcSudoChange(fee_change.to_raw())
+                }
+                Self::UpsertMarkets(fee_change) => {
+                    raw::fee_change::FeeComponents::UpsertMarkets(fee_change.to_raw())
+                }
+                Self::CreateMarkets(fee_change) => {
+                    raw::fee_change::FeeComponents::CreateMarkets(fee_change.to_raw())
+                }
+                Self::UpdateMarkets(fee_change) => {
+                    raw::fee_change::FeeComponents::UpdateMarkets(fee_change.to_raw())
+                }
+                Self::UpdateMarketMapParams(fee_change) => {
+                    raw::fee_change::FeeComponents::UpdateMarketMapParams(fee_change.to_raw())
+                }
+                Self::RemoveMarketAuthorities(fee_change) => {
+                    raw::fee_change::FeeComponents::RemoveMarketAuthorities(fee_change.to_raw())
+                }
+                Self::RemoveMarkets(fee_change) => {
+                    raw::fee_change::FeeComponents::RemoveMarkets(fee_change.to_raw())
                 }
             }),
         }
@@ -2064,6 +2206,28 @@ impl Protobuf for FeeChange {
             }
             Some(raw::fee_change::FeeComponents::IbcSudoChange(fee_change)) => Self::IbcSudoChange(
                 FeeComponents::<IbcSudoChange>::try_from_raw_ref(fee_change)?,
+            ),
+            Some(raw::fee_change::FeeComponents::UpsertMarkets(fee_change)) => Self::UpsertMarkets(
+                FeeComponents::<UpsertMarkets>::try_from_raw_ref(fee_change)?,
+            ),
+            Some(raw::fee_change::FeeComponents::CreateMarkets(fee_change)) => Self::CreateMarkets(
+                FeeComponents::<CreateMarkets>::try_from_raw_ref(fee_change)?,
+            ),
+            Some(raw::fee_change::FeeComponents::UpdateMarkets(fee_change)) => Self::UpdateMarkets(
+                FeeComponents::<UpdateMarkets>::try_from_raw_ref(fee_change)?,
+            ),
+            Some(raw::fee_change::FeeComponents::UpdateMarketMapParams(fee_change)) => {
+                Self::UpdateMarketMapParams(
+                    FeeComponents::<UpdateMarketMapParams>::try_from_raw_ref(fee_change)?,
+                )
+            }
+            Some(raw::fee_change::FeeComponents::RemoveMarketAuthorities(fee_change)) => {
+                Self::RemoveMarketAuthorities(
+                    FeeComponents::<RemoveMarketAuthorities>::try_from_raw_ref(fee_change)?,
+                )
+            }
+            Some(raw::fee_change::FeeComponents::RemoveMarkets(fee_change)) => Self::RemoveMarkets(
+                FeeComponents::<RemoveMarkets>::try_from_raw_ref(fee_change)?,
             ),
             None => return Err(FeeChangeError::field_unset("fee_components")),
         })
@@ -2153,3 +2317,343 @@ impl From<FeeComponents<IbcSudoChange>> for FeeChange {
         FeeChange::IbcSudoChange(fee)
     }
 }
+
+impl From<FeeComponents<UpsertMarkets>> for FeeChange {
+    fn from(fee: FeeComponents<UpsertMarkets>) -> Self {
+        FeeChange::UpsertMarkets(fee)
+    }
+}
+
+impl From<FeeComponents<CreateMarkets>> for FeeChange {
+    fn from(fee: FeeComponents<CreateMarkets>) -> Self {
+        FeeChange::CreateMarkets(fee)
+    }
+}
+
+impl From<FeeComponents<UpdateMarkets>> for FeeChange {
+    fn from(fee: FeeComponents<UpdateMarkets>) -> Self {
+        FeeChange::UpdateMarkets(fee)
+    }
+}
+
+impl From<FeeComponents<RemoveMarketAuthorities>> for FeeChange {
+    fn from(fee: FeeComponents<RemoveMarketAuthorities>) -> Self {
+        FeeChange::RemoveMarketAuthorities(fee)
+    }
+}
+
+impl From<FeeComponents<RemoveMarkets>> for FeeChange {
+    fn from(fee: FeeComponents<RemoveMarkets>) -> Self {
+        FeeChange::RemoveMarkets(fee)
+    }
+}
+
+/// Takes a list of markets and either updates them if they are already in the market map, or
+/// creates them if they are not. If no market map is found, one will be created. Must be signed by
+/// an address included in the market map [`Params`]' `market_authorities`.
+#[derive(Debug, Clone)]
+pub struct UpsertMarkets {
+    // The list of all markets to be upserted for the given
+    // transaction.
+    pub markets: Vec<Market>,
+}
+
+impl Protobuf for UpsertMarkets {
+    type Error = UpsertMarketsError;
+    type Raw = raw::UpsertMarkets;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let markets = raw
+            .markets
+            .iter()
+            .map(|market| Market::try_from_raw(market.clone()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(UpsertMarketsError::invalid_market)?;
+        Ok(Self {
+            markets,
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        Self::Raw {
+            markets: self
+                .markets
+                .iter()
+                .map(|market| market.clone().into_raw())
+                .collect(),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct UpsertMarketsError(UpsertMarketsErrorKind);
+
+impl UpsertMarketsError {
+    #[must_use]
+    pub fn invalid_market(err: MarketError) -> Self {
+        Self(UpsertMarketsErrorKind::InvalidMarket(err))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum UpsertMarketsErrorKind {
+    #[error("invalid market in market list")]
+    InvalidMarket(#[from] MarketError),
+}
+
+/// Takes a list of markets and creates them in the market map. If any already exist, this will err.
+/// If no market map is found, one will be created. Must be signed by an address included in the
+/// market map [`Params`]' `market_authorities`.
+#[derive(Debug, Clone)]
+pub struct CreateMarkets {
+    /// The list of all markets to be created for the given
+    /// transaction.
+    pub create_markets: Vec<Market>,
+}
+
+impl Protobuf for CreateMarkets {
+    type Error = CreateMarketsError;
+    type Raw = raw::CreateMarkets;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let create_markets = raw
+            .create_markets
+            .iter()
+            .map(|market| Market::try_from_raw(market.clone()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(CreateMarketsError::invalid_market)?;
+        Ok(Self {
+            create_markets,
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        Self::Raw {
+            create_markets: self
+                .create_markets
+                .iter()
+                .map(|market| market.clone().into_raw())
+                .collect(),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct CreateMarketsError(CreateMarketsErrorKind);
+
+impl CreateMarketsError {
+    #[must_use]
+    pub fn invalid_market(err: MarketError) -> Self {
+        Self(CreateMarketsErrorKind::InvalidMarket(err))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum CreateMarketsErrorKind {
+    #[error("invalid market in create_market list")]
+    InvalidMarket(#[from] MarketError),
+    #[error("authority string could not be parsed to address")]
+    AuthorityParse(#[from] AddressError),
+}
+
+/// Takes a list of markets and updates them in the market map (matching based on its
+/// ticker's `currency_pair`). If no market map is found, or any market is missing a counterpart in
+/// the map, this will err. Must be signed by an address included in the market map [`Params`]'
+/// `market_authorities`.
+#[derive(Debug, Clone)]
+pub struct UpdateMarkets {
+    /// The list of all markets to be updated for the given
+    /// transaction.
+    pub update_markets: Vec<Market>,
+}
+
+impl Protobuf for UpdateMarkets {
+    type Error = UpdateMarketsError;
+    type Raw = raw::UpdateMarkets;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let update_markets = raw
+            .update_markets
+            .iter()
+            .map(|market| Market::try_from_raw(market.clone()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(UpdateMarketsError::invalid_market)?;
+        Ok(Self {
+            update_markets,
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        Self::Raw {
+            update_markets: self
+                .update_markets
+                .iter()
+                .map(|market| market.clone().into_raw())
+                .collect(),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct UpdateMarketsError(UpdateMarketsErrorKind);
+
+impl UpdateMarketsError {
+    #[must_use]
+    pub fn invalid_market(err: MarketError) -> Self {
+        Self(UpdateMarketsErrorKind::InvalidMarket(err))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum UpdateMarketsErrorKind {
+    #[error("invalid market in update_market list")]
+    InvalidMarket(#[from] MarketError),
+}
+
+/// Updates the market map Params, which contains the market authority addresses as well as an admin
+/// address. This will execute whether there are params in the state already or not. Must be signed
+/// by the sequencer network authority sudo address.
+#[derive(Debug, Clone)]
+pub struct UpdateMarketMapParams {
+    /// The new parameters for the `connect/marketmap` module.
+    pub params: Params,
+}
+
+impl Protobuf for UpdateMarketMapParams {
+    type Error = UpdateMarketMapParamsError;
+    type Raw = raw::UpdateMarketMapParams;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let params = Params::try_from_raw(
+            raw.params
+                .clone()
+                .ok_or(UpdateMarketMapParamsError::missing_params())?,
+        )
+        .map_err(UpdateMarketMapParamsError::invalid_params)?;
+        Ok(Self {
+            params,
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        Self::Raw {
+            params: Some(self.params.clone().into_raw()),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct UpdateMarketMapParamsError(UpdateMarketMapParamsErrorKind);
+
+impl UpdateMarketMapParamsError {
+    #[must_use]
+    pub fn missing_params() -> Self {
+        Self(UpdateMarketMapParamsErrorKind::MissingParams)
+    }
+
+    #[must_use]
+    pub fn invalid_params(err: ParamsError) -> Self {
+        Self(UpdateMarketMapParamsErrorKind::InvalidParams(err))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum UpdateMarketMapParamsErrorKind {
+    #[error("missing params")]
+    MissingParams,
+    #[error("invalid params")]
+    InvalidParams(#[from] ParamsError),
+    #[error("authority string could not be parsed to address")]
+    AuthorityParse(#[from] AddressError),
+}
+
+/// Takes a list of addresses and removes them from the market authorities. If an address does not
+/// exist in `market_authorities`, it will be ignored. Must be signed by the market map admin (as
+/// defined in the market map [`Params`]).
+#[derive(Debug, Clone)]
+pub struct RemoveMarketAuthorities {
+    /// The list of addresses to remove.
+    pub remove_addresses: Vec<Address>,
+}
+
+impl Protobuf for RemoveMarketAuthorities {
+    type Error = RemoveMarketAuthoritiesError;
+    type Raw = raw::RemoveMarketAuthorities;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let remove_addresses = raw
+            .remove_addresses
+            .iter()
+            .map(|address| Address::from_str(address.as_str()))
+            .collect::<Result<_, _>>()
+            .map_err(RemoveMarketAuthoritiesError::remove_address_parse)?;
+        Ok(Self {
+            remove_addresses,
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let remove_addresses = self
+            .remove_addresses
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        Self::Raw {
+            remove_addresses,
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct RemoveMarketAuthoritiesError(RemoveMarketAuthoritiesErrorKind);
+
+impl RemoveMarketAuthoritiesError {
+    #[must_use]
+    pub fn remove_address_parse(err: AddressError) -> Self {
+        Self(RemoveMarketAuthoritiesErrorKind::RemoveAddressParse(err))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum RemoveMarketAuthoritiesErrorKind {
+    #[error("address in remove_addresses could not be parsed to domain type")]
+    RemoveAddressParse(#[source] AddressError),
+}
+
+/// Takes a list of markets and removes them from the market map. If a market is not found in the
+/// map, it will be ignored. Must be signed by an address included in the market map [`Params`]'
+/// `market_authorities`.
+#[derive(Debug, Clone)]
+pub struct RemoveMarkets {
+    /// The list of all markets to be removed.
+    pub markets: Vec<String>,
+}
+
+impl Protobuf for RemoveMarkets {
+    type Error = RemoveMarketsError;
+    type Raw = raw::RemoveMarkets;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        Ok(Self {
+            markets: raw.markets.clone(),
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        Self::Raw {
+            markets: self.markets.clone(),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct RemoveMarketsError(RemoveMarketsErrorKind);
+
+#[derive(Debug, thiserror::Error)]
+pub enum RemoveMarketsErrorKind {}
