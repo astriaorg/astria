@@ -2,17 +2,20 @@ use std::sync::Arc;
 
 use astria_core::protocol::genesis::v1::GenesisAppState;
 use astria_eyre::eyre::{
+    OptionExt as _,
     Result,
     WrapErr as _,
 };
-use tendermint::abci::request::{
-    BeginBlock,
-    EndBlock,
-};
 use tracing::instrument;
 
+use super::StateReadExt as _;
 use crate::{
-    component::Component,
+    accounts::StateWriteExt as _,
+    authority::StateReadExt,
+    component::{
+        Component,
+        PrepareStateInfo,
+    },
     fees,
 };
 
@@ -133,19 +136,34 @@ impl Component for FeesComponent {
         Ok(())
     }
 
-    #[instrument(name = "FeesComponent::begin_block", skip_all)]
-    async fn begin_block<S: fees::StateWriteExt + 'static>(
+    #[instrument(name = "FeesComponent::prepare_state_for_tx_execution", skip_all)]
+    async fn prepare_state_for_tx_execution<S: fees::StateWriteExt + 'static>(
         _state: &mut Arc<S>,
-        _begin_block: &BeginBlock,
+        _prepare_state_info: &PrepareStateInfo,
     ) -> Result<()> {
         Ok(())
     }
 
-    #[instrument(name = "FeesComponent::end_block", skip_all)]
-    async fn end_block<S: fees::StateWriteExt + 'static>(
-        _state: &mut Arc<S>,
-        _end_block: &EndBlock,
+    #[instrument(name = "FeesComponent::handle_post_tx_execution", skip_all)]
+    async fn handle_post_tx_execution<S: fees::StateWriteExt + 'static>(
+        state: &mut Arc<S>,
     ) -> Result<()> {
+        // gather block fees and transfer them to sudo
+        let fees = state.get_block_fees();
+        let sudo_address = state
+            .get_sudo_address()
+            .await
+            .wrap_err("failed to get sudo address for fee payment")?;
+
+        let state_tx = Arc::get_mut(state)
+            .ok_or_eyre("must only have one reference to the state; this is a bug")?;
+        for fee in fees {
+            state_tx
+                .increase_balance(&sudo_address, fee.asset(), fee.amount())
+                .await
+                .wrap_err("failed to increase fee recipient balance")?;
+        }
+
         Ok(())
     }
 }
