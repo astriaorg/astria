@@ -649,8 +649,3 @@ fn report_exit(reason: &eyre::Result<&str>, message: &str) {
         Err(error) => error!(%error, message),
     }
 }
-
-#[test]
-fn wtf() {
-    assert_eq!(320, size_of::<Result<(), TrySendError<SequencerBlock>>>());
-}

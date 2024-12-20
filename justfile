@@ -107,6 +107,7 @@ _lint-rust-fmt:
 
 [no-exit-message]
 _lint-rust-clippy:
+  cargo clippy --version
   cargo clippy --all-targets --all-features \
           -- --warn clippy::pedantic --warn clippy::arithmetic-side-effects \
           --warn clippy::allow_attributes --warn clippy::allow_attributes_without_reason \
