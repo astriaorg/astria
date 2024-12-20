@@ -120,7 +120,7 @@ mod __rpc_traits {
     pub trait Geth {
         #[subscription(name = "eth_subscribe", item = Transaction, unsubscribe = "eth_unsubscribe")]
         async fn eth_subscribe(&self, target: String, full_txs: Option<bool>)
-        -> SubscriptionResult;
+            -> SubscriptionResult;
 
         #[method(name = "net_version")]
         async fn net_version(&self) -> Result<String, ErrorObjectOwned>;

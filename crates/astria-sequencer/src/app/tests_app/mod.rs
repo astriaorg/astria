@@ -244,15 +244,13 @@ async fn app_transfer_block_fees_to_sudo() {
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let amount = 333_333;
     let tx = TransactionBody::builder()
-        .actions(vec![
-            Transfer {
-                to: bob_address,
-                amount,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![Transfer {
+            to: bob_address,
+            amount,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -589,28 +587,24 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
     // create txs which will cause cometBFT overflow
     let alice = get_alice_signing_key();
     let tx_pass = TransactionBody::builder()
-        .actions(vec![
-            RollupDataSubmission {
-                rollup_id: RollupId::from([1u8; 32]),
-                data: Bytes::copy_from_slice(&[1u8; 100_000]),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![RollupDataSubmission {
+            rollup_id: RollupId::from([1u8; 32]),
+            data: Bytes::copy_from_slice(&[1u8; 100_000]),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()
         .sign(&alice);
 
     let tx_overflow = TransactionBody::builder()
-        .actions(vec![
-            RollupDataSubmission {
-                rollup_id: RollupId::from([1u8; 32]),
-                data: Bytes::copy_from_slice(&[1u8; 100_000]),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![RollupDataSubmission {
+            rollup_id: RollupId::from([1u8; 32]),
+            data: Bytes::copy_from_slice(&[1u8; 100_000]),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .nonce(1)
         .try_build()
@@ -679,27 +673,23 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
     // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
     let alice = get_alice_signing_key();
     let tx_pass = TransactionBody::builder()
-        .actions(vec![
-            RollupDataSubmission {
-                rollup_id: RollupId::from([1u8; 32]),
-                data: Bytes::copy_from_slice(&[1u8; 200_000]),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![RollupDataSubmission {
+            rollup_id: RollupId::from([1u8; 32]),
+            data: Bytes::copy_from_slice(&[1u8; 200_000]),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()
         .sign(&alice);
     let tx_overflow = TransactionBody::builder()
-        .actions(vec![
-            RollupDataSubmission {
-                rollup_id: RollupId::from([1u8; 32]),
-                data: Bytes::copy_from_slice(&[1u8; 100_000]),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![RollupDataSubmission {
+            rollup_id: RollupId::from([1u8; 32]),
+            data: Bytes::copy_from_slice(&[1u8; 100_000]),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .nonce(1)
         .chain_id("test")
         .try_build()
@@ -768,27 +758,23 @@ async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
     // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
     let alice = get_alice_signing_key();
     let tx_pass = TransactionBody::builder()
-        .actions(vec![
-            RollupDataSubmission {
-                rollup_id: RollupId::from([1u8; 32]),
-                data: Bytes::copy_from_slice(&[1u8; 200_000]),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![RollupDataSubmission {
+            rollup_id: RollupId::from([1u8; 32]),
+            data: Bytes::copy_from_slice(&[1u8; 200_000]),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()
         .sign(&alice);
     let tx_overflow = TransactionBody::builder()
-        .actions(vec![
-            RollupDataSubmission {
-                rollup_id: RollupId::from([1u8; 32]),
-                data: Bytes::copy_from_slice(&[1u8; 100_000]),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![RollupDataSubmission {
+            rollup_id: RollupId::from([1u8; 32]),
+            data: Bytes::copy_from_slice(&[1u8; 100_000]),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .nonce(1)
         .chain_id("test")
         .try_build()
@@ -834,12 +820,10 @@ async fn app_process_proposal_transaction_fails_to_execute_fails() {
     // create txs which will cause transaction execution failure
     let alice = get_alice_signing_key();
     let tx_fail = TransactionBody::builder()
-        .actions(vec![
-            SudoAddressChange {
-                new_address: astria_address_from_hex_string(BOB_ADDRESS),
-            }
-            .into(),
-        ])
+        .actions(vec![SudoAddressChange {
+            new_address: astria_address_from_hex_string(BOB_ADDRESS),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()

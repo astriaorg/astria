@@ -3,24 +3,8 @@
 use crate::generated::astria::primitive::v1::Uint128;
 impl From<u128> for Uint128 {
     fn from(primitive: u128) -> Self {
-        let [
-            h0,
-            h1,
-            h2,
-            h3,
-            h4,
-            h5,
-            h6,
-            h7,
-            l0,
-            l1,
-            l2,
-            l3,
-            l4,
-            l5,
-            l6,
-            l7,
-        ] = primitive.to_be_bytes();
+        let [h0, h1, h2, h3, h4, h5, h6, h7, l0, l1, l2, l3, l4, l5, l6, l7] =
+            primitive.to_be_bytes();
         let lo = u64::from_be_bytes([l0, l1, l2, l3, l4, l5, l6, l7]);
         let hi = u64::from_be_bytes([h0, h1, h2, h3, h4, h5, h6, h7]);
         Self {
