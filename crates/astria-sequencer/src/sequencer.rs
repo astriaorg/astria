@@ -29,8 +29,9 @@ use tokio::{
 use tower_abci::v038::Server;
 use tracing::{
     error,
+    error_span,
     info,
-    instrument,
+    info_span,
 };
 
 use crate::{
@@ -46,26 +47,31 @@ use crate::{
 pub struct Sequencer;
 
 impl Sequencer {
-    #[instrument(skip_all)]
+    #[expect(clippy::missing_errors_doc, reason = "not a public function")]
     pub async fn run_until_stopped(config: Config, metrics: &'static Metrics) -> Result<()> {
         cnidarium::register_metrics();
         register_histogram_global("cnidarium_get_raw_duration_seconds");
         register_histogram_global("cnidarium_nonverifiable_get_raw_duration_seconds");
+        let span = info_span!("Sequencer::run_until_stopped");
 
         if config
             .db_filepath
             .try_exists()
             .context("failed checking for existence of db storage file")?
         {
-            info!(
-                path = %config.db_filepath.display(),
-                "opening storage db"
-            );
+            span.in_scope(|| {
+                info!(
+                    path = %config.db_filepath.display(),
+                    "opening storage db"
+                );
+            });
         } else {
-            info!(
-                path = %config.db_filepath.display(),
-                "creating storage db"
-            );
+            span.in_scope(|| {
+                info!(
+                    path = %config.db_filepath.display(),
+                    "creating storage db"
+                );
+            });
         }
 
         let mut signals = spawn_signal_handler();
@@ -119,15 +125,16 @@ impl Sequencer {
             .wrap_err("failed to parse grpc_addr address")?;
         let grpc_server_handle = start_grpc_server(&storage, mempool, grpc_addr, shutdown_rx);
 
-        info!(config.listen_addr, "starting sequencer");
+        span.in_scope(|| info!(config.listen_addr, "starting sequencer"));
         let server_handle = tokio::spawn(async move {
             match server.listen_tcp(&config.listen_addr).await {
                 Ok(()) => {
                     // this shouldn't happen, as there isn't a way for the ABCI server to exit
-                    info!("ABCI server exited successfully");
+                    info_span!("abci_server").in_scope(|| info!("ABCI server exited successfully"));
                 }
                 Err(e) => {
-                    error!(err = e.as_ref(), "ABCI server exited with error");
+                    error_span!("abci_server")
+                        .in_scope(|| error!(err = e.as_ref(), "ABCI server exited with error"));
                 }
             }
             let _ = server_exit_tx.send(());
@@ -135,11 +142,11 @@ impl Sequencer {
 
         select! {
             _ = signals.stop_rx.changed() => {
-                info!("shutting down sequencer");
+                span.in_scope(|| info!("shutting down sequencer"));
             }
 
             _ = server_exit_rx => {
-                error!("ABCI server task exited, this shouldn't happen");
+                span.in_scope(|| error!("ABCI server task exited, this shouldn't happen"));
             }
         }
 
@@ -179,9 +186,9 @@ fn start_grpc_server(
         .trace_fn(|req| {
             if let Some(remote_addr) = remote_addr(req) {
                 let addr = remote_addr.to_string();
-                tracing::error_span!("grpc", addr)
+                error_span!("grpc", addr)
             } else {
-                tracing::error_span!("grpc")
+                error_span!("grpc")
             }
         })
         // (from Penumbra) Allow HTTP/1, which will be used by grpc-web connections.

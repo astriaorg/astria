@@ -93,7 +93,7 @@ impl Fixture {
 }
 
 #[divan::bench(max_time = MAX_TIME)]
-fn execute_transactions_prepare_proposal(bencher: divan::Bencher) {
+fn prepare_proposal_tx_execution(bencher: divan::Bencher) {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -105,7 +105,7 @@ fn execute_transactions_prepare_proposal(bencher: divan::Bencher) {
             let (_tx_bytes, included_txs) = runtime.block_on(async {
                 fixture
                     .app
-                    .execute_transactions_prepare_proposal(constraints)
+                    .prepare_proposal_tx_execution(constraints)
                     .await
                     .unwrap()
             });

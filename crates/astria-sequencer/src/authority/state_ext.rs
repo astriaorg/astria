@@ -14,7 +14,10 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
-use tracing::instrument;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use super::{
     storage::{
@@ -30,7 +33,7 @@ use crate::{
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_sudo_address(&self) -> Result<[u8; ADDRESS_LEN]> {
         let Some(bytes) = self
             .get_raw(keys::SUDO)
@@ -46,7 +49,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid sudo key bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_validator_set(&self) -> Result<ValidatorSet> {
         let Some(bytes) = self
             .get_raw(keys::VALIDATOR_SET)
@@ -62,7 +65,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid validator set bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_validator_updates(&self) -> Result<ValidatorSet> {
         let Some(bytes) = self
             .nonverifiable_get_raw(keys::VALIDATOR_UPDATES.as_bytes())

@@ -29,6 +29,7 @@ use tokio::{
 use tracing::{
     error,
     instrument,
+    Level,
 };
 pub(crate) use transactions_container::InsertionError;
 use transactions_container::{
@@ -203,7 +204,7 @@ impl Mempool {
 
     /// Inserts a transaction into the mempool and does not allow for transaction replacement.
     /// Will return the reason for insertion failure if failure occurs.
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(tx_hash = %tx.id(), current_account_nonce), err(level = Level::DEBUG))]
     pub(crate) async fn insert(
         &self,
         tx: Arc<Transaction>,
@@ -291,6 +292,7 @@ impl Mempool {
     /// Returns a copy of all transactions and their hashes ready for execution, sorted first by the
     /// difference between a transaction and the account's current nonce and then by the time that
     /// the transaction was first seen by the appside mempool.
+    #[instrument(skip_all, err(level = Level::DEBUG))]
     pub(crate) async fn builder_queue<S: accounts::StateReadExt>(
         &self,
         state: &S,
@@ -303,6 +305,7 @@ impl Mempool {
     ///
     /// This function should only be used to remove invalid/failing transactions and not executed
     /// transactions. Executed transactions will be removed in the `run_maintenance()` function.
+    #[instrument(skip_all, fields(tx_hash = %signed_tx.id()))]
     pub(crate) async fn remove_tx_invalid(
         &self,
         signed_tx: Arc<Transaction>,
@@ -342,13 +345,13 @@ impl Mempool {
 
     /// Checks if a transaction was flagged to be removed from the `CometBFT` mempool. Will
     /// remove the transaction from the cache if it is present.
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(tx_hash = %hex::encode(tx_hash)))]
     pub(crate) async fn check_removed_comet_bft(&self, tx_hash: [u8; 32]) -> Option<RemovalReason> {
         self.comet_bft_removal_cache.write().await.remove(tx_hash)
     }
 
     /// Returns true if the transaction is tracked as inserted.
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(tx_hash = %hex::encode(tx_hash)))]
     pub(crate) async fn is_tracked(&self, tx_hash: [u8; 32]) -> bool {
         self.contained_txs.read().await.contains(&tx_hash)
     }
@@ -482,7 +485,7 @@ impl Mempool {
     /// does not take into account gapped nonces in the parked queue. For example, if the
     /// pending queue for an account has nonces [0,1] and the parked queue has [3], [1] will be
     /// returned.
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(address = %telemetry::display::base64(address)))]
     pub(crate) async fn pending_nonce(&self, address: &[u8; 20]) -> Option<u32> {
         self.pending.read().await.pending_nonce(address)
     }
