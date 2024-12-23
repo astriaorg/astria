@@ -262,6 +262,7 @@ async fn handle_check_tx<S: StateRead>(
 }
 
 /// Checks if the transaction is already in the mempool.
+#[instrument(skip_all, fields(tx_hash = %hex::encode(tx_hash)))]
 async fn is_tracked(tx_hash: [u8; 32], mempool: &AppMempool, metrics: &Metrics) -> bool {
     let start_tracked_check = Instant::now();
 
@@ -276,6 +277,7 @@ async fn is_tracked(tx_hash: [u8; 32], mempool: &AppMempool, metrics: &Metrics) 
 ///
 /// Returns an `Err(response::CheckTx)` with an error code and message if the transaction has been
 /// removed from the appside mempool.
+#[instrument(skip_all, fields(tx_hash = %hex::encode(tx_hash)))]
 async fn check_removed_comet_bft(
     tx_hash: [u8; 32],
     mempool: &AppMempool,
@@ -308,6 +310,7 @@ async fn check_removed_comet_bft(
 ///
 /// Returns an `Err(response::CheckTx)` if the transaction fails any of the checks.
 /// Otherwise, it returns the [`Transaction`] to be inserted into the mempool.
+#[instrument(skip_all)]
 async fn stateless_checks<S: StateRead>(
     tx: Bytes,
     state: &S,
@@ -387,6 +390,7 @@ async fn stateless_checks<S: StateRead>(
 ///
 /// Returns a `Err(response::CheckTx)` with an error code and message if the transaction fails
 /// insertion into the mempool.
+#[instrument(skip_all)]
 async fn insert_into_mempool<S: StateRead>(
     mempool: &AppMempool,
     state: &S,

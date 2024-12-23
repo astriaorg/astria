@@ -81,9 +81,10 @@ itoa = "1.0.10"
 jsonrpsee = { version = "0.20" }
 pbjson-types = "0.6"
 # Note that when updating the penumbra versions, vendored types in `proto/sequencerapis/astria_vendored` may need to be updated as well.
-penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.7", default-features = false }
-penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.7" }
-penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.7" }
+# can update to a tagged version when https://github.com/penumbra-zone/penumbra/commit/ac7abacc9bb09503d6fd6a396bc0b6850079084e is released
+penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "ac7abacc9bb09503d6fd6a396bc0b6850079084e", default-features = false }
+penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "ac7abacc9bb09503d6fd6a396bc0b6850079084e" }
+penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "ac7abacc9bb09503d6fd6a396bc0b6850079084e" }
 pin-project-lite = "0.2.13"
 prost = "0.12"
 rand = "0.8.5"

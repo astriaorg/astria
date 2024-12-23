@@ -4,13 +4,13 @@ dependencies:
   version: 0.4.1
 - name: evm-rollup
   repository: file://../evm-rollup
-  version: 1.0.0
+  version: 1.0.1
 - name: composer
   repository: file://../composer
   version: 1.0.0
 - name: evm-faucet
   repository: file://../evm-faucet
-  version: 0.1.2
+  version: 0.1.4
 - name: evm-bridge-withdrawer
   repository: file://../evm-bridge-withdrawer
   version: 1.0.1
