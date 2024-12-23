@@ -3,4 +3,4 @@ dependencies:
   repository: file://../sequencer-relayer
   version: 1.0.1
 digest: sha256:3b3ce65ff473606fcc86027653cadd212ba45ac8b39d5806d713b48f695ad235
-generated: "2024-12-23T17:58:33.286548461Z"
+generated: "2024-12-23T18:31:36.564565164Z"
