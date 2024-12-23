@@ -103,7 +103,7 @@ pub(crate) trait FeeHandler: Send {
     /// If this method returns `None`, the action is free.
     fn fee_asset(&self) -> Option<&asset::Denom>;
 
-    #[instrument(skip_all, err(level = Level::WARN))]
+    #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn check_and_pay_fees<'a, S>(&self, mut state: S) -> eyre::Result<()>
     where
         S: StateWrite,

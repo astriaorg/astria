@@ -22,7 +22,6 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
-use ibc_proto::ibc::apps::transfer::v2::FungibleTokenPacketData;
 use ibc_types::core::channel::{
     ChannelId,
     PortId,
@@ -32,6 +31,11 @@ use penumbra_ibc::component::packet::{
     SendPacketRead as _,
     SendPacketWrite as _,
     Unchecked,
+};
+use penumbra_proto::core::component::ibc::v1::FungibleTokenPacketData;
+use tracing::{
+    instrument,
+    Level,
 };
 
 use crate::{
@@ -55,6 +59,7 @@ use crate::{
 
 #[async_trait]
 impl ActionHandler for action::Ics20Withdrawal {
+    #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn check_stateless(&self) -> Result<()> {
         // NOTE (from penumbra): we could validate the destination chain address as bech32 to
         // prevent mistyped addresses, but this would preclude sending to chains that don't
@@ -62,6 +67,7 @@ impl ActionHandler for action::Ics20Withdrawal {
         Ok(())
     }
 
+    #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         let from = state
             .get_transaction_context()

@@ -172,6 +172,8 @@ config:
     # The expected fastest block time possible from sequencer, determines polling
     # rate.
     sequencerBlockTimeMs: 2000
+    # The expected fastest block time possible from DA, determines polling rate.
+    celestiaBlockTimeMs: 6000
     # URL path for the sequencer
     sequencerRpc: ""
     # gRPC path for the sequencer
