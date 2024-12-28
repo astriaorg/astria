@@ -1425,7 +1425,7 @@ async fn proposal_checks_and_tx_execution(
                         // this is important for possible out-of-order transaction
                         // groups fed into prepare_proposal. a transaction with a higher
                         // nonce might be in a higher priority group than a transaction
-                        // from the same account wiht a lower nonce. this higher nonce
+                        // from the same account with a lower nonce. this higher nonce
                         // could execute in the next block fine.
                     } else {
                         *failed_tx_count = failed_tx_count.saturating_add(1);

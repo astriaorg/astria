@@ -117,7 +117,7 @@ is another chain. It consists of the following:
 
 ### Bridge Actions
 
-These actions deal with transfering funds to/from a bridge account to be used on
+These actions deal with transferring funds to/from a bridge account to be used on
 a rollup.
 
 * `InitBridgeAccount`: initializes a bridge account for the given rollup on the
@@ -153,7 +153,7 @@ account is registered to, containing the information of the transfer.
   ||| which will receive the bridged funds. |
 
 * `BridgeUnlock`: transfers funds from a bridge account to a sequencer account.
-The signer of this transaciton *must* be the authorized withdrawer for this `bridge_address`.
+The signer of this transaction *must* be the authorized withdrawer for this `bridge_address`.
 Effectively similar to `Transfer`, it contains the following fields:
 
   | **Field** | **Type** | **Description** |

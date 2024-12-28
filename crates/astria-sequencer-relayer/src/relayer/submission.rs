@@ -226,7 +226,7 @@ impl StartedSubmission {
         state
             .write(&state_file_path, &temp_file_path)
             .await
-            .wrap_err("failed commiting submission started state to disk")?;
+            .wrap_err("failed committing submission started state to disk")?;
         Ok(Self {
             last_submission,
             state_file_path,
@@ -306,7 +306,7 @@ impl PreparedSubmission {
         state
             .write(&state_file_path, &temp_file_path)
             .await
-            .wrap_err("failed commiting submission prepared state to disk")?;
+            .wrap_err("failed committing submission prepared state to disk")?;
         Ok(Self {
             sequencer_height,
             last_submission,

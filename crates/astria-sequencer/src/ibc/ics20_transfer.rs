@@ -537,7 +537,7 @@ async fn refund_tokens<S: StateWrite>(mut state: S, packet: &Packet) -> Result<(
         .wrap_err("failed to parse packet data amount to u128")?;
 
     // Since we are refunding tokens, packet_data.sender is an address on Astria:
-    // the packet was not commited on the counter party chain but returned as-is.
+    // the packet was not committed on the counter party chain but returned as-is.
     let receiver = parse_address_on_sequencer(&state, &packet_data.sender)
         .await
         .with_context(|| {
