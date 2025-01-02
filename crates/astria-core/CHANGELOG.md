@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Move all Astria APIs generated from the Protobuf spec from
   `astria_core::generated` to `astria_core::generated::astria`
   [#1825](https://github.com/astriaorg/astria/pull/1825).
+- Update `idna` dependency to resolve cargo audit warning [#1869](https://github.com/astriaorg/astria/pull/1869).
 
 ### Removed
 

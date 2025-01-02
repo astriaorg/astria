@@ -66,5 +66,10 @@ spec:
     - name: seq-metric
       port: {{ .Values.ports.sequencerMetrics }}
       targetPort: seq-metric
+    {{- if .Values.sequencer.oracle.metrics.enabled }}
+    - name: oracle-metric
+      port: {{ .Values.ports.oracleMetrics }}
+      targetPort: oracle-metric
+    {{- end }}
     {{- end }}
 {{- end }}
