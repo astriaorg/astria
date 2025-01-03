@@ -1,0 +1,36 @@
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{include "rollup.name" . }}-chat-metrics
+  labels:
+    {{- include "rollup.labels" . | nindent 4 }}
+    {{- with .Values.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  jobLabel: chat-metrics
+  namespaceSelector:
+    matchNames:
+      - {{ include "rollup.namespace" . }}
+  selector:
+    matchLabels:
+      app: {{ include "rollup.appName" . }}
+  endpoints:
+    - port: chat-metr
+      path: /debug/metrics/prometheus
+      {{- with .Values.serviceMonitor.interval }}
+      interval: {{ . }}
+      {{- end }}
+      {{- with .Values.serviceMonitor.scrapeTimeout  }}
+      scrapeTimeout: {{ . }}
+      {{- end }}
+    - port: conductor-metr
+      path: /
+      {{- with .Values.serviceMonitor.interval }}
+      interval: {{ . }}
+      {{- end }}
+      {{- with .Values.serviceMonitor.scrapeTimeout  }}
+      scrapeTimeout: {{ . }}
+      {{- end }}
+{{- end }}

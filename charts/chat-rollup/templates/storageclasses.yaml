@@ -1,0 +1,13 @@
+{{/* We only want to create a storage class if we are local. */}}
+{{/* For production, you need to create a StorageClass on GKE. */}}
+{{- if and .Values.storage.enabled .Values.storage.local }}
+  {{- range $key, $value := .Values.storage.entities }}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ include "rollup.name" $ }}-{{ $value.persistentVolumeName }}-chat-local
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+  {{- end }}
+{{- end }}

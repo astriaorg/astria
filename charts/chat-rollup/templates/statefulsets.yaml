@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "rollup.name" . }}-chat
+  labels:
+    app: {{ include "rollup.appName" . }}
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  replicas : {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "rollup.appName" . }}
+  template:
+    metadata:
+      name: {{ include "rollup.name" . }}-execution-chain
+      labels:
+        app: {{ include "rollup.appName" . }}
+    spec:
+      containers:
+        - name: chat
+          command: [ "/usr/local/bin/chat-rollup" ]
+          image: {{ include "rollup.image" . }}
+          imagePullPolicy: {{ .Values.images.chat.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "rollup.name" . }}-chat-env
+          volumeMounts:
+            - mountPath: /home/chat
+              name: {{ include "rollup.name" . }}-rollup-shared-storage-vol
+          ports:
+            - containerPort: {{ .Values.ports.rest }}
+              name: rest
+            - containerPort: {{ .Values.ports.executionGRPC }}
+              name: execution-grpc
+            {{- if .Values.metrics.enabled }}
+            - containerPort: {{ .Values.ports.metrics }}
+              name: rollup-metr
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources.chat | trim | nindent 12 }}
+        - name: conductor
+          image: {{ include "conductor.image" . }}
+          imagePullPolicy: {{ .Values.images.conductor.pullPolicy }}
+          command: [ "/usr/local/bin/astria-conductor" ]
+          stdin: {{ .Values.global.useTTY }}
+          tty: {{ .Values.global.useTTY }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "rollup.name" . }}-conductor-env
+          resources:
+            {{- toYaml .Values.resources.conductor | trim | nindent 12 }}
+          {{- if .Values.metrics.enabled }}
+          ports:
+            - containerPort: {{ .Values.ports.conductorMetrics }}
+              name: conductor-metr
+          {{- end }}
+        - name: chat-frontend
+          image: {{ include "chat-frontend.image" . }}
+          imagePullPolicy: {{ .Values.images.conductor.pullPolicy }}
+          stdin: {{ .Values.global.useTTY }}
+          tty: {{ .Values.global.useTTY }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "rollup.name" . }}-chat-frontend-env
+          resources:
+            {{- toYaml .Values.resources.conductor | trim | nindent 12 }}
+          ports:
+            - containerPort: 3000
+              name: frontend
+      volumes:
+        - name: {{ include "rollup.name" $ }}-rollup-shared-storage-vol
+          {{- if .Values.storage.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "rollup.name" $ }}-rollup-shared-storage-pvc-chat
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---

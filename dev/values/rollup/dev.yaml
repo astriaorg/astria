@@ -121,7 +121,7 @@ evm-rollup:
     enabled: false
 
   ingress:
-    enabled: true
+    enabled: false
     services:
       rpc:
         enabled: true
@@ -138,7 +138,7 @@ composer:
       devContent: "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
 
 evm-bridge-withdrawer:
-  enabled: true
+  enabled: false
   config:
     minExpectedFeeAssetBalance: "0"
     sequencerBridgeAddress: "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
@@ -149,7 +149,7 @@ evm-bridge-withdrawer:
       devContent: "dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0"
 
 evm-faucet:
-  enabled: true
+  enabled: false
   ingress:
     enabled: true
   config:
@@ -157,7 +157,7 @@ evm-faucet:
       devContent: "8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203"
 
 postgresql:
-  enabled: true
+  enabled: false
   nameOverride: blockscout-postegres
   primary:
     persistence:
@@ -174,7 +174,7 @@ postgresql:
     logConnections: true
     logDisconnections: true
 blockscout-stack:
-  enabled: true
+  enabled: false
   config:
     network:
       id: 1337

@@ -99,6 +99,15 @@ deploy-astrotrek:
 delete-astrotrek:
   @just delete chart astrotrek 
 
+deploy-chat-rollup:
+  helm dependency update charts/chat-rollup > /dev/null
+  helm install chat-rollup-chart ./charts/chat-rollup \
+    -n astria-dev-cluster \
+    -f dev/values/rollup/chat-dev.yaml
+
+delete-chat-rollup:
+  @just delete chart chat-rollup
+
 deploy-hermes-local:
   helm install hermes-local-chart ./charts/hermes \
     -n astria-dev-cluster \

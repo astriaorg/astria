@@ -1,0 +1,45 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ include "rollup.name" . }}-chat-service
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  selector:
+    app: {{ include "rollup.appName" . }}
+  ports:
+    - name: rest-svc
+      port: {{ .Values.ports.rest }}
+      targetPort: rest
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ include "rollup.name" . }}-chat-frontend-service
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  selector:
+    app: {{ include "rollup.appName" . }}
+  ports:
+    - name: frontend
+      port: 3000
+      targetPort: frontend
+---
+{{- if .Values.metrics.enabled }}
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ include "rollup.name" . }}-metrics
+  namespace: {{ include "rollup.namespace" . }}
+  labels:
+    app: {{ include "rollup.appName" . }}
+spec:
+  selector:
+    app: {{ include "rollup.appName" . }}
+  ports:
+    - name: rollup-metr
+      port: {{ .Values.ports.metrics }}
+      targetPort: rollup-metr
+    - name: conductor-metr
+      port: {{ .Values.ports.conductorMetrics }}
+      targetPort: conductor-metr
+{{- end }}
