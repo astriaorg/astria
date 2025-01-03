@@ -29,6 +29,31 @@ previous block data, Conductor must also track the block hash of any blocks
 between commitments, it will call `BatchGetBlocks` to get block information
 between commitments.
 
+### Restart
+
+The conductor is able to gracefully restart under two scenarios:
+
+1. Conductor recieves a `PermissionDenied` status from the execution layer when
+calling `ExecuteBlock`. This is meant to function seamlessly with [`astria-geth`](https://github.com/astriaorg/astria-geth)'s
+behavior upon an unexpected restart. If `geth` receives a `ExecuteBlock` request
+before receving *both* `GetGenesisInfo` and `GetCommitmentState` (which will be
+the case if the execution layer has restarted), it responds with a `PremissionDenied`
+status, prompting the conductor to restart.
+2. `GenesisInfo` contains a `sequencer_stop_block_height`, indicating a planned
+restart at a given sequencer block height. If the conductor reaches the stop height,
+it will perform a restart in one of the following ways corresponding to its mode:
+
+    - **Firm Only Mode**: Once the stop height is reached for the firm block stream,
+    the firm block at this height is executed (and commitment state updated) before
+    restarting the conductor, prompting the rollup for a new `GenesisInfo` with
+    new start/stop heights (and potentially chain IDs).
+    - **Soft and Firm Mode**: Once the stop height is reached for the soft block
+    stream, no more soft blocks are executed (including the one at the stop height).
+    The firm block is still executed for this height, and then Conductor restarts.
+    - **Soft Only Mode**: Once the stop height is reached for the soft block stream,
+    no more soft blocks are executed (including the one at the stop height). Conductor
+    is then restarted.
+
 ### Execution & Commitments
 
 From the perspective of the sequencer:
@@ -74,9 +99,18 @@ Note: For our EVM rollup, we map the `CommitmentState` to the `ForkchoiceRule`:
 ### GetGenesisInfo
 
 `GetGenesisInfo` returns information which is definitional to the rollup with
-regards to how it serves data from the sequencer & celestia networks. This RPC
-should ALWAYS succeed. The API is agnostic as to how the information is defined
-in a rollups genesis, and used by the conductor as configuration on startup.
+regards to how it serves data from the sequencer & celestia networks, along with
+optional block heights for initiating a [conductor restart](#restart). This RPC
+should **ALWAYS** succeed. The API is agnostic as to how the information is defined
+in a rollup's genesis, and used by the conductor as configuration on startup *or*
+upon a restart.
+
+If the `GenesisInfo` provided by this RPC contains a `sequencer_stop_block_height`,
+the rollup should be prepared to provide an updated response when the conductor
+restarts, including, at minimum, a new `rollup_start_block_height` and `sequencer_start_block_height`.
+The updated response can also contain an updated `sequencer_stop_block_height` (if
+another restart is desired), `celestia_chain_id`, and/or `sequencer_chain_id` (to
+facilitate network migration).
 
 ### ExecuteBlock
 
