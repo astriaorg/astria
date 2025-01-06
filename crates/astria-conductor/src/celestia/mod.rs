@@ -59,6 +59,7 @@ use tracing::{
 
 use crate::{
     block_cache::GetSequencerHeight,
+    conductor::ExitReason,
     executor::{
         FirmSendError,
         FirmTrySendError,
@@ -148,13 +149,13 @@ pub(crate) struct Reader {
 }
 
 impl Reader {
-    pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
+    pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<ExitReason> {
         let ((), executor, sequencer_chain_id) = select!(
             () = self.shutdown.clone().cancelled_owned() => {
                 info_span!("conductor::celestia::Reader::run_until_stopped").in_scope(||
                     info!("received shutdown signal while waiting for Celestia reader task to initialize")
                 );
-                return Ok(());
+                return Ok(ExitReason::ShutdownSignal);
             }
 
             res = self.initialize() => {
@@ -362,7 +363,7 @@ impl RunningReader {
         })
     }
 
-    async fn run_until_stopped(mut self) -> eyre::Result<()> {
+    async fn run_until_stopped(mut self) -> eyre::Result<ExitReason> {
         info_span!("conductor::celestia::RunningReader::run_until_stopped").in_scope(|| {
             info!(
                 initial_celestia_height = self.celestia_next_height,
@@ -383,7 +384,7 @@ impl RunningReader {
                 biased;
 
                 () = self.shutdown.cancelled() => {
-                    break Ok("received shutdown signal");
+                    break Ok(ExitReason::ShutdownSignal);
                 }
 
                 res = &mut self.enqueued_block, if self.waiting_for_executor_capacity() => {
@@ -699,11 +700,11 @@ fn max_permitted_celestia_height(reference: u64, variance: u64) -> u64 {
 }
 
 #[instrument(skip_all)]
-fn report_exit(exit_reason: eyre::Result<&str>, message: &str) -> eyre::Result<()> {
+fn report_exit(exit_reason: eyre::Result<ExitReason>, message: &str) -> eyre::Result<ExitReason> {
     match exit_reason {
         Ok(reason) => {
             info!(%reason, message);
-            Ok(())
+            Ok(reason)
         }
         Err(reason) => {
             error!(%reason, message);

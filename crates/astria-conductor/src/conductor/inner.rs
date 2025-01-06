@@ -5,7 +5,6 @@ use std::{
 
 use astria_eyre::eyre::{
     self,
-    eyre,
     Result,
     WrapErr as _,
 };
@@ -45,12 +44,30 @@ pub(super) enum RestartOrShutdown {
     Shutdown,
 }
 
-enum ExitReason {
+pub(crate) enum ExitReason {
     ShutdownSignal,
     TaskFailed {
         name: &'static str,
         error: eyre::Report,
     },
+    StopHeightExceded(StopHeightExceded),
+    ChannelsClosed,
+}
+
+impl std::fmt::Display for ExitReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ExitReason::ShutdownSignal => write!(f, "received shutdown signal"),
+            ExitReason::TaskFailed {
+                name,
+                error,
+            } => {
+                write!(f, "task `{name}` failed: {error}")
+            }
+            ExitReason::StopHeightExceded(reason) => write!(f, "{reason}"),
+            ExitReason::ChannelsClosed => write!(f, "firm and soft block channels are both closed"),
+        }
+    }
 }
 
 pin_project! {
@@ -83,7 +100,7 @@ pub(super) struct ConductorInner {
     shutdown_token: CancellationToken,
 
     /// The different long-running tasks that make up the conductor;
-    tasks: JoinMap<&'static str, eyre::Result<()>>,
+    tasks: JoinMap<&'static str, eyre::Result<ExitReason>>,
 }
 
 impl ConductorInner {
@@ -186,7 +203,7 @@ impl ConductorInner {
 
             Some((name, res)) = self.tasks.join_next() => {
                 match flatten(res) {
-                    Ok(()) => ExitReason::TaskFailed{name, error: eyre!("task `{name}` exited unexpectedly")},
+                    Ok(exit_reason) => exit_reason,
                     Err(err) => ExitReason::TaskFailed{name, error: err.wrap_err(format!("task `{name}` failed"))},
                 }
             }
@@ -237,6 +254,12 @@ impl ConductorInner {
                     restart_or_shutdown = RestartOrShutdown::Restart;
                 }
             }
+            ExitReason::StopHeightExceded(_) => {
+                restart_or_shutdown = RestartOrShutdown::Restart;
+            }
+            ExitReason::ChannelsClosed => {
+                info!("firm and soft block channels are both closed, shutting down");
+            }
         }
 
         info!("signalled all tasks to shut down; waiting for 25 seconds to exit");
@@ -245,8 +268,8 @@ impl ConductorInner {
             while let Some((name, res)) = self.tasks.join_next().await {
                 let message = "task shut down";
                 match flatten(res) {
-                    Ok(()) => {
-                        info!(name, message);
+                    Ok(exit_reason) => {
+                        info!(name, message, %exit_reason);
                     }
                     Err(error) => {
                         if check_for_restart(name, &error)
@@ -295,6 +318,13 @@ fn report_exit(exit_reason: &ExitReason, message: &str) {
             name: task,
             error: reason,
         } => error!(%reason, %task, message),
+        ExitReason::StopHeightExceded(stop_height_exceded) => {
+            info!(%stop_height_exceded, "restarting");
+        }
+        ExitReason::ChannelsClosed => info!(
+            reason = "firm and soft block channels are both closed",
+            message
+        ),
     }
 }
 
@@ -309,8 +339,6 @@ fn check_for_restart(name: &str, err: &eyre::Report) -> bool {
             if status.code() == tonic::Code::PermissionDenied {
                 return true;
             }
-        } else if err.downcast_ref::<StopHeightExceded>().is_some() {
-            return true;
         }
         current = err.source();
     }
@@ -326,26 +354,6 @@ mod tests {
         let tonic_error: Result<&str, tonic::Status> =
             Err(tonic::Status::new(tonic::Code::PermissionDenied, "error"));
         let err = tonic_error.wrap_err("wrapper_1");
-        let err = err.wrap_err("wrapper_2");
-        let err = err.wrap_err("wrapper_3");
-        assert!(super::check_for_restart("executor", &err.unwrap_err()));
-
-        let celestia_height_error: Result<&str, super::StopHeightExceded> =
-            Err(super::StopHeightExceded::Celestia {
-                firm_height: 1,
-                stop_height: 1,
-            });
-        let err = celestia_height_error.wrap_err("wrapper_1");
-        let err = err.wrap_err("wrapper_2");
-        let err = err.wrap_err("wrapper_3");
-        assert!(super::check_for_restart("executor", &err.unwrap_err()));
-
-        let sequencer_height_error: Result<&str, super::StopHeightExceded> =
-            Err(super::StopHeightExceded::Sequencer {
-                soft_height: 1,
-                stop_height: 1,
-            });
-        let err = sequencer_height_error.wrap_err("wrapper_1");
         let err = err.wrap_err("wrapper_2");
         let err = err.wrap_err("wrapper_3");
         assert!(super::check_for_restart("executor", &err.unwrap_err()));

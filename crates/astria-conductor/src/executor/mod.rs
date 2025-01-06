@@ -40,6 +40,7 @@ use tracing::{
 
 use crate::{
     celestia::ReconstructedBlock,
+    conductor::ExitReason,
     config::CommitLevel,
     metrics::Metrics,
 };
@@ -67,11 +68,9 @@ pub(crate) struct StateNotInit;
 #[derive(Clone, Debug)]
 pub(crate) struct StateIsInit;
 
-#[derive(Debug, thiserror::Error)]
-pub(super) enum StopHeightExceded {
-    #[error("firm height {firm_height} exceeded sequencer stop height {stop_height}")]
+#[derive(Debug)]
+pub(crate) enum StopHeightExceded {
     Celestia { firm_height: u64, stop_height: u64 },
-    #[error("soft height {soft_height} met or exceeded sequencer stop height {stop_height}")]
     Sequencer { soft_height: u64, stop_height: u64 },
 }
 
@@ -87,6 +86,27 @@ impl StopHeightExceded {
         StopHeightExceded::Sequencer {
             soft_height,
             stop_height,
+        }
+    }
+}
+
+impl std::fmt::Display for StopHeightExceded {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            StopHeightExceded::Celestia {
+                firm_height,
+                stop_height,
+            } => write!(
+                f,
+                "firm block height {firm_height} exceded stop height {stop_height}",
+            ),
+            StopHeightExceded::Sequencer {
+                soft_height,
+                stop_height,
+            } => write!(
+                f,
+                "soft block height {soft_height} exceded stop height {stop_height}",
+            ),
         }
     }
 }
@@ -284,13 +304,12 @@ pub(crate) struct Executor {
 }
 
 impl Executor {
-    pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
+    pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<ExitReason> {
         select!(
             () = self.shutdown.clone().cancelled_owned() => {
                 return report_exit(Ok(
-                    "received shutdown signal while initializing task; \
-                    aborting intialization and exiting"
-                ), "");
+                    ExitReason::ShutdownSignal
+                ), "aborting initialization due to shutdown signal");
             }
             res = self.init() => {
                 res.wrap_err("initialization failed")?;
@@ -298,6 +317,10 @@ impl Executor {
         );
 
         let reason = loop {
+            if self.firm_blocks.is_none() && self.soft_blocks.is_none() {
+                break Ok(ExitReason::ChannelsClosed);
+            }
+
             let spread_not_too_large = !self.is_spread_too_large();
             if spread_not_too_large {
                 if let Some(channel) = self.soft_blocks.as_mut() {
@@ -309,7 +332,7 @@ impl Executor {
                 biased;
 
                 () = self.shutdown.cancelled() => {
-                    break Ok("received shutdown signal");
+                    break Ok(ExitReason::ShutdownSignal);
                 }
 
                 Some(block) = async { self.firm_blocks.as_mut().unwrap().recv().await },
@@ -320,8 +343,14 @@ impl Executor {
                         block.hash = %telemetry::display::base64(&block.block_hash),
                         "received block from celestia reader",
                     ));
-                    if let Err(error) = self.execute_firm(block).await {
-                        break Err(error).wrap_err("failed executing firm block");
+                    match self.execute_firm(block).await {
+                        Ok(None) => {},
+                        Ok(Some(stop_height_exceded)) => {
+                            break Ok(ExitReason::StopHeightExceded(stop_height_exceded));
+                        }
+                        Err(error) => {
+                            break Err(error).wrap_err("failed executing firm block");
+                        }
                     }
                 }
 
@@ -333,8 +362,14 @@ impl Executor {
                         block.hash = %telemetry::display::base64(&block.block_hash()),
                         "received block from sequencer reader",
                     ));
-                    if let Err(error) = self.execute_soft(block).await {
-                        break Err(error).wrap_err("failed executing soft block");
+                    match self.execute_soft(block).await {
+                        Ok(None) => {},
+                        Ok(Some(stop_height_exceded)) => {
+                            break Ok(ExitReason::StopHeightExceded(stop_height_exceded));
+                        }
+                        Err(error) => {
+                            break Err(error).wrap_err("failed executing soft block");
+                        }
                     }
                 }
             );
@@ -424,7 +459,10 @@ impl Executor {
         block.height = block.height().value(),
         err,
     ))]
-    async fn execute_soft(&mut self, block: FilteredSequencerBlock) -> eyre::Result<()> {
+    async fn execute_soft(
+        &mut self,
+        block: FilteredSequencerBlock,
+    ) -> eyre::Result<Option<StopHeightExceded>> {
         // TODO(https://github.com/astriaorg/astria/issues/624): add retry logic before failing hard.
         let executable_block = ExecutableBlock::from_sequencer(block, self.state.rollup_id());
 
@@ -434,22 +472,18 @@ impl Executor {
         // return a `StopHeightExceded::Sequencer` error to signal a restart.
         if self.is_soft_block_height_exceded(&executable_block) {
             if self.mode.is_with_firm() {
-                info!(
-                    height = %executable_block.height,
-                    "received soft block whose height is greater than or equal to stop block height. \
-                    dropping soft block and waiting for next firm block before attempting restart. \
-                    will continue logging info of soft blocks until restart",
-                );
-                return Ok(());
+                // If we are continuing to execute firm blocks, we should close the soft block
+                // channel so as to not keep hitting the sequencer RPC endpoint.
+                if let Some(channel) = self.soft_blocks.take() {
+                    drop(channel);
+                }
+                self.soft_blocks = None;
+                return Ok(None);
             }
-            return Err(StopHeightExceded::sequencer(
+            return Ok(Some(StopHeightExceded::sequencer(
                 executable_block.height.value(),
                 self.state.sequencer_stop_block_height(),
-            ))
-            .wrap_err(
-                "soft height met or exceeded sequencer stop height, attempting restart with new \
-                 genesis info",
-            );
+            )));
         }
 
         let expected_height = self.state.next_expected_soft_sequencer_height();
@@ -459,7 +493,7 @@ impl Executor {
                     expected_height.sequencer_block = %expected_height,
                     "block received was stale because firm blocks were executed first; dropping",
                 );
-                return Ok(());
+                return Ok(None);
             }
             std::cmp::Ordering::Greater => bail!(
                 "block received was out-of-order; was a block skipped? expected: \
@@ -507,7 +541,7 @@ impl Executor {
         self.metrics
             .absolute_set_executed_soft_block_number(block_number);
 
-        Ok(())
+        Ok(None)
     }
 
     #[instrument(skip_all, fields(
@@ -515,16 +549,15 @@ impl Executor {
         block.height = block.sequencer_height().value(),
         err,
     ))]
-    async fn execute_firm(&mut self, block: ReconstructedBlock) -> eyre::Result<()> {
+    async fn execute_firm(
+        &mut self,
+        block: ReconstructedBlock,
+    ) -> eyre::Result<Option<StopHeightExceded>> {
         if self.is_firm_block_height_exceded(&block) {
-            return Err(StopHeightExceded::celestia(
+            return Ok(Some(StopHeightExceded::celestia(
                 block.header.height().value(),
                 self.state.sequencer_stop_block_height(),
-            ))
-            .wrap_err(
-                "firm height exceeded sequencer stop height, attempting restart with new genesis \
-                 info",
-            );
+            )));
         }
 
         let celestia_height = block.celestia_height;
@@ -597,7 +630,7 @@ impl Executor {
         self.metrics
             .absolute_set_executed_soft_block_number(block_number);
 
-        Ok(())
+        Ok(None)
     }
 
     /// Executes `block` on top of its `parent_hash`.
@@ -755,11 +788,11 @@ impl Executor {
 }
 
 #[instrument(skip_all)]
-fn report_exit(reason: eyre::Result<&str>, message: &str) -> eyre::Result<()> {
+fn report_exit(reason: eyre::Result<ExitReason>, message: &str) -> eyre::Result<ExitReason> {
     match reason {
         Ok(reason) => {
             info!(%reason, message);
-            Ok(())
+            Ok(reason)
         }
         Err(error) => {
             error!(%error, message);

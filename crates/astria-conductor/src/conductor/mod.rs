@@ -9,6 +9,7 @@ use astria_eyre::eyre::{
     self,
     Result,
 };
+pub(crate) use inner::ExitReason;
 use inner::{
     ConductorInner,
     InnerHandle,
