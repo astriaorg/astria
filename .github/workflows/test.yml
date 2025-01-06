@@ -4,7 +4,7 @@ env:
   RUSTFLAGS: "-D warnings -D unreachable-pub --cfg tokio_unstable"
 
   # This must match the entry in rust-toolchain.toml at the repository root
-  RUSTUP_TOOLCHAIN: "1.81.0"
+  RUSTUP_TOOLCHAIN: "1.83.0"
 on:
   pull_request:
   merge_group:
@@ -250,13 +250,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           # This has to match `rust-toolchain` in the rust-toolchain file of the dylint lints
-          toolchain: nightly-2024-09-05
+          toolchain: nightly-2024-10-03
           components: "clippy, llvm-tools-preview, rustc-dev, rust-src"
       - uses: Swatinem/rust-cache@v2.7.3
         with:
           cache-provider: "buildjet"
       - name: install cargo-dylint and dylint-link
-        run: cargo install cargo-dylint@3.2.0 dylint-link@3.2.0 --locked
+        run: cargo install cargo-dylint@3.3.0 dylint-link@3.3.0 --locked
       - uses: arduino/setup-protoc@v3
         with:
           version: "24.4"

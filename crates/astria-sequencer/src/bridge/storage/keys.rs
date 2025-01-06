@@ -131,10 +131,8 @@ mod tests {
     fn bridge_account_prefix_should_be_prefix_of_relevant_keys() {
         assert!(rollup_id(&address()).starts_with(BRIDGE_ACCOUNT_PREFIX));
         assert!(asset_id(&address()).starts_with(BRIDGE_ACCOUNT_PREFIX));
-        assert!(
-            bridge_account_withdrawal_event(&address(), "the-event")
-                .starts_with(BRIDGE_ACCOUNT_PREFIX)
-        );
+        assert!(bridge_account_withdrawal_event(&address(), "the-event")
+            .starts_with(BRIDGE_ACCOUNT_PREFIX));
         assert!(
             last_transaction_id_for_bridge_account(&address()).starts_with(BRIDGE_ACCOUNT_PREFIX)
         );

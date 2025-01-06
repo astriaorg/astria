@@ -152,6 +152,8 @@ impl Handle<StateIsInit> {
         Ok(sender.send(block.into()).await?)
     }
 
+    // TODO(https://github.com/astriaorg/astria/issues/1858): box the large variant to avoid large error size
+    #[expect(clippy::result_large_err, reason = "should be fixed")]
     pub(crate) fn try_send_firm_block(
         &self,
         block: impl Into<Box<ReconstructedBlock>>,
