@@ -70,22 +70,40 @@ pub(crate) struct StateIsInit;
 
 #[derive(Debug)]
 pub(crate) enum StopHeightExceded {
-    Celestia { firm_height: u64, stop_height: u64 },
-    Sequencer { soft_height: u64, stop_height: u64 },
+    Celestia {
+        firm_height: u64,
+        stop_height: u64,
+        halt: bool,
+    },
+    Sequencer {
+        soft_height: u64,
+        stop_height: u64,
+        halt: bool,
+    },
 }
 
 impl StopHeightExceded {
-    fn celestia(firm_height: u64, stop_height: u64) -> Self {
+    fn celestia(firm_height: u64, stop_height: u64, halt: bool) -> Self {
         StopHeightExceded::Celestia {
             firm_height,
             stop_height,
+            halt,
         }
     }
 
-    fn sequencer(soft_height: u64, stop_height: u64) -> Self {
+    fn sequencer(soft_height: u64, stop_height: u64, halt: bool) -> Self {
         StopHeightExceded::Sequencer {
             soft_height,
             stop_height,
+            halt,
+        }
+    }
+
+    /// Returns whether the conductor should halt at the stop height.
+    pub(crate) fn halt(&self) -> bool {
+        match self {
+            StopHeightExceded::Celestia { halt, .. }
+            | StopHeightExceded::Sequencer { halt, .. } => *halt,
         }
     }
 }
@@ -96,17 +114,27 @@ impl std::fmt::Display for StopHeightExceded {
             StopHeightExceded::Celestia {
                 firm_height,
                 stop_height,
-            } => write!(
-                f,
-                "firm block height {firm_height} exceded stop height {stop_height}",
-            ),
+                halt,
+            } => {
+                let halt_msg = if *halt { "halting" } else { "restarting" };
+                write!(
+                    f,
+                    "firm block height {firm_height} exceded stop height {stop_height}, \
+                     {halt_msg}...",
+                )
+            }
             StopHeightExceded::Sequencer {
                 soft_height,
                 stop_height,
-            } => write!(
-                f,
-                "soft block height {soft_height} exceded stop height {stop_height}",
-            ),
+                halt,
+            } => {
+                let halt_msg = if *halt { "halting" } else { "restarting" };
+                write!(
+                    f,
+                    "soft block height {soft_height} exceded stop height {stop_height}, \
+                     {halt_msg}...",
+                )
+            }
         }
     }
 }
@@ -483,6 +511,7 @@ impl Executor {
             return Ok(Some(StopHeightExceded::sequencer(
                 executable_block.height.value(),
                 self.state.sequencer_stop_block_height(),
+                self.state.genesis_info().halt_at_stop_height(),
             )));
         }
 
@@ -557,6 +586,7 @@ impl Executor {
             return Ok(Some(StopHeightExceded::celestia(
                 block.header.height().value(),
                 self.state.sequencer_stop_block_height(),
+                self.state.genesis_info().halt_at_stop_height(),
             )));
         }
 

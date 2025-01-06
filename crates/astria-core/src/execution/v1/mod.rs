@@ -111,6 +111,11 @@ impl GenesisInfo {
     pub fn rollup_start_block_height(&self) -> u64 {
         self.rollup_start_block_height
     }
+
+    #[must_use]
+    pub fn halt_at_stop_height(&self) -> bool {
+        self.halt_at_stop_height
+    }
 }
 
 impl From<GenesisInfo> for raw::GenesisInfo {

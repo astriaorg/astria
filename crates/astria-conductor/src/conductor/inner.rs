@@ -250,12 +250,14 @@ impl ConductorInner {
                 name,
                 error,
             } => {
-                if check_for_restart(name, error) {
+                if check_err_for_restart(name, error) {
                     restart_or_shutdown = RestartOrShutdown::Restart;
                 }
             }
-            ExitReason::StopHeightExceded(_) => {
-                restart_or_shutdown = RestartOrShutdown::Restart;
+            ExitReason::StopHeightExceded(stop_height_exceded) => {
+                if !stop_height_exceded.halt() {
+                    restart_or_shutdown = RestartOrShutdown::Restart;
+                }
             }
             ExitReason::ChannelsClosed => {
                 info!("firm and soft block channels are both closed, shutting down");
@@ -272,7 +274,7 @@ impl ConductorInner {
                         info!(name, message, %exit_reason);
                     }
                     Err(error) => {
-                        if check_for_restart(name, &error)
+                        if check_err_for_restart(name, &error)
                             && !matches!(exit_reason, ExitReason::ShutdownSignal)
                         {
                             restart_or_shutdown = RestartOrShutdown::Restart;
@@ -329,7 +331,7 @@ fn report_exit(exit_reason: &ExitReason, message: &str) {
 }
 
 #[instrument(skip_all)]
-fn check_for_restart(name: &str, err: &eyre::Report) -> bool {
+fn check_err_for_restart(name: &str, err: &eyre::Report) -> bool {
     if name != ConductorInner::EXECUTOR {
         return false;
     }
@@ -350,12 +352,12 @@ mod tests {
     use astria_eyre::eyre::WrapErr as _;
 
     #[test]
-    fn check_for_restart_ok() {
+    fn check_err_for_restart_ok() {
         let tonic_error: Result<&str, tonic::Status> =
             Err(tonic::Status::new(tonic::Code::PermissionDenied, "error"));
         let err = tonic_error.wrap_err("wrapper_1");
         let err = err.wrap_err("wrapper_2");
         let err = err.wrap_err("wrapper_3");
-        assert!(super::check_for_restart("executor", &err.unwrap_err()));
+        assert!(super::check_err_for_restart("executor", &err.unwrap_err()));
     }
 }
