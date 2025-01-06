@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     net::SocketAddr,
-    sync::Arc,
     time::Duration,
 };
 
@@ -20,7 +19,6 @@ use tokio::{
     },
     sync::{
         watch,
-        Mutex,
         OnceCell,
     },
     task::{
@@ -267,7 +265,6 @@ impl Composer {
         let mut executor_task = tokio::spawn(executor.run_until_stopped());
 
         // wait for collectors and executor to come online
-        let composer_status_sender = Arc::new(Mutex::new(composer_status_sender));
         let collectors_startup_fut =
             wait_for_collectors(&geth_collector_statuses, composer_status_sender.clone());
         let executor_startup_fut = wait_for_executor(executor_status, composer_status_sender);
@@ -486,14 +483,14 @@ fn spawn_geth_collectors(
 #[instrument(skip_all, err)]
 async fn wait_for_executor(
     mut executor_status: watch::Receiver<executor::Status>,
-    composer_status_sender: Arc<Mutex<watch::Sender<composer::Status>>>,
+    composer_status_sender: watch::Sender<composer::Status>,
 ) -> eyre::Result<()> {
     executor_status
         .wait_for(executor::Status::is_connected)
         .await
         .wrap_err("executor failed while waiting for it to become ready")?;
 
-    composer_status_sender.lock().await.send_modify(|status| {
+    composer_status_sender.send_modify(|status| {
         status.set_executor_connected(true);
     });
 
@@ -504,7 +501,7 @@ async fn wait_for_executor(
 #[instrument(skip_all, err)]
 async fn wait_for_collectors(
     collector_statuses: &HashMap<String, watch::Receiver<collectors::geth::Status>>,
-    composer_status_sender: Arc<Mutex<watch::Sender<composer::Status>>>,
+    composer_status_sender: watch::Sender<composer::Status>,
 ) -> eyre::Result<()> {
     use futures::{
         future::FutureExt as _,
@@ -544,7 +541,7 @@ async fn wait_for_collectors(
         }
     }
 
-    composer_status_sender.lock().await.send_modify(|status| {
+    composer_status_sender.send_modify(|status| {
         status.set_all_collectors_connected(true);
     });
 
