@@ -512,7 +512,7 @@ impl RunningReader {
     #[instrument(skip_all)]
     fn forward_block_to_executor(&mut self, block: ReconstructedBlock) -> eyre::Result<()> {
         let celestia_height = block.celestia_height;
-        match self.executor.try_send_firm_block(Box::new(block)) {
+        match self.executor.try_send_firm_block(block) {
             Ok(()) => self.advance_reference_celestia_height(celestia_height),
             Err(FirmTrySendError::Channel {
                 source,
@@ -523,7 +523,7 @@ impl RunningReader {
                          opens up"
                     );
                     self.enqueued_block =
-                        enqueue_block(self.executor.clone(), *block).boxed().fuse();
+                        enqueue_block(self.executor.clone(), block).boxed().fuse();
                 }
                 mpsc::error::TrySendError::Closed(_) => {
                     bail!("exiting because executor channel is closed");
@@ -664,10 +664,10 @@ impl FetchConvertVerifyAndReconstruct {
 #[instrument(skip_all, err)]
 async fn enqueue_block(
     executor: executor::Handle<StateIsInit>,
-    block: ReconstructedBlock,
+    block: Box<ReconstructedBlock>,
 ) -> Result<u64, FirmSendError> {
     let celestia_height = block.celestia_height;
-    executor.send_firm_block(Box::new(block)).await?;
+    executor.send_firm_block(block).await?;
     Ok(celestia_height)
 }
 

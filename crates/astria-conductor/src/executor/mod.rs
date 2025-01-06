@@ -146,18 +146,18 @@ impl Handle<StateIsInit> {
     #[instrument(skip_all, err)]
     pub(crate) async fn send_firm_block(
         self,
-        block: Box<ReconstructedBlock>,
+        block: impl Into<Box<ReconstructedBlock>>,
     ) -> Result<(), FirmSendError> {
         let sender = self.firm_blocks.as_ref().ok_or(FirmSendError::NotSet)?;
-        Ok(sender.send(block).await?)
+        Ok(sender.send(block.into()).await?)
     }
 
     pub(crate) fn try_send_firm_block(
         &self,
-        block: Box<ReconstructedBlock>,
+        block: impl Into<Box<ReconstructedBlock>>,
     ) -> Result<(), FirmTrySendError> {
         let sender = self.firm_blocks.as_ref().ok_or(FirmTrySendError::NotSet)?;
-        Ok(sender.try_send(block)?)
+        Ok(sender.try_send(block.into())?)
     }
 
     #[instrument(skip_all, err)]
