@@ -150,7 +150,7 @@ pub(crate) struct Reader {
 
 impl Reader {
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<ExitReason> {
-        let ((), executor, sequencer_chain_id) = select!(
+        let (executor, sequencer_chain_id) = select!(
             () = self.shutdown.clone().cancelled_owned() => {
                 info_span!("conductor::celestia::Reader::run_until_stopped").in_scope(||
                     info!("received shutdown signal while waiting for Celestia reader task to initialize")
@@ -169,11 +169,10 @@ impl Reader {
             .await
     }
 
-    // TODO(https://github.com/astriaorg/astria/issues/1879): refactor to not return an empty tuple
     #[instrument(skip_all, err)]
     async fn initialize(
         &mut self,
-    ) -> eyre::Result<((), executor::Handle<StateIsInit>, tendermint::chain::Id)> {
+    ) -> eyre::Result<(executor::Handle<StateIsInit>, tendermint::chain::Id)> {
         let executor = self
             .executor
             .wait_for_init()
@@ -212,7 +211,7 @@ impl Reader {
             get_and_validate_sequencer_chain_id
         )?;
 
-        Ok(((), executor, sequencer_chain_id))
+        Ok((executor, sequencer_chain_id))
     }
 }
 
@@ -511,18 +510,20 @@ impl RunningReader {
         match self.executor.try_send_firm_block(block) {
             Ok(()) => self.advance_reference_celestia_height(celestia_height),
             Err(FirmTrySendError::Channel {
-                source: mpsc::error::TrySendError::Full(block),
-            }) => {
-                trace!(
-                    "executor channel is full; rescheduling block fetch until the channel opens up"
-                );
-                self.enqueued_block = enqueue_block(self.executor.clone(), block).boxed().fuse();
-            }
-
-            Err(FirmTrySendError::Channel {
-                source: mpsc::error::TrySendError::Closed(_),
-            }) => bail!("exiting because executor channel is closed"),
-
+                source,
+            }) => match source {
+                mpsc::error::TrySendError::Full(block) => {
+                    trace!(
+                        "executor channel is full; rescheduling block fetch until the channel \
+                         opens up"
+                    );
+                    self.enqueued_block =
+                        enqueue_block(self.executor.clone(), block).boxed().fuse();
+                }
+                mpsc::error::TrySendError::Closed(_) => {
+                    bail!("exiting because executor channel is closed");
+                }
+            },
             Err(FirmTrySendError::NotSet) => bail!(
                 "exiting because executor was configured without firm commitments; this Celestia \
                  reader should have never been started"
@@ -658,7 +659,7 @@ impl FetchConvertVerifyAndReconstruct {
 #[instrument(skip_all, err)]
 async fn enqueue_block(
     executor: executor::Handle<StateIsInit>,
-    block: ReconstructedBlock,
+    block: Box<ReconstructedBlock>,
 ) -> Result<u64, FirmSendError> {
     let celestia_height = block.celestia_height;
     executor.send_firm_block(block).await?;

@@ -150,7 +150,7 @@ pub(crate) enum FirmSendError {
     #[error("failed sending blocks to executor")]
     Channel {
         #[from]
-        source: mpsc::error::SendError<ReconstructedBlock>,
+        source: mpsc::error::SendError<Box<ReconstructedBlock>>,
     },
 }
 
@@ -161,7 +161,7 @@ pub(crate) enum FirmTrySendError {
     #[error("failed sending blocks to executor")]
     Channel {
         #[from]
-        source: mpsc::error::TrySendError<ReconstructedBlock>,
+        source: mpsc::error::TrySendError<Box<ReconstructedBlock>>,
     },
 }
 
@@ -191,7 +191,7 @@ pub(crate) enum SoftTrySendError {
 /// information.
 #[derive(Debug, Clone)]
 pub(crate) struct Handle<TStateInit = StateNotInit> {
-    firm_blocks: Option<mpsc::Sender<ReconstructedBlock>>,
+    firm_blocks: Option<mpsc::Sender<Box<ReconstructedBlock>>>,
     soft_blocks: Option<channel::Sender<FilteredSequencerBlock>>,
     state: StateReceiver,
     _state_init: TStateInit,
@@ -222,20 +222,18 @@ impl Handle<StateIsInit> {
     #[instrument(skip_all, err)]
     pub(crate) async fn send_firm_block(
         self,
-        block: ReconstructedBlock,
+        block: impl Into<Box<ReconstructedBlock>>,
     ) -> Result<(), FirmSendError> {
         let sender = self.firm_blocks.as_ref().ok_or(FirmSendError::NotSet)?;
-        sender.send(block).await?;
-        Ok(())
+        Ok(sender.send(block.into()).await?)
     }
 
     pub(crate) fn try_send_firm_block(
         &self,
-        block: ReconstructedBlock,
+        block: impl Into<Box<ReconstructedBlock>>,
     ) -> Result<(), FirmTrySendError> {
         let sender = self.firm_blocks.as_ref().ok_or(FirmTrySendError::NotSet)?;
-        sender.try_send(block)?;
-        Ok(())
+        Ok(sender.try_send(block.into())?)
     }
 
     #[instrument(skip_all, err)]
@@ -310,7 +308,7 @@ pub(crate) struct Executor {
     /// The channel of which this executor receives blocks for executing
     /// firm commitments.
     /// Only set if `mode` is `FirmOnly` or `SoftAndFirm`.
-    firm_blocks: Option<mpsc::Receiver<ReconstructedBlock>>,
+    firm_blocks: Option<mpsc::Receiver<Box<ReconstructedBlock>>>,
 
     /// The channel of which this executor receives blocks for executing
     /// soft commitments.
@@ -584,7 +582,7 @@ impl Executor {
     ))]
     async fn execute_firm(
         &mut self,
-        block: ReconstructedBlock,
+        block: Box<ReconstructedBlock>,
     ) -> eyre::Result<Option<StopHeightExceded>> {
         if self.is_firm_block_height_exceded(&block) {
             return Ok(Some(StopHeightExceded::celestia(
@@ -595,7 +593,7 @@ impl Executor {
         }
 
         let celestia_height = block.celestia_height;
-        let executable_block = ExecutableBlock::from_reconstructed(block);
+        let executable_block = ExecutableBlock::from_reconstructed(*block);
         let expected_height = self.state.next_expected_firm_sequencer_height();
         let block_height = executable_block.height;
         let rollup_start_block_height = self.state.rollup_start_block_height();

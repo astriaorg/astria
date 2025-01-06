@@ -23,7 +23,7 @@ pub(crate) struct FeesComponent;
 impl Component for FeesComponent {
     type AppState = GenesisAppState;
 
-    #[instrument(name = "FeesComponent::init_chain", skip_all)]
+    #[instrument(name = "FeesComponent::init_chain", skip_all, err)]
     async fn init_chain<S>(mut state: S, app_state: &Self::AppState) -> Result<()>
     where
         S: fees::StateWriteExt + fees::StateReadExt,
