@@ -155,7 +155,7 @@ pub(crate) struct Reader {
 
 impl Reader {
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        let ((), executor, sequencer_chain_id) = select!(
+        let (executor, sequencer_chain_id) = select!(
             () = self.shutdown.clone().cancelled_owned() => {
                 info_span!("conductor::celestia::Reader::run_until_stopped").in_scope(||
                     info!("received shutdown signal while waiting for Celestia reader task to initialize")
@@ -177,7 +177,7 @@ impl Reader {
     #[instrument(skip_all, err)]
     async fn initialize(
         &mut self,
-    ) -> eyre::Result<((), executor::Handle<StateIsInit>, tendermint::chain::Id)> {
+    ) -> eyre::Result<(executor::Handle<StateIsInit>, tendermint::chain::Id)> {
         let validate_celestia_chain_id = async {
             let actual_celestia_chain_id = get_celestia_chain_id(&self.celestia_client)
                 .await
@@ -217,6 +217,7 @@ impl Reader {
             wait_for_init_executor,
             get_and_validate_sequencer_chain_id
         )
+        .map(|((), executor_init, sequencer_chain_id)| (executor_init, sequencer_chain_id))
     }
 }
 
