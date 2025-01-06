@@ -102,8 +102,12 @@ impl StopHeightExceded {
     /// Returns whether the conductor should halt at the stop height.
     pub(crate) fn halt(&self) -> bool {
         match self {
-            StopHeightExceded::Celestia { halt, .. }
-            | StopHeightExceded::Sequencer { halt, .. } => *halt,
+            StopHeightExceded::Celestia {
+                halt, ..
+            }
+            | StopHeightExceded::Sequencer {
+                halt, ..
+            } => *halt,
         }
     }
 }
