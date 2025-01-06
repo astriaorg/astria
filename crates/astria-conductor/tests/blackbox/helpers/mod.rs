@@ -305,7 +305,12 @@ impl TestConductor {
         mount_genesis(&self.mock_http, chain_id).await;
     }
 
-    pub async fn mount_get_genesis_info(&self, genesis_info: GenesisInfo, up_to_n_times: u64) {
+    pub async fn mount_get_genesis_info(
+        &self,
+        genesis_info: GenesisInfo,
+        up_to_n_times: u64,
+        expected_calls: u64,
+    ) {
         use astria_core::generated::astria::execution::v1::GetGenesisInfoRequest;
         astria_grpc_mock::Mock::for_rpc_given(
             "get_genesis_info",
@@ -313,7 +318,7 @@ impl TestConductor {
         )
         .respond_with(astria_grpc_mock::response::constant_response(genesis_info))
         .up_to_n_times(up_to_n_times)
-        .expect(1..)
+        .expect(expected_calls)
         .mount(&self.mock_grpc.mock_server)
         .await;
     }

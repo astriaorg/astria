@@ -24,6 +24,9 @@ pub struct GenesisInfo {
     pub sequencer_chain_id: ::prost::alloc::string::String,
     #[prost(string, tag = "7")]
     pub celestia_chain_id: ::prost::alloc::string::String,
+    /// True if the conductor should halt at the stop height instead of attempting restart.
+    #[prost(bool, tag = "8")]
+    pub halt_at_stop_height: bool,
 }
 impl ::prost::Name for GenesisInfo {
     const NAME: &'static str = "GenesisInfo";

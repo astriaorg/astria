@@ -72,6 +72,8 @@ pub struct GenesisInfo {
     sequencer_chain_id: tendermint::chain::Id,
     /// The chain ID of the celestia network.
     celestia_chain_id: celestia_tendermint::chain::Id,
+    /// Whether the conductor halt at the stop height, or otherwise attempt restart.
+    halt_at_stop_height: bool,
 }
 
 impl GenesisInfo {
@@ -130,6 +132,7 @@ impl Protobuf for GenesisInfo {
             rollup_start_block_height,
             sequencer_chain_id,
             celestia_chain_id,
+            halt_at_stop_height,
         } = raw;
         let Some(rollup_id) = rollup_id else {
             return Err(Self::Error::no_rollup_id());
@@ -153,6 +156,7 @@ impl Protobuf for GenesisInfo {
             rollup_start_block_height: *rollup_start_block_height,
             sequencer_chain_id,
             celestia_chain_id,
+            halt_at_stop_height: *halt_at_stop_height,
         })
     }
 
@@ -165,6 +169,7 @@ impl Protobuf for GenesisInfo {
             rollup_start_block_height,
             sequencer_chain_id,
             celestia_chain_id,
+            halt_at_stop_height,
         } = self;
 
         let sequencer_start_block_height: u32 =
@@ -186,6 +191,7 @@ impl Protobuf for GenesisInfo {
             rollup_start_block_height: *rollup_start_block_height,
             sequencer_chain_id: sequencer_chain_id.to_string(),
             celestia_chain_id: celestia_chain_id.to_string(),
+            halt_at_stop_height: *halt_at_stop_height,
         }
     }
 }

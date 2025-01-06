@@ -728,6 +728,9 @@ impl serde::Serialize for GenesisInfo {
         if !self.celestia_chain_id.is_empty() {
             len += 1;
         }
+        if self.halt_at_stop_height {
+            len += 1;
+        }
         let mut struct_ser = serializer.serialize_struct("astria.execution.v1.GenesisInfo", len)?;
         if let Some(v) = self.rollup_id.as_ref() {
             struct_ser.serialize_field("rollupId", v)?;
@@ -751,6 +754,9 @@ impl serde::Serialize for GenesisInfo {
         }
         if !self.celestia_chain_id.is_empty() {
             struct_ser.serialize_field("celestiaChainId", &self.celestia_chain_id)?;
+        }
+        if self.halt_at_stop_height {
+            struct_ser.serialize_field("haltAtStopHeight", &self.halt_at_stop_height)?;
         }
         struct_ser.end()
     }
@@ -776,6 +782,8 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
             "sequencerChainId",
             "celestia_chain_id",
             "celestiaChainId",
+            "halt_at_stop_height",
+            "haltAtStopHeight",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -787,6 +795,7 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
             RollupStartBlockHeight,
             SequencerChainId,
             CelestiaChainId,
+            HaltAtStopHeight,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -815,6 +824,7 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
                             "rollupStartBlockHeight" | "rollup_start_block_height" => Ok(GeneratedField::RollupStartBlockHeight),
                             "sequencerChainId" | "sequencer_chain_id" => Ok(GeneratedField::SequencerChainId),
                             "celestiaChainId" | "celestia_chain_id" => Ok(GeneratedField::CelestiaChainId),
+                            "haltAtStopHeight" | "halt_at_stop_height" => Ok(GeneratedField::HaltAtStopHeight),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -841,6 +851,7 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
                 let mut rollup_start_block_height__ = None;
                 let mut sequencer_chain_id__ = None;
                 let mut celestia_chain_id__ = None;
+                let mut halt_at_stop_height__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::RollupId => {
@@ -893,6 +904,12 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
                             }
                             celestia_chain_id__ = Some(map_.next_value()?);
                         }
+                        GeneratedField::HaltAtStopHeight => {
+                            if halt_at_stop_height__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("haltAtStopHeight"));
+                            }
+                            halt_at_stop_height__ = Some(map_.next_value()?);
+                        }
                     }
                 }
                 Ok(GenesisInfo {
@@ -903,6 +920,7 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
                     rollup_start_block_height: rollup_start_block_height__.unwrap_or_default(),
                     sequencer_chain_id: sequencer_chain_id__.unwrap_or_default(),
                     celestia_chain_id: celestia_chain_id__.unwrap_or_default(),
+                    halt_at_stop_height: halt_at_stop_height__.unwrap_or_default(),
                 })
             }
         }

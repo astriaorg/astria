@@ -23,6 +23,8 @@ message GenesisInfo {
   uint64 rollup_start_block_height = 5;
   string sequencer_chain_id = 6;
   string celestia_chain_id = 7;
+  // True if the conductor should halt at the stop height instead of attempting restart.
+  bool halt_at_stop_height = 8;
 }
 
 // The set of information which deterministic driver of block production

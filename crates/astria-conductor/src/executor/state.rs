@@ -430,6 +430,7 @@ mod tests {
             rollup_start_block_height: 0,
             sequencer_chain_id: "test-sequencer-0".to_string(),
             celestia_chain_id: "test-celestia-0".to_string(),
+            halt_at_stop_height: false,
         })
         .unwrap()
     }
