@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    fmt::Write,
+    time::Duration,
+};
 
 use astria_core::{
     generated::composer::v1::{
@@ -206,13 +209,21 @@ async fn two_rollup_data_submissions_single_bundle() {
 async fn chain_id_mismatch_returns_error() {
     let bad_chain_id = "bad_id";
     let test_composer = spawn_composer(&["test1"], Some(bad_chain_id), false).await;
+    let expected_err_msg =
+        format!("expected chain ID `{TEST_CHAIN_ID}`, but received `{bad_chain_id}`");
     let err = test_composer.composer.await.unwrap().unwrap_err();
     for cause in err.chain() {
-        if cause.to_string().contains(&format!(
-            "expected chain ID `{TEST_CHAIN_ID}`, but received `{bad_chain_id}`"
-        )) {
+        if cause.to_string().contains(&expected_err_msg) {
             return;
         }
     }
-    panic!("did not find expected executor error message")
+    let mut panic_msg = String::new();
+    writeln!(
+        &mut panic_msg,
+        "did not find expected executor error message"
+    )
+    .unwrap();
+    writeln!(&mut panic_msg, "expected cause:\n\t{expected_err_msg}").unwrap();
+    writeln!(&mut panic_msg, "actual cause chain:\n\t{err:?}").unwrap();
+    panic!("{panic_msg}");
 }
