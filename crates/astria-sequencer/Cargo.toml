@@ -64,6 +64,7 @@ tendermint-proto = { workspace = true }
 tendermint = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt", "tracing"] }
+tokio-util = { workspace = true, features = ["rt"] }
 tonic = { workspace = true }
 tracing = { workspace = true }
 
