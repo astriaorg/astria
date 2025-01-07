@@ -5,7 +5,6 @@ use std::{
 
 use astria_eyre::eyre::{
     self,
-    eyre,
     Result,
     WrapErr as _,
 };
@@ -28,6 +27,7 @@ use tracing::{
     warn,
 };
 
+use self::executor::StopHeightExceded;
 use crate::{
     celestia,
     executor,
@@ -44,12 +44,30 @@ pub(super) enum RestartOrShutdown {
     Shutdown,
 }
 
-enum ExitReason {
+pub(crate) enum ExitReason {
     ShutdownSignal,
     TaskFailed {
         name: &'static str,
         error: eyre::Report,
     },
+    StopHeightExceded(StopHeightExceded),
+    ChannelsClosed,
+}
+
+impl std::fmt::Display for ExitReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ExitReason::ShutdownSignal => write!(f, "received shutdown signal"),
+            ExitReason::TaskFailed {
+                name,
+                error,
+            } => {
+                write!(f, "task `{name}` failed: {error}")
+            }
+            ExitReason::StopHeightExceded(reason) => write!(f, "{reason}"),
+            ExitReason::ChannelsClosed => write!(f, "firm and soft block channels are both closed"),
+        }
+    }
 }
 
 pin_project! {
@@ -82,7 +100,7 @@ pub(super) struct ConductorInner {
     shutdown_token: CancellationToken,
 
     /// The different long-running tasks that make up the conductor;
-    tasks: JoinMap<&'static str, eyre::Result<()>>,
+    tasks: JoinMap<&'static str, eyre::Result<ExitReason>>,
 }
 
 impl ConductorInner {
@@ -133,7 +151,6 @@ impl ConductorInner {
                 sequencer_grpc_client,
                 sequencer_cometbft_client: sequencer_cometbft_client.clone(),
                 sequencer_block_time: Duration::from_millis(cfg.sequencer_block_time_ms),
-                expected_sequencer_chain_id: cfg.expected_sequencer_chain_id.clone(),
                 shutdown: shutdown_token.clone(),
                 executor: executor_handle.clone(),
             }
@@ -155,8 +172,6 @@ impl ConductorInner {
                 executor: executor_handle.clone(),
                 sequencer_cometbft_client: sequencer_cometbft_client.clone(),
                 sequencer_requests_per_second: cfg.sequencer_requests_per_second,
-                expected_celestia_chain_id: cfg.expected_celestia_chain_id,
-                expected_sequencer_chain_id: cfg.expected_sequencer_chain_id,
                 shutdown: shutdown_token.clone(),
                 metrics,
             }
@@ -188,7 +203,7 @@ impl ConductorInner {
 
             Some((name, res)) = self.tasks.join_next() => {
                 match flatten(res) {
-                    Ok(()) => ExitReason::TaskFailed{name, error: eyre!("task `{name}` exited unexpectedly")},
+                    Ok(exit_reason) => exit_reason,
                     Err(err) => ExitReason::TaskFailed{name, error: err.wrap_err(format!("task `{name}` failed"))},
                 }
             }
@@ -235,9 +250,17 @@ impl ConductorInner {
                 name,
                 error,
             } => {
-                if check_for_restart(name, error) {
+                if check_err_for_restart(name, error) {
                     restart_or_shutdown = RestartOrShutdown::Restart;
                 }
+            }
+            ExitReason::StopHeightExceded(stop_height_exceded) => {
+                if !stop_height_exceded.halt() {
+                    restart_or_shutdown = RestartOrShutdown::Restart;
+                }
+            }
+            ExitReason::ChannelsClosed => {
+                info!("firm and soft block channels are both closed, shutting down");
             }
         }
 
@@ -247,11 +270,11 @@ impl ConductorInner {
             while let Some((name, res)) = self.tasks.join_next().await {
                 let message = "task shut down";
                 match flatten(res) {
-                    Ok(()) => {
-                        info!(name, message);
+                    Ok(exit_reason) => {
+                        info!(name, message, %exit_reason);
                     }
                     Err(error) => {
-                        if check_for_restart(name, &error)
+                        if check_err_for_restart(name, &error)
                             && !matches!(exit_reason, ExitReason::ShutdownSignal)
                         {
                             restart_or_shutdown = RestartOrShutdown::Restart;
@@ -297,11 +320,18 @@ fn report_exit(exit_reason: &ExitReason, message: &str) {
             name: task,
             error: reason,
         } => error!(%reason, %task, message),
+        ExitReason::StopHeightExceded(stop_height_exceded) => {
+            info!(%stop_height_exceded, "restarting");
+        }
+        ExitReason::ChannelsClosed => info!(
+            reason = "firm and soft block channels are both closed",
+            message
+        ),
     }
 }
 
 #[instrument(skip_all)]
-fn check_for_restart(name: &str, err: &eyre::Report) -> bool {
+fn check_err_for_restart(name: &str, err: &eyre::Report) -> bool {
     if name != ConductorInner::EXECUTOR {
         return false;
     }
@@ -322,12 +352,12 @@ mod tests {
     use astria_eyre::eyre::WrapErr as _;
 
     #[test]
-    fn check_for_restart_ok() {
+    fn check_err_for_restart_ok() {
         let tonic_error: Result<&str, tonic::Status> =
             Err(tonic::Status::new(tonic::Code::PermissionDenied, "error"));
         let err = tonic_error.wrap_err("wrapper_1");
         let err = err.wrap_err("wrapper_2");
         let err = err.wrap_err("wrapper_3");
-        assert!(super::check_for_restart("executor", &err.unwrap_err()));
+        assert!(super::check_err_for_restart("executor", &err.unwrap_err()));
     }
 }

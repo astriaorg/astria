@@ -40,6 +40,7 @@ use tracing::{
 
 use crate::{
     block_cache::BlockCache,
+    conductor::ExitReason,
     executor::{
         self,
         SoftSendError,
@@ -78,18 +79,15 @@ pub(crate) struct Reader {
     /// height.
     sequencer_block_time: Duration,
 
-    /// The chain ID of the sequencer network the reader should be communicating with.
-    expected_sequencer_chain_id: String,
-
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
 }
 
 impl Reader {
-    pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
+    pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<ExitReason> {
         let executor = select!(
             () = self.shutdown.clone().cancelled_owned() => {
-                return report_exit(Ok("received shutdown signal while waiting for Sequencer reader task to initialize"), "");
+                return report_exit(Ok(ExitReason::ShutdownSignal), "received shutdown signal while waiting for Sequencer reader task to initialize");
             }
             res = self.initialize() => {
                 res?
@@ -107,9 +105,14 @@ impl Reader {
             get_sequencer_chain_id(self.sequencer_cometbft_client.clone())
                 .await
                 .wrap_err("failed to get chain ID from Sequencer")?;
-        let expected_sequencer_chain_id = &self.expected_sequencer_chain_id;
+        let expected_sequencer_chain_id = self
+            .executor
+            .wait_for_init()
+            .await
+            .wrap_err("handle to executor failed while waiting for it being initialized")?
+            .sequencer_chain_id();
         ensure!(
-            self.expected_sequencer_chain_id == actual_sequencer_chain_id.as_str(),
+            expected_sequencer_chain_id == actual_sequencer_chain_id.as_str(),
             "expected chain id `{expected_sequencer_chain_id}` does not match actual: \
              `{actual_sequencer_chain_id}`"
         );
@@ -187,7 +190,7 @@ impl RunningReader {
         })
     }
 
-    async fn run_until_stopped(mut self) -> eyre::Result<()> {
+    async fn run_until_stopped(mut self) -> eyre::Result<ExitReason> {
         let stop_reason = self.run_loop().await;
 
         // XXX: explicitly setting the message (usually implicitly set by tracing)
@@ -195,7 +198,7 @@ impl RunningReader {
         report_exit(stop_reason, message)
     }
 
-    async fn run_loop(&mut self) -> eyre::Result<&'static str> {
+    async fn run_loop(&mut self) -> eyre::Result<ExitReason> {
         use futures::future::FusedFuture as _;
 
         loop {
@@ -203,7 +206,7 @@ impl RunningReader {
                 biased;
 
                 () = self.shutdown.cancelled() => {
-                    return Ok("received shutdown signal");
+                    return Ok(ExitReason::ShutdownSignal);
                 }
 
                 // Process block execution which was enqueued due to executor channel being full.
@@ -316,11 +319,11 @@ impl RunningReader {
 }
 
 #[instrument(skip_all)]
-fn report_exit(reason: eyre::Result<&str>, message: &str) -> eyre::Result<()> {
+fn report_exit(reason: eyre::Result<ExitReason>, message: &str) -> eyre::Result<ExitReason> {
     match reason {
         Ok(reason) => {
             info!(%reason, message);
-            Ok(())
+            Ok(reason)
         }
         Err(reason) => {
             error!(%reason, message);

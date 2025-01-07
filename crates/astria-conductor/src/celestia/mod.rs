@@ -62,6 +62,7 @@ use tracing::{
 
 use crate::{
     block_cache::GetSequencerHeight,
+    conductor::ExitReason,
     executor::{
         FirmSendError,
         FirmTrySendError,
@@ -148,12 +149,6 @@ pub(crate) struct Reader {
     /// (usually to verify block data retrieved from Celestia blobs).
     sequencer_requests_per_second: u32,
 
-    /// The chain ID of the Celestia network the reader should be communicating with.
-    expected_celestia_chain_id: String,
-
-    /// The chain ID of the Sequencer the reader should be communicating with.
-    expected_sequencer_chain_id: String,
-
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
 
@@ -161,13 +156,13 @@ pub(crate) struct Reader {
 }
 
 impl Reader {
-    pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
+    pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<ExitReason> {
         let (executor, sequencer_chain_id) = select!(
             () = self.shutdown.clone().cancelled_owned() => {
                 info_span!("conductor::celestia::Reader::run_until_stopped").in_scope(||
                     info!("received shutdown signal while waiting for Celestia reader task to initialize")
                 );
-                return Ok(());
+                return Ok(ExitReason::ShutdownSignal);
             }
 
             res = self.initialize() => {
@@ -185,24 +180,23 @@ impl Reader {
     async fn initialize(
         &mut self,
     ) -> eyre::Result<(executor::Handle<StateIsInit>, tendermint::chain::Id)> {
+        let executor = self
+            .executor
+            .wait_for_init()
+            .await
+            .wrap_err("handle to executor failed while waiting for it being initialized")?;
+
         let validate_celestia_chain_id = async {
             let actual_celestia_chain_id = get_celestia_chain_id(&self.celestia_client)
                 .await
                 .wrap_err("failed to fetch Celestia chain ID")?;
-            let expected_celestia_chain_id = &self.expected_celestia_chain_id;
+            let expected_celestia_chain_id = executor.celestia_chain_id();
             ensure!(
-                self.expected_celestia_chain_id == actual_celestia_chain_id.as_str(),
+                expected_celestia_chain_id == actual_celestia_chain_id.as_str(),
                 "expected Celestia chain id `{expected_celestia_chain_id}` does not match actual: \
                  `{actual_celestia_chain_id}`"
             );
             Ok(())
-        };
-
-        let wait_for_init_executor = async {
-            self.executor
-                .wait_for_init()
-                .await
-                .wrap_err("handle to executor failed while waiting for it being initialized")
         };
 
         let get_and_validate_sequencer_chain_id = async {
@@ -210,21 +204,21 @@ impl Reader {
                 get_sequencer_chain_id(self.sequencer_cometbft_client.clone())
                     .await
                     .wrap_err("failed to get sequencer chain ID")?;
-            let expected_sequencer_chain_id = &self.expected_sequencer_chain_id;
+            let expected_sequencer_chain_id = executor.sequencer_chain_id();
             ensure!(
-                self.expected_sequencer_chain_id == actual_sequencer_chain_id.to_string(),
+                expected_sequencer_chain_id == actual_sequencer_chain_id.as_str(),
                 "expected Celestia chain id `{expected_sequencer_chain_id}` does not match \
                  actual: `{actual_sequencer_chain_id}`"
             );
             Ok(actual_sequencer_chain_id)
         };
 
-        try_join!(
+        let ((), sequencer_chain_id) = try_join!(
             validate_celestia_chain_id,
-            wait_for_init_executor,
             get_and_validate_sequencer_chain_id
-        )
-        .map(|((), executor_init, sequencer_chain_id)| (executor_init, sequencer_chain_id))
+        )?;
+
+        Ok((executor, sequencer_chain_id))
     }
 }
 
@@ -375,7 +369,7 @@ impl RunningReader {
         })
     }
 
-    async fn run_until_stopped(mut self) -> eyre::Result<()> {
+    async fn run_until_stopped(mut self) -> eyre::Result<ExitReason> {
         info_span!("conductor::celestia::RunningReader::run_until_stopped").in_scope(|| {
             info!(
                 initial_celestia_height = self.celestia_next_height,
@@ -396,7 +390,7 @@ impl RunningReader {
                 biased;
 
                 () = self.shutdown.cancelled() => {
-                    break Ok("received shutdown signal");
+                    break Ok(ExitReason::ShutdownSignal);
                 }
 
                 res = &mut self.enqueued_block, if self.waiting_for_executor_capacity() => {
@@ -714,11 +708,11 @@ fn max_permitted_celestia_height(reference: u64, variance: u64) -> u64 {
 }
 
 #[instrument(skip_all)]
-fn report_exit(exit_reason: eyre::Result<&str>, message: &str) -> eyre::Result<()> {
+fn report_exit(exit_reason: eyre::Result<ExitReason>, message: &str) -> eyre::Result<ExitReason> {
     match exit_reason {
         Ok(reason) => {
             info!(%reason, message);
-            Ok(())
+            Ok(reason)
         }
         Err(reason) => {
             error!(%reason, message);
