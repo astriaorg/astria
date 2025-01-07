@@ -1,10 +1,3 @@
-use astria_core::{
-    generated::astria::sequencerblock::{
-        optimistic::v1alpha1::optimistic_block_service_server::OptimisticBlockServiceServer,
-        v1::sequencer_service_server::SequencerServiceServer,
-    },
-    sequencerblock::v1::SequencerBlock,
-};
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
@@ -13,10 +6,6 @@ use astria_eyre::{
         Result,
         WrapErr as _,
     },
-};
-use futures::{
-    future::Fuse,
-    FutureExt,
 };
 use penumbra_tower_trace::{
     trace::request_span,
@@ -30,13 +19,8 @@ use tokio::{
         signal,
         SignalKind,
     },
-    sync::{
-        oneshot,
-        watch,
-    },
-    task::JoinHandle,
+    sync::watch,
 };
-use tokio_util::sync::CancellationToken;
 use tower_abci::v038::Server;
 use tracing::{
     error,
@@ -46,16 +30,8 @@ use tracing::{
 };
 
 use crate::{
-    app::{
-        event_bus::EventBus,
-        App,
-    },
+    app::App,
     config::Config,
-    grpc::{
-        optimistic::OptimisticBlockFacade,
-        sequencer::SequencerServer,
-    },
-    ibc::host_interface::AstriaHost,
     mempool::Mempool,
     metrics::Metrics,
     service,
@@ -113,7 +89,7 @@ impl Sequencer {
             .await
             .wrap_err("failed to initialize app")?;
 
-        let event_bus = app.get_event_bus();
+        let event_bus_subscription = app.event_bus_subscription();
 
         let consensus_service = tower::ServiceBuilder::new()
             .layer(request_span::layer(|req: &ConsensusRequest| {
@@ -143,12 +119,12 @@ impl Sequencer {
             .grpc_addr
             .parse()
             .wrap_err("failed to parse grpc_addr address")?;
-        let grpc_server_handle = start_grpc_server(
+        let grpc_server_handle = crate::grpc::start_server(
             &storage,
             mempool,
             grpc_addr,
             config.no_optimistic_blocks,
-            event_bus.clone(),
+            event_bus_subscription,
             shutdown_rx,
         );
 
@@ -187,90 +163,6 @@ impl Sequencer {
         server_handle.abort();
         Ok(())
     }
-}
-
-fn start_grpc_server(
-    storage: &cnidarium::Storage,
-    mempool: Mempool,
-    grpc_addr: std::net::SocketAddr,
-    no_optimistic_blocks: bool,
-    event_bus: EventBus,
-    shutdown_rx: oneshot::Receiver<()>,
-) -> JoinHandle<Result<(), tonic::transport::Error>> {
-    use ibc_proto::ibc::core::{
-        channel::v1::query_server::QueryServer as ChannelQueryServer,
-        client::v1::query_server::QueryServer as ClientQueryServer,
-        connection::v1::query_server::QueryServer as ConnectionQueryServer,
-    };
-    use penumbra_tower_trace::remote_addr;
-    use tower_http::cors::CorsLayer;
-
-    let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
-    let sequencer_api = SequencerServer::new(storage.clone(), mempool);
-    let cors_layer: CorsLayer = CorsLayer::permissive();
-
-    let optimistic_streams_cancellation_token = CancellationToken::new();
-
-    let (optimistic_block_facade, mut optimistic_block_service_inner) =
-        OptimisticBlockFacade::new_optimistic_block_service(
-            event_bus,
-            optimistic_streams_cancellation_token.child_token(),
-        );
-
-    let optimistic_block_service_server = {
-        if no_optimistic_blocks {
-            None
-        } else {
-            Some(OptimisticBlockServiceServer::new(optimistic_block_facade))
-        }
-    };
-
-    // TODO: setup HTTPS?
-    let grpc_server = tonic::transport::Server::builder()
-        .trace_fn(|req| {
-            if let Some(remote_addr) = remote_addr(req) {
-                let addr = remote_addr.to_string();
-                error_span!("grpc", addr)
-            } else {
-                error_span!("grpc")
-            }
-        })
-        // (from Penumbra) Allow HTTP/1, which will be used by grpc-web connections.
-        // This is particularly important when running locally, as gRPC
-        // typically uses HTTP/2, which requires HTTPS. Accepting HTTP/2
-        // allows local applications such as web browsers to talk to pd.
-        .accept_http1(true)
-        // (from Penumbra) Add permissive CORS headers, so pd's gRPC services are accessible
-        // from arbitrary web contexts, including from localhost.
-        .layer(cors_layer)
-        .add_service(ClientQueryServer::new(ibc.clone()))
-        .add_service(ChannelQueryServer::new(ibc.clone()))
-        .add_service(ConnectionQueryServer::new(ibc.clone()))
-        .add_service(SequencerServiceServer::new(sequencer_api))
-        .add_optional_service(optimistic_block_service_server);
-
-    // let mut optimistic_block_inner_handle = Fuse::terminated();
-    let optimistic_block_inner_handle = {
-        if no_optimistic_blocks {
-            Fuse::terminated()
-        } else {
-            tokio::task::spawn(async move { optimistic_block_service_inner.run().await }).fuse()
-        }
-    };
-
-    info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
-
-    tokio::task::spawn(grpc_server.serve_with_shutdown(grpc_addr, async move {
-        tokio::select! {
-            _ = shutdown_rx => {
-                info!("grpc server shutting down");
-            },
-            _ = optimistic_block_inner_handle => {
-                info!("optimistic block inner handle task exited");
-            }
-        }
-        optimistic_streams_cancellation_token.cancel();
-    }))
 }
 
 struct SignalReceiver {
