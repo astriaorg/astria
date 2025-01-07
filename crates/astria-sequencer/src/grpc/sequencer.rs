@@ -160,7 +160,7 @@ impl SequencerService for SequencerServer {
         let all_rollup_ids = all_rollup_ids.into_iter().map(RollupId::into_raw).collect();
 
         let block = RawFilteredSequencerBlock {
-            block_hash: Bytes::copy_from_slice(&block_hash),
+            block_hash: Bytes::copy_from_slice(block_hash.as_bytes()),
             header: Some(header.into_raw()),
             rollup_transactions,
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),

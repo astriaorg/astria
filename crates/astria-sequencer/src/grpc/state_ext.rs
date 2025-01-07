@@ -1,6 +1,7 @@
 use astria_core::{
     primitive::v1::RollupId,
     sequencerblock::v1::block::{
+        self,
         RollupTransactions,
         SequencerBlock,
         SequencerBlockHeader,
@@ -34,7 +35,7 @@ use crate::storage::StoredValue;
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all, fields(%height), err(level = Level::WARN))]
-    async fn get_block_hash_by_height(&self, height: u64) -> Result<[u8; 32]> {
+    async fn get_block_hash_by_height(&self, height: u64) -> Result<block::Hash> {
         let Some(bytes) = self
             .nonverifiable_get_raw(keys::block_hash_by_height(height).as_bytes())
             .await
@@ -44,17 +45,17 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("block hash not found for given height");
         };
         StoredValue::deserialize(&bytes)
-            .and_then(|value| storage::BlockHash::try_from(value).map(<[u8; 32]>::from))
+            .and_then(|value| storage::BlockHash::try_from(value).map(block::Hash::from))
             .wrap_err("invalid block hash bytes")
     }
 
-    #[instrument(skip_all, fields(hash = %hex::encode(hash)), err(level = Level::WARN))]
+    #[instrument(skip_all, fields(%hash), err(level = Level::WARN))]
     async fn get_sequencer_block_header_by_hash(
         &self,
-        hash: &[u8; 32],
+        hash: &block::Hash,
     ) -> Result<SequencerBlockHeader> {
         let Some(bytes) = self
-            .nonverifiable_get_raw(keys::sequencer_block_header_by_hash(hash).as_bytes())
+            .nonverifiable_get_raw(keys::sequencer_block_header_by_hash(hash.as_bytes()).as_bytes())
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw sequencer block from state")?
@@ -68,10 +69,10 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid sequencer block header bytes")
     }
 
-    #[instrument(skip_all, fields(hash = %hex::encode(hash)), err(level = Level::WARN))]
-    async fn get_rollup_ids_by_block_hash(&self, hash: &[u8; 32]) -> Result<Vec<RollupId>> {
+    #[instrument(skip_all, fields(%hash), err(level = Level::WARN))]
+    async fn get_rollup_ids_by_block_hash(&self, hash: &block::Hash) -> Result<Vec<RollupId>> {
         let Some(bytes) = self
-            .nonverifiable_get_raw(keys::rollup_ids_by_hash(hash).as_bytes())
+            .nonverifiable_get_raw(keys::rollup_ids_by_hash(hash.as_bytes()).as_bytes())
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read rollup IDs by block hash from state")?
@@ -94,15 +95,15 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("failed to get sequencer block by hash")
     }
 
-    #[instrument(skip_all, fields(hash = %hex::encode(hash), %rollup_id), err(level = Level::WARN))]
+    #[instrument(skip_all, fields(%hash, %rollup_id), err(level = Level::WARN))]
     async fn get_rollup_data(
         &self,
-        hash: &[u8; 32],
+        hash: &block::Hash,
         rollup_id: &RollupId,
     ) -> Result<RollupTransactions> {
         let Some(bytes) = self
             .nonverifiable_get_raw(
-                keys::rollup_data_by_hash_and_rollup_id(hash, rollup_id).as_bytes(),
+                keys::rollup_data_by_hash_and_rollup_id(hash.as_bytes(), rollup_id).as_bytes(),
             )
             .await
             .map_err(anyhow_to_eyre)
@@ -119,13 +120,15 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid rollup transactions bytes")
     }
 
-    #[instrument(skip_all, fields(hash = %hex::encode(hash)), err(level = Level::WARN))]
+    #[instrument(skip_all, fields(%hash), err(level = Level::WARN))]
     async fn get_rollup_transactions_proof_by_block_hash(
         &self,
-        hash: &[u8; 32],
+        hash: &block::Hash,
     ) -> Result<merkle::Proof> {
         let Some(bytes) = self
-            .nonverifiable_get_raw(keys::rollup_transactions_proof_by_hash(hash).as_bytes())
+            .nonverifiable_get_raw(
+                keys::rollup_transactions_proof_by_hash(hash.as_bytes()).as_bytes(),
+            )
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read rollup transactions proof by block hash from state")?
@@ -137,10 +140,13 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid rollup transactions proof bytes")
     }
 
-    #[instrument(skip_all, fields(hash = %hex::encode(hash)), err(level = Level::WARN))]
-    async fn get_rollup_ids_proof_by_block_hash(&self, hash: &[u8; 32]) -> Result<merkle::Proof> {
+    #[instrument(skip_all, fields(%hash), err(level = Level::WARN))]
+    async fn get_rollup_ids_proof_by_block_hash(
+        &self,
+        hash: &block::Hash,
+    ) -> Result<merkle::Proof> {
         let Some(bytes) = self
-            .nonverifiable_get_raw(keys::rollup_ids_proof_by_hash(hash).as_bytes())
+            .nonverifiable_get_raw(keys::rollup_ids_proof_by_hash(hash.as_bytes()).as_bytes())
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read rollup IDs proof by block hash from state")?
@@ -183,10 +189,10 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 }
 
-#[instrument(skip_all, fields(hash = %hex::encode(hash)), err(level = Level::DEBUG))]
+#[instrument(skip_all, fields(%hash), err(level = Level::DEBUG))]
 async fn get_sequencer_block_by_hash<S: StateRead + ?Sized>(
     state: &S,
-    hash: &[u8; 32],
+    hash: &block::Hash,
 ) -> Result<SequencerBlock> {
     let header = state
         .get_sequencer_block_header_by_hash(hash)
@@ -231,7 +237,7 @@ async fn get_sequencer_block_by_hash<S: StateRead + ?Sized>(
 fn put_block_hash<S: StateWrite + ?Sized>(
     state: &mut S,
     block_height: tendermint::block::Height,
-    block_hash: [u8; 32],
+    block_hash: block::Hash,
 ) -> Result<()> {
     let bytes = StoredValue::from(storage::BlockHash::from(&block_hash))
         .serialize()
@@ -245,14 +251,17 @@ fn put_block_hash<S: StateWrite + ?Sized>(
 
 fn put_rollup_ids<S: StateWrite + ?Sized, I: Iterator<Item = RollupId>>(
     state: &mut S,
-    block_hash: &[u8; 32],
+    block_hash: &block::Hash,
     rollup_ids: I,
 ) -> Result<()> {
     let rollup_ids: Vec<_> = rollup_ids.collect();
     let bytes = StoredValue::from(storage::RollupIds::from(rollup_ids.iter()))
         .serialize()
         .context("failed to serialize rollup ids")?;
-    state.nonverifiable_put_raw(keys::rollup_ids_by_hash(block_hash).into(), bytes);
+    state.nonverifiable_put_raw(
+        keys::rollup_ids_by_hash(block_hash.as_bytes()).into(),
+        bytes,
+    );
     Ok(())
 }
 
@@ -262,14 +271,14 @@ fn put_rollup_ids<S: StateWrite + ?Sized, I: Iterator<Item = RollupId>>(
 )]
 fn put_block_header<S: StateWrite + ?Sized>(
     state: &mut S,
-    block_hash: &[u8; 32],
+    block_hash: &block::Hash,
     block_header: SequencerBlockHeader,
 ) -> Result<()> {
     let bytes = StoredValue::from(storage::SequencerBlockHeader::from(&block_header))
         .serialize()
         .context("failed to serialize sequencer block header")?;
     state.nonverifiable_put_raw(
-        keys::sequencer_block_header_by_hash(block_hash).into(),
+        keys::sequencer_block_header_by_hash(block_hash.as_bytes()).into(),
         bytes,
     );
     Ok(())
@@ -277,7 +286,7 @@ fn put_block_header<S: StateWrite + ?Sized>(
 
 fn put_rollups_transactions<S, I>(
     state: &mut S,
-    block_hash: &[u8; 32],
+    block_hash: &block::Hash,
     all_rollups_txs: I,
 ) -> Result<()>
 where
@@ -290,7 +299,7 @@ where
             .serialize()
             .context("failed to serialize rollup transactions")?;
         state.nonverifiable_put_raw(
-            keys::rollup_data_by_hash_and_rollup_id(block_hash, id).into(),
+            keys::rollup_data_by_hash_and_rollup_id(block_hash.as_bytes(), id).into(),
             bytes,
         );
         Ok(())
@@ -303,14 +312,14 @@ where
 )]
 fn put_rollups_transactions_proof<S: StateWrite + ?Sized>(
     state: &mut S,
-    block_hash: &[u8; 32],
+    block_hash: &block::Hash,
     proof: merkle::Proof,
 ) -> Result<()> {
     let bytes = StoredValue::from(storage::Proof::from(&proof))
         .serialize()
         .context("failed to serialize rollups transactions proof")?;
     state.nonverifiable_put_raw(
-        keys::rollup_transactions_proof_by_hash(block_hash).into(),
+        keys::rollup_transactions_proof_by_hash(block_hash.as_bytes()).into(),
         bytes,
     );
     Ok(())
@@ -322,13 +331,16 @@ fn put_rollups_transactions_proof<S: StateWrite + ?Sized>(
 )]
 fn put_rollup_ids_proof<S: StateWrite + ?Sized>(
     state: &mut S,
-    block_hash: &[u8; 32],
+    block_hash: &block::Hash,
     proof: merkle::Proof,
 ) -> Result<()> {
     let bytes = StoredValue::from(storage::Proof::from(&proof))
         .serialize()
         .context("failed to serialize rollup ids proof")?;
-    state.nonverifiable_put_raw(keys::rollup_ids_proof_by_hash(block_hash).into(), bytes);
+    state.nonverifiable_put_raw(
+        keys::rollup_ids_proof_by_hash(block_hash.as_bytes()).into(),
+        bytes,
+    );
     Ok(())
 }
 
