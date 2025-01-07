@@ -121,7 +121,7 @@ pub(crate) fn start_server(
                     info!("optimistic block service task shutdown gracefully");
                 },
                 Ok(Err(e)) => {
-                    warn!(%e, "optimistic block service has panicked")
+                    warn!(%e, "optimistic block service has panicked");
                 }
                 Err(e) => {
                     error!(%e, "optimistic block service task didn't shutdown in time");

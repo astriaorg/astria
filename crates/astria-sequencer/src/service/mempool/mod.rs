@@ -43,7 +43,11 @@ use tendermint::{
 };
 use tower::Service;
 use tower_abci::BoxError;
-use tracing::{info, instrument, Instrument as _};
+use tracing::{
+    info,
+    instrument,
+    Instrument as _,
+};
 
 use crate::{
     accounts::StateReadExt as _,
