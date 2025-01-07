@@ -9,8 +9,8 @@ use bytes::Bytes;
 use indexmap::IndexMap;
 use sha2::Sha256;
 use tendermint::{
-    account,
     Time,
+    account,
 };
 
 use super::{
@@ -24,22 +24,22 @@ use super::{
     raw,
 };
 use crate::{
+    Protobuf as _,
     primitive::v1::{
-        asset,
-        derive_merkle_tree_from_rollup_txs,
         Address,
         AddressError,
         IncorrectRollupIdLength,
         RollupId,
         TransactionId,
         TransactionIdError,
+        asset,
+        derive_merkle_tree_from_rollup_txs,
     },
     protocol::transaction::v1::{
-        action,
         Transaction,
         TransactionError,
+        action,
     },
-    Protobuf as _,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -599,9 +599,9 @@ pub struct SequencerBlockParts {
 ///    (ethereum) 32 byte hashes.
 /// 2. to provide a hex formatted display impl, which is the convention for block hashes.
 ///
-/// Note that hex based `Display` impl of [`Hash`] does not follow the pbjson
+/// Note that hex based [`Display`] impl of [`Hash`] does not follow the pbjson
 /// convention to display protobuf `bytes` using base64 encoding. To get the
-/// display formatting faithful to pbjson convetion use the alternative formatting selector,
+/// display formatting faithful to pbjson convention use the alternative formatting selector,
 /// `{block_hash:#}` instead.
 ///
 /// # Examples
@@ -936,14 +936,11 @@ impl SequencerBlock {
             let proof = rollup_transaction_tree
                 .construct_proof(i)
                 .expect("the proof must exist because the tree was derived with the same leaf");
-            rollup_transactions.insert(
+            rollup_transactions.insert(rollup_id, RollupTransactions {
                 rollup_id,
-                RollupTransactions {
-                    rollup_id,
-                    transactions: data, // TODO: rename this field?
-                    proof,
-                },
-            );
+                transactions: data, // TODO: rename this field?
+                proof,
+            });
         }
         rollup_transactions.sort_unstable_keys();
 
