@@ -11,9 +11,9 @@ use astria_core::{
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
+        bail,
         Result,
         WrapErr as _,
-        bail,
     },
 };
 use async_trait::async_trait;
@@ -22,8 +22,8 @@ use cnidarium::{
     StateWrite,
 };
 use tracing::{
-    Level,
     instrument,
+    Level,
 };
 
 use super::storage::{
