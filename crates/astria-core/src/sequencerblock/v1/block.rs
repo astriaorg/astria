@@ -8,8 +8,8 @@ use bytes::Bytes;
 use indexmap::IndexMap;
 use sha2::Sha256;
 use tendermint::{
-    account,
     Time,
+    account,
 };
 
 use super::{
@@ -23,22 +23,22 @@ use super::{
     raw,
 };
 use crate::{
+    Protobuf,
     primitive::v1::{
-        asset,
-        derive_merkle_tree_from_rollup_txs,
         Address,
         AddressError,
         IncorrectRollupIdLength,
         RollupId,
         TransactionId,
         TransactionIdError,
+        asset,
+        derive_merkle_tree_from_rollup_txs,
     },
     protocol::transaction::v1::{
-        action,
         Transaction,
         TransactionError,
+        action,
     },
-    Protobuf as _,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -928,14 +928,11 @@ impl SequencerBlock {
             let proof = rollup_transaction_tree
                 .construct_proof(i)
                 .expect("the proof must exist because the tree was derived with the same leaf");
-            rollup_transactions.insert(
+            rollup_transactions.insert(rollup_id, RollupTransactions {
                 rollup_id,
-                RollupTransactions {
-                    rollup_id,
-                    transactions: data, // TODO: rename this field?
-                    proof,
-                },
-            );
+                transactions: data, // TODO: rename this field?
+                proof,
+            });
         }
         rollup_transactions.sort_unstable_keys();
 
@@ -1355,6 +1352,27 @@ impl FilteredSequencerBlock {
             all_rollup_ids,
             rollup_ids_proof,
         }
+    }
+}
+
+impl Protobuf for FilteredSequencerBlock {
+    type Error = FilteredSequencerBlockError;
+    type Raw = raw::FilteredSequencerBlock;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        Self::try_from_raw(raw.clone())
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        self.clone().into_raw()
+    }
+
+    fn try_from_raw(raw: Self::Raw) -> Result<Self, Self::Error> {
+        Self::try_from_raw(raw)
+    }
+
+    fn into_raw(self) -> Self::Raw {
+        self.into_raw()
     }
 }
 
