@@ -22,6 +22,9 @@ use super::{
 #[derive(BorshSerialize, BorshDeserialize)]
 pub(in crate::grpc) struct BlockHash<'a>(Cow<'a, [u8; 32]>);
 
+// NOTE(janis): Is it confusing that the display impl at the service level is hex,
+// while here it's base64? This probably makes sense because storage is closer to
+// the wire format, which itself followes the base64 pbjson convention.
 impl<'a> Debug for BlockHash<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", base64(self.0.as_slice()))
@@ -30,7 +33,7 @@ impl<'a> Debug for BlockHash<'a> {
 
 impl<'a> From<&'a astria_core::sequencerblock::v1::block::Hash> for BlockHash<'a> {
     fn from(block_hash: &'a astria_core::sequencerblock::v1::block::Hash) -> Self {
-        BlockHash(Cow::Borrowed(block_hash))
+        BlockHash(Cow::Borrowed(block_hash.as_bytes()))
     }
 }
 

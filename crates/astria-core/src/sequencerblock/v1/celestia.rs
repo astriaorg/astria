@@ -5,6 +5,8 @@ use sha2::{
 };
 
 use super::{
+    IncorrectRollupIdLength,
+    RollupId,
     block::{
         self,
         RollupTransactionsParts,
@@ -13,8 +15,6 @@ use super::{
         SequencerBlockHeaderError,
     },
     raw,
-    IncorrectRollupIdLength,
-    RollupId,
 };
 use crate::Protobuf;
 
@@ -236,7 +236,7 @@ impl SubmittedRollupData {
             proof,
         } = self;
         raw::SubmittedRollupData {
-            sequencer_block_hash: Bytes::copy_from_slice(&*sequencer_block_hash),
+            sequencer_block_hash: Bytes::copy_from_slice(sequencer_block_hash.as_bytes()),
             rollup_id: Some(rollup_id.to_raw()),
             transactions,
             proof: Some(proof.into_raw()),
@@ -618,7 +618,7 @@ impl SubmittedMetadata {
             ..
         } = self;
         raw::SubmittedMetadata {
-            block_hash: Bytes::copy_from_slice(&*block_hash),
+            block_hash: Bytes::copy_from_slice(block_hash.as_bytes()),
             header: Some(header.into_raw()),
             rollup_ids: rollup_ids.into_iter().map(RollupId::into_raw).collect(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),

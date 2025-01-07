@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     fmt::Display,
-    ops::Deref,
     vec::IntoIter,
 };
 
@@ -9,8 +8,8 @@ use bytes::Bytes;
 use indexmap::IndexMap;
 use sha2::Sha256;
 use tendermint::{
-    account,
     Time,
+    account,
 };
 
 use super::{
@@ -24,22 +23,22 @@ use super::{
     raw,
 };
 use crate::{
+    Protobuf as _,
     primitive::v1::{
-        asset,
-        derive_merkle_tree_from_rollup_txs,
         Address,
         AddressError,
         IncorrectRollupIdLength,
         RollupId,
         TransactionId,
         TransactionIdError,
+        asset,
+        derive_merkle_tree_from_rollup_txs,
     },
     protocol::transaction::v1::{
-        action,
         Transaction,
         TransactionError,
+        action,
     },
-    Protobuf as _,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -624,26 +623,23 @@ pub struct Hash([u8; 32]);
 
 impl Hash {
     #[must_use]
-    pub fn new(inner: [u8; 32]) -> Self {
+    pub const fn new(inner: [u8; 32]) -> Self {
         Self(inner)
     }
 
     #[must_use]
-    pub fn get(&self) -> [u8; 32] {
+    pub const fn get(self) -> [u8; 32] {
         self.0
+    }
+
+    #[must_use]
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
     }
 }
 
 impl AsRef<[u8]> for Hash {
     fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
-}
-
-impl Deref for Hash {
-    type Target = [u8; 32];
-
-    fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
@@ -938,14 +934,11 @@ impl SequencerBlock {
             let proof = rollup_transaction_tree
                 .construct_proof(i)
                 .expect("the proof must exist because the tree was derived with the same leaf");
-            rollup_transactions.insert(
+            rollup_transactions.insert(rollup_id, RollupTransactions {
                 rollup_id,
-                RollupTransactions {
-                    rollup_id,
-                    transactions: data, // TODO: rename this field?
-                    proof,
-                },
-            );
+                transactions: data, // TODO: rename this field?
+                proof,
+            });
         }
         rollup_transactions.sort_unstable_keys();
 
@@ -1212,7 +1205,7 @@ impl FilteredSequencerBlock {
             ..
         } = self;
         raw::FilteredSequencerBlock {
-            block_hash: Bytes::copy_from_slice(&*block_hash),
+            block_hash: Bytes::copy_from_slice(block_hash.as_bytes()),
             header: Some(header.into_raw()),
             rollup_transactions: rollup_transactions
                 .into_values()

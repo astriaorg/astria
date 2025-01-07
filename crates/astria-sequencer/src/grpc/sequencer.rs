@@ -1,17 +1,17 @@
 use std::sync::Arc;
 
 use astria_core::{
+    Protobuf,
     generated::astria::sequencerblock::v1::{
-        sequencer_service_server::SequencerService,
         FilteredSequencerBlock as RawFilteredSequencerBlock,
         GetFilteredSequencerBlockRequest,
         GetPendingNonceRequest,
         GetPendingNonceResponse,
         GetSequencerBlockRequest,
         SequencerBlock as RawSequencerBlock,
+        sequencer_service_server::SequencerService,
     },
     primitive::v1::RollupId,
-    Protobuf,
 };
 use bytes::Bytes;
 use cnidarium::Storage;
@@ -160,7 +160,7 @@ impl SequencerService for SequencerServer {
         let all_rollup_ids = all_rollup_ids.into_iter().map(RollupId::into_raw).collect();
 
         let block = RawFilteredSequencerBlock {
-            block_hash: Bytes::copy_from_slice(&*block_hash),
+            block_hash: Bytes::copy_from_slice(block_hash.as_bytes()),
             header: Some(header.into_raw()),
             rollup_transactions,
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
@@ -231,12 +231,12 @@ mod tests {
     use super::*;
     use crate::{
         app::{
+            StateWriteExt as _,
             benchmark_and_test_utils::{
                 mock_balances,
                 mock_tx_cost,
             },
             test_utils::get_alice_signing_key,
-            StateWriteExt as _,
         },
         benchmark_and_test_utils::astria_address,
         grpc::StateWriteExt as _,
