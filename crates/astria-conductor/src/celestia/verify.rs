@@ -5,46 +5,46 @@ use std::{
 };
 
 use astria_core::sequencerblock::v1::{
+    block,
     SubmittedMetadata,
     SubmittedRollupData,
-    block,
 };
 use astria_eyre::{
     eyre,
     eyre::{
-        WrapErr as _,
         ensure,
+        WrapErr as _,
     },
 };
 use moka::future::Cache;
 use sequencer_client::{
-    Client as _,
-    HttpClient as SequencerClient,
     tendermint::block::{
-        Height as SequencerHeight,
         signed_header::SignedHeader,
+        Height as SequencerHeight,
     },
     tendermint_rpc,
+    Client as _,
+    HttpClient as SequencerClient,
 };
 use tokio_util::task::JoinMap;
 use tower::{
+    util::BoxService,
     BoxError,
     Service as _,
     ServiceExt as _,
-    util::BoxService,
 };
 use tracing::{
-    Instrument,
-    Level,
     info,
     instrument,
     warn,
+    Instrument,
+    Level,
 };
 use tryhard::{
-    RetryFutureConfig,
-    RetryPolicy,
     backoff_strategies::BackoffStrategy,
     retry_fn,
+    RetryFutureConfig,
+    RetryPolicy,
 };
 
 use super::{
