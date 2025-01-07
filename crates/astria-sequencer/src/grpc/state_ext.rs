@@ -189,7 +189,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 }
 
-#[instrument(skip_all, fields(hash = %hex::encode(hash)), err(level = Level::DEBUG))]
+#[instrument(skip_all, fields(%hash), err(level = Level::DEBUG))]
 async fn get_sequencer_block_by_hash<S: StateRead + ?Sized>(
     state: &S,
     hash: &block::Hash,

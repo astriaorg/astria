@@ -638,12 +638,6 @@ impl Hash {
     }
 }
 
-impl AsRef<[u8]> for Hash {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
-}
-
 #[derive(Debug, thiserror::Error)]
 #[error("block hash requires 32 bytes, but slice contained `{actual}`")]
 pub struct HashFromSliceError {
@@ -781,7 +775,7 @@ impl SequencerBlock {
             rollup_ids_proof,
         } = self;
         raw::SequencerBlock {
-            block_hash: Bytes::copy_from_slice(block_hash.as_ref()),
+            block_hash: Bytes::copy_from_slice(block_hash.as_bytes()),
             header: Some(header.into_raw()),
             rollup_transactions: rollup_transactions
                 .into_values()

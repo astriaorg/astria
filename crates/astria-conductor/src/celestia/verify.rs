@@ -5,46 +5,46 @@ use std::{
 };
 
 use astria_core::sequencerblock::v1::{
-    block,
     SubmittedMetadata,
     SubmittedRollupData,
+    block,
 };
 use astria_eyre::{
     eyre,
     eyre::{
-        ensure,
         WrapErr as _,
+        ensure,
     },
 };
 use moka::future::Cache;
 use sequencer_client::{
-    tendermint::block::{
-        signed_header::SignedHeader,
-        Height as SequencerHeight,
-    },
-    tendermint_rpc,
     Client as _,
     HttpClient as SequencerClient,
+    tendermint::block::{
+        Height as SequencerHeight,
+        signed_header::SignedHeader,
+    },
+    tendermint_rpc,
 };
 use tokio_util::task::JoinMap;
 use tower::{
-    util::BoxService,
     BoxError,
     Service as _,
     ServiceExt as _,
+    util::BoxService,
 };
 use tracing::{
+    Instrument,
+    Level,
     info,
     instrument,
     warn,
-    Instrument,
-    Level,
 };
 use tryhard::{
-    backoff_strategies::BackoffStrategy,
-    retry_fn,
     RetryFutureConfig,
     RetryPolicy,
+    backoff_strategies::BackoffStrategy,
+    retry_fn,
 };
 
 use super::{
@@ -558,10 +558,10 @@ fn ensure_block_hashes_match(in_commit: &[u8], in_header: &block::Hash) -> eyre:
     // to ensure that the formatting of the two byte slices doesn't accidentally go
     // out of whack should the display impl change.
     ensure!(
-        in_commit == in_header.as_ref(),
+        in_commit == in_header.as_bytes(),
         "expected block hash `{}` (from commit), but found `{}` in retrieved metadata",
         BASE64_STANDARD.encode(in_commit),
-        BASE64_STANDARD.encode(in_header),
+        BASE64_STANDARD.encode(in_header.as_bytes()),
     );
     Ok(())
 }

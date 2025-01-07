@@ -14,13 +14,13 @@ use std::{
 use astria_core::{
     brotli::decompress_bytes,
     generated::astria::sequencerblock::v1::{
-        rollup_data::Value as RawRollupDataValue,
         Deposit as RawDeposit,
         RollupData as RawRollupData,
         SubmittedMetadata as RawSubmittedMetadata,
         SubmittedMetadataList as RawSubmittedMetadataList,
         SubmittedRollupData as RawSubmittedRollupData,
         SubmittedRollupDataList as RawSubmittedRollupDataList,
+        rollup_data::Value as RawRollupDataValue,
     },
     primitive::v1::RollupId,
     sequencerblock::v1::{
@@ -37,26 +37,26 @@ use astria_core::{
     },
 };
 use astria_eyre::eyre::{
-    bail,
     Result,
     WrapErr,
+    bail,
 };
 use astria_merkle::audit::Proof;
 use base64::{
-    prelude::BASE64_STANDARD,
     Engine,
+    prelude::BASE64_STANDARD,
 };
 use clap::ValueEnum;
 use colour::write_blue;
 use ethers_core::types::{
-    transaction::eip2930::AccessListItem,
     Transaction,
+    transaction::eip2930::AccessListItem,
 };
 use indenter::indented;
 use itertools::Itertools;
 use prost::{
-    bytes::Bytes,
     Message,
+    bytes::Bytes,
 };
 use serde::Serialize;
 
@@ -304,7 +304,7 @@ impl BriefSequencerBlockMetadata {
             .map(RollupId::to_string)
             .collect();
         BriefSequencerBlockMetadata {
-            sequencer_block_hash: BASE64_STANDARD.encode(metadata.block_hash),
+            sequencer_block_hash: BASE64_STANDARD.encode(metadata.block_hash.as_bytes()),
             sequencer_block_header: PrintableSequencerBlockHeader::from(&metadata.header),
             rollup_ids,
         }
@@ -343,7 +343,7 @@ impl VerboseSequencerBlockMetadata {
             .map(RollupId::to_string)
             .collect();
         VerboseSequencerBlockMetadata {
-            sequencer_block_hash: BASE64_STANDARD.encode(metadata.block_hash),
+            sequencer_block_hash: BASE64_STANDARD.encode(metadata.block_hash.as_bytes()),
             sequencer_block_header: PrintableSequencerBlockHeader::from(&metadata.header),
             rollup_ids,
             rollup_transactions_proof: PrintableMerkleProof::from(
@@ -380,7 +380,8 @@ struct BriefRollupData {
 impl BriefRollupData {
     fn new(rollup_data: &UncheckedSubmittedRollupData) -> Self {
         BriefRollupData {
-            sequencer_block_hash: BASE64_STANDARD.encode(rollup_data.sequencer_block_hash),
+            sequencer_block_hash: BASE64_STANDARD
+                .encode(rollup_data.sequencer_block_hash.as_bytes()),
             rollup_id: rollup_data.rollup_id.to_string(),
             transaction_count: rollup_data.transactions.len(),
         }
@@ -655,7 +656,8 @@ impl VerboseRollupData {
             .collect();
         let item_count = transactions_and_deposits.len();
         VerboseRollupData {
-            sequencer_block_hash: BASE64_STANDARD.encode(rollup_data.sequencer_block_hash),
+            sequencer_block_hash: BASE64_STANDARD
+                .encode(rollup_data.sequencer_block_hash.as_bytes()),
             rollup_id: rollup_data.rollup_id.to_string(),
             transactions_and_deposits,
             item_count,
