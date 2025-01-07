@@ -108,7 +108,7 @@ thiserror = "1"
 tokio = "1.28"
 tokio-stream = { version = "0.1.14" }
 tokio-test = "0.4.2"
-tokio-util = "0.7.9"
+tokio-util = "0.7.13"
 tonic = "0.10"
 tracing = "0.1"
 tryhard = "0.5.1"
