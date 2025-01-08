@@ -47,7 +47,16 @@ use crate::{
 pub struct Sequencer;
 
 impl Sequencer {
-    #[expect(clippy::missing_errors_doc, reason = "not a public function")]
+    /// Runs the sequencer until it is either stopped by a signal or an error occurs.
+    ///
+    /// # Errors
+    /// Returns an error in the following cases:
+    /// - Database file does not exist, or cannot be loaded into storage
+    /// - The app fails to initialize
+    /// - Info service fails to initialize
+    /// - The server builder fails to return a server
+    /// - The gRPC address cannot be parsed
+    /// - The gRPC server fails to exit properly
     pub async fn run_until_stopped(config: Config, metrics: &'static Metrics) -> Result<()> {
         cnidarium::register_metrics();
         register_histogram_global("cnidarium_get_raw_duration_seconds");
