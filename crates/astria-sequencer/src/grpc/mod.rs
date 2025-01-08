@@ -3,24 +3,31 @@ pub(crate) mod sequencer;
 mod state_ext;
 pub(crate) mod storage;
 
-use std::time::Duration;
+use std::{
+    future::Future,
+    time::Duration,
+};
 
 use astria_core::generated::astria::sequencerblock::v1::sequencer_service_server::SequencerServiceServer;
-use astria_eyre::eyre::{
-    self,
-    WrapErr as _,
-};
+use astria_eyre::eyre;
 pub(crate) use state_ext::{
     StateReadExt,
     StateWriteExt,
 };
-use tokio::sync::oneshot;
-use tokio_util::sync::CancellationToken;
+use tokio::{
+    sync::oneshot,
+    task::JoinError,
+};
+use tokio_util::{
+    sync::CancellationToken,
+    task::JoinMap,
+};
 use tracing::{
+    Instrument as _,
     error,
+    error_span,
     info,
     info_span,
-    warn,
 };
 
 use crate::{
@@ -34,6 +41,57 @@ use crate::{
 // gracefully
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_millis(1500);
 const SHUTDOWN_SPAN: &str = "grpc_server_shutdown";
+
+struct BackgroundTasks {
+    tasks: JoinMap<&'static str, ()>,
+    cancellation_token: CancellationToken,
+}
+
+impl BackgroundTasks {
+    fn new() -> Self {
+        Self {
+            tasks: JoinMap::new(),
+            cancellation_token: CancellationToken::new(),
+        }
+    }
+
+    fn abort_all(&mut self) {
+        self.tasks.abort_all()
+    }
+
+    fn cancel_all(&self) {
+        self.cancellation_token.cancel();
+    }
+
+    fn cancellation_token(&self) -> CancellationToken {
+        self.cancellation_token.child_token()
+    }
+
+    fn display_running_tasks(&self) -> String {
+        let mut list: String = "[".into();
+        let mut keys = self.tasks.keys().peekable();
+        while let Some(key) = keys.next() {
+            list.push_str(key);
+            if keys.peek().is_some() {
+                list.push(',');
+            }
+        }
+        list.push(']');
+        list
+    }
+
+    fn spawn<F>(&mut self, key: &'static str, task: F)
+    where
+        F: Future<Output = ()>,
+        F: Send + 'static,
+    {
+        self.tasks.spawn(key, task);
+    }
+
+    async fn join_next(&mut self) -> Option<(&'static str, Result<(), JoinError>)> {
+        self.tasks.join_next().await
+    }
+}
 
 pub(crate) async fn serve(
     storage: cnidarium::Storage,
@@ -55,17 +113,16 @@ pub(crate) async fn serve(
     let sequencer_api = SequencerServer::new(storage.clone(), mempool);
     let cors_layer: CorsLayer = CorsLayer::permissive();
 
-    let optimistic_streams_cancellation_token = CancellationToken::new();
-
-    let (optimistic_block_service, mut optimistic_block_task) = if no_optimistic_blocks {
-        (None, None)
+    let mut background_tasks = BackgroundTasks::new();
+    let optimistic_block_service = if no_optimistic_blocks {
+        None
     } else {
-        let (optimistic_block_service, optimistic_block_task) = optimistic::new_service(
+        let (service, task) = optimistic::new(
             event_bus_subscription,
-            optimistic_streams_cancellation_token.child_token(),
+            background_tasks.cancellation_token(),
         );
-
-        (Some(optimistic_block_service), Some(optimistic_block_task))
+        background_tasks.spawn("OPTIMISTIC", task.run());
+        Some(service)
     };
 
     // TODO: setup HTTPS?
@@ -94,51 +151,72 @@ pub(crate) async fn serve(
 
     info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
 
-    grpc_server.serve_with_shutdown(grpc_addr, async move {
-        let reason = tokio::select! {
-            biased;
-            _ = shutdown_rx => {
-                Ok("grpc server shutting down")
-            },
-            res = async { optimistic_block_task.as_mut().unwrap().await }, if optimistic_block_task.is_some() => {
-                match res {
-                    Ok(()) => {
-                        Ok("optimistic block inner handle task exited successfully")
-                    },
-                    Err(e) => {
-                        Err(e).wrap_err("optimistic block inner handle task exited with error")
-                    }
-                }
-            }
-        };
-        optimistic_streams_cancellation_token.cancel();
+    grpc_server
+        .serve_with_shutdown(grpc_addr, trigger_shutdown(background_tasks, shutdown_rx))
+        .await
+}
 
-        if optimistic_block_task.is_some() {
-            // give time for the optimistic block service to shutdown all the streaming tasks.
-            let handle = optimistic_block_task.as_mut().unwrap();
-            match tokio::time::timeout(SHUTDOWN_TIMEOUT, &mut *handle).await {
-                Ok(Ok(())) => {
-                    info!("optimistic block service task shutdown gracefully");
-                },
-                Ok(Err(e)) => {
-                    warn!(%e, "optimistic block service has panicked");
-                }
-                Err(e) => {
-                    error!(%e, "optimistic block service task didn't shutdown in time");
-                    handle.abort();
-                }
+async fn trigger_shutdown(
+    mut background_tasks: BackgroundTasks,
+    mut shutdown_rx: oneshot::Receiver<()>,
+) {
+    let shutdown_span;
+    loop {
+        tokio::select! {
+            biased;
+            _ = &mut shutdown_rx => {
+                shutdown_span = info_span!(SHUTDOWN_SPAN);
+                shutdown_span.in_scope(|| {
+                    info!("grpc server received shutdown signal and will shutdown all of its background tasks");
+                });
+                break;
+            }
+
+            Some((task, res)) = background_tasks.join_next() => {
+                let panic_msg = res.err().map(eyre::Report::new).map(tracing::field::display);
+                error_span!("grpc_background_task_failed").in_scope(|| {
+                    error!(
+                        panic_msg,
+                        task,
+                        "background task supporting a grpc service ended unexpectedly; Sequencer will \
+                        keep responding to gRPC requests, but there is currently no way to recover \
+                        functionality of this service until Sequencer is restarted"
+                    );
+                })
             }
         }
+    }
+    perform_shutdown(background_tasks)
+        .instrument(shutdown_span)
+        .await
+}
 
-        info_span!(SHUTDOWN_SPAN).in_scope(|| {
-            match reason {
-                Ok(reason) => {
-                    info!(reason);
-                }
-                Err(reason) => {
-                    warn!("{}", reason.to_string());
-                }
-            };
-        });
-    }).await
+async fn perform_shutdown(mut background_tasks: BackgroundTasks) {
+    background_tasks.cancel_all();
+
+    match tokio::time::timeout(SHUTDOWN_TIMEOUT, async {
+        while let Some((task, res)) = background_tasks.join_next().await {
+            let error = res
+                .err()
+                .map(eyre::Report::new)
+                .map(tracing::field::display);
+            info!(
+                error,
+                task, "background task exited while awaiting shutdown"
+            );
+        }
+    })
+    .await
+    {
+        Ok(()) => info!("all background tasks exited during shutdown window"),
+        Err(_) => {
+            error!(
+                tasks = background_tasks.display_running_tasks(),
+                "background tasks did not finish during shutdown window and will be aborted",
+            );
+            background_tasks.abort_all();
+        }
+    };
+
+    info!("reached shutdown target");
 }
