@@ -140,15 +140,7 @@ expression: genesis_state()
       "base": {},
       "multiplier": {}
     },
-    "upsertMarkets": {
-      "base": {},
-      "multiplier": {}
-    },
-    "createMarkets": {
-      "base": {},
-      "multiplier": {}
-    },
-    "updateMarkets": {
+    "changeMarkets": {
       "base": {},
       "multiplier": {}
     },
@@ -157,10 +149,6 @@ expression: genesis_state()
       "multiplier": {}
     },
     "removeMarketAuthorities": {
-      "base": {},
-      "multiplier": {}
-    },
-    "removeMarkets": {
       "base": {},
       "multiplier": {}
     }
