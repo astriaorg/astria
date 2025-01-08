@@ -892,6 +892,7 @@ dependencies = [
  "tendermint-proto",
  "thiserror",
  "tokio",
+ "tokio-util 0.7.13",
  "tonic 0.10.2",
  "tower 0.4.13",
  "tower-abci",
