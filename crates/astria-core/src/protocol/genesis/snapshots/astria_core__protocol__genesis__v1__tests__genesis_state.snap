@@ -132,11 +132,7 @@ expression: genesis_state()
       "base": {},
       "multiplier": {}
     },
-    "addCurrencyPairs": {
-      "base": {},
-      "multiplier": {}
-    },
-    "removeCurrencyPairs": {
+    "priceFeed": {
       "base": {},
       "multiplier": {}
     }

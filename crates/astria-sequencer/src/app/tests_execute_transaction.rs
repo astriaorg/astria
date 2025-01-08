@@ -16,12 +16,12 @@ use astria_core::{
         genesis::v1::GenesisAppState,
         transaction::v1::{
             action::{
-                AddCurrencyPairs,
                 BridgeLock,
                 BridgeUnlock,
+                CurrencyPairsChange,
                 IbcRelayerChange,
                 IbcSudoChange,
-                RemoveCurrencyPairs,
+                PriceFeed,
                 RollupDataSubmission,
                 SudoAddressChange,
                 Transfer,
@@ -1345,10 +1345,7 @@ async fn test_app_execute_transaction_add_and_remove_currency_pairs() {
 
     let tx = TransactionBody::builder()
         .actions(vec![
-            AddCurrencyPairs {
-                pairs: vec![currency_pair.clone()],
-            }
-            .into(),
+            PriceFeed::Oracle(CurrencyPairsChange::Addition(vec![currency_pair.clone()])).into(),
         ])
         .chain_id("test")
         .try_build()
@@ -1368,10 +1365,7 @@ async fn test_app_execute_transaction_add_and_remove_currency_pairs() {
 
     let tx = TransactionBody::builder()
         .actions(vec![
-            RemoveCurrencyPairs {
-                pairs: vec![currency_pair.clone()],
-            }
-            .into(),
+            PriceFeed::Oracle(CurrencyPairsChange::Removal(vec![currency_pair.clone()])).into(),
         ])
         .chain_id("test")
         .nonce(1)
