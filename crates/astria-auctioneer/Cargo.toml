@@ -1,0 +1,58 @@
+[package]
+name = "astria-auctioneer"
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.81"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/astriaorg/astria"
+homepage = "https://astria.org"
+
+[dependencies]
+astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
+astria-core = { path = "../astria-core", features = ["serde", "client"] }
+astria-eyre = { path = "../astria-eyre" }
+config = { package = "astria-config", path = "../astria-config" }
+sequencer_client = { package = "astria-sequencer-client", path = "../astria-sequencer-client" }
+telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
+  "display",
+] }
+
+base64 = { workspace = true }
+bytes = { workspace = true }
+futures = { workspace = true }
+hex = { workspace = true }
+humantime = { workspace = true }
+itertools = { workspace = true }
+pbjson-types = { workspace = true }
+prost = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = [
+  "macros",
+  "rt-multi-thread",
+  "sync",
+  "time",
+  "signal",
+] }
+tokio-util = { workspace = true, features = ["rt"] }
+tracing = { workspace = true, features = ["attributes"] }
+tryhard = { workspace = true }
+tonic = { workspace = true }
+tokio-stream = { workspace = true, features = ["sync"] }
+
+pin-project-lite = "0.2.15"
+tower-http = { version = "0.4.4", features = ["map-response-body", "trace"] }
+tower = { version = "0.5.1", features = ["util"] }
+hyper.workspace = true
+http = "0.2.11"
+http-body = "0.4.5"
+thiserror.workspace = true
+
+[dev-dependencies]
+config = { package = "astria-config", path = "../astria-config", features = [
+  "tests",
+] }
+
+[build-dependencies]
+astria-build-info = { path = "../astria-build-info", features = ["build"] }
