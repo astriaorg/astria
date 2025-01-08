@@ -1,4 +1,3 @@
-use astria_core::generated::astria::sequencerblock::v1::sequencer_service_server::SequencerServiceServer;
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
@@ -20,11 +19,7 @@ use tokio::{
         signal,
         SignalKind,
     },
-    sync::{
-        oneshot,
-        watch,
-    },
-    task::JoinHandle,
+    sync::watch,
 };
 use tower_abci::v038::Server;
 use tracing::{
@@ -37,8 +32,6 @@ use tracing::{
 use crate::{
     app::App,
     config::Config,
-    grpc::sequencer::SequencerServer,
-    ibc::host_interface::AstriaHost,
     mempool::Mempool,
     metrics::Metrics,
     service,
@@ -71,9 +64,12 @@ impl Sequencer {
         let snapshot = storage.latest_snapshot();
 
         let mempool = Mempool::new(metrics, config.mempool_parked_max_tx_count);
+
         let app = App::new(snapshot, mempool.clone(), metrics)
             .await
             .wrap_err("failed to initialize app")?;
+
+        let event_bus_subscription = app.subscribe_to_events();
 
         let consensus_service = tower::ServiceBuilder::new()
             .layer(request_span::layer(|req: &ConsensusRequest| {
@@ -103,7 +99,14 @@ impl Sequencer {
             .grpc_addr
             .parse()
             .wrap_err("failed to parse grpc_addr address")?;
-        let grpc_server_handle = start_grpc_server(&storage, mempool, grpc_addr, shutdown_rx);
+        let grpc_server_handle = crate::grpc::start_server(
+            &storage,
+            mempool,
+            grpc_addr,
+            config.no_optimistic_blocks,
+            event_bus_subscription,
+            shutdown_rx,
+        );
 
         span.in_scope(|| info!(config.listen_addr, "starting sequencer"));
         let server_handle = tokio::spawn(async move {
@@ -140,54 +143,6 @@ impl Sequencer {
         server_handle.abort();
         Ok(())
     }
-}
-
-fn start_grpc_server(
-    storage: &cnidarium::Storage,
-    mempool: Mempool,
-    grpc_addr: std::net::SocketAddr,
-    shutdown_rx: oneshot::Receiver<()>,
-) -> JoinHandle<Result<(), tonic::transport::Error>> {
-    use futures::TryFutureExt as _;
-    use ibc_proto::ibc::core::{
-        channel::v1::query_server::QueryServer as ChannelQueryServer,
-        client::v1::query_server::QueryServer as ClientQueryServer,
-        connection::v1::query_server::QueryServer as ConnectionQueryServer,
-    };
-    use penumbra_tower_trace::remote_addr;
-    use tower_http::cors::CorsLayer;
-
-    let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
-    let sequencer_api = SequencerServer::new(storage.clone(), mempool);
-    let cors_layer: CorsLayer = CorsLayer::permissive();
-
-    // TODO: setup HTTPS?
-    let grpc_server = tonic::transport::Server::builder()
-        .trace_fn(|req| {
-            if let Some(remote_addr) = remote_addr(req) {
-                let addr = remote_addr.to_string();
-                error_span!("grpc", addr)
-            } else {
-                error_span!("grpc")
-            }
-        })
-        // (from Penumbra) Allow HTTP/1, which will be used by grpc-web connections.
-        // This is particularly important when running locally, as gRPC
-        // typically uses HTTP/2, which requires HTTPS. Accepting HTTP/2
-        // allows local applications such as web browsers to talk to pd.
-        .accept_http1(true)
-        // (from Penumbra) Add permissive CORS headers, so pd's gRPC services are accessible
-        // from arbitrary web contexts, including from localhost.
-        .layer(cors_layer)
-        .add_service(ClientQueryServer::new(ibc.clone()))
-        .add_service(ChannelQueryServer::new(ibc.clone()))
-        .add_service(ConnectionQueryServer::new(ibc.clone()))
-        .add_service(SequencerServiceServer::new(sequencer_api));
-
-    info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
-    tokio::task::spawn(
-        grpc_server.serve_with_shutdown(grpc_addr, shutdown_rx.unwrap_or_else(|_| ())),
-    )
 }
 
 struct SignalReceiver {
