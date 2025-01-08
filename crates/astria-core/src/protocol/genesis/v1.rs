@@ -26,6 +26,7 @@ use crate::{
             FeeComponents,
         },
         transaction::v1::action::{
+            AddCurrencyPairs,
             BridgeLock,
             BridgeSudoChange,
             BridgeUnlock,
@@ -36,6 +37,7 @@ use crate::{
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
+            RemoveCurrencyPairs,
             RemoveMarketAuthorities,
             RollupDataSubmission,
             SudoAddressChange,
@@ -766,6 +768,8 @@ pub struct GenesisFees {
     pub ibc_relayer_change: Option<FeeComponents<IbcRelayerChange>>,
     pub sudo_address_change: Option<FeeComponents<SudoAddressChange>>,
     pub ibc_sudo_change: Option<FeeComponents<IbcSudoChange>>,
+    pub add_currency_pairs: Option<FeeComponents<AddCurrencyPairs>>,
+    pub remove_currency_pairs: Option<FeeComponents<RemoveCurrencyPairs>>,
     pub change_markets: Option<FeeComponents<ChangeMarkets>>,
     pub update_market_map_params: Option<FeeComponents<UpdateMarketMapParams>>,
     pub remove_market_authorities: Option<FeeComponents<RemoveMarketAuthorities>>,
@@ -795,6 +799,8 @@ impl Protobuf for GenesisFees {
             ibc_relayer_change,
             sudo_address_change,
             ibc_sudo_change,
+            add_currency_pairs,
+            remove_currency_pairs,
             change_markets,
             update_market_map_params,
             remove_market_authorities,
@@ -884,6 +890,18 @@ impl Protobuf for GenesisFees {
             .transpose()
             .map_err(|e| FeesError::fee_components("ibc_sudo_change", e))?;
 
+        let add_currency_pairs = add_currency_pairs
+            .clone()
+            .map(FeeComponents::<AddCurrencyPairs>::try_from_raw)
+            .transpose()
+            .map_err(|e| FeesError::fee_components("add_currency_pairs", e))?;
+
+        let remove_currency_pairs = remove_currency_pairs
+            .clone()
+            .map(FeeComponents::<RemoveCurrencyPairs>::try_from_raw)
+            .transpose()
+            .map_err(|e| FeesError::fee_components("remove_currency_pairs", e))?;
+
         let change_markets = change_markets
             .clone()
             .map(FeeComponents::<ChangeMarkets>::try_from_raw)
@@ -917,6 +935,8 @@ impl Protobuf for GenesisFees {
             ibc_relayer_change,
             sudo_address_change,
             ibc_sudo_change,
+            add_currency_pairs,
+            remove_currency_pairs,
             change_markets,
             update_market_map_params,
             remove_market_authorities,
@@ -939,6 +959,8 @@ impl Protobuf for GenesisFees {
             ibc_relayer_change,
             sudo_address_change,
             ibc_sudo_change,
+            add_currency_pairs,
+            remove_currency_pairs,
             change_markets,
             update_market_map_params,
             remove_market_authorities,
@@ -967,6 +989,10 @@ impl Protobuf for GenesisFees {
                 .map(|act| FeeComponents::<SudoAddressChange>::to_raw(&act)),
             ibc_sudo_change: ibc_sudo_change
                 .map(|act| FeeComponents::<IbcSudoChange>::to_raw(&act)),
+            add_currency_pairs: add_currency_pairs
+                .map(|act| FeeComponents::<AddCurrencyPairs>::to_raw(&act)),
+            remove_currency_pairs: remove_currency_pairs
+                .map(|act| FeeComponents::<RemoveCurrencyPairs>::to_raw(&act)),
             change_markets: change_markets.map(|act| FeeComponents::<ChangeMarkets>::to_raw(&act)),
             update_market_map_params: update_market_map_params
                 .map(|act| FeeComponents::<UpdateMarketMapParams>::to_raw(&act)),
@@ -1116,6 +1142,8 @@ mod tests {
             ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0).to_raw()),
             sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0).to_raw()),
             ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0).to_raw()),
+            add_currency_pairs: Some(FeeComponents::<AddCurrencyPairs>::new(0, 0).to_raw()),
+            remove_currency_pairs: Some(FeeComponents::<RemoveCurrencyPairs>::new(0, 0).to_raw()),
             change_markets: Some(FeeComponents::<ChangeMarkets>::new(0, 0).to_raw()),
             update_market_map_params: Some(
                 FeeComponents::<UpdateMarketMapParams>::new(0, 0).to_raw(),
@@ -1184,14 +1212,14 @@ mod tests {
                         currency_pair_genesis: vec![CurrencyPairGenesis {
                             id: CurrencyPairId::new(1),
                             nonce: CurrencyPairNonce::new(0),
-                            currency_pair_price: QuotePrice {
+                            currency_pair_price: Some(QuotePrice {
                                 price: Price::new(3_138_872_234_u128),
                                 block_height: 0,
                                 block_timestamp: pbjson_types::Timestamp {
                                     seconds: 1_720_122_395,
                                     nanos: 0,
                                 },
-                            },
+                            }),
                             currency_pair: CurrencyPair::from_parts(
                                 "ETH".parse().unwrap(),
                                 "USD".parse().unwrap(),

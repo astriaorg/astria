@@ -148,6 +148,14 @@ pub struct GenesisFees {
         super::super::fees::v1::ValidatorUpdateFeeComponents,
     >,
     #[prost(message, optional, tag = "15")]
+    pub add_currency_pairs: ::core::option::Option<
+        super::super::fees::v1::AddCurrencyPairsFeeComponents,
+    >,
+    #[prost(message, optional, tag = "16")]
+    pub remove_currency_pairs: ::core::option::Option<
+        super::super::fees::v1::RemoveCurrencyPairsFeeComponents,
+    >,
+    #[prost(message, optional, tag = "17")]
     pub change_markets: ::core::option::Option<
         super::super::fees::v1::ChangeMarketsFeeComponents,
     >,

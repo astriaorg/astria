@@ -132,6 +132,14 @@ expression: genesis_state()
       "base": {},
       "multiplier": {}
     },
+    "addCurrencyPairs": {
+      "base": {},
+      "multiplier": {}
+    },
+    "removeCurrencyPairs": {
+      "base": {},
+      "multiplier": {}
+    },
     "upsertMarkets": {
       "base": {},
       "multiplier": {}

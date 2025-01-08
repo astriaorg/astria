@@ -11,13 +11,17 @@
 
 use std::{
     collections::HashMap,
+    str::FromStr as _,
     sync::Arc,
 };
 
 use astria_core::{
-    connect::market_map::v2::{
-        Market,
-        Params,
+    connect::{
+        market_map::v2::{
+            Market,
+            Params,
+        },
+        types::v2::CurrencyPair,
     },
     primitive::v1::{
         Address,
@@ -27,12 +31,14 @@ use astria_core::{
         genesis::v1::Account,
         transaction::v1::{
             action::{
+                AddCurrencyPairs,
                 BridgeLock,
                 BridgeSudoChange,
                 BridgeUnlock,
                 ChangeMarkets,
                 IbcRelayerChange,
                 IbcSudoChange,
+                RemoveCurrencyPairs,
                 RemoveMarketAuthorities,
                 RollupDataSubmission,
                 Transfer,
@@ -188,6 +194,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     let alice = get_alice_signing_key();
     let bridge = get_bridge_signing_key();
     let bridge_address = astria_address(&bridge.address_bytes());
+    let alice_address = astria_address_from_hex_string(ALICE_ADDRESS);
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let carol_address = astria_address_from_hex_string(CAROL_ADDRESS);
 
@@ -294,7 +301,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             UpdateMarketMapParams {
                 params: Params {
                     market_authorities: vec![bob_address, carol_address],
-                    admin: bob_address,
+                    admin: alice_address,
                 },
             }
             .into(),
@@ -406,6 +413,36 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .unwrap();
 
     let signed_tx = Arc::new(tx_bridge.sign(&bridge));
+    app.execute_transaction(signed_tx).await.unwrap();
+
+    let currency_pair_tia = CurrencyPair::from_str("TIA/USD").unwrap();
+    let currency_pair_eth = CurrencyPair::from_str("ETH/USD").unwrap();
+    let tx = TransactionBody::builder()
+        .actions(vec![
+            AddCurrencyPairs {
+                pairs: vec![currency_pair_tia.clone(), currency_pair_eth.clone()],
+            }
+            .into(),
+        ])
+        .chain_id("test")
+        .nonce(4)
+        .try_build()
+        .unwrap();
+    let signed_tx = Arc::new(tx.sign(&alice));
+    app.execute_transaction(signed_tx).await.unwrap();
+
+    let tx = TransactionBody::builder()
+        .actions(vec![
+            RemoveCurrencyPairs {
+                pairs: vec![currency_pair_tia.clone()],
+            }
+            .into(),
+        ])
+        .chain_id("test")
+        .nonce(5)
+        .try_build()
+        .unwrap();
+    let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let sudo_address = app.state.get_sudo_address().await.unwrap();

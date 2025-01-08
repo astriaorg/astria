@@ -120,7 +120,9 @@ pub(crate) async fn get_total_transaction_cost<S: StateRead>(
             | Action::UpdateMarketMapParams(_)
             | Action::ChangeMarkets(_)
             | Action::RemoveMarketAuthorities(_)
-            | Action::FeeChange(_) => {
+            | Action::FeeChange(_)
+            | Action::AddCurrencyPairs(_)
+            | Action::RemoveCurrencyPairs(_) => {
                 continue;
             }
         }

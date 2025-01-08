@@ -82,6 +82,12 @@ impl ActionHandler for FeeChange {
             Self::IbcSudoChange(fees) => state
                 .put_fees(*fees)
                 .wrap_err("failed to put ibc sudo change fees"),
+            Self::AddCurrencyPairs(fees) => state
+                .put_fees(*fees)
+                .wrap_err("failed to put add currency pairs fees"),
+            Self::RemoveCurrencyPairs(fees) => state
+                .put_fees(*fees)
+                .wrap_err("failed to put remove currency pairs fees"),
             Self::ChangeMarkets(fees) => state
                 .put_fees(*fees)
                 .wrap_err("failed to put change markets fees"),

@@ -643,6 +643,12 @@ impl serde::Serialize for GenesisFees {
         if self.validator_update.is_some() {
             len += 1;
         }
+        if self.add_currency_pairs.is_some() {
+            len += 1;
+        }
+        if self.remove_currency_pairs.is_some() {
+            len += 1;
+        }
         if self.change_markets.is_some() {
             len += 1;
         }
@@ -695,6 +701,12 @@ impl serde::Serialize for GenesisFees {
         if let Some(v) = self.validator_update.as_ref() {
             struct_ser.serialize_field("validatorUpdate", v)?;
         }
+        if let Some(v) = self.add_currency_pairs.as_ref() {
+            struct_ser.serialize_field("addCurrencyPairs", v)?;
+        }
+        if let Some(v) = self.remove_currency_pairs.as_ref() {
+            struct_ser.serialize_field("removeCurrencyPairs", v)?;
+        }
         if let Some(v) = self.change_markets.as_ref() {
             struct_ser.serialize_field("changeMarkets", v)?;
         }
@@ -741,6 +753,10 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
             "transfer",
             "validator_update",
             "validatorUpdate",
+            "add_currency_pairs",
+            "addCurrencyPairs",
+            "remove_currency_pairs",
+            "removeCurrencyPairs",
             "change_markets",
             "changeMarkets",
             "update_market_map_params",
@@ -765,6 +781,8 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
             SudoAddressChange,
             Transfer,
             ValidatorUpdate,
+            AddCurrencyPairs,
+            RemoveCurrencyPairs,
             ChangeMarkets,
             UpdateMarketMapParams,
             RemoveMarketAuthorities,
@@ -803,6 +821,8 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                             "sudoAddressChange" | "sudo_address_change" => Ok(GeneratedField::SudoAddressChange),
                             "transfer" => Ok(GeneratedField::Transfer),
                             "validatorUpdate" | "validator_update" => Ok(GeneratedField::ValidatorUpdate),
+                            "addCurrencyPairs" | "add_currency_pairs" => Ok(GeneratedField::AddCurrencyPairs),
+                            "removeCurrencyPairs" | "remove_currency_pairs" => Ok(GeneratedField::RemoveCurrencyPairs),
                             "changeMarkets" | "change_markets" => Ok(GeneratedField::ChangeMarkets),
                             "updateMarketMapParams" | "update_market_map_params" => Ok(GeneratedField::UpdateMarketMapParams),
                             "removeMarketAuthorities" | "remove_market_authorities" => Ok(GeneratedField::RemoveMarketAuthorities),
@@ -839,6 +859,8 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                 let mut sudo_address_change__ = None;
                 let mut transfer__ = None;
                 let mut validator_update__ = None;
+                let mut add_currency_pairs__ = None;
+                let mut remove_currency_pairs__ = None;
                 let mut change_markets__ = None;
                 let mut update_market_map_params__ = None;
                 let mut remove_market_authorities__ = None;
@@ -928,6 +950,18 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                             }
                             validator_update__ = map_.next_value()?;
                         }
+                        GeneratedField::AddCurrencyPairs => {
+                            if add_currency_pairs__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("addCurrencyPairs"));
+                            }
+                            add_currency_pairs__ = map_.next_value()?;
+                        }
+                        GeneratedField::RemoveCurrencyPairs => {
+                            if remove_currency_pairs__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("removeCurrencyPairs"));
+                            }
+                            remove_currency_pairs__ = map_.next_value()?;
+                        }
                         GeneratedField::ChangeMarkets => {
                             if change_markets__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("changeMarkets"));
@@ -963,6 +997,8 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                     sudo_address_change: sudo_address_change__,
                     transfer: transfer__,
                     validator_update: validator_update__,
+                    add_currency_pairs: add_currency_pairs__,
+                    remove_currency_pairs: remove_currency_pairs__,
                     change_markets: change_markets__,
                     update_market_map_params: update_market_map_params__,
                     remove_market_authorities: remove_market_authorities__,

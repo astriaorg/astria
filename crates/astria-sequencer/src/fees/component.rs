@@ -130,6 +130,20 @@ impl Component for FeesComponent {
                 .wrap_err("failed to store ibc sudo change fee components")?;
         }
 
+        let add_currency_pairs_fees = app_state.fees().add_currency_pairs;
+        if let Some(add_currency_pairs_fees) = add_currency_pairs_fees {
+            state
+                .put_fees(add_currency_pairs_fees)
+                .wrap_err("failed to store add currency pairs fee components")?;
+        }
+
+        let remove_currency_pairs_fees = app_state.fees().remove_currency_pairs;
+        if let Some(remove_currency_pairs_fees) = remove_currency_pairs_fees {
+            state
+                .put_fees(remove_currency_pairs_fees)
+                .wrap_err("failed to store remove currency pairs fee components")?;
+        }
+
         let change_markets_fees = app_state.fees().change_markets;
         if let Some(change_markets_fees) = change_markets_fees {
             state

@@ -3,6 +3,7 @@ use astria_core::{
     protocol::{
         fees::v1::FeeComponents,
         transaction::v1::action::{
+            AddCurrencyPairs,
             BridgeLock,
             BridgeSudoChange,
             BridgeUnlock,
@@ -13,6 +14,7 @@ use astria_core::{
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
+            RemoveCurrencyPairs,
             RemoveMarketAuthorities,
             RollupDataSubmission,
             SudoAddressChange,
@@ -450,6 +452,50 @@ impl FeeHandler for IbcRelay {
 
     fn snake_case_name() -> &'static str {
         "ibc_relay"
+    }
+
+    fn variable_component(&self) -> u128 {
+        0
+    }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        None
+    }
+}
+
+impl FeeHandler for AddCurrencyPairs {
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "add_currency_pairs"
+    }
+
+    fn variable_component(&self) -> u128 {
+        0
+    }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        None
+    }
+}
+
+impl FeeHandler for RemoveCurrencyPairs {
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "remove_currency_pairs"
     }
 
     fn variable_component(&self) -> u128 {

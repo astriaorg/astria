@@ -18,6 +18,7 @@ use astria_core::{
             GenesisAppState,
         },
         transaction::v1::action::{
+            AddCurrencyPairs,
             BridgeLock,
             BridgeSudoChange,
             BridgeUnlock,
@@ -28,6 +29,7 @@ use astria_core::{
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
+            RemoveCurrencyPairs,
             RemoveMarketAuthorities,
             RollupDataSubmission,
             SudoAddressChange,
@@ -94,6 +96,8 @@ pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1::GenesisFees 
         ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0)),
         sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0)),
         ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0)),
+        add_currency_pairs: Some(FeeComponents::<AddCurrencyPairs>::new(0, 0)),
+        remove_currency_pairs: Some(FeeComponents::<RemoveCurrencyPairs>::new(0, 0)),
         change_markets: Some(FeeComponents::<ChangeMarkets>::new(0, 0)),
         update_market_map_params: Some(FeeComponents::<UpdateMarketMapParams>::new(0, 0)),
         remove_market_authorities: Some(FeeComponents::<RemoveMarketAuthorities>::new(0, 0)),
@@ -146,7 +150,7 @@ pub(crate) fn proto_genesis_state()
     }
 }
 
-pub(crate) fn genesis_state() -> GenesisAppState {
+pub(crate) fn get_test_genesis_state() -> GenesisAppState {
     proto_genesis_state().try_into().unwrap()
 }
 
@@ -165,7 +169,7 @@ pub(crate) async fn initialize_app_with_storage(
         .await
         .unwrap();
 
-    let genesis_state = genesis_state.unwrap_or_else(self::genesis_state);
+    let genesis_state = genesis_state.unwrap_or_else(get_test_genesis_state);
 
     app.init_chain(
         storage.clone(),
@@ -281,6 +285,7 @@ pub(crate) fn mock_state_put_account_nonce(
     state.put_account_nonce(address, nonce).unwrap();
 }
 
+#[expect(clippy::too_many_lines, reason = "this is needed for test set up")]
 pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
     let storage = cnidarium::TempStorage::new().await.unwrap();
     let snapshot = storage.latest_snapshot();
@@ -393,6 +398,18 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
     state
         .put_fees(ibc_sudo_change_fees)
         .wrap_err("failed to initiate ibc sudo change fee components")
+        .unwrap();
+
+    let add_currency_pairs_fees = FeeComponents::<AddCurrencyPairs>::new(0, 0);
+    state
+        .put_fees(add_currency_pairs_fees)
+        .wrap_err("failed to initiate add currency pairs fee components")
+        .unwrap();
+
+    let remove_currency_pairs_fees = FeeComponents::<RemoveCurrencyPairs>::new(0, 0);
+    state
+        .put_fees(remove_currency_pairs_fees)
+        .wrap_err("failed to initiate remove currency pairs fee components")
         .unwrap();
 
     // put denoms as allowed fee asset

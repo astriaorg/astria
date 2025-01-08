@@ -1,6 +1,7 @@
 use astria_core::protocol::{
     fees::v1::FeeComponents as DomainFeeComponents,
     transaction::v1::action::{
+        AddCurrencyPairs,
         BridgeLock,
         BridgeSudoChange,
         BridgeUnlock,
@@ -11,6 +12,7 @@ use astria_core::protocol::{
         IbcSudoChange,
         Ics20Withdrawal,
         InitBridgeAccount,
+        RemoveCurrencyPairs,
         RemoveMarketAuthorities,
         RollupDataSubmission,
         SudoAddressChange,
@@ -49,6 +51,8 @@ enum ValueImpl {
     IbcRelayerChangeFees(FeeComponents),
     IbcSudoChangeFees(FeeComponents),
     SudoAddressChangeFees(FeeComponents),
+    AddCurrencyPairsFees(FeeComponents),
+    RemoveCurrencyPairsFees(FeeComponents),
     ChangeMarketsFees(FeeComponents),
     UpdateMarketMapParamsFees(FeeComponents),
     RemoveMarketAuthoritiesFees(FeeComponents),
@@ -115,6 +119,8 @@ impl_from_for_fee_storage!(
     DomainFeeComponents<IbcRelayerChange> => IbcRelayerChangeFees,
     DomainFeeComponents<IbcSudoChange> => IbcSudoChangeFees,
     DomainFeeComponents<SudoAddressChange> => SudoAddressChangeFees,
+    DomainFeeComponents<AddCurrencyPairs> => AddCurrencyPairsFees,
+    DomainFeeComponents<RemoveCurrencyPairs> => RemoveCurrencyPairsFees,
     DomainFeeComponents<ChangeMarkets> => ChangeMarketsFees,
     DomainFeeComponents<UpdateMarketMapParams> => UpdateMarketMapParamsFees,
     DomainFeeComponents<RemoveMarketAuthorities> => RemoveMarketAuthoritiesFees,
