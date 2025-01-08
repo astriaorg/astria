@@ -146,18 +146,10 @@ impl ActionHandler for Transaction {
                     .check_stateless()
                     .await
                     .wrap_err("stateless check failed for BridgeSudoChange action")?,
-                Action::UpsertMarkets(act) => act
+                Action::ChangeMarkets(act) => act
                     .check_stateless()
                     .await
-                    .wrap_err("stateless check failed for UpsertMarkets action")?,
-                Action::CreateMarkets(act) => act
-                    .check_stateless()
-                    .await
-                    .wrap_err("stateless check failed for CreateMarkets action")?,
-                Action::UpdateMarkets(act) => act
-                    .check_stateless()
-                    .await
-                    .wrap_err("stateless check failed for UpdateMarkets action")?,
+                    .wrap_err("stateless check failed for ChangeMarkets action")?,
                 Action::UpdateMarketMapParams(act) => act
                     .check_stateless()
                     .await
@@ -166,10 +158,6 @@ impl ActionHandler for Transaction {
                     .check_stateless()
                     .await
                     .wrap_err("stateless check failed for RemoveMarketAuthorities action")?,
-                Action::RemoveMarkets(act) => act
-                    .check_stateless()
-                    .await
-                    .wrap_err("stateless check failed for RemoveMarkets action")?,
             }
         }
         Ok(())
@@ -296,24 +284,15 @@ impl ActionHandler for Transaction {
                 Action::BridgeSudoChange(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("failed executing bridge sudo change")?,
-                Action::UpsertMarkets(act) => check_execute_and_pay_fees(act, &mut state)
+                Action::ChangeMarkets(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
-                    .wrap_err("failed executing upsert markets")?,
-                Action::CreateMarkets(act) => check_execute_and_pay_fees(act, &mut state)
-                    .await
-                    .wrap_err("failed executing create markets")?,
-                Action::UpdateMarkets(act) => check_execute_and_pay_fees(act, &mut state)
-                    .await
-                    .wrap_err("failed executing update markets")?,
+                    .wrap_err("failed executing change markets")?,
                 Action::UpdateMarketMapParams(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("failed executing update params")?,
                 Action::RemoveMarketAuthorities(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("failed executing remove market authorities")?,
-                Action::RemoveMarkets(act) => check_execute_and_pay_fees(act, &mut state)
-                    .await
-                    .wrap_err("failed executing remove markets")?,
             }
         }
 

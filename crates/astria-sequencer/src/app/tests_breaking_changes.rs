@@ -30,16 +30,13 @@ use astria_core::{
                 BridgeLock,
                 BridgeSudoChange,
                 BridgeUnlock,
-                CreateMarkets,
+                ChangeMarkets,
                 IbcRelayerChange,
                 IbcSudoChange,
                 RemoveMarketAuthorities,
-                RemoveMarkets,
                 RollupDataSubmission,
                 Transfer,
                 UpdateMarketMapParams,
-                UpdateMarkets,
-                UpsertMarkets,
                 ValidatorUpdate,
             },
             Action,
@@ -250,50 +247,32 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             }
             .into(),
             Action::ValidatorUpdate(update.clone()),
-            CreateMarkets {
-                create_markets: vec![Market {
-                    ticker: example_ticker_from_currency_pair(
-                        "testAssetOne",
-                        "testAssetTwo",
-                        String::new(),
-                    ),
-                    provider_configs: vec![],
-                }],
-            }
+            ChangeMarkets::Create(vec![Market {
+                ticker: example_ticker_from_currency_pair(
+                    "testAssetOne",
+                    "testAssetTwo",
+                    "create market".to_string(),
+                ),
+                provider_configs: vec![],
+            }])
             .into(),
-            UpsertMarkets {
-                markets: vec![Market {
-                    ticker: example_ticker_from_currency_pair(
-                        "testAssetThree",
-                        "testAssetFour",
-                        "upsert market".to_string(),
-                    ),
-                    provider_configs: vec![],
-                }],
-            }
+            ChangeMarkets::Update(vec![Market {
+                ticker: example_ticker_from_currency_pair(
+                    "testAssetOne",
+                    "testAssetTwo",
+                    "update market".to_string(),
+                ),
+                provider_configs: vec![],
+            }])
             .into(),
-            UpdateMarkets {
-                update_markets: vec![Market {
-                    ticker: example_ticker_from_currency_pair(
-                        "testAssetOne",
-                        "testAssetTwo",
-                        "updated market".to_string(),
-                    ),
-                    provider_configs: vec![],
-                }],
-            }
-            .into(),
-            RemoveMarkets {
-                markets: vec![
-                    example_ticker_from_currency_pair(
-                        "testAssetOne",
-                        "testAssetTwo",
-                        "remove market".to_string(),
-                    )
-                    .currency_pair
-                    .to_string(),
-                ],
-            }
+            ChangeMarkets::Remove(vec![Market {
+                ticker: example_ticker_from_currency_pair(
+                    "testAssetOne",
+                    "testAssetTwo",
+                    "remove market".to_string(),
+                ),
+                provider_configs: vec![],
+            }])
             .into(),
             RemoveMarketAuthorities {
                 remove_addresses: vec![astria_address_from_hex_string(ALICE_ADDRESS)],

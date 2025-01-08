@@ -29,7 +29,7 @@ use crate::{
             BridgeLock,
             BridgeSudoChange,
             BridgeUnlock,
-            CreateMarkets,
+            ChangeMarkets,
             FeeAssetChange,
             FeeChange,
             IbcRelayerChange,
@@ -37,13 +37,10 @@ use crate::{
             Ics20Withdrawal,
             InitBridgeAccount,
             RemoveMarketAuthorities,
-            RemoveMarkets,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
             UpdateMarketMapParams,
-            UpdateMarkets,
-            UpsertMarkets,
             ValidatorUpdate,
         },
     },
@@ -769,12 +766,9 @@ pub struct GenesisFees {
     pub ibc_relayer_change: Option<FeeComponents<IbcRelayerChange>>,
     pub sudo_address_change: Option<FeeComponents<SudoAddressChange>>,
     pub ibc_sudo_change: Option<FeeComponents<IbcSudoChange>>,
-    pub upsert_markets: Option<FeeComponents<UpsertMarkets>>,
-    pub create_markets: Option<FeeComponents<CreateMarkets>>,
-    pub update_markets: Option<FeeComponents<UpdateMarkets>>,
+    pub change_markets: Option<FeeComponents<ChangeMarkets>>,
     pub update_market_map_params: Option<FeeComponents<UpdateMarketMapParams>>,
     pub remove_market_authorities: Option<FeeComponents<RemoveMarketAuthorities>>,
-    pub remove_markets: Option<FeeComponents<RemoveMarkets>>,
 }
 
 impl Protobuf for GenesisFees {
@@ -801,12 +795,9 @@ impl Protobuf for GenesisFees {
             ibc_relayer_change,
             sudo_address_change,
             ibc_sudo_change,
-            upsert_markets,
-            create_markets,
-            update_markets,
+            change_markets,
             update_market_map_params,
             remove_market_authorities,
-            remove_markets,
         } = raw;
         let rollup_data_submission = rollup_data_submission
             .clone()
@@ -893,23 +884,11 @@ impl Protobuf for GenesisFees {
             .transpose()
             .map_err(|e| FeesError::fee_components("ibc_sudo_change", e))?;
 
-        let upsert_markets = upsert_markets
+        let change_markets = change_markets
             .clone()
-            .map(FeeComponents::<UpsertMarkets>::try_from_raw)
+            .map(FeeComponents::<ChangeMarkets>::try_from_raw)
             .transpose()
-            .map_err(|e| FeesError::fee_components("upsert_markets", e))?;
-
-        let create_markets = create_markets
-            .clone()
-            .map(FeeComponents::<CreateMarkets>::try_from_raw)
-            .transpose()
-            .map_err(|e| FeesError::fee_components("create_markets", e))?;
-
-        let update_markets = update_markets
-            .clone()
-            .map(FeeComponents::<UpdateMarkets>::try_from_raw)
-            .transpose()
-            .map_err(|e| FeesError::fee_components("update_markets", e))?;
+            .map_err(|e| FeesError::fee_components("change_markets", e))?;
 
         let update_market_map_params = update_market_map_params
             .clone()
@@ -922,12 +901,6 @@ impl Protobuf for GenesisFees {
             .map(FeeComponents::<RemoveMarketAuthorities>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("remove_market_authorities", e))?;
-
-        let remove_markets = remove_markets
-            .clone()
-            .map(FeeComponents::<RemoveMarkets>::try_from_raw)
-            .transpose()
-            .map_err(|e| FeesError::fee_components("remove_markets", e))?;
 
         Ok(Self {
             rollup_data_submission,
@@ -944,12 +917,9 @@ impl Protobuf for GenesisFees {
             ibc_relayer_change,
             sudo_address_change,
             ibc_sudo_change,
-            upsert_markets,
-            create_markets,
-            update_markets,
+            change_markets,
             update_market_map_params,
             remove_market_authorities,
-            remove_markets,
         })
     }
 
@@ -969,12 +939,9 @@ impl Protobuf for GenesisFees {
             ibc_relayer_change,
             sudo_address_change,
             ibc_sudo_change,
-            upsert_markets,
-            create_markets,
-            update_markets,
+            change_markets,
             update_market_map_params,
             remove_market_authorities,
-            remove_markets,
         } = self;
         Self::Raw {
             transfer: transfer.map(|act| FeeComponents::<Transfer>::to_raw(&act)),
@@ -1000,14 +967,11 @@ impl Protobuf for GenesisFees {
                 .map(|act| FeeComponents::<SudoAddressChange>::to_raw(&act)),
             ibc_sudo_change: ibc_sudo_change
                 .map(|act| FeeComponents::<IbcSudoChange>::to_raw(&act)),
-            upsert_markets: upsert_markets.map(|act| FeeComponents::<UpsertMarkets>::to_raw(&act)),
-            create_markets: create_markets.map(|act| FeeComponents::<CreateMarkets>::to_raw(&act)),
-            update_markets: update_markets.map(|act| FeeComponents::<UpdateMarkets>::to_raw(&act)),
+            change_markets: change_markets.map(|act| FeeComponents::<ChangeMarkets>::to_raw(&act)),
             update_market_map_params: update_market_map_params
                 .map(|act| FeeComponents::<UpdateMarketMapParams>::to_raw(&act)),
             remove_market_authorities: remove_market_authorities
                 .map(|act| FeeComponents::<RemoveMarketAuthorities>::to_raw(&act)),
-            remove_markets: remove_markets.map(|act| FeeComponents::<RemoveMarkets>::to_raw(&act)),
         }
     }
 }
@@ -1152,16 +1116,13 @@ mod tests {
             ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0).to_raw()),
             sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0).to_raw()),
             ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0).to_raw()),
-            upsert_markets: Some(FeeComponents::<UpsertMarkets>::new(0, 0).to_raw()),
-            create_markets: Some(FeeComponents::<CreateMarkets>::new(0, 0).to_raw()),
-            update_markets: Some(FeeComponents::<UpdateMarkets>::new(0, 0).to_raw()),
+            change_markets: Some(FeeComponents::<ChangeMarkets>::new(0, 0).to_raw()),
             update_market_map_params: Some(
                 FeeComponents::<UpdateMarketMapParams>::new(0, 0).to_raw(),
             ),
             remove_market_authorities: Some(
                 FeeComponents::<RemoveMarketAuthorities>::new(0, 0).to_raw(),
             ),
-            remove_markets: Some(FeeComponents::<RemoveMarkets>::new(0, 0).to_raw()),
         }
     }
 

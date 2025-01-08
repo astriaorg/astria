@@ -14,7 +14,7 @@ use super::{
     BridgeLock,
     BridgeSudoChange,
     BridgeUnlock,
-    CreateMarkets,
+    ChangeMarkets,
     FeeAssetChange,
     FeeChange,
     IbcRelayerChange,
@@ -22,13 +22,10 @@ use super::{
     Ics20Withdrawal,
     InitBridgeAccount,
     RemoveMarketAuthorities,
-    RemoveMarkets,
     RollupDataSubmission,
     SudoAddressChange,
     Transfer,
     UpdateMarketMapParams,
-    UpdateMarkets,
-    UpsertMarkets,
     ValidatorUpdate,
 };
 
@@ -61,12 +58,9 @@ impl_belong_to_group!(
     (FeeAssetChange, Group::BundleableSudo),
     (IbcRelay, Group::BundleableGeneral),
     (IbcSudoChange, Group::UnbundleableSudo),
-    (UpsertMarkets, Group::BundleableGeneral),
-    (CreateMarkets, Group::BundleableGeneral),
-    (UpdateMarkets, Group::BundleableGeneral),
+    (ChangeMarkets, Group::BundleableGeneral),
     (UpdateMarketMapParams, Group::BundleableSudo),
     (RemoveMarketAuthorities, Group::BundleableGeneral),
-    (RemoveMarkets, Group::BundleableGeneral),
 );
 
 impl Action {
@@ -86,12 +80,9 @@ impl Action {
             Action::FeeAssetChange(_) => FeeAssetChange::GROUP,
             Action::Ibc(_) => IbcRelay::GROUP,
             Action::IbcSudoChange(_) => IbcSudoChange::GROUP,
-            Action::UpsertMarkets(_) => UpsertMarkets::GROUP,
-            Action::CreateMarkets(_) => CreateMarkets::GROUP,
-            Action::UpdateMarkets(_) => UpdateMarkets::GROUP,
+            Action::ChangeMarkets(_) => ChangeMarkets::GROUP,
             Action::UpdateMarketMapParams(_) => UpdateMarketMapParams::GROUP,
             Action::RemoveMarketAuthorities(_) => RemoveMarketAuthorities::GROUP,
-            Action::RemoveMarkets(_) => RemoveMarkets::GROUP,
         }
     }
 }

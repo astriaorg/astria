@@ -18,7 +18,7 @@ use astria_core::{
                 BridgeLock,
                 BridgeSudoChange,
                 BridgeUnlock,
-                CreateMarkets,
+                ChangeMarkets,
                 FeeAssetChange,
                 FeeChange,
                 IbcRelayerChange,
@@ -26,13 +26,10 @@ use astria_core::{
                 Ics20Withdrawal,
                 InitBridgeAccount,
                 RemoveMarketAuthorities,
-                RemoveMarkets,
                 RollupDataSubmission,
                 SudoAddressChange,
                 Transfer,
                 UpdateMarketMapParams,
-                UpdateMarkets,
-                UpsertMarkets,
                 ValidatorUpdate,
             },
             Action,
@@ -308,14 +305,11 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
         OnceCell::new();
     let fee_asset_change_fees: OnceCell<Option<FeeComponents<FeeAssetChange>>> = OnceCell::new();
     let fee_change_fees: OnceCell<Option<FeeComponents<FeeChange>>> = OnceCell::new();
-    let upsert_markets_fees: OnceCell<Option<FeeComponents<UpsertMarkets>>> = OnceCell::new();
-    let create_markets_fees: OnceCell<Option<FeeComponents<CreateMarkets>>> = OnceCell::new();
-    let update_markets_fees: OnceCell<Option<FeeComponents<UpdateMarkets>>> = OnceCell::new();
+    let change_markets_fees: OnceCell<Option<FeeComponents<ChangeMarkets>>> = OnceCell::new();
     let update_market_map_params_fees: OnceCell<Option<FeeComponents<UpdateMarketMapParams>>> =
         OnceCell::new();
     let remove_market_authorities_fees: OnceCell<Option<FeeComponents<RemoveMarketAuthorities>>> =
         OnceCell::new();
-    let remove_markets_fees: OnceCell<Option<FeeComponents<RemoveMarkets>>> = OnceCell::new();
 
     let mut fees_by_asset = HashMap::new();
     for action in tx.actions() {
@@ -376,16 +370,8 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                 let fees = get_or_init_fees(state, &fee_change_fees).await?;
                 calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
-            Action::UpsertMarkets(act) => {
-                let fees = get_or_init_fees(state, &upsert_markets_fees).await?;
-                calculate_and_add_fees(act, &mut fees_by_asset, fees);
-            }
-            Action::CreateMarkets(act) => {
-                let fees = get_or_init_fees(state, &create_markets_fees).await?;
-                calculate_and_add_fees(act, &mut fees_by_asset, fees);
-            }
-            Action::UpdateMarkets(act) => {
-                let fees = get_or_init_fees(state, &update_markets_fees).await?;
+            Action::ChangeMarkets(act) => {
+                let fees = get_or_init_fees(state, &change_markets_fees).await?;
                 calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
             Action::UpdateMarketMapParams(act) => {
@@ -394,10 +380,6 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
             }
             Action::RemoveMarketAuthorities(act) => {
                 let fees = get_or_init_fees(state, &remove_market_authorities_fees).await?;
-                calculate_and_add_fees(act, &mut fees_by_asset, fees);
-            }
-            Action::RemoveMarkets(act) => {
-                let fees = get_or_init_fees(state, &remove_markets_fees).await?;
                 calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
         }

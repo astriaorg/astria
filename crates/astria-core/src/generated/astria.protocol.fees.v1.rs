@@ -225,44 +225,14 @@ impl ::prost::Name for IbcSudoChangeFeeComponents {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct UpsertMarketsFeeComponents {
+pub struct ChangeMarketsFeeComponents {
     #[prost(message, optional, tag = "1")]
     pub base: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
     #[prost(message, optional, tag = "2")]
     pub multiplier: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
 }
-impl ::prost::Name for UpsertMarketsFeeComponents {
-    const NAME: &'static str = "UpsertMarketsFeeComponents";
-    const PACKAGE: &'static str = "astria.protocol.fees.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.fees.v1.{}", Self::NAME)
-    }
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CreateMarketsFeeComponents {
-    #[prost(message, optional, tag = "1")]
-    pub base: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
-    #[prost(message, optional, tag = "2")]
-    pub multiplier: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
-}
-impl ::prost::Name for CreateMarketsFeeComponents {
-    const NAME: &'static str = "CreateMarketsFeeComponents";
-    const PACKAGE: &'static str = "astria.protocol.fees.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.fees.v1.{}", Self::NAME)
-    }
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct UpdateMarketsFeeComponents {
-    #[prost(message, optional, tag = "1")]
-    pub base: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
-    #[prost(message, optional, tag = "2")]
-    pub multiplier: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
-}
-impl ::prost::Name for UpdateMarketsFeeComponents {
-    const NAME: &'static str = "UpdateMarketsFeeComponents";
+impl ::prost::Name for ChangeMarketsFeeComponents {
+    const NAME: &'static str = "ChangeMarketsFeeComponents";
     const PACKAGE: &'static str = "astria.protocol.fees.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.fees.v1.{}", Self::NAME)
@@ -293,21 +263,6 @@ pub struct RemoveMarketAuthoritiesFeeComponents {
 }
 impl ::prost::Name for RemoveMarketAuthoritiesFeeComponents {
     const NAME: &'static str = "RemoveMarketAuthoritiesFeeComponents";
-    const PACKAGE: &'static str = "astria.protocol.fees.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.fees.v1.{}", Self::NAME)
-    }
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RemoveMarketsFeeComponents {
-    #[prost(message, optional, tag = "1")]
-    pub base: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
-    #[prost(message, optional, tag = "2")]
-    pub multiplier: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
-}
-impl ::prost::Name for RemoveMarketsFeeComponents {
-    const NAME: &'static str = "RemoveMarketsFeeComponents";
     const PACKAGE: &'static str = "astria.protocol.fees.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.fees.v1.{}", Self::NAME)

@@ -34,12 +34,9 @@ message Action {
     IbcSudoChange ibc_sudo_change = 56;
 
     // MarketMap actions are defined on 71-80
-    UpsertMarkets upsert_markets = 71;
-    CreateMarkets create_markets = 72;
-    UpdateMarkets update_markets = 73;
-    UpdateMarketMapParams update_market_map_params = 74;
-    RemoveMarketAuthorities remove_market_authorities = 75;
-    RemoveMarkets remove_markets = 76;
+    ChangeMarkets change_markets = 71;
+    UpdateMarketMapParams update_market_map_params = 72;
+    RemoveMarketAuthorities remove_market_authorities = 73;
   }
 }
 
@@ -238,12 +235,9 @@ message FeeChange {
     astria.protocol.fees.v1.SudoAddressChangeFeeComponents sudo_address_change = 12;
     astria.protocol.fees.v1.TransferFeeComponents transfer = 13;
     astria.protocol.fees.v1.ValidatorUpdateFeeComponents validator_update = 14;
-    astria.protocol.fees.v1.UpsertMarketsFeeComponents upsert_markets = 15;
-    astria.protocol.fees.v1.CreateMarketsFeeComponents create_markets = 16;
-    astria.protocol.fees.v1.UpdateMarketsFeeComponents update_markets = 17;
-    astria.protocol.fees.v1.UpdateMarketMapParamsFeeComponents update_market_map_params = 18;
-    astria.protocol.fees.v1.RemoveMarketAuthoritiesFeeComponents remove_market_authorities = 19;
-    astria.protocol.fees.v1.RemoveMarketsFeeComponents remove_markets = 20;
+    astria.protocol.fees.v1.ChangeMarketsFeeComponents change_markets = 15;
+    astria.protocol.fees.v1.UpdateMarketMapParamsFeeComponents update_market_map_params = 16;
+    astria.protocol.fees.v1.RemoveMarketAuthoritiesFeeComponents remove_market_authorities = 17;
   }
 }
 
@@ -251,22 +245,18 @@ message IbcSudoChange {
   astria.primitive.v1.Address new_address = 1;
 }
 
-// Updates or creates markets in the market map. If a market does not exist, it will be created.
-message UpsertMarkets {
-  // The list of all markets to be created or updated for the given transaction.
-  repeated connect.marketmap.v2.Market markets = 2;
+// Either creates, updates existing, or removes markets.
+message ChangeMarkets {
+  oneof action {
+    Markets create = 1;
+    Markets update = 2;
+    Markets remove = 3;
+  }
 }
 
-// Creates new markets in the market map.
-message CreateMarkets {
-  // The list of all markets to be created.
-  repeated connect.marketmap.v2.Market create_markets = 2;
-}
-
-// Updates existing markets in the market map.
-message UpdateMarkets {
-  // The list of all markets to be updated.
-  repeated connect.marketmap.v2.Market update_markets = 2;
+// A list of markets for creation, updating, or removal.
+message Markets {
+  repeated connect.marketmap.v2.Market markets = 1;
 }
 
 // Updates the market map parameters.
@@ -279,10 +269,4 @@ message UpdateMarketMapParams {
 message RemoveMarketAuthorities {
   // RemoveAddresses is the list of addresses to remove.
   repeated string remove_addresses = 1;
-}
-
-// Removes markets from the market map.
-message RemoveMarkets {
-  // Markets is the list of markets to remove.
-  repeated string markets = 2;
 }

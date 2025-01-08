@@ -3,7 +3,7 @@
 pub struct Action {
     #[prost(
         oneof = "action::Value",
-        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55, 56, 71, 72, 73, 74, 75, 76"
+        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55, 56, 71, 72, 73"
     )]
     pub value: ::core::option::Option<action::Value>,
 }
@@ -48,17 +48,11 @@ pub mod action {
         IbcSudoChange(super::IbcSudoChange),
         /// MarketMap actions are defined on 71-80
         #[prost(message, tag = "71")]
-        UpsertMarkets(super::UpsertMarkets),
+        ChangeMarkets(super::ChangeMarkets),
         #[prost(message, tag = "72")]
-        CreateMarkets(super::CreateMarkets),
-        #[prost(message, tag = "73")]
-        UpdateMarkets(super::UpdateMarkets),
-        #[prost(message, tag = "74")]
         UpdateMarketMapParams(super::UpdateMarketMapParams),
-        #[prost(message, tag = "75")]
+        #[prost(message, tag = "73")]
         RemoveMarketAuthorities(super::RemoveMarketAuthorities),
-        #[prost(message, tag = "76")]
-        RemoveMarkets(super::RemoveMarkets),
     }
 }
 impl ::prost::Name for Action {
@@ -415,7 +409,7 @@ pub struct FeeChange {
     /// the new fee components values
     #[prost(
         oneof = "fee_change::FeeComponents",
-        tags = "1, 2, 3, 4, 5, 7, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20"
+        tags = "1, 2, 3, 4, 5, 7, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17"
     )]
     pub fee_components: ::core::option::Option<fee_change::FeeComponents>,
 }
@@ -456,21 +450,15 @@ pub mod fee_change {
         #[prost(message, tag = "14")]
         ValidatorUpdate(super::super::super::fees::v1::ValidatorUpdateFeeComponents),
         #[prost(message, tag = "15")]
-        UpsertMarkets(super::super::super::fees::v1::UpsertMarketsFeeComponents),
+        ChangeMarkets(super::super::super::fees::v1::ChangeMarketsFeeComponents),
         #[prost(message, tag = "16")]
-        CreateMarkets(super::super::super::fees::v1::CreateMarketsFeeComponents),
-        #[prost(message, tag = "17")]
-        UpdateMarkets(super::super::super::fees::v1::UpdateMarketsFeeComponents),
-        #[prost(message, tag = "18")]
         UpdateMarketMapParams(
             super::super::super::fees::v1::UpdateMarketMapParamsFeeComponents,
         ),
-        #[prost(message, tag = "19")]
+        #[prost(message, tag = "17")]
         RemoveMarketAuthorities(
             super::super::super::fees::v1::RemoveMarketAuthoritiesFeeComponents,
         ),
-        #[prost(message, tag = "20")]
-        RemoveMarkets(super::super::super::fees::v1::RemoveMarketsFeeComponents),
     }
 }
 impl ::prost::Name for FeeChange {
@@ -493,52 +481,44 @@ impl ::prost::Name for IbcSudoChange {
         ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
     }
 }
-/// Updates or creates markets in the market map. If a market does not exist, it will be created.
+/// Either creates, updates existing, or removes markets.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct UpsertMarkets {
-    /// The list of all markets to be created or updated for the given transaction.
-    #[prost(message, repeated, tag = "2")]
+pub struct ChangeMarkets {
+    #[prost(oneof = "change_markets::Action", tags = "1, 2, 3")]
+    pub action: ::core::option::Option<change_markets::Action>,
+}
+/// Nested message and enum types in `ChangeMarkets`.
+pub mod change_markets {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Action {
+        #[prost(message, tag = "1")]
+        Create(super::Markets),
+        #[prost(message, tag = "2")]
+        Update(super::Markets),
+        #[prost(message, tag = "3")]
+        Remove(super::Markets),
+    }
+}
+impl ::prost::Name for ChangeMarkets {
+    const NAME: &'static str = "ChangeMarkets";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+    }
+}
+/// A list of markets for creation, updating, or removal.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Markets {
+    #[prost(message, repeated, tag = "1")]
     pub markets: ::prost::alloc::vec::Vec<
         super::super::super::super::connect::marketmap::v2::Market,
     >,
 }
-impl ::prost::Name for UpsertMarkets {
-    const NAME: &'static str = "UpsertMarkets";
-    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
-    }
-}
-/// Creates new markets in the market map.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CreateMarkets {
-    /// The list of all markets to be created.
-    #[prost(message, repeated, tag = "2")]
-    pub create_markets: ::prost::alloc::vec::Vec<
-        super::super::super::super::connect::marketmap::v2::Market,
-    >,
-}
-impl ::prost::Name for CreateMarkets {
-    const NAME: &'static str = "CreateMarkets";
-    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
-    }
-}
-/// Updates existing markets in the market map.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct UpdateMarkets {
-    /// The list of all markets to be updated.
-    #[prost(message, repeated, tag = "2")]
-    pub update_markets: ::prost::alloc::vec::Vec<
-        super::super::super::super::connect::marketmap::v2::Market,
-    >,
-}
-impl ::prost::Name for UpdateMarkets {
-    const NAME: &'static str = "UpdateMarkets";
+impl ::prost::Name for Markets {
+    const NAME: &'static str = "Markets";
     const PACKAGE: &'static str = "astria.protocol.transaction.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
@@ -571,21 +551,6 @@ pub struct RemoveMarketAuthorities {
 }
 impl ::prost::Name for RemoveMarketAuthorities {
     const NAME: &'static str = "RemoveMarketAuthorities";
-    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
-    }
-}
-/// Removes markets from the market map.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RemoveMarkets {
-    /// Markets is the list of markets to remove.
-    #[prost(string, repeated, tag = "2")]
-    pub markets: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-}
-impl ::prost::Name for RemoveMarkets {
-    const NAME: &'static str = "RemoveMarkets";
     const PACKAGE: &'static str = "astria.protocol.transaction.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)

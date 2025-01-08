@@ -19,17 +19,14 @@ use astria_core::{
             action::{
                 BridgeLock,
                 BridgeUnlock,
-                CreateMarkets,
+                ChangeMarkets,
                 IbcRelayerChange,
                 IbcSudoChange,
                 RemoveMarketAuthorities,
-                RemoveMarkets,
                 RollupDataSubmission,
                 SudoAddressChange,
                 Transfer,
                 UpdateMarketMapParams,
-                UpdateMarkets,
-                UpsertMarkets,
                 ValidatorUpdate,
             },
             Action,
@@ -1351,71 +1348,6 @@ async fn ensure_all_event_attributes_are_indexed() {
 }
 
 #[tokio::test]
-async fn upsert_markets_executes_as_expected() {
-    let mut app = initialize_app(None, vec![]).await;
-    let mut state_tx = StateDelta::new(app.state.clone());
-
-    let alice_signing_key = get_alice_signing_key();
-
-    let ticker_1 = example_ticker_with_metadata("create_market_1".to_string());
-    let market_1 = Market {
-        ticker: ticker_1.clone(),
-        provider_configs: vec![],
-    };
-    let mut market_map = MarketMap {
-        markets: IndexMap::new(),
-    };
-    market_map
-        .markets
-        .insert(ticker_1.currency_pair.to_string(), market_1);
-    state_tx.put_market_map(market_map).unwrap();
-
-    app.apply(state_tx);
-
-    // market_2 should replace market_1, since they share the same currency pair
-    let ticker_2 = example_ticker_with_metadata("update market 1 to market 2".to_string());
-    let market_2 = Market {
-        ticker: ticker_2.clone(),
-        provider_configs: vec![],
-    };
-
-    // market_3 should be added to the market map
-    let ticker_3 = example_ticker_from_currency_pair("USDC", "TIA", "create market 3".to_string());
-    let market_3 = Market {
-        ticker: ticker_3.clone(),
-        provider_configs: vec![],
-    };
-
-    let upsert_markets_action = UpsertMarkets {
-        markets: vec![market_2.clone(), market_3.clone()],
-    };
-
-    let tx = TransactionBody::builder()
-        .actions(vec![upsert_markets_action.into()])
-        .chain_id("test")
-        .try_build()
-        .unwrap();
-
-    let signed_tx = Arc::new(tx.sign(&alice_signing_key));
-    app.execute_transaction(signed_tx).await.unwrap();
-
-    let market_map = app.state.get_market_map().await.unwrap().unwrap();
-    assert_eq!(market_map.markets.len(), 2);
-    assert_eq!(
-        market_map.markets.get(&ticker_1.currency_pair.to_string()),
-        Some(&market_2)
-    );
-    assert_eq!(
-        market_map.markets.get(&ticker_2.currency_pair.to_string()),
-        Some(&market_2)
-    );
-    assert_eq!(
-        market_map.markets.get(&ticker_3.currency_pair.to_string()),
-        Some(&market_3)
-    );
-}
-
-#[tokio::test]
 async fn create_markets_executes_as_expected() {
     let mut app = initialize_app(None, vec![]).await;
 
@@ -1433,9 +1365,7 @@ async fn create_markets_executes_as_expected() {
         provider_configs: vec![],
     };
 
-    let create_markets_action = CreateMarkets {
-        create_markets: vec![market_1.clone(), market_2.clone()],
-    };
+    let create_markets_action = ChangeMarkets::Create(vec![market_1.clone(), market_2.clone()]);
 
     let tx = TransactionBody::builder()
         .actions(vec![create_markets_action.into()])
@@ -1497,9 +1427,7 @@ async fn update_markets_executes_as_expected() {
         provider_configs: vec![],
     };
 
-    let update_markets_action = UpdateMarkets {
-        update_markets: vec![market_3.clone()],
-    };
+    let update_markets_action = ChangeMarkets::Update(vec![market_3.clone()]);
 
     let tx = TransactionBody::builder()
         .actions(vec![update_markets_action.into()])
@@ -1558,9 +1486,10 @@ async fn remove_markets_executes_as_expected() {
     state_tx.put_market_map(market_map).unwrap();
     app.apply(state_tx);
 
-    let remove_markets_action = RemoveMarkets {
-        markets: vec![ticker_1.currency_pair.to_string()],
-    };
+    let remove_markets_action = ChangeMarkets::Remove(vec![Market {
+        ticker: ticker_1.clone(),
+        provider_configs: vec![],
+    }]);
 
     let tx = TransactionBody::builder()
         .actions(vec![remove_markets_action.into()])

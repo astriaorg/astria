@@ -130,32 +130,11 @@ impl Component for FeesComponent {
                 .wrap_err("failed to store ibc sudo change fee components")?;
         }
 
-        let upsert_markets_fees = app_state.fees().upsert_markets;
-        if let Some(upsert_markets_fees) = upsert_markets_fees {
+        let change_markets_fees = app_state.fees().change_markets;
+        if let Some(change_markets_fees) = change_markets_fees {
             state
-                .put_fees(upsert_markets_fees)
-                .wrap_err("failed to store upsert markets fee components")?;
-        }
-
-        let create_markets_fees = app_state.fees().create_markets;
-        if let Some(create_markets_fees) = create_markets_fees {
-            state
-                .put_fees(create_markets_fees)
-                .wrap_err("failed to store create markets fee components")?;
-        }
-
-        let update_markets_fees = app_state.fees().update_markets;
-        if let Some(update_markets_fees) = update_markets_fees {
-            state
-                .put_fees(update_markets_fees)
-                .wrap_err("failed to store update markets fee components")?;
-        }
-
-        let remove_markets_fees = app_state.fees().remove_markets;
-        if let Some(remove_markets_fees) = remove_markets_fees {
-            state
-                .put_fees(remove_markets_fees)
-                .wrap_err("failed to store remove markets fee components")?;
+                .put_fees(change_markets_fees)
+                .wrap_err("failed to store change markets fee components")?;
         }
 
         let remove_market_authorities_fees = app_state.fees().remove_market_authorities;
