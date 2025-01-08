@@ -6,15 +6,15 @@ pub(crate) mod storage;
 use std::time::Duration;
 
 use astria_core::generated::astria::sequencerblock::v1::sequencer_service_server::SequencerServiceServer;
-use astria_eyre::eyre::WrapErr as _;
+use astria_eyre::eyre::{
+    self,
+    WrapErr as _,
+};
 pub(crate) use state_ext::{
     StateReadExt,
     StateWriteExt,
 };
-use tokio::{
-    sync::oneshot,
-    task::JoinHandle,
-};
+use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tracing::{
     error,
@@ -35,14 +35,14 @@ use crate::{
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_millis(1500);
 const SHUTDOWN_SPAN: &str = "grpc_server_shutdown";
 
-pub(crate) fn start_server(
-    storage: &cnidarium::Storage,
+pub(crate) async fn serve(
+    storage: cnidarium::Storage,
     mempool: Mempool,
     grpc_addr: std::net::SocketAddr,
     no_optimistic_blocks: bool,
     event_bus_subscription: EventBusSubscription,
     shutdown_rx: oneshot::Receiver<()>,
-) -> JoinHandle<astria_eyre::Result<(), tonic::transport::Error>> {
+) -> eyre::Result<(), tonic::transport::Error> {
     use ibc_proto::ibc::core::{
         channel::v1::query_server::QueryServer as ChannelQueryServer,
         client::v1::query_server::QueryServer as ClientQueryServer,
@@ -94,7 +94,7 @@ pub(crate) fn start_server(
 
     info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
 
-    tokio::task::spawn(grpc_server.serve_with_shutdown(grpc_addr, async move {
+    grpc_server.serve_with_shutdown(grpc_addr, async move {
         let reason = tokio::select! {
             biased;
             _ = shutdown_rx => {
@@ -140,5 +140,5 @@ pub(crate) fn start_server(
                 }
             };
         });
-    }))
+    }).await
 }

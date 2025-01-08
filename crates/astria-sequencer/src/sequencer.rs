@@ -1,10 +1,10 @@
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
-        eyre,
         OptionExt as _,
         Result,
         WrapErr as _,
+        eyre,
     },
 };
 use penumbra_tower_trace::{
@@ -16,8 +16,8 @@ use tendermint::v0_38::abci::ConsensusRequest;
 use tokio::{
     select,
     signal::unix::{
-        signal,
         SignalKind,
+        signal,
     },
     sync::watch,
 };
@@ -27,6 +27,7 @@ use tracing::{
     error_span,
     info,
     info_span,
+    warn,
 };
 
 use crate::{
@@ -99,14 +100,18 @@ impl Sequencer {
             .grpc_addr
             .parse()
             .wrap_err("failed to parse grpc_addr address")?;
-        let grpc_server_handle = crate::grpc::start_server(
-            &storage,
+
+        // TODO(janis): need a mechanism to check and report if the grpc server setup failed.
+        // right now it's fire and forget and the grpc server is only reaped if sequencer
+        // itself is taken down.
+        let grpc_server_handle = tokio::spawn(crate::grpc::serve(
+            storage.clone(),
             mempool,
             grpc_addr,
             config.no_optimistic_blocks,
             event_bus_subscription,
             shutdown_rx,
-        );
+        ));
 
         span.in_scope(|| info!(config.listen_addr, "starting sequencer"));
         let server_handle = tokio::spawn(async move {
@@ -136,10 +141,11 @@ impl Sequencer {
         shutdown_tx
             .send(())
             .map_err(|()| eyre!("failed to send shutdown signal to grpc server"))?;
-        grpc_server_handle
-            .await
-            .wrap_err("grpc server task failed")?
-            .wrap_err("grpc server failed")?;
+        match grpc_server_handle.await {
+            Ok(Err(error)) => warn!(%error, "grpc server failed"),
+            Err(error) => error!(%error, "grpc server panicked"),
+            _ => {}
+        };
         server_handle.abort();
         Ok(())
     }
