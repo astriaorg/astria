@@ -10,13 +10,13 @@ use std::{
 };
 
 use astria_core::{
+    Protobuf as _,
     generated::astria::protocol::transaction::v1 as raw,
     primitive::v1::asset::IbcPrefixed,
     protocol::{
         abci::AbciErrorCode,
         transaction::v1::Transaction,
     },
-    Protobuf as _,
 };
 use astria_eyre::eyre::WrapErr as _;
 use bytes::Bytes;
@@ -35,18 +35,17 @@ use prost::{
 use tendermint::{
     abci::Code,
     v0_38::abci::{
-        request,
-        response,
         MempoolRequest,
         MempoolResponse,
+        request,
+        response,
     },
 };
 use tower::Service;
 use tower_abci::BoxError;
 use tracing::{
-    info,
-    instrument,
     Instrument as _,
+    instrument,
 };
 
 use crate::{
@@ -54,10 +53,10 @@ use crate::{
     action_handler::ActionHandler as _,
     address::StateReadExt as _,
     mempool::{
-        get_account_balances,
         InsertionError,
         Mempool as AppMempool,
         RemovalReason,
+        get_account_balances,
     },
     metrics::Metrics,
     transaction,
@@ -229,33 +228,28 @@ async fn handle_check_tx<S: StateRead>(
 ) -> response::CheckTx {
     use sha2::Digest as _;
 
-    info!("BHARATH: handle_check_tx");
     let request::CheckTx {
         tx, ..
     } = req;
 
     let tx_hash = sha2::Sha256::digest(&tx).into();
 
-    info!("BHARATH: check if tx is removed from appside mempool");
     // check if the transaction has been removed from the appside mempool
     if let Err(rsp) = check_removed_comet_bft(tx_hash, mempool, metrics).await {
         return rsp;
     }
 
-    info!("BHARATH: check if tx is already in the mempool");
     // check if the transaction is already in the mempool
     if is_tracked(tx_hash, mempool, metrics).await {
         return response::CheckTx::default();
     }
 
-    info!("BHARATH: perform stateless checks");
     // perform stateless checks
     let signed_tx = match stateless_checks(tx, &state, metrics).await {
         Ok(signed_tx) => signed_tx,
         Err(rsp) => return rsp,
     };
 
-    info!("BHARATH: attempt to insert the transaction into the mempool");
     // attempt to insert the transaction into the mempool
     if let Err(rsp) = insert_into_mempool(mempool, &state, signed_tx, metrics).await {
         return rsp;
@@ -264,7 +258,6 @@ async fn handle_check_tx<S: StateRead>(
     // insertion successful
     metrics.set_transactions_in_mempool_total(mempool.len().await);
 
-    info!("BHARATH: transaction successfully inserted into the mempool");
     response::CheckTx::default()
 }
 
