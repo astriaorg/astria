@@ -146,6 +146,14 @@ impl ActionHandler for Transaction {
                     .check_stateless()
                     .await
                     .wrap_err("stateless check failed for BridgeSudoChange action")?,
+                Action::AddCurrencyPairs(act) => act
+                    .check_stateless()
+                    .await
+                    .wrap_err("stateless check failed for AddCurrencyPairs action")?,
+                Action::RemoveCurrencyPairs(act) => act
+                    .check_stateless()
+                    .await
+                    .wrap_err("stateless check failed for RemoveCurrencyPairs action")?,
             }
         }
         Ok(())
@@ -272,6 +280,12 @@ impl ActionHandler for Transaction {
                 Action::BridgeSudoChange(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("failed executing bridge sudo change")?,
+                Action::AddCurrencyPairs(act) => check_execute_and_pay_fees(act, &mut state)
+                    .await
+                    .wrap_err("failed executing add currency pairs")?,
+                Action::RemoveCurrencyPairs(act) => check_execute_and_pay_fees(act, &mut state)
+                    .await
+                    .wrap_err("failed executing remove currency pairs")?,
             }
         }
 

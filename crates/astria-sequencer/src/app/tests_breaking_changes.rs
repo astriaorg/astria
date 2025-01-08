@@ -11,10 +11,12 @@
 
 use std::{
     collections::HashMap,
+    str::FromStr as _,
     sync::Arc,
 };
 
 use astria_core::{
+    connect::types::v2::CurrencyPair,
     primitive::v1::{
         Address,
         RollupId,
@@ -23,11 +25,13 @@ use astria_core::{
         genesis::v1::Account,
         transaction::v1::{
             action::{
+                AddCurrencyPairs,
                 BridgeLock,
                 BridgeSudoChange,
                 BridgeUnlock,
                 IbcRelayerChange,
                 IbcSudoChange,
+                RemoveCurrencyPairs,
                 RollupDataSubmission,
                 Transfer,
                 ValidatorUpdate,
@@ -359,6 +363,36 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .unwrap();
 
     let signed_tx = Arc::new(tx_bridge.sign(&bridge));
+    app.execute_transaction(signed_tx).await.unwrap();
+
+    let currency_pair_tia = CurrencyPair::from_str("TIA/USD").unwrap();
+    let currency_pair_eth = CurrencyPair::from_str("ETH/USD").unwrap();
+    let tx = TransactionBody::builder()
+        .actions(vec![
+            AddCurrencyPairs {
+                pairs: vec![currency_pair_tia.clone(), currency_pair_eth.clone()],
+            }
+            .into(),
+        ])
+        .chain_id("test")
+        .nonce(4)
+        .try_build()
+        .unwrap();
+    let signed_tx = Arc::new(tx.sign(&alice));
+    app.execute_transaction(signed_tx).await.unwrap();
+
+    let tx = TransactionBody::builder()
+        .actions(vec![
+            RemoveCurrencyPairs {
+                pairs: vec![currency_pair_tia.clone()],
+            }
+            .into(),
+        ])
+        .chain_id("test")
+        .nonce(5)
+        .try_build()
+        .unwrap();
+    let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let sudo_address = app.state.get_sudo_address().await.unwrap();

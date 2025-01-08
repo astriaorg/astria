@@ -27,23 +27,14 @@ impl DefaultCurrencyPairStrategy {
         state.get_currency_pair(id).await
     }
 
-    pub(crate) async fn get_max_num_currency_pairs<S: StateReadExt>(
-        state: &S,
-        is_proposal_phase: bool,
-    ) -> Result<u64> {
-        let current = state
+    pub(crate) async fn get_max_num_currency_pairs<S: StateReadExt>(state: &S) -> Result<u64> {
+        // unlike the skip implementation, we don't need to track removed currency pairs
+        // from the previous block as we execute our transactions during the proposal phase,
+        // before vote extensions are broadcast. thus by the time we're making our VE, we
+        // already have the updated state for that block.
+        state
             .get_num_currency_pairs()
             .await
-            .wrap_err("failed to get number of currency pairs")?;
-
-        if is_proposal_phase {
-            let removed = state
-                .get_num_removed_currency_pairs()
-                .await
-                .wrap_err("failed to get number of removed currency pairs")?;
-            Ok(current.saturating_add(removed))
-        } else {
-            Ok(current)
-        }
+            .wrap_err("failed to get number of currency pairs")
     }
 }

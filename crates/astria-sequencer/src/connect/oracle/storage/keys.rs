@@ -16,8 +16,6 @@ pub(in crate::connect::oracle) const CURRENCY_PAIR_STATE_PREFIX: &str =
     "connect/oracle/currency_pair_state/";
 
 pub(in crate::connect::oracle) const NUM_CURRENCY_PAIRS: &str = "connect/oracle/num_currency_pairs";
-pub(in crate::connect::oracle) const NUM_REMOVED_CURRENCY_PAIRS: &str =
-    "connect/oracle/num_removed_currency_pairs";
 pub(in crate::connect::oracle) const NEXT_CURRENCY_PAIR_ID: &str =
     "connect/oracle/next_currency_pair_id";
 
@@ -83,7 +81,6 @@ mod tests {
     #[test]
     fn keys_should_not_change() {
         insta::assert_snapshot!("num_currency_pairs_key", NUM_CURRENCY_PAIRS);
-        insta::assert_snapshot!("num_removed_currency_pairs_key", NUM_REMOVED_CURRENCY_PAIRS);
         insta::assert_snapshot!("next_currency_pair_id_key", NEXT_CURRENCY_PAIR_ID);
         insta::assert_snapshot!(
             "currency_pair_to_id_key",
@@ -102,7 +99,6 @@ mod tests {
     #[test]
     fn keys_should_have_component_prefix() {
         assert!(NUM_CURRENCY_PAIRS.starts_with(COMPONENT_PREFIX));
-        assert!(NUM_REMOVED_CURRENCY_PAIRS.starts_with(COMPONENT_PREFIX));
         assert!(NEXT_CURRENCY_PAIR_ID.starts_with(COMPONENT_PREFIX));
         assert!(currency_pair_to_id(&currency_pair()).starts_with(COMPONENT_PREFIX));
         assert!(id_to_currency_pair(CurrencyPairId::new(9)).starts_with(COMPONENT_PREFIX));
