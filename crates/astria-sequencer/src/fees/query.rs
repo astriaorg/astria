@@ -15,6 +15,7 @@ use astria_core::{
         fees::v1::FeeComponents,
         transaction::v1::{
             action::{
+                AddCurrencyPairs,
                 BridgeLock,
                 BridgeSudoChange,
                 BridgeUnlock,
@@ -24,6 +25,7 @@ use astria_core::{
                 IbcSudoChange,
                 Ics20Withdrawal,
                 InitBridgeAccount,
+                RemoveCurrencyPairs,
                 RollupDataSubmission,
                 SudoAddressChange,
                 Transfer,
@@ -302,6 +304,10 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
         OnceCell::new();
     let fee_asset_change_fees: OnceCell<Option<FeeComponents<FeeAssetChange>>> = OnceCell::new();
     let fee_change_fees: OnceCell<Option<FeeComponents<FeeChange>>> = OnceCell::new();
+    let add_currency_pairs_fees: OnceCell<Option<FeeComponents<AddCurrencyPairs>>> =
+        OnceCell::new();
+    let remove_currency_pairs_fees: OnceCell<Option<FeeComponents<RemoveCurrencyPairs>>> =
+        OnceCell::new();
 
     let mut fees_by_asset = HashMap::new();
     for action in tx.actions() {
@@ -360,6 +366,14 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
             }
             Action::FeeChange(act) => {
                 let fees = get_or_init_fees(state, &fee_change_fees).await?;
+                calculate_and_add_fees(act, &mut fees_by_asset, fees);
+            }
+            Action::AddCurrencyPairs(act) => {
+                let fees = get_or_init_fees(state, &add_currency_pairs_fees).await?;
+                calculate_and_add_fees(act, &mut fees_by_asset, fees);
+            }
+            Action::RemoveCurrencyPairs(act) => {
+                let fees = get_or_init_fees(state, &remove_currency_pairs_fees).await?;
                 calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
         }

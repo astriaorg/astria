@@ -14,6 +14,7 @@ use crate::{
     generated::astria::protocol::fees::v1 as raw,
     primitive::v1::asset,
     protocol::transaction::v1::action::{
+        AddCurrencyPairs,
         BridgeLock,
         BridgeSudoChange,
         BridgeUnlock,
@@ -23,6 +24,7 @@ use crate::{
         IbcSudoChange,
         Ics20Withdrawal,
         InitBridgeAccount,
+        RemoveCurrencyPairs,
         RollupDataSubmission,
         SudoAddressChange,
         Transfer,
@@ -108,6 +110,8 @@ impl_protobuf_for_fee_components!(
     FeeComponents<FeeChange> => raw::FeeChangeFeeComponents,
     FeeComponents<SudoAddressChange> => raw::SudoAddressChangeFeeComponents,
     FeeComponents<IbcSudoChange> => raw::IbcSudoChangeFeeComponents,
+    FeeComponents<AddCurrencyPairs> => raw::AddCurrencyPairsFeeComponents,
+    FeeComponents<RemoveCurrencyPairs> => raw::RemoveCurrencyPairsFeeComponents,
 );
 
 pub struct FeeComponents<T: ?Sized> {
