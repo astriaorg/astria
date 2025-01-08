@@ -13,15 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add `fee-assets` subcommand to `sequencer` CLI [#1816](https://github.com/astriaorg/astria/pull/1816).
 
-### Fixed
-
-- Fixed ICS20 withdrawal source when using channel with more than one
-  port/channel combo. [#1768](https://github.com/astriaorg/astria/pull/1768)
-
 ### Changed
 
-- Removed default values from `--sequencer.chain-id` and `--sequencer-url` arguments
+- Update `idna` dependency to resolve cargo audit warning [#1869](https://github.com/astriaorg/astria/pull/1869).
+- Remove default values from `--sequencer.chain-id` and `--sequencer-url` arguments
   [#1792](https://github.com/astriaorg/astria/pull/1792)
+
+### Fixed
+
+- Fix ICS20 withdrawal source when using channel with more than one
+  port/channel combo. [#1768](https://github.com/astriaorg/astria/pull/1768)
 
 ## [0.5.1] - 2024-10-23
 

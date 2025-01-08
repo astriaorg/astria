@@ -6,7 +6,7 @@ metadata:
 data:
   ASTRIA_SEQUENCER_RELAYER_LOG: "astria_sequencer_relayer=debug"
   ASTRIA_SEQUENCER_RELAYER_SUBMISSION_STATE_PATH: "{{ include "sequencer-relayer.storage.submissionStatePath" . }}"
-  ASTRIA_SEQUENCER_RELAYER_BLOCK_TIME: "1000"
+  ASTRIA_SEQUENCER_RELAYER_BLOCK_TIME: "{{ .Values.config.relayer.blockTimeMs }}"
   ASTRIA_SEQUENCER_RELAYER_COMETBFT_ENDPOINT: "{{ .Values.config.relayer.cometbftRpc }}"
   ASTRIA_SEQUENCER_RELAYER_SEQUENCER_GRPC_ENDPOINT: "{{ .Values.config.relayer.sequencerGrpc }}"
   ASTRIA_SEQUENCER_RELAYER_CELESTIA_APP_GRPC_ENDPOINT: "{{ .Values.config.relayer.celestiaAppGrpc }}"

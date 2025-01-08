@@ -10,7 +10,7 @@ dependencies:
   version: 1.0.0
 - name: evm-faucet
   repository: file://../evm-faucet
-  version: 0.1.2
+  version: 0.1.4
 - name: evm-bridge-withdrawer
   repository: file://../evm-bridge-withdrawer
   version: 1.0.1
@@ -20,5 +20,5 @@ dependencies:
 - name: blockscout-stack
   repository: https://blockscout.github.io/helm-charts
   version: 1.6.8
-digest: sha256:2608e0242ef8ede98ab019693906606b8193257e6318eb6b7afc54f87711c4c1
-generated: "2024-12-18T13:18:09.740514652-05:00"
+digest: sha256:7920e0f663dca131ade762d5a5f3db71e30b9c88f64b2f4376b699a9fcf2d222
+generated: "2025-01-08T10:49:45.20252158-05:00"
