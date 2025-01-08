@@ -25,6 +25,7 @@ config:
     cometbftRpc: ""
     sequencerGrpc: ""
     onlyIncludeRollups: ""
+    blockTimeMs: "1000"
 
     metrics:
       enabled: false

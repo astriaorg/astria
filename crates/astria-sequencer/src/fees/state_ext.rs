@@ -28,7 +28,10 @@ use cnidarium::{
 use futures::Stream;
 use pin_project_lite::pin_project;
 use tendermint::abci::Event;
-use tracing::instrument;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use super::{
     storage::keys::{
@@ -78,7 +81,7 @@ pub(crate) trait StateReadExt: StateRead {
         self.object_get(keys::BLOCK).unwrap_or_default()
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_fees<'a, F>(&self) -> Result<Option<FeeComponents<F>>>
     where
         F: FeeHandler + ?Sized,
@@ -102,7 +105,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid fees bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn is_allowed_fee_asset<'a, TAsset>(&self, asset: &'a TAsset) -> Result<bool>
     where
         TAsset: Sync,
@@ -128,6 +131,7 @@ impl<T: ?Sized + StateRead> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
+    // TODO(https://github.com/astriaorg/astria/issues/1845): This doesn't need to return a result
     /// Constructs and adds `Fee` object to the block fees vec.
     #[instrument(skip_all)]
     fn add_fee_to_block_fees<'a, TAsset, F: FeeHandler + ?Sized>(
@@ -162,7 +166,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.object_put(keys::BLOCK, new_fees);
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     fn put_fees<'a, F>(&mut self, fees: FeeComponents<F>) -> Result<()>
     where
         F: FeeHandler,
@@ -183,7 +187,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.delete(keys::allowed_asset(asset));
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     fn put_allowed_fee_asset<'a, TAsset>(&mut self, asset: &'a TAsset) -> Result<()>
     where
         &'a TAsset: Into<Cow<'a, asset::IbcPrefixed>>,

@@ -15,9 +15,11 @@ use tokio::sync::mpsc;
 use tower_abci::BoxError;
 use tower_actor::Message;
 use tracing::{
+    debug,
     instrument,
     warn,
     Instrument,
+    Level,
 };
 
 use crate::app::App;
@@ -174,7 +176,7 @@ impl Consensus {
         })
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn handle_prepare_proposal(
         &mut self,
         prepare_proposal: request::PrepareProposal,
@@ -184,7 +186,7 @@ impl Consensus {
             .await
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn handle_process_proposal(
         &mut self,
         process_proposal: request::ProcessProposal,
@@ -192,11 +194,11 @@ impl Consensus {
         self.app
             .process_proposal(process_proposal, self.storage.clone())
             .await?;
-        tracing::debug!("proposal processed");
+        debug!("proposal processed");
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn handle_extend_vote(
         &mut self,
         extend_vote: request::ExtendVote,
@@ -205,7 +207,7 @@ impl Consensus {
         Ok(extend_vote)
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn handle_verify_vote_extension(
         &mut self,
         vote_extension: request::VerifyVoteExtension,
@@ -213,12 +215,16 @@ impl Consensus {
         self.app.verify_vote_extension(vote_extension).await
     }
 
-    #[instrument(skip_all, fields(
-        hash = %finalize_block.hash,
-        height = %finalize_block.height,
-        time = %finalize_block.time,
-        proposer = %finalize_block.proposer_address
-    ))]
+    #[instrument(
+        skip_all,
+        fields(
+            hash = %finalize_block.hash,
+            height = %finalize_block.height,
+            time = %finalize_block.time,
+            proposer = %finalize_block.proposer_address
+        ),
+        err
+    )]
     async fn finalize_block(
         &mut self,
         finalize_block: request::FinalizeBlock,
