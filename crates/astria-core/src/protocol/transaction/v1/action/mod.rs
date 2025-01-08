@@ -2255,8 +2255,15 @@ impl From<FeeComponents<RemoveMarketAuthorities>> for FeeChange {
     }
 }
 
-/// Takes a list of markets and either creates, updates existing, or removes existing markets. Must
-/// be signed by an address included in the market map [`Params`]' `market_authorities`.
+/// Takes a list of markets and either creates, updates, or removes them depending on its variant.
+/// Must be signed by an address included in the market map [`Params`]' `market_authorities`.
+/// - **Create:** Creates the markets in the market map. If no market map is found, one will be
+///   created. If any of the markets to create already exist, this action will err.
+/// - **Update:** Updates the markets in the market map, matching based on `Ticker.currency_pair`).
+///   If no market map is found, or any market is missing a counterpart in the map, this action will
+///   err.
+/// - **Remove:** Removes the markets from the market map. If a market is not found in the map, it
+///   will be ignored.
 #[derive(Debug, Clone)]
 pub enum ChangeMarkets {
     Create(Vec<Market>),
