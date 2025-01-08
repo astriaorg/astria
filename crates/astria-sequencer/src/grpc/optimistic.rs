@@ -5,47 +5,44 @@ use std::{
 };
 
 use astria_core::{
+    Protobuf,
     generated::astria::sequencerblock::optimistic::v1alpha1::{
-        optimistic_block_service_server::{
-            OptimisticBlockService,
-            OptimisticBlockServiceServer,
-        },
         GetBlockCommitmentStreamRequest,
         GetBlockCommitmentStreamResponse,
         GetOptimisticBlockStreamRequest,
         GetOptimisticBlockStreamResponse,
+        optimistic_block_service_server::{
+            OptimisticBlockService,
+            OptimisticBlockServiceServer,
+        },
     },
     primitive::v1::RollupId,
     sequencerblock::v1::{
-        optimistic::SequencerBlockCommit,
         SequencerBlock,
+        optimistic::SequencerBlockCommit,
     },
-    Protobuf,
 };
 use astria_eyre::{
     eyre,
     eyre::WrapErr as _,
 };
 use tendermint::{
-    abci::request::FinalizeBlock,
     Hash,
+    abci::request::FinalizeBlock,
 };
 use tokio::{
     sync::mpsc,
-    task::{
-        JoinHandle,
-        JoinSet,
-    },
+    task::JoinSet,
 };
 use tokio_util::sync::CancellationToken;
 use tonic::{
-    codegen::tokio_stream::{
-        wrappers::ReceiverStream,
-        Stream,
-    },
     Request,
     Response,
     Status,
+    codegen::tokio_stream::{
+        Stream,
+        wrappers::ReceiverStream,
+    },
 };
 use tracing::{
     error,
@@ -67,22 +64,16 @@ const BLOCK_COMMITMENT_STREAM_SPAN: &str = "block_commitment_stream";
 
 type GrpcStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send>>;
 
-pub(super) fn new_service(
+pub(super) fn new(
     event_bus_subscription: EventBusSubscription,
     cancellation_token: CancellationToken,
-) -> (
-    OptimisticBlockServiceServer<OptimisticBlockFacade>,
-    JoinHandle<()>,
-) {
+) -> (OptimisticBlockServiceServer<Facade>, Runner) {
     let (tx, rx) = mpsc::channel(128);
 
-    let facade = OptimisticBlockFacade::new(tx);
-    let inner = OptimisticBlockStreamRunner::new(event_bus_subscription, rx, cancellation_token);
-
-    let inner_task = tokio::spawn(inner.run());
+    let facade = Facade::new(tx);
+    let runner = Runner::new(event_bus_subscription, rx, cancellation_token);
     let server = OptimisticBlockServiceServer::new(facade);
-
-    (server, inner_task)
+    (server, runner)
 }
 
 struct StartOptimisticBlockStreamRequest {
@@ -99,14 +90,14 @@ enum NewStreamRequest {
     BlockCommitmentStream(StartBlockCommitmentStreamRequest),
 }
 
-pub(super) struct OptimisticBlockStreamRunner {
+pub(super) struct Runner {
     event_bus_subscription: EventBusSubscription,
     stream_request_receiver: mpsc::Receiver<NewStreamRequest>,
     stream_tasks: JoinSet<Result<(), eyre::Report>>,
     cancellation_token: CancellationToken,
 }
 
-impl OptimisticBlockStreamRunner {
+impl Runner {
     fn new(
         event_bus_subscription: EventBusSubscription,
         stream_request_receiver: mpsc::Receiver<NewStreamRequest>,
@@ -218,11 +209,11 @@ impl OptimisticBlockStreamRunner {
     }
 }
 
-pub(super) struct OptimisticBlockFacade {
+pub(super) struct Facade {
     stream_request_sender: mpsc::Sender<NewStreamRequest>,
 }
 
-impl OptimisticBlockFacade {
+impl Facade {
     fn new(stream_request_sender: mpsc::Sender<NewStreamRequest>) -> Self {
         Self {
             stream_request_sender,
@@ -288,7 +279,7 @@ impl OptimisticBlockFacade {
 }
 
 #[async_trait::async_trait]
-impl OptimisticBlockService for OptimisticBlockFacade {
+impl OptimisticBlockService for Facade {
     type GetBlockCommitmentStreamStream = GrpcStream<GetBlockCommitmentStreamResponse>;
     type GetOptimisticBlockStreamStream = GrpcStream<GetOptimisticBlockStreamResponse>;
 
