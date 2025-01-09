@@ -5,12 +5,12 @@ use astria_core::{
     },
     generated::astria::bundle::v1alpha1 as raw,
     primitive::v1::{
-        RollupId,
         asset,
+        RollupId,
     },
     protocol::transaction::v1::{
-        TransactionBody,
         action::RollupDataSubmission,
+        TransactionBody,
     },
     sequencerblock::v1::block,
 };

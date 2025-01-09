@@ -10,13 +10,13 @@ use std::{
 };
 
 use astria_core::{
-    Protobuf as _,
     generated::astria::protocol::transaction::v1 as raw,
     primitive::v1::asset::IbcPrefixed,
     protocol::{
         abci::AbciErrorCode,
         transaction::v1::Transaction,
     },
+    Protobuf as _,
 };
 use astria_eyre::eyre::WrapErr as _;
 use bytes::Bytes;
@@ -35,17 +35,17 @@ use prost::{
 use tendermint::{
     abci::Code,
     v0_38::abci::{
-        MempoolRequest,
-        MempoolResponse,
         request,
         response,
+        MempoolRequest,
+        MempoolResponse,
     },
 };
 use tower::Service;
 use tower_abci::BoxError;
 use tracing::{
-    Instrument as _,
     instrument,
+    Instrument as _,
 };
 
 use crate::{
@@ -53,10 +53,10 @@ use crate::{
     action_handler::ActionHandler as _,
     address::StateReadExt as _,
     mempool::{
+        get_account_balances,
         InsertionError,
         Mempool as AppMempool,
         RemovalReason,
-        get_account_balances,
     },
     metrics::Metrics,
     transaction,

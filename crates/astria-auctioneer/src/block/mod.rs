@@ -1,5 +1,4 @@
 use astria_core::{
-    Protobuf,
     execution,
     generated::astria::{
         bundle::v1alpha1 as raw_bundle,
@@ -10,18 +9,19 @@ use astria_core::{
     },
     primitive::v1::RollupId,
     sequencerblock::v1::{
-        RollupTransactions,
         block::{
             self,
             FilteredSequencerBlock,
             FilteredSequencerBlockParts,
         },
+        RollupTransactions,
     },
+    Protobuf,
 };
 use astria_eyre::eyre::{
     self,
-    Context,
     eyre,
+    Context,
 };
 use bytes::Bytes;
 use prost::Message as _;
