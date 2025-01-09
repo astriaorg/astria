@@ -31,15 +31,15 @@ use astria_core::{
         genesis::v1::Account,
         transaction::v1::{
             action::{
-                AddCurrencyPairs,
                 BridgeLock,
                 BridgeSudoChange,
                 BridgeUnlock,
                 ChangeMarkets,
+                CurrencyPairsChange,
                 IbcRelayerChange,
                 IbcSudoChange,
-                RemoveCurrencyPairs,
-                RemoveMarketAuthorities,
+                MarketMapChange,
+                PriceFeed,
                 RollupDataSubmission,
                 Transfer,
                 UpdateMarketMapParams,
@@ -254,36 +254,38 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             }
             .into(),
             Action::ValidatorUpdate(update.clone()),
-            ChangeMarkets::Create(vec![Market {
-                ticker: example_ticker_from_currency_pair(
-                    "testAssetOne",
-                    "testAssetTwo",
-                    "create market".to_string(),
-                ),
-                provider_configs: vec![],
-            }])
+            PriceFeed::MarketMap(MarketMapChange::Markets(ChangeMarkets::Create(vec![
+                Market {
+                    ticker: example_ticker_from_currency_pair(
+                        "testAssetOne",
+                        "testAssetTwo",
+                        "create market".to_string(),
+                    ),
+                    provider_configs: vec![],
+                },
+            ])))
             .into(),
-            ChangeMarkets::Update(vec![Market {
-                ticker: example_ticker_from_currency_pair(
-                    "testAssetOne",
-                    "testAssetTwo",
-                    "update market".to_string(),
-                ),
-                provider_configs: vec![],
-            }])
+            PriceFeed::MarketMap(MarketMapChange::Markets(ChangeMarkets::Update(vec![
+                Market {
+                    ticker: example_ticker_from_currency_pair(
+                        "testAssetOne",
+                        "testAssetTwo",
+                        "update market".to_string(),
+                    ),
+                    provider_configs: vec![],
+                },
+            ])))
             .into(),
-            ChangeMarkets::Remove(vec![Market {
-                ticker: example_ticker_from_currency_pair(
-                    "testAssetOne",
-                    "testAssetTwo",
-                    "remove market".to_string(),
-                ),
-                provider_configs: vec![],
-            }])
-            .into(),
-            RemoveMarketAuthorities {
-                remove_addresses: vec![astria_address_from_hex_string(ALICE_ADDRESS)],
-            }
+            PriceFeed::MarketMap(MarketMapChange::Markets(ChangeMarkets::Remove(vec![
+                Market {
+                    ticker: example_ticker_from_currency_pair(
+                        "testAssetOne",
+                        "testAssetTwo",
+                        "remove market".to_string(),
+                    ),
+                    provider_configs: vec![],
+                },
+            ])))
             .into(),
         ])
         .chain_id("test")
@@ -298,12 +300,12 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             FeeAssetChange::Addition("test-0".parse().unwrap()).into(),
             FeeAssetChange::Addition("test-1".parse().unwrap()).into(),
             FeeAssetChange::Removal("test-0".parse().unwrap()).into(),
-            UpdateMarketMapParams {
+            PriceFeed::MarketMap(MarketMapChange::Params(UpdateMarketMapParams {
                 params: Params {
                     market_authorities: vec![bob_address, carol_address],
                     admin: alice_address,
                 },
-            }
+            }))
             .into(),
         ])
         .nonce(1)
@@ -419,27 +421,14 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     let currency_pair_eth = CurrencyPair::from_str("ETH/USD").unwrap();
     let tx = TransactionBody::builder()
         .actions(vec![
-            AddCurrencyPairs {
-                pairs: vec![currency_pair_tia.clone(), currency_pair_eth.clone()],
-            }
+            PriceFeed::Oracle(CurrencyPairsChange::Addition(vec![
+                currency_pair_tia.clone(),
+                currency_pair_eth.clone(),
+            ]))
             .into(),
         ])
         .chain_id("test")
         .nonce(4)
-        .try_build()
-        .unwrap();
-    let signed_tx = Arc::new(tx.sign(&alice));
-    app.execute_transaction(signed_tx).await.unwrap();
-
-    let tx = TransactionBody::builder()
-        .actions(vec![
-            RemoveCurrencyPairs {
-                pairs: vec![currency_pair_tia.clone()],
-            }
-            .into(),
-        ])
-        .chain_id("test")
-        .nonce(5)
         .try_build()
         .unwrap();
     let signed_tx = Arc::new(tx.sign(&alice));

@@ -1,5 +1,3 @@
-use std::str::FromStr as _;
-
 use bytes::Bytes;
 use ibc_types::{
     core::{
@@ -65,11 +63,7 @@ pub enum Action {
     BridgeUnlock(BridgeUnlock),
     BridgeSudoChange(BridgeSudoChange),
     FeeChange(FeeChange),
-    AddCurrencyPairs(AddCurrencyPairs),
-    RemoveCurrencyPairs(RemoveCurrencyPairs),
-    ChangeMarkets(ChangeMarkets),
-    UpdateMarketMapParams(UpdateMarketMapParams),
-    RemoveMarketAuthorities(RemoveMarketAuthorities),
+    PriceFeed(PriceFeed),
 }
 
 impl Protobuf for Action {
@@ -94,11 +88,7 @@ impl Protobuf for Action {
             Action::BridgeUnlock(act) => Value::BridgeUnlock(act.to_raw()),
             Action::BridgeSudoChange(act) => Value::BridgeSudoChange(act.to_raw()),
             Action::FeeChange(act) => Value::FeeChange(act.to_raw()),
-            Action::AddCurrencyPairs(act) => Value::AddCurrencyPairs(act.to_raw()),
-            Action::RemoveCurrencyPairs(act) => Value::RemoveCurrencyPairs(act.to_raw()),
-            Action::ChangeMarkets(act) => Value::ChangeMarkets(act.to_raw()),
-            Action::UpdateMarketMapParams(act) => Value::UpdateMarketMapParams(act.to_raw()),
-            Action::RemoveMarketAuthorities(act) => Value::RemoveMarketAuthorities(act.to_raw()),
+            Action::PriceFeed(act) => Value::PriceFeed(act.to_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -172,23 +162,9 @@ impl Protobuf for Action {
             Value::FeeChange(act) => {
                 Self::FeeChange(FeeChange::try_from_raw_ref(&act).map_err(Error::fee_change)?)
             }
-            Value::AddCurrencyPairs(act) => Self::AddCurrencyPairs(
-                AddCurrencyPairs::try_from_raw(act).map_err(Error::add_currency_pairs)?,
-            ),
-            Value::RemoveCurrencyPairs(act) => Self::RemoveCurrencyPairs(
-                RemoveCurrencyPairs::try_from_raw(act).map_err(Error::remove_currency_pairs)?,
-            ),
-            Value::ChangeMarkets(act) => Self::ChangeMarkets(
-                ChangeMarkets::try_from_raw(act).map_err(Error::change_markets)?,
-            ),
-            Value::UpdateMarketMapParams(act) => Self::UpdateMarketMapParams(
-                UpdateMarketMapParams::try_from_raw(act)
-                    .map_err(Error::update_market_map_params)?,
-            ),
-            Value::RemoveMarketAuthorities(act) => Self::RemoveMarketAuthorities(
-                RemoveMarketAuthorities::try_from_raw(act)
-                    .map_err(Error::remove_market_authorities)?,
-            ),
+            Value::PriceFeed(act) => {
+                Self::PriceFeed(PriceFeed::try_from_raw(act).map_err(Error::price_feed)?)
+            }
         };
         Ok(action)
     }
@@ -299,33 +275,9 @@ impl From<FeeChange> for Action {
     }
 }
 
-impl From<AddCurrencyPairs> for Action {
-    fn from(value: AddCurrencyPairs) -> Self {
-        Self::AddCurrencyPairs(value)
-    }
-}
-
-impl From<RemoveCurrencyPairs> for Action {
-    fn from(value: RemoveCurrencyPairs) -> Self {
-        Self::RemoveCurrencyPairs(value)
-    }
-}
-
-impl From<ChangeMarkets> for Action {
-    fn from(value: ChangeMarkets) -> Self {
-        Self::ChangeMarkets(value)
-    }
-}
-
-impl From<UpdateMarketMapParams> for Action {
-    fn from(value: UpdateMarketMapParams) -> Self {
-        Self::UpdateMarketMapParams(value)
-    }
-}
-
-impl From<RemoveMarketAuthorities> for Action {
-    fn from(value: RemoveMarketAuthorities) -> Self {
-        Self::RemoveMarketAuthorities(value)
+impl From<PriceFeed> for Action {
+    fn from(value: PriceFeed) -> Self {
+        Self::PriceFeed(value)
     }
 }
 
@@ -366,11 +318,7 @@ impl ActionName for Action {
             Action::BridgeUnlock(_) => "BridgeUnlock",
             Action::BridgeSudoChange(_) => "BridgeSudoChange",
             Action::FeeChange(_) => "FeeChange",
-            Action::AddCurrencyPairs(_) => "AddCurrencyPairs",
-            Action::RemoveCurrencyPairs(_) => "RemoveCurrencyPairs",
-            Action::ChangeMarkets(_) => "ChangeMarkets",
-            Action::UpdateMarketMapParams(_) => "UpdateMarketMapParams",
-            Action::RemoveMarketAuthorities(_) => "RemoveMarketAuthorities",
+            Action::PriceFeed(_) => "PriceFeed",
         }
     }
 }
@@ -440,24 +388,8 @@ impl Error {
         Self(ActionErrorKind::FeeChange(inner))
     }
 
-    fn add_currency_pairs(inner: AddCurrencyPairsError) -> Self {
-        Self(ActionErrorKind::AddCurrencyPairs(inner))
-    }
-
-    fn remove_currency_pairs(inner: RemoveCurrencyPairsError) -> Self {
-        Self(ActionErrorKind::RemoveCurrencyPairs(inner))
-    }
-
-    fn change_markets(inner: ChangeMarketsError) -> Self {
-        Self(ActionErrorKind::ChangeMarkets(inner))
-    }
-
-    fn update_market_map_params(inner: UpdateMarketMapParamsError) -> Self {
-        Self(ActionErrorKind::UpdateMarketMapParams(inner))
-    }
-
-    fn remove_market_authorities(inner: RemoveMarketAuthoritiesError) -> Self {
-        Self(ActionErrorKind::RemoveMarketAuthorities(inner))
+    fn price_feed(inner: PriceFeedError) -> Self {
+        Self(ActionErrorKind::PriceFeed(inner))
     }
 }
 
@@ -493,16 +425,8 @@ enum ActionErrorKind {
     BridgeSudoChange(#[source] BridgeSudoChangeError),
     #[error("fee change action was not valid")]
     FeeChange(#[source] FeeChangeError),
-    #[error("add currency pairs action was not valid")]
-    AddCurrencyPairs(#[source] AddCurrencyPairsError),
-    #[error("remove currency pairs action was not valid")]
-    RemoveCurrencyPairs(#[source] RemoveCurrencyPairsError),
-    #[error("change markets action was not valid")]
-    ChangeMarkets(#[source] ChangeMarketsError),
-    #[error("update params action was not valid")]
-    UpdateMarketMapParams(#[source] UpdateMarketMapParamsError),
-    #[error("remove market authorities action was not valid")]
-    RemoveMarketAuthorities(#[source] RemoveMarketAuthoritiesError),
+    #[error("price feed action was not valid")]
+    PriceFeed(#[source] PriceFeedError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -2049,11 +1973,7 @@ pub enum FeeChange {
     IbcRelayerChange(FeeComponents<IbcRelayerChange>),
     SudoAddressChange(FeeComponents<SudoAddressChange>),
     IbcSudoChange(FeeComponents<IbcSudoChange>),
-    AddCurrencyPairs(FeeComponents<AddCurrencyPairs>),
-    RemoveCurrencyPairs(FeeComponents<RemoveCurrencyPairs>),
-    ChangeMarkets(FeeComponents<ChangeMarkets>),
-    UpdateMarketMapParams(FeeComponents<UpdateMarketMapParams>),
-    RemoveMarketAuthorities(FeeComponents<RemoveMarketAuthorities>),
+    PriceFeed(FeeComponents<PriceFeed>),
 }
 
 impl Protobuf for FeeChange {
@@ -2106,20 +2026,8 @@ impl Protobuf for FeeChange {
                 Self::IbcSudoChange(fee_change) => {
                     raw::fee_change::FeeComponents::IbcSudoChange(fee_change.to_raw())
                 }
-                Self::AddCurrencyPairs(fee_change) => {
-                    raw::fee_change::FeeComponents::AddCurrencyPairs(fee_change.to_raw())
-                }
-                Self::RemoveCurrencyPairs(fee_change) => {
-                    raw::fee_change::FeeComponents::RemoveCurrencyPairs(fee_change.to_raw())
-                }
-                Self::ChangeMarkets(fee_change) => {
-                    raw::fee_change::FeeComponents::ChangeMarkets(fee_change.to_raw())
-                }
-                Self::UpdateMarketMapParams(fee_change) => {
-                    raw::fee_change::FeeComponents::UpdateMarketMapParams(fee_change.to_raw())
-                }
-                Self::RemoveMarketAuthorities(fee_change) => {
-                    raw::fee_change::FeeComponents::RemoveMarketAuthorities(fee_change.to_raw())
+                Self::PriceFeed(fee_change) => {
+                    raw::fee_change::FeeComponents::PriceFeed(fee_change.to_raw())
                 }
             }),
         }
@@ -2191,28 +2099,8 @@ impl Protobuf for FeeChange {
             Some(raw::fee_change::FeeComponents::IbcSudoChange(fee_change)) => Self::IbcSudoChange(
                 FeeComponents::<IbcSudoChange>::try_from_raw_ref(fee_change)?,
             ),
-            Some(raw::fee_change::FeeComponents::AddCurrencyPairs(fee_change)) => {
-                Self::AddCurrencyPairs(FeeComponents::<AddCurrencyPairs>::try_from_raw_ref(
-                    fee_change,
-                )?)
-            }
-            Some(raw::fee_change::FeeComponents::RemoveCurrencyPairs(fee_change)) => {
-                Self::RemoveCurrencyPairs(FeeComponents::<RemoveCurrencyPairs>::try_from_raw_ref(
-                    fee_change,
-                )?)
-            }
-            Some(raw::fee_change::FeeComponents::ChangeMarkets(fee_change)) => Self::ChangeMarkets(
-                FeeComponents::<ChangeMarkets>::try_from_raw_ref(fee_change)?,
-            ),
-            Some(raw::fee_change::FeeComponents::UpdateMarketMapParams(fee_change)) => {
-                Self::UpdateMarketMapParams(
-                    FeeComponents::<UpdateMarketMapParams>::try_from_raw_ref(fee_change)?,
-                )
-            }
-            Some(raw::fee_change::FeeComponents::RemoveMarketAuthorities(fee_change)) => {
-                Self::RemoveMarketAuthorities(
-                    FeeComponents::<RemoveMarketAuthorities>::try_from_raw_ref(fee_change)?,
-                )
+            Some(raw::fee_change::FeeComponents::PriceFeed(fee_change)) => {
+                Self::PriceFeed(FeeComponents::<PriceFeed>::try_from_raw_ref(fee_change)?)
             }
             None => return Err(FeeChangeError::field_unset("fee_components")),
         })
@@ -2220,137 +2108,200 @@ impl Protobuf for FeeChange {
 }
 
 #[derive(Debug, Clone)]
-pub struct AddCurrencyPairs {
-    pub pairs: Vec<CurrencyPair>,
+pub enum PriceFeed {
+    Oracle(CurrencyPairsChange),
+    MarketMap(MarketMapChange),
 }
 
-impl Protobuf for AddCurrencyPairs {
-    type Error = AddCurrencyPairsError;
-    type Raw = raw::AddCurrencyPairs;
+impl Protobuf for PriceFeed {
+    type Error = PriceFeedError;
+    type Raw = raw::PriceFeed;
 
     #[must_use]
-    fn into_raw(self) -> raw::AddCurrencyPairs {
-        raw::AddCurrencyPairs {
-            pairs: self.pairs.into_iter().map(CurrencyPair::into_raw).collect(),
+    fn into_raw(self) -> Self::Raw {
+        match self {
+            PriceFeed::Oracle(currency_pairs_change) => {
+                let raw = raw::price_feed::Value::Oracle(currency_pairs_change.into_raw());
+                Self::Raw {
+                    value: Some(raw),
+                }
+            }
+            PriceFeed::MarketMap(market_map_change) => {
+                let raw = raw::price_feed::Value::MarketMap(market_map_change.into_raw());
+                Self::Raw {
+                    value: Some(raw),
+                }
+            }
         }
     }
 
     #[must_use]
-    fn to_raw(&self) -> raw::AddCurrencyPairs {
-        raw::AddCurrencyPairs {
-            pairs: self.pairs.iter().map(CurrencyPair::to_raw).collect(),
+    fn to_raw(&self) -> Self::Raw {
+        self.clone().into_raw()
+    }
+
+    /// Convert from a raw, unchecked protobuf [`raw::PriceFeed`].
+    ///
+    /// # Errors
+    ///
+    /// - if the raw value is `None`
+    /// - if converting the nested data fails.
+    fn try_from_raw(raw: raw::PriceFeed) -> Result<Self, Self::Error> {
+        match raw.value {
+            Some(raw::price_feed::Value::Oracle(currency_pairs_change)) => {
+                let currency_pairs_change =
+                    CurrencyPairsChange::try_from_raw(currency_pairs_change)
+                        .map_err(Self::Error::oracle)?;
+                Ok(Self::Oracle(currency_pairs_change))
+            }
+            Some(raw::price_feed::Value::MarketMap(market_map_change)) => {
+                let market_map_change = MarketMapChange::try_from_raw(market_map_change)
+                    .map_err(Self::Error::market_map)?;
+                Ok(Self::MarketMap(market_map_change))
+            }
+            None => Err(Self::Error::unset()),
         }
     }
 
-    /// Convert from a raw, unchecked protobuf [`raw::AddCurrencyPairsAction`].
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::PriceFeed`].
     ///
     /// # Errors
     ///
+    /// - if the raw value is `None`
     /// - if any of the `pairs` field is invalid
-    fn try_from_raw(proto: raw::AddCurrencyPairs) -> Result<Self, AddCurrencyPairsError> {
-        let pairs = proto
-            .pairs
-            .into_iter()
-            .map(CurrencyPair::try_from_raw)
-            .collect::<Result<_, _>>()
-            .map_err(AddCurrencyPairsError::invalid_currency_pair)?;
-        Ok(Self {
-            pairs,
-        })
-    }
-
-    /// Convert from a reference to a raw, unchecked protobuf [`raw::AddCurrencyPairsAction`].
-    ///
-    /// # Errors
-    ///
-    /// - if any of the `pairs` field is invalid
-    fn try_from_raw_ref(proto: &raw::AddCurrencyPairs) -> Result<Self, AddCurrencyPairsError> {
-        Self::try_from_raw(proto.clone())
+    fn try_from_raw_ref(raw: &raw::PriceFeed) -> Result<Self, Self::Error> {
+        Self::try_from_raw(raw.clone())
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct AddCurrencyPairsError(AddCurrencyPairsErrorKind);
+pub struct PriceFeedError(PriceFeedErrorKind);
 
-impl AddCurrencyPairsError {
+impl PriceFeedError {
     #[must_use]
-    fn invalid_currency_pair(err: CurrencyPairError) -> Self {
-        Self(AddCurrencyPairsErrorKind::InvalidCurrencyPair(err))
+    fn unset() -> Self {
+        Self(PriceFeedErrorKind::Unset)
+    }
+
+    #[must_use]
+    fn oracle(err: CurrencyPairsChangeError) -> Self {
+        Self(PriceFeedErrorKind::Oracle(err))
+    }
+
+    #[must_use]
+    fn market_map(err: MarketMapChangeError) -> Self {
+        Self(PriceFeedErrorKind::MarketMap(err))
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum AddCurrencyPairsErrorKind {
-    #[error("a currency pair was invalid")]
-    InvalidCurrencyPair(#[from] CurrencyPairError),
+enum PriceFeedErrorKind {
+    #[error("required action value was not set")]
+    Unset,
+    #[error(transparent)]
+    Oracle(CurrencyPairsChangeError),
+    #[error(transparent)]
+    MarketMap(MarketMapChangeError),
 }
 
 #[derive(Debug, Clone)]
-pub struct RemoveCurrencyPairs {
-    pub pairs: Vec<CurrencyPair>,
+pub enum CurrencyPairsChange {
+    Addition(Vec<CurrencyPair>),
+    Removal(Vec<CurrencyPair>),
 }
 
-impl Protobuf for RemoveCurrencyPairs {
-    type Error = RemoveCurrencyPairsError;
-    type Raw = raw::RemoveCurrencyPairs;
+impl Protobuf for CurrencyPairsChange {
+    type Error = CurrencyPairsChangeError;
+    type Raw = raw::CurrencyPairsChange;
 
     #[must_use]
-    fn into_raw(self) -> raw::RemoveCurrencyPairs {
-        raw::RemoveCurrencyPairs {
-            pairs: self.pairs.into_iter().map(CurrencyPair::into_raw).collect(),
+    fn into_raw(self) -> Self::Raw {
+        let raw = match self {
+            CurrencyPairsChange::Addition(pairs) => {
+                raw::currency_pairs_change::Value::Addition(raw::CurrencyPairsToAdd {
+                    pairs: pairs.into_iter().map(CurrencyPair::into_raw).collect(),
+                })
+            }
+            CurrencyPairsChange::Removal(pairs) => {
+                raw::currency_pairs_change::Value::Removal(raw::CurrencyPairsToRemove {
+                    pairs: pairs.into_iter().map(CurrencyPair::into_raw).collect(),
+                })
+            }
+        };
+        Self::Raw {
+            value: Some(raw),
         }
     }
 
     #[must_use]
-    fn to_raw(&self) -> raw::RemoveCurrencyPairs {
-        raw::RemoveCurrencyPairs {
-            pairs: self.pairs.iter().map(CurrencyPair::to_raw).collect(),
+    fn to_raw(&self) -> Self::Raw {
+        self.clone().into_raw()
+    }
+
+    /// Convert from a raw, unchecked protobuf [`raw::CurrencyPairsChange`].
+    ///
+    /// # Errors
+    ///
+    /// - if the raw value is `None`
+    /// - if any of the `pairs` field is invalid
+    fn try_from_raw(raw: raw::CurrencyPairsChange) -> Result<Self, Self::Error> {
+        match raw.value {
+            Some(raw::currency_pairs_change::Value::Addition(raw::CurrencyPairsToAdd {
+                pairs,
+            })) => {
+                let pairs = pairs
+                    .into_iter()
+                    .map(CurrencyPair::try_from_raw)
+                    .collect::<Result<_, _>>()
+                    .map_err(Self::Error::invalid_currency_pair)?;
+                Ok(Self::Addition(pairs))
+            }
+            Some(raw::currency_pairs_change::Value::Removal(raw::CurrencyPairsToRemove {
+                pairs,
+            })) => {
+                let pairs = pairs
+                    .into_iter()
+                    .map(CurrencyPair::try_from_raw)
+                    .collect::<Result<_, _>>()
+                    .map_err(Self::Error::invalid_currency_pair)?;
+                Ok(Self::Removal(pairs))
+            }
+            None => Err(Self::Error::unset()),
         }
     }
 
-    /// Convert from a raw, unchecked protobuf [`raw::RemoveCurrencyPairsAction`].
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::PriceFeed`].
     ///
     /// # Errors
     ///
+    /// - if the raw value is `None`
     /// - if any of the `pairs` field is invalid
-    fn try_from_raw(proto: raw::RemoveCurrencyPairs) -> Result<Self, RemoveCurrencyPairsError> {
-        let pairs = proto
-            .pairs
-            .into_iter()
-            .map(CurrencyPair::try_from_raw)
-            .collect::<Result<_, _>>()
-            .map_err(RemoveCurrencyPairsError::invalid_currency_pair)?;
-        Ok(Self {
-            pairs,
-        })
-    }
-
-    /// Convert from a reference to a raw, unchecked protobuf [`raw::RemoveCurrencyPairsAction`].
-    ///
-    /// # Errors
-    ///
-    /// - if any of the `pairs` field is invalid
-    fn try_from_raw_ref(
-        proto: &raw::RemoveCurrencyPairs,
-    ) -> Result<Self, RemoveCurrencyPairsError> {
-        Self::try_from_raw(proto.clone())
+    fn try_from_raw_ref(raw: &raw::CurrencyPairsChange) -> Result<Self, Self::Error> {
+        Self::try_from_raw(raw.clone())
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct RemoveCurrencyPairsError(RemoveCurrencyPairsErrorKind);
+pub struct CurrencyPairsChangeError(CurrencyPairsChangeErrorKind);
 
-impl RemoveCurrencyPairsError {
+impl CurrencyPairsChangeError {
+    #[must_use]
+    fn unset() -> Self {
+        Self(CurrencyPairsChangeErrorKind::Unset)
+    }
+
     #[must_use]
     fn invalid_currency_pair(err: CurrencyPairError) -> Self {
-        Self(RemoveCurrencyPairsErrorKind::InvalidCurrencyPair(err))
+        Self(CurrencyPairsChangeErrorKind::InvalidCurrencyPair(err))
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum RemoveCurrencyPairsErrorKind {
+enum CurrencyPairsChangeErrorKind {
+    #[error("required action value was not set")]
+    Unset,
     #[error("a currency pair was invalid")]
     InvalidCurrencyPair(#[from] CurrencyPairError),
 }
@@ -2439,28 +2390,82 @@ impl From<FeeComponents<IbcSudoChange>> for FeeChange {
     }
 }
 
-impl From<FeeComponents<AddCurrencyPairs>> for FeeChange {
-    fn from(fee: FeeComponents<AddCurrencyPairs>) -> Self {
-        FeeChange::AddCurrencyPairs(fee)
+impl From<FeeComponents<PriceFeed>> for FeeChange {
+    fn from(fee: FeeComponents<PriceFeed>) -> Self {
+        FeeChange::PriceFeed(fee)
     }
 }
 
-impl From<FeeComponents<RemoveCurrencyPairs>> for FeeChange {
-    fn from(fee: FeeComponents<RemoveCurrencyPairs>) -> Self {
-        FeeChange::RemoveCurrencyPairs(fee)
+#[derive(Debug, Clone)]
+pub enum MarketMapChange {
+    Markets(ChangeMarkets),
+    Params(UpdateMarketMapParams),
+}
+
+impl Protobuf for MarketMapChange {
+    type Error = MarketMapChangeError;
+    type Raw = raw::MarketMapChange;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        match &raw.value {
+            Some(raw::market_map_change::Value::Markets(change_markets)) => Ok(Self::Markets(
+                ChangeMarkets::try_from_raw_ref(change_markets)
+                    .map_err(MarketMapChangeError::invalid_change_markets_action)?,
+            )),
+            Some(raw::market_map_change::Value::Params(update_market_map_params)) => {
+                Ok(Self::Params(
+                    UpdateMarketMapParams::try_from_raw_ref(update_market_map_params)
+                        .map_err(MarketMapChangeError::invalid_update_market_map_params_action)?,
+                ))
+            }
+            None => Err(MarketMapChangeError::missing_value()),
+        }
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let value = match self {
+            Self::Markets(change_markets) => {
+                raw::market_map_change::Value::Markets(change_markets.to_raw())
+            }
+            Self::Params(update_market_map_params) => {
+                raw::market_map_change::Value::Params(update_market_map_params.to_raw())
+            }
+        };
+        Self::Raw {
+            value: Some(value),
+        }
     }
 }
 
-impl From<FeeComponents<ChangeMarkets>> for FeeChange {
-    fn from(fee: FeeComponents<ChangeMarkets>) -> Self {
-        FeeChange::ChangeMarkets(fee)
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct MarketMapChangeError(MarketMapChangeErrorKind);
+
+impl MarketMapChangeError {
+    #[must_use]
+    pub fn invalid_change_markets_action(err: ChangeMarketsError) -> Self {
+        Self(MarketMapChangeErrorKind::InvalidChangeMarketsAction(err))
+    }
+
+    #[must_use]
+    pub fn invalid_update_market_map_params_action(err: UpdateMarketMapParamsError) -> Self {
+        Self(MarketMapChangeErrorKind::InvalidUpdateMarketMapParamsAction(err))
+    }
+
+    #[must_use]
+    pub fn missing_value() -> Self {
+        Self(MarketMapChangeErrorKind::MissingValue)
     }
 }
 
-impl From<FeeComponents<RemoveMarketAuthorities>> for FeeChange {
-    fn from(fee: FeeComponents<RemoveMarketAuthorities>) -> Self {
-        FeeChange::RemoveMarketAuthorities(fee)
-    }
+#[derive(Debug, thiserror::Error)]
+pub enum MarketMapChangeErrorKind {
+    #[error(transparent)]
+    InvalidChangeMarketsAction(#[from] ChangeMarketsError),
+    #[error(transparent)]
+    InvalidUpdateMarketMapParamsAction(#[from] UpdateMarketMapParamsError),
+    #[error("missing market map change value")]
+    MissingValue,
 }
 
 /// Takes a list of markets and either creates, updates, or removes them depending on its variant.
@@ -2620,58 +2625,4 @@ pub enum UpdateMarketMapParamsErrorKind {
     InvalidParams(#[from] ParamsError),
     #[error("authority string could not be parsed to address")]
     AuthorityParse(#[from] AddressError),
-}
-
-/// Takes a list of addresses and removes them from the market authorities. If an address does not
-/// exist in `market_authorities`, it will be ignored. Must be signed by the market map admin (as
-/// defined in the market map [`Params`]).
-#[derive(Debug, Clone)]
-pub struct RemoveMarketAuthorities {
-    /// The list of addresses to remove.
-    pub remove_addresses: Vec<Address>,
-}
-
-impl Protobuf for RemoveMarketAuthorities {
-    type Error = RemoveMarketAuthoritiesError;
-    type Raw = raw::RemoveMarketAuthorities;
-
-    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
-        let remove_addresses = raw
-            .remove_addresses
-            .iter()
-            .map(|address| Address::from_str(address.as_str()))
-            .collect::<Result<_, _>>()
-            .map_err(RemoveMarketAuthoritiesError::remove_address_parse)?;
-        Ok(Self {
-            remove_addresses,
-        })
-    }
-
-    fn to_raw(&self) -> Self::Raw {
-        let remove_addresses = self
-            .remove_addresses
-            .iter()
-            .map(ToString::to_string)
-            .collect();
-        Self::Raw {
-            remove_addresses,
-        }
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error(transparent)]
-pub struct RemoveMarketAuthoritiesError(RemoveMarketAuthoritiesErrorKind);
-
-impl RemoveMarketAuthoritiesError {
-    #[must_use]
-    pub fn remove_address_parse(err: AddressError) -> Self {
-        Self(RemoveMarketAuthoritiesErrorKind::RemoveAddressParse(err))
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum RemoveMarketAuthoritiesErrorKind {
-    #[error("address in remove_addresses could not be parsed to domain type")]
-    RemoveAddressParse(#[source] AddressError),
 }

@@ -26,23 +26,19 @@ use crate::{
             FeeComponents,
         },
         transaction::v1::action::{
-            AddCurrencyPairs,
             BridgeLock,
             BridgeSudoChange,
             BridgeUnlock,
-            ChangeMarkets,
             FeeAssetChange,
             FeeChange,
             IbcRelayerChange,
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
-            RemoveCurrencyPairs,
-            RemoveMarketAuthorities,
+            PriceFeed,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
-            UpdateMarketMapParams,
             ValidatorUpdate,
         },
     },
@@ -768,11 +764,7 @@ pub struct GenesisFees {
     pub ibc_relayer_change: Option<FeeComponents<IbcRelayerChange>>,
     pub sudo_address_change: Option<FeeComponents<SudoAddressChange>>,
     pub ibc_sudo_change: Option<FeeComponents<IbcSudoChange>>,
-    pub add_currency_pairs: Option<FeeComponents<AddCurrencyPairs>>,
-    pub remove_currency_pairs: Option<FeeComponents<RemoveCurrencyPairs>>,
-    pub change_markets: Option<FeeComponents<ChangeMarkets>>,
-    pub update_market_map_params: Option<FeeComponents<UpdateMarketMapParams>>,
-    pub remove_market_authorities: Option<FeeComponents<RemoveMarketAuthorities>>,
+    pub price_feed: Option<FeeComponents<PriceFeed>>,
 }
 
 impl Protobuf for GenesisFees {
@@ -799,11 +791,7 @@ impl Protobuf for GenesisFees {
             ibc_relayer_change,
             sudo_address_change,
             ibc_sudo_change,
-            add_currency_pairs,
-            remove_currency_pairs,
-            change_markets,
-            update_market_map_params,
-            remove_market_authorities,
+            price_feed,
         } = raw;
         let rollup_data_submission = rollup_data_submission
             .clone()
@@ -890,35 +878,11 @@ impl Protobuf for GenesisFees {
             .transpose()
             .map_err(|e| FeesError::fee_components("ibc_sudo_change", e))?;
 
-        let add_currency_pairs = add_currency_pairs
+        let price_feed = price_feed
             .clone()
-            .map(FeeComponents::<AddCurrencyPairs>::try_from_raw)
+            .map(FeeComponents::<PriceFeed>::try_from_raw)
             .transpose()
-            .map_err(|e| FeesError::fee_components("add_currency_pairs", e))?;
-
-        let remove_currency_pairs = remove_currency_pairs
-            .clone()
-            .map(FeeComponents::<RemoveCurrencyPairs>::try_from_raw)
-            .transpose()
-            .map_err(|e| FeesError::fee_components("remove_currency_pairs", e))?;
-
-        let change_markets = change_markets
-            .clone()
-            .map(FeeComponents::<ChangeMarkets>::try_from_raw)
-            .transpose()
-            .map_err(|e| FeesError::fee_components("change_markets", e))?;
-
-        let update_market_map_params = update_market_map_params
-            .clone()
-            .map(FeeComponents::<UpdateMarketMapParams>::try_from_raw)
-            .transpose()
-            .map_err(|e| FeesError::fee_components("update_market_map_params", e))?;
-
-        let remove_market_authorities = remove_market_authorities
-            .clone()
-            .map(FeeComponents::<RemoveMarketAuthorities>::try_from_raw)
-            .transpose()
-            .map_err(|e| FeesError::fee_components("remove_market_authorities", e))?;
+            .map_err(|e| FeesError::fee_components("price_feed", e))?;
 
         Ok(Self {
             rollup_data_submission,
@@ -935,11 +899,7 @@ impl Protobuf for GenesisFees {
             ibc_relayer_change,
             sudo_address_change,
             ibc_sudo_change,
-            add_currency_pairs,
-            remove_currency_pairs,
-            change_markets,
-            update_market_map_params,
-            remove_market_authorities,
+            price_feed,
         })
     }
 
@@ -959,11 +919,7 @@ impl Protobuf for GenesisFees {
             ibc_relayer_change,
             sudo_address_change,
             ibc_sudo_change,
-            add_currency_pairs,
-            remove_currency_pairs,
-            change_markets,
-            update_market_map_params,
-            remove_market_authorities,
+            price_feed,
         } = self;
         Self::Raw {
             transfer: transfer.map(|act| FeeComponents::<Transfer>::to_raw(&act)),
@@ -989,15 +945,7 @@ impl Protobuf for GenesisFees {
                 .map(|act| FeeComponents::<SudoAddressChange>::to_raw(&act)),
             ibc_sudo_change: ibc_sudo_change
                 .map(|act| FeeComponents::<IbcSudoChange>::to_raw(&act)),
-            add_currency_pairs: add_currency_pairs
-                .map(|act| FeeComponents::<AddCurrencyPairs>::to_raw(&act)),
-            remove_currency_pairs: remove_currency_pairs
-                .map(|act| FeeComponents::<RemoveCurrencyPairs>::to_raw(&act)),
-            change_markets: change_markets.map(|act| FeeComponents::<ChangeMarkets>::to_raw(&act)),
-            update_market_map_params: update_market_map_params
-                .map(|act| FeeComponents::<UpdateMarketMapParams>::to_raw(&act)),
-            remove_market_authorities: remove_market_authorities
-                .map(|act| FeeComponents::<RemoveMarketAuthorities>::to_raw(&act)),
+            price_feed: price_feed.map(|act| FeeComponents::<PriceFeed>::to_raw(&act)),
         }
     }
 }
@@ -1142,15 +1090,7 @@ mod tests {
             ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0).to_raw()),
             sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0).to_raw()),
             ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0).to_raw()),
-            add_currency_pairs: Some(FeeComponents::<AddCurrencyPairs>::new(0, 0).to_raw()),
-            remove_currency_pairs: Some(FeeComponents::<RemoveCurrencyPairs>::new(0, 0).to_raw()),
-            change_markets: Some(FeeComponents::<ChangeMarkets>::new(0, 0).to_raw()),
-            update_market_map_params: Some(
-                FeeComponents::<UpdateMarketMapParams>::new(0, 0).to_raw(),
-            ),
-            remove_market_authorities: Some(
-                FeeComponents::<RemoveMarketAuthorities>::new(0, 0).to_raw(),
-            ),
+            price_feed: Some(FeeComponents::<PriceFeed>::new(0, 0).to_raw()),
         }
     }
 

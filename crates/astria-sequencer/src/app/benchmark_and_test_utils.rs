@@ -18,23 +18,19 @@ use astria_core::{
             GenesisAppState,
         },
         transaction::v1::action::{
-            AddCurrencyPairs,
             BridgeLock,
             BridgeSudoChange,
             BridgeUnlock,
-            ChangeMarkets,
             FeeAssetChange,
             FeeChange,
             IbcRelayerChange,
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
-            RemoveCurrencyPairs,
-            RemoveMarketAuthorities,
+            PriceFeed,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
-            UpdateMarketMapParams,
             ValidatorUpdate,
         },
     },
@@ -96,11 +92,7 @@ pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1::GenesisFees 
         ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0)),
         sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0)),
         ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0)),
-        add_currency_pairs: Some(FeeComponents::<AddCurrencyPairs>::new(0, 0)),
-        remove_currency_pairs: Some(FeeComponents::<RemoveCurrencyPairs>::new(0, 0)),
-        change_markets: Some(FeeComponents::<ChangeMarkets>::new(0, 0)),
-        update_market_map_params: Some(FeeComponents::<UpdateMarketMapParams>::new(0, 0)),
-        remove_market_authorities: Some(FeeComponents::<RemoveMarketAuthorities>::new(0, 0)),
+        price_feed: Some(FeeComponents::<PriceFeed>::new(0, 0)),
     }
 }
 
@@ -400,16 +392,10 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .wrap_err("failed to initiate ibc sudo change fee components")
         .unwrap();
 
-    let add_currency_pairs_fees = FeeComponents::<AddCurrencyPairs>::new(0, 0);
+    let price_feed_fees = FeeComponents::<PriceFeed>::new(0, 0);
     state
-        .put_fees(add_currency_pairs_fees)
-        .wrap_err("failed to initiate add currency pairs fee components")
-        .unwrap();
-
-    let remove_currency_pairs_fees = FeeComponents::<RemoveCurrencyPairs>::new(0, 0);
-    state
-        .put_fees(remove_currency_pairs_fees)
-        .wrap_err("failed to initiate remove currency pairs fee components")
+        .put_fees(price_feed_fees)
+        .wrap_err("failed to initiate price feed fee components")
         .unwrap();
 
     // put denoms as allowed fee asset

@@ -3,7 +3,7 @@
 pub struct Action {
     #[prost(
         oneof = "action::Value",
-        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55, 56, 71, 72, 81, 82, 83"
+        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55, 56, 71"
     )]
     pub value: ::core::option::Option<action::Value>,
 }
@@ -46,18 +46,9 @@ pub mod action {
         FeeChange(super::FeeChange),
         #[prost(message, tag = "56")]
         IbcSudoChange(super::IbcSudoChange),
-        /// Oracle actions are defined on 71-80
+        /// Price feed actions are defined on 71-80
         #[prost(message, tag = "71")]
-        AddCurrencyPairs(super::AddCurrencyPairs),
-        #[prost(message, tag = "72")]
-        RemoveCurrencyPairs(super::RemoveCurrencyPairs),
-        /// MarketMap actions are defined on 81-90
-        #[prost(message, tag = "81")]
-        ChangeMarkets(super::ChangeMarkets),
-        #[prost(message, tag = "82")]
-        UpdateMarketMapParams(super::UpdateMarketMapParams),
-        #[prost(message, tag = "83")]
-        RemoveMarketAuthorities(super::RemoveMarketAuthorities),
+        PriceFeed(super::PriceFeed),
     }
 }
 impl ::prost::Name for Action {
@@ -414,7 +405,7 @@ pub struct FeeChange {
     /// the new fee components values
     #[prost(
         oneof = "fee_change::FeeComponents",
-        tags = "1, 2, 3, 4, 5, 7, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19"
+        tags = "1, 2, 3, 4, 5, 7, 6, 8, 9, 10, 11, 12, 13, 14, 15"
     )]
     pub fee_components: ::core::option::Option<fee_change::FeeComponents>,
 }
@@ -455,21 +446,7 @@ pub mod fee_change {
         #[prost(message, tag = "14")]
         ValidatorUpdate(super::super::super::fees::v1::ValidatorUpdateFeeComponents),
         #[prost(message, tag = "15")]
-        AddCurrencyPairs(super::super::super::fees::v1::AddCurrencyPairsFeeComponents),
-        #[prost(message, tag = "16")]
-        RemoveCurrencyPairs(
-            super::super::super::fees::v1::RemoveCurrencyPairsFeeComponents,
-        ),
-        #[prost(message, tag = "17")]
-        ChangeMarkets(super::super::super::fees::v1::ChangeMarketsFeeComponents),
-        #[prost(message, tag = "18")]
-        UpdateMarketMapParams(
-            super::super::super::fees::v1::UpdateMarketMapParamsFeeComponents,
-        ),
-        #[prost(message, tag = "19")]
-        RemoveMarketAuthorities(
-            super::super::super::fees::v1::RemoveMarketAuthoritiesFeeComponents,
-        ),
+        PriceFeed(super::super::super::fees::v1::PriceFeedFeeComponents),
     }
 }
 impl ::prost::Name for FeeChange {
@@ -492,16 +469,51 @@ impl ::prost::Name for IbcSudoChange {
         ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
     }
 }
+/// A transaction that modifies the price feed oracle settings.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AddCurrencyPairs {
-    #[prost(message, repeated, tag = "1")]
-    pub pairs: ::prost::alloc::vec::Vec<
-        super::super::super::super::connect::types::v2::CurrencyPair,
-    >,
+pub struct PriceFeed {
+    #[prost(oneof = "price_feed::Value", tags = "1, 2")]
+    pub value: ::core::option::Option<price_feed::Value>,
 }
-impl ::prost::Name for AddCurrencyPairs {
-    const NAME: &'static str = "AddCurrencyPairs";
+/// Nested message and enum types in `PriceFeed`.
+pub mod price_feed {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "1")]
+        Oracle(super::CurrencyPairsChange),
+        #[prost(message, tag = "2")]
+        MarketMap(super::MarketMapChange),
+    }
+}
+impl ::prost::Name for PriceFeed {
+    const NAME: &'static str = "PriceFeed";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+    }
+}
+/// Add or remove currency pairs to/from the price feed oracle.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CurrencyPairsChange {
+    #[prost(oneof = "currency_pairs_change::Value", tags = "1, 2")]
+    pub value: ::core::option::Option<currency_pairs_change::Value>,
+}
+/// Nested message and enum types in `CurrencyPairsChange`.
+pub mod currency_pairs_change {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "1")]
+        Addition(super::CurrencyPairsToAdd),
+        #[prost(message, tag = "2")]
+        Removal(super::CurrencyPairsToRemove),
+    }
+}
+impl ::prost::Name for CurrencyPairsChange {
+    const NAME: &'static str = "CurrencyPairsChange";
     const PACKAGE: &'static str = "astria.protocol.transaction.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
@@ -509,14 +521,53 @@ impl ::prost::Name for AddCurrencyPairs {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RemoveCurrencyPairs {
+pub struct CurrencyPairsToAdd {
     #[prost(message, repeated, tag = "1")]
     pub pairs: ::prost::alloc::vec::Vec<
         super::super::super::super::connect::types::v2::CurrencyPair,
     >,
 }
-impl ::prost::Name for RemoveCurrencyPairs {
-    const NAME: &'static str = "RemoveCurrencyPairs";
+impl ::prost::Name for CurrencyPairsToAdd {
+    const NAME: &'static str = "CurrencyPairsToAdd";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CurrencyPairsToRemove {
+    #[prost(message, repeated, tag = "1")]
+    pub pairs: ::prost::alloc::vec::Vec<
+        super::super::super::super::connect::types::v2::CurrencyPair,
+    >,
+}
+impl ::prost::Name for CurrencyPairsToRemove {
+    const NAME: &'static str = "CurrencyPairsToRemove";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MarketMapChange {
+    #[prost(oneof = "market_map_change::Value", tags = "1, 2")]
+    pub value: ::core::option::Option<market_map_change::Value>,
+}
+/// Nested message and enum types in `MarketMapChange`.
+pub mod market_map_change {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "1")]
+        Markets(super::ChangeMarkets),
+        #[prost(message, tag = "2")]
+        Params(super::UpdateMarketMapParams),
+    }
+}
+impl ::prost::Name for MarketMapChange {
+    const NAME: &'static str = "MarketMapChange";
     const PACKAGE: &'static str = "astria.protocol.transaction.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
@@ -577,21 +628,6 @@ pub struct UpdateMarketMapParams {
 }
 impl ::prost::Name for UpdateMarketMapParams {
     const NAME: &'static str = "UpdateMarketMapParams";
-    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
-    }
-}
-/// Removes market map authorities.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RemoveMarketAuthorities {
-    /// RemoveAddresses is the list of addresses to remove.
-    #[prost(string, repeated, tag = "1")]
-    pub remove_addresses: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-}
-impl ::prost::Name for RemoveMarketAuthorities {
-    const NAME: &'static str = "RemoveMarketAuthorities";
     const PACKAGE: &'static str = "astria.protocol.transaction.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)

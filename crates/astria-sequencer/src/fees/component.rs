@@ -130,39 +130,11 @@ impl Component for FeesComponent {
                 .wrap_err("failed to store ibc sudo change fee components")?;
         }
 
-        let add_currency_pairs_fees = app_state.fees().add_currency_pairs;
-        if let Some(add_currency_pairs_fees) = add_currency_pairs_fees {
+        let price_feed_fees = app_state.fees().price_feed;
+        if let Some(price_feed_fees) = price_feed_fees {
             state
-                .put_fees(add_currency_pairs_fees)
-                .wrap_err("failed to store add currency pairs fee components")?;
-        }
-
-        let remove_currency_pairs_fees = app_state.fees().remove_currency_pairs;
-        if let Some(remove_currency_pairs_fees) = remove_currency_pairs_fees {
-            state
-                .put_fees(remove_currency_pairs_fees)
-                .wrap_err("failed to store remove currency pairs fee components")?;
-        }
-
-        let change_markets_fees = app_state.fees().change_markets;
-        if let Some(change_markets_fees) = change_markets_fees {
-            state
-                .put_fees(change_markets_fees)
-                .wrap_err("failed to store change markets fee components")?;
-        }
-
-        let remove_market_authorities_fees = app_state.fees().remove_market_authorities;
-        if let Some(remove_market_authorities_fees) = remove_market_authorities_fees {
-            state
-                .put_fees(remove_market_authorities_fees)
-                .wrap_err("failed to store remove market authorities fee components")?;
-        }
-
-        let update_market_map_params_fees = app_state.fees().update_market_map_params;
-        if let Some(update_market_map_params_fees) = update_market_map_params_fees {
-            state
-                .put_fees(update_market_map_params_fees)
-                .wrap_err("failed to store update params fee components")?;
+                .put_fees(price_feed_fees)
+                .wrap_err("failed to store price feed fee components")?;
         }
 
         Ok(())

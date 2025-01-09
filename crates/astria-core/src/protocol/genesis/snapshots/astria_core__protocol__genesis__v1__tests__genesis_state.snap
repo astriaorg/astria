@@ -132,23 +132,7 @@ expression: genesis_state()
       "base": {},
       "multiplier": {}
     },
-    "addCurrencyPairs": {
-      "base": {},
-      "multiplier": {}
-    },
-    "removeCurrencyPairs": {
-      "base": {},
-      "multiplier": {}
-    },
-    "changeMarkets": {
-      "base": {},
-      "multiplier": {}
-    },
-    "updateMarketMapParams": {
-      "base": {},
-      "multiplier": {}
-    },
-    "removeMarketAuthorities": {
+    "priceFeed": {
       "base": {},
       "multiplier": {}
     }

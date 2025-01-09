@@ -1,23 +1,19 @@
 use astria_core::protocol::{
     fees::v1::FeeComponents as DomainFeeComponents,
     transaction::v1::action::{
-        AddCurrencyPairs,
         BridgeLock,
         BridgeSudoChange,
         BridgeUnlock,
-        ChangeMarkets,
         FeeAssetChange,
         FeeChange,
         IbcRelayerChange,
         IbcSudoChange,
         Ics20Withdrawal,
         InitBridgeAccount,
-        RemoveCurrencyPairs,
-        RemoveMarketAuthorities,
+        PriceFeed,
         RollupDataSubmission,
         SudoAddressChange,
         Transfer,
-        UpdateMarketMapParams,
         ValidatorUpdate,
     },
 };
@@ -51,11 +47,7 @@ enum ValueImpl {
     IbcRelayerChangeFees(FeeComponents),
     IbcSudoChangeFees(FeeComponents),
     SudoAddressChangeFees(FeeComponents),
-    AddCurrencyPairsFees(FeeComponents),
-    RemoveCurrencyPairsFees(FeeComponents),
-    ChangeMarketsFees(FeeComponents),
-    UpdateMarketMapParamsFees(FeeComponents),
-    RemoveMarketAuthoritiesFees(FeeComponents),
+    PriceFeedFees(FeeComponents),
 }
 
 macro_rules! impl_from_for_fee_storage {
@@ -119,9 +111,5 @@ impl_from_for_fee_storage!(
     DomainFeeComponents<IbcRelayerChange> => IbcRelayerChangeFees,
     DomainFeeComponents<IbcSudoChange> => IbcSudoChangeFees,
     DomainFeeComponents<SudoAddressChange> => SudoAddressChangeFees,
-    DomainFeeComponents<AddCurrencyPairs> => AddCurrencyPairsFees,
-    DomainFeeComponents<RemoveCurrencyPairs> => RemoveCurrencyPairsFees,
-    DomainFeeComponents<ChangeMarkets> => ChangeMarketsFees,
-    DomainFeeComponents<UpdateMarketMapParams> => UpdateMarketMapParamsFees,
-    DomainFeeComponents<RemoveMarketAuthorities> => RemoveMarketAuthoritiesFees,
+    DomainFeeComponents<PriceFeed> => PriceFeedFees,
 );

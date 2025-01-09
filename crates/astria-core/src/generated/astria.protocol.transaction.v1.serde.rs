@@ -54,20 +54,8 @@ impl serde::Serialize for Action {
                 action::Value::IbcSudoChange(v) => {
                     struct_ser.serialize_field("ibcSudoChange", v)?;
                 }
-                action::Value::AddCurrencyPairs(v) => {
-                    struct_ser.serialize_field("addCurrencyPairs", v)?;
-                }
-                action::Value::RemoveCurrencyPairs(v) => {
-                    struct_ser.serialize_field("removeCurrencyPairs", v)?;
-                }
-                action::Value::ChangeMarkets(v) => {
-                    struct_ser.serialize_field("changeMarkets", v)?;
-                }
-                action::Value::UpdateMarketMapParams(v) => {
-                    struct_ser.serialize_field("updateMarketMapParams", v)?;
-                }
-                action::Value::RemoveMarketAuthorities(v) => {
-                    struct_ser.serialize_field("removeMarketAuthorities", v)?;
+                action::Value::PriceFeed(v) => {
+                    struct_ser.serialize_field("priceFeed", v)?;
                 }
             }
         }
@@ -107,16 +95,8 @@ impl<'de> serde::Deserialize<'de> for Action {
             "feeChange",
             "ibc_sudo_change",
             "ibcSudoChange",
-            "add_currency_pairs",
-            "addCurrencyPairs",
-            "remove_currency_pairs",
-            "removeCurrencyPairs",
-            "change_markets",
-            "changeMarkets",
-            "update_market_map_params",
-            "updateMarketMapParams",
-            "remove_market_authorities",
-            "removeMarketAuthorities",
+            "price_feed",
+            "priceFeed",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -135,11 +115,7 @@ impl<'de> serde::Deserialize<'de> for Action {
             FeeAssetChange,
             FeeChange,
             IbcSudoChange,
-            AddCurrencyPairs,
-            RemoveCurrencyPairs,
-            ChangeMarkets,
-            UpdateMarketMapParams,
-            RemoveMarketAuthorities,
+            PriceFeed,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -175,11 +151,7 @@ impl<'de> serde::Deserialize<'de> for Action {
                             "feeAssetChange" | "fee_asset_change" => Ok(GeneratedField::FeeAssetChange),
                             "feeChange" | "fee_change" => Ok(GeneratedField::FeeChange),
                             "ibcSudoChange" | "ibc_sudo_change" => Ok(GeneratedField::IbcSudoChange),
-                            "addCurrencyPairs" | "add_currency_pairs" => Ok(GeneratedField::AddCurrencyPairs),
-                            "removeCurrencyPairs" | "remove_currency_pairs" => Ok(GeneratedField::RemoveCurrencyPairs),
-                            "changeMarkets" | "change_markets" => Ok(GeneratedField::ChangeMarkets),
-                            "updateMarketMapParams" | "update_market_map_params" => Ok(GeneratedField::UpdateMarketMapParams),
-                            "removeMarketAuthorities" | "remove_market_authorities" => Ok(GeneratedField::RemoveMarketAuthorities),
+                            "priceFeed" | "price_feed" => Ok(GeneratedField::PriceFeed),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -300,39 +272,11 @@ impl<'de> serde::Deserialize<'de> for Action {
                             value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::IbcSudoChange)
 ;
                         }
-                        GeneratedField::AddCurrencyPairs => {
+                        GeneratedField::PriceFeed => {
                             if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("addCurrencyPairs"));
+                                return Err(serde::de::Error::duplicate_field("priceFeed"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::AddCurrencyPairs)
-;
-                        }
-                        GeneratedField::RemoveCurrencyPairs => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("removeCurrencyPairs"));
-                            }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::RemoveCurrencyPairs)
-;
-                        }
-                        GeneratedField::ChangeMarkets => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("changeMarkets"));
-                            }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::ChangeMarkets)
-;
-                        }
-                        GeneratedField::UpdateMarketMapParams => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("updateMarketMapParams"));
-                            }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::UpdateMarketMapParams)
-;
-                        }
-                        GeneratedField::RemoveMarketAuthorities => {
-                            if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("removeMarketAuthorities"));
-                            }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::RemoveMarketAuthorities)
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::PriceFeed)
 ;
                         }
                     }
@@ -343,97 +287,6 @@ impl<'de> serde::Deserialize<'de> for Action {
             }
         }
         deserializer.deserialize_struct("astria.protocol.transaction.v1.Action", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for AddCurrencyPairs {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if !self.pairs.is_empty() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.AddCurrencyPairs", len)?;
-        if !self.pairs.is_empty() {
-            struct_ser.serialize_field("pairs", &self.pairs)?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for AddCurrencyPairs {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "pairs",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            Pairs,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "pairs" => Ok(GeneratedField::Pairs),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = AddCurrencyPairs;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transaction.v1.AddCurrencyPairs")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<AddCurrencyPairs, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut pairs__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::Pairs => {
-                            if pairs__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("pairs"));
-                            }
-                            pairs__ = Some(map_.next_value()?);
-                        }
-                    }
-                }
-                Ok(AddCurrencyPairs {
-                    pairs: pairs__.unwrap_or_default(),
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.protocol.transaction.v1.AddCurrencyPairs", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for BridgeLock {
@@ -1065,6 +918,297 @@ impl<'de> serde::Deserialize<'de> for ChangeMarkets {
         deserializer.deserialize_struct("astria.protocol.transaction.v1.ChangeMarkets", FIELDS, GeneratedVisitor)
     }
 }
+impl serde::Serialize for CurrencyPairsChange {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.value.is_some() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.CurrencyPairsChange", len)?;
+        if let Some(v) = self.value.as_ref() {
+            match v {
+                currency_pairs_change::Value::Addition(v) => {
+                    struct_ser.serialize_field("addition", v)?;
+                }
+                currency_pairs_change::Value::Removal(v) => {
+                    struct_ser.serialize_field("removal", v)?;
+                }
+            }
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for CurrencyPairsChange {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "addition",
+            "removal",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Addition,
+            Removal,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "addition" => Ok(GeneratedField::Addition),
+                            "removal" => Ok(GeneratedField::Removal),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = CurrencyPairsChange;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transaction.v1.CurrencyPairsChange")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<CurrencyPairsChange, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut value__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Addition => {
+                            if value__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("addition"));
+                            }
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(currency_pairs_change::Value::Addition)
+;
+                        }
+                        GeneratedField::Removal => {
+                            if value__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("removal"));
+                            }
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(currency_pairs_change::Value::Removal)
+;
+                        }
+                    }
+                }
+                Ok(CurrencyPairsChange {
+                    value: value__,
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transaction.v1.CurrencyPairsChange", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for CurrencyPairsToAdd {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.pairs.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.CurrencyPairsToAdd", len)?;
+        if !self.pairs.is_empty() {
+            struct_ser.serialize_field("pairs", &self.pairs)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for CurrencyPairsToAdd {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "pairs",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Pairs,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "pairs" => Ok(GeneratedField::Pairs),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = CurrencyPairsToAdd;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transaction.v1.CurrencyPairsToAdd")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<CurrencyPairsToAdd, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut pairs__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Pairs => {
+                            if pairs__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("pairs"));
+                            }
+                            pairs__ = Some(map_.next_value()?);
+                        }
+                    }
+                }
+                Ok(CurrencyPairsToAdd {
+                    pairs: pairs__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transaction.v1.CurrencyPairsToAdd", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for CurrencyPairsToRemove {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.pairs.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.CurrencyPairsToRemove", len)?;
+        if !self.pairs.is_empty() {
+            struct_ser.serialize_field("pairs", &self.pairs)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for CurrencyPairsToRemove {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "pairs",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Pairs,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "pairs" => Ok(GeneratedField::Pairs),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = CurrencyPairsToRemove;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transaction.v1.CurrencyPairsToRemove")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<CurrencyPairsToRemove, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut pairs__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Pairs => {
+                            if pairs__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("pairs"));
+                            }
+                            pairs__ = Some(map_.next_value()?);
+                        }
+                    }
+                }
+                Ok(CurrencyPairsToRemove {
+                    pairs: pairs__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transaction.v1.CurrencyPairsToRemove", FIELDS, GeneratedVisitor)
+    }
+}
 impl serde::Serialize for FeeAssetChange {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -1228,20 +1372,8 @@ impl serde::Serialize for FeeChange {
                 fee_change::FeeComponents::ValidatorUpdate(v) => {
                     struct_ser.serialize_field("validatorUpdate", v)?;
                 }
-                fee_change::FeeComponents::AddCurrencyPairs(v) => {
-                    struct_ser.serialize_field("addCurrencyPairs", v)?;
-                }
-                fee_change::FeeComponents::RemoveCurrencyPairs(v) => {
-                    struct_ser.serialize_field("removeCurrencyPairs", v)?;
-                }
-                fee_change::FeeComponents::ChangeMarkets(v) => {
-                    struct_ser.serialize_field("changeMarkets", v)?;
-                }
-                fee_change::FeeComponents::UpdateMarketMapParams(v) => {
-                    struct_ser.serialize_field("updateMarketMapParams", v)?;
-                }
-                fee_change::FeeComponents::RemoveMarketAuthorities(v) => {
-                    struct_ser.serialize_field("removeMarketAuthorities", v)?;
+                fee_change::FeeComponents::PriceFeed(v) => {
+                    struct_ser.serialize_field("priceFeed", v)?;
                 }
             }
         }
@@ -1282,16 +1414,8 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
             "transfer",
             "validator_update",
             "validatorUpdate",
-            "add_currency_pairs",
-            "addCurrencyPairs",
-            "remove_currency_pairs",
-            "removeCurrencyPairs",
-            "change_markets",
-            "changeMarkets",
-            "update_market_map_params",
-            "updateMarketMapParams",
-            "remove_market_authorities",
-            "removeMarketAuthorities",
+            "price_feed",
+            "priceFeed",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -1310,11 +1434,7 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
             SudoAddressChange,
             Transfer,
             ValidatorUpdate,
-            AddCurrencyPairs,
-            RemoveCurrencyPairs,
-            ChangeMarkets,
-            UpdateMarketMapParams,
-            RemoveMarketAuthorities,
+            PriceFeed,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -1350,11 +1470,7 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
                             "sudoAddressChange" | "sudo_address_change" => Ok(GeneratedField::SudoAddressChange),
                             "transfer" => Ok(GeneratedField::Transfer),
                             "validatorUpdate" | "validator_update" => Ok(GeneratedField::ValidatorUpdate),
-                            "addCurrencyPairs" | "add_currency_pairs" => Ok(GeneratedField::AddCurrencyPairs),
-                            "removeCurrencyPairs" | "remove_currency_pairs" => Ok(GeneratedField::RemoveCurrencyPairs),
-                            "changeMarkets" | "change_markets" => Ok(GeneratedField::ChangeMarkets),
-                            "updateMarketMapParams" | "update_market_map_params" => Ok(GeneratedField::UpdateMarketMapParams),
-                            "removeMarketAuthorities" | "remove_market_authorities" => Ok(GeneratedField::RemoveMarketAuthorities),
+                            "priceFeed" | "price_feed" => Ok(GeneratedField::PriceFeed),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -1475,39 +1591,11 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
                             fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::ValidatorUpdate)
 ;
                         }
-                        GeneratedField::AddCurrencyPairs => {
+                        GeneratedField::PriceFeed => {
                             if fee_components__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("addCurrencyPairs"));
+                                return Err(serde::de::Error::duplicate_field("priceFeed"));
                             }
-                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::AddCurrencyPairs)
-;
-                        }
-                        GeneratedField::RemoveCurrencyPairs => {
-                            if fee_components__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("removeCurrencyPairs"));
-                            }
-                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::RemoveCurrencyPairs)
-;
-                        }
-                        GeneratedField::ChangeMarkets => {
-                            if fee_components__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("changeMarkets"));
-                            }
-                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::ChangeMarkets)
-;
-                        }
-                        GeneratedField::UpdateMarketMapParams => {
-                            if fee_components__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("updateMarketMapParams"));
-                            }
-                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::UpdateMarketMapParams)
-;
-                        }
-                        GeneratedField::RemoveMarketAuthorities => {
-                            if fee_components__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("removeMarketAuthorities"));
-                            }
-                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::RemoveMarketAuthorities)
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::PriceFeed)
 ;
                         }
                     }
@@ -2272,6 +2360,115 @@ impl<'de> serde::Deserialize<'de> for InitBridgeAccount {
         deserializer.deserialize_struct("astria.protocol.transaction.v1.InitBridgeAccount", FIELDS, GeneratedVisitor)
     }
 }
+impl serde::Serialize for MarketMapChange {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.value.is_some() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.MarketMapChange", len)?;
+        if let Some(v) = self.value.as_ref() {
+            match v {
+                market_map_change::Value::Markets(v) => {
+                    struct_ser.serialize_field("markets", v)?;
+                }
+                market_map_change::Value::Params(v) => {
+                    struct_ser.serialize_field("params", v)?;
+                }
+            }
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for MarketMapChange {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "markets",
+            "params",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Markets,
+            Params,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "markets" => Ok(GeneratedField::Markets),
+                            "params" => Ok(GeneratedField::Params),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = MarketMapChange;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transaction.v1.MarketMapChange")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<MarketMapChange, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut value__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Markets => {
+                            if value__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("markets"));
+                            }
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(market_map_change::Value::Markets)
+;
+                        }
+                        GeneratedField::Params => {
+                            if value__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("params"));
+                            }
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(market_map_change::Value::Params)
+;
+                        }
+                    }
+                }
+                Ok(MarketMapChange {
+                    value: value__,
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transaction.v1.MarketMapChange", FIELDS, GeneratedVisitor)
+    }
+}
 impl serde::Serialize for Markets {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -2363,7 +2560,7 @@ impl<'de> serde::Deserialize<'de> for Markets {
         deserializer.deserialize_struct("astria.protocol.transaction.v1.Markets", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for RemoveCurrencyPairs {
+impl serde::Serialize for PriceFeed {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -2371,29 +2568,39 @@ impl serde::Serialize for RemoveCurrencyPairs {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if !self.pairs.is_empty() {
+        if self.value.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.RemoveCurrencyPairs", len)?;
-        if !self.pairs.is_empty() {
-            struct_ser.serialize_field("pairs", &self.pairs)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.PriceFeed", len)?;
+        if let Some(v) = self.value.as_ref() {
+            match v {
+                price_feed::Value::Oracle(v) => {
+                    struct_ser.serialize_field("oracle", v)?;
+                }
+                price_feed::Value::MarketMap(v) => {
+                    struct_ser.serialize_field("marketMap", v)?;
+                }
+            }
         }
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for RemoveCurrencyPairs {
+impl<'de> serde::Deserialize<'de> for PriceFeed {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "pairs",
+            "oracle",
+            "market_map",
+            "marketMap",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            Pairs,
+            Oracle,
+            MarketMap,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -2415,7 +2622,8 @@ impl<'de> serde::Deserialize<'de> for RemoveCurrencyPairs {
                         E: serde::de::Error,
                     {
                         match value {
-                            "pairs" => Ok(GeneratedField::Pairs),
+                            "oracle" => Ok(GeneratedField::Oracle),
+                            "marketMap" | "market_map" => Ok(GeneratedField::MarketMap),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -2425,125 +2633,41 @@ impl<'de> serde::Deserialize<'de> for RemoveCurrencyPairs {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = RemoveCurrencyPairs;
+            type Value = PriceFeed;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transaction.v1.RemoveCurrencyPairs")
+                formatter.write_str("struct astria.protocol.transaction.v1.PriceFeed")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<RemoveCurrencyPairs, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<PriceFeed, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut pairs__ = None;
+                let mut value__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::Pairs => {
-                            if pairs__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("pairs"));
+                        GeneratedField::Oracle => {
+                            if value__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("oracle"));
                             }
-                            pairs__ = Some(map_.next_value()?);
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(price_feed::Value::Oracle)
+;
+                        }
+                        GeneratedField::MarketMap => {
+                            if value__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("marketMap"));
+                            }
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(price_feed::Value::MarketMap)
+;
                         }
                     }
                 }
-                Ok(RemoveCurrencyPairs {
-                    pairs: pairs__.unwrap_or_default(),
+                Ok(PriceFeed {
+                    value: value__,
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.transaction.v1.RemoveCurrencyPairs", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for RemoveMarketAuthorities {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if !self.remove_addresses.is_empty() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.RemoveMarketAuthorities", len)?;
-        if !self.remove_addresses.is_empty() {
-            struct_ser.serialize_field("removeAddresses", &self.remove_addresses)?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for RemoveMarketAuthorities {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "remove_addresses",
-            "removeAddresses",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            RemoveAddresses,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "removeAddresses" | "remove_addresses" => Ok(GeneratedField::RemoveAddresses),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = RemoveMarketAuthorities;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transaction.v1.RemoveMarketAuthorities")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<RemoveMarketAuthorities, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut remove_addresses__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::RemoveAddresses => {
-                            if remove_addresses__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("removeAddresses"));
-                            }
-                            remove_addresses__ = Some(map_.next_value()?);
-                        }
-                    }
-                }
-                Ok(RemoveMarketAuthorities {
-                    remove_addresses: remove_addresses__.unwrap_or_default(),
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.protocol.transaction.v1.RemoveMarketAuthorities", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.transaction.v1.PriceFeed", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for RollupDataSubmission {

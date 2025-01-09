@@ -82,21 +82,9 @@ impl ActionHandler for FeeChange {
             Self::IbcSudoChange(fees) => state
                 .put_fees(*fees)
                 .wrap_err("failed to put ibc sudo change fees"),
-            Self::AddCurrencyPairs(fees) => state
+            Self::PriceFeed(fees) => state
                 .put_fees(*fees)
-                .wrap_err("failed to put add currency pairs fees"),
-            Self::RemoveCurrencyPairs(fees) => state
-                .put_fees(*fees)
-                .wrap_err("failed to put remove currency pairs fees"),
-            Self::ChangeMarkets(fees) => state
-                .put_fees(*fees)
-                .wrap_err("failed to put change markets fees"),
-            Self::UpdateMarketMapParams(fees) => state
-                .put_fees(*fees)
-                .wrap_err("failed to put update params fees"),
-            Self::RemoveMarketAuthorities(fees) => state
-                .put_fees(*fees)
-                .wrap_err("failed to put remove market authorities fees"),
+                .wrap_err("failed to put price feed fees"),
         }
     }
 }
@@ -200,13 +188,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn change_markets_fee_change_action_executes_as_expected() {
-        test_fee_change_action::<ChangeMarkets>().await;
-    }
-
-    #[tokio::test]
-    async fn remove_market_authorities_fee_change_action_executes_as_expected() {
-        test_fee_change_action::<RemoveMarketAuthorities>().await;
+    async fn price_feed_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<PriceFeed>().await;
     }
 
     async fn test_fee_change_action<'a, F>()
