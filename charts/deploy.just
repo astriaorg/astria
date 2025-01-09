@@ -136,6 +136,15 @@ delete-dev-rollup rollupName=defaultRollupName:
 wait-for-dev-rollup rollupName=defaultRollupName:
   kubectl rollout status --watch statefulset/{{rollupName}}-geth -n astria-dev-cluster --timeout=600s
 
+deploy-auctioneer:
+  helm dependency update charts/auctioneer > /dev/null
+  helm install auctioneer-chart ./charts/auctioneer \
+      --namespace astria-dev-cluster \
+      -f dev/values/auctioneer/values.yaml
+
+delete-auctioneer:
+  @just delete chart auctioneer astria-dev-cluster
+
 deploy-bridge-withdrawer:
   helm install evm-bridge-withdrawer-chart ./charts/evm-bridge-withdrawer \
     --namespace astria-dev-cluster \
