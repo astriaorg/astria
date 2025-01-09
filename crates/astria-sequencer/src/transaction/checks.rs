@@ -157,7 +157,7 @@ mod tests {
     use crate::{
         accounts::StateWriteExt as _,
         address::{
-            StateReadExt,
+            StateReadExt as _,
             StateWriteExt as _,
         },
         app::{
@@ -173,7 +173,7 @@ mod tests {
             nria,
             ASTRIA_PREFIX,
         },
-        bridge::StateWriteExt,
+        bridge::StateWriteExt as _,
         fees::{
             StateReadExt as _,
             StateWriteExt as _,
@@ -368,8 +368,6 @@ mod tests {
         let withdrawer_address = astria_address_from_hex_string(ALICE_ADDRESS);
         let bridge_address = astria_address_from_hex_string(BOB_ADDRESS);
 
-        state_tx.put_base_prefix("astria".to_string()).unwrap();
-        state_tx.put_native_asset(nria()).unwrap();
         state_tx
             .put_fees(FeeComponents::<BridgeUnlock>::new(0, 0))
             .unwrap();
