@@ -187,6 +187,11 @@ mod tests {
         test_fee_change_action::<IbcSudoChange>().await;
     }
 
+    #[tokio::test]
+    async fn price_feed_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<PriceFeed>().await;
+    }
+
     async fn test_fee_change_action<'a, F>()
     where
         F: FeeHandler,

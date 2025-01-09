@@ -9,6 +9,7 @@ use std::fmt::{
 use super::{
     Action,
     ActionName,
+    MarketMapChange,
     PriceFeed,
 };
 
@@ -17,7 +18,10 @@ impl Action {
         match self {
             Action::SudoAddressChange(_) | Action::IbcSudoChange(_) => Group::UnbundleableSudo,
 
-            Action::IbcRelayerChange(_) | Action::FeeChange(_) | Action::FeeAssetChange(_) => {
+            Action::IbcRelayerChange(_)
+            | Action::FeeChange(_)
+            | Action::FeeAssetChange(_)
+            | Action::PriceFeed(PriceFeed::MarketMap(MarketMapChange::Params(_))) => {
                 Group::BundleableSudo
             }
 
@@ -32,7 +36,9 @@ impl Action {
             | Action::BridgeLock(_)
             | Action::BridgeUnlock(_)
             | Action::Ibc(_)
-            | Action::PriceFeed(PriceFeed::Oracle(_)) => Group::BundleableGeneral,
+            | Action::PriceFeed(
+                PriceFeed::Oracle(_) | PriceFeed::MarketMap(MarketMapChange::Markets(_)),
+            ) => Group::BundleableGeneral,
         }
     }
 }

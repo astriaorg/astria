@@ -25,9 +25,6 @@ impl Component for MarketMapComponent {
     #[instrument(name = "MarketMapComponent::init_chain", skip_all, err)]
     async fn init_chain<S: StateWrite>(mut state: S, app_state: &Self::AppState) -> Result<()> {
         if let Some(connect) = app_state.connect() {
-            // TODO: put market map authorities and admin in state;
-            // only required for related actions however
-
             state
                 .put_market_map(connect.market_map().market_map.clone())
                 .wrap_err("failed to put market map")?;
