@@ -3,7 +3,6 @@ use astria_core::{
     protocol::abci::AbciErrorCode,
 };
 use astria_eyre::eyre::WrapErr as _;
-use cnidarium::Storage;
 use hex::FromHex as _;
 use prost::Message as _;
 use tendermint::abci::{
@@ -16,6 +15,7 @@ use tracing::instrument;
 use crate::{
     app::StateReadExt as _,
     assets::StateReadExt as _,
+    storage::Storage,
 };
 
 // Retrieve the full asset denomination given the asset ID.

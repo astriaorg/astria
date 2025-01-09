@@ -7,15 +7,15 @@ use borsh::{
     BorshSerialize,
 };
 
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub(crate) struct Value<'a>(ValueImpl<'a>);
 
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 enum ValueImpl<'a> {
     TracePrefixedDenom(TracePrefixedDenom<'a>),
 }
 
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
+#[derive(Clone, Debug, BorshSerialize, BorshDeserialize)]
 pub(in crate::assets) struct TracePrefixedDenom<'a> {
     trace: Vec<(Cow<'a, str>, Cow<'a, str>)>,
     base_denom: Cow<'a, str>,
