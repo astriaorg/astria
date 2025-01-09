@@ -78,11 +78,11 @@ pub(super) fn new(
 
 struct StartOptimisticBlockStreamRequest {
     rollup_id: RollupId,
-    tx: mpsc::Sender<Result<GetOptimisticBlockStreamResponse, Status>>,
+    response: mpsc::Sender<Result<GetOptimisticBlockStreamResponse, Status>>,
 }
 
 struct StartBlockCommitmentStreamRequest {
-    tx: mpsc::Sender<tonic::Result<GetBlockCommitmentStreamResponse>>,
+    response: mpsc::Sender<tonic::Result<GetBlockCommitmentStreamResponse>>,
 }
 
 enum NewStreamRequest {
@@ -117,13 +117,15 @@ impl Runner {
     ) {
         let StartOptimisticBlockStreamRequest {
             rollup_id,
-            tx,
+            response,
         } = request;
 
+        let mut process_proposal_blocks = self.event_bus_subscription.process_proposal_blocks();
+        process_proposal_blocks.mark_latest_event_as_seen();
         self.stream_tasks.spawn(optimistic_stream(
-            self.event_bus_subscription.process_proposal_blocks(),
+            process_proposal_blocks,
             rollup_id,
-            tx,
+            response,
             self.cancellation_token.child_token(),
         ));
     }
@@ -133,12 +135,14 @@ impl Runner {
         request: StartBlockCommitmentStreamRequest,
     ) {
         let StartBlockCommitmentStreamRequest {
-            tx,
+            response,
         } = request;
 
+        let mut finalized_blocks = self.event_bus_subscription.finalized_blocks();
+        finalized_blocks.mark_latest_event_as_seen();
         self.stream_tasks.spawn(block_commitment_stream(
-            self.event_bus_subscription.finalized_blocks(),
-            tx,
+            finalized_blocks,
+            response,
             self.cancellation_token.child_token(),
         ));
     }
@@ -239,7 +243,7 @@ impl Facade {
 
         let request = NewStreamRequest::OptimisticBlockStream(StartOptimisticBlockStreamRequest {
             rollup_id,
-            tx,
+            response: tx,
         });
 
         self.stream_request_sender
@@ -262,7 +266,7 @@ impl Facade {
             tokio::sync::mpsc::channel::<tonic::Result<GetBlockCommitmentStreamResponse>>(128);
 
         let request = NewStreamRequest::BlockCommitmentStream(StartBlockCommitmentStreamRequest {
-            tx,
+            response: tx,
         });
 
         self.stream_request_sender
@@ -303,108 +307,106 @@ impl OptimisticBlockService for Facade {
     }
 }
 
-// the below streams are free standing functions as implementing them as methods on
-// OptimisticBlockInner will cause lifetime issues with the self reference. This is because the
-// Joinset requires that the future being spawned should have a static lifetime.
 async fn block_commitment_stream(
     mut finalized_blocks_receiver: EventReceiver<Arc<FinalizeBlock>>,
     tx: mpsc::Sender<tonic::Result<GetBlockCommitmentStreamResponse>>,
     cancellation_token: CancellationToken,
 ) -> Result<(), eyre::Report> {
-    // mark the current value in the event receiver as seen so that we can start streaming
-    // the next new block commitment to the subscriber
-    finalized_blocks_receiver.mark_latest_event_as_seen();
-
-    loop {
-        tokio::select! {
-            biased;
-            () = cancellation_token.cancelled() => {
-                break Ok(());
-            }
-            finalized_block_res = finalized_blocks_receiver.receive() => {
-                match finalized_block_res {
+    match cancellation_token
+        .run_until_cancelled(async move {
+            loop {
+                match finalized_blocks_receiver.receive().await {
                     Ok(finalized_block) => {
-                        let res = info_span!(BLOCK_COMMITMENT_STREAM_SPAN).in_scope(|| {
-                            let Hash::Sha256(block_hash) = finalized_block.hash else {
-                                warn!("block hash is empty; this should not occur");
-                                return Ok(());
-                            };
+                        if let Err(error) =
+                            info_span!(BLOCK_COMMITMENT_STREAM_SPAN).in_scope(|| {
+                                let Hash::Sha256(block_hash) = finalized_block.hash else {
+                                    warn!("block hash is empty; this should not occur");
+                                    return Ok(());
+                                };
 
-                            let sequencer_block_commit = SequencerBlockCommit::new(finalized_block.height.value(), block_hash);
+                                let sequencer_block_commit = SequencerBlockCommit::new(
+                                    finalized_block.height.value(),
+                                    block_hash,
+                                );
 
-                            let get_block_commitment_stream_response = GetBlockCommitmentStreamResponse {
-                                commitment: Some(sequencer_block_commit.to_raw()),
-                            };
+                                let get_block_commitment_stream_response =
+                                    GetBlockCommitmentStreamResponse {
+                                        commitment: Some(sequencer_block_commit.to_raw()),
+                                    };
 
-                            if let Err(error) = tx.try_send(Ok(get_block_commitment_stream_response)) {
-                                error!(%error, "forwarding block commitment stream to client failed");
-                                return Err(error).wrap_err("forwarding block commitment stream to client failed");
-                            };
-                            trace!("forwarded block commitment stream to client");
-
-                            Ok(())
-                        });
-
-                        if let Err(e) = res {
-                            break Err(e);
+                                match tx
+                                    .try_send(Ok(get_block_commitment_stream_response))
+                                    .wrap_err("forwarding block commitment stream to client failed")
+                                {
+                                    Ok(()) => Ok(()),
+                                    Err(error) => {
+                                        error!(%error);
+                                        Err(error)
+                                    }
+                                }
+                            })
+                        {
+                            break Err(error);
                         }
-                    },
+                    }
                     Err(e) => {
-                        break Err(e).wrap_err("finalized block sender has been dropped with error")
+                        break Err(e).wrap_err("failed receiving finalized block from event bus");
                     }
                 }
-            },
-        }
+            }
+        })
+        .await
+    {
+        Some(res) => res,
+        None => Ok(()),
     }
 }
 
 async fn optimistic_stream(
-    mut process_proposal_blocks_receiver: EventReceiver<Arc<SequencerBlock>>,
+    mut process_proposal_blocks: EventReceiver<Arc<SequencerBlock>>,
     rollup_id: RollupId,
     tx: mpsc::Sender<Result<GetOptimisticBlockStreamResponse, Status>>,
     cancellation_token: CancellationToken,
 ) -> Result<(), eyre::Report> {
-    // mark the current value in the event receiver as seen so that we can start streaming
-    // the next new optimistic block to the subscriber
-    process_proposal_blocks_receiver.mark_latest_event_as_seen();
+    match cancellation_token
+        .run_until_cancelled(async move {
+            loop {
+                match process_proposal_blocks.receive().await {
+                    Ok(block) => {
+                        if let Err(e) = info_span!(OPTIMISTIC_STREAM_SPAN).in_scope(|| {
+                            let filtered_optimistic_block =
+                                block.to_filtered_block(vec![rollup_id]);
+                            let raw_filtered_optimistic_block =
+                                filtered_optimistic_block.into_raw();
 
-    loop {
-        tokio::select! {
-            biased;
-            () = cancellation_token.cancelled() => {
-                break Ok(());
-            }
-            process_proposal_block_res = process_proposal_blocks_receiver.receive() => {
-                match process_proposal_block_res {
-                    Ok(process_proposal_block) => {
-                        let res = info_span!(OPTIMISTIC_STREAM_SPAN).in_scope(|| {
-                            let filtered_optimistic_block = process_proposal_block
-                                .to_filtered_block(vec![rollup_id]);
-                            let raw_filtered_optimistic_block = filtered_optimistic_block.into_raw();
+                            let get_optimistic_block_stream_response =
+                                GetOptimisticBlockStreamResponse {
+                                    block: Some(raw_filtered_optimistic_block),
+                                };
 
-                            let get_optimistic_block_stream_response = GetOptimisticBlockStreamResponse {
-                                block: Some(raw_filtered_optimistic_block),
-                            };
-
-                            if let Err(error) = tx.try_send(Ok(get_optimistic_block_stream_response)) {
-                                error!(%error, "forwarding optimistic block stream to client failed");
-                                return Err(error).wrap_err("forwarding optimistic block stream to client failed")
+                            match tx
+                                .try_send(Ok(get_optimistic_block_stream_response))
+                                .wrap_err("forwarding optimistic block stream to client failed")
+                            {
+                                Ok(()) => Ok(()),
+                                Err(error) => {
+                                    error!(%error);
+                                    Err(error)
+                                }
                             }
-                            trace!("forwarded optimistic block stream to client");
-
-                            Ok(())
-                        });
-
-                        if let Err(e) = res {
+                        }) {
                             break Err(e);
                         }
-
-                    },
+                    }
                     Err(e) => {
-                        break Err(e).wrap_err("process proposal block sender has been dropped with error")
+                        break Err(e).wrap_err("failed receiving proposed block from event bus");
                     }
                 }
-            },
-        }
+            }
+        })
+        .await
+    {
+        Some(res) => res,
+        None => Ok(()),
     }
 }
