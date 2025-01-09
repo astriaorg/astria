@@ -23,11 +23,11 @@ use tokio_util::{
     task::JoinMap,
 };
 use tracing::{
-    Instrument as _,
     error,
     error_span,
     info,
     info_span,
+    Instrument as _,
 };
 
 use crate::{
