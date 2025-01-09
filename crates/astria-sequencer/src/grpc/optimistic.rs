@@ -64,6 +64,15 @@ const BLOCK_COMMITMENT_STREAM_SPAN: &str = "block_commitment_stream";
 
 type GrpcStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send>>;
 
+/// Create a new optimistic block service.
+///
+/// The service is split into a frontend and backend part,
+/// where [`Facade`] wrapped in a [`OptimisticBlockServer<Facade>`] is
+/// to be passed to a [`tonic::tranport::Server`], while [`Runner`] is
+/// should be spawned as a separate task.
+///
+/// The [`Runner`] keeps track of all stream that are requested on
+/// the gRPC server and are forwarded to it via the [`Facade`].
 pub(super) fn new(
     event_bus_subscription: EventBusSubscription,
     cancellation_token: CancellationToken,
