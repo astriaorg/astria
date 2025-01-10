@@ -16,23 +16,21 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use futures::{
-    StreamExt as _,
     stream::FuturesUnordered,
+    StreamExt as _,
 };
 use tokio::select;
 use tokio_util::sync::CancellationToken;
 use tracing::{
-    Level,
-    Span,
     error,
     field,
     info,
     instrument,
+    Level,
+    Span,
 };
 
 use crate::{
-    Config,
-    Metrics,
     rollup_channel::{
         BundleStream,
         ExecuteOptimisticBlockStream,
@@ -42,6 +40,8 @@ use crate::{
         OptimisticBlockStream,
     },
     sequencer_key::SequencerKey,
+    Config,
+    Metrics,
 };
 
 mod auction;
