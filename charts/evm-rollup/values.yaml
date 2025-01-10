@@ -108,7 +108,7 @@ config:
     snapshot:
       # Load from snapshot
       restore:
-        enabled: true
+        enabled: false
         # URL to download the snapshot from (pick either url or path)
         url: ""
         # Path to load the snapshot from (pick either url or path)
