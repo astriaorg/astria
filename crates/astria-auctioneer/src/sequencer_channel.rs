@@ -1,13 +1,14 @@
 use std::{
     pin::Pin,
     task::{
-        ready,
         Context,
         Poll,
+        ready,
     },
 };
 
 use astria_core::{
+    Protobuf as _,
     generated::astria::sequencerblock::optimistic::v1alpha1::{
         GetBlockCommitmentStreamRequest,
         GetBlockCommitmentStreamResponse,
@@ -18,33 +19,32 @@ use astria_core::{
         Address,
         RollupId,
     },
-    sequencerblock::v1::block::FilteredSequencerBlock,
-    Protobuf as _,
+    sequencerblock::v1::{
+        block::FilteredSequencerBlock,
+        optimistic::SequencerBlockCommit,
+    },
 };
 use astria_eyre::eyre::{
     self,
-    eyre,
     WrapErr as _,
+    eyre,
 };
 use futures::{
-    stream::BoxStream,
     Future,
     Stream,
     StreamExt as _,
+    stream::BoxStream,
 };
 use prost::Name;
 use tracing::{
+    Instrument as _,
     info_span,
     warn,
-    Instrument as _,
 };
 
-use crate::{
-    block::Commitment,
-    streaming_utils::{
-        restarting_stream,
-        InstrumentedChannel,
-    },
+use crate::streaming_utils::{
+    InstrumentedChannel,
+    restarting_stream,
 };
 
 pub(crate) fn open(endpoint: &str) -> eyre::Result<SequencerChannel> {
@@ -69,8 +69,8 @@ impl SequencerChannel {
         address: Address,
     ) -> impl Future<Output = eyre::Result<u32>> {
         use astria_core::generated::astria::sequencerblock::v1::{
-            sequencer_service_client::SequencerServiceClient,
             GetPendingNonceRequest,
+            sequencer_service_client::SequencerServiceClient,
         };
 
         let mut client = SequencerServiceClient::new(self.inner.clone());
@@ -117,8 +117,8 @@ impl SequencerChannel {
         rollup_id: RollupId,
     ) -> OptimisticBlockStream {
         use astria_core::generated::astria::sequencerblock::optimistic::v1alpha1::{
-            optimistic_block_service_client::OptimisticBlockServiceClient,
             GetOptimisticBlockStreamRequest,
+            optimistic_block_service_client::OptimisticBlockServiceClient,
         };
 
         let chan = self.inner.clone();
@@ -149,11 +149,11 @@ impl SequencerChannel {
 
 /// A stream for receiving committed blocks from the sequencer.
 pub(crate) struct BlockCommitmentStream {
-    inner: BoxStream<'static, eyre::Result<Commitment>>,
+    inner: BoxStream<'static, eyre::Result<SequencerBlockCommit>>,
 }
 
 impl Stream for BlockCommitmentStream {
-    type Item = eyre::Result<Commitment>;
+    type Item = eyre::Result<SequencerBlockCommit>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.inner.poll_next_unpin(cx)
@@ -165,7 +165,7 @@ struct InnerBlockCommitmentStream {
 }
 
 impl Stream for InnerBlockCommitmentStream {
-    type Item = eyre::Result<Commitment>;
+    type Item = eyre::Result<SequencerBlockCommit>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         use astria_core::generated::astria::sequencerblock::optimistic::v1alpha1 as raw;
@@ -184,7 +184,7 @@ impl Stream for InnerBlockCommitmentStream {
                 )
             })?;
 
-        let commitment = Commitment::try_from_raw(&raw).wrap_err_with(|| {
+        let commitment = SequencerBlockCommit::try_from_raw_ref(&raw).wrap_err_with(|| {
             format!(
                 "failed to validate message `{}` received from server",
                 raw::SequencerBlockCommit::full_name()

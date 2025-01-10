@@ -43,15 +43,15 @@ use std::{
 };
 
 use astria_core::{
-    self,
+    sequencerblock,
     sequencerblock::v1::block,
 };
 use astria_eyre::eyre::{
     self,
+    Context,
     bail,
     ensure,
     eyre,
-    Context,
 };
 use futures::{
     Future,
@@ -70,7 +70,6 @@ use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
 use crate::{
-    block::Commitment,
     bundle::Bundle,
     sequencer_key::SequencerKey,
 };
@@ -127,7 +126,10 @@ impl Auction {
 
     // TODO: identify the commitment in span fields
     #[instrument(skip_all, fields(id = %self.id), err)]
-    pub(super) fn start_timer(&mut self, commitment: Commitment) -> eyre::Result<()> {
+    pub(super) fn start_timer(
+        &mut self,
+        commitment: sequencerblock::v1::optimistic::SequencerBlockCommit,
+    ) -> eyre::Result<()> {
         ensure!(
             &self.block_hash == commitment.block_hash() && self.height == commitment.height(),
             "commitment does not match auction; auction.block_hash = `{}`, auction.height = `{}`, \
