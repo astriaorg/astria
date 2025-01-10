@@ -23,11 +23,27 @@ message Bid {
   bytes rollup_parent_block_hash = 4;
 }
 
+// The Allocation message is submitted by the Auctioneer to the rollup as a
+// `RollupDataSubmission` on the sequencer.
+// The rollup will verify the signature and public key against its configuration,
+// then unbundle the body into rollup transactions and execute them first in the
+// block.
+message Allocation {
+  // The Ed25519 signature of the Auctioneer, to be verified against config by the
+  // rollup.
+  bytes signature = 1;
+  // The Ed25519 public key of the Auctioneer, to be verified against config by the
+  // rollup.
+  bytes public_key = 2;
+  // The bid that was allocated the winning slot by the Auctioneer.
+  Bid payload = 3;
+}
+
 message GetBidStreamResponse {
   Bid Bid = 1;
 }
 
-service BundleService {
+service AuctionService {
   // An auctioneer will initiate this long running stream to receive bids from the rollup node,
   // until either a timeout or the connection is closed by the client.
   rpc GetBidStream(GetBidStreamRequest) returns (stream GetBidStreamResponse);

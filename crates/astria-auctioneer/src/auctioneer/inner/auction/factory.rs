@@ -50,7 +50,7 @@ impl Factory {
         // TODO: get the capacities from config or something instead of using a magic number
         let (start_bids_tx, start_bids_rx) = oneshot::channel();
         let (start_timer_tx, start_timer_rx) = oneshot::channel();
-        let (bundles_tx, bundles_rx) = mpsc::unbounded_channel();
+        let (bids_tx, bids_rx) = mpsc::unbounded_channel();
 
         let cancellation_token = self.cancellation_token.child_token();
         let auction = Worker {
@@ -58,7 +58,7 @@ impl Factory {
             sequencer_channel: self.sequencer_channel.clone(),
             start_bids: Some(start_bids_rx),
             start_timer: Some(start_timer_rx),
-            bundles: bundles_rx,
+            bids: bids_rx,
             latency_margin: self.latency_margin,
             id,
             sequencer_key: self.sequencer_key.clone(),
@@ -76,7 +76,7 @@ impl Factory {
             hash_of_executed_block_on_rollup: None,
             start_bids: Some(start_bids_tx),
             start_timer: Some(start_timer_tx),
-            bundles: bundles_tx,
+            bids: bids_tx,
             cancellation_token,
             worker: tokio::task::spawn(auction.run()),
         }

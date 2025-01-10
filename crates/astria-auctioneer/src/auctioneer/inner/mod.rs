@@ -32,7 +32,7 @@ use tracing::{
 
 use crate::{
     rollup_channel::{
-        BundleStream,
+        BidStream,
         ExecuteOptimisticBlockStream,
     },
     sequencer_channel::{
@@ -50,7 +50,7 @@ mod auction;
 pub(super) struct Inner {
     auction_factory: auction::Factory,
     block_commitments: BlockCommitmentStream,
-    bundles: BundleStream,
+    bids: BidStream,
     cancelled_auctions: FuturesUnordered<auction::Auction>,
     executed_blocks: ExecuteOptimisticBlockStream,
     running_auction: Option<auction::Auction>,
@@ -111,7 +111,7 @@ impl Inner {
         Ok(Self {
             auction_factory,
             block_commitments: sequencer_channel.open_get_block_commitment_stream(),
-            bundles: rollup_channel.open_bundle_stream(),
+            bids: rollup_channel.open_bid_stream(),
             cancelled_auctions: FuturesUnordered::new(),
             executed_blocks: rollup_channel.open_execute_optimistic_block_stream(),
             optimistic_blocks: sequencer_channel.open_get_optimistic_block_stream(rollup_id),
@@ -167,8 +167,8 @@ impl Inner {
                 let _ = self.handle_completed_auction(id, res);
             }
 
-            Some(res) = self.bundles.next() => {
-                let _ = self.handle_bundle(res);
+            Some(res) = self.bids.next() => {
+                let _ = self.handle_bids(res);
             }
 
              Some((id, res)) = self.cancelled_auctions.next() => {
@@ -296,23 +296,23 @@ impl Inner {
     }
 
     #[instrument(skip_all, fields(block_hash = field::Empty), err)]
-    fn handle_bundle(&mut self, bundle: eyre::Result<crate::bundle::Bundle>) -> eyre::Result<()> {
-        let bundle = Arc::new(bundle.wrap_err("received problematic bundle")?);
+    fn handle_bids(&mut self, bid: eyre::Result<crate::bid::Bid>) -> eyre::Result<()> {
+        let bid = Arc::new(bid.wrap_err("received problematic bid")?);
         Span::current().record(
             "block_hash",
-            field::display(bundle.base_sequencer_block_hash()),
+            field::display(bid.sequencer_parent_block_hash()),
         );
         if let Some(running_auction) = &mut self.running_auction {
             running_auction
-                .forward_bundle_to_auction(bundle)
-                .wrap_err("failed to forward bundle to auction")?;
+                .forward_bid_to_auction(bid)
+                .wrap_err("failed to forward bid to auction")?;
             info!(
                 auction_id = %running_auction.id(),
-                "forwarded bundle to auction"
+                "forwarded bid auction"
             );
         } else {
             info!(
-                "received a bundle but did not forward it to the auction because no auction was \
+                "received a bid but did not forward it to the auction because no auction was \
                  running",
             );
         }

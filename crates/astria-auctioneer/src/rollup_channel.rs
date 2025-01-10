@@ -7,11 +7,10 @@ use std::{
     },
 };
 
-use astria_core::generated::astria::bundle::v1alpha1::{
-    bundle_service_client::BundleServiceClient,
+use astria_core::generated::astria::auction::v1alpha1::{
     BaseBlock,
     ExecuteOptimisticBlockStreamResponse,
-    GetBundleStreamResponse,
+    GetBidStreamResponse,
 };
 use astria_eyre::eyre::{
     self,
@@ -33,7 +32,7 @@ use tracing::{
 };
 
 use crate::{
-    bundle::Bundle,
+    bid::Bid,
     streaming_utils::{
         make_instrumented_channel,
         restarting_stream,
@@ -58,32 +57,35 @@ impl RollupChannel {
         })
     }
 
-    pub(crate) fn open_bundle_stream(&self) -> BundleStream {
-        use astria_core::generated::astria::bundle::v1alpha1::GetBundleStreamRequest;
+    pub(crate) fn open_bid_stream(&self) -> BidStream {
+        use astria_core::generated::astria::auction::v1alpha1::{
+            auction_service_client::AuctionServiceClient,
+            GetBidStreamRequest,
+        };
         let chan = self.inner.clone();
         let inner = restarting_stream(move || {
             let chan = chan.clone();
             async move {
-                let inner = BundleServiceClient::new(chan)
-                    .get_bundle_stream(GetBundleStreamRequest {})
+                let inner = AuctionServiceClient::new(chan)
+                    .get_bid_stream(GetBidStreamRequest {})
                     .await
-                    .wrap_err("failed to open bundle stream")
+                    .wrap_err("failed to open bid stream")
                     .inspect_err(|error| warn!(%error))?
                     .into_inner();
-                Ok(InnerBundleStream {
+                Ok(InnerBidStream {
                     inner,
                 })
             }
-            .instrument(info_span!("request bundle stream"))
+            .instrument(info_span!("request bid stream"))
         })
         .boxed();
-        BundleStream {
+        BidStream {
             inner,
         }
     }
 
     pub(crate) fn open_execute_optimistic_block_stream(&self) -> ExecuteOptimisticBlockStream {
-        use astria_core::generated::astria::bundle::v1alpha1::{
+        use astria_core::generated::astria::auction::v1alpha1::{
             optimistic_execution_service_client::OptimisticExecutionServiceClient,
             ExecuteOptimisticBlockStreamRequest,
         };
@@ -128,24 +130,24 @@ impl RollupChannel {
     }
 }
 
-pub(crate) struct BundleStream {
-    inner: BoxStream<'static, eyre::Result<Bundle>>,
+pub(crate) struct BidStream {
+    inner: BoxStream<'static, eyre::Result<Bid>>,
 }
 
-impl Stream for BundleStream {
-    type Item = eyre::Result<Bundle>;
+impl Stream for BidStream {
+    type Item = eyre::Result<Bid>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.inner.poll_next_unpin(cx)
     }
 }
 
-struct InnerBundleStream {
-    inner: tonic::Streaming<GetBundleStreamResponse>,
+struct InnerBidStream {
+    inner: tonic::Streaming<GetBidStreamResponse>,
 }
 
-impl Stream for InnerBundleStream {
-    type Item = eyre::Result<Bundle>;
+impl Stream for InnerBidStream {
+    type Item = eyre::Result<Bid>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let Some(res) = ready!(self.inner.poll_next_unpin(cx)) else {
@@ -154,22 +156,22 @@ impl Stream for InnerBundleStream {
 
         let raw = res
             .wrap_err("error while receiving streamed message from server")?
-            .bundle
+            .bid
             .ok_or_else(|| {
                 eyre!(
-                    "message field not set: `{}.bundle`",
-                    GetBundleStreamResponse::full_name()
+                    "message field not set: `{}.bid`",
+                    GetBidStreamResponse::full_name()
                 )
             })?;
 
-        let bundle = Bundle::try_from_raw(raw).wrap_err_with(|| {
+        let bid = Bid::try_from_raw(raw).wrap_err_with(|| {
             format!(
                 "failed to validate received message `{}`",
-                astria_core::generated::astria::bundle::v1alpha1::Bundle::full_name()
+                astria_core::generated::astria::auction::v1alpha1::Bid::full_name()
             )
         })?;
 
-        Poll::Ready(Some(Ok(bundle)))
+        Poll::Ready(Some(Ok(bid)))
     }
 }
 
@@ -215,7 +217,7 @@ impl Stream for InnerExecuteOptimisticBlockStream {
         let executed_block = crate::block::Executed::try_from_raw(message).wrap_err_with(|| {
             format!(
                 "failed to validate `{}`",
-                astria_core::generated::astria::bundle::v1alpha1::ExecuteOptimisticBlockStreamResponse::full_name(),
+                astria_core::generated::astria::auction::v1alpha1::ExecuteOptimisticBlockStreamResponse::full_name(),
             )
         })?;
         Poll::Ready(Some(Ok(executed_block)))

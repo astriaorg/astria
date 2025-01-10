@@ -83,7 +83,7 @@ use super::{
     Summary,
 };
 use crate::{
-    bundle::Bundle,
+    bid::Bid,
     sequencer_channel::SequencerChannel,
     sequencer_key::SequencerKey,
 };
@@ -96,8 +96,8 @@ pub(super) struct Worker {
     pub(super) sequencer_channel: SequencerChannel,
     pub(super) start_bids: Option<oneshot::Receiver<()>>,
     pub(super) start_timer: Option<oneshot::Receiver<()>>,
-    /// Channel for receiving new bundles
-    pub(super) bundles: tokio::sync::mpsc::UnboundedReceiver<Arc<Bundle>>,
+    /// Channel for receiving new bids.
+    pub(super) bids: tokio::sync::mpsc::UnboundedReceiver<Arc<Bid>>,
     /// The time between receiving a block commitment
     pub(super) latency_margin: Duration,
     /// The ID of the auction
@@ -230,7 +230,7 @@ impl Worker {
                          .unwrap()
                          .await
                 }, if latency_margin_timer.is_some() => {
-                    info!("timer is up; bids left unprocessed: {}", self.bundles.len());
+                    info!("timer is up; bids left unprocessed: {}", self.bids.len());
                     break Ok(AuctionItems {
                         winner: allocation_rule.winner(),
                         nonce_fetch,
@@ -277,8 +277,8 @@ impl Worker {
                 }
 
                 // TODO: this is an unbounded channel. Can we process multiple bids at a time?
-                Some(bundle) = self.bundles.recv(), if auction_is_open => {
-                    allocation_rule.bid(&bundle);
+                Some(bid) = self.bids.recv(), if auction_is_open => {
+                    allocation_rule.bid(&bid);
                 }
 
                 else => break Err(Error::ChannelsClosed),
@@ -319,7 +319,7 @@ where
 }
 
 struct AuctionItems {
-    winner: Option<Arc<Bundle>>,
+    winner: Option<Arc<Bid>>,
     nonce_fetch: Option<AbortJoinHandle<u32>>,
 }
 
