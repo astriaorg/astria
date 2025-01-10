@@ -2,9 +2,7 @@
 
 set -o errexit -o nounset
 
-# Preserve snapshots directory if it exists, remove everything else
-mkdir -p "$data_dir/snapshots"  # Ensure snapshots dir exists
-find "$data_dir" -mindepth 1 -maxdepth 1 ! -name 'snapshots' -exec rm -rf {} +
+rm -rf "$data_dir/geth"
 mkdir -p "$data_dir/geth"
 
 {{if .Values.config.geth.snapshot.restore.url -}}
