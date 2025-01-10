@@ -1,43 +1,42 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetBundleStreamRequest {}
-impl ::prost::Name for GetBundleStreamRequest {
-    const NAME: &'static str = "GetBundleStreamRequest";
-    const PACKAGE: &'static str = "astria.bundle.v1alpha1";
+pub struct GetBidStreamRequest {}
+impl ::prost::Name for GetBidStreamRequest {
+    const NAME: &'static str = "GetBidStreamRequest";
+    const PACKAGE: &'static str = "astria.auction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.bundle.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.auction.v1alpha1.{}", Self::NAME)
     }
 }
-/// Information for the bundle submitter to know how to submit the bundle.
-/// The fee and base_sequencer_block_hash are not necessarily strictly necessary
-/// it allows for the case where the server doesn't always send the highest fee
-/// bundles after the previous but could just stream any confirmed bundles.
+/// A bid is a bundle of transactions that was submitted to the auctioneer's rollup node.
+/// The rollup node will verify that the bundle is valid and pays the fee, and will stream
+/// it to the auctioneer for participation in the auction for a given block.
+/// The sequencer block hash and the rollup parent block hash are used by the auctioneer
+/// to identify the block for which the bundle is intended (i.e. which auction the bid is for).
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Bundle {
-    /// The fee that can be expected to be received for submitting this bundle.
-    /// This allows the bundle producer to stream any confirmed bundles they would be ok
-    /// with submitting. Used to avoid race conditions in received bundle packets. Could
-    /// also be used by a bundle submitter to allow multiple entities to submit bundles.
+pub struct Bid {
+    /// The fee paid by the bundle submitter. The auctioneer's rollup node calculates this based
+    /// on the bundles submitted by users. For example, this can be the sum of the coinbase transfers
+    /// in the bundle's transactions.
     #[prost(uint64, tag = "1")]
     pub fee: u64,
-    /// The byte list of transactions to be included.
+    /// The list of serialized rollup transactions from the bundle.
     #[prost(bytes = "bytes", repeated, tag = "2")]
     pub transactions: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
-    /// The base_sequencer_block_hash is the hash from the base block this bundle
-    /// is based on. This is used to verify that the bundle is based on the correct
-    /// Sequencer block.
+    /// The hash of the previous sequencer block, identifying the auction for which the bid is intended.
+    /// This is the hash of the sequencer block on top of which the bundle will be executed as ToB.
     #[prost(bytes = "bytes", tag = "3")]
-    pub base_sequencer_block_hash: ::prost::bytes::Bytes,
+    pub sequencer_parent_block_hash: ::prost::bytes::Bytes,
     /// The hash of previous rollup block, on top of which the bundle will be executed as ToB.
     #[prost(bytes = "bytes", tag = "4")]
-    pub prev_rollup_block_hash: ::prost::bytes::Bytes,
+    pub rollup_parent_block_hash: ::prost::bytes::Bytes,
 }
-impl ::prost::Name for Bundle {
-    const NAME: &'static str = "Bundle";
-    const PACKAGE: &'static str = "astria.bundle.v1alpha1";
+impl ::prost::Name for Bid {
+    const NAME: &'static str = "Bid";
+    const PACKAGE: &'static str = "astria.auction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.bundle.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.auction.v1alpha1.{}", Self::NAME)
     }
 }
 /// The Allocation message is submitted by the Auctioneer to the rollup as a
@@ -56,41 +55,41 @@ pub struct Allocation {
     /// rollup.
     #[prost(bytes = "bytes", tag = "2")]
     pub public_key: ::prost::bytes::Bytes,
-    /// The bundle that was allocated the winning slot by the Auctioneer.
+    /// The bid that was allocated the winning slot by the Auctioneer.
     #[prost(message, optional, tag = "3")]
-    pub payload: ::core::option::Option<Bundle>,
+    pub payload: ::core::option::Option<Bid>,
 }
 impl ::prost::Name for Allocation {
     const NAME: &'static str = "Allocation";
-    const PACKAGE: &'static str = "astria.bundle.v1alpha1";
+    const PACKAGE: &'static str = "astria.auction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.bundle.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.auction.v1alpha1.{}", Self::NAME)
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetBundleStreamResponse {
+pub struct GetBidStreamResponse {
     #[prost(message, optional, tag = "1")]
-    pub bundle: ::core::option::Option<Bundle>,
+    pub bid: ::core::option::Option<Bid>,
 }
-impl ::prost::Name for GetBundleStreamResponse {
-    const NAME: &'static str = "GetBundleStreamResponse";
-    const PACKAGE: &'static str = "astria.bundle.v1alpha1";
+impl ::prost::Name for GetBidStreamResponse {
+    const NAME: &'static str = "GetBidStreamResponse";
+    const PACKAGE: &'static str = "astria.auction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.bundle.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.auction.v1alpha1.{}", Self::NAME)
     }
 }
 /// Generated client implementations.
 #[cfg(feature = "client")]
-pub mod bundle_service_client {
+pub mod auction_service_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
     use tonic::codegen::http::Uri;
     #[derive(Debug, Clone)]
-    pub struct BundleServiceClient<T> {
+    pub struct AuctionServiceClient<T> {
         inner: tonic::client::Grpc<T>,
     }
-    impl BundleServiceClient<tonic::transport::Channel> {
+    impl AuctionServiceClient<tonic::transport::Channel> {
         /// Attempt to create a new client by connecting to a given endpoint.
         pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
         where
@@ -101,7 +100,7 @@ pub mod bundle_service_client {
             Ok(Self::new(conn))
         }
     }
-    impl<T> BundleServiceClient<T>
+    impl<T> AuctionServiceClient<T>
     where
         T: tonic::client::GrpcService<tonic::body::BoxBody>,
         T::Error: Into<StdError>,
@@ -119,7 +118,7 @@ pub mod bundle_service_client {
         pub fn with_interceptor<F>(
             inner: T,
             interceptor: F,
-        ) -> BundleServiceClient<InterceptedService<T, F>>
+        ) -> AuctionServiceClient<InterceptedService<T, F>>
         where
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
@@ -133,7 +132,7 @@ pub mod bundle_service_client {
                 http::Request<tonic::body::BoxBody>,
             >>::Error: Into<StdError> + Send + Sync,
         {
-            BundleServiceClient::new(InterceptedService::new(inner, interceptor))
+            AuctionServiceClient::new(InterceptedService::new(inner, interceptor))
         }
         /// Compress requests with the given encoding.
         ///
@@ -166,14 +165,13 @@ pub mod bundle_service_client {
             self.inner = self.inner.max_encoding_message_size(limit);
             self
         }
-        /// A bundle submitter requests bundles given a new optimistic Sequencer block,
-        /// and receives a stream of potential bundles for submission, until either a timeout
-        /// or the connection is closed by the client.
-        pub async fn get_bundle_stream(
+        /// An auctioneer will initiate this long running stream to receive bids from the rollup node,
+        /// until either a timeout or the connection is closed by the client.
+        pub async fn get_bid_stream(
             &mut self,
-            request: impl tonic::IntoRequest<super::GetBundleStreamRequest>,
+            request: impl tonic::IntoRequest<super::GetBidStreamRequest>,
         ) -> std::result::Result<
-            tonic::Response<tonic::codec::Streaming<super::GetBundleStreamResponse>>,
+            tonic::Response<tonic::codec::Streaming<super::GetBidStreamResponse>>,
             tonic::Status,
         > {
             self.inner
@@ -187,14 +185,14 @@ pub mod bundle_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.bundle.v1alpha1.BundleService/GetBundleStream",
+                "/astria.auction.v1alpha1.AuctionService/GetBidStream",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
-                        "astria.bundle.v1alpha1.BundleService",
-                        "GetBundleStream",
+                        "astria.auction.v1alpha1.AuctionService",
+                        "GetBidStream",
                     ),
                 );
             self.inner.server_streaming(req, path, codec).await
@@ -203,31 +201,30 @@ pub mod bundle_service_client {
 }
 /// Generated server implementations.
 #[cfg(feature = "server")]
-pub mod bundle_service_server {
+pub mod auction_service_server {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
-    /// Generated trait containing gRPC methods that should be implemented for use with BundleServiceServer.
+    /// Generated trait containing gRPC methods that should be implemented for use with AuctionServiceServer.
     #[async_trait]
-    pub trait BundleService: Send + Sync + 'static {
-        /// Server streaming response type for the GetBundleStream method.
-        type GetBundleStreamStream: tonic::codegen::tokio_stream::Stream<
-                Item = std::result::Result<super::GetBundleStreamResponse, tonic::Status>,
+    pub trait AuctionService: Send + Sync + 'static {
+        /// Server streaming response type for the GetBidStream method.
+        type GetBidStreamStream: tonic::codegen::tokio_stream::Stream<
+                Item = std::result::Result<super::GetBidStreamResponse, tonic::Status>,
             >
             + Send
             + 'static;
-        /// A bundle submitter requests bundles given a new optimistic Sequencer block,
-        /// and receives a stream of potential bundles for submission, until either a timeout
-        /// or the connection is closed by the client.
-        async fn get_bundle_stream(
+        /// An auctioneer will initiate this long running stream to receive bids from the rollup node,
+        /// until either a timeout or the connection is closed by the client.
+        async fn get_bid_stream(
             self: std::sync::Arc<Self>,
-            request: tonic::Request<super::GetBundleStreamRequest>,
+            request: tonic::Request<super::GetBidStreamRequest>,
         ) -> std::result::Result<
-            tonic::Response<Self::GetBundleStreamStream>,
+            tonic::Response<Self::GetBidStreamStream>,
             tonic::Status,
         >;
     }
     #[derive(Debug)]
-    pub struct BundleServiceServer<T: BundleService> {
+    pub struct AuctionServiceServer<T: AuctionService> {
         inner: _Inner<T>,
         accept_compression_encodings: EnabledCompressionEncodings,
         send_compression_encodings: EnabledCompressionEncodings,
@@ -235,7 +232,7 @@ pub mod bundle_service_server {
         max_encoding_message_size: Option<usize>,
     }
     struct _Inner<T>(Arc<T>);
-    impl<T: BundleService> BundleServiceServer<T> {
+    impl<T: AuctionService> AuctionServiceServer<T> {
         pub fn new(inner: T) -> Self {
             Self::from_arc(Arc::new(inner))
         }
@@ -287,9 +284,9 @@ pub mod bundle_service_server {
             self
         }
     }
-    impl<T, B> tonic::codegen::Service<http::Request<B>> for BundleServiceServer<T>
+    impl<T, B> tonic::codegen::Service<http::Request<B>> for AuctionServiceServer<T>
     where
-        T: BundleService,
+        T: AuctionService,
         B: Body + Send + 'static,
         B::Error: Into<StdError> + Send + 'static,
     {
@@ -305,28 +302,26 @@ pub mod bundle_service_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/astria.bundle.v1alpha1.BundleService/GetBundleStream" => {
+                "/astria.auction.v1alpha1.AuctionService/GetBidStream" => {
                     #[allow(non_camel_case_types)]
-                    struct GetBundleStreamSvc<T: BundleService>(pub Arc<T>);
+                    struct GetBidStreamSvc<T: AuctionService>(pub Arc<T>);
                     impl<
-                        T: BundleService,
-                    > tonic::server::ServerStreamingService<
-                        super::GetBundleStreamRequest,
-                    > for GetBundleStreamSvc<T> {
-                        type Response = super::GetBundleStreamResponse;
-                        type ResponseStream = T::GetBundleStreamStream;
+                        T: AuctionService,
+                    > tonic::server::ServerStreamingService<super::GetBidStreamRequest>
+                    for GetBidStreamSvc<T> {
+                        type Response = super::GetBidStreamResponse;
+                        type ResponseStream = T::GetBidStreamStream;
                         type Future = BoxFuture<
                             tonic::Response<Self::ResponseStream>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::GetBundleStreamRequest>,
+                            request: tonic::Request<super::GetBidStreamRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as BundleService>::get_bundle_stream(inner, request)
-                                    .await
+                                <T as AuctionService>::get_bid_stream(inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -338,7 +333,7 @@ pub mod bundle_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = GetBundleStreamSvc(inner);
+                        let method = GetBidStreamSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -369,7 +364,7 @@ pub mod bundle_service_server {
             }
         }
     }
-    impl<T: BundleService> Clone for BundleServiceServer<T> {
+    impl<T: AuctionService> Clone for AuctionServiceServer<T> {
         fn clone(&self) -> Self {
             let inner = self.inner.clone();
             Self {
@@ -381,7 +376,7 @@ pub mod bundle_service_server {
             }
         }
     }
-    impl<T: BundleService> Clone for _Inner<T> {
+    impl<T: AuctionService> Clone for _Inner<T> {
         fn clone(&self) -> Self {
             Self(Arc::clone(&self.0))
         }
@@ -391,8 +386,8 @@ pub mod bundle_service_server {
             write!(f, "{:?}", self.0)
         }
     }
-    impl<T: BundleService> tonic::server::NamedService for BundleServiceServer<T> {
-        const NAME: &'static str = "astria.bundle.v1alpha1.BundleService";
+    impl<T: AuctionService> tonic::server::NamedService for AuctionServiceServer<T> {
+        const NAME: &'static str = "astria.auction.v1alpha1.AuctionService";
     }
 }
 /// The "BaseBlock" is the information needed to simulate bundles on top of
@@ -414,9 +409,9 @@ pub struct BaseBlock {
 }
 impl ::prost::Name for BaseBlock {
     const NAME: &'static str = "BaseBlock";
-    const PACKAGE: &'static str = "astria.bundle.v1alpha1";
+    const PACKAGE: &'static str = "astria.auction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.bundle.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.auction.v1alpha1.{}", Self::NAME)
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -427,9 +422,9 @@ pub struct ExecuteOptimisticBlockStreamRequest {
 }
 impl ::prost::Name for ExecuteOptimisticBlockStreamRequest {
     const NAME: &'static str = "ExecuteOptimisticBlockStreamRequest";
-    const PACKAGE: &'static str = "astria.bundle.v1alpha1";
+    const PACKAGE: &'static str = "astria.auction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.bundle.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.auction.v1alpha1.{}", Self::NAME)
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -447,9 +442,9 @@ pub struct ExecuteOptimisticBlockStreamResponse {
 }
 impl ::prost::Name for ExecuteOptimisticBlockStreamResponse {
     const NAME: &'static str = "ExecuteOptimisticBlockStreamResponse";
-    const PACKAGE: &'static str = "astria.bundle.v1alpha1";
+    const PACKAGE: &'static str = "astria.auction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.bundle.v1alpha1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.auction.v1alpha1.{}", Self::NAME)
     }
 }
 /// Generated client implementations.
@@ -564,13 +559,13 @@ pub mod optimistic_execution_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.bundle.v1alpha1.OptimisticExecutionService/ExecuteOptimisticBlockStream",
+                "/astria.auction.v1alpha1.OptimisticExecutionService/ExecuteOptimisticBlockStream",
             );
             let mut req = request.into_streaming_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
-                        "astria.bundle.v1alpha1.OptimisticExecutionService",
+                        "astria.auction.v1alpha1.OptimisticExecutionService",
                         "ExecuteOptimisticBlockStream",
                     ),
                 );
@@ -687,7 +682,7 @@ pub mod optimistic_execution_service_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/astria.bundle.v1alpha1.OptimisticExecutionService/ExecuteOptimisticBlockStream" => {
+                "/astria.auction.v1alpha1.OptimisticExecutionService/ExecuteOptimisticBlockStream" => {
                     #[allow(non_camel_case_types)]
                     struct ExecuteOptimisticBlockStreamSvc<
                         T: OptimisticExecutionService,
@@ -784,6 +779,6 @@ pub mod optimistic_execution_service_server {
     }
     impl<T: OptimisticExecutionService> tonic::server::NamedService
     for OptimisticExecutionServiceServer<T> {
-        const NAME: &'static str = "astria.bundle.v1alpha1.OptimisticExecutionService";
+        const NAME: &'static str = "astria.auction.v1alpha1.OptimisticExecutionService";
     }
 }

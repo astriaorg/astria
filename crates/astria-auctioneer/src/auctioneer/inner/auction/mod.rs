@@ -51,7 +51,7 @@ use astria_eyre::eyre::{
     bail,
     ensure,
     eyre,
-    Context,
+    WrapErr as _,
 };
 use futures::{
     Future,
@@ -70,7 +70,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
 use crate::{
-    bundle::Bundle,
+    bid::Bid,
     sequencer_key::SequencerKey,
 };
 
@@ -106,7 +106,7 @@ pub(super) struct Auction {
     hash_of_executed_block_on_rollup: Option<[u8; 32]>,
     start_bids: Option<oneshot::Sender<()>>,
     start_timer: Option<oneshot::Sender<()>>,
-    bundles: mpsc::UnboundedSender<Arc<Bundle>>,
+    bids: mpsc::UnboundedSender<Arc<Bid>>,
     cancellation_token: CancellationToken,
     worker: JoinHandle<Result<Summary, worker::Error>>,
 }
@@ -183,35 +183,36 @@ impl Auction {
     // TODO: Use a refinement type for the parente rollup block hash
     #[instrument(skip_all, fields(
         id = %self.id,
-        bundle.sequencer_block_hash = %bundle.base_sequencer_block_hash(),
-        bundle.parent_roll_block_hash = %base64(bundle.parent_rollup_block_hash()),
+        bid.sequencer_block_hash = %bid.sequencer_parent_block_hash(),
+        bid.parent_roll_block_hash = %base64(bid.rollup_parent_block_hash()),
 
     ), err)]
-    pub(in crate::auctioneer::inner) fn forward_bundle_to_auction(
+    pub(in crate::auctioneer::inner) fn forward_bid_to_auction(
         &mut self,
-        bundle: Arc<Bundle>,
+        bid: Arc<Bid>,
     ) -> eyre::Result<()> {
         // TODO: emit some more information about auctoin ID, expected vs actual parent block hash,
         // tacked block hash, provided block hash, etc.
         let Some(block_hash_of_executed) = self.hash_of_executed_block_on_rollup else {
             eyre::bail!(
-                "received a new bundle but the current auction has not yet
-                    received an execute block from the rollup; dropping the bundle"
+                "received a new bid but the current auction has not yet
+                    received an execute block from the rollup; dropping the bid"
             );
         };
         ensure!(
-            &self.block_hash == bundle.base_sequencer_block_hash()
-                && block_hash_of_executed == bundle.parent_rollup_block_hash(),
-            "bundle does not match auction; auction.sequenecer_block_hash = `{}`, \
-             auction.parent_block_hash = `{}`, bundle. = `{}`, bundle.height = `{}`",
+            &self.block_hash == bid.sequencer_parent_block_hash()
+                && block_hash_of_executed == bid.rollup_parent_block_hash(),
+            "bid does not match auction; auction.sequencer_parent_block_hash = `{}`, \
+             auction.rollup_parent_block_hash = `{}`, bid.sequencer_parent_block_hash = `{}`, \
+             bid.rollup_parent_block_hash = `{}`",
             self.block_hash,
             base64(block_hash_of_executed),
-            bundle.base_sequencer_block_hash(),
-            base64(bundle.parent_rollup_block_hash()),
+            bid.sequencer_parent_block_hash(),
+            base64(bid.rollup_parent_block_hash()),
         );
-        self.bundles
-            .send(bundle)
-            .wrap_err("failed to submit bundle to auction; the bundle is lost")
+        self.bids
+            .send(bid)
+            .wrap_err("failed to submit bid to auction; the bid is lost")
     }
 }
 

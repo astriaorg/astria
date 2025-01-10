@@ -15,7 +15,7 @@ impl serde::Serialize for Allocation {
         if self.payload.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.bundle.v1alpha1.Allocation", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.auction.v1alpha1.Allocation", len)?;
         if !self.signature.is_empty() {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("signature", pbjson::private::base64::encode(&self.signature).as_str())?;
@@ -84,7 +84,7 @@ impl<'de> serde::Deserialize<'de> for Allocation {
             type Value = Allocation;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.bundle.v1alpha1.Allocation")
+                formatter.write_str("struct astria.auction.v1alpha1.Allocation")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<Allocation, V::Error>
@@ -127,7 +127,7 @@ impl<'de> serde::Deserialize<'de> for Allocation {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.bundle.v1alpha1.Allocation", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.auction.v1alpha1.Allocation", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for BaseBlock {
@@ -147,7 +147,7 @@ impl serde::Serialize for BaseBlock {
         if self.timestamp.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.bundle.v1alpha1.BaseBlock", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.auction.v1alpha1.BaseBlock", len)?;
         if !self.sequencer_block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("sequencerBlockHash", pbjson::private::base64::encode(&self.sequencer_block_hash).as_str())?;
@@ -215,7 +215,7 @@ impl<'de> serde::Deserialize<'de> for BaseBlock {
             type Value = BaseBlock;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.bundle.v1alpha1.BaseBlock")
+                formatter.write_str("struct astria.auction.v1alpha1.BaseBlock")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<BaseBlock, V::Error>
@@ -256,10 +256,10 @@ impl<'de> serde::Deserialize<'de> for BaseBlock {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.bundle.v1alpha1.BaseBlock", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.auction.v1alpha1.BaseBlock", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for Bundle {
+impl serde::Serialize for Bid {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -273,13 +273,13 @@ impl serde::Serialize for Bundle {
         if !self.transactions.is_empty() {
             len += 1;
         }
-        if !self.base_sequencer_block_hash.is_empty() {
+        if !self.sequencer_parent_block_hash.is_empty() {
             len += 1;
         }
-        if !self.prev_rollup_block_hash.is_empty() {
+        if !self.rollup_parent_block_hash.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.bundle.v1alpha1.Bundle", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.auction.v1alpha1.Bid", len)?;
         if self.fee != 0 {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("fee", ToString::to_string(&self.fee).as_str())?;
@@ -287,18 +287,18 @@ impl serde::Serialize for Bundle {
         if !self.transactions.is_empty() {
             struct_ser.serialize_field("transactions", &self.transactions.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
         }
-        if !self.base_sequencer_block_hash.is_empty() {
+        if !self.sequencer_parent_block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("baseSequencerBlockHash", pbjson::private::base64::encode(&self.base_sequencer_block_hash).as_str())?;
+            struct_ser.serialize_field("sequencerParentBlockHash", pbjson::private::base64::encode(&self.sequencer_parent_block_hash).as_str())?;
         }
-        if !self.prev_rollup_block_hash.is_empty() {
+        if !self.rollup_parent_block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("prevRollupBlockHash", pbjson::private::base64::encode(&self.prev_rollup_block_hash).as_str())?;
+            struct_ser.serialize_field("rollupParentBlockHash", pbjson::private::base64::encode(&self.rollup_parent_block_hash).as_str())?;
         }
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for Bundle {
+impl<'de> serde::Deserialize<'de> for Bid {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -307,18 +307,18 @@ impl<'de> serde::Deserialize<'de> for Bundle {
         const FIELDS: &[&str] = &[
             "fee",
             "transactions",
-            "base_sequencer_block_hash",
-            "baseSequencerBlockHash",
-            "prev_rollup_block_hash",
-            "prevRollupBlockHash",
+            "sequencer_parent_block_hash",
+            "sequencerParentBlockHash",
+            "rollup_parent_block_hash",
+            "rollupParentBlockHash",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             Fee,
             Transactions,
-            BaseSequencerBlockHash,
-            PrevRollupBlockHash,
+            SequencerParentBlockHash,
+            RollupParentBlockHash,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -342,8 +342,8 @@ impl<'de> serde::Deserialize<'de> for Bundle {
                         match value {
                             "fee" => Ok(GeneratedField::Fee),
                             "transactions" => Ok(GeneratedField::Transactions),
-                            "baseSequencerBlockHash" | "base_sequencer_block_hash" => Ok(GeneratedField::BaseSequencerBlockHash),
-                            "prevRollupBlockHash" | "prev_rollup_block_hash" => Ok(GeneratedField::PrevRollupBlockHash),
+                            "sequencerParentBlockHash" | "sequencer_parent_block_hash" => Ok(GeneratedField::SequencerParentBlockHash),
+                            "rollupParentBlockHash" | "rollup_parent_block_hash" => Ok(GeneratedField::RollupParentBlockHash),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -353,20 +353,20 @@ impl<'de> serde::Deserialize<'de> for Bundle {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = Bundle;
+            type Value = Bid;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.bundle.v1alpha1.Bundle")
+                formatter.write_str("struct astria.auction.v1alpha1.Bid")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<Bundle, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<Bid, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
                 let mut fee__ = None;
                 let mut transactions__ = None;
-                let mut base_sequencer_block_hash__ = None;
-                let mut prev_rollup_block_hash__ = None;
+                let mut sequencer_parent_block_hash__ = None;
+                let mut rollup_parent_block_hash__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::Fee => {
@@ -386,33 +386,33 @@ impl<'de> serde::Deserialize<'de> for Bundle {
                                     .into_iter().map(|x| x.0).collect())
                             ;
                         }
-                        GeneratedField::BaseSequencerBlockHash => {
-                            if base_sequencer_block_hash__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("baseSequencerBlockHash"));
+                        GeneratedField::SequencerParentBlockHash => {
+                            if sequencer_parent_block_hash__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sequencerParentBlockHash"));
                             }
-                            base_sequencer_block_hash__ = 
+                            sequencer_parent_block_hash__ = 
                                 Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
                             ;
                         }
-                        GeneratedField::PrevRollupBlockHash => {
-                            if prev_rollup_block_hash__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("prevRollupBlockHash"));
+                        GeneratedField::RollupParentBlockHash => {
+                            if rollup_parent_block_hash__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("rollupParentBlockHash"));
                             }
-                            prev_rollup_block_hash__ = 
+                            rollup_parent_block_hash__ = 
                                 Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
                             ;
                         }
                     }
                 }
-                Ok(Bundle {
+                Ok(Bid {
                     fee: fee__.unwrap_or_default(),
                     transactions: transactions__.unwrap_or_default(),
-                    base_sequencer_block_hash: base_sequencer_block_hash__.unwrap_or_default(),
-                    prev_rollup_block_hash: prev_rollup_block_hash__.unwrap_or_default(),
+                    sequencer_parent_block_hash: sequencer_parent_block_hash__.unwrap_or_default(),
+                    rollup_parent_block_hash: rollup_parent_block_hash__.unwrap_or_default(),
                 })
             }
         }
-        deserializer.deserialize_struct("astria.bundle.v1alpha1.Bundle", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.auction.v1alpha1.Bid", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for ExecuteOptimisticBlockStreamRequest {
@@ -426,7 +426,7 @@ impl serde::Serialize for ExecuteOptimisticBlockStreamRequest {
         if self.base_block.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.bundle.v1alpha1.ExecuteOptimisticBlockStreamRequest", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.auction.v1alpha1.ExecuteOptimisticBlockStreamRequest", len)?;
         if let Some(v) = self.base_block.as_ref() {
             struct_ser.serialize_field("baseBlock", v)?;
         }
@@ -481,7 +481,7 @@ impl<'de> serde::Deserialize<'de> for ExecuteOptimisticBlockStreamRequest {
             type Value = ExecuteOptimisticBlockStreamRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.bundle.v1alpha1.ExecuteOptimisticBlockStreamRequest")
+                formatter.write_str("struct astria.auction.v1alpha1.ExecuteOptimisticBlockStreamRequest")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<ExecuteOptimisticBlockStreamRequest, V::Error>
@@ -504,7 +504,7 @@ impl<'de> serde::Deserialize<'de> for ExecuteOptimisticBlockStreamRequest {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.bundle.v1alpha1.ExecuteOptimisticBlockStreamRequest", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.auction.v1alpha1.ExecuteOptimisticBlockStreamRequest", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for ExecuteOptimisticBlockStreamResponse {
@@ -521,7 +521,7 @@ impl serde::Serialize for ExecuteOptimisticBlockStreamResponse {
         if !self.base_sequencer_block_hash.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.bundle.v1alpha1.ExecuteOptimisticBlockStreamResponse", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.auction.v1alpha1.ExecuteOptimisticBlockStreamResponse", len)?;
         if let Some(v) = self.block.as_ref() {
             struct_ser.serialize_field("block", v)?;
         }
@@ -583,7 +583,7 @@ impl<'de> serde::Deserialize<'de> for ExecuteOptimisticBlockStreamResponse {
             type Value = ExecuteOptimisticBlockStreamResponse;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.bundle.v1alpha1.ExecuteOptimisticBlockStreamResponse")
+                formatter.write_str("struct astria.auction.v1alpha1.ExecuteOptimisticBlockStreamResponse")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<ExecuteOptimisticBlockStreamResponse, V::Error>
@@ -616,10 +616,10 @@ impl<'de> serde::Deserialize<'de> for ExecuteOptimisticBlockStreamResponse {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.bundle.v1alpha1.ExecuteOptimisticBlockStreamResponse", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.auction.v1alpha1.ExecuteOptimisticBlockStreamResponse", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for GetBundleStreamRequest {
+impl serde::Serialize for GetBidStreamRequest {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -627,11 +627,11 @@ impl serde::Serialize for GetBundleStreamRequest {
     {
         use serde::ser::SerializeStruct;
         let len = 0;
-        let struct_ser = serializer.serialize_struct("astria.bundle.v1alpha1.GetBundleStreamRequest", len)?;
+        let struct_ser = serializer.serialize_struct("astria.auction.v1alpha1.GetBidStreamRequest", len)?;
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for GetBundleStreamRequest {
+impl<'de> serde::Deserialize<'de> for GetBidStreamRequest {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -670,27 +670,27 @@ impl<'de> serde::Deserialize<'de> for GetBundleStreamRequest {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = GetBundleStreamRequest;
+            type Value = GetBidStreamRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.bundle.v1alpha1.GetBundleStreamRequest")
+                formatter.write_str("struct astria.auction.v1alpha1.GetBidStreamRequest")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<GetBundleStreamRequest, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<GetBidStreamRequest, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
                 while map_.next_key::<GeneratedField>()?.is_some() {
                     let _ = map_.next_value::<serde::de::IgnoredAny>()?;
                 }
-                Ok(GetBundleStreamRequest {
+                Ok(GetBidStreamRequest {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.bundle.v1alpha1.GetBundleStreamRequest", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.auction.v1alpha1.GetBidStreamRequest", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for GetBundleStreamResponse {
+impl serde::Serialize for GetBidStreamResponse {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -698,29 +698,29 @@ impl serde::Serialize for GetBundleStreamResponse {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if self.bundle.is_some() {
+        if self.bid.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.bundle.v1alpha1.GetBundleStreamResponse", len)?;
-        if let Some(v) = self.bundle.as_ref() {
-            struct_ser.serialize_field("bundle", v)?;
+        let mut struct_ser = serializer.serialize_struct("astria.auction.v1alpha1.GetBidStreamResponse", len)?;
+        if let Some(v) = self.bid.as_ref() {
+            struct_ser.serialize_field("bid", v)?;
         }
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for GetBundleStreamResponse {
+impl<'de> serde::Deserialize<'de> for GetBidStreamResponse {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "bundle",
+            "bid",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            Bundle,
+            Bid,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -742,7 +742,7 @@ impl<'de> serde::Deserialize<'de> for GetBundleStreamResponse {
                         E: serde::de::Error,
                     {
                         match value {
-                            "bundle" => Ok(GeneratedField::Bundle),
+                            "bid" => Ok(GeneratedField::Bid),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -752,32 +752,32 @@ impl<'de> serde::Deserialize<'de> for GetBundleStreamResponse {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = GetBundleStreamResponse;
+            type Value = GetBidStreamResponse;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.bundle.v1alpha1.GetBundleStreamResponse")
+                formatter.write_str("struct astria.auction.v1alpha1.GetBidStreamResponse")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<GetBundleStreamResponse, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<GetBidStreamResponse, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut bundle__ = None;
+                let mut bid__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::Bundle => {
-                            if bundle__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("bundle"));
+                        GeneratedField::Bid => {
+                            if bid__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("bid"));
                             }
-                            bundle__ = map_.next_value()?;
+                            bid__ = map_.next_value()?;
                         }
                     }
                 }
-                Ok(GetBundleStreamResponse {
-                    bundle: bundle__,
+                Ok(GetBidStreamResponse {
+                    bid: bid__,
                 })
             }
         }
-        deserializer.deserialize_struct("astria.bundle.v1alpha1.GetBundleStreamResponse", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.auction.v1alpha1.GetBidStreamResponse", FIELDS, GeneratedVisitor)
     }
 }

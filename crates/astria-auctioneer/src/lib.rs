@@ -1,9 +1,9 @@
 //! TODO: Add a description
 
 mod auctioneer;
+mod bid;
 mod block;
 mod build_info;
-mod bundle;
 pub mod config;
 pub(crate) mod metrics;
 mod rollup_channel;

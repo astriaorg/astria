@@ -7,10 +7,10 @@ use tracing::{
     instrument,
 };
 
-use super::Bundle;
+use super::Bid;
 
 pub(super) struct FirstPrice {
-    highest_bid: Option<Arc<Bundle>>,
+    highest_bid: Option<Arc<Bid>>,
 }
 
 impl FirstPrice {
@@ -20,15 +20,15 @@ impl FirstPrice {
         }
     }
 
-    /// Submit a bundle with a bid.
+    /// Submit a bid with a bid.
     ///
     /// Returns `true` if the bid is accepted as the highest bid.
     // TODO: identify the incumbant and candidate by their hash?
     #[instrument(skip_all, fields(
-        current_winner.bid = self.highest_bid.as_ref().map(|bundle| bundle.bid()),
+        current_winner.bid = self.highest_bid.as_ref().map(|bid| bid.bid()),
         candidate.bid = candidate.bid(),
     ))]
-    pub(super) fn bid(&mut self, candidate: &Arc<Bundle>) {
+    pub(super) fn bid(&mut self, candidate: &Arc<Bid>) {
         let winner = if let Some(current) = self.highest_bid.as_mut() {
             if candidate.bid() > current.bid() {
                 *current = candidate.clone();
@@ -44,7 +44,7 @@ impl FirstPrice {
     }
 
     /// Returns the winner of the auction, if one exists.
-    pub(super) fn winner(self) -> Option<Arc<Bundle>> {
+    pub(super) fn winner(self) -> Option<Arc<Bid>> {
         self.highest_bid
     }
 }
