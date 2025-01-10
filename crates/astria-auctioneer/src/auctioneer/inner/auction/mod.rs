@@ -48,10 +48,10 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
-    Context,
     bail,
     ensure,
     eyre,
+    Context,
 };
 use futures::{
     Future,

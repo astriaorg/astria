@@ -2,8 +2,8 @@ use bytes::Bytes;
 
 use super::block;
 use crate::{
-    Protobuf,
     generated::astria::sequencerblock::optimistic::v1alpha1 as raw,
+    Protobuf,
 };
 
 #[derive(Debug, thiserror::Error)]
