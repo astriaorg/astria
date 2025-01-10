@@ -18,7 +18,10 @@ use astria_core::{
         Address,
         RollupId,
     },
-    sequencerblock::v1::block::FilteredSequencerBlock,
+    sequencerblock::v1::{
+        block::FilteredSequencerBlock,
+        optimistic::SequencerBlockCommit,
+    },
     Protobuf as _,
 };
 use astria_eyre::eyre::{
@@ -39,12 +42,9 @@ use tracing::{
     Instrument as _,
 };
 
-use crate::{
-    block::Commitment,
-    streaming_utils::{
-        restarting_stream,
-        InstrumentedChannel,
-    },
+use crate::streaming_utils::{
+    restarting_stream,
+    InstrumentedChannel,
 };
 
 pub(crate) fn open(endpoint: &str) -> eyre::Result<SequencerChannel> {
@@ -149,11 +149,11 @@ impl SequencerChannel {
 
 /// A stream for receiving committed blocks from the sequencer.
 pub(crate) struct BlockCommitmentStream {
-    inner: BoxStream<'static, eyre::Result<Commitment>>,
+    inner: BoxStream<'static, eyre::Result<SequencerBlockCommit>>,
 }
 
 impl Stream for BlockCommitmentStream {
-    type Item = eyre::Result<Commitment>;
+    type Item = eyre::Result<SequencerBlockCommit>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.inner.poll_next_unpin(cx)
@@ -165,7 +165,7 @@ struct InnerBlockCommitmentStream {
 }
 
 impl Stream for InnerBlockCommitmentStream {
-    type Item = eyre::Result<Commitment>;
+    type Item = eyre::Result<SequencerBlockCommit>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         use astria_core::generated::astria::sequencerblock::optimistic::v1alpha1 as raw;
@@ -184,7 +184,7 @@ impl Stream for InnerBlockCommitmentStream {
                 )
             })?;
 
-        let commitment = Commitment::try_from_raw(&raw).wrap_err_with(|| {
+        let commitment = SequencerBlockCommit::try_from_raw_ref(&raw).wrap_err_with(|| {
             format!(
                 "failed to validate message `{}` received from server",
                 raw::SequencerBlockCommit::full_name()

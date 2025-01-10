@@ -17,6 +17,7 @@ use astria_core::{
     },
     primitive::v1::RollupId,
     sequencerblock::v1::{
+        block,
         optimistic::SequencerBlockCommit,
         SequencerBlock,
     },
@@ -335,7 +336,7 @@ async fn block_commitment_stream(
 
                                 let sequencer_block_commit = SequencerBlockCommit::new(
                                     finalized_block.height.value(),
-                                    block_hash,
+                                    block::Hash::new(block_hash),
                                 );
 
                                 let get_block_commitment_stream_response =
