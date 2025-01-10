@@ -40,7 +40,7 @@ message Allocation {
 }
 
 message GetBidStreamResponse {
-  Bid Bid = 1;
+  Bid bid = 1;
 }
 
 service AuctionService {

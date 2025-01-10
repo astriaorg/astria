@@ -703,7 +703,7 @@ impl serde::Serialize for GetBidStreamResponse {
         }
         let mut struct_ser = serializer.serialize_struct("astria.auction.v1alpha1.GetBidStreamResponse", len)?;
         if let Some(v) = self.bid.as_ref() {
-            struct_ser.serialize_field("Bid", v)?;
+            struct_ser.serialize_field("bid", v)?;
         }
         struct_ser.end()
     }
@@ -715,7 +715,7 @@ impl<'de> serde::Deserialize<'de> for GetBidStreamResponse {
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "Bid",
+            "bid",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -742,7 +742,7 @@ impl<'de> serde::Deserialize<'de> for GetBidStreamResponse {
                         E: serde::de::Error,
                     {
                         match value {
-                            "Bid" => Ok(GeneratedField::Bid),
+                            "bid" => Ok(GeneratedField::Bid),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -767,7 +767,7 @@ impl<'de> serde::Deserialize<'de> for GetBidStreamResponse {
                     match k {
                         GeneratedField::Bid => {
                             if bid__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("Bid"));
+                                return Err(serde::de::Error::duplicate_field("bid"));
                             }
                             bid__ = map_.next_value()?;
                         }
