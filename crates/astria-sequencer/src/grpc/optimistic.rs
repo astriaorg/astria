@@ -5,30 +5,31 @@ use std::{
 };
 
 use astria_core::{
+    Protobuf,
     generated::astria::sequencerblock::optimistic::v1alpha1::{
-        optimistic_block_service_server::{
-            OptimisticBlockService,
-            OptimisticBlockServiceServer,
-        },
         GetBlockCommitmentStreamRequest,
         GetBlockCommitmentStreamResponse,
         GetOptimisticBlockStreamRequest,
         GetOptimisticBlockStreamResponse,
+        optimistic_block_service_server::{
+            OptimisticBlockService,
+            OptimisticBlockServiceServer,
+        },
     },
     primitive::v1::RollupId,
     sequencerblock::v1::{
-        optimistic::SequencerBlockCommit,
         SequencerBlock,
+        block,
+        optimistic::SequencerBlockCommit,
     },
-    Protobuf,
 };
 use astria_eyre::{
     eyre,
     eyre::WrapErr as _,
 };
 use tendermint::{
-    abci::request::FinalizeBlock,
     Hash,
+    abci::request::FinalizeBlock,
 };
 use tokio::{
     sync::mpsc,
@@ -36,13 +37,13 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 use tonic::{
-    codegen::tokio_stream::{
-        wrappers::ReceiverStream,
-        Stream,
-    },
     Request,
     Response,
     Status,
+    codegen::tokio_stream::{
+        Stream,
+        wrappers::ReceiverStream,
+    },
 };
 use tracing::{
     error,
@@ -335,7 +336,7 @@ async fn block_commitment_stream(
 
                                 let sequencer_block_commit = SequencerBlockCommit::new(
                                     finalized_block.height.value(),
-                                    block_hash,
+                                    block::Hash::new(block_hash),
                                 );
 
                                 let get_block_commitment_stream_response =

@@ -1,8 +1,9 @@
 use bytes::Bytes;
 
+use super::block;
 use crate::{
-    generated::astria::sequencerblock::optimistic::v1alpha1 as raw,
     Protobuf,
+    generated::astria::sequencerblock::optimistic::v1alpha1 as raw,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -10,26 +11,28 @@ use crate::{
 pub struct SequencerBlockCommitError(SequencerBlockCommitErrorKind);
 
 impl SequencerBlockCommitError {
-    fn invalid_block_hash(len: usize) -> Self {
-        Self(SequencerBlockCommitErrorKind::InvalidBlockHash(len))
+    fn block_hash(source: block::HashFromSliceError) -> Self {
+        Self(SequencerBlockCommitErrorKind::BlockHash {
+            source,
+        })
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 enum SequencerBlockCommitErrorKind {
-    #[error("invalid block hash length: {0}")]
-    InvalidBlockHash(usize),
+    #[error("failed to read .block_hash field as sequender block hash")]
+    BlockHash { source: block::HashFromSliceError },
 }
 
 #[derive(Clone, Debug)]
 pub struct SequencerBlockCommit {
     height: u64,
-    block_hash: [u8; 32],
+    block_hash: block::Hash,
 }
 
 impl SequencerBlockCommit {
     #[must_use]
-    pub fn new(height: u64, block_hash: [u8; 32]) -> Self {
+    pub fn new(height: u64, block_hash: block::Hash) -> Self {
         Self {
             height,
             block_hash,
@@ -42,7 +45,7 @@ impl SequencerBlockCommit {
     }
 
     #[must_use]
-    pub fn block_hash(&self) -> &[u8; 32] {
+    pub fn block_hash(&self) -> &block::Hash {
         &self.block_hash
     }
 }
@@ -63,10 +66,8 @@ impl Protobuf for SequencerBlockCommit {
             block_hash,
         } = raw;
 
-        let block_hash = block_hash
-            .as_ref()
-            .try_into()
-            .map_err(|_| SequencerBlockCommitError::invalid_block_hash(block_hash.len()))?;
+        let block_hash = block::Hash::try_from(&**block_hash)
+            .map_err(|source| SequencerBlockCommitError::block_hash(source))?;
 
         Ok(SequencerBlockCommit {
             height: *height,
@@ -77,7 +78,7 @@ impl Protobuf for SequencerBlockCommit {
     fn to_raw(&self) -> Self::Raw {
         raw::SequencerBlockCommit {
             height: self.height(),
-            block_hash: Bytes::copy_from_slice(self.block_hash()),
+            block_hash: Bytes::copy_from_slice(self.block_hash.as_bytes()),
         }
     }
 }
