@@ -17,6 +17,21 @@ spec:
         app: {{ include "rollup.appName" . }}
     spec:
       initContainers:
+        {{- if .Values.config.geth.snapshot.restore.enabled }}
+        - name: restore-snapshot
+          image: "alpine/curl"
+          imagePullPolicy: IfNotPresent
+          command: [ "/scripts/restore-snapshot.sh" ]
+          envFrom:
+            - configMapRef:
+                name: {{ include "rollup.name" . }}-geth-env
+          volumeMounts:
+            - mountPath: /scripts/
+              name: {{ include "rollup.name" . }}-executor-scripts-volume
+            - mountPath: /home/geth
+              name: {{ include "rollup.name" $ }}-rollup-shared-storage-vol
+              subPath: {{ include "rollup.name" . }}/executor
+        {{- end }}
         {{- if .Values.config.geth.purgeMempool }}
         - name: purge-mempool
           image: {{ include "rollup.image" . }}

@@ -53,4 +53,27 @@ data:
     {{- tpl (.Files.Get "files/genesis/geth-genesis.json") $ | nindent 4 }}
   init-geth.sh: |
     {{- tpl (.Files.Get "files/scripts/init-geth.sh") $ | nindent 4 }}
+  {{- if .Values.config.geth.snapshot.create.enabled }}
+  create-snapshot.sh: |
+    {{- tpl (.Files.Get "files/scripts/create-snapshot.sh") $ | nindent 4 }}
+  {{- end }}
+  {{- if .Values.config.geth.snapshot.restore.enabled }}
+  restore-snapshot.sh: |
+    {{- tpl (.Files.Get "files/scripts/restore-snapshot.sh") $ | nindent 4 }}
+  {{- end }}
 ---
+{{- if and .Values.config.geth.snapshot.create.enabled .Values.config.geth.snapshot.create.storage.s3.enabled }}
+{{- if not .Values.secretProvider.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "rollup.name" . }}-aws-credentials
+  namespace: {{ include "rollup.namespace" .  }}
+data:
+  credentials: |
+    [default]
+    aws_access_key_id = {{ .Values.aws.credentials.devContent.accessKeyId }}
+    aws_secret_access_key = {{ .Values.aws.credentials.devContent.secretAccessKey }}
+---
+{{- end }}
+{{- end }}
