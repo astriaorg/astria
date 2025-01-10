@@ -1,27 +1,24 @@
 use astria_core::{
+    Protobuf,
     execution,
     generated::astria::{
         bundle::v1alpha1 as raw_bundle,
-        sequencerblock::{
-            optimistic::v1alpha1 as raw_optimistic_block,
-            v1 as raw_sequencer_block,
-        },
+        sequencerblock::v1 as raw_sequencer_block,
     },
     primitive::v1::RollupId,
     sequencerblock::v1::{
+        RollupTransactions,
         block::{
             self,
             FilteredSequencerBlock,
             FilteredSequencerBlockParts,
         },
-        RollupTransactions,
     },
-    Protobuf,
 };
 use astria_eyre::eyre::{
     self,
-    eyre,
     Context,
+    eyre,
 };
 use bytes::Bytes;
 use prost::Message as _;
@@ -135,39 +132,5 @@ impl Executed {
             .as_ref()
             .try_into()
             .expect("rollup block hash must be 32 bytes")
-    }
-}
-
-#[derive(Debug, Clone)]
-// FIXME: This is called a `Commitment` but is produced from a `SequencerBlockCommit`.
-// This is very confusing.
-pub(crate) struct Commitment {
-    /// The height of the sequencer block that was committed.
-    height: u64,
-    /// The hash of the sequencer block that was committed.
-    block_hash: block::Hash,
-}
-
-impl Commitment {
-    pub(crate) fn try_from_raw(
-        raw: &raw_optimistic_block::SequencerBlockCommit,
-    ) -> eyre::Result<Self> {
-        Ok(Self {
-            height: raw.height,
-            block_hash: raw
-                .block_hash
-                .as_ref()
-                .try_into()
-                .wrap_err("invalid block hash")?,
-        })
-    }
-
-    pub(crate) fn block_hash(&self) -> &block::Hash {
-        &self.block_hash
-    }
-
-    /// The height of the sequencer block that was committed.
-    pub(crate) fn height(&self) -> u64 {
-        self.height
     }
 }

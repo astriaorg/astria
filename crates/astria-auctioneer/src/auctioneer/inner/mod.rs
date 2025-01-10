@@ -5,7 +5,10 @@ use std::{
 
 use astria_core::{
     primitive::v1::RollupId,
-    sequencerblock::v1::block::FilteredSequencerBlock,
+    sequencerblock::v1::{
+        block::FilteredSequencerBlock,
+        optimistic::SequencerBlockCommit,
+    },
 };
 use astria_eyre::eyre::{
     self,
@@ -13,21 +16,23 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use futures::{
-    stream::FuturesUnordered,
     StreamExt as _,
+    stream::FuturesUnordered,
 };
 use tokio::select;
 use tokio_util::sync::CancellationToken;
 use tracing::{
+    Level,
+    Span,
     error,
     field,
     info,
     instrument,
-    Level,
-    Span,
 };
 
 use crate::{
+    Config,
+    Metrics,
     rollup_channel::{
         BundleStream,
         ExecuteOptimisticBlockStream,
@@ -37,8 +42,6 @@ use crate::{
         OptimisticBlockStream,
     },
     sequencer_key::SequencerKey,
-    Config,
-    Metrics,
 };
 
 mod auction;
@@ -245,7 +248,7 @@ impl Inner {
     #[instrument(skip_all, fields(block_hash = field::Empty), err)]
     fn handle_block_commitment(
         &mut self,
-        commitment: eyre::Result<crate::block::Commitment>,
+        commitment: eyre::Result<SequencerBlockCommit>,
     ) -> eyre::Result<()> {
         let block_commitment = commitment.wrap_err("failed to receive block commitment")?;
         Span::current().record("block_hash", field::display(block_commitment.block_hash()));
