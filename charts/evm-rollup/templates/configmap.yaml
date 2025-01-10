@@ -62,7 +62,16 @@ data:
     {{- tpl (.Files.Get "files/scripts/restore-snapshot.sh") $ | nindent 4 }}
   {{- end }}
 ---
-{{- if and .Values.config.geth.snapshot.create.enabled .Values.config.geth.snapshot.create.storage.s3.enabled }}
+{{- if or
+  (and
+    .Values.config.geth.snapshot.create.enabled
+    .Values.config.geth.snapshot.create.storage.s3.enabled
+  )
+  (and
+    .Values.config.geth.snapshot.restore.enabled
+    (hasPrefix "s3://" .Values.config.geth.snapshot.restore.url)
+  )
+}}
 {{- if not .Values.secretProvider.enabled }}
 apiVersion: v1
 kind: ConfigMap

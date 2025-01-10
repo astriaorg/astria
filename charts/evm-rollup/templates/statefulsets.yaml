@@ -19,13 +19,17 @@ spec:
       initContainers:
         {{- if .Values.config.geth.snapshot.restore.enabled }}
         - name: restore-snapshot
-          image: "alpine/curl"
+          image: amazon/aws-cli
           imagePullPolicy: IfNotPresent
           command: [ "/scripts/restore-snapshot.sh" ]
           envFrom:
             - configMapRef:
                 name: {{ include "rollup.name" . }}-geth-env
           volumeMounts:
+            {{- if hasPrefix "s3://" .Values.config.geth.snapshot.restore.url }}
+            - mountPath: /root/.aws
+              name: {{ include "rollup.name" . }}-aws-credentials-volume
+            {{- end }}
             - mountPath: /scripts/
               name: {{ include "rollup.name" . }}-executor-scripts-volume
             - mountPath: /home/geth
@@ -106,6 +110,21 @@ spec:
               name: conductor-metr
           {{- end }}
       volumes:
+        {{- if .Values.config.geth.snapshot.restore.enabled }}
+        {{- if hasPrefix "s3://" .Values.config.geth.snapshot.restore.url }}
+        - name: {{ include "rollup.name" . }}-aws-credentials-volume
+          {{- if .Values.secretProvider.enabled }}
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ include "rollup.name" . }}-secrets-aws
+          {{- else }}
+          configMap:
+            name: {{ include "rollup.name" . }}-aws-credentials
+          {{- end }}
+        {{- end }}
+        {{- end }}
         - name: {{ include "rollup.name" . }}-executor-scripts-volume
           configMap:
             name: {{ include "rollup.name" . }}-executor-scripts

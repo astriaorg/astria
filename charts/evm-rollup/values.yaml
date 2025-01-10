@@ -109,10 +109,8 @@ config:
       # Load from snapshot
       restore:
         enabled: false
-        # URL to download the snapshot from (pick either url or path)
+        # URL to download the snapshot from (file:// or s3:// or https?://)
         url: ""
-        # Path to load the snapshot from (pick either url or path)
-        path: ""
         # Optional sha256 checksum to verify the snapshot
         checksum: ""
       # Create snapshots on a schedule
@@ -120,6 +118,8 @@ config:
         enabled: false
         # Cron format (default: daily at midnight)
         schedule: "@daily"
+        # Number of snapshots to keep on disk
+        retentionCount: 7
         storage:
           path: '{{ include "rollup.gethDataDir" . }}/snapshots'
           s3:
