@@ -20,7 +20,7 @@ impl SequencerBlockCommitError {
 
 #[derive(Debug, thiserror::Error)]
 enum SequencerBlockCommitErrorKind {
-    #[error("failed to read .block_hash field as sequender block hash")]
+    #[error("failed to read .block_hash field as sequencer block hash")]
     BlockHash { source: block::HashFromSliceError },
 }
 
