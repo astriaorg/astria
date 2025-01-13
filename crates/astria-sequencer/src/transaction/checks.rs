@@ -100,7 +100,7 @@ pub(crate) async fn get_total_transaction_cost<S: StateRead>(
             }
             Action::BridgeUnlock(act) => {
                 let asset = state
-                    .get_bridge_account_ibc_asset(&tx)
+                    .get_bridge_account_ibc_asset(&act.bridge_address)
                     .await
                     .wrap_err("failed to get bridge account asset id")?;
                 cost_by_asset
@@ -157,15 +157,23 @@ mod tests {
     use crate::{
         accounts::StateWriteExt as _,
         address::{
-            StateReadExt,
+            StateReadExt as _,
             StateWriteExt as _,
         },
-        app::test_utils::*,
+        app::{
+            benchmark_and_test_utils::{
+                ALICE_ADDRESS,
+                BOB_ADDRESS,
+            },
+            test_utils::*,
+        },
         assets::StateWriteExt as _,
         benchmark_and_test_utils::{
+            astria_address_from_hex_string,
             nria,
             ASTRIA_PREFIX,
         },
+        bridge::StateWriteExt as _,
         fees::{
             StateReadExt as _,
             StateWriteExt as _,
@@ -348,5 +356,56 @@ mod tests {
                 .to_string()
                 .contains(&other_asset.to_ibc_prefixed().to_string())
         );
+    }
+
+    #[tokio::test]
+    async fn get_total_transaction_cost_bridge_unlock_with_withdrawer_address_ok() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state_tx = StateDelta::new(snapshot);
+
+        let withdrawer = get_alice_signing_key();
+        let withdrawer_address = astria_address_from_hex_string(ALICE_ADDRESS);
+        let bridge_address = astria_address_from_hex_string(BOB_ADDRESS);
+
+        state_tx
+            .put_fees(FeeComponents::<BridgeUnlock>::new(0, 0))
+            .unwrap();
+        state_tx
+            .put_account_balance(&bridge_address, &nria(), 1000)
+            .unwrap();
+        state_tx
+            .put_account_balance(&withdrawer_address, &nria(), 1000)
+            .unwrap();
+        state_tx
+            .put_bridge_account_ibc_asset(&bridge_address, nria())
+            .unwrap();
+        state_tx
+            .put_bridge_account_rollup_id(&bridge_address, [0; 32].into())
+            .unwrap();
+        state_tx
+            .put_bridge_account_withdrawer_address(&bridge_address, withdrawer_address)
+            .unwrap();
+
+        let actions = vec![Action::BridgeUnlock(BridgeUnlock {
+            to: withdrawer_address,
+            amount: 100,
+            fee_asset: nria().into(),
+            bridge_address,
+            memo: String::new(),
+            rollup_block_number: 1,
+            rollup_withdrawal_event_id: String::new(),
+        })];
+
+        let tx = TransactionBody::builder()
+            .actions(actions)
+            .chain_id("test-chain-id")
+            .try_build()
+            .unwrap();
+
+        let signed_tx = tx.sign(&withdrawer);
+        check_balance_for_total_fees_and_transfers(&signed_tx, &state_tx)
+            .await
+            .unwrap();
     }
 }

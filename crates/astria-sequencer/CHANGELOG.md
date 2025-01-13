@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ensure all deposit assets are trace prefixed [#1807](https://github.com/astriaorg/astria/pull/1807).
 - Update `idna` dependency to resolve cargo audit warning [#1869](https://github.com/astriaorg/astria/pull/1869).
 - Remove events reporting on state storage creation [#1892](https://github.com/astriaorg/astria/pull/1892).
+- Use bridge address to determine asset in bridge unlock cost estimation instead
+of signer [#1905](https://github.com/astriaorg/astria/pull/1905).
 
 ## [1.0.0] - 2024-10-25
 
