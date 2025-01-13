@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 package astria.auction.v1alpha1;
+import "google/protobuf/any.proto";
 
 message GetBidStreamRequest {}
 
@@ -35,8 +36,11 @@ message Allocation {
   // The Ed25519 public key of the Auctioneer, to be verified against config by the
   // rollup.
   bytes public_key = 2;
-  // The bid that was allocated the winning slot by the Auctioneer.
-  Bid payload = 3;
+  // The bid that was allocated the winning slot by the Auctioneer. This is a
+  // google.protobuf.Any to avoid decoding and re-encoding after receiving an Allocation
+  // over the wire and checking if signature and public key match the signed bid.
+  // Implementors are expected to read and write an encoded Bid into this field.
+  google.protobuf.Any bid = 3;
 }
 
 message GetBidStreamResponse {

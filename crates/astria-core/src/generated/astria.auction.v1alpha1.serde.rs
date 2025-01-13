@@ -12,7 +12,7 @@ impl serde::Serialize for Allocation {
         if !self.public_key.is_empty() {
             len += 1;
         }
-        if self.payload.is_some() {
+        if self.bid.is_some() {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.auction.v1alpha1.Allocation", len)?;
@@ -24,8 +24,8 @@ impl serde::Serialize for Allocation {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("publicKey", pbjson::private::base64::encode(&self.public_key).as_str())?;
         }
-        if let Some(v) = self.payload.as_ref() {
-            struct_ser.serialize_field("payload", v)?;
+        if let Some(v) = self.bid.as_ref() {
+            struct_ser.serialize_field("bid", v)?;
         }
         struct_ser.end()
     }
@@ -40,14 +40,14 @@ impl<'de> serde::Deserialize<'de> for Allocation {
             "signature",
             "public_key",
             "publicKey",
-            "payload",
+            "bid",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             Signature,
             PublicKey,
-            Payload,
+            Bid,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -71,7 +71,7 @@ impl<'de> serde::Deserialize<'de> for Allocation {
                         match value {
                             "signature" => Ok(GeneratedField::Signature),
                             "publicKey" | "public_key" => Ok(GeneratedField::PublicKey),
-                            "payload" => Ok(GeneratedField::Payload),
+                            "bid" => Ok(GeneratedField::Bid),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -93,7 +93,7 @@ impl<'de> serde::Deserialize<'de> for Allocation {
             {
                 let mut signature__ = None;
                 let mut public_key__ = None;
-                let mut payload__ = None;
+                let mut bid__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::Signature => {
@@ -112,18 +112,18 @@ impl<'de> serde::Deserialize<'de> for Allocation {
                                 Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
                             ;
                         }
-                        GeneratedField::Payload => {
-                            if payload__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("payload"));
+                        GeneratedField::Bid => {
+                            if bid__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("bid"));
                             }
-                            payload__ = map_.next_value()?;
+                            bid__ = map_.next_value()?;
                         }
                     }
                 }
                 Ok(Allocation {
                     signature: signature__.unwrap_or_default(),
                     public_key: public_key__.unwrap_or_default(),
-                    payload: payload__,
+                    bid: bid__,
                 })
             }
         }

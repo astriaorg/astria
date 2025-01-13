@@ -55,9 +55,12 @@ pub struct Allocation {
     /// rollup.
     #[prost(bytes = "bytes", tag = "2")]
     pub public_key: ::prost::bytes::Bytes,
-    /// The bid that was allocated the winning slot by the Auctioneer.
+    /// The bid that was allocated the winning slot by the Auctioneer. This is a
+    /// google.protobuf.Any to avoid decoding and re-encoding after receiving an Allocation
+    /// over the wire and checking if signature and public key match the signed bid.
+    /// Implementors are expected to read and write an encoded Bid into this field.
     #[prost(message, optional, tag = "3")]
-    pub payload: ::core::option::Option<Bid>,
+    pub bid: ::core::option::Option<::pbjson_types::Any>,
 }
 impl ::prost::Name for Allocation {
     const NAME: &'static str = "Allocation";

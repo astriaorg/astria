@@ -5,12 +5,12 @@ use astria_core::{
     },
     generated::astria::auction::v1alpha1 as raw,
     primitive::v1::{
-        asset,
         RollupId,
+        asset,
     },
     protocol::transaction::v1::{
-        action::RollupDataSubmission,
         TransactionBody,
+        action::RollupDataSubmission,
     },
     sequencerblock::v1::block,
 };
@@ -19,7 +19,10 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use bytes::Bytes;
-use prost::Message as _;
+use prost::{
+    Message as _,
+    Name,
+};
 
 use crate::sequencer_key::SequencerKey;
 
@@ -113,7 +116,7 @@ impl Bid {
 pub(crate) struct Allocation {
     signature: Signature,
     verification_key: VerificationKey,
-    payload: Bid,
+    bid_bytes: pbjson_types::Any,
 }
 
 impl Allocation {
@@ -121,10 +124,14 @@ impl Allocation {
         let bid_data = bid.clone().into_raw().encode_to_vec();
         let signature = sequencer_key.signing_key().sign(&bid_data);
         let verification_key = sequencer_key.signing_key().verification_key();
+        let bid_bytes = pbjson_types::Any {
+            type_url: raw::Bid::type_url(),
+            value: bid.clone().into_raw().encode_to_vec().into(),
+        };
         Self {
             signature,
             verification_key,
-            payload: bid,
+            bid_bytes,
         }
     }
 
@@ -132,13 +139,13 @@ impl Allocation {
         let Self {
             signature,
             verification_key,
-            payload,
+            bid_bytes,
         } = self;
 
         raw::Allocation {
             signature: Bytes::copy_from_slice(&signature.to_bytes()),
             public_key: Bytes::copy_from_slice(&verification_key.to_bytes()),
-            payload: Some(payload.into_raw()),
+            bid: Some(bid_bytes),
         }
     }
 }
