@@ -1,4 +1,54 @@
-//! TODO: Add a description
+//! Astria Auctioneer auctions bids for the top slot of a rollup's block.
+//!
+//! Auctioneer connects to a Sequencer node's
+//! `astria.sequencerblock.optimistic.v1alpha1.OptimisticBlock`
+//! gRPC interface, a Rollup's
+//! `astria.auction.v1alpha1.OptimisticExecutionService`, and
+//! a Rollup's `astria.auction.v1alpha.AuctionService`.
+//!
+//! # Starting an auction
+//!
+//! Every new proposed sequencer block (that is a block created
+//! during Sequencer's CometBFT prepare and process proposal phase)
+//! triggers Auctioneer to cancel a still running auction and start
+//! a new one.
+//!
+//! Auctioneer forwards the block it received from Sequencer to its
+//! the Rollup for (optimistic) execution, and then selects a winner
+//! among the bids that are on top of this optimistically constructed
+//! block. The winner is submitted to Sequencer to be included in
+//! the next Sequencer block.
+//!
+//! # How a single auction works
+//!
+//! Once started, an auction waits for two signals:
+//!
+//! 1. one to open the auction for bids.
+//! 2. the other to start the auction timer.
+//!
+//! The signal to open the auction for bids is usually given after
+//! Auctioneer receives the executed block hash from its connected
+//! rollup. Afterwards the running auction starts processing its received
+//! bids given an allocation rule (right now first price only).
+//!
+//! The signal to start the auction timer is usually given after
+//! Auctioneer receives a commit message from Sequencer. Once the
+//! timer is up, the winner of the auction (if any) is submitted
+//! to Sequencer.
+//!
+//! # Submitting an Auction to Sequencer
+//!
+//! An Auction is submitted to Sequencer using an ABCI
+//! `broadcast_tx_sync` RPC. The payload is a regular
+//! `astria.protocol.Tranasaction` signed by the auctioneer's
+//! private ED25519 signing key.
+//!
+//! The moment an auction task starts its timer, it also requests
+//! the latest nonce for auctioneer's account from Sequencer. If
+//! Sequencer answers within the timer's duration, that nonce is
+//! used to submit the winning allocation. If Sequencer does not
+//! answer then the auction worker submits the winning bid using
+//! the cached nonce of the last successful submission.
 
 use std::{
     future::Future,

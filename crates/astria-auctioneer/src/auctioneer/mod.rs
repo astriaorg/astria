@@ -17,23 +17,21 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use futures::{
-    StreamExt as _,
     stream::FuturesUnordered,
+    StreamExt as _,
 };
 use tokio::select;
 use tokio_util::sync::CancellationToken;
 use tracing::{
-    Level,
-    Span,
     error,
     field,
     info,
     instrument,
+    Level,
+    Span,
 };
 
 use crate::{
-    Config,
-    Metrics,
     rollup_channel::{
         BidStream,
         ExecuteOptimisticBlockStream,
@@ -43,6 +41,8 @@ use crate::{
         OptimisticBlockStream,
     },
     sequencer_key::SequencerKey,
+    Config,
+    Metrics,
 };
 
 mod auction;
@@ -95,7 +95,6 @@ impl Auctioneer {
             sequencer_client::HttpClient::new(sequencer_abci_endpoint.as_str())
                 .wrap_err("failed constructing sequencer abci client")?;
 
-        // TODO: Rearchitect this thing
         let auction_factory = auction::Factory {
             metrics,
             sequencer_abci_client,

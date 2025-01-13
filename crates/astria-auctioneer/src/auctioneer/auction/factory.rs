@@ -1,9 +1,8 @@
-/// The auction Manager is responsible for managing running auction futures and their
-/// associated handles.
+//! The auction [`Factory`] to start new auctions.
 use astria_core::{
     primitive::v1::{
-        RollupId,
         asset,
+        RollupId,
     },
     sequencerblock::v1::block::FilteredSequencerBlock,
 };
@@ -20,6 +19,15 @@ use super::{
 };
 use crate::sequencer_channel::SequencerChannel;
 
+/// The auction `Factory` is used to spawn a new auction.
+///
+/// It exposes two methods, `Factory::start_new` to start an
+/// [`Auction`] given a `FilteredSequencerBlock`, and
+/// `Factory::set_last_successful_nonce` to record the
+/// nonce used to submit a winning bid to Sequencer.
+/// This last successful nonce is passed to the auction and
+/// acts as a cached value in case Sequencer does not return
+/// the current pending nonce of the auctioneer account.
 pub(in crate::auctioneer) struct Factory {
     #[allow(dead_code)]
     pub(in crate::auctioneer) metrics: &'static crate::Metrics,

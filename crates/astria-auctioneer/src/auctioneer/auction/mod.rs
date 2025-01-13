@@ -1,42 +1,3 @@
-//! The Auction is repsonsible for running an auction for a given block. An auction advances through
-//! the following states, controlled via the `commands_rx` channel received:
-//! 1. The auction is initialized but not yet started (i.e. no commands have been received).
-//! 2. After receiving a `Command::StartProcessingBids`, the auction will start processing incoming
-//!    bundles from `new_bundles_rx`.
-//! 3. After receiving a `Command::StartTimer`, the auction will set a timer for `latency_margin`
-//!    (denominated in milliseconds).
-//! 4. Once the timer expires, the auction will choose a winner based on its `AllocationRule` and
-//!    submit it to the sequencer.
-//!
-//! ## Aborting an Auction
-//! The auction may also be aborted at any point before the timer expires.
-//! This will cause the auction to return early without submitting a winner,
-//! effectively discarding any bundles that were processed.
-//! This is used for leveraging optimsitic execution, running an auction for block data that has
-//! been proposed in the sequencer network's cometBFT but not yet finalized.
-//! We assume that most proposals are adopted in cometBFT, allowing us to buy a few hundred
-//! milliseconds before they are finalized. However, if multiple rounds of voting invalidate a
-//! proposal, we can abort the auction and avoid submitting a potentially invalid bundle. In this
-//! case, the auction will abort and a new one will be created for the newly processed proposal
-//! (which will be received by the Optimistic Executor via the optimistic block stream).
-//!
-//! ## Auction Result
-//! The auction result is a `Bundle` that is signed by the Auctioneer and submitted to the rollup
-//! via the sequencer. The rollup defines a trusted Auctioneer address that it allows to submit
-//! bundles, and thus must verify the Auctioneer's signature over this bundle.
-//!
-//! Since the sequencer does not include the transaction signer's metadata with the `RollupData`
-//! events that it saves in its block data, the Auctioneer must include this metadata in its
-//! `RollupDataSubmission`s. This is done by wrapping the winning `Bundle` object in an
-//! `AuctionResult` object, which is then serialized into the `RollupDataSubmission`.
-//!
-//! ## Submission to Sequencer
-//! The auction will submit the winning bundle to the sequencer via the `broadcast_tx_sync` ABCI(?)
-//! endpoint.
-//! In order to save time on fetching a nonce, the auction will fetch the next pending nonce as soon
-//! as it received the signal to start the timer. This corresponds to the sequencer block being
-//! committed, thus providing the latest pending nonce.
-
 use std::{
     fmt::Display,
     sync::Arc,
@@ -48,10 +9,10 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
-    WrapErr as _,
     bail,
     ensure,
     eyre,
+    WrapErr as _,
 };
 use futures::{
     Future,
@@ -80,6 +41,9 @@ mod allocation_rule;
 mod worker;
 use worker::Worker;
 
+/// Used to uniquely identify an auction.
+///
+/// Currently the same as the proposed sequencer block.
 #[derive(Hash, Eq, PartialEq, Clone, Copy, Debug)]
 pub(super) struct Id([u8; 32]);
 
@@ -99,15 +63,27 @@ impl std::fmt::Display for Id {
     }
 }
 
+/// The frontend to interact with a running auction.
 pub(super) struct Auction {
+    /// The idenfifier of the current auction.
     id: Id,
+    /// The block hash of the proposed Sequencer block that triggered the creation of this auction.
     block_hash: block::Hash,
+    /// The height of the proposed Sequencer block that triggered this auction.
     height: u64,
+    /// The hash of the rollup block that was executed and on which all bids will based.
     hash_of_executed_block_on_rollup: Option<[u8; 32]>,
+    /// A oneshot channel to trigger the running auction to start accepting bids.
     start_bids: Option<oneshot::Sender<()>>,
+    /// A oneshot channel to trigger the running auction to start its auction timer.
     start_timer: Option<oneshot::Sender<()>>,
+    /// A channel to forward bids from Auctioneer's stream connected to its Rollup to the
+    /// background auction task.
     bids: mpsc::UnboundedSender<Arc<Bid>>,
+    /// Used to cancel the worker task.
     cancellation_token: CancellationToken,
+    /// The actual event loop running in the background that receives bids, times the
+    /// auction, and submits the winner to Sequencer.
     worker: JoinHandle<Result<Summary, worker::Error>>,
 }
 

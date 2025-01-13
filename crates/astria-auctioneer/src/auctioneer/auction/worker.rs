@@ -1,42 +1,4 @@
-//! The Auction is repsonsible for running an auction for a given block. An auction advances through
-//! the following states, controlled via the `commands_rx` channel received:
-//! 1. The auction is initialized but not yet started (i.e. no commands have been received).
-//! 2. After receiving a `Command::StartProcessingBids`, the auction will start processing incoming
-//!    bundles from `new_bundles_rx`.
-//! 3. After receiving a `Command::StartTimer`, the auction will set a timer for `latency_margin`
-//!    (denominated in milliseconds).
-//! 4. Once the timer expires, the auction will choose a winner based on its `AllocationRule` and
-//!    submit it to the sequencer.
-//!
-//! ## Aborting an Auction
-//! The auction may also be aborted at any point before the timer expires.
-//! This will cause the auction to return early without submitting a winner,
-//! effectively discarding any bundles that were processed.
-//! This is used for leveraging optimsitic execution, running an auction for block data that has
-//! been proposed in the sequencer network's cometBFT but not yet finalized.
-//! We assume that most proposals are adopted in cometBFT, allowing us to buy a few hundred
-//! milliseconds before they are finalized. However, if multiple rounds of voting invalidate a
-//! proposal, we can abort the auction and avoid submitting a potentially invalid bundle. In this
-//! case, the auction will abort and a new one will be created for the newly processed proposal
-//! (which will be received by the Optimistic Executor via the optimistic block stream).
-//!
-//! ## Auction Result
-//! The auction result is a `Bundle` that is signed by the Auctioneer and submitted to the rollup
-//! via the sequencer. The rollup defines a trusted Auctioneer address that it allows to submit
-//! bundles, and thus must verify the Auctioneer's signature over this bundle.
-//!
-//! Since the sequencer does not include the transaction signer's metadata with the `RollupData`
-//! events that it saves in its block data, the Auctioneer must include this metadata in its
-//! `RollupDataSubmission`s. This is done by wrapping the winning `Bundle` object in an
-//! `AuctionResult` object, which is then serialized into the `RollupDataSubmission`.
-//!
-//! ## Submission to Sequencer
-//! The auction will submit the winning bundle to the sequencer via the `broadcast_tx_sync` ABCI(?)
-//! endpoint.
-//! In order to save time on fetching a nonce, the auction will fetch the next pending nonce as soon
-//! as it received the signal to start the timer. This corresponds to the sequencer block being
-//! committed, thus providing the latest pending nonce.
-
+//! The event loop that runs an auction.
 use std::{
     future::Future,
     pin::pin,
@@ -46,16 +8,16 @@ use std::{
 
 use astria_core::{
     primitive::v1::{
+        asset,
         Address,
         RollupId,
-        asset,
     },
     protocol::transaction::v1::Transaction,
 };
 use futures::FutureExt as _;
 use sequencer_client::{
-    SequencerClientExt as _,
     tendermint_rpc::endpoint::broadcast::tx_sync,
+    SequencerClientExt as _,
 };
 use tokio::{
     select,
@@ -65,22 +27,22 @@ use tokio::{
         JoinHandle,
     },
     time::{
-        Sleep,
         sleep,
+        Sleep,
     },
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{
-    Instrument as _,
-    Level,
     error,
     info,
     instrument,
+    Instrument as _,
+    Level,
 };
 
 use super::{
-    Summary,
     allocation_rule::FirstPrice,
+    Summary,
 };
 use crate::{
     bid::Bid,
