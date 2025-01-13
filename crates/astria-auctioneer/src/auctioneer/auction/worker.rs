@@ -46,16 +46,16 @@ use std::{
 
 use astria_core::{
     primitive::v1::{
-        asset,
         Address,
         RollupId,
+        asset,
     },
     protocol::transaction::v1::Transaction,
 };
 use futures::FutureExt as _;
 use sequencer_client::{
-    tendermint_rpc::endpoint::broadcast::tx_sync,
     SequencerClientExt as _,
+    tendermint_rpc::endpoint::broadcast::tx_sync,
 };
 use tokio::{
     select,
@@ -65,22 +65,22 @@ use tokio::{
         JoinHandle,
     },
     time::{
-        sleep,
         Sleep,
+        sleep,
     },
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{
+    Instrument as _,
+    Level,
     error,
     info,
     instrument,
-    Instrument as _,
-    Level,
 };
 
 use super::{
-    allocation_rule::FirstPrice,
     Summary,
+    allocation_rule::FirstPrice,
 };
 use crate::{
     bid::Bid,
@@ -288,7 +288,7 @@ impl Worker {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub(in crate::auctioneer::inner) enum Error {
+pub(in crate::auctioneer) enum Error {
     #[error("all channels to the auction worker are closed; the auction cannot continue")]
     ChannelsClosed,
     // TODO: Is there a way to identify the winning bid? Do we need it?

@@ -2,8 +2,8 @@
 /// associated handles.
 use astria_core::{
     primitive::v1::{
-        asset,
         RollupId,
+        asset,
     },
     sequencerblock::v1::block::FilteredSequencerBlock,
 };
@@ -20,29 +20,26 @@ use super::{
 };
 use crate::sequencer_channel::SequencerChannel;
 
-pub(in crate::auctioneer::inner) struct Factory {
+pub(in crate::auctioneer) struct Factory {
     #[allow(dead_code)]
-    pub(in crate::auctioneer::inner) metrics: &'static crate::Metrics,
-    pub(in crate::auctioneer::inner) sequencer_abci_client: sequencer_client::HttpClient,
-    pub(in crate::auctioneer::inner) sequencer_channel: SequencerChannel,
-    pub(in crate::auctioneer::inner) latency_margin: std::time::Duration,
-    pub(in crate::auctioneer::inner) sequencer_key: SequencerKey,
-    pub(in crate::auctioneer::inner) fee_asset_denomination: asset::Denom,
-    pub(in crate::auctioneer::inner) sequencer_chain_id: String,
-    pub(in crate::auctioneer::inner) rollup_id: RollupId,
-    pub(in crate::auctioneer::inner) cancellation_token: CancellationToken,
+    pub(in crate::auctioneer) metrics: &'static crate::Metrics,
+    pub(in crate::auctioneer) sequencer_abci_client: sequencer_client::HttpClient,
+    pub(in crate::auctioneer) sequencer_channel: SequencerChannel,
+    pub(in crate::auctioneer) latency_margin: std::time::Duration,
+    pub(in crate::auctioneer) sequencer_key: SequencerKey,
+    pub(in crate::auctioneer) fee_asset_denomination: asset::Denom,
+    pub(in crate::auctioneer) sequencer_chain_id: String,
+    pub(in crate::auctioneer) rollup_id: RollupId,
+    pub(in crate::auctioneer) cancellation_token: CancellationToken,
     /// `last_successful_nonce + 1` is used for submitting an auction winner to Sequencer
     /// if an auction worker was not able to receive the last pending
     /// nonce from Sequencer in time. Starts unset at the beginning of the program and
     /// is set externally via Factory::set_last_succesful_nonce`.
-    pub(in crate::auctioneer::inner) last_successful_nonce: Option<u32>,
+    pub(in crate::auctioneer) last_successful_nonce: Option<u32>,
 }
 
 impl Factory {
-    pub(in crate::auctioneer::inner) fn start_new(
-        &self,
-        block: &FilteredSequencerBlock,
-    ) -> Auction {
+    pub(in crate::auctioneer) fn start_new(&self, block: &FilteredSequencerBlock) -> Auction {
         let id = super::Id::from_sequencer_block_hash(block.block_hash());
         let block_hash = *block.block_hash();
         let height = block.height().into();
@@ -82,7 +79,7 @@ impl Factory {
         }
     }
 
-    pub(in crate::auctioneer::inner) fn set_last_successful_nonce(&mut self, nonce: u32) {
+    pub(in crate::auctioneer) fn set_last_successful_nonce(&mut self, nonce: u32) {
         self.last_successful_nonce.replace(nonce);
     }
 }

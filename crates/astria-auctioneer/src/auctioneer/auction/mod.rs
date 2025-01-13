@@ -48,10 +48,10 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
+    WrapErr as _,
     bail,
     ensure,
     eyre,
-    WrapErr as _,
 };
 use futures::{
     Future,
@@ -120,7 +120,7 @@ impl Auction {
         self.cancellation_token.cancel();
     }
 
-    pub(in crate::auctioneer::inner) fn id(&self) -> &Id {
+    pub(in crate::auctioneer) fn id(&self) -> &Id {
         &self.id
     }
 
@@ -152,7 +152,7 @@ impl Auction {
 
     // TODO: identify the executed block in the span fields
     #[instrument(skip_all, fields(id = %self.id), err)]
-    pub(in crate::auctioneer::inner) fn start_bids(
+    pub(in crate::auctioneer) fn start_bids(
         &mut self,
         block: crate::block::Executed,
     ) -> eyre::Result<()> {
@@ -187,7 +187,7 @@ impl Auction {
         bid.parent_roll_block_hash = %base64(bid.rollup_parent_block_hash()),
 
     ), err)]
-    pub(in crate::auctioneer::inner) fn forward_bid_to_auction(
+    pub(in crate::auctioneer) fn forward_bid_to_auction(
         &mut self,
         bid: Arc<Bid>,
     ) -> eyre::Result<()> {
