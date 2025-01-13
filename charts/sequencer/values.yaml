@@ -10,7 +10,7 @@ global:
   dev: false
 
 snapshotLoad:
-  enabled: true
+  enabled: false
   config:
     provider: Cloudflare
     accessKeyId: 0d8d8005e468dd86498bde6dfa02044f
