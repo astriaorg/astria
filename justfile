@@ -40,6 +40,7 @@ _crate_short_name crate quiet="":
   #!/usr/bin/env sh
   set -eu
   case {{crate}} in
+    astria-auctioneer) short_name=auctioneer ;;
     astria-bridge-withdrawer) short_name=bridge-withdrawer ;;
     astria-cli) short_name=astria-cli ;;
     astria-composer) short_name=composer ;;

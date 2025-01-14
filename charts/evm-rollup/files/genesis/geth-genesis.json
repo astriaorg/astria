@@ -38,9 +38,10 @@
         "astriaBridgeAddresses": {{ toPrettyJson .Values.genesis.bridgeAddresses | indent 8 | trim }},
         "astriaFeeCollectors": {{ toPrettyJson .Values.genesis.feeCollectors | indent 8 | trim }},
         "astriaEIP1559Params": {{ toPrettyJson .Values.genesis.eip1559Params | indent 8 | trim }},
-        "astriaSequencerAddressPrefix": "{{ .Values.genesis.sequencerAddressPrefix }}"
+        "astriaSequencerAddressPrefix": "{{ .Values.genesis.sequencerAddressPrefix }}"{{- if .Values.global.dev }},{{ end }}
         {{- if not .Values.global.dev }}
         {{- else }}
+        "astriaAuctioneerAddresses": {{ toPrettyJson .Values.genesis.auctioneerAddresses | indent 8 | trim }}
         {{- end }}
     },
     "difficulty": "0",

@@ -70,6 +70,7 @@ genesis:
     #   minBaseFee: 0
     #   elasticityMultiplier: 2
     #   baseFeeChangeDenominator: 8
+  auctioneerAddresses: {}
 
   ## Standard Eth Genesis config values
   # An EVM chain number id, different from the astria rollup name
