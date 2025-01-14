@@ -42,7 +42,6 @@ use crate::{
     },
     sequencer_key::SequencerKey,
     Config,
-    Metrics,
 };
 
 mod auction;
@@ -61,12 +60,8 @@ pub(super) struct Auctioneer {
 }
 
 impl Auctioneer {
-    /// Creates an [`Auctioneer`] service from a [`Config`] and [`Metrics`].
-    pub(super) fn new(
-        config: Config,
-        metrics: &'static Metrics,
-        shutdown_token: CancellationToken,
-    ) -> eyre::Result<Self> {
+    /// Creates an [`Auctioneer`] service from a [`Config`].
+    pub(super) fn new(config: Config, shutdown_token: CancellationToken) -> eyre::Result<Self> {
         let Config {
             sequencer_grpc_endpoint,
             sequencer_abci_endpoint,
@@ -96,7 +91,6 @@ impl Auctioneer {
                 .wrap_err("failed constructing sequencer abci client")?;
 
         let auction_factory = auction::Factory {
-            metrics,
             sequencer_abci_client,
             sequencer_channel: sequencer_channel.clone(),
             latency_margin: Duration::from_millis(latency_margin_ms),

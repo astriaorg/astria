@@ -29,8 +29,6 @@ use crate::sequencer_channel::SequencerChannel;
 /// acts as a cached value in case Sequencer does not return
 /// the current pending nonce of the auctioneer account.
 pub(in crate::auctioneer) struct Factory {
-    #[allow(dead_code)]
-    pub(in crate::auctioneer) metrics: &'static crate::Metrics,
     pub(in crate::auctioneer) sequencer_abci_client: sequencer_client::HttpClient,
     pub(in crate::auctioneer) sequencer_channel: SequencerChannel,
     pub(in crate::auctioneer) latency_margin: std::time::Duration,

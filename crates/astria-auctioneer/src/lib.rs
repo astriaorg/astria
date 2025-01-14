@@ -92,9 +92,9 @@ impl Auctioneer {
     ///
     /// # Errors
     /// Returns an error if the Auctioneer cannot be initialized.
-    pub fn spawn(cfg: Config, metrics: &'static Metrics) -> eyre::Result<Self> {
+    pub fn spawn(cfg: Config, _metrics: &'static Metrics) -> eyre::Result<Self> {
         let shutdown_token = CancellationToken::new();
-        let inner = auctioneer::Auctioneer::new(cfg, metrics, shutdown_token.child_token())?;
+        let inner = auctioneer::Auctioneer::new(cfg, shutdown_token.child_token())?;
         let task = tokio::spawn(inner.run());
 
         Ok(Self {
