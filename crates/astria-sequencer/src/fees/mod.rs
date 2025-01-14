@@ -277,7 +277,7 @@ impl FeeHandler for Ics20Withdrawal {
     }
 
     fn fee_asset(&self) -> Option<&asset::Denom> {
-        Some(&self.fee_asset)
+        Some(self.fee_asset())
     }
 }
 

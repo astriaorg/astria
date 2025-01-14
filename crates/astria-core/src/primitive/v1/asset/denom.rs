@@ -734,7 +734,6 @@ impl Ord for IbcPrefixed {
     }
 }
 
-#[cfg(feature = "serde")]
 mod serde_impl {
     use serde::{
         Deserialize,
