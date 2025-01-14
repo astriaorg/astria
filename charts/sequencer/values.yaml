@@ -9,12 +9,22 @@ global:
   useTTY: true
   dev: false
 
+snapshotLoad:
+  enabled: false
+  config:
+    provider: Cloudflare
+    accessKeyId: 0d8d8005e468dd86498bde6dfa02044f
+    secretAccessKey: e33ea43e00d9b655cb72d8a8107fa2957bd6b77e5718df0a26f259956532bba8
+    region: auto
+    endpoint: https://fb1caa337c8e4e3101363ca1240e03ca.r2.cloudflarestorage.com
+    acl: private
+
 # sequencer core images
 images:
   init:
-    repo: ghcr.io/tomwright/dasel
+    repo: rclone/rclone
     pullPolicy: IfNotPresent
-    tag: alpine
+    tag: 1.56.0
   cometBFT:
     repo: docker.io/cometbft/cometbft
     pullPolicy: IfNotPresent

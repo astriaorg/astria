@@ -31,6 +31,12 @@ spec:
             - mountPath: /cometbft
               name: sequencer-shared-storage-vol
               subPath: {{ .Values.moniker }}/cometbft
+            - mountPath: /sequencer
+              name: sequencer-shared-storage-vol
+              subPath: {{ .Values.moniker }}/sequencer
+            - mountPath: /snapshot
+              name: sequencer-shared-storage-vol
+              subPath: {{ .Values.moniker }}/snapshot
       containers:
         - name: sequencer
           image: {{ include "sequencer.image" . }}
