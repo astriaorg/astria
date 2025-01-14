@@ -318,7 +318,7 @@ impl<T> Future for AbortJoinHandle<T> {
 /// infinite loop. It is expected that this future is run in a tokio task, relatively
 /// short lived (no longer than the margin timer of the auction), and killed/aborted
 /// if not ready by the time an auction result is expected to be available.
-#[instrument(skip_all, fields(%address), ret)]
+#[instrument(skip_all, fields(%address), ret(Display))]
 async fn get_pending_nonce(sequencer_channel: SequencerChannel, address: Address) -> u32 {
     loop {
         match sequencer_channel.get_pending_nonce(address).await {
