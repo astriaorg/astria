@@ -183,14 +183,18 @@ impl Worker {
         let mut auction_is_open = false;
 
         let mut nonce_fetch = None;
+        #[expect(
+            clippy::semicolon_if_nothing_returned,
+            reason = "we want to pattern match on the latency timer's return value"
+        )]
         loop {
             select! {
                 biased;
 
                 () = async {
-                     Option::as_pin_mut(latency_margin_timer.as_mut())
-                         .unwrap()
-                         .await
+                    Option::as_pin_mut(latency_margin_timer.as_mut())
+                        .unwrap()
+                        .await
                 }, if latency_margin_timer.is_some() => {
                     info!("timer is up; bids left unprocessed: {}", self.bids.len());
                     break Ok(AuctionItems {
@@ -324,7 +328,7 @@ async fn get_pending_nonce(sequencer_channel: SequencerChannel, address: Address
         match sequencer_channel.get_pending_nonce(address).await {
             Ok(nonce) => return nonce,
             Err(error) => {
-                error!(%error, "fetching nonce failed; immediately scheduling next fetch")
+                error!(%error, "fetching nonce failed; immediately scheduling next fetch");
             }
         }
     }

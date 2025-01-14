@@ -42,7 +42,7 @@ pub(in crate::auctioneer) struct Factory {
     /// `last_successful_nonce + 1` is used for submitting an auction winner to Sequencer
     /// if an auction worker was not able to receive the last pending
     /// nonce from Sequencer in time. Starts unset at the beginning of the program and
-    /// is set externally via Factory::set_last_succesful_nonce`.
+    /// is set externally via `Factory::set_last_succesful_nonce`.
     pub(in crate::auctioneer) last_successful_nonce: Option<u32>,
 }
 

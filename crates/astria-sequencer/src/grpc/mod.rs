@@ -56,7 +56,7 @@ impl BackgroundTasks {
     }
 
     fn abort_all(&mut self) {
-        self.tasks.abort_all()
+        self.tasks.abort_all();
     }
 
     fn cancel_all(&self) {
@@ -182,19 +182,19 @@ async fn trigger_shutdown(
                         keep responding to gRPC requests, but there is currently no way to recover \
                         functionality of this service until Sequencer is restarted"
                     );
-                })
+                });
             }
         }
     }
     perform_shutdown(background_tasks)
         .instrument(shutdown_span)
-        .await
+        .await;
 }
 
 async fn perform_shutdown(mut background_tasks: BackgroundTasks) {
     background_tasks.cancel_all();
 
-    match tokio::time::timeout(SHUTDOWN_TIMEOUT, async {
+    if let Ok(()) = tokio::time::timeout(SHUTDOWN_TIMEOUT, async {
         while let Some((task, res)) = background_tasks.join_next().await {
             let error = res
                 .err()
@@ -208,14 +208,13 @@ async fn perform_shutdown(mut background_tasks: BackgroundTasks) {
     })
     .await
     {
-        Ok(()) => info!("all background tasks exited during shutdown window"),
-        Err(_) => {
-            error!(
-                tasks = background_tasks.display_running_tasks(),
-                "background tasks did not finish during shutdown window and will be aborted",
-            );
-            background_tasks.abort_all();
-        }
+        info!("all background tasks exited during shutdown window");
+    } else {
+        error!(
+            tasks = background_tasks.display_running_tasks(),
+            "background tasks did not finish during shutdown window and will be aborted",
+        );
+        background_tasks.abort_all();
     };
 
     info!("reached shutdown target");

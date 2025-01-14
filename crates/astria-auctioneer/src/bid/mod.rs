@@ -161,13 +161,12 @@ pub(crate) struct Allocation {
 
 impl Allocation {
     fn new(bid: Bid, sequencer_key: &SequencerKey) -> Self {
-        let bid_data = bid.clone().into_raw().encode_to_vec();
-        let signature = sequencer_key.signing_key().sign(&bid_data);
-        let verification_key = sequencer_key.signing_key().verification_key();
         let bid_bytes = pbjson_types::Any {
             type_url: raw::Bid::type_url(),
-            value: bid.clone().into_raw().encode_to_vec().into(),
+            value: bid.into_raw().encode_to_vec().into(),
         };
+        let signature = sequencer_key.signing_key().sign(&bid_bytes.value);
+        let verification_key = sequencer_key.signing_key().verification_key();
         Self {
             signature,
             verification_key,
