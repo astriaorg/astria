@@ -15,7 +15,7 @@ type: application
 # This is the chart version. This version number should be incremented each time you make changes
 # to the chart and its templates, including the app version.
 # Versions are expected to follow Semantic Versioning (https://semver.org/)
-version: 1.0.7
+version: 1.0.8
 
 dependencies:
   - name: celestia-node
@@ -23,7 +23,7 @@ dependencies:
     repository: "file://../celestia-node"
     condition: celestia-node.enabled
   - name: evm-rollup
-    version: 1.0.1
+    version: 1.1.0
     repository: "file://../evm-rollup"
   - name: composer
     version: 1.0.0
