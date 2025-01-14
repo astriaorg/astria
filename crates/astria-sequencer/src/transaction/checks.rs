@@ -77,6 +77,18 @@ pub(crate) async fn get_total_transaction_cost<S: StateRead>(
             .await
             .context("failed to get fees for transaction")?;
 
+    add_total_transfers_for_transaction(tx, state, &mut cost_by_asset)
+        .await
+        .context("failed to add total transfers for transaction")?;
+
+    Ok(cost_by_asset)
+}
+
+async fn add_total_transfers_for_transaction<S: StateRead>(
+    tx: &Transaction,
+    state: &S,
+    cost_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
+) -> Result<()> {
     // add values transferred within the tx to the cost
     for action in tx.actions() {
         match action {
@@ -123,7 +135,7 @@ pub(crate) async fn get_total_transaction_cost<S: StateRead>(
         }
     }
 
-    Ok(cost_by_asset)
+    Ok(())
 }
 
 #[cfg(test)]
