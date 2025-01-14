@@ -19,7 +19,6 @@ use futures::{
     FutureExt as _,
 };
 use sequencer_client::tendermint_rpc::endpoint::broadcast::tx_sync;
-use telemetry::display::base64;
 use tokio::{
     sync::{
         mpsc,
@@ -31,7 +30,10 @@ use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
 use crate::{
-    bid::Bid,
+    bid::{
+        Bid,
+        RollupBlockHash,
+    },
     sequencer_key::SequencerKey,
 };
 
@@ -72,7 +74,7 @@ pub(super) struct Auction {
     /// The height of the proposed Sequencer block that triggered this auction.
     height: u64,
     /// The hash of the rollup block that was executed and on which all bids will based.
-    hash_of_executed_block_on_rollup: Option<[u8; 32]>,
+    hash_of_executed_block_on_rollup: Option<RollupBlockHash>,
     /// A oneshot channel to trigger the running auction to start accepting bids.
     start_bids: Option<oneshot::Sender<()>>,
     /// A oneshot channel to trigger the running auction to start its auction timer.
@@ -160,7 +162,7 @@ impl Auction {
     #[instrument(skip_all, fields(
         id = %self.id,
         bid.sequencer_block_hash = %bid.sequencer_parent_block_hash(),
-        bid.parent_roll_block_hash = %base64(bid.rollup_parent_block_hash()),
+        bid.parent_roll_block_hash = %bid.rollup_parent_block_hash(),
 
     ), err)]
     pub(in crate::auctioneer) fn forward_bid_to_auction(
@@ -169,7 +171,7 @@ impl Auction {
     ) -> eyre::Result<()> {
         // TODO: emit some more information about auctoin ID, expected vs actual parent block hash,
         // tacked block hash, provided block hash, etc.
-        let Some(block_hash_of_executed) = self.hash_of_executed_block_on_rollup else {
+        let Some(block_hash_of_executed) = &self.hash_of_executed_block_on_rollup else {
             eyre::bail!(
                 "received a new bid but the current auction has not yet
                     received an execute block from the rollup; dropping the bid"
@@ -182,9 +184,9 @@ impl Auction {
              auction.rollup_parent_block_hash = `{}`, bid.sequencer_parent_block_hash = `{}`, \
              bid.rollup_parent_block_hash = `{}`",
             self.block_hash,
-            base64(block_hash_of_executed),
+            block_hash_of_executed,
             bid.sequencer_parent_block_hash(),
-            base64(bid.rollup_parent_block_hash()),
+            bid.rollup_parent_block_hash(),
         );
         self.bids
             .send(bid)

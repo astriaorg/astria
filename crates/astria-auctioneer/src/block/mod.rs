@@ -23,6 +23,8 @@ use astria_eyre::eyre::{
 use bytes::Bytes;
 use prost::Message as _;
 
+use crate::bid::RollupBlockHash;
+
 /// Converts a [`tendermint::Time`] to a [`prost_types::Timestamp`].
 fn convert_tendermint_time_to_protobuf_timestamp(
     value: sequencer_client::tendermint::Time,
@@ -126,11 +128,7 @@ impl Executed {
         &self.sequencer_block_hash
     }
 
-    pub(crate) fn rollup_block_hash(&self) -> [u8; 32] {
-        self.block
-            .hash()
-            .as_ref()
-            .try_into()
-            .expect("rollup block hash must be 32 bytes")
+    pub(crate) fn rollup_block_hash(&self) -> RollupBlockHash {
+        RollupBlockHash::new(self.block.hash().clone())
     }
 }

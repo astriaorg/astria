@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use astria_core::{
     crypto::{
         Signature,
@@ -26,6 +28,45 @@ use prost::{
 
 use crate::sequencer_key::SequencerKey;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RollupBlockHash(Bytes);
+
+impl RollupBlockHash {
+    #[must_use]
+    pub(crate) fn new(inner: Bytes) -> Self {
+        Self(inner)
+    }
+
+    #[must_use]
+    pub(crate) fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl From<Bytes> for RollupBlockHash {
+    fn from(value: Bytes) -> Self {
+        Self::new(value)
+    }
+}
+
+impl Display for RollupBlockHash {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use base64::{
+            display::Base64Display,
+            engine::general_purpose::STANDARD,
+        };
+
+        if f.alternate() {
+            Base64Display::new(&self.0, &STANDARD).fmt(f)?;
+        } else {
+            for byte in &self.0 {
+                write!(f, "{byte:02x}")?;
+            }
+        }
+        Ok(())
+    }
+}
+
 // TODO: this should probably be moved to astria_core::auction?
 #[derive(Debug, Clone)]
 pub(crate) struct Bid {
@@ -34,7 +75,7 @@ pub(crate) struct Bid {
     /// The byte list of transactions fto be included.
     transactions: Vec<Bytes>,
     /// The hash of the rollup block that this bid is based on.
-    rollup_parent_block_hash: [u8; 32],
+    rollup_parent_block_hash: RollupBlockHash,
     /// The hash of the sequencer block used to derive the rollup block that this bid is based
     /// on.
     sequencer_parent_block_hash: block::Hash,
@@ -51,14 +92,11 @@ impl Bid {
         Ok(Self {
             fee,
             transactions,
-            rollup_parent_block_hash: rollup_parent_block_hash
-                .as_ref()
-                .try_into()
-                .wrap_err("invalid prev_rollup_block_hash")?,
+            rollup_parent_block_hash: rollup_parent_block_hash.into(),
             sequencer_parent_block_hash: sequencer_parent_block_hash
                 .as_ref()
                 .try_into()
-                .wrap_err("invalid base_sequencer_block_hash")?,
+                .wrap_err("invalid field .sequencer_parent_block_hash")?,
         })
     }
 
@@ -69,7 +107,9 @@ impl Bid {
             sequencer_parent_block_hash: Bytes::copy_from_slice(
                 self.sequencer_parent_block_hash.as_bytes(),
             ),
-            rollup_parent_block_hash: Bytes::copy_from_slice(&self.rollup_parent_block_hash),
+            rollup_parent_block_hash: Bytes::copy_from_slice(
+                self.rollup_parent_block_hash.as_bytes(),
+            ),
         }
     }
 
@@ -103,8 +143,8 @@ impl Bid {
         self.fee
     }
 
-    pub(crate) fn rollup_parent_block_hash(&self) -> [u8; 32] {
-        self.rollup_parent_block_hash
+    pub(crate) fn rollup_parent_block_hash(&self) -> &RollupBlockHash {
+        &self.rollup_parent_block_hash
     }
 
     pub(crate) fn sequencer_parent_block_hash(&self) -> &block::Hash {
