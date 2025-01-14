@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Use bridge address to determine asset in bridge unlock cost estimation instead
 of signer [#1905](https://github.com/astriaorg/astria/pull/1905).
 
+### Removed
+
+- Remove ASTRIA_SEQUENCER_LISTEN_ADDR config variable [#1877](https://github.com/astriaorg/astria/pull/1877)
+
+### Added
+
+- Add ASTRIA_SEQUENCER_ABCI_LISTENER_URL config variable [#1877](https://github.com/astriaorg/astria/pull/1877)
+
 ## [1.0.0] - 2024-10-25
 
 ### Changed

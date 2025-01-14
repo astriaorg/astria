@@ -69,9 +69,23 @@ name: {{ .Values.moniker }}-sequencer-metrics
 {{- end }}
 
 {{/* New sequencer address */}}
-{{- define "sequencer.address"}}{ "bech32m": "{{ . }}" }
+{{- define "sequencer.address" -}}
+{ "bech32m": "{{ . }}" }
 {{- end }}
 
 {{/* uint64 fee converted to a astria proto Uint128 with only lo set */}}
-{{- define "sequencer.toUint128Proto"}}{ "lo": {{ . }} }
+{{- define "sequencer.toUint128Proto" -}}
+{ "lo": {{ . }} }
+{{- end }}
+
+{{- define "sequencer.socket_directory" -}}
+/sockets/
+{{- end }}
+
+{{- define "sequencer.abci_url" -}}
+{{- if and .Values.global.dev .Values.sequencer.abciUDS -}}
+unix://{{- include "sequencer.socket_directory" . }}abci.sock
+{{- else -}}
+tcp://127.0.0.1:{{ .Values.ports.sequencerABCI }}
+{{- end }}
 {{- end }}

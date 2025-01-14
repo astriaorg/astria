@@ -16,7 +16,7 @@ version = "0.38.8"
 
 # TCP or UNIX socket address of the ABCI application,
 # or the name of an ABCI application compiled in with the CometBFT binary
-proxy_app = "tcp://127.0.0.1:{{ .Values.ports.sequencerABCI }}"
+proxy_app = "{{ include "sequencer.abci_url" . }}"
 
 # A custom human readable name for this node
 moniker = "{{ .Values.moniker }}"
