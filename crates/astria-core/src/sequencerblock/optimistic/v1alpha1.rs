@@ -66,8 +66,8 @@ impl Protobuf for SequencerBlockCommit {
             block_hash,
         } = raw;
 
-        let block_hash = block::Hash::try_from(&**block_hash)
-            .map_err(|source| SequencerBlockCommitError::block_hash(source))?;
+        let block_hash =
+            block::Hash::try_from(&**block_hash).map_err(SequencerBlockCommitError::block_hash)?;
 
         Ok(SequencerBlockCommit {
             height: *height,

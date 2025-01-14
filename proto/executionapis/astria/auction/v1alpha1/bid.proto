@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 package astria.auction.v1alpha1;
+
 import "google/protobuf/any.proto";
 
 message GetBidStreamRequest {}
