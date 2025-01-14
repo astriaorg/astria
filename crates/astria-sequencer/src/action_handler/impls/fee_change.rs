@@ -101,8 +101,13 @@ mod tests {
     use penumbra_ibc::IbcRelay;
 
     use crate::{
+        accounts::AddressBytes as _,
         action_handler::ActionHandler as _,
         authority::StateWriteExt as _,
+        benchmark_and_test_utils::{
+            assert_eyre_error,
+            astria_address,
+        },
         fees::{
             FeeHandler,
             StateReadExt as _,
@@ -113,6 +118,28 @@ mod tests {
             TransactionContext,
         },
     };
+
+    #[tokio::test]
+    async fn fee_change_action_fails_if_signer_is_not_sudo_address() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = cnidarium::StateDelta::new(snapshot);
+
+        let sudo_address = astria_address(&[0; 20]);
+        let signer = astria_address(&[1; 20]);
+        state.put_transaction_context(TransactionContext {
+            address_bytes: *signer.address_bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+        state.put_sudo_address(sudo_address).unwrap();
+
+        let action = FeeChange::Transfer(FeeComponents::<Transfer>::new(1, 2));
+        assert_eyre_error(
+            &action.check_and_execute(state).await.unwrap_err(),
+            "signer is not the sudo key",
+        );
+    }
 
     #[tokio::test]
     async fn transfer_fee_change_action_executes_as_expected() {

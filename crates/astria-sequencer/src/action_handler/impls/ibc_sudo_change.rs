@@ -47,3 +47,116 @@ impl ActionHandler for IbcSudoChange {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use astria_core::primitive::v1::TransactionId;
+
+    use super::*;
+    use crate::{
+        accounts::AddressBytes as _,
+        address::StateWriteExt as _,
+        authority::StateWriteExt as _,
+        benchmark_and_test_utils::{
+            assert_eyre_error,
+            astria_address,
+            ASTRIA_PREFIX,
+        },
+        ibc::StateReadExt as _,
+        transaction::{
+            StateWriteExt as _,
+            TransactionContext,
+        },
+    };
+
+    #[tokio::test]
+    async fn ibc_sudo_change_executes_as_expected() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = cnidarium::StateDelta::new(snapshot);
+
+        let old_ibc_sudo_address = astria_address(&[0; 20]);
+        let new_ibc_sudo_address = astria_address(&[1; 20]);
+        let sudo_address = astria_address(&[2; 20]);
+
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state.put_sudo_address(sudo_address).unwrap();
+        state.put_ibc_sudo_address(old_ibc_sudo_address).unwrap();
+        state.put_transaction_context(TransactionContext {
+            address_bytes: *sudo_address.address_bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+
+        assert_eq!(
+            state.get_ibc_sudo_address().await.unwrap(),
+            *old_ibc_sudo_address.address_bytes()
+        );
+
+        let action = IbcSudoChange {
+            new_address: new_ibc_sudo_address,
+        };
+
+        action.check_and_execute(&mut state).await.unwrap();
+
+        assert_eq!(
+            state.get_ibc_sudo_address().await.unwrap(),
+            *new_ibc_sudo_address.address_bytes()
+        );
+    }
+
+    #[tokio::test]
+    async fn ibc_sudo_change_fails_if_new_address_is_not_base_prefixed() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = cnidarium::StateDelta::new(snapshot);
+
+        let new_ibc_sudo_address = astria_address(&[1; 20]);
+
+        let different_prefix = "different_prefix";
+        state.put_base_prefix(different_prefix.to_string()).unwrap();
+        state.put_transaction_context(TransactionContext {
+            address_bytes: [2; 20],
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+
+        let action = IbcSudoChange {
+            new_address: new_ibc_sudo_address,
+        };
+
+        assert_eyre_error(
+            &action.check_and_execute(state).await.unwrap_err(),
+            &format!(
+                "address has prefix `{ASTRIA_PREFIX}` but only `{different_prefix}` is permitted"
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn ibc_sudo_change_fails_if_signer_is_not_sudo_address() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = cnidarium::StateDelta::new(snapshot);
+
+        let sudo_address = astria_address(&[0; 20]);
+        let signer = astria_address(&[1; 20]);
+
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state.put_transaction_context(TransactionContext {
+            address_bytes: *signer.address_bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+        state.put_sudo_address(sudo_address).unwrap();
+
+        let action = IbcSudoChange {
+            new_address: astria_address(&[2; 20]),
+        };
+
+        assert_eyre_error(
+            &action.check_and_execute(state).await.unwrap_err(),
+            "signer is not the sudo key",
+        );
+    }
+}

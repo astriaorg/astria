@@ -68,3 +68,138 @@ impl ActionHandler for FeeAssetChange {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use astria_core::primitive::v1::TransactionId;
+    use cnidarium::StateDelta;
+    use futures::TryStreamExt as _;
+
+    use super::*;
+    use crate::{
+        accounts::AddressBytes,
+        action_handler::impls::test_utils::test_asset,
+        authority::StateWriteExt,
+        benchmark_and_test_utils::{
+            assert_eyre_error,
+            astria_address,
+            nria,
+        },
+        transaction::{
+            StateWriteExt as _,
+            TransactionContext,
+        },
+    };
+
+    #[tokio::test]
+    async fn fee_asset_change_addition_executes_as_expected() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let sudo_address = astria_address(&[1; 20]);
+        state.put_transaction_context(TransactionContext {
+            address_bytes: *sudo_address.address_bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+        state.put_sudo_address(sudo_address).unwrap();
+        state.put_allowed_fee_asset(&nria()).unwrap();
+
+        let fee_asset_change = FeeAssetChange::Addition(test_asset());
+        fee_asset_change
+            .check_and_execute(&mut state)
+            .await
+            .unwrap();
+
+        let fee_assets = state
+            .allowed_fee_assets()
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap();
+        assert_eq!(fee_assets.len(), 2);
+        assert!(fee_assets.contains(&nria().to_ibc_prefixed()));
+        assert!(fee_assets.contains(&test_asset().to_ibc_prefixed()));
+    }
+
+    #[tokio::test]
+    async fn fee_asset_change_removal_executes_as_expected() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let sudo_address = astria_address(&[1; 20]);
+        state.put_transaction_context(TransactionContext {
+            address_bytes: *sudo_address.address_bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+        state.put_sudo_address(sudo_address).unwrap();
+        state.put_allowed_fee_asset(&nria()).unwrap();
+        state.put_allowed_fee_asset(&test_asset()).unwrap();
+
+        let fee_asset_change = FeeAssetChange::Removal(test_asset());
+        fee_asset_change
+            .check_and_execute(&mut state)
+            .await
+            .unwrap();
+
+        let fee_assets = state
+            .allowed_fee_assets()
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap();
+        assert_eq!(fee_assets.len(), 1);
+        assert!(fee_assets.contains(&nria().to_ibc_prefixed()));
+    }
+
+    #[tokio::test]
+    async fn fee_asset_change_fails_if_signer_is_not_sudo_address() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let sudo_address = astria_address(&[1; 20]);
+        let signer = astria_address(&[2; 20]);
+        state.put_transaction_context(TransactionContext {
+            address_bytes: *signer.address_bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+        state.put_sudo_address(sudo_address).unwrap();
+
+        let fee_asset_change = FeeAssetChange::Addition(test_asset());
+        assert_eyre_error(
+            &fee_asset_change
+                .check_and_execute(&mut state)
+                .await
+                .unwrap_err(),
+            "unauthorized address for fee asset change",
+        );
+    }
+
+    #[tokio::test]
+    async fn fee_asset_change_fails_if_attempting_to_remove_only_asset() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let sudo_address = astria_address(&[1; 20]);
+        state.put_transaction_context(TransactionContext {
+            address_bytes: *sudo_address.address_bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+        state.put_sudo_address(sudo_address).unwrap();
+        state.put_allowed_fee_asset(&nria()).unwrap();
+
+        let fee_asset_change = FeeAssetChange::Removal(nria().into());
+        assert_eyre_error(
+            &fee_asset_change
+                .check_and_execute(&mut state)
+                .await
+                .unwrap_err(),
+            "cannot remove last allowed fee asset",
+        );
+    }
+}

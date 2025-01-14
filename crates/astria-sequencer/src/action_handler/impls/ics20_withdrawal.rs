@@ -110,7 +110,7 @@ impl ActionHandler for action::Ics20Withdrawal {
         state
             .ensure_base_prefix(&self.return_address)
             .await
-            .wrap_err("failed to verify that return address address has permitted base prefix")?;
+            .wrap_err("failed to verify that return address has permitted base prefix")?;
 
         if let Some(bridge_address) = &self.bridge_address {
             state.ensure_base_prefix(bridge_address).await.wrap_err(
@@ -275,24 +275,36 @@ fn is_source(source_port: &PortId, source_channel: &ChannelId, asset: &Denom) ->
 #[cfg(test)]
 mod tests {
     use astria_core::{
-        primitive::v1::RollupId,
+        primitive::v1::{
+            Address,
+            RollupId,
+            TransactionId,
+        },
         protocol::transaction::v1::action,
     };
     use cnidarium::StateDelta;
     use ibc_types::core::client::Height;
 
     use crate::{
-        action_handler::impls::{
-            ics20_withdrawal::establish_withdrawal_target,
-            test_utils::test_asset,
+        action_handler::{
+            impls::{
+                ics20_withdrawal::establish_withdrawal_target,
+                test_utils::test_asset,
+            },
+            ActionHandler as _,
         },
         address::StateWriteExt as _,
         benchmark_and_test_utils::{
             assert_eyre_error,
             astria_address,
+            nria,
             ASTRIA_PREFIX,
         },
         bridge::StateWriteExt as _,
+        transaction::{
+            StateWriteExt as _,
+            TransactionContext,
+        },
     };
 
     #[tokio::test]
@@ -326,7 +338,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn withdrawal_target_is_sender_if_bridge_is_unset_but_sender_is_bridge() {
+    async fn withdrawal_target_fails_if_bridge_is_unset_but_sender_is_bridge() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
@@ -501,6 +513,115 @@ mod tests {
                 .await
                 .unwrap_err(),
             "bridge address must have a withdrawer address set",
+        );
+    }
+
+    #[tokio::test]
+    async fn ics20_withdrawal_fails_if_return_address_is_not_base_prefixed() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state.put_transaction_context(TransactionContext {
+            address_bytes: [0; 20],
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+
+        let action = action::Ics20Withdrawal {
+            amount: 1,
+            denom: nria().into(),
+            bridge_address: None,
+            destination_chain_address: "test".to_string(),
+            return_address: Address::builder()
+                .prefix("different_prefix")
+                .array([0; 20])
+                .try_build()
+                .unwrap(),
+            timeout_height: Height::new(1, 1).unwrap(),
+            timeout_time: 1,
+            source_channel: "channel-0".to_string().parse().unwrap(),
+            fee_asset: nria().into(),
+            memo: String::new(),
+            use_compat_address: false,
+        };
+
+        assert_eyre_error(
+            &action.check_and_execute(&mut state).await.unwrap_err(),
+            "failed to verify that return address has permitted base prefix",
+        );
+    }
+
+    #[tokio::test]
+    async fn ics20_withdrawal_fails_if_bridge_address_is_not_base_prefixed() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state.put_transaction_context(TransactionContext {
+            address_bytes: [0; 20],
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+
+        let action = action::Ics20Withdrawal {
+            amount: 1,
+            denom: nria().into(),
+            bridge_address: Some(
+                Address::builder()
+                    .prefix("different_prefix")
+                    .array([0; 20])
+                    .try_build()
+                    .unwrap(),
+            ),
+            destination_chain_address: "test".to_string(),
+            return_address: astria_address(&[0; 20]),
+            timeout_height: Height::new(1, 1).unwrap(),
+            timeout_time: 1,
+            source_channel: "channel-0".to_string().parse().unwrap(),
+            fee_asset: nria().into(),
+            memo: String::new(),
+            use_compat_address: false,
+        };
+
+        assert_eyre_error(
+            &action.check_and_execute(&mut state).await.unwrap_err(),
+            "failed to verify that bridge address address has permitted base prefix",
+        );
+    }
+
+    #[tokio::test]
+    async fn ics20_withdrawal_fails_if_bridge_address_is_set_and_memo_is_bad() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state.put_transaction_context(TransactionContext {
+            address_bytes: [0; 20],
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+
+        let action = action::Ics20Withdrawal {
+            amount: 1,
+            denom: nria().into(),
+            bridge_address: Some(astria_address(&[1; 20])),
+            destination_chain_address: "test".to_string(),
+            return_address: astria_address(&[0; 20]),
+            timeout_height: Height::new(1, 1).unwrap(),
+            timeout_time: 1,
+            source_channel: "channel-0".to_string().parse().unwrap(),
+            fee_asset: nria().into(),
+            memo: String::new(),
+            use_compat_address: false,
+        };
+
+        assert_eyre_error(
+            &action.check_and_execute(&mut state).await.unwrap_err(),
+            "failed to parse memo for ICS bound bridge withdrawal",
         );
     }
 }
