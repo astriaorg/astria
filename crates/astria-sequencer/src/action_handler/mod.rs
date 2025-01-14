@@ -92,3 +92,71 @@ where
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use astria_core::primitive::v1::Address;
+
+    use super::*;
+    use crate::{
+        address::StateWriteExt as _,
+        benchmark_and_test_utils::{
+            assert_eyre_error,
+            astria_address,
+            nria,
+            ASTRIA_PREFIX,
+        },
+    };
+
+    #[tokio::test]
+    async fn check_transfer_fails_if_destination_is_not_base_prefixed() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = cnidarium::StateDelta::new(snapshot);
+
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        let different_prefix = "different_prefix";
+        let to_address = Address::builder()
+            .prefix(different_prefix.to_string())
+            .array([0; 20])
+            .try_build()
+            .unwrap();
+        let action = Transfer {
+            to: to_address,
+            fee_asset: nria().into(),
+            asset: nria().into(),
+            amount: 100,
+        };
+
+        assert_eyre_error(
+            &check_transfer(&action, &astria_address(&[1; 20]), &state)
+                .await
+                .unwrap_err(),
+            &format!(
+                "address has prefix `{different_prefix}` but only `{ASTRIA_PREFIX}` is permitted"
+            ),
+        );
+    }
+    #[tokio::test]
+
+    async fn check_transfer_fails_if_insufficient_funds_in_sender_account() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = cnidarium::StateDelta::new(snapshot);
+
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        let action = Transfer {
+            to: astria_address(&[0; 20]),
+            fee_asset: nria().into(),
+            asset: nria().into(),
+            amount: 100,
+        };
+
+        assert_eyre_error(
+            &check_transfer(&action, &astria_address(&[1; 20]), &state)
+                .await
+                .unwrap_err(),
+            "insufficient funds for transfer",
+        );
+    }
+}
