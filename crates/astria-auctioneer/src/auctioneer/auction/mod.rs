@@ -104,7 +104,7 @@ impl Auction {
     #[instrument(skip_all, fields(id = %self.id), err)]
     pub(super) fn start_timer(
         &mut self,
-        commitment: sequencerblock::v1::optimistic::SequencerBlockCommit,
+        commitment: sequencerblock::optimistic::v1alpha1::SequencerBlockCommit,
     ) -> eyre::Result<()> {
         ensure!(
             &self.block_hash == commitment.block_hash() && self.height == commitment.height(),

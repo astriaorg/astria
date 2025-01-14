@@ -16,10 +16,12 @@ use astria_core::{
         GetOptimisticBlockStreamResponse,
     },
     primitive::v1::RollupId,
-    sequencerblock::v1::{
-        block,
-        optimistic::SequencerBlockCommit,
-        SequencerBlock,
+    sequencerblock::{
+        optimistic::v1alpha1::SequencerBlockCommit,
+        v1::{
+            block,
+            SequencerBlock,
+        },
     },
     Protobuf,
 };

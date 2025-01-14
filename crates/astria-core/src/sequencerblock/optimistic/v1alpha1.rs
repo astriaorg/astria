@@ -1,8 +1,8 @@
 use bytes::Bytes;
 
-use super::block;
 use crate::{
     generated::astria::sequencerblock::optimistic::v1alpha1 as raw,
+    sequencerblock::v1::block,
     Protobuf,
 };
 

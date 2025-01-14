@@ -6,9 +6,9 @@ use std::{
 
 use astria_core::{
     primitive::v1::RollupId,
-    sequencerblock::v1::{
-        block::FilteredSequencerBlock,
-        optimistic::SequencerBlockCommit,
+    sequencerblock::{
+        optimistic::v1alpha1::SequencerBlockCommit,
+        v1::block::FilteredSequencerBlock,
     },
 };
 use astria_eyre::eyre::{

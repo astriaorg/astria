@@ -18,9 +18,9 @@ use astria_core::{
         Address,
         RollupId,
     },
-    sequencerblock::v1::{
-        block::FilteredSequencerBlock,
-        optimistic::SequencerBlockCommit,
+    sequencerblock::{
+        optimistic::v1alpha1::SequencerBlockCommit,
+        v1::block::FilteredSequencerBlock,
     },
     Protobuf as _,
 };
@@ -35,7 +35,7 @@ use futures::{
     Stream,
     StreamExt as _,
 };
-use prost::Name;
+use prost::Name as _;
 use tracing::{
     info_span,
     warn,
