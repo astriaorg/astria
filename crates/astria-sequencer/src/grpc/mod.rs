@@ -37,8 +37,8 @@ use crate::{
     mempool::Mempool,
 };
 
-// we provide a shutdown time mainly for the optimistic block service tasks to shutdown
-// gracefully
+/// Time for the background tasks supporting gRPC services to shutdown gracefully before being
+/// aborted.
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_millis(1500);
 const SHUTDOWN_SPAN: &str = "grpc_server_shutdown";
 

@@ -23,7 +23,7 @@ use astria_core::{
             SequencerBlock,
         },
     },
-    Protobuf,
+    Protobuf as _,
 };
 use astria_eyre::{
     eyre,
