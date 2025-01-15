@@ -296,7 +296,7 @@ impl Mempool {
     pub(crate) async fn builder_queue<S: accounts::StateReadExt>(
         &self,
         state: &S,
-    ) -> Result<Vec<([u8; 32], Arc<Transaction>)>> {
+    ) -> Vec<([u8; 32], Arc<Transaction>)> {
         self.pending.read().await.builder_queue(state).await
     }
 
@@ -652,10 +652,7 @@ mod tests {
 
         // grab building queue, should return transactions [1,2] since [0] was below and [4] is
         // gapped
-        let builder_queue = mempool
-            .builder_queue(&mock_state)
-            .await
-            .expect("failed to get builder queue");
+        let builder_queue = mempool.builder_queue(&mock_state).await;
 
         // see contains first two transactions that should be pending
         assert_eq!(builder_queue[0].1.nonce(), 1, "nonce should be one");
@@ -685,10 +682,7 @@ mod tests {
         assert_eq!(mempool.len().await, 1);
 
         // see transaction [4] properly promoted
-        let mut builder_queue = mempool
-            .builder_queue(&mock_state)
-            .await
-            .expect("failed to get builder queue");
+        let mut builder_queue = mempool.builder_queue(&mock_state).await;
         let (_, returned_tx) = builder_queue.pop().expect("should return last transaction");
         assert_eq!(returned_tx.nonce(), 4, "nonce should be four");
     }
@@ -733,10 +727,7 @@ mod tests {
             1,
         );
 
-        let builder_queue = mempool
-            .builder_queue(&mock_state)
-            .await
-            .expect("failed to get builder queue");
+        let builder_queue = mempool.builder_queue(&mock_state).await;
         assert_eq!(
             builder_queue.len(),
             1,
@@ -755,10 +746,7 @@ mod tests {
         mempool.run_maintenance(&mock_state, false).await;
 
         // see builder queue now contains them
-        let builder_queue = mempool
-            .builder_queue(&mock_state)
-            .await
-            .expect("failed to get builder queue");
+        let builder_queue = mempool.builder_queue(&mock_state).await;
         assert_eq!(
             builder_queue.len(),
             3,
@@ -807,10 +795,7 @@ mod tests {
             1,
         );
 
-        let builder_queue = mempool
-            .builder_queue(&mock_state)
-            .await
-            .expect("failed to get builder queue");
+        let builder_queue = mempool.builder_queue(&mock_state).await;
         assert_eq!(
             builder_queue.len(),
             4,
@@ -827,10 +812,7 @@ mod tests {
         mempool.run_maintenance(&mock_state, false).await;
 
         // see builder queue now contains single transactions
-        let builder_queue = mempool
-            .builder_queue(&mock_state)
-            .await
-            .expect("failed to get builder queue");
+        let builder_queue = mempool.builder_queue(&mock_state).await;
         assert_eq!(
             builder_queue.len(),
             1,
@@ -850,10 +832,7 @@ mod tests {
 
         mempool.run_maintenance(&mock_state, false).await;
 
-        let builder_queue = mempool
-            .builder_queue(&mock_state)
-            .await
-            .expect("failed to get builder queue");
+        let builder_queue = mempool.builder_queue(&mock_state).await;
         assert_eq!(
             builder_queue.len(),
             3,
