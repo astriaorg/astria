@@ -19,6 +19,7 @@ pub mod execution;
 pub mod primitive;
 pub mod protocol;
 pub mod sequencerblock;
+pub mod upgrades;
 
 #[cfg(feature = "brotli")]
 pub mod brotli;

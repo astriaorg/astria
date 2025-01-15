@@ -720,7 +720,7 @@ impl ExecutableBlock {
     }
 
     fn from_sequencer(block: FilteredSequencerBlock, id: RollupId) -> Self {
-        let extended_commit_info = block.decoded_extended_commit_info();
+        let extended_commit_info = block.extended_commit_info().cloned();
         let FilteredSequencerBlockParts {
             block_hash,
             header,
@@ -753,7 +753,7 @@ fn insert_oracle_data_into_transactions_if_exists(
 
     if let Some(extended_commit_info) = extended_commit_info {
         let Ok(prices) = astria_core::connect::utils::calculate_prices_from_vote_extensions(
-            extended_commit_info.extended_commit_info,
+            &extended_commit_info.extended_commit_info,
             &extended_commit_info.id_to_currency_pair,
         ) else {
             debug!(

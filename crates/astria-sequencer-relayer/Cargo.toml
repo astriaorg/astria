@@ -73,6 +73,7 @@ async-trait = { workspace = true }
 celestia-tendermint = { workspace = true }
 celestia-types = { workspace = true }
 hyper = { workspace = true }
+isahc = { workspace = true, features = ["json"] }
 itertools = { workspace = true }
 rand_core = { version = "0.6", features = ["getrandom"] }
 tempfile = { workspace = true }
@@ -83,7 +84,6 @@ wiremock = { workspace = true }
 
 assert-json-diff = "2.0.2"
 http = "0.2.7"
-isahc = { version = "1.7.2", features = ["json"] }
 tower = { version = "0.4.13" }
 tokio-test.workspace = true
 rand_chacha = "0.3.1"

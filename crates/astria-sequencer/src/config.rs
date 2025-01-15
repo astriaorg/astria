@@ -30,6 +30,11 @@ pub struct Config {
     pub metrics_http_listener_addr: String,
     /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
     pub pretty_print: bool,
+    /// The path to the file containing the JSON-encoded upgrades for this network.
+    pub upgrades_filepath: PathBuf,
+    /// The address of the CometBFT RPC endpoint for this sequencer.
+    #[expect(clippy::doc_markdown, reason = "false positive")]
+    pub cometbft_rpc_addr: String,
     /// If the oracle is disabled. If false, the `oracle_grpc_addr` must be set.
     /// Should be false for validator nodes and true for non-validator nodes.
     pub no_oracle: bool,

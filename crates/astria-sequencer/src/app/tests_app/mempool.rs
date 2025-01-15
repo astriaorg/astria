@@ -36,7 +36,10 @@ use tendermint::{
 use super::*;
 use crate::{
     accounts::StateReadExt as _,
-    app::test_utils::*,
+    app::{
+        benchmark_and_test_utils::AppInitializer,
+        test_utils::*,
+    },
     benchmark_and_test_utils::{
         astria_address_from_hex_string,
         nria,
@@ -46,9 +49,7 @@ use crate::{
 #[tokio::test]
 async fn trigger_cleaning() {
     // check that cleaning is triggered by the prepare, process, and finalize block flows
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
-    app.prepare_commit(storage.clone()).await.unwrap();
-    app.commit(storage.clone()).await;
+    let (mut app, storage) = AppInitializer::new().init().await;
 
     // create tx which will cause mempool cleaning flag to be set
     let tx_trigger = TransactionBody::builder()
@@ -97,10 +98,15 @@ async fn trigger_cleaning() {
     assert!(!app.recost_mempool, "flag should start out false");
 
     // trigger with process_proposal
-    let txs = transactions_with_extended_commit_info_and_commitments(&vec![tx_trigger], None);
+    let height = tendermint::block::Height::from(2_u8);
+    let txs = transactions_with_extended_commit_info_and_commitments(
+        height,
+        &[Arc::new(tx_trigger)],
+        None,
+    );
     let process_proposal = abci::request::ProcessProposal {
         hash: Hash::try_from([99u8; 32].to_vec()).unwrap(),
-        height: 1u32.into(),
+        height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
@@ -123,7 +129,7 @@ async fn trigger_cleaning() {
 
     let finalize_block = abci::request::FinalizeBlock {
         hash: Hash::try_from([97u8; 32].to_vec()).unwrap(),
-        height: 1u32.into(),
+        height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
@@ -143,9 +149,7 @@ async fn trigger_cleaning() {
 
 #[tokio::test]
 async fn do_not_trigger_cleaning() {
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
-    app.prepare_commit(storage.clone()).await.unwrap();
-    app.commit(storage.clone()).await;
+    let (mut app, storage) = AppInitializer::new().init().await;
 
     // create tx which will fail execution and not trigger flag
     // (wrong sudo signer)
@@ -209,13 +213,10 @@ async fn maintenance_recosting_promotes() {
     .map(Protobuf::into_raw)
     .collect();
 
-    let (mut app, storage) = initialize_app_with_storage(
-        Some(only_alice_funds_genesis_state.try_into().unwrap()),
-        vec![],
-    )
-    .await;
-    app.prepare_commit(storage.clone()).await.unwrap();
-    app.commit(storage.clone()).await;
+    let (mut app, storage) = AppInitializer::new()
+        .with_genesis_state(only_alice_funds_genesis_state.try_into().unwrap())
+        .init()
+        .await;
 
     // create tx which will not be included in block due to
     // having insufficient funds (transaction will be recosted to enable)
@@ -269,6 +270,7 @@ async fn maintenance_recosting_promotes() {
     assert_eq!(app.mempool.len().await, 2, "two txs in mempool");
 
     // create block with prepare_proposal
+    let height = tendermint::block::Height::from(2_u8);
     let prepare_args = abci::request::PrepareProposal {
         max_tx_bytes: 200_000,
         txs: vec![],
@@ -277,7 +279,7 @@ async fn maintenance_recosting_promotes() {
             round: 0u16.into(),
         }),
         misbehavior: vec![],
-        height: Height::default(),
+        height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: account::Id::new([1u8; 20]),
@@ -303,7 +305,7 @@ async fn maintenance_recosting_promotes() {
 
     let process_proposal = abci::request::ProcessProposal {
         hash: app.executed_proposal_hash,
-        height: Height::default(),
+        height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [1u8; 20].to_vec().try_into().unwrap(),
@@ -327,7 +329,7 @@ async fn maintenance_recosting_promotes() {
     // finalize with finalize block
     let finalize_block = abci::request::FinalizeBlock {
         hash: app.executed_proposal_hash,
-        height: 1u32.into(),
+        height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
@@ -342,10 +344,11 @@ async fn maintenance_recosting_promotes() {
     app.finalize_block(finalize_block.clone(), storage.clone())
         .await
         .unwrap();
-    app.commit(storage.clone()).await;
+    app.commit(storage.clone()).await.unwrap();
     assert_eq!(app.mempool.len().await, 1, "recosted tx should remain");
 
     // mempool re-costing should've occurred to allow other transaction to execute
+    let next_height = tendermint::block::Height::from(3_u8);
     let prepare_args = abci::request::PrepareProposal {
         max_tx_bytes: 200_000,
         txs: vec![],
@@ -354,7 +357,7 @@ async fn maintenance_recosting_promotes() {
             round: 0u16.into(),
         }),
         misbehavior: vec![],
-        height: 2u8.into(),
+        height: next_height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: account::Id::new([1u8; 20]),
@@ -394,13 +397,10 @@ async fn maintenance_funds_added_promotes() {
     .map(Protobuf::into_raw)
     .collect();
 
-    let (mut app, storage) = initialize_app_with_storage(
-        Some(only_alice_funds_genesis_state.try_into().unwrap()),
-        vec![],
-    )
-    .await;
-    app.prepare_commit(storage.clone()).await.unwrap();
-    app.commit(storage.clone()).await;
+    let (mut app, storage) = AppInitializer::new()
+        .with_genesis_state(only_alice_funds_genesis_state.try_into().unwrap())
+        .init()
+        .await;
 
     // create tx that will not be included in block due to
     // having no funds (will be sent transfer to then enable)
@@ -459,6 +459,7 @@ async fn maintenance_funds_added_promotes() {
         .unwrap();
 
     // create block with prepare_proposal
+    let height = tendermint::block::Height::from(2_u8);
     let prepare_args = abci::request::PrepareProposal {
         max_tx_bytes: 200_000,
         txs: vec![],
@@ -467,7 +468,7 @@ async fn maintenance_funds_added_promotes() {
             round: 0u16.into(),
         }),
         misbehavior: vec![],
-        height: Height::default(),
+        height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: account::Id::new([1u8; 20]),
@@ -486,7 +487,7 @@ async fn maintenance_funds_added_promotes() {
     app.executed_proposal_hash = Hash::try_from([97u8; 32].to_vec()).unwrap();
     let process_proposal = abci::request::ProcessProposal {
         hash: app.executed_proposal_hash,
-        height: Height::default(),
+        height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [1u8; 20].to_vec().try_into().unwrap(),
@@ -513,7 +514,7 @@ async fn maintenance_funds_added_promotes() {
     // finalize with finalize block
     let finalize_block = abci::request::FinalizeBlock {
         hash: app.executed_proposal_hash,
-        height: 1u32.into(),
+        height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
@@ -527,9 +528,10 @@ async fn maintenance_funds_added_promotes() {
     app.finalize_block(finalize_block.clone(), storage.clone())
         .await
         .unwrap();
-    app.commit(storage.clone()).await;
+    app.commit(storage.clone()).await.unwrap();
 
     // transfer should've occurred to allow other transaction to execute
+    let next_height = tendermint::block::Height::from(3_u8);
     let prepare_args = abci::request::PrepareProposal {
         max_tx_bytes: 200_000,
         txs: vec![],
@@ -538,7 +540,7 @@ async fn maintenance_funds_added_promotes() {
             round: 0u16.into(),
         }),
         misbehavior: vec![],
-        height: 2u8.into(),
+        height: next_height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: account::Id::new([1u8; 20]),
@@ -557,7 +559,7 @@ async fn maintenance_funds_added_promotes() {
     // finalize with finalize block
     let finalize_block = abci::request::FinalizeBlock {
         hash: Hash::try_from([97u8; 32].to_vec()).unwrap(),
-        height: 1u32.into(),
+        height: next_height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
@@ -571,7 +573,7 @@ async fn maintenance_funds_added_promotes() {
     app.finalize_block(finalize_block.clone(), storage.clone())
         .await
         .unwrap();
-    app.commit(storage.clone()).await;
+    app.commit(storage.clone()).await.unwrap();
     // see transfer went through
     assert_eq!(
         app.state

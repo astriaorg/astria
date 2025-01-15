@@ -48,15 +48,15 @@ enum ErrorKind {
 /// - if any of the vote extensions cannot be converted from prootobuf to native
 ///   `OracleVoteExtension`
 pub fn calculate_prices_from_vote_extensions(
-    extended_commit_info: ExtendedCommitInfo,
+    extended_commit_info: &ExtendedCommitInfo,
     id_to_currency_pair: &IndexMap<CurrencyPairId, CurrencyPairInfo>,
 ) -> Result<Vec<crate::sequencerblock::v1::block::Price>, Error> {
     let votes = extended_commit_info
         .votes
-        .into_iter()
+        .iter()
         .map(|vote| {
-            let raw =
-                RawOracleVoteExtension::decode(vote.vote_extension).map_err(Error::decode_error)?;
+            let raw = RawOracleVoteExtension::decode(vote.vote_extension.as_ref())
+                .map_err(Error::decode_error)?;
             OracleVoteExtension::try_from_raw(raw).map_err(Error::invalid_oracle_vote_extension)
         })
         .collect::<Result<Vec<_>, Error>>()?;

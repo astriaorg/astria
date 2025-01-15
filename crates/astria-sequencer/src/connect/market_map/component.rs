@@ -1,46 +1,57 @@
 use std::sync::Arc;
 
-use astria_core::protocol::genesis::v1::GenesisAppState;
+use astria_core::{
+    connect::market_map::v2::GenesisState,
+    protocol::genesis::v1::GenesisAppState,
+};
 use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
-use cnidarium::StateWrite;
 use tendermint::abci::request::{
     BeginBlock,
     EndBlock,
 };
 use tracing::instrument;
 
-use super::state_ext::StateWriteExt as _;
+use super::state_ext::StateWriteExt;
 use crate::component::Component;
 
 #[derive(Default)]
 pub(crate) struct MarketMapComponent;
+
+impl MarketMapComponent {
+    pub(crate) fn handle_genesis<S: StateWriteExt>(
+        mut state: S,
+        market_map_genesis: &GenesisState,
+    ) -> Result<()> {
+        // TODO: put market map authorities and admin in state;
+        // only required for related actions however
+
+        state
+            .put_market_map(market_map_genesis.market_map.clone())
+            .wrap_err("failed to put market map")?;
+        state
+            .put_params(market_map_genesis.params.clone())
+            .wrap_err("failed to put params")
+    }
+}
 
 #[async_trait::async_trait]
 impl Component for MarketMapComponent {
     type AppState = GenesisAppState;
 
     #[instrument(name = "MarketMapComponent::init_chain", skip_all, err)]
-    async fn init_chain<S: StateWrite>(mut state: S, app_state: &Self::AppState) -> Result<()> {
+    async fn init_chain<S: StateWriteExt>(state: S, app_state: &Self::AppState) -> Result<()> {
         if let Some(connect) = app_state.connect() {
-            // TODO: put market map authorities and admin in state;
-            // only required for related actions however
-
-            state
-                .put_market_map(connect.market_map().market_map.clone())
-                .wrap_err("failed to put market map")?;
-            state
-                .put_params(connect.market_map().params.clone())
-                .wrap_err("failed to put params")?;
+            Self::handle_genesis(state, connect.market_map())?;
         }
 
         Ok(())
     }
 
     #[instrument(name = "MarketMapComponent::begin_block", skip(_state))]
-    async fn begin_block<S: StateWrite + 'static>(
+    async fn begin_block<S: StateWriteExt + 'static>(
         _state: &mut Arc<S>,
         _begin_block: &BeginBlock,
     ) -> Result<()> {
@@ -48,7 +59,7 @@ impl Component for MarketMapComponent {
     }
 
     #[instrument(name = "MarketMapComponent::end_block", skip(_state))]
-    async fn end_block<S: StateWrite + 'static>(
+    async fn end_block<S: StateWriteExt + 'static>(
         _state: &mut Arc<S>,
         _end_block: &EndBlock,
     ) -> Result<()> {

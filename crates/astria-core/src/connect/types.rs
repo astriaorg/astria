@@ -9,11 +9,12 @@ pub mod v2 {
         display::Base64Display,
         prelude::BASE64_STANDARD,
     };
+    use borsh::BorshSerialize;
     use bytes::Bytes;
 
     use crate::generated::connect::types::v2 as raw;
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, BorshSerialize)]
     pub struct Price(u128);
 
     impl Price {
@@ -77,7 +78,7 @@ pub mod v2 {
         }
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, BorshSerialize)]
     pub struct Base(String);
 
     impl Base {
@@ -130,7 +131,7 @@ pub mod v2 {
         }
     }
 
-    #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, BorshSerialize)]
     pub struct Quote(String);
 
     impl Quote {
@@ -196,7 +197,7 @@ pub mod v2 {
         ParseQuote { source: ParseQuoteError },
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, BorshSerialize)]
     pub struct CurrencyPair {
         base: Base,
         quote: Quote,
@@ -350,7 +351,7 @@ pub mod v2 {
         }
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, BorshSerialize)]
     pub struct CurrencyPairId(u64);
 
     impl std::fmt::Display for CurrencyPairId {
@@ -377,7 +378,7 @@ pub mod v2 {
         }
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, BorshSerialize)]
     pub struct CurrencyPairNonce(u64);
 
     impl std::fmt::Display for CurrencyPairNonce {

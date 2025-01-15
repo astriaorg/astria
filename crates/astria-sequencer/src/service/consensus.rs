@@ -16,18 +16,23 @@ use tower_abci::BoxError;
 use tower_actor::Message;
 use tracing::{
     debug,
+    info,
     instrument,
     warn,
     Instrument,
     Level,
 };
 
-use crate::app::App;
+use crate::app::{
+    App,
+    ShouldShutDown,
+};
 
 pub(crate) struct Consensus {
     queue: mpsc::Receiver<Message<ConsensusRequest, ConsensusResponse, tower::BoxError>>,
     storage: Storage,
     app: App,
+    cancellation_token: tokio_util::sync::CancellationToken,
 }
 
 impl Consensus {
@@ -35,11 +40,13 @@ impl Consensus {
         storage: Storage,
         app: App,
         queue: mpsc::Receiver<Message<ConsensusRequest, ConsensusResponse, tower::BoxError>>,
+        cancellation_token: tokio_util::sync::CancellationToken,
     ) -> Self {
         Self {
             queue,
             storage,
             app,
+            cancellation_token,
         }
     }
 
@@ -53,16 +60,33 @@ impl Consensus {
             // The send only fails if the receiver was dropped, which happens
             // if the caller didn't propagate the message back to tendermint
             // for some reason -- but that's not our problem.
-            let rsp = self.handle_request(req).instrument(span.clone()).await;
-            if let Err(e) = rsp.as_ref() {
-                panic!("failed to handle consensus request, this is a bug: {e:?}");
-            }
+            let (rsp, should_shut_down) =
+                match self.handle_request(req).instrument(span.clone()).await {
+                    Ok(ok_res) => ok_res,
+                    Err(e) => {
+                        panic!("failed to handle consensus request, this is a bug: {e:?}");
+                    }
+                };
             // `send` returns the sent message if sending fail, so we are dropping it.
-            if rsp_sender.send(rsp).is_err() {
+            if rsp_sender.send(Ok(rsp)).is_err() {
                 warn!(
                     parent: &span,
                     "failed returning consensus response to request sender; dropping response"
                 );
+            }
+            if let ShouldShutDown::ShutDownForUpgrade {
+                upgrade_activation_height,
+                block_time,
+                hex_encoded_app_hash,
+            } = should_shut_down
+            {
+                info!(
+                    upgrade_activation_height,
+                    latest_app_hash = %hex_encoded_app_hash,
+                    latest_block_time = %block_time,
+                    "shutting down for upgrade"
+                );
+                self.cancellation_token.cancel();
             }
         }
         Ok(())
@@ -72,21 +96,25 @@ impl Consensus {
     async fn handle_request(
         &mut self,
         req: ConsensusRequest,
-    ) -> Result<ConsensusResponse, BoxError> {
+    ) -> Result<(ConsensusResponse, ShouldShutDown), BoxError> {
         Ok(match req {
-            ConsensusRequest::InitChain(init_chain) => ConsensusResponse::InitChain(
-                self.init_chain(init_chain)
-                    .await
-                    .wrap_err("failed initializing chain")?,
+            ConsensusRequest::InitChain(init_chain) => (
+                ConsensusResponse::InitChain(
+                    self.init_chain(init_chain)
+                        .await
+                        .wrap_err("failed initializing chain")?,
+                ),
+                ShouldShutDown::ContinueRunning,
             ),
-            ConsensusRequest::PrepareProposal(prepare_proposal) => {
+            ConsensusRequest::PrepareProposal(prepare_proposal) => (
                 ConsensusResponse::PrepareProposal(
                     self.handle_prepare_proposal(prepare_proposal)
                         .await
                         .wrap_err("failed to prepare proposal")?,
-                )
-            }
-            ConsensusRequest::ProcessProposal(process_proposal) => {
+                ),
+                ShouldShutDown::ContinueRunning,
+            ),
+            ConsensusRequest::ProcessProposal(process_proposal) => (
                 ConsensusResponse::ProcessProposal(
                     match self.handle_process_proposal(process_proposal).await {
                         Ok(()) => response::ProcessProposal::Accept,
@@ -98,9 +126,10 @@ impl Consensus {
                             response::ProcessProposal::Reject
                         }
                     },
-                )
-            }
-            ConsensusRequest::ExtendVote(extend_vote) => {
+                ),
+                ShouldShutDown::ContinueRunning,
+            ),
+            ConsensusRequest::ExtendVote(extend_vote) => (
                 ConsensusResponse::ExtendVote(match self.handle_extend_vote(extend_vote).await {
                     Ok(response) => response,
                     Err(e) => {
@@ -112,22 +141,28 @@ impl Consensus {
                             vote_extension: vec![].into(),
                         }
                     }
-                })
-            }
-            ConsensusRequest::VerifyVoteExtension(vote_extension) => {
+                }),
+                ShouldShutDown::ContinueRunning,
+            ),
+            ConsensusRequest::VerifyVoteExtension(vote_extension) => (
                 ConsensusResponse::VerifyVoteExtension(
                     self.handle_verify_vote_extension(vote_extension)
                         .await
                         .wrap_err("failed to verify vote extension")?,
-                )
-            }
-            ConsensusRequest::FinalizeBlock(finalize_block) => ConsensusResponse::FinalizeBlock(
-                self.finalize_block(finalize_block)
-                    .await
-                    .wrap_err("failed to finalize block")?,
+                ),
+                ShouldShutDown::ContinueRunning,
+            ),
+            ConsensusRequest::FinalizeBlock(finalize_block) => (
+                ConsensusResponse::FinalizeBlock(
+                    self.finalize_block(finalize_block)
+                        .await
+                        .wrap_err("failed to finalize block")?,
+                ),
+                ShouldShutDown::ContinueRunning,
             ),
             ConsensusRequest::Commit => {
-                ConsensusResponse::Commit(self.commit().await.wrap_err("failed to commit")?)
+                let (rsp, should_shut_down) = self.commit().await.wrap_err("failed to commit")?;
+                (ConsensusResponse::Commit(rsp), should_shut_down)
             }
         })
     }
@@ -156,18 +191,14 @@ impl Consensus {
                         "failed converting cometbft genesis validators to astria validators",
                     )?,
                 init_chain.chain_id,
-                // if `vote_extensions_enable_height` is zero, vote extensions are disabled.
-                // see https://docs.cometbft.com/v1.0/spec/core/data_structures#abciparams
-                init_chain
-                    .consensus_params
-                    .abci
-                    .vote_extensions_enable_height
-                    .unwrap_or_default()
-                    .value(),
+                init_chain.consensus_params.clone(),
             )
             .await
             .wrap_err("failed to call init_chain")?;
-        self.app.commit(self.storage.clone()).await;
+        self.app
+            .commit(self.storage.clone())
+            .await
+            .wrap_err("failed to commit")?;
 
         Ok(response::InitChain {
             app_hash,
@@ -238,16 +269,19 @@ impl Consensus {
     }
 
     #[instrument(skip_all)]
-    async fn commit(&mut self) -> Result<response::Commit> {
-        self.app.commit(self.storage.clone()).await;
-        Ok(response::Commit::default())
+    async fn commit(&mut self) -> Result<(response::Commit, ShouldShutDown)> {
+        let should_shut_down = self
+            .app
+            .commit(self.storage.clone())
+            .await
+            .wrap_err("error committing")?;
+        Ok((response::Commit::default(), should_shut_down))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::{
-        collections::HashMap,
         str::FromStr,
         sync::Arc,
     };
@@ -258,18 +292,16 @@ mod tests {
             VerificationKey,
         },
         primitive::v1::RollupId,
-        protocol::{
-            connect::v1::ExtendedCommitInfoWithCurrencyPairMapping,
-            transaction::v1::{
-                action::RollupDataSubmission,
-                Transaction,
-                TransactionBody,
-            },
+        protocol::transaction::v1::{
+            action::RollupDataSubmission,
+            Transaction,
+            TransactionBody,
         },
+        sequencerblock::v1::DataItem,
+        upgrades::v1::Upgrades,
         Protobuf as _,
     };
     use bytes::Bytes;
-    use prost::Message as _;
     use rand::rngs::OsRng;
     use telemetry::Metrics as _;
     use tendermint::{
@@ -284,14 +316,19 @@ mod tests {
 
     use super::*;
     use crate::{
-        app::benchmark_and_test_utils::{
-            mock_balances,
-            mock_tx_cost,
+        app::{
+            benchmark_and_test_utils::{
+                default_consensus_params,
+                mock_balances,
+                mock_tx_cost,
+            },
+            test_utils::transactions_with_extended_commit_info_and_commitments,
         },
         mempool::Mempool,
         metrics::Metrics,
-        proposal::commitment::generate_rollup_datas_commitment,
     };
+
+    const BLOCK_HEIGHT: u8 = 2;
 
     fn make_unsigned_tx() -> TransactionBody {
         TransactionBody::builder()
@@ -317,35 +354,24 @@ mod tests {
                 votes: vec![],
             }),
             misbehavior: vec![],
-            height: 1u32.into(),
+            height: BLOCK_HEIGHT.into(),
             time: Time::now(),
             next_validators_hash: Hash::default(),
             proposer_address: Id::from_str("0CDA3F47EF3C4906693B170EF650EB968C5F4B2C").unwrap(),
         }
     }
 
-    fn new_process_proposal_request(txs: Vec<Transaction>) -> request::ProcessProposal {
-        let extended_commit_info =
-            ExtendedCommitInfoWithCurrencyPairMapping::empty(0u16.into()).into_raw();
-        let commitments = generate_rollup_datas_commitment(&txs, HashMap::new());
-        let txs = commitments
-            .into_iter()
-            .chain(vec![extended_commit_info.encode_to_vec().into()])
-            .chain(
-                txs.into_iter()
-                    .map(|tx| tx.into_raw().encode_to_vec().into()),
-            )
-            .collect();
-
+    fn new_process_proposal_request(txs: &[Arc<Transaction>]) -> request::ProcessProposal {
+        let height = tendermint::block::Height::from(BLOCK_HEIGHT);
         request::ProcessProposal {
-            txs,
+            txs: transactions_with_extended_commit_info_and_commitments(height, txs, None),
             proposed_last_commit: Some(CommitInfo {
                 round: 0u16.into(),
                 votes: vec![],
             }),
             misbehavior: vec![],
             hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
-            height: 1u32.into(),
+            height,
             next_validators_hash: Hash::default(),
             time: Time::now(),
             proposer_address: Id::from_str("0CDA3F47EF3C4906693B170EF650EB968C5F4B2C").unwrap(),
@@ -356,7 +382,7 @@ mod tests {
     async fn prepare_and_process_proposal() {
         let signing_key = SigningKey::new(OsRng);
         let (mut consensus_service, mempool) =
-            new_consensus_service(Some(signing_key.verification_key()), 1).await;
+            new_consensus_service(Some(signing_key.verification_key())).await;
         let tx = make_unsigned_tx();
         let signed_tx = Arc::new(tx.sign(&signing_key));
         mempool
@@ -375,7 +401,7 @@ mod tests {
             .await
             .unwrap();
 
-        let process_proposal = new_process_proposal_request(vec![(*signed_tx).clone()]);
+        let process_proposal = new_process_proposal_request(&[signed_tx.clone()]);
         let expected_txs: Vec<Bytes> = process_proposal.txs.clone();
 
         assert_eq!(
@@ -386,7 +412,7 @@ mod tests {
         );
 
         let (mut consensus_service, _) =
-            new_consensus_service(Some(signing_key.verification_key()), 1).await;
+            new_consensus_service(Some(signing_key.verification_key())).await;
         consensus_service
             .handle_process_proposal(process_proposal)
             .await
@@ -397,10 +423,10 @@ mod tests {
     async fn process_proposal_ok() {
         let signing_key = SigningKey::new(OsRng);
         let (mut consensus_service, _) =
-            new_consensus_service(Some(signing_key.verification_key()), 1).await;
+            new_consensus_service(Some(signing_key.verification_key())).await;
         let tx = make_unsigned_tx();
-        let signed_tx = tx.sign(&signing_key);
-        let process_proposal = new_process_proposal_request(vec![signed_tx]);
+        let signed_tx = Arc::new(tx.sign(&signing_key));
+        let process_proposal = new_process_proposal_request(&[signed_tx]);
 
         consensus_service
             .handle_process_proposal(process_proposal)
@@ -410,69 +436,78 @@ mod tests {
 
     #[tokio::test]
     async fn process_proposal_fail_missing_action_commitment() {
-        let (mut consensus_service, _) = new_consensus_service(None, 1).await;
-        let mut process_proposal = new_process_proposal_request(vec![]);
+        let (mut consensus_service, _) = new_consensus_service(None).await;
+        let mut process_proposal = new_process_proposal_request(&[]);
         process_proposal.txs = vec![];
-        assert!(
+        let error_message = format!(
+            "{:#}",
             consensus_service
                 .handle_process_proposal(process_proposal)
                 .await
                 .err()
                 .unwrap()
-                .to_string()
-                .contains("no transaction commitment in proposal")
+        );
+        let expected = "did not contain the rollup transactions root";
+        assert!(
+            error_message.contains(expected),
+            "`{error_message}` didn't contain `{expected}`"
         );
     }
 
     #[tokio::test]
     async fn process_proposal_fail_wrong_commitment_length() {
-        let (mut consensus_service, _) = new_consensus_service(None, 1).await;
-        let mut process_proposal = new_process_proposal_request(vec![]);
+        let (mut consensus_service, _) = new_consensus_service(None).await;
+        let mut process_proposal = new_process_proposal_request(&[]);
         process_proposal.txs = vec![[0u8; 16].to_vec().into()];
-        let err = consensus_service
-            .handle_process_proposal(process_proposal)
-            .await
-            .err()
-            .unwrap()
-            .to_string();
-        assert!(err.contains("transaction commitment must be 32 bytes"));
-    }
-
-    #[tokio::test]
-    async fn process_proposal_fail_wrong_commitment_value() {
-        let (mut consensus_service, _) = new_consensus_service(None, 1).await;
-        let mut process_proposal = new_process_proposal_request(vec![]);
-        process_proposal.txs[0] = [99u8; 32].to_vec().into();
-        assert!(
+        let error_message = format!(
+            "{:#}",
             consensus_service
                 .handle_process_proposal(process_proposal)
                 .await
                 .err()
                 .unwrap()
-                .to_string()
-                .contains("transaction commitment does not match expected")
+        );
+        let expected = "item 0 of cometbft `block.data` could not be borsh-decoded";
+        assert!(
+            error_message.contains(expected),
+            "`{error_message}` didn't contain `{expected}`"
+        );
+    }
+
+    #[tokio::test]
+    async fn process_proposal_fail_wrong_commitment_value() {
+        let (mut consensus_service, _) = new_consensus_service(None).await;
+        let mut process_proposal = new_process_proposal_request(&[]);
+        process_proposal.txs[0] = DataItem::RollupTransactionsRoot([99u8; 32])
+            .encode()
+            .unwrap();
+        let error_message = format!(
+            "{:#}",
+            consensus_service
+                .handle_process_proposal(process_proposal)
+                .await
+                .err()
+                .unwrap()
+        );
+        let expected = "rollup transactions commitment does not match expected";
+        assert!(
+            error_message.contains(expected),
+            "`{error_message}` didn't contain `{expected}`"
         );
     }
 
     #[tokio::test]
     async fn prepare_proposal_empty_block() {
-        let (mut consensus_service, _) = new_consensus_service(None, 1).await;
-        let commitments = generate_rollup_datas_commitment(&[], HashMap::new());
+        let (mut consensus_service, _) = new_consensus_service(None).await;
         let prepare_proposal = new_prepare_proposal_request();
 
         let prepare_proposal_response = consensus_service
             .handle_prepare_proposal(prepare_proposal)
             .await
             .unwrap();
-        let expected_txs = commitments
-            .into_iter()
-            .chain(std::iter::once(
-                ExtendedCommitInfoWithCurrencyPairMapping::empty(0u16.into())
-                    .into_raw()
-                    .encode_to_vec()
-                    .into(),
-            ))
-            .collect();
+
+        let expected_txs =
+            transactions_with_extended_commit_info_and_commitments(BLOCK_HEIGHT.into(), &[], None);
         assert_eq!(
             prepare_proposal_response,
             response::PrepareProposal {
@@ -483,18 +518,15 @@ mod tests {
 
     #[tokio::test]
     async fn process_proposal_ok_empty_block() {
-        let (mut consensus_service, _) = new_consensus_service(None, 1).await;
-        let process_proposal = new_process_proposal_request(vec![]);
+        let (mut consensus_service, _) = new_consensus_service(None).await;
+        let process_proposal = new_process_proposal_request(&[]);
         consensus_service
             .handle_process_proposal(process_proposal)
             .await
             .unwrap();
     }
 
-    async fn new_consensus_service(
-        funded_key: Option<VerificationKey>,
-        vote_extensions_enable_height: u64,
-    ) -> (Consensus, Mempool) {
+    async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
         let accounts = if let Some(funded_key) = funded_key {
             vec![
                 astria_core::generated::astria::protocol::genesis::v1::Account {
@@ -523,6 +555,8 @@ mod tests {
         let mut app = App::new(
             snapshot,
             mempool.clone(),
+            Upgrades::default(),
+            String::new(),
             crate::app::vote_extension::Handler::new(None),
             metrics,
         )
@@ -533,28 +567,32 @@ mod tests {
             genesis_state,
             vec![],
             "test".to_string(),
-            vote_extensions_enable_height,
+            default_consensus_params(),
         )
         .await
         .unwrap();
-        app.commit(storage.clone()).await;
+        app.commit(storage.clone()).await.unwrap();
 
         let (_tx, rx) = mpsc::channel(1);
-        (Consensus::new(storage.clone(), app, rx), mempool)
+        let cancellation_token = tokio_util::sync::CancellationToken::new();
+        (
+            Consensus::new(storage.clone(), app, rx, cancellation_token),
+            mempool,
+        )
     }
 
     #[tokio::test]
     async fn block_lifecycle() {
         let signing_key = SigningKey::new(OsRng);
         let (mut consensus_service, mempool) =
-            new_consensus_service(Some(signing_key.verification_key()), 1).await;
+            new_consensus_service(Some(signing_key.verification_key())).await;
 
         let tx = make_unsigned_tx();
-        let signed_tx = tx.sign(&signing_key);
+        let signed_tx = Arc::new(tx.sign(&signing_key));
 
         mempool
             .insert(
-                Arc::new(signed_tx.clone()),
+                signed_tx.clone(),
                 0,
                 mock_balances(0, 0),
                 mock_tx_cost(0, 0, 0),
@@ -562,7 +600,7 @@ mod tests {
             .await
             .unwrap();
 
-        let process_proposal = new_process_proposal_request(vec![signed_tx]);
+        let process_proposal = new_process_proposal_request(&[signed_tx]);
         let txs = process_proposal.txs.clone();
         consensus_service
             .handle_request(ConsensusRequest::ProcessProposal(process_proposal))
@@ -571,7 +609,7 @@ mod tests {
 
         let finalize_block = request::FinalizeBlock {
             hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
-            height: 1u32.into(),
+            height: BLOCK_HEIGHT.into(),
             time: Time::now(),
             next_validators_hash: Hash::default(),
             proposer_address: [0u8; 20].to_vec().try_into().unwrap(),

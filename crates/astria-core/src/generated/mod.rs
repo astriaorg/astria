@@ -194,6 +194,19 @@ pub mod astria {
         #[path = "astria.composer.v1.rs"]
         pub mod v1;
     }
+
+    #[path = ""]
+    pub mod upgrades {
+        pub mod v1 {
+            include!("astria.upgrades.v1.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impl {
+                use super::*;
+                include!("astria.upgrades.v1.serde.rs");
+            }
+        }
+    }
 }
 
 #[path = ""]

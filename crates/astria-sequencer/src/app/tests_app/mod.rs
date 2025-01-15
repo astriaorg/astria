@@ -1,4 +1,5 @@
 mod mempool;
+mod upgrades;
 
 use std::collections::HashMap;
 
@@ -24,7 +25,6 @@ use astria_core::{
 };
 use benchmark_and_test_utils::{
     default_genesis_accounts,
-    initialize_app_with_storage,
     mock_balances,
     mock_tx_cost,
     BOB_ADDRESS,
@@ -62,7 +62,13 @@ use tendermint::{
 use super::*;
 use crate::{
     accounts::StateReadExt as _,
-    app::test_utils::*,
+    app::{
+        benchmark_and_test_utils::{
+            default_consensus_params,
+            AppInitializer,
+        },
+        test_utils::*,
+    },
     assets::StateReadExt as _,
     authority::{
         StateReadExt as _,
@@ -86,7 +92,7 @@ fn default_tendermint_header() -> Header {
         consensus_hash: Hash::default(),
         data_hash: Some(Hash::try_from([0u8; 32].to_vec()).unwrap()),
         evidence_hash: Some(Hash::default()),
-        height: Height::default(),
+        height: Height::from(2_u8),
         last_block_id: None,
         last_commit_hash: Some(Hash::default()),
         last_results_hash: Some(Hash::default()),
@@ -103,7 +109,7 @@ fn default_tendermint_header() -> Header {
 
 #[tokio::test]
 async fn app_genesis_and_init_chain() {
-    let app = initialize_app(None, vec![]).await;
+    let (app, _storage) = AppInitializer::new().init().await;
     assert_eq!(app.state.get_block_height().await.unwrap(), 0);
 
     for Account {
@@ -124,11 +130,15 @@ async fn app_genesis_and_init_chain() {
         app.state.get_native_asset().await.unwrap(),
         Some("nria".parse::<TracePrefixed>().unwrap()),
     );
+    assert_eq!(
+        app.state.get_consensus_params().await.unwrap(),
+        Some(default_consensus_params())
+    );
 }
 
 #[tokio::test]
 async fn app_pre_execute_transactions() {
-    let mut app = initialize_app(None, vec![]).await;
+    let (mut app, _storage) = AppInitializer::new().init().await;
 
     let block_data = BlockData {
         misbehavior: vec![],
@@ -163,7 +173,10 @@ async fn app_begin_block_remove_byzantine_validators() {
         },
     ];
 
-    let mut app = initialize_app(None, initial_validator_set.clone()).await;
+    let (mut app, _storage) = AppInitializer::new()
+        .with_genesis_validators(initial_validator_set.clone())
+        .init()
+        .await;
 
     let misbehavior = types::Misbehavior {
         kind: types::MisbehaviorKind::Unknown,
@@ -197,7 +210,7 @@ async fn app_begin_block_remove_byzantine_validators() {
 
 #[tokio::test]
 async fn app_commit() {
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = AppInitializer::new().init().await;
     assert_eq!(app.state.get_block_height().await.unwrap(), 0);
 
     for Account {
@@ -216,7 +229,7 @@ async fn app_commit() {
 
     // commit should write the changes to the underlying storage
     app.prepare_commit(storage.clone()).await.unwrap();
-    app.commit(storage.clone()).await;
+    app.commit(storage.clone()).await.unwrap();
 
     let snapshot = storage.latest_snapshot();
     assert_eq!(snapshot.get_block_height().await.unwrap(), 0);
@@ -238,7 +251,7 @@ async fn app_commit() {
 
 #[tokio::test]
 async fn app_transfer_block_fees_to_sudo() {
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = AppInitializer::new().init().await;
 
     let alice = get_alice_signing_key();
 
@@ -261,14 +274,19 @@ async fn app_transfer_block_fees_to_sudo() {
 
     let signed_tx = tx.sign(&alice);
 
+    let height = tendermint::block::Height::from(2_u8);
     let proposer_address: tendermint::account::Id = [99u8; 20].to_vec().try_into().unwrap();
     let finalize_block = abci::request::FinalizeBlock {
         hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
-        height: 1u32.into(),
+        height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address,
-        txs: transactions_with_extended_commit_info_and_commitments(&vec![signed_tx], None),
+        txs: transactions_with_extended_commit_info_and_commitments(
+            height,
+            &[Arc::new(signed_tx)],
+            None,
+        ),
         decided_last_commit: CommitInfo {
             votes: vec![],
             round: Round::default(),
@@ -278,7 +296,7 @@ async fn app_transfer_block_fees_to_sudo() {
     app.finalize_block(finalize_block, storage.clone())
         .await
         .unwrap();
-    app.commit(storage).await;
+    app.commit(storage).await.unwrap();
 
     // assert that transaction fees were transferred to the block proposer
     let transfer_base_fee = app
@@ -299,6 +317,10 @@ async fn app_transfer_block_fees_to_sudo() {
 }
 
 #[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "it's a test, so allow a lot of lines"
+)]
 async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     use astria_core::{
         generated::astria::sequencerblock::v1::RollupData as RawRollupData,
@@ -308,7 +330,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     use crate::grpc::StateReadExt as _;
 
     let alice = get_alice_signing_key();
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = AppInitializer::new().init().await;
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -340,7 +362,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         .unwrap();
     app.apply(state_tx);
     app.prepare_commit(storage.clone()).await.unwrap();
-    app.commit(storage.clone()).await;
+    app.commit(storage.clone()).await.unwrap();
 
     let amount = 100;
     let lock_action = BridgeLock {
@@ -375,13 +397,18 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     };
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
 
+    let height = tendermint::block::Height::from(2_u8);
     let finalize_block = abci::request::FinalizeBlock {
         hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
-        height: 1u32.into(),
+        height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs: transactions_with_extended_commit_info_and_commitments(&[signed_tx], Some(deposits)),
+        txs: transactions_with_extended_commit_info_and_commitments(
+            height,
+            &[Arc::new(signed_tx)],
+            Some(deposits),
+        ),
         decided_last_commit: CommitInfo {
             votes: vec![],
             round: Round::default(),
@@ -391,9 +418,13 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     app.finalize_block(finalize_block, storage.clone())
         .await
         .unwrap();
-    app.commit(storage).await;
+    app.commit(storage).await.unwrap();
 
-    let block = app.state.get_sequencer_block_by_height(1).await.unwrap();
+    let block = app
+        .state
+        .get_sequencer_block_by_height(height.value())
+        .await
+        .unwrap();
     let mut deposits = vec![];
     for (_, rollup_data) in block.rollup_transactions() {
         for tx in rollup_data.transactions() {
@@ -415,7 +446,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
 )]
 async fn app_execution_results_match_proposal_vs_after_proposal() {
     let alice = get_alice_signing_key();
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = AppInitializer::new().init().await;
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -431,7 +462,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         .unwrap();
     app.apply(state_tx);
     app.prepare_commit(storage.clone()).await.unwrap();
-    app.commit(storage.clone()).await;
+    app.commit(storage.clone()).await.unwrap();
 
     let amount = 100;
     let lock_action = BridgeLock {
@@ -453,7 +484,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         .try_build()
         .unwrap();
 
-    let signed_tx = tx.sign(&alice);
+    let signed_tx = Arc::new(tx.sign(&alice));
 
     let expected_deposit = Deposit {
         bridge_address,
@@ -468,13 +499,15 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
 
     let timestamp = Time::now();
     let block_hash = Hash::try_from([99u8; 32].to_vec()).unwrap();
+    let height = tendermint::block::Height::from(2_u8);
     let finalize_block = abci::request::FinalizeBlock {
         hash: block_hash,
-        height: 1u32.into(),
+        height,
         time: timestamp,
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
         txs: transactions_with_extended_commit_info_and_commitments(
+            height,
             &[signed_tx.clone()],
             Some(deposits),
         ),
@@ -496,18 +529,13 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     // this will reset the app state.
     // this simulates executing the same block as a validator (specifically the proposer).
     app.mempool
-        .insert(
-            Arc::new(signed_tx),
-            0,
-            mock_balances(0, 0),
-            mock_tx_cost(0, 0, 0),
-        )
+        .insert(signed_tx, 0, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
         .await
         .unwrap();
 
     let proposer_address = [88u8; 20].to_vec().try_into().unwrap();
     let prepare_proposal = PrepareProposal {
-        height: 1u32.into(),
+        height,
         time: timestamp,
         next_validators_hash: Hash::default(),
         proposer_address,
@@ -539,7 +567,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     // call process_proposal - should not re-execute anything.
     let process_proposal = abci::request::ProcessProposal {
         hash: block_hash,
-        height: 1u32.into(),
+        height,
         time: timestamp,
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
@@ -588,9 +616,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
 
 #[tokio::test]
 async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
-    app.prepare_commit(storage.clone()).await.unwrap();
-    app.commit(storage.clone()).await;
+    let (mut app, storage) = AppInitializer::new().init().await;
 
     // create txs which will cause cometBFT overflow
     let alice = get_alice_signing_key();
@@ -651,7 +677,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
             round: 0u16.into(),
         }),
         misbehavior: vec![],
-        height: Height::default(),
+        height: 2_u8.into(),
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: account::Id::new([1u8; 20]),
@@ -681,9 +707,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
 
 #[tokio::test]
 async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
-    app.prepare_commit(storage.clone()).await.unwrap();
-    app.commit(storage.clone()).await;
+    let (mut app, storage) = AppInitializer::new().init().await;
 
     // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
     let alice = get_alice_signing_key();
@@ -743,7 +767,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
             round: 0u16.into(),
         }),
         misbehavior: vec![],
-        height: Height::default(),
+        height: 2_u8.into(),
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: account::Id::new([1u8; 20]),
@@ -773,9 +797,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
 
 #[tokio::test]
 async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
-    app.prepare_commit(storage.clone()).await.unwrap();
-    app.commit(storage.clone()).await;
+    let (mut app, storage) = AppInitializer::new().init().await;
 
     // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
     let alice = get_alice_signing_key();
@@ -807,15 +829,16 @@ async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
         .unwrap()
         .sign(&alice);
 
-    let txs: Vec<Transaction> = vec![tx_pass, tx_overflow];
+    let txs = vec![Arc::new(tx_pass), Arc::new(tx_overflow)];
 
+    let height = tendermint::block::Height::from(2_u8);
     let process_proposal = ProcessProposal {
         hash: Hash::default(),
-        height: 1u32.into(),
+        height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs: transactions_with_extended_commit_info_and_commitments(&txs, None),
+        txs: transactions_with_extended_commit_info_and_commitments(height, &txs, None),
         proposed_last_commit: Some(CommitInfo {
             votes: vec![],
             round: 0u16.into(),
@@ -836,9 +859,7 @@ async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
 
 #[tokio::test]
 async fn app_process_proposal_transaction_fails_to_execute_fails() {
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
-    app.prepare_commit(storage.clone()).await.unwrap();
-    app.commit(storage.clone()).await;
+    let (mut app, storage) = AppInitializer::new().init().await;
 
     // create txs which will cause transaction execution failure
     let alice = get_alice_signing_key();
@@ -854,15 +875,16 @@ async fn app_process_proposal_transaction_fails_to_execute_fails() {
         .unwrap()
         .sign(&alice);
 
-    let txs: Vec<Transaction> = vec![tx_fail];
+    let txs = vec![Arc::new(tx_fail)];
 
+    let height = tendermint::block::Height::from(2_u8);
     let process_proposal = ProcessProposal {
         hash: Hash::default(),
-        height: 1u32.into(),
+        height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs: transactions_with_extended_commit_info_and_commitments(&txs, None),
+        txs: transactions_with_extended_commit_info_and_commitments(height, &txs, None),
         proposed_last_commit: Some(CommitInfo {
             votes: vec![],
             round: 0u16.into(),
@@ -894,7 +916,10 @@ async fn app_end_block_validator_updates() {
         },
     ];
 
-    let mut app = initialize_app(None, initial_validator_set).await;
+    let (mut app, _storage) = AppInitializer::new()
+        .with_genesis_validators(initial_validator_set)
+        .init()
+        .await;
     let proposer_address = [0u8; 20];
 
     let validator_updates = vec![

@@ -1,16 +1,30 @@
 use std::sync::Arc;
 
 use astria_core::{
-    generated::astria::sequencerblock::v1::{
-        sequencer_service_server::SequencerService,
-        FilteredSequencerBlock as RawFilteredSequencerBlock,
-        GetFilteredSequencerBlockRequest,
-        GetPendingNonceRequest,
-        GetPendingNonceResponse,
-        GetSequencerBlockRequest,
-        SequencerBlock as RawSequencerBlock,
+    generated::{
+        astria::sequencerblock::v1::{
+            sequencer_service_server::SequencerService,
+            FilteredSequencerBlock as RawFilteredSequencerBlock,
+            GetFilteredSequencerBlockRequest,
+            GetPendingNonceRequest,
+            GetPendingNonceResponse,
+            GetSequencerBlockRequest,
+            SequencerBlock as RawSequencerBlock,
+        },
+        sequencerblock::v1::{
+            GetUpgradesInfoRequest,
+            GetUpgradesInfoResponse,
+        },
     },
     primitive::v1::RollupId,
+    sequencerblock::v1::block::{
+        ExtendedCommitInfoWithProof,
+        UpgradeChangeHashesWithProof,
+    },
+    upgrades::v1::{
+        Upgrade,
+        Upgrades,
+    },
     Protobuf,
 };
 use bytes::Bytes;
@@ -35,13 +49,15 @@ use crate::{
 pub(crate) struct SequencerServer {
     storage: Storage,
     mempool: Mempool,
+    upgrades: Upgrades,
 }
 
 impl SequencerServer {
-    pub(crate) fn new(storage: Storage, mempool: Mempool) -> Self {
+    pub(crate) fn new(storage: Storage, mempool: Mempool, upgrades: Upgrades) -> Self {
         Self {
             storage,
             mempool,
+            upgrades,
         }
     }
 }
@@ -134,21 +150,21 @@ impl SequencerService for SequencerServer {
                 Status::internal(format!("failed to get rollup ids proof from storage: {e}"))
             })?;
 
-        let extended_commit_info = snapshot
-            .get_extended_commit_info(&block_hash)
+        let upgrade_change_hashes_with_proof = snapshot
+            .get_upgrade_change_hashes_with_proof(&block_hash)
             .await
             .map_err(|e| {
                 Status::internal(format!(
-                    "failed to get extended commit info from storage: {e}"
+                    "failed to get upgrade change hashes with proof from storage: {e}"
                 ))
             })?;
 
-        let extended_commit_info_proof = snapshot
-            .get_extended_commit_info_proof_by_block_hash(&block_hash)
+        let extended_commit_info_with_proof = snapshot
+            .get_extended_commit_info_with_proof(&block_hash)
             .await
             .map_err(|e| {
                 Status::internal(format!(
-                    "failed to get extended commit info proof from storage: {e}"
+                    "failed to get extended commit info with proof from storage: {e}"
                 ))
             })?;
 
@@ -184,8 +200,10 @@ impl SequencerService for SequencerServer {
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
             all_rollup_ids,
-            extended_commit_info,
-            extended_commit_info_proof: extended_commit_info_proof.map(merkle::Proof::into_raw),
+            upgrade_change_hashes_with_proof: upgrade_change_hashes_with_proof
+                .map(UpgradeChangeHashesWithProof::into_raw),
+            extended_commit_info_with_proof: extended_commit_info_with_proof
+                .map(ExtendedCommitInfoWithProof::into_raw),
         };
 
         Ok(Response::new(block))
@@ -237,6 +255,27 @@ impl SequencerService for SequencerServer {
             inner: nonce,
         }))
     }
+
+    #[instrument(skip_all)]
+    async fn get_upgrades_info(
+        self: Arc<Self>,
+        _request: Request<GetUpgradesInfoRequest>,
+    ) -> Result<Response<GetUpgradesInfoResponse>, Status> {
+        let snapshot = self.storage.latest_snapshot();
+        let current_block_height = snapshot.get_block_height().await.map_err(|e| {
+            Status::internal(format!("failed to get block height from storage: {e:#}"))
+        })?;
+        let mut response = GetUpgradesInfoResponse::default();
+        for change in self.upgrades.iter().flat_map(Upgrade::changes) {
+            let change_info = change.info().to_raw();
+            if change_info.activation_height <= current_block_height {
+                response.applied.push(change_info);
+            } else {
+                response.scheduled.push(change_info);
+            }
+        }
+        Ok(Response::new(response))
+    }
 }
 
 #[cfg(test)]
@@ -281,7 +320,11 @@ mod tests {
         state_tx.put_sequencer_block(block).unwrap();
         storage.commit(state_tx).await.unwrap();
 
-        let server = Arc::new(SequencerServer::new(storage.clone(), mempool));
+        let server = Arc::new(SequencerServer::new(
+            storage.clone(),
+            mempool,
+            Upgrades::default(),
+        ));
         let request = GetSequencerBlockRequest {
             height: 1,
         };
@@ -330,7 +373,11 @@ mod tests {
             .await
             .unwrap();
 
-        let server = Arc::new(SequencerServer::new(storage.clone(), mempool));
+        let server = Arc::new(SequencerServer::new(
+            storage.clone(),
+            mempool,
+            Upgrades::default(),
+        ));
         let request = GetPendingNonceRequest {
             address: Some(alice_address.into_raw()),
         };
@@ -352,7 +399,11 @@ mod tests {
         state_tx.put_account_nonce(&alice_address, 99).unwrap();
         storage.commit(state_tx).await.unwrap();
 
-        let server = Arc::new(SequencerServer::new(storage.clone(), mempool));
+        let server = Arc::new(SequencerServer::new(
+            storage.clone(),
+            mempool,
+            Upgrades::default(),
+        ));
         let request = GetPendingNonceRequest {
             address: Some(alice_address.into_raw()),
         };
