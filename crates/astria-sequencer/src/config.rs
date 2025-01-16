@@ -18,7 +18,7 @@ use url::Url;
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
     /// The endpoint on which Sequencer will listen for ABCI requests
-    pub abci_listener_url: AbciListenUrl,
+    pub abci_listen_url: AbciListenUrl,
     /// The path to penumbra storage db.
     pub db_filepath: PathBuf,
     /// Log level: debug, info, warn, or error

@@ -75,6 +75,6 @@ data:
   {{- if not .Values.global.dev }}
   ASTRIA_SEQUENCER_LISTEN_ADDR: "127.0.0.1:{{ .Values.ports.sequencerABCI }}"
   {{- else }}
-  ASTRIA_SEQUENCER_ABCI_LISTENER_URL: "{{ include "sequencer.abci_url" . }}"
+  ASTRIA_SEQUENCER_ABCI_LISTEN_URL: "{{ include "sequencer.abci_url" . }}"
   {{- end }}
 ---

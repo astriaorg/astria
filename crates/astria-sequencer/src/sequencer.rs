@@ -110,12 +110,12 @@ impl Sequencer {
             .wrap_err("failed to parse grpc_addr address")?;
         let grpc_server_handle = start_grpc_server(&storage, mempool, grpc_addr, shutdown_rx);
 
-        span.in_scope(|| info!(%config.abci_listener_url, "starting abci sequencer"));
+        span.in_scope(|| info!(%config.abci_listen_url, "starting abci sequencer"));
         let abci_server_handle = start_abci_server(
             &storage,
             app,
             mempool_service,
-            config.abci_listener_url,
+            config.abci_listen_url,
             server_exit_tx,
         )
         .wrap_err("failed to start ABCI server")?;

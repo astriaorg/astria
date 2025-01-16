@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add ASTRIA_SEQUENCER_ABCI_LISTENER_URL config variable [#1877](https://github.com/astriaorg/astria/pull/1877)
+- Add ASTRIA_SEQUENCER_ABCI_LISTEN_URL config variable [#1877](https://github.com/astriaorg/astria/pull/1877)
 
 ## [1.0.0] - 2024-10-25
 
