@@ -5,7 +5,6 @@ use std::{
         ready,
         Poll,
     },
-    time::Duration,
 };
 
 use astria_eyre::eyre::{
