@@ -6,7 +6,10 @@ use std::{
 
 use astria_core::{
     primitive::v1::RollupId,
-    sequencerblock::v1::block::SequencerBlockHeader,
+    sequencerblock::v1::block::{
+        self,
+        SequencerBlockHeader,
+    },
 };
 use astria_eyre::eyre::{
     self,
@@ -103,12 +106,16 @@ use crate::{
 #[derive(Clone, Debug)]
 pub(crate) struct ReconstructedBlock {
     pub(crate) celestia_height: u64,
-    pub(crate) block_hash: [u8; 32],
+    pub(crate) block_hash: block::Hash,
     pub(crate) header: SequencerBlockHeader,
     pub(crate) transactions: Vec<Bytes>,
 }
 
 impl ReconstructedBlock {
+    pub(crate) fn block_hash(&self) -> &block::Hash {
+        &self.block_hash
+    }
+
     pub(crate) fn sequencer_height(&self) -> SequencerHeight {
         self.header.height()
     }
@@ -459,7 +466,7 @@ impl RunningReader {
                     error = %eyre::Report::new(e),
                     source_celestia_height = celestia_height,
                     sequencer_height,
-                    block_hash = %base64(&block_hash),
+                    block_hash = %block_hash,
                     "failed pushing reconstructed block into sequential cache; dropping it",
                 );
             }
