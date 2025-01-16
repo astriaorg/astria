@@ -1,17 +1,10 @@
-use std::{
-    fmt::Display,
-    net::SocketAddr,
-    path::PathBuf,
-    str::FromStr,
-};
-
 use astria_core::generated::astria::sequencerblock::v1::sequencer_service_server::SequencerServiceServer;
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
+        self,
         eyre,
         OptionExt as _,
-        Report,
         Result,
         WrapErr as _,
     },
@@ -19,10 +12,6 @@ use astria_eyre::{
 use penumbra_tower_trace::{
     trace::request_span,
     v038::RequestExt as _,
-};
-use serde::{
-    Deserialize,
-    Serialize,
 };
 use telemetry::metrics::register_histogram_global;
 use tendermint::v0_38::abci::ConsensusRequest;
@@ -45,11 +34,13 @@ use tracing::{
     info,
     info_span,
 };
-use url::Url;
 
 use crate::{
     app::App,
-    config::Config,
+    config::{
+        AbciListenUrl,
+        Config,
+    },
     grpc::sequencer::SequencerServer,
     ibc::host_interface::AstriaHost,
     mempool::Mempool,
@@ -205,8 +196,7 @@ fn start_abci_server(
     mempool_service: service::Mempool,
     listen_url: AbciListenUrl,
     server_exit_tx: oneshot::Sender<()>,
-) -> Result<JoinHandle<()>, Report> {
-    // Setup services required for the ABCI server
+) -> eyre::Result<JoinHandle<()>> {
     let consensus_service = tower::ServiceBuilder::new()
         .layer(request_span::layer(|req: &ConsensusRequest| {
             req.create_span()
@@ -219,7 +209,6 @@ fn start_abci_server(
         service::Info::new(storage.clone()).wrap_err("failed initializing info service")?;
     let snapshot_service = service::Snapshot;
 
-    // Builds the server but does not start listening.
     let server = Server::builder()
         .consensus(consensus_service)
         .info(info_service)
@@ -278,148 +267,5 @@ fn spawn_signal_handler() -> SignalReceiver {
 
     SignalReceiver {
         stop_rx,
-    }
-}
-
-#[derive(Debug)]
-pub enum AbciListenUrl {
-    Tcp(SocketAddr),
-    Uds(PathBuf),
-}
-
-impl Display for AbciListenUrl {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AbciListenUrl::Tcp(socket_addr) => write!(f, "tcp://{socket_addr}"),
-            AbciListenUrl::Uds(path) => write!(f, "uds://{}", path.display()),
-        }
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum AbciListenUrlParseError {
-    #[error(
-        "parsed input as a tcp address `{parsed}`, but could not turn it into a socket address"
-    )]
-    TcpButBadSocketAddr { parsed: Url, source: std::io::Error },
-    #[error("parsed input as a uds address `{parsed}`, but could not turn it into a path")]
-    UdsButBadPath { parsed: Url },
-    #[error(
-        "parsed input as `{parsed}`, but scheme `scheme` is not suppported; supported schemes are \
-         tcp, uds"
-    )]
-    UnsupportedScheme { parsed: Url, scheme: String },
-    #[error("failed parsing input as URL")]
-    Url {
-        #[from]
-        source: url::ParseError,
-    },
-}
-
-impl FromStr for AbciListenUrl {
-    type Err = AbciListenUrlParseError;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let abci_url = Url::parse(s)?;
-
-        match abci_url.scheme() {
-            "uds" => {
-                if let Ok(path) = abci_url.to_file_path() {
-                    Ok(Self::Uds(path))
-                } else {
-                    Err(Self::Err::UdsButBadPath {
-                        parsed: abci_url,
-                    })
-                }
-            }
-            "tcp" => match abci_url.socket_addrs(|| None) {
-                Ok(mut socket_addrs) => {
-                    let socket_addr = socket_addrs.pop().expect(
-                        "the url crate is guaranteed to return vec with exactly one element \
-                         because it relies on std::net::ToSocketAddrs::to_socket_addr; if this is \
-                         no longer the case there was a breaking change in the url crate",
-                    );
-                    Ok(Self::Tcp(socket_addr))
-                }
-                Err(source) => {
-                    return Err(Self::Err::TcpButBadSocketAddr {
-                        parsed: abci_url,
-                        source,
-                    });
-                }
-            },
-            // If more options are added here will also need to update the server startup
-            // immediately below to support more than two protocols.
-            other => Err(Self::Err::UnsupportedScheme {
-                parsed: abci_url.clone(),
-                scheme: other.to_string(),
-            }),
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for AbciListenUrl {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let s = std::borrow::Cow::<'_, str>::deserialize(deserializer)?;
-        FromStr::from_str(&s).map_err(serde::de::Error::custom)
-    }
-}
-
-impl Serialize for AbciListenUrl {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.collect_str(self)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::path::Path;
-
-    use super::AbciListenUrl;
-
-    #[test]
-    fn uds_input_is_parsed_as_abci_listen_url() {
-        let expected = "/path/to/unix.sock";
-        match format!("uds://{expected}")
-            .parse::<AbciListenUrl>()
-            .unwrap()
-        {
-            AbciListenUrl::Uds(actual) => {
-                assert_eq!(AsRef::<Path>::as_ref(expected), actual.as_path(),)
-            }
-            other => panic!("expected uds, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn tcp_input_is_parsed_as_abci_listen_url() {
-        let expected = "127.0.0.1:0";
-        match format!("tcp://{expected}")
-            .parse::<AbciListenUrl>()
-            .unwrap()
-        {
-            AbciListenUrl::Tcp(actual) => {
-                assert_eq!(expected, actual.to_string());
-            }
-            other => panic!("expected tcp, got {other:?}"),
-        }
-    }
-
-    // NOTE: the only genuine new error variant is AbciListenUrl. Tests for other error paths are
-    // not provided because they are fundamentally wrappers of url crate errors.
-    #[test]
-    fn http_is_not_valid_abci_listen_scheme() {
-        match "http://astria.org".parse::<AbciListenUrl>().unwrap_err() {
-            super::AbciListenUrlParseError::UnsupportedScheme {
-                scheme, ..
-            } => assert_eq!("http", scheme),
-            other => panic!("expected AbciListenUrlParseError::UnsupportedScheme, got `{other:?}`"),
-        }
     }
 }
