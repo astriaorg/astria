@@ -33,7 +33,6 @@ use astria_core::{
             GenesisAppState,
         },
         transaction::v1::action::{
-            AddCurrencyPairs,
             BridgeLock,
             BridgeSudoChange,
             BridgeUnlock,
@@ -43,7 +42,7 @@ use astria_core::{
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
-            RemoveCurrencyPairs,
+            PriceFeed,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
@@ -245,8 +244,7 @@ fn proto_genesis_state() -> astria_core::generated::astria::protocol::genesis::v
             ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0).to_raw()),
             sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0).to_raw()),
             ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0).to_raw()),
-            add_currency_pairs: Some(FeeComponents::<AddCurrencyPairs>::new(0, 0).to_raw()),
-            remove_currency_pairs: Some(FeeComponents::<RemoveCurrencyPairs>::new(0, 0).to_raw()),
+            price_feed: Some(FeeComponents::<PriceFeed>::new(0, 0).to_raw()),
         }),
     }
 }
