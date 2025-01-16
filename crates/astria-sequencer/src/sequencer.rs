@@ -220,7 +220,7 @@ fn start_abci_server(
     let server_handle = tokio::spawn(async move {
         let server_listen_result = match listen_url {
             AbciListenUrl::Tcp(socket_addr) => server.listen_tcp(socket_addr).await,
-            AbciListenUrl::Uds(path) => server.listen_unix(path).await,
+            AbciListenUrl::Unix(path) => server.listen_unix(path).await,
         };
         match server_listen_result {
             Ok(()) => {
