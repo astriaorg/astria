@@ -250,15 +250,11 @@ message PriceFeed {
 // Add or remove currency pairs to/from the price feed oracle.
 message CurrencyPairsChange {
   oneof value {
-    CurrencyPairsToAdd addition = 1;
-    CurrencyPairsToRemove removal = 2;
+    CurrencyPairs addition = 1;
+    CurrencyPairs removal = 2;
   }
 }
 
-message CurrencyPairsToAdd {
-  repeated connect.types.v2.CurrencyPair pairs = 1;
-}
-
-message CurrencyPairsToRemove {
+message CurrencyPairs {
   repeated connect.types.v2.CurrencyPair pairs = 1;
 }

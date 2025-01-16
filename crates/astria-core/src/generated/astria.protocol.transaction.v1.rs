@@ -505,9 +505,9 @@ pub mod currency_pairs_change {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Value {
         #[prost(message, tag = "1")]
-        Addition(super::CurrencyPairsToAdd),
+        Addition(super::CurrencyPairs),
         #[prost(message, tag = "2")]
-        Removal(super::CurrencyPairsToRemove),
+        Removal(super::CurrencyPairs),
     }
 }
 impl ::prost::Name for CurrencyPairsChange {
@@ -519,29 +519,14 @@ impl ::prost::Name for CurrencyPairsChange {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CurrencyPairsToAdd {
+pub struct CurrencyPairs {
     #[prost(message, repeated, tag = "1")]
     pub pairs: ::prost::alloc::vec::Vec<
         super::super::super::super::connect::types::v2::CurrencyPair,
     >,
 }
-impl ::prost::Name for CurrencyPairsToAdd {
-    const NAME: &'static str = "CurrencyPairsToAdd";
-    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
-    }
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CurrencyPairsToRemove {
-    #[prost(message, repeated, tag = "1")]
-    pub pairs: ::prost::alloc::vec::Vec<
-        super::super::super::super::connect::types::v2::CurrencyPair,
-    >,
-}
-impl ::prost::Name for CurrencyPairsToRemove {
-    const NAME: &'static str = "CurrencyPairsToRemove";
+impl ::prost::Name for CurrencyPairs {
+    const NAME: &'static str = "CurrencyPairs";
     const PACKAGE: &'static str = "astria.protocol.transaction.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
