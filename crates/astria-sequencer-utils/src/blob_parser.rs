@@ -304,7 +304,7 @@ impl BriefSequencerBlockMetadata {
             .map(RollupId::to_string)
             .collect();
         BriefSequencerBlockMetadata {
-            sequencer_block_hash: BASE64_STANDARD.encode(metadata.block_hash),
+            sequencer_block_hash: BASE64_STANDARD.encode(metadata.block_hash.as_bytes()),
             sequencer_block_header: PrintableSequencerBlockHeader::from(&metadata.header),
             rollup_ids,
         }
@@ -343,7 +343,7 @@ impl VerboseSequencerBlockMetadata {
             .map(RollupId::to_string)
             .collect();
         VerboseSequencerBlockMetadata {
-            sequencer_block_hash: BASE64_STANDARD.encode(metadata.block_hash),
+            sequencer_block_hash: BASE64_STANDARD.encode(metadata.block_hash.as_bytes()),
             sequencer_block_header: PrintableSequencerBlockHeader::from(&metadata.header),
             rollup_ids,
             rollup_transactions_proof: PrintableMerkleProof::from(
@@ -380,7 +380,8 @@ struct BriefRollupData {
 impl BriefRollupData {
     fn new(rollup_data: &UncheckedSubmittedRollupData) -> Self {
         BriefRollupData {
-            sequencer_block_hash: BASE64_STANDARD.encode(rollup_data.sequencer_block_hash),
+            sequencer_block_hash: BASE64_STANDARD
+                .encode(rollup_data.sequencer_block_hash.as_bytes()),
             rollup_id: rollup_data.rollup_id.to_string(),
             transaction_count: rollup_data.transactions.len(),
         }
@@ -655,7 +656,8 @@ impl VerboseRollupData {
             .collect();
         let item_count = transactions_and_deposits.len();
         VerboseRollupData {
-            sequencer_block_hash: BASE64_STANDARD.encode(rollup_data.sequencer_block_hash),
+            sequencer_block_hash: BASE64_STANDARD
+                .encode(rollup_data.sequencer_block_hash.as_bytes()),
             rollup_id: rollup_data.rollup_id.to_string(),
             transactions_and_deposits,
             item_count,

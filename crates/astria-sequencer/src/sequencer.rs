@@ -54,26 +54,6 @@ impl Sequencer {
         register_histogram_global("cnidarium_nonverifiable_get_raw_duration_seconds");
         let span = info_span!("Sequencer::run_until_stopped");
 
-        if config
-            .db_filepath
-            .try_exists()
-            .context("failed checking for existence of db storage file")?
-        {
-            span.in_scope(|| {
-                info!(
-                    path = %config.db_filepath.display(),
-                    "opening storage db"
-                );
-            });
-        } else {
-            span.in_scope(|| {
-                info!(
-                    path = %config.db_filepath.display(),
-                    "creating storage db"
-                );
-            });
-        }
-
         let mut signals = spawn_signal_handler();
 
         let substore_prefixes = vec![penumbra_ibc::IBC_SUBSTORE_PREFIX];
