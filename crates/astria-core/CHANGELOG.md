@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Bump MSRV to 1.83.0 [#1857](https://github.com/astriaorg/astria/pull/1857).
 - Move `astria_core::crypto` to `astria-core-crypto` and reexport
   `astria_core_crypto as crypto` (this change is transparent)
   [#1800](https://github.com/astriaorg/astria/pull/1800/).

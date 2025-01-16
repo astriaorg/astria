@@ -89,8 +89,8 @@ pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1::GenesisFees 
     }
 }
 
-pub(crate) fn proto_genesis_state()
--> astria_core::generated::astria::protocol::genesis::v1::GenesisAppState {
+pub(crate) fn proto_genesis_state(
+) -> astria_core::generated::astria::protocol::genesis::v1::GenesisAppState {
     use astria_core::generated::astria::protocol::genesis::v1::{
         GenesisAppState,
         IbcParameters,

@@ -113,7 +113,7 @@ struct ContainedTxLock<'a> {
     txs: RwLockWriteGuard<'a, HashSet<[u8; 32]>>,
 }
 
-impl<'a> ContainedTxLock<'a> {
+impl ContainedTxLock<'_> {
     fn add(&mut self, id: [u8; 32]) {
         if !self.txs.insert(id) {
             self.mempool.metrics.increment_internal_logic_error();
@@ -1043,12 +1043,10 @@ mod tests {
         );
 
         // Check the pending nonce for an address with no txs is `None`.
-        assert!(
-            mempool
-                .pending_nonce(astria_address_from_hex_string(CAROL_ADDRESS).as_bytes())
-                .await
-                .is_none()
-        );
+        assert!(mempool
+            .pending_nonce(astria_address_from_hex_string(CAROL_ADDRESS).as_bytes())
+            .await
+            .is_none());
     }
 
     #[tokio::test]
