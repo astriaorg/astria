@@ -244,7 +244,7 @@ mod tests {
 
         state
             .put_validator_set(ValidatorSet::new_from_updates(vec![
-                validator_update_1.clone(),
+                validator_update_1.clone()
             ]))
             .unwrap();
 

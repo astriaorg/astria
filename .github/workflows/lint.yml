@@ -72,7 +72,7 @@ jobs:
         uses: taiki-e/install-action@just
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: nightly-2024-09-15
+          toolchain: nightly-2024-10-03
           components: rustfmt
       - name: run rustfmt
         run: just lint rust-fmt
