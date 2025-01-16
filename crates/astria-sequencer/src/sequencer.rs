@@ -410,4 +410,16 @@ mod tests {
             other => panic!("expected tcp, got {other:?}"),
         }
     }
+
+    // NOTE: the only genuine new error variant is AbciListenUrl. Tests for other error paths are
+    // not provided because they are fundamentally wrappers of url crate errors.
+    #[test]
+    fn http_is_not_valid_abci_listen_scheme() {
+        match "http://astria.org".parse::<AbciListenUrl>().unwrap_err() {
+            super::AbciListenUrlParseError::UnsupportedScheme {
+                scheme, ..
+            } => assert_eq!("http", scheme),
+            other => panic!("expected AbciListenUrlParseError::UnsupportedScheme, got `{other:?}`"),
+        }
+    }
 }
