@@ -2219,12 +2219,12 @@ impl Protobuf for CurrencyPairsChange {
     fn into_raw(self) -> Self::Raw {
         let raw = match self {
             CurrencyPairsChange::Addition(pairs) => {
-                raw::currency_pairs_change::Value::Addition(raw::CurrencyPairsToAdd {
+                raw::currency_pairs_change::Value::Addition(raw::CurrencyPairs {
                     pairs: pairs.into_iter().map(CurrencyPair::into_raw).collect(),
                 })
             }
             CurrencyPairsChange::Removal(pairs) => {
-                raw::currency_pairs_change::Value::Removal(raw::CurrencyPairsToRemove {
+                raw::currency_pairs_change::Value::Removal(raw::CurrencyPairs {
                     pairs: pairs.into_iter().map(CurrencyPair::into_raw).collect(),
                 })
             }
@@ -2247,7 +2247,7 @@ impl Protobuf for CurrencyPairsChange {
     /// - if any of the `pairs` field is invalid
     fn try_from_raw(raw: raw::CurrencyPairsChange) -> Result<Self, Self::Error> {
         match raw.value {
-            Some(raw::currency_pairs_change::Value::Addition(raw::CurrencyPairsToAdd {
+            Some(raw::currency_pairs_change::Value::Addition(raw::CurrencyPairs {
                 pairs,
             })) => {
                 let pairs = pairs
@@ -2257,7 +2257,7 @@ impl Protobuf for CurrencyPairsChange {
                     .map_err(Self::Error::invalid_currency_pair)?;
                 Ok(Self::Addition(pairs))
             }
-            Some(raw::currency_pairs_change::Value::Removal(raw::CurrencyPairsToRemove {
+            Some(raw::currency_pairs_change::Value::Removal(raw::CurrencyPairs {
                 pairs,
             })) => {
                 let pairs = pairs
