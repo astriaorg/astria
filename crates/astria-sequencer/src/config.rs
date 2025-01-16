@@ -103,12 +103,10 @@ impl FromStr for AbciListenUrl {
                     );
                     Ok(Self::Tcp(socket_addr))
                 }
-                Err(source) => {
-                    return Err(Self::Err::TcpButBadSocketAddr {
-                        parsed: abci_url,
-                        source,
-                    });
-                }
+                Err(source) => Err(Self::Err::TcpButBadSocketAddr {
+                    parsed: abci_url,
+                    source,
+                }),
             },
             // If more options are added here will also need to update the server startup
             // immediately below to support more than two protocols.
@@ -155,12 +153,17 @@ mod tests {
     #[test]
     fn uds_input_is_parsed_as_abci_listen_url() {
         let expected = "/path/to/unix.sock";
+        #[expect(
+            clippy::match_wildcard_for_single_variants,
+            reason = "intended to match all future variants because the test is only valid for a \
+                      single variant"
+        )]
         match format!("uds://{expected}")
             .parse::<AbciListenUrl>()
             .unwrap()
         {
             AbciListenUrl::Uds(actual) => {
-                assert_eq!(AsRef::<std::path::Path>::as_ref(expected), actual.as_path(),)
+                assert_eq!(AsRef::<std::path::Path>::as_ref(expected), actual.as_path(),);
             }
             other => panic!("expected uds, got {other:?}"),
         }
@@ -169,6 +172,11 @@ mod tests {
     #[test]
     fn tcp_input_is_parsed_as_abci_listen_url() {
         let expected = "127.0.0.1:0";
+        #[expect(
+            clippy::match_wildcard_for_single_variants,
+            reason = "intended to match all future variants because the test is only valid for a \
+                      single variant"
+        )]
         match format!("tcp://{expected}")
             .parse::<AbciListenUrl>()
             .unwrap()
