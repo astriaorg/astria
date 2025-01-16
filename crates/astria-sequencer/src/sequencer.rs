@@ -1,3 +1,10 @@
+use std::{
+    fmt::Display,
+    net::SocketAddr,
+    path::PathBuf,
+    str::FromStr,
+};
+
 use astria_core::generated::astria::sequencerblock::v1::sequencer_service_server::SequencerServiceServer;
 use astria_eyre::{
     anyhow_to_eyre,
@@ -12,6 +19,10 @@ use astria_eyre::{
 use penumbra_tower_trace::{
     trace::request_span,
     v038::RequestExt as _,
+};
+use serde::{
+    Deserialize,
+    Serialize,
 };
 use telemetry::metrics::register_histogram_global;
 use tendermint::v0_38::abci::ConsensusRequest;
@@ -108,12 +119,12 @@ impl Sequencer {
             .wrap_err("failed to parse grpc_addr address")?;
         let grpc_server_handle = start_grpc_server(&storage, mempool, grpc_addr, shutdown_rx);
 
-        span.in_scope(|| info!(config.abci_listener_url, "starting abci sequencer"));
+        span.in_scope(|| info!(%config.abci_listener_url, "starting abci sequencer"));
         let abci_server_handle = start_abci_server(
             &storage,
             app,
             mempool_service,
-            &config.abci_listener_url,
+            config.abci_listener_url,
             server_exit_tx,
         )
         .wrap_err("failed to start ABCI server")?;
@@ -192,7 +203,7 @@ fn start_abci_server(
     storage: &cnidarium::Storage,
     app: App,
     mempool_service: service::Mempool,
-    listen_url: &str,
+    listen_url: AbciListenUrl,
     server_exit_tx: oneshot::Sender<()>,
 ) -> Result<JoinHandle<()>, Report> {
     // Setup services required for the ABCI server
@@ -217,37 +228,10 @@ fn start_abci_server(
         .finish()
         .ok_or_eyre("server builder didn't return server; are all fields set?")?;
 
-    // Validate and parse the listen_url received from the config.
-    let abci_url = Url::parse(listen_url).wrap_err("failed to parse listen_addr")?;
-    let validated_listen_addr = match abci_url.scheme() {
-        "unix" => match abci_url.to_file_path() {
-            Ok(_) => Ok(abci_url.path().to_string()),
-            Err(e) => Err(eyre!(
-                "failed parsing unix listen_addr file path, error: {:?}",
-                e
-            )),
-        },
-        "tcp" => {
-            let host_str = abci_url
-                .host_str()
-                .ok_or_eyre("missing host in tcp listen_addr")?;
-            let port = abci_url
-                .port()
-                .ok_or_eyre("missing port in tcp listen_addr")?;
-            Ok(format!("{host_str}:{port}"))
-        }
-        // If more options are added here will also need to update the server startup
-        // immediately below to support more than two protocols.
-        _ => Err(eyre!(
-            "unsupported protocol in `abci_listener_url`, only unix and tcp are supported"
-        )),
-    }?;
-
     let server_handle = tokio::spawn(async move {
-        let server_listen_result = if abci_url.scheme() == "unix" {
-            server.listen_unix(validated_listen_addr).await
-        } else {
-            server.listen_tcp(validated_listen_addr).await
+        let server_listen_result = match listen_url {
+            AbciListenUrl::Tcp(socket_addr) => server.listen_tcp(socket_addr).await,
+            AbciListenUrl::Uds(path) => server.listen_unix(path).await,
         };
         match server_listen_result {
             Ok(()) => {
@@ -294,5 +278,101 @@ fn spawn_signal_handler() -> SignalReceiver {
 
     SignalReceiver {
         stop_rx,
+    }
+}
+
+#[derive(Debug)]
+pub enum AbciListenUrl {
+    Tcp(SocketAddr),
+    Uds(PathBuf),
+}
+
+impl Display for AbciListenUrl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AbciListenUrl::Tcp(socket_addr) => write!(f, "tcp://{socket_addr}"),
+            AbciListenUrl::Uds(path) => write!(f, "uds://{}", path.display()),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum AbciListenUrlParseError {
+    #[error(
+        "parsed input as a tcp address `{parsed}`, but could not turn it into a socket address"
+    )]
+    TcpButBadSocketAddr { parsed: Url, source: std::io::Error },
+    #[error("parsed input as a uds address `{parsed}`, but could not turn it into a path")]
+    UdsButBadPath { parsed: Url },
+    #[error(
+        "parsed input as `{parsed}`, but scheme `scheme` is not suppported; supported schemes are \
+         tcp, uds"
+    )]
+    UnsupportedScheme { parsed: Url, scheme: String },
+    #[error("failed parsing input as URL")]
+    Url {
+        #[from]
+        source: url::ParseError,
+    },
+}
+
+impl FromStr for AbciListenUrl {
+    type Err = AbciListenUrlParseError;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        let abci_url = Url::parse(s)?;
+
+        match abci_url.scheme() {
+            "uds" => {
+                if let Ok(path) = abci_url.to_file_path() {
+                    Ok(Self::Uds(path))
+                } else {
+                    Err(Self::Err::UdsButBadPath {
+                        parsed: abci_url,
+                    })
+                }
+            }
+            "tcp" => match abci_url.socket_addrs(|| None) {
+                Ok(mut socket_addrs) => {
+                    let socket_addr = socket_addrs.pop().expect(
+                        "the url crate is guaranteed to return vec with exactly one element \
+                         because it relies on std::net::ToSocketAddrs::to_socket_addr; if this is \
+                         no longer the case there was a breaking change in the url crate",
+                    );
+                    Ok(Self::Tcp(socket_addr))
+                }
+                Err(source) => {
+                    return Err(Self::Err::TcpButBadSocketAddr {
+                        parsed: abci_url,
+                        source,
+                    });
+                }
+            },
+            // If more options are added here will also need to update the server startup
+            // immediately below to support more than two protocols.
+            other => Err(Self::Err::UnsupportedScheme {
+                parsed: abci_url.clone(),
+                scheme: other.to_string(),
+            }),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for AbciListenUrl {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = std::borrow::Cow::<'_, str>::deserialize(deserializer)?;
+        FromStr::from_str(&s).map_err(serde::de::Error::custom)
+    }
+}
+
+impl Serialize for AbciListenUrl {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.collect_str(self)
     }
 }

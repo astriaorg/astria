@@ -5,6 +5,8 @@ use serde::{
     Serialize,
 };
 
+use crate::sequencer::AbciListenUrl;
+
 #[expect(
     clippy::struct_excessive_bools,
     reason = "this is used as a container for deserialization. Making this a builder-pattern is \
@@ -13,7 +15,7 @@ use serde::{
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
     /// The endpoint on which Sequencer will listen for ABCI requests
-    pub abci_listener_url: String,
+    pub abci_listener_url: AbciListenUrl,
     /// The path to penumbra storage db.
     pub db_filepath: PathBuf,
     /// Log level: debug, info, warn, or error
