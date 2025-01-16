@@ -376,3 +376,38 @@ impl Serialize for AbciListenUrl {
         serializer.collect_str(self)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::AbciListenUrl;
+
+    #[test]
+    fn uds_input_is_parsed_as_abci_listen_url() {
+        let expected = "/path/to/unix.sock";
+        match format!("uds://{expected}")
+            .parse::<AbciListenUrl>()
+            .unwrap()
+        {
+            AbciListenUrl::Uds(actual) => {
+                assert_eq!(AsRef::<Path>::as_ref(expected), actual.as_path(),)
+            }
+            other => panic!("expected uds, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn tcp_input_is_parsed_as_abci_listen_url() {
+        let expected = "127.0.0.1:0";
+        match format!("tcp://{expected}")
+            .parse::<AbciListenUrl>()
+            .unwrap()
+        {
+            AbciListenUrl::Tcp(actual) => {
+                assert_eq!(expected, actual.to_string());
+            }
+            other => panic!("expected tcp, got {other:?}"),
+        }
+    }
+}
