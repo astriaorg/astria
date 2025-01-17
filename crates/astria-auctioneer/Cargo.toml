@@ -23,11 +23,13 @@ bytes = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 humantime = { workspace = true }
+hyper = { workspace = true }
 itertools = { workspace = true }
 pbjson-types = { workspace = true }
 prost = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true, features = [
   "macros",
   "rt-multi-thread",
@@ -41,13 +43,11 @@ tryhard = { workspace = true }
 tonic = { workspace = true }
 tokio-stream = { workspace = true, features = ["sync"] }
 
-pin-project-lite = "0.2.15"
-tower-http = { version = "0.4.4", features = ["map-response-body", "trace"] }
-tower = { version = "0.5.1", features = ["util"] }
-hyper.workspace = true
 http = "0.2.11"
 http-body = "0.4.5"
-thiserror.workspace = true
+pin-project-lite = "0.2.15"
+tower = { version = "0.5.1", features = ["util"] }
+tower-http = { version = "0.4.4", features = ["map-response-body", "trace"] }
 
 [dev-dependencies]
 config = { package = "astria-config", path = "../astria-config", features = [
