@@ -125,14 +125,12 @@ impl Bid {
         let allocation_data = allocation.into_raw().encode_to_vec();
 
         TransactionBody::builder()
-            .actions(vec![
-                RollupDataSubmission {
-                    rollup_id,
-                    data: allocation_data.into(),
-                    fee_asset,
-                }
-                .into(),
-            ])
+            .actions(vec![RollupDataSubmission {
+                rollup_id,
+                data: allocation_data.into(),
+                fee_asset,
+            }
+            .into()])
             .nonce(nonce)
             .chain_id(chain_id)
             .try_build()

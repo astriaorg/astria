@@ -110,13 +110,12 @@ where
         if this.opening_stream.is_some() {
             debug_assert!(this.running_stream.is_none());
 
-            let open_output = ready!(
-                this.opening_stream
-                    .as_mut()
-                    .as_pin_mut()
-                    .expect("inside a branch that checks opening_stream == Some")
-                    .poll_unpin(cx)
-            );
+            let open_output = ready!(this
+                .opening_stream
+                .as_mut()
+                .as_pin_mut()
+                .expect("inside a branch that checks opening_stream == Some")
+                .poll_unpin(cx));
 
             // The future has completed, unset it so it will not be polled again.
             Pin::set(&mut this.opening_stream, None);
@@ -129,13 +128,13 @@ where
         if this.running_stream.is_some() {
             debug_assert!(this.opening_stream.is_none());
 
-            if let Some(item) = ready!(
-                this.running_stream
-                    .as_mut()
-                    .as_pin_mut()
-                    .expect("inside a branch that checks running_stream == Some")
-                    .poll_next_unpin(cx)
-            ) {
+            if let Some(item) = ready!(this
+                .running_stream
+                .as_mut()
+                .as_pin_mut()
+                .expect("inside a branch that checks running_stream == Some")
+                .poll_next_unpin(cx))
+            {
                 return Poll::Ready(Some(item));
             }
 
