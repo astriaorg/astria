@@ -370,4 +370,32 @@ mod tests {
         };
         assert_eq!(native, expected);
     }
+
+    #[tokio::test]
+    async fn bridge_account_last_tx_hash_ok() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+
+        let bridge_address = astria_address(&[0u8; 20]);
+        let tx_id = astria_core::primitive::v1::TransactionId::new([0u8; 32]);
+        state.put_block_height(1).unwrap();
+        state
+            .put_last_transaction_id_for_bridge_account(&bridge_address, tx_id)
+            .unwrap();
+        storage.commit(state).await.unwrap();
+
+        let query = request::Query {
+            data: vec![].into(),
+            path: "path".to_string(),
+            height: 0u32.into(),
+            prove: false,
+        };
+
+        let params = vec![("address".to_string(), bridge_address.to_string())];
+        let resp = bridge_account_last_tx_hash_request(storage.clone(), query, params).await;
+        assert_eq!(resp.code, 0.into(), "{}", resp.log);
+    }
 }
