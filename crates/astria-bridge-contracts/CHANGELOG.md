@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Update `idna` dependency to resolve cargo audit warning [#1869](https://github.com/astriaorg/astria/pull/1869).
+
+### Fixed
+
 - Read the provided contract's `decimals` function, falling back to a hardcoded
   value of 18 if the call fails.
   [#1762](https://github.com/astriaorg/astria/pull/1762)
@@ -16,3 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Initial release.
+
+### Fixed
+
+- Fixed ICS20 withdrawal source when using channel with more than one
+  port/channel combo. [#1768](https://github.com/astriaorg/astria/pull/1768)

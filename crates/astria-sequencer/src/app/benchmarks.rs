@@ -61,7 +61,7 @@ impl Fixture {
             .collect::<Vec<_>>();
         let first_address = accounts.first().cloned().unwrap().address;
         let genesis_state = GenesisAppState::try_from_raw(
-            astria_core::generated::protocol::genesis::v1::GenesisAppState {
+            astria_core::generated::astria::protocol::genesis::v1::GenesisAppState {
                 accounts,
                 authority_sudo_address: first_address.clone(),
                 ibc_sudo_address: first_address.clone(),
@@ -93,7 +93,7 @@ impl Fixture {
 }
 
 #[divan::bench(max_time = MAX_TIME)]
-fn execute_transactions_prepare_proposal(bencher: divan::Bencher) {
+fn prepare_proposal_tx_execution(bencher: divan::Bencher) {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -105,7 +105,7 @@ fn execute_transactions_prepare_proposal(bencher: divan::Bencher) {
             let (_tx_bytes, included_txs) = runtime.block_on(async {
                 fixture
                     .app
-                    .execute_transactions_prepare_proposal(constraints)
+                    .prepare_proposal_tx_execution(constraints)
                     .await
                     .unwrap()
             });

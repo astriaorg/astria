@@ -13,12 +13,42 @@ default_docker_tag := 'local'
 default_repo_name := 'ghcr.io/astriaorg'
 
 # Builds docker image for the crate. Defaults to 'local' tag.
-docker-build crate tag=default_docker_tag repo_name=default_repo_name:
-  docker buildx build --load --build-arg TARGETBINARY={{crate}} -f containerfiles/Dockerfile -t {{repo_name}}/{{crate}}:{{tag}} .
+# NOTE: `_crate_short_name` is invoked as dependency of this command so that failure to pass a valid
+# binary will produce a meaningful error message.
+docker-build crate tag=default_docker_tag repo_name=default_repo_name: (_crate_short_name crate "quiet")
+  #!/usr/bin/env sh
+  set -eu
+  short_name=$(just _crate_short_name {{crate}})
+  set -x
+  docker buildx build --load --build-arg TARGETBINARY={{crate}} -f containerfiles/Dockerfile -t {{repo_name}}/$short_name:{{tag}} .
 
-docker-build-and-load crate tag=default_docker_tag repo_name=default_repo_name:
-  @just docker-build {{crate}} {{tag}} {{repo_name}}
-  @just load-image {{crate}} {{tag}} {{repo_name}}
+# Builds and loads docker image for the crate. Defaults to 'local' tag.
+# NOTE: `_crate_short_name` is invoked as dependency of this command so that failure to pass a valid
+# binary will produce a meaningful error message.
+docker-build-and-load crate tag=default_docker_tag repo_name=default_repo_name: (_crate_short_name crate "quiet")
+  #!/usr/bin/env sh
+  set -eu
+  short_name=$(just _crate_short_name {{crate}})
+  set -x
+  just docker-build {{crate}} {{tag}} {{repo_name}}
+  just load-image $short_name {{tag}} {{repo_name}}
+
+# Maps a crate name to the shortened name used in the docker tag.
+# If `quiet` is an empty string the shortened name will be echoed. If `quiet` is a non-empty string,
+# the only output will be in the case of an error, where the input `crate` is not a valid one.
+_crate_short_name crate quiet="":
+  #!/usr/bin/env sh
+  set -eu
+  case {{crate}} in
+    astria-bridge-withdrawer) short_name=bridge-withdrawer ;;
+    astria-cli) short_name=astria-cli ;;
+    astria-composer) short_name=composer ;;
+    astria-conductor) short_name=conductor ;;
+    astria-sequencer) short_name=sequencer ;;
+    astria-sequencer-relayer) short_name=sequencer-relayer ;;
+    *) echo "{{crate}} is not a supported binary" && exit 2
+  esac
+  [ -z {{quiet}} ] && echo $short_name || true
 
 # Installs the astria rust cli from local codebase
 install-cli:
@@ -43,6 +73,8 @@ fmt lang=default_lang:
   @just _fmt-{{lang}}
 
 # Can lint 'rust', 'toml', 'proto', 'md' or 'all'. Defaults to all.
+# Can also run the following sub-lints for rust: 'rust-fmt', 'rust-clippy',
+# 'rust-clippy-custom', 'rust-clippy-tools', 'rust-dylint'
 lint lang=default_lang:
   @just _lint-{{lang}}
 
@@ -59,13 +91,43 @@ _fmt-all:
 
 [no-exit-message]
 _fmt-rust:
-  cargo +nightly-2024-09-15 fmt --all
+  cargo +nightly-2024-10-03 fmt --all
 
 [no-exit-message]
 _lint-rust:
-  cargo +nightly-2024-09-15 fmt --all -- --check
-  cargo clippy -- --warn clippy::pedantic
-  cargo dylint --all
+  just _lint-rust-fmt
+  just _lint-rust-clippy
+  just _lint-rust-clippy-custom
+  just _lint-rust-clippy-tools
+  just _lint-rust-dylint
+
+[no-exit-message]
+_lint-rust-fmt:
+  cargo +nightly-2024-10-03 fmt --all -- --check
+
+[no-exit-message]
+_lint-rust-clippy:
+  cargo clippy --version
+  cargo clippy --all-targets --all-features \
+          -- --warn clippy::pedantic --warn clippy::arithmetic-side-effects \
+          --warn clippy::allow_attributes --warn clippy::allow_attributes_without_reason \
+          --deny warnings
+
+[no-exit-message]
+_lint-rust-clippy-custom:
+  cargo +nightly-2024-10-03 clippy --all-targets --all-features \
+          -p tracing_debug_field \
+          -- --warn clippy::pedantic --deny warnings
+
+[no-exit-message]
+_lint-rust-clippy-tools:
+  cargo clippy --manifest-path tools/protobuf-compiler/Cargo.toml \
+          --all-targets --all-features \
+          -- --warn clippy::pedantic --deny warnings
+
+[no-exit-message]
+_lint-rust-dylint:
+  cargo dylint --all --workspace
 
 [no-exit-message]
 _fmt-toml:

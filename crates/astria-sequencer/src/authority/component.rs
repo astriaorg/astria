@@ -13,7 +13,10 @@ use tendermint::abci::request::{
     BeginBlock,
     EndBlock,
 };
-use tracing::instrument;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use super::{
     StateReadExt,
@@ -35,7 +38,7 @@ pub(crate) struct AuthorityComponentAppState {
 impl Component for AuthorityComponent {
     type AppState = AuthorityComponentAppState;
 
-    #[instrument(name = "AuthorityComponent::init_chain", skip_all)]
+    #[instrument(name = "AuthorityComponent::init_chain", skip_all, err)]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
         // set sudo key and initial validator set
         state
@@ -48,7 +51,7 @@ impl Component for AuthorityComponent {
         Ok(())
     }
 
-    #[instrument(name = "AuthorityComponent::begin_block", skip_all)]
+    #[instrument(name = "AuthorityComponent::begin_block", skip_all, err(level = Level::WARN))]
     async fn begin_block<S: StateWriteExt + 'static>(
         state: &mut Arc<S>,
         begin_block: &BeginBlock,
@@ -70,7 +73,7 @@ impl Component for AuthorityComponent {
         Ok(())
     }
 
-    #[instrument(name = "AuthorityComponent::end_block", skip_all)]
+    #[instrument(name = "AuthorityComponent::end_block", skip_all, err(level = Level::WARN))]
     async fn end_block<S: StateWriteExt + StateReadExt + 'static>(
         state: &mut Arc<S>,
         _end_block: &EndBlock,

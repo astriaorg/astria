@@ -99,13 +99,13 @@ impl From<TracePrefixed> for Denom {
     }
 }
 
-impl<'a> From<&'a IbcPrefixed> for Denom {
+impl From<&IbcPrefixed> for Denom {
     fn from(value: &IbcPrefixed) -> Self {
         Self::IbcPrefixed(*value)
     }
 }
 
-impl<'a> From<&'a TracePrefixed> for Denom {
+impl From<&TracePrefixed> for Denom {
     fn from(value: &TracePrefixed) -> Self {
         Self::TracePrefixed(value.clone())
     }
@@ -117,7 +117,7 @@ impl From<TracePrefixed> for IbcPrefixed {
     }
 }
 
-impl<'a> From<&'a TracePrefixed> for IbcPrefixed {
+impl From<&TracePrefixed> for IbcPrefixed {
     fn from(value: &TracePrefixed) -> Self {
         value.to_ibc_prefixed()
     }
@@ -129,13 +129,13 @@ impl From<Denom> for IbcPrefixed {
     }
 }
 
-impl<'a> From<&'a Denom> for IbcPrefixed {
+impl From<&Denom> for IbcPrefixed {
     fn from(value: &Denom) -> Self {
         value.to_ibc_prefixed()
     }
 }
 
-impl<'a> From<&'a IbcPrefixed> for IbcPrefixed {
+impl From<&IbcPrefixed> for IbcPrefixed {
     fn from(value: &IbcPrefixed) -> Self {
         *value
     }
@@ -305,9 +305,23 @@ impl TracePrefixed {
         self.trace.leading_channel() == Some(channel.as_ref())
     }
 
+    /// Returns the ICS20 channel in the left-most position.
+    ///
+    /// Returns `None` if the denom only contains a base and has no path segments.
+    /// A path segment is a pair `"<port>/<channel>"`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use astria_core::primitive::v1::asset::denom::TracePrefixed;
+    /// let has_leading = "four/segments/of/a/denom".parse::<TracePrefixed>().unwrap();
+    /// let no_leading = "no_segments".parse::<TracePrefixed>().unwrap();
+    /// assert_eq!(has_leading.leading_channel(), Some("segments"));
+    /// assert_eq!(no_leading.leading_channel(), None);
+    /// ```
     #[must_use]
-    pub fn last_channel(&self) -> Option<&str> {
-        self.trace.last_channel()
+    pub fn leading_channel(&self) -> Option<&str> {
+        self.trace.leading_channel()
     }
 
     pub fn pop_leading_port_and_channel(&mut self) -> Option<PortAndChannel> {
@@ -433,10 +447,6 @@ impl TraceSegments {
 
     fn pop(&mut self) -> Option<PortAndChannel> {
         self.inner.pop_front()
-    }
-
-    fn last_channel(&self) -> Option<&str> {
-        self.inner.back().map(|segment| &*segment.channel)
     }
 
     fn is_empty(&self) -> bool {
@@ -782,10 +792,10 @@ mod serde_impl {
         }
         #[test]
         fn snapshots() {
-            insta::assert_json_snapshot!(ibc_prefixed());
-            insta::assert_json_snapshot!(trace_prefixed());
-            insta::assert_json_snapshot!(Denom::from(ibc_prefixed()));
-            insta::assert_json_snapshot!(Denom::from(trace_prefixed()));
+            insta::assert_json_snapshot!("ibc_prefixed", ibc_prefixed());
+            insta::assert_json_snapshot!("trace_prefixed", trace_prefixed());
+            insta::assert_json_snapshot!("ibc_prefixed_denom", Denom::from(ibc_prefixed()));
+            insta::assert_json_snapshot!("trace_prefixed_denom", Denom::from(trace_prefixed()));
         }
     }
 }

@@ -77,9 +77,16 @@ use crate::{
 mod conversion;
 use conversion::NextSubmission;
 
+/// A simple, passive object to allow the Celestia fee to be returned along with the
+/// `StartedSubmission` state when attempting to submit.
+struct StartedSubmissionAndFee {
+    new_state: StartedSubmission,
+    fee: Option<u64>,
+}
+
 #[derive(Clone)]
 pub(super) struct BlobSubmitterHandle {
-    tx: mpsc::Sender<SequencerBlock>,
+    tx: mpsc::Sender<Box<SequencerBlock>>,
 }
 
 impl BlobSubmitterHandle {
@@ -88,8 +95,8 @@ impl BlobSubmitterHandle {
     /// This is a thin wrapper around [`mpsc::Sender::try_send`].
     pub(super) fn try_send(
         &self,
-        block: SequencerBlock,
-    ) -> Result<(), TrySendError<SequencerBlock>> {
+        block: Box<SequencerBlock>,
+    ) -> Result<(), TrySendError<Box<SequencerBlock>>> {
         self.tx.try_send(block)
     }
 
@@ -98,8 +105,8 @@ impl BlobSubmitterHandle {
     /// This is a thin wrapper around [`mpsc::Sender::send`].
     pub(super) async fn send(
         &self,
-        block: SequencerBlock,
-    ) -> Result<(), SendError<SequencerBlock>> {
+        block: Box<SequencerBlock>,
+    ) -> Result<(), SendError<Box<SequencerBlock>>> {
         self.tx.send(block).await
     }
 }
@@ -109,7 +116,7 @@ pub(super) struct BlobSubmitter {
     client_builder: CelestiaClientBuilder,
 
     /// The channel over which sequencer blocks are received.
-    blocks: mpsc::Receiver<SequencerBlock>,
+    blocks: mpsc::Receiver<Box<SequencerBlock>>,
 
     /// The accumulator of all data that will be submitted to Celestia on the next submission.
     next_submission: NextSubmission,
@@ -246,7 +253,7 @@ impl BlobSubmitter {
                             sequencer_height = %block.height(),
                             "skipping sequencer block as already included in previous submission"
                         ));
-                    } else if let Err(error) = self.add_sequencer_block_to_next_submission(block) {
+                    } else if let Err(error) = self.add_sequencer_block_to_next_submission(*block) {
                         break Err(error).wrap_err(
                             "critically failed adding Sequencer block to next submission"
                         );
@@ -349,10 +356,12 @@ async fn submit_blobs(
     started_submission: StartedSubmission,
     metrics: &'static Metrics,
 ) -> eyre::Result<StartedSubmission> {
+    let total_data_uncompressed_size = data.uncompressed_size();
+    let total_data_compressed_size = data.compressed_size();
     info!(
         blocks = %telemetry::display::json(&data.input_metadata()),
-        total_data_uncompressed_size = data.uncompressed_size(),
-        total_data_compressed_size = data.compressed_size(),
+        total_data_uncompressed_size,
+        total_data_compressed_size,
         compression_ratio = data.compression_ratio(),
         "initiated submission of sequencer blocks converted to Celestia blobs",
     );
@@ -368,7 +377,10 @@ async fn submit_blobs(
     let largest_sequencer_height = data.greatest_sequencer_height();
     let blobs = data.into_blobs();
 
-    let new_state = submit_with_retry(
+    let StartedSubmissionAndFee {
+        new_state,
+        fee,
+    } = submit_with_retry(
         client,
         blobs,
         state.clone(),
@@ -383,6 +395,17 @@ async fn submit_blobs(
     metrics.absolute_set_sequencer_submission_height(largest_sequencer_height.value());
     metrics.absolute_set_celestia_submission_height(celestia_height);
     metrics.record_celestia_submission_latency(start.elapsed());
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "precision loss here is unlikely, but is acceptable for these metrics"
+    )]
+    if let Some(fee) = fee {
+        metrics.set_celestia_fees_total_utia(fee);
+        let cost_uncompressed = fee as f64 / total_data_uncompressed_size as f64;
+        metrics.set_celestia_fees_utia_per_uncompressed_blob_byte(cost_uncompressed);
+        let cost_compressed = fee as f64 / total_data_compressed_size as f64;
+        metrics.set_celestia_fees_utia_per_compressed_blob_byte(cost_compressed);
+    }
 
     info!(%celestia_height, "successfully submitted blobs to Celestia");
 
@@ -453,7 +476,7 @@ async fn submit_with_retry(
     started_submission: StartedSubmission,
     largest_sequencer_height: SequencerHeight,
     metrics: &'static Metrics,
-) -> eyre::Result<StartedSubmission> {
+) -> eyre::Result<StartedSubmissionAndFee> {
     // Moving the span into `on_retry`, because tryhard spawns these in a tokio
     // task, losing the span.
     let span = Span::current();
@@ -501,7 +524,7 @@ async fn submit_with_retry(
 
     let blobs = Arc::new(blobs);
 
-    let final_state = tryhard::retry_fn(move || {
+    let final_state_and_fee = tryhard::retry_fn(move || {
         try_submit(
             client.clone(),
             blobs.clone(),
@@ -514,7 +537,7 @@ async fn submit_with_retry(
     .in_current_span()
     .await
     .wrap_err("finished trying to submit")?;
-    Ok(final_state)
+    Ok(final_state_and_fee)
 }
 
 #[instrument(skip_all, err(level = Level::WARN))]
@@ -524,7 +547,7 @@ async fn try_submit(
     started_submission: StartedSubmission,
     largest_sequencer_height: SequencerHeight,
     last_error_receiver: watch::Receiver<Option<SubmissionError>>,
-) -> Result<StartedSubmission, SubmissionError> {
+) -> Result<StartedSubmissionAndFee, SubmissionError> {
     // Get the error from the last attempt to `try_submit`.
     let maybe_last_error = last_error_receiver.borrow().clone();
     let maybe_try_submit_error = match maybe_last_error {
@@ -534,7 +557,10 @@ async fn try_submit(
                 try_confirm_submission_from_failed_attempt(client.clone(), prepared_submission)
                     .await?
             {
-                return Ok(new_state);
+                return Ok(StartedSubmissionAndFee {
+                    new_state,
+                    fee: None,
+                });
             }
             None
         }
@@ -545,18 +571,23 @@ async fn try_submit(
         None => None,
     };
 
-    let blob_tx = client.try_prepare(blobs, maybe_try_submit_error).await?;
-    let blob_tx_hash = BlobTxHash::compute(&blob_tx);
+    let blob_tx_and_fee = client.try_prepare(blobs, maybe_try_submit_error).await?;
+    let blob_tx_hash = BlobTxHash::compute(&blob_tx_and_fee.tx);
 
     let prepared_submission = started_submission
         .into_prepared(largest_sequencer_height, blob_tx_hash)
         .await
         .map_err(|error| SubmissionError::Unrecoverable(Arc::new(error)))?;
 
-    match client.try_submit(blob_tx_hash, blob_tx).await {
+    let fee = blob_tx_and_fee.fee;
+    match client.try_submit(blob_tx_hash, blob_tx_and_fee.tx).await {
         Ok(celestia_height) => prepared_submission
             .into_started(celestia_height)
             .await
+            .map(|new_state| StartedSubmissionAndFee {
+                new_state,
+                fee: Some(fee),
+            })
             .map_err(|error| SubmissionError::Unrecoverable(Arc::new(error))),
         Err(TrySubmitError::FailedToBroadcastTx(error)) if error.is_timeout() => {
             Err(SubmissionError::BroadcastTxTimedOut(prepared_submission))

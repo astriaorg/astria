@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Update `idna` dependency to resolve cargo audit warning [#1869](https://github.com/astriaorg/astria/pull/1869).
+
+## [1.0.1] - 2024-11-01
+
+### Changed
+
+- Bump MSRV to 1.83.0 [#1857](https://github.com/astriaorg/astria/pull/1857).
+
+### Fixed
+
+- Set `batch_total_settled_value` metric to 0 when no withdrawals are settled [#1778](https://github.com/astriaorg/astria/pull/1768)
+- Fixed ICS20 withdrawal source when using channel with more than one
+  port/channel combo.[#1768](https://github.com/astriaorg/astria/pull/1768)
+
 ## [1.0.0] - 2024-10-25
 
 ### Changed
@@ -93,7 +109,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release of EVM Withdrawer.
 
-[unreleased]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.0...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.1...HEAD
+[1.0.1]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.0...bridge-withdrawer-v1.0.1
 [1.0.0]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.0-rc.2...bridge-withdrawer-v1.0.0
 [1.0.0-rc.2]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.0-rc.1...bridge-withdrawer-v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v0.3.0...bridge-withdrawer-v1.0.0-rc.1
