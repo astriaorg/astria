@@ -1,8 +1,3 @@
-pub(crate) mod optimistic;
-pub(crate) mod sequencer;
-mod state_ext;
-pub(crate) mod storage;
-
 use std::{
     future::Future,
     time::Duration,
@@ -37,6 +32,11 @@ use crate::{
     mempool::Mempool,
 };
 
+pub(crate) mod optimistic;
+pub(crate) mod sequencer;
+mod state_ext;
+pub(crate) mod storage;
+
 /// Time for the background tasks supporting gRPC services to shutdown gracefully before being
 /// aborted.
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_millis(1500);
@@ -68,16 +68,8 @@ impl BackgroundTasks {
     }
 
     fn display_running_tasks(&self) -> String {
-        let mut list: String = "[".into();
-        let mut keys = self.tasks.keys().peekable();
-        while let Some(key) = keys.next() {
-            list.push_str(key);
-            if keys.peek().is_some() {
-                list.push(',');
-            }
-        }
-        list.push(']');
-        list
+        use itertools::Itertools as _;
+        format!("[{}]", self.tasks.keys().format(","))
     }
 
     fn spawn<F>(&mut self, key: &'static str, task: F)

@@ -875,6 +875,7 @@ dependencies = [
  "ibc-proto",
  "ibc-types",
  "insta",
+ "itertools 0.12.1",
  "maplit",
  "matchit",
  "penumbra-ibc",
