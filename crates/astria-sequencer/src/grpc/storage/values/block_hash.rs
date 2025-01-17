@@ -25,7 +25,7 @@ pub(in crate::grpc) struct BlockHash<'a>(Cow<'a, [u8; 32]>);
 // NOTE(janis): Is it confusing that the display impl at the service level is hex,
 // while here it's base64? This probably makes sense because storage is closer to
 // the wire format, which itself followes the base64 pbjson convention.
-impl<'a> Debug for BlockHash<'a> {
+impl Debug for BlockHash<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", base64(self.0.as_slice()))
     }

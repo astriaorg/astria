@@ -351,11 +351,10 @@ mod tests {
             .await
             .err()
             .unwrap();
-        assert!(
-            err.root_cause()
-                .to_string()
-                .contains(&other_asset.to_ibc_prefixed().to_string())
-        );
+        assert!(err
+            .root_cause()
+            .to_string()
+            .contains(&other_asset.to_ibc_prefixed().to_string()));
     }
 
     #[tokio::test]

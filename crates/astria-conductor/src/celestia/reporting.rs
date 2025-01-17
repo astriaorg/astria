@@ -11,7 +11,7 @@ use super::{
 };
 
 pub(super) struct ReportReconstructedBlocks<'a>(pub(super) &'a ReconstructedBlocks);
-impl<'a> Serialize for ReportReconstructedBlocks<'a> {
+impl Serialize for ReportReconstructedBlocks<'_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -25,7 +25,7 @@ impl<'a> Serialize for ReportReconstructedBlocks<'a> {
 }
 
 struct ReportReconstructedBlocksSeq<'a>(&'a [ReconstructedBlock]);
-impl<'a> Serialize for ReportReconstructedBlocksSeq<'a> {
+impl Serialize for ReportReconstructedBlocksSeq<'_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -39,7 +39,7 @@ impl<'a> Serialize for ReportReconstructedBlocksSeq<'a> {
 }
 
 struct ReportReconstructedBlock<'a>(&'a ReconstructedBlock);
-impl<'a> Serialize for ReportReconstructedBlock<'a> {
+impl Serialize for ReportReconstructedBlock<'_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -61,7 +61,7 @@ impl<'a> Serialize for ReportReconstructedBlock<'a> {
 
 struct SerializeDisplay<'a, T>(&'a T);
 
-impl<'a, T> Serialize for SerializeDisplay<'a, T>
+impl<T> Serialize for SerializeDisplay<'_, T>
 where
     T: std::fmt::Display,
 {
