@@ -1,5 +1,5 @@
 use std::{
-    fmt::Write,
+    fmt::Write as _,
     time::Duration,
 };
 
