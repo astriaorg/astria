@@ -47,13 +47,22 @@ pub(crate) type InstrumentedChannel = BoxCloneService<
 >;
 
 pub(crate) fn make_instrumented_channel(uri: &str) -> eyre::Result<InstrumentedChannel> {
-    // NOTE(janis): understand what an appropriate setting for timeout or connect_timeout would be.
-    // We do not set timeouts or connect_timeouts because it's not clear what
-    // the correct behavior with streams is intended to be. For example, when connecting
-    // to the rollup's auction stream, receiving a bid is gated on the rollup first executing
-    // an optimistic block, which can take several seconds.
+    // TODO(janis): understand what an appropriate setting for timeout or connect_timeout would be.
+    //
+    // We *do not* set timeouts because it's not clear what the correct behavior with streams is
+    // intended to be.
+    //
+    // On a first connection to the auction service of the rollup, it can take several seconds
+    // before any bids are received (because auctioneer first has to forward proposed blocks,
+    // followed by an optimistic execution, and finally geth receiving bids based on that
+    // optimistically executed block which it can then forward to auctioneer).
+    //
+    // We *do* set connect_timeout because that is for establishing the stream in the first place
+    // irrespective of receiving over it. We rely on the reconnect logic of the underlying tonic
+    // channel for things like network failure or geth not yet being online.
     let channel = Channel::from_shared(uri.to_string())
         .wrap_err("failed to create a channel to the provided uri")?
+        .connect_timeout(std::time::Duration::from_secs(5))
         .connect_lazy();
 
     let channel = ServiceBuilder::new()
