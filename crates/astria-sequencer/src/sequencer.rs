@@ -73,23 +73,33 @@ impl Sequencer {
     /// - The gRPC address cannot be parsed
     /// - The gRPC server fails to exit properly
     pub async fn spawn(config: Config, metrics: &'static Metrics) -> Result<()> {
-        let (grpc_server, abci_server) = Self::initialize(config, metrics).await?;
-        Self::run_until_stopped(abci_server, grpc_server).await
+        let mut signals = spawn_signal_handler();
+        let initialize_fut = Self::initialize(config, metrics);
+        select! {
+            _ = signals.stop_rx.changed() => {
+                info_span!("initialize").in_scope(|| info!("shutting down sequencer"));
+                Ok(())
+            }
+
+            result = initialize_fut => {
+                let (grpc_server, abci_server) = result?;
+                Self::run_until_stopped(abci_server, grpc_server, &mut signals).await
+            }
+        }
     }
 
     async fn run_until_stopped(
         abci_server: RunningABCIServer,
         grpc_server: RunningGRPCServer,
+        signals: &mut SignalReceiver,
     ) -> Result<()> {
-        let mut signals = spawn_signal_handler();
-
         select! {
             _ = signals.stop_rx.changed() => {
-                info_span!("sequencer").in_scope(|| info!("shutting down sequencer"));
+                info_span!("run_until_stopped").in_scope(|| info!("shutting down sequencer"));
             }
 
             _ = abci_server.shutdown_rx => {
-                info_span!("sequencer").in_scope(|| error!("ABCI server task exited, this shouldn't happen"));
+                info_span!("run_until_stopped").in_scope(|| error!("ABCI server task exited, this shouldn't happen"));
             }
         }
 
