@@ -132,8 +132,7 @@ impl Runner {
             response,
         } = request;
 
-        let mut process_proposal_blocks = self.event_bus_subscription.process_proposal_blocks();
-        process_proposal_blocks.mark_latest_event_as_seen();
+        let process_proposal_blocks = self.event_bus_subscription.process_proposal_blocks();
         self.stream_tasks.spawn(optimistic_stream(
             process_proposal_blocks,
             rollup_id,
