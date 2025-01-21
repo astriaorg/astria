@@ -90,6 +90,11 @@ mod tests {
             position_in_transaction: 0,
         });
 
+        assert_eq!(
+            state.get_sudo_address().await.unwrap(),
+            *old_sudo_address.address_bytes()
+        );
+
         let action = SudoAddressChange {
             new_address: new_sudo_address,
         };
