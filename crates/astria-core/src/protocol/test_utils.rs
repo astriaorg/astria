@@ -22,7 +22,7 @@ use super::{
 use crate::{
     crypto::SigningKey,
     generated::{
-        connect::{
+        price_feed::{
             marketmap::v2::{
                 GenesisState as RawMarketMapGenesisState,
                 Market as RawMarket,
@@ -38,15 +38,15 @@ use crate::{
             },
             types::v2::CurrencyPair as RawCurrencyPair,
         },
-        protocol::genesis::v1::ConnectGenesis as RawConnectGenesis,
+        protocol::genesis::v1::PriceFeedGenesis as RawPriceFeedGenesis,
     },
     primitive::v1::{
         derive_merkle_tree_from_rollup_txs,
         RollupId,
     },
     protocol::{
-        connect::v1::ExtendedCommitInfoWithCurrencyPairMapping,
-        genesis::v1::ConnectGenesis,
+        genesis::v1::PriceFeedGenesis,
+        price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
         transaction::v1::TransactionBody,
     },
     sequencerblock::v1::{
@@ -308,7 +308,7 @@ pub fn minimal_extended_commit_info_bytes() -> Bytes {
 }
 
 #[must_use]
-pub fn dummy_connect_genesis() -> ConnectGenesis {
+pub fn dummy_price_feed_genesis() -> PriceFeedGenesis {
     let mut markets = BTreeMap::new();
     markets.insert(
         "BTC/USD".to_string(),
@@ -355,7 +355,7 @@ pub fn dummy_connect_genesis() -> ConnectGenesis {
         },
     );
 
-    let connect_genesis = RawConnectGenesis {
+    let price_feed_genesis = RawPriceFeedGenesis {
         market_map: Some(RawMarketMapGenesisState {
             market_map: Some(RawMarketMap {
                 markets,
@@ -404,7 +404,7 @@ pub fn dummy_connect_genesis() -> ConnectGenesis {
             next_id: 2,
         }),
     };
-    ConnectGenesis::try_from_raw(connect_genesis).unwrap()
+    PriceFeedGenesis::try_from_raw(price_feed_genesis).unwrap()
 }
 
 fn alice() -> Address {

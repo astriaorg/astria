@@ -11,7 +11,7 @@ use prost::Name as _;
 
 use super::raw;
 use crate::{
-    connect::types::v2::{
+    oracles::price_feed::types::v2::{
         CurrencyPair,
         CurrencyPairError,
     },

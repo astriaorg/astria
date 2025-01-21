@@ -39,7 +39,7 @@ genesis:
       balance: "69000000"
 
 sequencer:
-  oracle:
+  priceFeed:
     enabled: true
     metrics:
       enabled: true

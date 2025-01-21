@@ -23,8 +23,8 @@ use astria_core::{
     primitive::v1::TRANSACTION_ID_LEN,
     protocol::{
         abci::AbciErrorCode,
-        connect::v1::ExtendedCommitInfoWithCurrencyPairMapping,
         genesis::v1::GenesisAppState,
+        price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
         transaction::v1::{
             action::{
                 group::Group,
@@ -128,10 +128,6 @@ use crate::{
         StateWriteExt as _,
     },
     component::Component as _,
-    connect::{
-        market_map::component::MarketMapComponent,
-        oracle::component::OracleComponent,
-    },
     fees::{
         component::FeesComponent,
         StateReadExt as _,
@@ -143,6 +139,10 @@ use crate::{
         RemovalReason,
     },
     metrics::Metrics,
+    oracles::price_feed::{
+        market_map::component::MarketMapComponent,
+        oracle::component::OracleComponent,
+    },
     proposal::{
         block_size_constraints::BlockSizeConstraints,
         commitment::generate_rollup_datas_commitment,
@@ -1597,7 +1597,7 @@ impl App {
             reason = "will become refutable once we have more than one upgrade variant"
         )]
         if let Upgrade::Upgrade1(upgrade_1) = upgrade {
-            let genesis_state = upgrade_1.connect_oracle_change().genesis();
+            let genesis_state = upgrade_1.price_feed_change().genesis();
             MarketMapComponent::handle_genesis(&mut delta_delta, genesis_state.market_map())
                 .wrap_err("failed to handle market map genesis")?;
             info!("handled market map genesis");

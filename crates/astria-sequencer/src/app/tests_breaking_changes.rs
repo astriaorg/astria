@@ -16,7 +16,7 @@ use std::{
 };
 
 use astria_core::{
-    connect::types::v2::CurrencyPair,
+    oracles::price_feed::types::v2::CurrencyPair,
     primitive::v1::{
         Address,
         RollupId,

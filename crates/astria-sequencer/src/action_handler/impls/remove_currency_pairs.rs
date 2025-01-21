@@ -10,7 +10,7 @@ use cnidarium::StateWrite;
 
 use crate::{
     action_handler::ActionHandler,
-    connect::{
+    oracles::price_feed::{
         market_map::state_ext::StateReadExt as _,
         oracle::state_ext::{
             StateReadExt as _,
@@ -74,7 +74,7 @@ impl ActionHandler for RemoveCurrencyPairs {
 #[cfg(test)]
 mod test {
     use astria_core::{
-        connect::{
+        oracles::price_feed::{
             market_map::v2::Params,
             oracle::v2::CurrencyPairState,
             types::v2::{
@@ -92,7 +92,7 @@ mod test {
     use crate::{
         app::test_utils::get_alice_signing_key,
         benchmark_and_test_utils::astria_address,
-        connect::{
+        oracles::price_feed::{
             market_map::state_ext::StateWriteExt as _,
             oracle::state_ext::StateWriteExt as _,
         },

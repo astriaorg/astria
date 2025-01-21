@@ -34,13 +34,13 @@ use super::{
     raw,
 };
 use crate::{
-    connect::types::v2::{
+    generated::protocol::{
+        price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping as RawExtendedCommitInfoWithCurrencyPairMapping,
+        transaction::v1::Transaction as RawTransaction,
+    },
+    oracles::price_feed::types::v2::{
         CurrencyPair,
         CurrencyPairError,
-    },
-    generated::protocol::{
-        connect::v1::ExtendedCommitInfoWithCurrencyPairMapping as RawExtendedCommitInfoWithCurrencyPairMapping,
-        transaction::v1::Transaction as RawTransaction,
     },
     primitive::v1::{
         asset,
@@ -53,7 +53,7 @@ use crate::{
         TransactionIdError,
     },
     protocol::{
-        connect::v1::{
+        price_feed::v1::{
             ExtendedCommitInfoWithCurrencyPairMapping,
             ExtendedCommitInfoWithCurrencyPairMappingError,
         },
@@ -2356,7 +2356,7 @@ impl ExtendedCommitInfoWithProof {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Price {
     currency_pair: CurrencyPair,
-    price: crate::connect::types::v2::Price,
+    price: crate::oracles::price_feed::types::v2::Price,
     decimals: u64,
 }
 
@@ -2364,7 +2364,7 @@ impl Price {
     #[must_use]
     pub fn new(
         currency_pair: CurrencyPair,
-        price: crate::connect::types::v2::Price,
+        price: crate::oracles::price_feed::types::v2::Price,
         decimals: u64,
     ) -> Self {
         Self {
@@ -2380,7 +2380,7 @@ impl Price {
     }
 
     #[must_use]
-    pub fn price(&self) -> crate::connect::types::v2::Price {
+    pub fn price(&self) -> crate::oracles::price_feed::types::v2::Price {
         self.price
     }
 
@@ -2420,7 +2420,7 @@ impl Price {
         };
         let currency_pair =
             CurrencyPair::try_from_raw(currency_pair).map_err(PriceError::currency)?;
-        let price = crate::connect::types::v2::Price::new(
+        let price = crate::oracles::price_feed::types::v2::Price::new(
             price.ok_or(PriceError::field_not_set("price"))?.into(),
         );
         Ok(Self {
@@ -2454,11 +2454,11 @@ enum PriceErrorKind {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct OracleData {
+pub struct PriceFeedData {
     prices: Vec<Price>,
 }
 
-impl OracleData {
+impl PriceFeedData {
     #[must_use]
     pub fn new(prices: Vec<Price>) -> Self {
         Self {
@@ -2472,26 +2472,26 @@ impl OracleData {
     }
 
     #[must_use]
-    pub fn into_raw(self) -> raw::OracleData {
-        raw::OracleData {
+    pub fn into_raw(self) -> raw::PriceFeedData {
+        raw::PriceFeedData {
             prices: self.prices.into_iter().map(Price::into_raw).collect(),
         }
     }
 
-    /// Attempts to transform the oracle data from its raw representation.
+    /// Attempts to transform the price feed data from its raw representation.
     ///
     /// # Errors
     ///
     /// - if the prices are unset
-    pub fn try_from_raw(raw: raw::OracleData) -> Result<Self, OracleDataError> {
-        let raw::OracleData {
+    pub fn try_from_raw(raw: raw::PriceFeedData) -> Result<Self, PriceFeedDataError> {
+        let raw::PriceFeedData {
             prices,
         } = raw;
         let prices = prices
             .into_iter()
             .map(Price::try_from_raw)
             .collect::<Result<_, _>>()
-            .map_err(OracleDataError::prices)?;
+            .map_err(PriceFeedDataError::prices)?;
         Ok(Self {
             prices,
         })
@@ -2500,16 +2500,16 @@ impl OracleData {
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct OracleDataError(OracleDataErrorKind);
+pub struct PriceFeedDataError(PriceFeedDataErrorKind);
 
-impl OracleDataError {
+impl PriceFeedDataError {
     fn prices(source: PriceError) -> Self {
-        Self(OracleDataErrorKind::Prices(source))
+        Self(PriceFeedDataErrorKind::Prices(source))
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum OracleDataErrorKind {
+enum PriceFeedDataErrorKind {
     #[error("failed to validate `prices` field")]
     Prices(#[source] PriceError),
 }
@@ -2517,7 +2517,8 @@ enum OracleDataErrorKind {
 /// A piece of data that is sent to a rollup execution node.
 ///
 /// The data can be either sequenced data (originating from a [`RollupDataSubmission`]
-/// action submitted by a user) or a [`Deposit`] (originating from a [`BridgeLock`] action).
+/// action submitted by a user), a [`Deposit`] (originating from a [`BridgeLock`] action), or
+/// [`PriceFeedData`] (originating from the price feed oracle).
 ///
 /// The rollup node receives this type as opaque, protobuf-encoded bytes from conductor,
 /// and must decode it accordingly.
@@ -2525,7 +2526,7 @@ enum OracleDataErrorKind {
 pub enum RollupData {
     SequencedData(Bytes),
     Deposit(Box<Deposit>),
-    OracleData(Box<OracleData>),
+    PriceFeedData(Box<PriceFeedData>),
 }
 
 impl RollupData {
@@ -2538,8 +2539,10 @@ impl RollupData {
             Self::Deposit(deposit) => raw::RollupData {
                 value: Some(raw::rollup_data::Value::Deposit(deposit.into_raw())),
             },
-            Self::OracleData(oracle_data) => raw::RollupData {
-                value: Some(raw::rollup_data::Value::OracleData(oracle_data.into_raw())),
+            Self::PriceFeedData(price_feed_data) => raw::RollupData {
+                value: Some(raw::rollup_data::Value::PriceFeedData(
+                    price_feed_data.into_raw(),
+                )),
             },
         }
     }
@@ -2560,11 +2563,11 @@ impl RollupData {
                 .map(Box::new)
                 .map(Self::Deposit)
                 .map_err(RollupDataError::deposit),
-            Some(raw::rollup_data::Value::OracleData(oracle_data)) => {
-                Ok(OracleData::try_from_raw(oracle_data)
+            Some(raw::rollup_data::Value::PriceFeedData(price_feed_data)) => {
+                Ok(PriceFeedData::try_from_raw(price_feed_data)
                     .map(Box::new)
-                    .map(Self::OracleData)
-                    .map_err(RollupDataError::oracle_data)?)
+                    .map(Self::PriceFeedData)
+                    .map_err(RollupDataError::price_feed_data)?)
             }
             None => Err(RollupDataError::field_not_set("data")),
         }
@@ -2584,8 +2587,8 @@ impl RollupDataError {
         Self(RollupDataErrorKind::Deposit(source))
     }
 
-    fn oracle_data(source: OracleDataError) -> Self {
-        Self(RollupDataErrorKind::OracleData(source))
+    fn price_feed_data(source: PriceFeedDataError) -> Self {
+        Self(RollupDataErrorKind::PriceFeedData(source))
     }
 }
 
@@ -2595,6 +2598,6 @@ enum RollupDataErrorKind {
     FieldNotSet(&'static str),
     #[error("failed to validate `deposit` field")]
     Deposit(#[source] DepositError),
-    #[error("failed to validate `oracle_data` field")]
-    OracleData(#[source] OracleDataError),
+    #[error("failed to validate `price_feed_data` field")]
+    PriceFeedData(#[source] PriceFeedDataError),
 }

@@ -21,15 +21,15 @@ message BaseUpgradeInfo {
 
 // Upgrade 1 of the Sequencer network.
 message Upgrade1 {
-  message ConnectOracleChange {
-    // The Connect oracle genesis data.
-    astria.protocol.genesis.v1.ConnectGenesis genesis = 1;
+  message PriceFeedChange {
+    // The price feed genesis data.
+    astria.protocol.genesis.v1.PriceFeedGenesis genesis = 1;
   }
 
   message ValidatorUpdateActionChange {}
 
   BaseUpgradeInfo base_info = 1;
-  ConnectOracleChange connect_oracle_change = 2;
+  PriceFeedChange price_feed_change = 2;
   ValidatorUpdateActionChange validator_update_action_change = 3;
 }
 

@@ -10,15 +10,15 @@ use super::{
 use crate::{
     generated::upgrades::v1::{
         upgrade1::{
-            ConnectOracleChange as RawConnectOracleChange,
+            PriceFeedChange as RawPriceFeedChange,
             ValidatorUpdateActionChange as RawValidatorUpdateActionChange,
         },
         BaseUpgradeInfo as RawBaseUpgradeInfo,
         Upgrade1 as RawUpgrade1,
     },
     protocol::genesis::v1::{
-        ConnectGenesis,
-        ConnectGenesisError,
+        PriceFeedGenesis,
+        PriceFeedGenesisError,
     },
     Protobuf,
 };
@@ -27,7 +27,7 @@ use crate::{
 pub struct Upgrade1 {
     activation_height: u64,
     app_version: u64,
-    connect_oracle_change: ConnectOracleChange,
+    price_feed_change: PriceFeedChange,
     validator_update_action_change: ValidatorUpdateActionChange,
 }
 
@@ -45,8 +45,8 @@ impl Upgrade1 {
     }
 
     #[must_use]
-    pub fn connect_oracle_change(&self) -> &ConnectOracleChange {
-        &self.connect_oracle_change
+    pub fn price_feed_change(&self) -> &PriceFeedChange {
+        &self.price_feed_change
     }
 
     #[must_use]
@@ -55,7 +55,7 @@ impl Upgrade1 {
     }
 
     pub fn changes(&self) -> impl Iterator<Item = &'_ dyn Change> {
-        Some(&self.connect_oracle_change as &dyn Change)
+        Some(&self.price_feed_change as &dyn Change)
             .into_iter()
             .chain(Some(&self.validator_update_action_change as &dyn Change))
     }
@@ -75,24 +75,24 @@ impl Protobuf for Upgrade1 {
             .ok_or_else(Error::no_base_info)?
             .clone();
 
-        let connect_oracle_change = raw
-            .connect_oracle_change
+        let price_feed_change = raw
+            .price_feed_change
             .as_ref()
-            .ok_or_else(Error::no_connect_oracle_change)?;
+            .ok_or_else(Error::no_price_feed_change)?;
 
-        let genesis = connect_oracle_change
+        let genesis = price_feed_change
             .genesis
             .as_ref()
-            .ok_or_else(Error::no_connect_genesis)
+            .ok_or_else(Error::no_price_feed_genesis)
             .and_then(|raw_genesis| {
-                ConnectGenesis::try_from_raw_ref(raw_genesis).map_err(Error::connect_genesis)
+                PriceFeedGenesis::try_from_raw_ref(raw_genesis).map_err(Error::price_feed_genesis)
             })?;
 
         if raw.validator_update_action_change.is_none() {
             return Err(Error::no_validator_update_action_change());
         }
 
-        let connect_oracle_change = ConnectOracleChange {
+        let price_feed_change = PriceFeedChange {
             activation_height,
             app_version,
             genesis: Arc::new(genesis),
@@ -106,7 +106,7 @@ impl Protobuf for Upgrade1 {
         Ok(Self {
             activation_height,
             app_version,
-            connect_oracle_change,
+            price_feed_change,
             validator_update_action_change,
         })
     }
@@ -116,39 +116,39 @@ impl Protobuf for Upgrade1 {
             activation_height: self.activation_height,
             app_version: self.app_version,
         });
-        let connect_oracle_change = Some(RawConnectOracleChange {
-            genesis: Some(self.connect_oracle_change.genesis.to_raw()),
+        let price_feed_change = Some(RawPriceFeedChange {
+            genesis: Some(self.price_feed_change.genesis.to_raw()),
         });
         RawUpgrade1 {
             base_info,
-            connect_oracle_change,
+            price_feed_change,
             validator_update_action_change: Some(RawValidatorUpdateActionChange {}),
         }
     }
 }
 
-/// This change enables vote extensions and starts to provide price feed data from the Connect
-/// Oracle sidecar (if enabled) via the vote extensions.
+/// This change enables vote extensions and starts to provide price feed data from the price feed
+///  (if enabled) via the vote extensions.
 ///
 /// The vote extensions are enabled in the block immediately after `activation_height`, meaning the
 /// price feed data is available no earlier than two blocks after `activation_height`.
 #[derive(Clone, Debug, BorshSerialize)]
-pub struct ConnectOracleChange {
+pub struct PriceFeedChange {
     activation_height: u64,
     app_version: u64,
-    genesis: Arc<ConnectGenesis>,
+    genesis: Arc<PriceFeedGenesis>,
 }
 
-impl ConnectOracleChange {
-    pub const NAME: ChangeName = ChangeName::new("connect_oracle_change");
+impl PriceFeedChange {
+    pub const NAME: ChangeName = ChangeName::new("price_feed_change");
 
     #[must_use]
-    pub fn genesis(&self) -> &Arc<ConnectGenesis> {
+    pub fn genesis(&self) -> &Arc<PriceFeedGenesis> {
         &self.genesis
     }
 }
 
-impl Change for ConnectOracleChange {
+impl Change for PriceFeedChange {
     fn name(&self) -> ChangeName {
         Self::NAME.clone()
     }
@@ -187,7 +187,7 @@ impl Change for ValidatorUpdateActionChange {
     }
 }
 
-/// An error when transforming a [`RawConnectOracleUpgrade`] into a [`ConnectOracleChange`].
+/// An error when transforming a [`RawPriceFeedUpgrade`] into a [`PriceFeedChange`].
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct Error(ErrorKind);
@@ -197,20 +197,20 @@ impl Error {
         Self(ErrorKind::FieldNotSet("base_info"))
     }
 
-    fn no_connect_oracle_change() -> Self {
-        Self(ErrorKind::FieldNotSet("connect_oracle_change"))
+    fn no_price_feed_change() -> Self {
+        Self(ErrorKind::FieldNotSet("price_feed_change"))
     }
 
     fn no_validator_update_action_change() -> Self {
         Self(ErrorKind::FieldNotSet("validator_update_action_change"))
     }
 
-    fn no_connect_genesis() -> Self {
-        Self(ErrorKind::FieldNotSet("connect_oracle_change.genesis"))
+    fn no_price_feed_genesis() -> Self {
+        Self(ErrorKind::FieldNotSet("price_feed_change.genesis"))
     }
 
-    fn connect_genesis(source: ConnectGenesisError) -> Self {
-        Self(ErrorKind::ConnectGenesis {
+    fn price_feed_genesis(source: PriceFeedGenesisError) -> Self {
+        Self(ErrorKind::PriceFeedGenesis {
             source,
         })
     }
@@ -220,6 +220,6 @@ impl Error {
 enum ErrorKind {
     #[error("`{0}` field was not set")]
     FieldNotSet(&'static str),
-    #[error("`connect_oracle_change.genesis` field was invalid")]
-    ConnectGenesis { source: ConnectGenesisError },
+    #[error("`price_feed_change.genesis` field was invalid")]
+    PriceFeedGenesis { source: PriceFeedGenesisError },
 }

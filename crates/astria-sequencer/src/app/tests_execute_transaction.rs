@@ -5,8 +5,8 @@ use std::{
 };
 
 use astria_core::{
-    connect::types::v2::CurrencyPair,
     crypto::SigningKey,
+    oracles::price_feed::types::v2::CurrencyPair,
     primitive::v1::{
         asset,
         Address,
@@ -71,12 +71,12 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    connect::oracle::state_ext::StateReadExt,
     fees::{
         StateReadExt as _,
         StateWriteExt as _,
     },
     ibc::StateReadExt as _,
+    oracles::price_feed::oracle::state_ext::StateReadExt,
     test_utils::calculate_rollup_data_submission_fee_from_state,
     utils::create_deposit_event,
 };

@@ -98,8 +98,8 @@ pub mod astria {
             pub mod v1;
         }
         #[path = ""]
-        pub mod connect {
-            #[path = "astria.protocol.connect.v1.rs"]
+        pub mod price_feed {
+            #[path = "astria.protocol.price_feed.v1.rs"]
             pub mod v1;
         }
         #[path = ""]
@@ -224,63 +224,63 @@ pub mod celestia {
 }
 
 #[path = ""]
-pub mod connect {
+pub mod price_feed {
     pub mod abci {
         pub mod v2 {
-            include!("connect.abci.v2.rs");
+            include!("price_feed.abci.v2.rs");
 
             #[cfg(feature = "serde")]
             mod _serde_impl {
                 use super::*;
-                include!("connect.abci.v2.serde.rs");
+                include!("price_feed.abci.v2.serde.rs");
             }
         }
     }
 
     pub mod marketmap {
         pub mod v2 {
-            include!("connect.marketmap.v2.rs");
+            include!("price_feed.marketmap.v2.rs");
 
             #[cfg(feature = "serde")]
             mod _serde_impl {
                 use super::*;
-                include!("connect.marketmap.v2.serde.rs");
+                include!("price_feed.marketmap.v2.serde.rs");
             }
         }
     }
 
     pub mod oracle {
         pub mod v2 {
-            include!("connect.oracle.v2.rs");
+            include!("price_feed.oracle.v2.rs");
 
             #[cfg(feature = "serde")]
             mod _serde_impl {
                 use super::*;
-                include!("connect.oracle.v2.serde.rs");
+                include!("price_feed.oracle.v2.serde.rs");
             }
         }
     }
 
     pub mod service {
         pub mod v2 {
-            include!("connect.service.v2.rs");
+            include!("price_feed.service.v2.rs");
 
             #[cfg(feature = "serde")]
             mod _serde_impl {
                 use super::*;
-                include!("connect.service.v2.serde.rs");
+                include!("price_feed.service.v2.serde.rs");
             }
         }
     }
 
     pub mod types {
         pub mod v2 {
-            include!("connect.types.v2.rs");
+            include!("price_feed.types.v2.rs");
 
             #[cfg(feature = "serde")]
             mod _serde_impl {
                 use super::*;
-                include!("connect.types.v2.serde.rs");
+                include!("price_feed.types.v2.serde.rs");
             }
         }
     }

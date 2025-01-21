@@ -6,7 +6,7 @@ use std::{
 
 use astria_core::{
     primitive::v1::RollupId,
-    protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping,
+    protocol::price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
     sequencerblock::v1::block::SequencerBlockHeader,
 };
 use astria_eyre::eyre::{

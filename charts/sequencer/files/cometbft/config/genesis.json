@@ -122,11 +122,11 @@
     ],
     {{- if not .Values.global.dev }}
     {{- else }}
-    "connect": {
+    "price_feed": {
       "marketMap": {
         "marketMap": {
           "markets": {
-            {{- range $index, $market := .Values.sequencer.oracle.markets }}
+            {{- range $index, $market := .Values.sequencer.priceFeed.markets }}
             {{- if $index }},{{- end }}
             "{{ $market.name }}": {
               "providerConfigs": [
@@ -158,9 +158,9 @@
           }
         },
         "params": {
-          "admin": "{{ .Values.genesis.oracle.marketAdminAddress }}",
+          "admin": "{{ .Values.genesis.priceFeed.marketAdminAddress }}",
           "marketAuthorities": [
-            {{- range $index, $authority := .Values.genesis.oracle.marketAuthorities }}
+            {{- range $index, $authority := .Values.genesis.priceFeed.marketAuthorities }}
             {{- if $index }},{{- end }}
             "{{ $authority }}"
             {{- end }}
@@ -169,7 +169,7 @@
       },
       "oracle": {
         "currencyPairGenesis": [
-          {{- range $index, $genesis := .Values.sequencer.oracle.currencyPairGenesis }}
+          {{- range $index, $genesis := .Values.sequencer.priceFeed.currencyPairGenesis }}
           {{- if $index }},{{- end }}
           {
             "currencyPair": {
@@ -186,7 +186,7 @@
           }
           {{- end }}
         ],
-        "nextId": "{{ .Values.sequencer.oracle.nextId }}"
+        "nextId": "{{ .Values.sequencer.priceFeed.nextId }}"
       }
     }
   },

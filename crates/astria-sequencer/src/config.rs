@@ -35,13 +35,13 @@ pub struct Config {
     /// The address of the CometBFT RPC endpoint for this sequencer.
     #[expect(clippy::doc_markdown, reason = "false positive")]
     pub cometbft_rpc_addr: String,
-    /// If the oracle is disabled. If false, the `oracle_grpc_addr` must be set.
+    /// If the price feed is disabled. If false, the `price_feed_grpc_addr` must be set.
     /// Should be false for validator nodes and true for non-validator nodes.
-    pub no_oracle: bool,
-    /// The gRPC endpoint for the oracle sidecar.
-    pub oracle_grpc_addr: String,
-    /// The timeout for the responses from the oracle sidecar in milliseconds.
-    pub oracle_client_timeout_milliseconds: u64,
+    pub no_price_feed: bool,
+    /// The gRPC endpoint for the price feed oracle sidecar.
+    pub price_feed_grpc_addr: String,
+    /// The timeout for the responses from the price feed oracle sidecar in milliseconds.
+    pub price_feed_client_timeout_milliseconds: u64,
     /// The maximum number of transactions that can be parked in the mempool.
     pub mempool_parked_max_tx_count: usize,
 }

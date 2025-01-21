@@ -46,7 +46,7 @@ pub mod action {
         FeeChange(super::FeeChange),
         #[prost(message, tag = "56")]
         IbcSudoChange(super::IbcSudoChange),
-        /// Oracle actions are defined on 71-80
+        /// Price feed actions are defined on 71-80
         #[prost(message, tag = "71")]
         AddCurrencyPairs(super::AddCurrencyPairs),
         #[prost(message, tag = "72")]
@@ -480,7 +480,7 @@ impl ::prost::Name for IbcSudoChange {
 pub struct AddCurrencyPairs {
     #[prost(message, repeated, tag = "1")]
     pub pairs: ::prost::alloc::vec::Vec<
-        super::super::super::super::connect::types::v2::CurrencyPair,
+        super::super::super::super::price_feed::types::v2::CurrencyPair,
     >,
 }
 impl ::prost::Name for AddCurrencyPairs {
@@ -495,7 +495,7 @@ impl ::prost::Name for AddCurrencyPairs {
 pub struct RemoveCurrencyPairs {
     #[prost(message, repeated, tag = "1")]
     pub pairs: ::prost::alloc::vec::Vec<
-        super::super::super::super::connect::types::v2::CurrencyPair,
+        super::super::super::super::price_feed::types::v2::CurrencyPair,
     >,
 }
 impl ::prost::Name for RemoveCurrencyPairs {

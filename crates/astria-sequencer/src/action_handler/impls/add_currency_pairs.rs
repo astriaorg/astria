@@ -1,5 +1,5 @@
 use astria_core::{
-    connect::{
+    oracles::price_feed::{
         oracle::v2::CurrencyPairState,
         types::v2::CurrencyPairNonce,
     },
@@ -17,7 +17,7 @@ use tracing::debug;
 
 use crate::{
     action_handler::ActionHandler,
-    connect::{
+    oracles::price_feed::{
         market_map::state_ext::StateReadExt as _,
         oracle::state_ext::{
             StateReadExt as _,
@@ -98,7 +98,7 @@ impl ActionHandler for AddCurrencyPairs {
 #[cfg(test)]
 mod test {
     use astria_core::{
-        connect::{
+        oracles::price_feed::{
             market_map::v2::Params,
             oracle::v2::CurrencyPairState,
             types::v2::CurrencyPairId,
@@ -112,7 +112,7 @@ mod test {
     use crate::{
         app::test_utils::get_alice_signing_key,
         benchmark_and_test_utils::astria_address,
-        connect::market_map::state_ext::StateWriteExt as _,
+        oracles::price_feed::market_map::state_ext::StateWriteExt as _,
         transaction::{
             StateWriteExt,
             TransactionContext,
