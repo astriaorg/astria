@@ -13,6 +13,7 @@ use bytes::Bytes;
 use super::{
     should_execute_firm_block,
     state::{
+        State,
         StateReceiver,
         StateSender,
     },
@@ -57,9 +58,9 @@ fn make_state(
         base_celestia_height: 1,
     })
     .unwrap();
-    let (mut tx, rx) = super::state::channel();
-    tx.try_init(genesis_info, commitment_state).unwrap();
-    (tx, rx)
+    let state =
+        State::try_from_genesis_info_and_commitment_state(genesis_info, commitment_state).unwrap();
+    super::state::channel(state)
 }
 
 #[track_caller]
