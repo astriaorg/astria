@@ -1,0 +1,7 @@
+# Astria native oracle protocol
+
+The Astria sequencer has an oracle protocol built into its consensus. Oracle data can be provided by the network for each block that has sufficient voting power (>2/3) backing the oracle values. Currently, the only oracle data provided is price data for specific currency pairs, eg. BTC/USD, ETH/USD, TIA/USD. The oracle protocol is based off Skip's [Connect](https://github.com/skip-mev/connect/tree/main) protocol. Astria uses Skip's oracle sidecar to fetch price data.
+
+### High level overview
+
+Astria uses CometBFT for consensus, which communicates with the application logic using [ABCI++](https://docs.cometbft.com/v0.37/spec/abci/abci++_basic_concepts#consensusblock-execution-methods). During each consensus round, validators gossip "vote extensions", which can be any arbitrary data. In our case, the price data is put in the vote extension. In that round, other validators perform basic validation on the data, such as deserialization and length, but not on the contents. Since vote extensions are gossiped on the p2p network, each validator has a different, local view of the vote extensions it received from peers during that round. Any vote extensions that failed basic validation are excluded from this local view. During the following round, the block proposer proposes a canonical set of vote extensions (what the proposer saw during the previous round). 
