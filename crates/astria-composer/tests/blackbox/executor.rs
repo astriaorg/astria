@@ -59,7 +59,7 @@ async fn bundle_triggered_by_block_timer() {
     })
     .await
     .unwrap();
-    time::advance(Duration::from_millis(2000)).await;
+    time::advance(Duration::from_millis(test_composer.cfg.block_time_ms)).await;
     time::resume();
 
     // wait for the mock sequencer to receive the signed transaction
@@ -156,7 +156,7 @@ async fn two_rollup_data_submissions_single_bundle() {
     })
     .await
     .unwrap();
-    time::advance(Duration::from_millis(2000)).await;
+    time::advance(Duration::from_millis(test_composer.cfg.block_time_ms)).await;
     time::resume();
 
     // wait for the mock sequencer to receive the signed transaction
