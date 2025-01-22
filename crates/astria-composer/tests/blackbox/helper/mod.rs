@@ -116,16 +116,14 @@ pub struct TestComposer {
 impl TestComposer {
     pub async fn tick_block_timer(&self) {
         use tokio::time::{
-            pause,
-            resume,
-            sleep,
+            self,
             Duration,
         };
 
-        sleep(Duration::from_millis(10)).await;
-        pause();
-        sleep(Duration::from_millis(self.cfg.block_time_ms)).await;
-        resume();
+        time::sleep(Duration::from_millis(10)).await;
+        time::pause();
+        time::advance(Duration::from_millis(self.cfg.block_time_ms)).await;
+        time::resume();
     }
 }
 
