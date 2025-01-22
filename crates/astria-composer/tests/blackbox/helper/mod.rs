@@ -122,7 +122,7 @@ impl TestComposer {
             Duration,
         };
 
-        sleep(Duration::from_millis(100)).await;
+        sleep(Duration::from_millis(10)).await;
         pause();
         sleep(Duration::from_millis(self.cfg.block_time_ms)).await;
         resume();
