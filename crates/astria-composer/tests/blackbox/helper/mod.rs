@@ -6,7 +6,6 @@ use std::{
         SocketAddr,
     },
     sync::LazyLock,
-    time::Duration,
 };
 
 use astria_composer::{
@@ -112,6 +111,22 @@ pub struct TestComposer {
     pub sequencer_mock: MockGrpcSequencer,
     pub grpc_collector_addr: SocketAddr,
     pub metrics_handle: metrics::Handle,
+}
+
+impl TestComposer {
+    pub async fn tick_block_timer(&self) {
+        use tokio::time::{
+            pause,
+            resume,
+            sleep,
+            Duration,
+        };
+
+        sleep(Duration::from_millis(100)).await;
+        pause();
+        sleep(Duration::from_millis(self.cfg.block_time_ms)).await;
+        resume();
+    }
 }
 
 /// Spawns composer in a test environment.
@@ -221,7 +236,7 @@ pub async fn loop_until_composer_is_ready(addr: SocketAddr) {
             .json::<Readyz>()
             .await
             .unwrap();
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        tokio::task::yield_now().await;
         if readyz.status.to_lowercase() == "ok" {
             break;
         }

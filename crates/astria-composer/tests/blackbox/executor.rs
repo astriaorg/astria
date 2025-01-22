@@ -45,12 +45,7 @@ async fn bundle_triggered_by_block_timer() {
         fee_asset: "nria".parse().unwrap(),
     };
 
-    // make sure at least one block has passed so that the executor will submit the bundle
-    // despite it not being full
-    time::pause();
-    let submission_timeout =
-        Duration::from_millis(test_composer.cfg.block_time_ms.saturating_add(100));
-    time::timeout(submission_timeout, async {
+    time::timeout(Duration::from_millis(100), async {
         composer_client
             .submit_rollup_transaction(SubmitRollupTransactionRequest {
                 rollup_id: Some(rollup_id.into_raw()),
@@ -61,8 +56,9 @@ async fn bundle_triggered_by_block_timer() {
     })
     .await
     .unwrap();
-    time::advance(Duration::from_millis(test_composer.cfg.block_time_ms)).await;
-    time::resume();
+
+    // tick the block timer to preempt next bundle
+    test_composer.tick_block_timer().await;
 
     // wait for the mock sequencer to receive the signed transaction
     tokio::time::timeout(
@@ -133,12 +129,7 @@ async fn two_rollup_data_submissions_single_bundle() {
         fee_asset: "nria".parse().unwrap(),
     };
 
-    // make sure at least one block has passed so that the executor will submit the bundle
-    // despite it not being full
-    time::pause();
-    let submission_timeout =
-        Duration::from_millis(test_composer.cfg.block_time_ms.saturating_add(100));
-    time::timeout(submission_timeout, async {
+    time::timeout(Duration::from_millis(100), async {
         composer_client
             .submit_rollup_transaction(SubmitRollupTransactionRequest {
                 rollup_id: Some(seq0.rollup_id.into_raw()),
@@ -160,8 +151,9 @@ async fn two_rollup_data_submissions_single_bundle() {
     })
     .await
     .unwrap();
-    time::advance(Duration::from_millis(test_composer.cfg.block_time_ms)).await;
-    time::resume();
+
+    // manually tick block timer to preempt next bundle
+    test_composer.tick_block_timer().await;
 
     // wait for the mock sequencer to receive the signed transaction
     tokio::time::timeout(
