@@ -121,15 +121,13 @@ async fn app_execute_transaction_transfer() {
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let value = 333_333;
     let tx = TransactionBody::builder()
-        .actions(vec![
-            Transfer {
-                to: bob_address,
-                amount: value,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![Transfer {
+            to: bob_address,
+            amount: value,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -185,15 +183,13 @@ async fn app_execute_transaction_transfer_not_native_token() {
     // transfer funds from Alice to Bob; use native token for fee payment
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let tx = TransactionBody::builder()
-        .actions(vec![
-            Transfer {
-                to: bob_address,
-                amount: value,
-                asset: test_asset(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![Transfer {
+            to: bob_address,
+            amount: value,
+            asset: test_asset(),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -257,15 +253,13 @@ async fn app_execute_transaction_transfer_balance_too_low_for_fee() {
 
     // 0-value transfer; only fee is deducted from sender
     let tx = TransactionBody::builder()
-        .actions(vec![
-            Transfer {
-                to: bob,
-                amount: 0,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![Transfer {
+            to: bob,
+            amount: 0,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -295,14 +289,12 @@ async fn app_execute_transaction_sequence() {
     let fee = calculate_rollup_data_submission_fee_from_state(&data, &app.state).await;
 
     let tx = TransactionBody::builder()
-        .actions(vec![
-            RollupDataSubmission {
-                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                data,
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![RollupDataSubmission {
+            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+            data,
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -331,14 +323,12 @@ async fn app_execute_transaction_invalid_fee_asset() {
     let data = Bytes::from_static(b"hello world");
 
     let tx = TransactionBody::builder()
-        .actions(vec![
-            RollupDataSubmission {
-                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                data,
-                fee_asset: test_asset(),
-            }
-            .into(),
-        ])
+        .actions(vec![RollupDataSubmission {
+            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+            data,
+            fee_asset: test_asset(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -826,14 +816,12 @@ async fn app_execute_transaction_invalid_nonce() {
     let data = Bytes::from_static(b"hello world");
 
     let tx = TransactionBody::builder()
-        .actions(vec![
-            RollupDataSubmission {
-                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                data,
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![RollupDataSubmission {
+            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+            data,
+            fee_asset: nria().into(),
+        }
+        .into()])
         .nonce(1)
         .chain_id("test")
         .try_build()
@@ -875,14 +863,12 @@ async fn app_execute_transaction_invalid_chain_id() {
     // create tx with invalid nonce 1
     let data = Bytes::from_static(b"hello world");
     let tx = TransactionBody::builder()
-        .actions(vec![
-            RollupDataSubmission {
-                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                data,
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![RollupDataSubmission {
+            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+            data,
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("wrong-chain")
         .try_build()
         .unwrap();
@@ -930,15 +916,13 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
 
     // transfer just enough to cover single sequence fee with data
     let signed_tx = TransactionBody::builder()
-        .actions(vec![
-            Transfer {
-                to: keypair_address,
-                amount: fee,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![Transfer {
+            to: keypair_address,
+            amount: fee,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()
@@ -976,14 +960,12 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
 
     // build single transfer to see passes
     let signed_tx_pass = TransactionBody::builder()
-        .actions(vec![
-            RollupDataSubmission {
-                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                data,
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![RollupDataSubmission {
+            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+            data,
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()
@@ -1260,15 +1242,13 @@ async fn transaction_execution_records_fee_event() {
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let value = 333_333;
     let tx = TransactionBody::builder()
-        .actions(vec![
-            Transfer {
-                to: bob_address,
-                amount: value,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![Transfer {
+            to: bob_address,
+            amount: value,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -1344,9 +1324,10 @@ async fn test_app_execute_transaction_add_and_remove_currency_pairs() {
     let currency_pair = CurrencyPair::from_str("TIA/USD").unwrap();
 
     let tx = TransactionBody::builder()
-        .actions(vec![
-            PriceFeed::Oracle(CurrencyPairsChange::Addition(vec![currency_pair.clone()])).into(),
-        ])
+        .actions(vec![PriceFeed::Oracle(CurrencyPairsChange::Addition(
+            vec![currency_pair.clone()],
+        ))
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -1364,9 +1345,10 @@ async fn test_app_execute_transaction_add_and_remove_currency_pairs() {
     assert_eq!(currency_pairs[0].as_ref().unwrap(), &currency_pair);
 
     let tx = TransactionBody::builder()
-        .actions(vec![
-            PriceFeed::Oracle(CurrencyPairsChange::Removal(vec![currency_pair.clone()])).into(),
-        ])
+        .actions(vec![PriceFeed::Oracle(CurrencyPairsChange::Removal(vec![
+            currency_pair.clone(),
+        ]))
+        .into()])
         .chain_id("test")
         .nonce(1)
         .try_build()

@@ -41,7 +41,7 @@ impl<'a> From<ExtendedCommitInfo<'a>> for crate::storage::StoredValue<'a> {
     }
 }
 
-impl<'a> Debug for ExtendedCommitInfo<'a> {
+impl Debug for ExtendedCommitInfo<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", base64(self.0.as_ref()))
     }
