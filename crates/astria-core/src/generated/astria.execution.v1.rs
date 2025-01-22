@@ -10,10 +10,23 @@ pub struct GenesisInfo {
     pub rollup_id: ::core::option::Option<super::super::primitive::v1::RollupId>,
     /// The first block height of sequencer chain to use for rollup transactions.
     #[prost(uint32, tag = "2")]
-    pub sequencer_genesis_block_height: u32,
+    pub sequencer_start_block_height: u32,
+    /// The last block height of sequencer chain to use for rollup transactions.
+    #[prost(uint32, tag = "3")]
+    pub sequencer_stop_block_height: u32,
     /// The allowed variance in celestia for sequencer blocks to have been posted.
     #[prost(uint64, tag = "4")]
     pub celestia_block_variance: u64,
+    /// The rollup block number to map to the sequencer start block height.
+    #[prost(uint64, tag = "5")]
+    pub rollup_start_block_height: u64,
+    #[prost(string, tag = "6")]
+    pub sequencer_chain_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "7")]
+    pub celestia_chain_id: ::prost::alloc::string::String,
+    /// True if the conductor should halt at the stop height instead of attempting restart.
+    #[prost(bool, tag = "8")]
+    pub halt_at_stop_height: bool,
 }
 impl ::prost::Name for GenesisInfo {
     const NAME: &'static str = "GenesisInfo";

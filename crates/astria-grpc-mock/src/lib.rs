@@ -10,7 +10,7 @@
 use std::any::Any;
 
 pub mod matcher;
-mod mock;
+pub mod mock;
 mod mock_server;
 mod mock_set;
 mod mounted_mock;
