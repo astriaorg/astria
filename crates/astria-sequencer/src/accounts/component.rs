@@ -25,7 +25,7 @@ pub(crate) struct AccountsComponent;
 impl Component for AccountsComponent {
     type AppState = GenesisAppState;
 
-    #[instrument(name = "AccountsComponent::init_chain", skip_all)]
+    #[instrument(name = "AccountsComponent::init_chain", skip_all, err)]
     async fn init_chain<S>(mut state: S, app_state: &Self::AppState) -> Result<()>
     where
         S: accounts::StateWriteExt + assets::StateReadExt,

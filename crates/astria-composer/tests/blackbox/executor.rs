@@ -4,7 +4,7 @@ use std::{
 };
 
 use astria_core::{
-    generated::composer::v1::{
+    generated::astria::composer::v1::{
         grpc_collector_service_client::GrpcCollectorServiceClient,
         SubmitRollupTransactionRequest,
     },

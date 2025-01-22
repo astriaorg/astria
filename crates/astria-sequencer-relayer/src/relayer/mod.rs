@@ -5,7 +5,7 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencerblock::v1::sequencer_service_client::SequencerServiceClient,
+    generated::astria::sequencerblock::v1::sequencer_service_client::SequencerServiceClient,
     sequencerblock::v1::SequencerBlock,
 };
 use astria_eyre::eyre::{
@@ -82,6 +82,9 @@ use crate::{
     metrics::Metrics,
     IncludeRollup,
 };
+
+type ForwardFut<'a> =
+    Fuse<BoxFuture<'a, Result<(), tokio::sync::mpsc::error::SendError<Box<SequencerBlock>>>>>;
 
 pub(crate) struct Relayer {
     /// A token to notify relayer that it should shut down.
@@ -172,7 +175,7 @@ impl Relayer {
         // future to forward a sequencer block to the celestia-submission-task.
         // gets set in the select-loop if the task is at capacity.
         let mut forward_once_free: Fuse<
-            BoxFuture<Result<(), tokio::sync::mpsc::error::SendError<SequencerBlock>>>,
+            BoxFuture<Result<(), tokio::sync::mpsc::error::SendError<Box<SequencerBlock>>>>,
         > = Fuse::terminated();
 
         self.state.set_ready();
@@ -282,9 +285,7 @@ impl Relayer {
         block: SequencerBlock,
         block_stream: &mut read::BlockStream,
         submitter: write::BlobSubmitterHandle,
-        forward: &mut Fuse<
-            BoxFuture<Result<(), tokio::sync::mpsc::error::SendError<SequencerBlock>>>,
-        >,
+        forward: &mut ForwardFut,
     ) -> eyre::Result<()> {
         assert!(
             forward.is_terminated(),
@@ -292,7 +293,7 @@ impl Relayer {
              congested and this future is in-flight",
         );
 
-        if let Err(error) = submitter.try_send(block) {
+        if let Err(error) = submitter.try_send(Box::new(block)) {
             debug!(
                 // Just print the error directly: TrySendError has no cause chain.
                 %error,

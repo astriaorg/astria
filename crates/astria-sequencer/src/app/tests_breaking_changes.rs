@@ -81,7 +81,7 @@ use crate::{
 #[tokio::test]
 async fn app_genesis_snapshot() {
     let app = initialize_app(None, vec![]).await;
-    insta::assert_json_snapshot!(app.app_hash.as_bytes());
+    insta::assert_json_snapshot!("app_hash_at_genesis", app.app_hash.as_bytes());
 }
 
 #[tokio::test]
@@ -161,7 +161,7 @@ async fn app_finalize_block_snapshot() {
         .await
         .unwrap();
     app.commit(storage.clone()).await;
-    insta::assert_json_snapshot!(app.app_hash.as_bytes());
+    insta::assert_json_snapshot!("app_hash_finalize_block", app.app_hash.as_bytes());
 }
 
 // Note: this tests every action except for `Ics20Withdrawal` and `IbcRelay`.
@@ -191,7 +191,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         });
         acc.into_iter().map(Protobuf::into_raw).collect()
     };
-    let genesis_state = astria_core::generated::protocol::genesis::v1::GenesisAppState {
+    let genesis_state = astria_core::generated::astria::protocol::genesis::v1::GenesisAppState {
         accounts,
         authority_sudo_address: Some(
             Address::builder()
@@ -259,24 +259,20 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .unwrap();
 
     let tx_sudo_ibc = TransactionBody::builder()
-        .actions(vec![
-            IbcSudoChange {
-                new_address: bob_address,
-            }
-            .into(),
-        ])
+        .actions(vec![IbcSudoChange {
+            new_address: bob_address,
+        }
+        .into()])
         .nonce(2)
         .chain_id("test")
         .try_build()
         .unwrap();
 
     let tx_sudo = TransactionBody::builder()
-        .actions(vec![
-            SudoAddressChange {
-                new_address: bob_address,
-            }
-            .into(),
-        ])
+        .actions(vec![SudoAddressChange {
+            new_address: bob_address,
+        }
+        .into()])
         .nonce(3)
         .chain_id("test")
         .try_build()
@@ -299,16 +295,14 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     app.execute_transaction(signed_tx_sudo).await.unwrap();
 
     let tx = TransactionBody::builder()
-        .actions(vec![
-            InitBridgeAccount {
-                rollup_id,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-                sudo_address: None,
-                withdrawer_address: None,
-            }
-            .into(),
-        ])
+        .actions(vec![InitBridgeAccount {
+            rollup_id,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+            sudo_address: None,
+            withdrawer_address: None,
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -345,15 +339,13 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     app.execute_transaction(signed_tx).await.unwrap();
 
     let tx_bridge = TransactionBody::builder()
-        .actions(vec![
-            BridgeSudoChange {
-                bridge_address,
-                new_sudo_address: Some(bob_address),
-                new_withdrawer_address: Some(bob_address),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![BridgeSudoChange {
+            bridge_address,
+            new_sudo_address: Some(bob_address),
+            new_withdrawer_address: Some(bob_address),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .nonce(2)
         .chain_id("test")
         .try_build()
@@ -368,5 +360,5 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
 
-    insta::assert_json_snapshot!(app.app_hash.as_bytes());
+    insta::assert_json_snapshot!("app_hash_execute_every_action", app.app_hash.as_bytes());
 }

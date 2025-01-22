@@ -3,7 +3,7 @@ name = "astria-sequencer"
 version = "1.0.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-rust-version = "1.81.0"
+rust-version = "1.83.0"
 readme = "README.md"
 repository = "https://github.com/astriaorg/astria"
 homepage = "https://astria.org"
@@ -33,7 +33,7 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
 ] }
 
 borsh = { version = "1.5.1", features = ["bytes", "derive"] }
-cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.7", features = [
+cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "ac7abacc9bb09503d6fd6a396bc0b6850079084e", features = [
   "metrics",
 ] }
 ibc-proto = { version = "0.41.0", features = ["server"] }
@@ -77,10 +77,10 @@ config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
 insta = { workspace = true, features = ["json"] }
-paste = "1.0.15"
 maplit = "1.0.2"
 rand_chacha = "0.3.1"
 tokio = { workspace = true, features = ["test-util"] }
+assert-json-diff = "2.0.2"
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use astria_core::{
     protocol::{
-        fees::v1::TransferFeeComponents,
+        fees::v1::FeeComponents,
         genesis::v1::Account,
         transaction::v1::{
             action::{
@@ -54,13 +54,10 @@ async fn trigger_cleaning() {
 
     // create tx which will cause mempool cleaning flag to be set
     let tx_trigger = TransactionBody::builder()
-        .actions(vec![
-            FeeChange::Transfer(TransferFeeComponents {
-                base: 10,
-                multiplier: 0,
-            })
-            .into(),
-        ])
+        .actions(vec![FeeChange::Transfer(FeeComponents::<Transfer>::new(
+            10, 0,
+        ))
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()
@@ -150,13 +147,10 @@ async fn do_not_trigger_cleaning() {
     // create tx which will fail execution and not trigger flag
     // (wrong sudo signer)
     let tx_fail = TransactionBody::builder()
-        .actions(vec![
-            FeeChange::Transfer(TransferFeeComponents {
-                base: 10,
-                multiplier: 0,
-            })
-            .into(),
-        ])
+        .actions(vec![FeeChange::Transfer(FeeComponents::<Transfer>::new(
+            10, 0,
+        ))
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()
@@ -221,15 +215,13 @@ async fn maintenance_recosting_promotes() {
     // create tx which will not be included in block due to
     // having insufficient funds (transaction will be recosted to enable)
     let tx_fail_recost_funds = TransactionBody::builder()
-        .actions(vec![
-            Transfer {
-                to: astria_address_from_hex_string(CAROL_ADDRESS),
-                amount: 1u128,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![Transfer {
+            to: astria_address_from_hex_string(CAROL_ADDRESS),
+            amount: 1u128,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()
@@ -251,13 +243,10 @@ async fn maintenance_recosting_promotes() {
 
     // create tx which will enable recost tx to pass
     let tx_recost = TransactionBody::builder()
-        .actions(vec![
-            FeeChange::Transfer(TransferFeeComponents {
-                base: 10,
-                multiplier: 0,
-            })
-            .into(),
-        ])
+        .actions(vec![FeeChange::Transfer(FeeComponents::<Transfer>::new(
+            10, 0,
+        ))
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()
@@ -401,15 +390,13 @@ async fn maintenance_funds_added_promotes() {
     // create tx that will not be included in block due to
     // having no funds (will be sent transfer to then enable)
     let tx_fail_transfer_funds = TransactionBody::builder()
-        .actions(vec![
-            Transfer {
-                to: astria_address_from_hex_string(BOB_ADDRESS),
-                amount: 10u128,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![Transfer {
+            to: astria_address_from_hex_string(BOB_ADDRESS),
+            amount: 10u128,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()
@@ -431,15 +418,13 @@ async fn maintenance_funds_added_promotes() {
 
     // create tx which will enable no funds to pass
     let tx_fund = TransactionBody::builder()
-        .actions(vec![
-            Transfer {
-                to: astria_address_from_hex_string(CAROL_ADDRESS),
-                amount: 22u128,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![Transfer {
+            to: astria_address_from_hex_string(CAROL_ADDRESS),
+            amount: 22u128,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()

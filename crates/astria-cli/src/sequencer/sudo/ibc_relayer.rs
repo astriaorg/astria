@@ -88,25 +88,18 @@ struct ArgsInner {
     /// The prefix to construct a bech32m address given the private key.
     #[arg(long, default_value = "astria")]
     prefix: String,
+    /// The private key of the account authorizing the change
+    #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
     // TODO: https://github.com/astriaorg/astria/issues/594
     // Don't use a plain text private, prefer wrapper like from
     // the secrecy crate with specialized `Debug` and `Drop` implementations
     // that overwrite the key on drop and don't reveal it when printing.
-    #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
     private_key: String,
     /// The url of the Sequencer node
-    #[arg(
-        long,
-        env = "SEQUENCER_URL",
-        default_value = crate::DEFAULT_SEQUENCER_RPC
-    )]
+    #[arg(long, env = "SEQUENCER_URL")]
     sequencer_url: String,
     /// The chain id of the sequencing chain being used
-    #[arg(
-        long = "sequencer.chain-id",
-        env = "ROLLUP_SEQUENCER_CHAIN_ID",
-        default_value = crate::DEFAULT_SEQUENCER_CHAIN_ID
-    )]
+    #[arg(long = "sequencer.chain-id", env = "ROLLUP_SEQUENCER_CHAIN_ID")]
     sequencer_chain_id: String,
     /// The address to add or remove as an IBC relayer
     #[arg(long)]
