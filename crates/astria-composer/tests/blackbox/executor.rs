@@ -52,7 +52,9 @@ async fn bundle_triggered_by_block_timer() {
     // make sure at least one block has passed so that the executor will submit the bundle
     // despite it not being full
     time::pause();
-    time::timeout(Duration::from_millis(1000), async {
+    let submission_timeout =
+        Duration::from_millis(test_composer.cfg.block_time_ms.saturating_add(100));
+    time::timeout(submission_timeout, async {
         composer_client
             .submit_rollup_transaction(SubmitRollupTransactionRequest {
                 rollup_id: Some(rollup_id.into_raw()),
@@ -63,7 +65,7 @@ async fn bundle_triggered_by_block_timer() {
     })
     .await
     .unwrap();
-    time::advance(Duration::from_millis(2000)).await;
+    time::advance(Duration::from_millis(test_composer.cfg.block_time_ms)).await;
     time::resume();
 
     // wait for the mock sequencer to receive the signed transaction
@@ -138,29 +140,31 @@ async fn two_rollup_data_submissions_single_bundle() {
     // make sure at least one block has passed so that the executor will submit the bundle
     // despite it not being full
     time::pause();
-    time::timeout(Duration::from_millis(1000), async {
+    let submission_timeout =
+        Duration::from_millis(test_composer.cfg.block_time_ms.saturating_add(100));
+    time::timeout(submission_timeout, async {
         composer_client
             .submit_rollup_transaction(SubmitRollupTransactionRequest {
                 rollup_id: Some(seq0.rollup_id.into_raw()),
                 data: seq0.data.clone(),
             })
             .await
-            .expect("rollup transactions should have been submitted successfully to grpc collector")
-    })
-    .await
-    .unwrap();
-    time::timeout(Duration::from_millis(1000), async {
+            .expect(
+                "rollup transactions should have been submitted successfully to grpc collector",
+            );
         composer_client
             .submit_rollup_transaction(SubmitRollupTransactionRequest {
                 rollup_id: Some(seq1.rollup_id.into_raw()),
                 data: seq1.data.clone(),
             })
             .await
-            .expect("rollup transactions should have been submitted successfully to grpc collector")
+            .expect(
+                "rollup transactions should have been submitted successfully to grpc collector",
+            );
     })
     .await
     .unwrap();
-    time::advance(Duration::from_millis(2000)).await;
+    time::advance(Duration::from_millis(test_composer.cfg.block_time_ms)).await;
     time::resume();
 
     // wait for the mock sequencer to receive the signed transaction
