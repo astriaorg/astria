@@ -19,6 +19,7 @@ use crate::{
     protocol::transaction::v1::TransactionBody,
     sequencerblock::v1::{
         block::{
+            self,
             Deposit,
             SequencerBlockBuilder,
         },
@@ -48,7 +49,7 @@ impl From<(i64, u32)> for UnixTimeStamp {
 /// If the proposer address is not set it will be generated from the signing key.
 #[derive(Default)]
 pub struct ConfigureSequencerBlock {
-    pub block_hash: Option<[u8; 32]>,
+    pub block_hash: Option<block::Hash>,
     pub chain_id: Option<String>,
     pub height: u32,
     pub proposer_address: Option<tendermint::account::Id>,
@@ -87,7 +88,7 @@ impl ConfigureSequencerBlock {
             with_extended_commit_info,
         } = self;
 
-        let block_hash = block_hash.unwrap_or_default();
+        let block_hash = block_hash.unwrap_or_else(|| block::Hash::new([0; 32]));
         let chain_id = chain_id.unwrap_or_else(|| "test".to_string());
 
         let signing_key = signing_key.unwrap_or_else(|| SigningKey::new(rand::rngs::OsRng));

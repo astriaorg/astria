@@ -41,7 +41,10 @@ use astria_core::{
             Transaction,
         },
     },
-    sequencerblock::v1::block::SequencerBlockBuilder,
+    sequencerblock::v1::block::{
+        self,
+        SequencerBlockBuilder,
+    },
     Protobuf as _,
 };
 use astria_eyre::{
@@ -767,11 +770,7 @@ impl App {
         };
 
         // get copy of transactions to execute from mempool
-        let pending_txs = self
-            .mempool
-            .builder_queue(&self.state)
-            .await
-            .expect("failed to fetch pending transactions");
+        let pending_txs = self.mempool.builder_queue().await;
 
         let mut unused_count = pending_txs.len();
         for (tx_hash, tx) in pending_txs {
@@ -1010,7 +1009,7 @@ impl App {
         finalize_block_tx_results.extend(tx_results);
 
         let sequencer_block = SequencerBlockBuilder {
-            block_hash,
+            block_hash: block::Hash::new(block_hash),
             chain_id,
             height,
             time,
@@ -1027,7 +1026,7 @@ impl App {
 
         handle_consensus_param_updates(
             &mut state_tx,
-            &end_block.consensus_param_updates,
+            end_block.consensus_param_updates.as_ref(),
             vote_extensions_enable_height,
         )
         .wrap_err("failed to handle consensus param updates")?;
@@ -1438,7 +1437,7 @@ impl App {
 
 fn handle_consensus_param_updates(
     state_tx: &mut StateDelta<Arc<StateDelta<Snapshot>>>,
-    consensus_param_updates: &Option<tendermint::consensus::Params>,
+    consensus_param_updates: Option<&tendermint::consensus::Params>,
     current_vote_extensions_enable_height: u64,
 ) -> Result<()> {
     if let Some(consensus_param_updates) = &consensus_param_updates {

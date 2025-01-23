@@ -45,13 +45,13 @@ impl<'a> From<ChainId<'a>> for tendermint::chain::Id {
     }
 }
 
-impl<'a> BorshSerialize for ChainId<'a> {
+impl BorshSerialize for ChainId<'_> {
     fn serialize<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
         self.0.as_str().serialize(writer)
     }
 }
 
-impl<'a> BorshDeserialize for ChainId<'a> {
+impl BorshDeserialize for ChainId<'_> {
     fn deserialize_reader<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let chain_id_str = String::deserialize_reader(reader)?;
         let chain_id =
@@ -106,7 +106,7 @@ pub(in crate::grpc) struct SequencerBlockHeader<'a> {
     proposer_address: [u8; ADDRESS_LEN],
 }
 
-impl<'a> Debug for SequencerBlockHeader<'a> {
+impl Debug for SequencerBlockHeader<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("SequencerBlockHeader")
             .field("chain_id", &self.chain_id)

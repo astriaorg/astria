@@ -307,7 +307,7 @@ impl BriefSequencerBlockMetadata {
             .map(RollupId::to_string)
             .collect();
         BriefSequencerBlockMetadata {
-            sequencer_block_hash: BASE64_STANDARD.encode(metadata.block_hash),
+            sequencer_block_hash: BASE64_STANDARD.encode(metadata.block_hash.as_bytes()),
             sequencer_block_header: PrintableSequencerBlockHeader::from(&metadata.header),
             rollup_ids,
         }
@@ -346,7 +346,7 @@ impl VerboseSequencerBlockMetadata {
             .map(RollupId::to_string)
             .collect();
         VerboseSequencerBlockMetadata {
-            sequencer_block_hash: BASE64_STANDARD.encode(metadata.block_hash),
+            sequencer_block_hash: BASE64_STANDARD.encode(metadata.block_hash.as_bytes()),
             sequencer_block_header: PrintableSequencerBlockHeader::from(&metadata.header),
             rollup_ids,
             rollup_transactions_proof: PrintableMerkleProof::from(
@@ -383,7 +383,8 @@ struct BriefRollupData {
 impl BriefRollupData {
     fn new(rollup_data: &UncheckedSubmittedRollupData) -> Self {
         BriefRollupData {
-            sequencer_block_hash: BASE64_STANDARD.encode(rollup_data.sequencer_block_hash),
+            sequencer_block_hash: BASE64_STANDARD
+                .encode(rollup_data.sequencer_block_hash.as_bytes()),
             rollup_id: rollup_data.rollup_id.to_string(),
             transaction_count: rollup_data.transactions.len(),
         }
@@ -491,17 +492,17 @@ impl Display for RollupTransaction {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         colored_ln(f, "hash", &self.hash)?;
         colored_ln(f, "nonce", &self.nonce)?;
-        colored_ln(f, "block hash", none_or_value(&self.block_hash))?;
-        colored_ln(f, "block number", none_or_value(&self.block_number))?;
+        colored_ln(f, "block hash", none_or_value(self.block_hash.as_ref()))?;
+        colored_ln(f, "block number", none_or_value(self.block_number.as_ref()))?;
         colored_ln(
             f,
             "transaction index",
-            none_or_value(&self.transaction_index),
+            none_or_value(self.transaction_index.as_ref()),
         )?;
         colored_ln(f, "from", &self.from)?;
-        colored_ln(f, "to", none_or_value(&self.to))?;
+        colored_ln(f, "to", none_or_value(self.to.as_ref()))?;
         colored_ln(f, "value", &self.value)?;
-        colored_ln(f, "gas price", none_or_value(&self.gas_price))?;
+        colored_ln(f, "gas price", none_or_value(self.gas_price.as_ref()))?;
         colored_ln(f, "gas", &self.gas)?;
         colored_ln(f, "input", &self.input)?;
         colored_ln(f, "v", self.v)?;
@@ -719,7 +720,8 @@ impl VerboseRollupData {
             .collect();
         let item_count = transactions_and_deposits.len();
         VerboseRollupData {
-            sequencer_block_hash: BASE64_STANDARD.encode(rollup_data.sequencer_block_hash),
+            sequencer_block_hash: BASE64_STANDARD
+                .encode(rollup_data.sequencer_block_hash.as_bytes()),
             rollup_id: rollup_data.rollup_id.to_string(),
             transactions_and_deposits,
             item_count,
@@ -852,10 +854,10 @@ fn indent<'a, 'b>(f: &'a mut Formatter<'b>) -> indenter::Indented<'a, Formatter<
     indented(f).with_str("    ")
 }
 
-fn none_or_value<T: ToString>(maybe_value: &Option<T>) -> String {
+fn none_or_value<T: ToString>(maybe_value: Option<&T>) -> String {
     maybe_value
         .as_ref()
-        .map_or("none".to_string(), T::to_string)
+        .map_or("none".to_string(), |o| o.to_string())
 }
 
 fn colored_label(f: &mut Formatter<'_>, label: &str) -> fmt::Result {
