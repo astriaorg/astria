@@ -1556,12 +1556,10 @@ async fn remove_markets_executes_as_expected() {
 
     let market_map = app.state.get_market_map().await.unwrap().unwrap();
     assert_eq!(market_map.markets.len(), 1);
-    assert!(
-        market_map
-            .markets
-            .get(&ticker_1.currency_pair.to_string())
-            .is_none()
-    );
+    assert!(market_map
+        .markets
+        .get(&ticker_1.currency_pair.to_string())
+        .is_none());
     assert_eq!(
         market_map.markets.get(&ticker_2.currency_pair.to_string()),
         Some(&market_2)

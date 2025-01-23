@@ -525,10 +525,9 @@ mod test {
 
         let action = PriceFeed::MarketMap(MarketMapChange::Markets(ChangeMarkets::Create(vec![])));
         let res = action.check_and_execute(&mut state).await.unwrap_err();
-        assert!(
-            res.to_string()
-                .contains("market map params not found in state")
-        );
+        assert!(res
+            .to_string()
+            .contains("market map params not found in state"));
         assert!(state.get_market_map().await.unwrap().is_none());
     }
 
