@@ -145,14 +145,12 @@ mod tests {
             fee_asset: asset.clone(),
         };
 
-        assert!(
-            action
-                .check_and_execute(state)
-                .await
-                .unwrap_err()
-                .to_string()
-                .contains("unauthorized for bridge sudo change action")
-        );
+        assert!(action
+            .check_and_execute(state)
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("unauthorized for bridge sudo change action"));
     }
 
     #[tokio::test]

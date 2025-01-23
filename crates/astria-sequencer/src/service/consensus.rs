@@ -295,14 +295,12 @@ mod tests {
 
     fn make_unsigned_tx() -> TransactionBody {
         TransactionBody::builder()
-            .actions(vec![
-                RollupDataSubmission {
-                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                    data: Bytes::from_static(b"hello world"),
-                    fee_asset: crate::benchmark_and_test_utils::nria().into(),
-                }
-                .into(),
-            ])
+            .actions(vec![RollupDataSubmission {
+                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                data: Bytes::from_static(b"hello world"),
+                fee_asset: crate::benchmark_and_test_utils::nria().into(),
+            }
+            .into()])
             .chain_id("test")
             .try_build()
             .unwrap()
@@ -412,16 +410,14 @@ mod tests {
     async fn process_proposal_fail_missing_action_commitment() {
         let (mut consensus_service, _) = new_consensus_service(None, 1).await;
         let mut process_proposal = new_process_proposal_request(vec![]);
-        process_proposal.txs = vec![];
-        assert!(
-            consensus_service
-                .handle_process_proposal(process_proposal)
-                .await
-                .err()
-                .unwrap()
-                .to_string()
-                .contains("no transaction commitment in proposal")
-        );
+        process_proposal.txs.clear();
+        assert!(consensus_service
+            .handle_process_proposal(process_proposal)
+            .await
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("no transaction commitment in proposal"));
     }
 
     #[tokio::test]
@@ -443,15 +439,13 @@ mod tests {
         let (mut consensus_service, _) = new_consensus_service(None, 1).await;
         let mut process_proposal = new_process_proposal_request(vec![]);
         process_proposal.txs[0] = [99u8; 32].to_vec().into();
-        assert!(
-            consensus_service
-                .handle_process_proposal(process_proposal)
-                .await
-                .err()
-                .unwrap()
-                .to_string()
-                .contains("transaction commitment does not match expected")
-        );
+        assert!(consensus_service
+            .handle_process_proposal(process_proposal)
+            .await
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("transaction commitment does not match expected"));
     }
 
     #[tokio::test]

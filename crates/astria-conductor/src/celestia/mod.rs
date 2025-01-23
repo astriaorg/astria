@@ -7,7 +7,10 @@ use std::{
 use astria_core::{
     primitive::v1::RollupId,
     protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping,
-    sequencerblock::v1::block::SequencerBlockHeader,
+    sequencerblock::v1::block::{
+        self,
+        SequencerBlockHeader,
+    },
 };
 use astria_eyre::eyre::{
     self,
@@ -104,13 +107,17 @@ use crate::{
 #[derive(Clone, Debug)]
 pub(crate) struct ReconstructedBlock {
     pub(crate) celestia_height: u64,
-    pub(crate) block_hash: [u8; 32],
+    pub(crate) block_hash: block::Hash,
     pub(crate) header: SequencerBlockHeader,
     pub(crate) transactions: Vec<Bytes>,
     pub(crate) extended_commit_info: Option<ExtendedCommitInfoWithCurrencyPairMapping>,
 }
 
 impl ReconstructedBlock {
+    pub(crate) fn block_hash(&self) -> &block::Hash {
+        &self.block_hash
+    }
+
     pub(crate) fn sequencer_height(&self) -> SequencerHeight {
         self.header.height()
     }
@@ -157,7 +164,7 @@ pub(crate) struct Reader {
 
 impl Reader {
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        let ((), executor, sequencer_chain_id) = select!(
+        let (executor, sequencer_chain_id) = select!(
             () = self.shutdown.clone().cancelled_owned() => {
                 info_span!("conductor::celestia::Reader::run_until_stopped").in_scope(||
                     info!("received shutdown signal while waiting for Celestia reader task to initialize")
@@ -179,7 +186,7 @@ impl Reader {
     #[instrument(skip_all, err)]
     async fn initialize(
         &mut self,
-    ) -> eyre::Result<((), executor::Handle<StateIsInit>, tendermint::chain::Id)> {
+    ) -> eyre::Result<(executor::Handle<StateIsInit>, tendermint::chain::Id)> {
         let validate_celestia_chain_id = async {
             let actual_celestia_chain_id = get_celestia_chain_id(&self.celestia_client)
                 .await
@@ -219,6 +226,7 @@ impl Reader {
             wait_for_init_executor,
             get_and_validate_sequencer_chain_id
         )
+        .map(|((), executor_init, sequencer_chain_id)| (executor_init, sequencer_chain_id))
     }
 }
 
@@ -460,7 +468,7 @@ impl RunningReader {
                     error = %eyre::Report::new(e),
                     source_celestia_height = celestia_height,
                     sequencer_height,
-                    block_hash = %base64(&block_hash),
+                    block_hash = %block_hash,
                     "failed pushing reconstructed block into sequential cache; dropping it",
                 );
             }
@@ -517,18 +525,20 @@ impl RunningReader {
         match self.executor.try_send_firm_block(block) {
             Ok(()) => self.advance_reference_celestia_height(celestia_height),
             Err(FirmTrySendError::Channel {
-                source: mpsc::error::TrySendError::Full(block),
-            }) => {
-                trace!(
-                    "executor channel is full; rescheduling block fetch until the channel opens up"
-                );
-                self.enqueued_block = enqueue_block(self.executor.clone(), block).boxed().fuse();
-            }
-
-            Err(FirmTrySendError::Channel {
-                source: mpsc::error::TrySendError::Closed(_),
-            }) => bail!("exiting because executor channel is closed"),
-
+                source,
+            }) => match source {
+                mpsc::error::TrySendError::Full(block) => {
+                    trace!(
+                        "executor channel is full; rescheduling block fetch until the channel \
+                         opens up"
+                    );
+                    self.enqueued_block =
+                        enqueue_block(self.executor.clone(), block).boxed().fuse();
+                }
+                mpsc::error::TrySendError::Closed(_) => {
+                    bail!("exiting because executor channel is closed");
+                }
+            },
             Err(FirmTrySendError::NotSet) => bail!(
                 "exiting because executor was configured without firm commitments; this Celestia \
                  reader should have never been started"
@@ -664,7 +674,7 @@ impl FetchConvertVerifyAndReconstruct {
 #[instrument(skip_all, err)]
 async fn enqueue_block(
     executor: executor::Handle<StateIsInit>,
-    block: ReconstructedBlock,
+    block: Box<ReconstructedBlock>,
 ) -> Result<u64, FirmSendError> {
     let celestia_height = block.celestia_height;
     executor.send_firm_block(block).await?;
