@@ -32,18 +32,3 @@ message Upgrade1 {
   ConnectOracleChange connect_oracle_change = 2;
   ValidatorUpdateActionChange validator_update_action_change = 3;
 }
-
-// Brief details of a given upgrade change.
-//
-// This is NOT part of the upgrades file schema, rather it is used by the sequencer gRPC service in
-// the `GetUpgradesInfo` response.
-message ChangeInfo {
-  // The block height at which this change was applied.
-  uint64 activation_height = 1;
-  // The human-readable name assigned to to this change.
-  string change_name = 2;
-  // The app version running after the change was applied.
-  uint64 app_version = 3;
-  // The SHA256 digest of this change after Borsh-encoding. The digest is base64 (standard) encoded.
-  string base64_hash = 4;
-}

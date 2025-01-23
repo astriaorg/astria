@@ -160,12 +160,13 @@ message UpgradeChangeHashesWithProof {
   astria.primitive.v1.Proof proof = 2;
 }
 
+// If no upgrade change hashes exist in the block, this will be the third item in the cometbft
+// block data field, otherwise it will be fourth.
 message ExtendedCommitInfoWithProof {
   // The extended commit info for the block, if vote extensions were enabled at this height.
   bytes extended_commit_info = 1;
   // The proof that the extended commit info is included in the cometbft block data (if it
-  // exists). If no upgrade change hashes exist in the block, this will be the third item in the
-  // cometbft block data field, otherwise it will be fourth.
+  // exists).
   astria.primitive.v1.Proof proof = 2;
 }
 

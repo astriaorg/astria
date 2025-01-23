@@ -21,7 +21,7 @@ use astria_core::{
             TransactionBody,
         },
     },
-    sequencerblock::v1::block::ParsedDataItems,
+    sequencerblock::v1::block::ExpandedBlockData,
     upgrades::test_utils::UpgradesBuilder,
 };
 use astria_eyre::eyre::Result;
@@ -392,9 +392,9 @@ async fn execute_block_99(proposer: &mut Node, validator: &mut Node, non_validat
     let prepare_proposal_response = proposer.prepare_proposal(&prepare_proposal).await.unwrap();
     // Check the response's `txs` are in the legacy form, i.e. not encoded `DataItem`s, and that the
     // tx inserted to the mempool has been added to the block.
-    let parsed_data_items =
-        ParsedDataItems::new_from_untyped_data(&prepare_proposal_response.txs).unwrap();
-    assert_eq!(1, parsed_data_items.rollup_transactions.len());
+    let expanded_block_data =
+        ExpandedBlockData::new_from_untyped_data(&prepare_proposal_response.txs).unwrap();
+    assert_eq!(1, expanded_block_data.user_submitted_transactions.len());
 
     // Execute `ProcessProposal` for block 99 on the proposer and on the non-proposing validator.
     let process_proposal = new_process_proposal(&prepare_proposal, &prepare_proposal_response);
@@ -453,10 +453,12 @@ async fn execute_block_100(proposer: &mut Node, validator: &mut Node, non_valida
     // Check the response's `txs` are in the new form, i.e. encoded `DataItem`s, that the upgrade
     // change hashes are included in them, and that the tx inserted to the mempool is also included.
     // Extended commit info will not be produced yet.
-    let parsed_data_items =
-        ParsedDataItems::new_from_typed_data(&prepare_proposal_response.txs, false).unwrap();
-    assert!(parsed_data_items.upgrade_change_hashes_with_proof.is_some());
-    assert_eq!(1, parsed_data_items.rollup_transactions.len());
+    let expanded_block_data =
+        ExpandedBlockData::new_from_typed_data(&prepare_proposal_response.txs, false).unwrap();
+    assert!(expanded_block_data
+        .upgrade_change_hashes_with_proof
+        .is_some());
+    assert_eq!(1, expanded_block_data.user_submitted_transactions.len());
 
     // Execute `ProcessProposal` for block 100 on the proposer and on the non-proposing validator.
     let process_proposal = new_process_proposal(&prepare_proposal, &prepare_proposal_response);
@@ -523,10 +525,12 @@ async fn execute_block_101(proposer: &mut Node, validator: &mut Node, non_valida
     let prepare_proposal_response = proposer.prepare_proposal(&prepare_proposal).await.unwrap();
     // Check the response's `txs` are in the new form, i.e. encoded `DataItem`s, that no extended
     // commit info is provided, and that the tx inserted to the mempool is also included.
-    let parsed_data_items =
-        ParsedDataItems::new_from_typed_data(&prepare_proposal_response.txs, false).unwrap();
-    assert!(parsed_data_items.upgrade_change_hashes_with_proof.is_none());
-    assert_eq!(1, parsed_data_items.rollup_transactions.len());
+    let expanded_block_data =
+        ExpandedBlockData::new_from_typed_data(&prepare_proposal_response.txs, false).unwrap();
+    assert!(expanded_block_data
+        .upgrade_change_hashes_with_proof
+        .is_none());
+    assert_eq!(1, expanded_block_data.user_submitted_transactions.len());
 
     // Execute `ProcessProposal` for block 101 on the proposer and on the non-proposing validator.
     let process_proposal = new_process_proposal(&prepare_proposal, &prepare_proposal_response);
@@ -609,11 +613,15 @@ async fn execute_block_102(proposer: &mut Node, validator: &mut Node, non_valida
     let prepare_proposal_response = proposer.prepare_proposal(&prepare_proposal).await.unwrap();
     // Check the response's `txs` are in the new form, i.e. encoded `DataItem`s, that extended
     // commit info is provided, and that the tx inserted to the mempool is also included.
-    let parsed_data_items =
-        ParsedDataItems::new_from_typed_data(&prepare_proposal_response.txs, true).unwrap();
-    assert!(parsed_data_items.upgrade_change_hashes_with_proof.is_none());
-    assert!(parsed_data_items.extended_commit_info_with_proof.is_some());
-    assert_eq!(1, parsed_data_items.rollup_transactions.len());
+    let expanded_block_data =
+        ExpandedBlockData::new_from_typed_data(&prepare_proposal_response.txs, true).unwrap();
+    assert!(expanded_block_data
+        .upgrade_change_hashes_with_proof
+        .is_none());
+    assert!(expanded_block_data
+        .extended_commit_info_with_proof
+        .is_some());
+    assert_eq!(1, expanded_block_data.user_submitted_transactions.len());
 
     // Execute `ProcessProposal` for block 102 on the proposer and on the non-proposing validator.
     let process_proposal = new_process_proposal(&prepare_proposal, &prepare_proposal_response);

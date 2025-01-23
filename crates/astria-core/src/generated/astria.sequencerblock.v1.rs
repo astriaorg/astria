@@ -265,6 +265,8 @@ impl ::prost::Name for UpgradeChangeHashesWithProof {
         ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
     }
 }
+/// If no upgrade change hashes exist in the block, this will be the third item in the cometbft
+/// block data field, otherwise it will be fourth.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ExtendedCommitInfoWithProof {
@@ -272,8 +274,7 @@ pub struct ExtendedCommitInfoWithProof {
     #[prost(bytes = "bytes", tag = "1")]
     pub extended_commit_info: ::prost::bytes::Bytes,
     /// The proof that the extended commit info is included in the cometbft block data (if it
-    /// exists). If no upgrade change hashes exist in the block, this will be the third item in the
-    /// cometbft block data field, otherwise it will be fourth.
+    /// exists).
     #[prost(message, optional, tag = "2")]
     pub proof: ::core::option::Option<super::super::primitive::v1::Proof>,
 }
@@ -506,9 +507,38 @@ impl ::prost::Name for GetUpgradesInfoRequest {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetUpgradesInfoResponse {
     #[prost(message, repeated, tag = "1")]
-    pub applied: ::prost::alloc::vec::Vec<super::super::upgrades::v1::ChangeInfo>,
+    pub applied: ::prost::alloc::vec::Vec<get_upgrades_info_response::ChangeInfo>,
     #[prost(message, repeated, tag = "2")]
-    pub scheduled: ::prost::alloc::vec::Vec<super::super::upgrades::v1::ChangeInfo>,
+    pub scheduled: ::prost::alloc::vec::Vec<get_upgrades_info_response::ChangeInfo>,
+}
+/// Nested message and enum types in `GetUpgradesInfoResponse`.
+pub mod get_upgrades_info_response {
+    /// Brief details of a given upgrade change.
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Message)]
+    pub struct ChangeInfo {
+        /// The block height at which this change was applied.
+        #[prost(uint64, tag = "1")]
+        pub activation_height: u64,
+        /// The human-readable name assigned to to this change.
+        #[prost(string, tag = "2")]
+        pub change_name: ::prost::alloc::string::String,
+        /// The app version running after the change was applied.
+        #[prost(uint64, tag = "3")]
+        pub app_version: u64,
+        /// The SHA256 digest of this change after Borsh-encoding. The digest is base64 (standard) encoded.
+        #[prost(string, tag = "4")]
+        pub base64_hash: ::prost::alloc::string::String,
+    }
+    impl ::prost::Name for ChangeInfo {
+        const NAME: &'static str = "ChangeInfo";
+        const PACKAGE: &'static str = "astria.sequencerblock.v1";
+        fn full_name() -> ::prost::alloc::string::String {
+            ::prost::alloc::format!(
+                "astria.sequencerblock.v1.GetUpgradesInfoResponse.{}", Self::NAME
+            )
+        }
+    }
 }
 impl ::prost::Name for GetUpgradesInfoResponse {
     const NAME: &'static str = "GetUpgradesInfoResponse";

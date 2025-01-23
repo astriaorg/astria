@@ -53,7 +53,7 @@ use crate::{
         block::{
             self,
             Deposit,
-            ParsedDataItems,
+            ExpandedBlockData,
             SequencerBlockBuilder,
         },
         DataItem,
@@ -249,8 +249,8 @@ impl ConfigureSequencerBlock {
         }
 
         data.extend(txs.into_iter().map(|tx| tx.to_raw().encode_to_vec().into()));
-        let parsed_data_items =
-            ParsedDataItems::new_from_typed_data(&data, with_extended_commit_info).unwrap();
+        let expanded_block_data =
+            ExpandedBlockData::new_from_typed_data(&data, with_extended_commit_info).unwrap();
 
         SequencerBlockBuilder {
             block_hash,
@@ -258,7 +258,7 @@ impl ConfigureSequencerBlock {
             height: height.into(),
             time: Time::from_unix_timestamp(unix_timestamp.secs, unix_timestamp.nanos).unwrap(),
             proposer_address,
-            parsed_data_items,
+            expanded_block_data,
             deposits: deposits_map,
         }
         .try_build()

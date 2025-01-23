@@ -81,30 +81,3 @@ impl ::prost::Name for Upgrade1 {
         ::prost::alloc::format!("astria.upgrades.v1.{}", Self::NAME)
     }
 }
-/// Brief details of a given upgrade change.
-///
-/// This is NOT part of the upgrades file schema, rather it is used by the sequencer gRPC service in
-/// the `GetUpgradesInfo` response.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ChangeInfo {
-    /// The block height at which this change was applied.
-    #[prost(uint64, tag = "1")]
-    pub activation_height: u64,
-    /// The human-readable name assigned to to this change.
-    #[prost(string, tag = "2")]
-    pub change_name: ::prost::alloc::string::String,
-    /// The app version running after the change was applied.
-    #[prost(uint64, tag = "3")]
-    pub app_version: u64,
-    /// The SHA256 digest of this change after Borsh-encoding. The digest is base64 (standard) encoded.
-    #[prost(string, tag = "4")]
-    pub base64_hash: ::prost::alloc::string::String,
-}
-impl ::prost::Name for ChangeInfo {
-    const NAME: &'static str = "ChangeInfo";
-    const PACKAGE: &'static str = "astria.upgrades.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.upgrades.v1.{}", Self::NAME)
-    }
-}

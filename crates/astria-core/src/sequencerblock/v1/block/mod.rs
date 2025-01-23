@@ -734,7 +734,7 @@ pub struct SequencerBlockBuilder {
     pub height: tendermint::block::Height,
     pub time: Time,
     pub proposer_address: account::Id,
-    pub parsed_data_items: ParsedDataItems,
+    pub expanded_block_data: ExpandedBlockData,
     pub deposits: HashMap<RollupId, Vec<Deposit>>,
 }
 
@@ -743,25 +743,9 @@ impl SequencerBlockBuilder {
     ///
     /// # Errors
     ///
-    /// Returns an error if `uses_data_item_enum` is false and `with_extended_commit_info` is true,
-    /// or if any item in the data cannot be decoded, or if any of the following conditions are not
-    /// met:
-    /// - the first item in the data must be the 32-byte rollup transactions root.
-    /// - the second item in the data must be the 32-byte rollup IDs root.
-    /// - the third item in the data...
-    ///   - must be a rollup tx if `uses_data_item_enum` is false,
-    ///   - if `uses_data_item_enum` is true, may be upgrade change hashes,
-    ///   - if `uses_data_item_enum` is true and third item is not upgrade change hashes, must be
-    ///     extended commit info if `with_extended_commit_info` is true, or must be a rollup tx if
-    ///     `with_extended_commit_info` is false,
-    /// - the fourth item in the data...
-    ///   - must be a rollup tx if `uses_data_item_enum` is false,
-    ///   - if the third item is upgrade change hashes, must be extended commit info if
-    ///     `with_extended_commit_info` is true, or must be a rollup tx if
-    ///     `with_extended_commit_info` is false,
-    ///   - if the third item is not upgrade change hashes, must be a rollup tx.
-    /// - the rollup transactions root does must match the reconstructed root.
-    /// - the rollup IDs root does must match the reconstructed root.
+    /// Returns an error if `expanded_block_data.rollup_transactions_root` does not match
+    /// reconstructed root, or if `expanded_block_data.rollup_ids_root` does not match reconstructed
+    /// root.
     ///
     /// # Panics
     ///
@@ -773,11 +757,11 @@ impl SequencerBlockBuilder {
             height,
             time,
             proposer_address,
-            parsed_data_items,
+            expanded_block_data,
             deposits,
         } = self;
 
-        let ParsedDataItems {
+        let ExpandedBlockData {
             data_root_hash,
             rollup_transactions_root,
             rollup_transactions_proof,
@@ -785,11 +769,11 @@ impl SequencerBlockBuilder {
             rollup_ids_proof,
             upgrade_change_hashes_with_proof,
             extended_commit_info_with_proof,
-            rollup_transactions,
-        } = parsed_data_items;
+            user_submitted_transactions,
+        } = expanded_block_data;
 
         let mut rollup_datas = IndexMap::new();
-        for tx in rollup_transactions {
+        for tx in user_submitted_transactions {
             for action in (*tx).clone().into_unsigned().into_actions() {
                 // XXX: The fee asset is dropped. We should explain why that's ok.
                 if let action::Action::RollupDataSubmission(action::RollupDataSubmission {
@@ -1423,7 +1407,7 @@ enum DataItemErrorKind {
 /// The parsed elements of the `data` field of a `SequencerBlock`, along with values derived from
 /// these.
 #[derive(Debug)]
-pub struct ParsedDataItems {
+pub struct ExpandedBlockData {
     /// The root hash of the Merkle tree derived from the `data` (not itself an actual entry in
     /// `data`).
     pub data_root_hash: [u8; SHA256_DIGEST_LENGTH],
@@ -1448,13 +1432,13 @@ pub struct ParsedDataItems {
     /// must exist. If not, there must be no entry in `data` for this, as opposed to an empty or
     /// `None` entry.
     pub extended_commit_info_with_proof: Option<ExtendedCommitInfoWithProof>,
-    /// All remaining entries of `data`, parsed into rollup txs, in the same order as they appear
-    /// in `data`.
-    pub rollup_transactions: Vec<Arc<Transaction>>,
+    /// All remaining entries of `data`, parsed into txs, in the same order as they appear in
+    /// `data`.
+    pub user_submitted_transactions: Vec<Arc<Transaction>>,
 }
 
-impl ParsedDataItems {
-    /// Constructs a new `ParsedDataItems` from `data`, expecting the entries to be in the
+impl ExpandedBlockData {
+    /// Constructs a new `ExpandedBlockData` from `data`, expecting the entries to be in the
     /// pre-upgrade1 form of two raw `[u8; 32]` hashes followed by the raw bytes of rollup txs.
     ///
     /// # Errors
@@ -1488,7 +1472,7 @@ impl ParsedDataItems {
              in `data` used to construct the tree",
         );
 
-        let rollup_transactions = data_iter
+        let user_submitted_transactions = data_iter
             .map(|(_index, bytes)| {
                 let raw_tx = RawTransaction::decode(bytes.as_ref())
                     .map_err(SequencerBlockError::transaction_protobuf_decode)?;
@@ -1506,11 +1490,11 @@ impl ParsedDataItems {
             rollup_ids_proof,
             upgrade_change_hashes_with_proof: None,
             extended_commit_info_with_proof: None,
-            rollup_transactions,
+            user_submitted_transactions,
         })
     }
 
-    /// Constructs a new `ParsedDataItems` from `data`, expecting the entries to be in the
+    /// Constructs a new `ExpandedBlockData` from `data`, expecting the entries to be in the
     /// post-upgrade1 form of Borsh-encoded `DataItem`s.
     ///
     /// The expected order is:
@@ -1600,8 +1584,8 @@ impl ParsedDataItems {
             })
             .transpose()?;
 
-        // All further items must be rollup txs.
-        let rollup_transactions = data_iter
+        // All further items must be user-submitted txs.
+        let user_submitted_transactions = data_iter
             .map(|(_index, bytes)| {
                 merkle_tree_leaves.push(Sha256::digest(bytes.as_ref()));
                 let raw_tx = RawTransaction::decode(bytes.as_ref())
@@ -1656,12 +1640,13 @@ impl ParsedDataItems {
             rollup_ids_proof,
             upgrade_change_hashes_with_proof,
             extended_commit_info_with_proof,
-            rollup_transactions,
+            user_submitted_transactions,
         })
     }
 
-    /// Returns the number of items in the original `data` collection that are not rollup txs.
-    pub fn non_rollup_transaction_count(&self) -> usize {
+    /// Returns the number of items in the original `data` collection that are injected txs, i.e.
+    /// not user-submitted txs.
+    pub fn injected_transaction_count(&self) -> usize {
         // `rollup_transactions_root` and `rollup_ids_root` are always present.
         2_usize
             .saturating_add(usize::from(self.upgrade_change_hashes_with_proof.is_some()))

@@ -37,7 +37,7 @@ use astria_core::{
     sequencerblock::v1::{
         block::{
             self,
-            ParsedDataItems,
+            ExpandedBlockData,
             SequencerBlockBuilder,
         },
         DataItem,
@@ -554,13 +554,13 @@ impl App {
         storage: Storage,
     ) -> Result<()> {
         let uses_data_item_enum = self.uses_data_item_enum(process_proposal.height);
-        let parsed_data_items = if uses_data_item_enum {
+        let expanded_block_data = if uses_data_item_enum {
             let with_extended_commit_info = self
                 .vote_extensions_enabled(process_proposal.height)
                 .await?;
-            ParsedDataItems::new_from_typed_data(&process_proposal.txs, with_extended_commit_info)
+            ExpandedBlockData::new_from_typed_data(&process_proposal.txs, with_extended_commit_info)
         } else {
-            ParsedDataItems::new_from_untyped_data(&process_proposal.txs)
+            ExpandedBlockData::new_from_untyped_data(&process_proposal.txs)
         }
         .wrap_err("failed to parse data items")?;
 
@@ -590,7 +590,7 @@ impl App {
                     process_proposal.height,
                     process_proposal.time,
                     process_proposal.proposer_address,
-                    parsed_data_items,
+                    expanded_block_data,
                     tx_results,
                 )
                 .await
@@ -609,7 +609,7 @@ impl App {
         self.update_state_for_new_round(&storage);
 
         if let Some(extended_commit_info_with_proof) =
-            &parsed_data_items.extended_commit_info_with_proof
+            &expanded_block_data.extended_commit_info_with_proof
         {
             let Some(last_commit) = process_proposal.proposed_last_commit else {
                 bail!("proposed last commit is empty; this should not occur")
@@ -639,7 +639,7 @@ impl App {
             .await
             .wrap_err("failed to prepare for executing block")?;
         ensure_upgrade_change_hashes_as_expected(
-            &parsed_data_items,
+            &expanded_block_data,
             upgrade_change_hashes.as_ref(),
         )?;
 
@@ -651,37 +651,37 @@ impl App {
 
         let tx_results = self
             .process_proposal_tx_execution(
-                &parsed_data_items.rollup_transactions,
+                &expanded_block_data.user_submitted_transactions,
                 block_size_constraints,
             )
             .await
             .wrap_err("failed to execute transactions")?;
 
         self.metrics
-            .record_proposal_transactions(parsed_data_items.rollup_transactions.len());
+            .record_proposal_transactions(expanded_block_data.user_submitted_transactions.len());
 
         let deposits = self.state.get_cached_block_deposits();
         self.metrics.record_proposal_deposits(deposits.len());
 
         let (expected_rollup_datas_root, expected_rollup_ids_root) = if uses_data_item_enum {
             let commitments = generate_rollup_datas_commitment::<true>(
-                &parsed_data_items.rollup_transactions,
+                &expanded_block_data.user_submitted_transactions,
                 deposits,
             );
             (commitments.rollup_datas_root, commitments.rollup_ids_root)
         } else {
             let commitments = generate_rollup_datas_commitment::<false>(
-                &parsed_data_items.rollup_transactions,
+                &expanded_block_data.user_submitted_transactions,
                 deposits,
             );
             (commitments.rollup_datas_root, commitments.rollup_ids_root)
         };
         ensure!(
-            parsed_data_items.rollup_transactions_root == expected_rollup_datas_root,
+            expanded_block_data.rollup_transactions_root == expected_rollup_datas_root,
             "rollup transactions commitment does not match expected",
         );
         ensure!(
-            parsed_data_items.rollup_ids_root == expected_rollup_ids_root,
+            expanded_block_data.rollup_ids_root == expected_rollup_ids_root,
             "rollup IDs commitment does not match expected",
         );
 
@@ -691,7 +691,7 @@ impl App {
             process_proposal.height,
             process_proposal.time,
             process_proposal.proposer_address,
-            parsed_data_items,
+            expanded_block_data,
             tx_results,
         )
         .await
@@ -1102,7 +1102,7 @@ impl App {
         height: tendermint::block::Height,
         time: tendermint::Time,
         proposer_address: account::Id,
-        parsed_data_items: ParsedDataItems,
+        expanded_block_data: ExpandedBlockData,
         tx_results: Vec<ExecTxResult>,
     ) -> Result<()> {
         let Hash::Sha256(block_hash) = block_hash else {
@@ -1135,13 +1135,13 @@ impl App {
         // tx result for the commitments and other injected data items, even though they're not
         // actually user txs.
         //
-        // the tx_results passed to this function only contain results for every user
+        // the tx_results passed to this function only contain results for every user-submitted
         // transaction, not the injected ones.
-        let non_rollup_tx_count = parsed_data_items.non_rollup_transaction_count();
+        let injected_tx_count = expanded_block_data.injected_transaction_count();
         let mut finalize_block_tx_results: Vec<ExecTxResult> =
-            Vec::with_capacity(parsed_data_items.rollup_transactions.len());
+            Vec::with_capacity(expanded_block_data.user_submitted_transactions.len());
         finalize_block_tx_results
-            .extend(std::iter::repeat(ExecTxResult::default()).take(non_rollup_tx_count));
+            .extend(std::iter::repeat(ExecTxResult::default()).take(injected_tx_count));
         finalize_block_tx_results.extend(tx_results);
 
         let sequencer_block = SequencerBlockBuilder {
@@ -1150,7 +1150,7 @@ impl App {
             height,
             time,
             proposer_address,
-            parsed_data_items,
+            expanded_block_data,
             deposits: deposits_in_this_block,
         }
         .try_build()
@@ -1194,17 +1194,17 @@ impl App {
         }
 
         let uses_data_item_enum = self.uses_data_item_enum(finalize_block.height);
-        let parsed_data_items = if uses_data_item_enum {
+        let expanded_block_data = if uses_data_item_enum {
             let with_extended_commit_info =
                 self.vote_extensions_enabled(finalize_block.height).await?;
-            ParsedDataItems::new_from_typed_data(&finalize_block.txs, with_extended_commit_info)
+            ExpandedBlockData::new_from_typed_data(&finalize_block.txs, with_extended_commit_info)
         } else {
-            ParsedDataItems::new_from_untyped_data(&finalize_block.txs)
+            ExpandedBlockData::new_from_untyped_data(&finalize_block.txs)
         }
         .wrap_err("failed to parse data items")?;
 
         if let Some(extended_commit_info_with_proof) =
-            &parsed_data_items.extended_commit_info_with_proof
+            &expanded_block_data.extended_commit_info_with_proof
         {
             let extended_commit_info = extended_commit_info_with_proof.extended_commit_info();
             let mut state_tx: StateDelta<Arc<StateDelta<Snapshot>>> =
@@ -1236,12 +1236,13 @@ impl App {
                 .await
                 .wrap_err("failed to execute block")?;
             ensure_upgrade_change_hashes_as_expected(
-                &parsed_data_items,
+                &expanded_block_data,
                 upgrade_change_hashes.as_ref(),
             )?;
 
-            let mut tx_results = Vec::with_capacity(parsed_data_items.rollup_transactions.len());
-            for tx in &parsed_data_items.rollup_transactions {
+            let mut tx_results =
+                Vec::with_capacity(expanded_block_data.user_submitted_transactions.len());
+            for tx in &expanded_block_data.user_submitted_transactions {
                 match self.execute_transaction(tx.clone()).await {
                     Ok(events) => tx_results.push(ExecTxResult {
                         events,
@@ -1273,7 +1274,7 @@ impl App {
                 finalize_block.height,
                 finalize_block.time,
                 finalize_block.proposer_address,
-                parsed_data_items,
+                expanded_block_data,
                 tx_results,
             )
             .await
@@ -1759,11 +1760,11 @@ fn set_vote_extensions_enable_height_to_next_block_height(
 }
 
 fn ensure_upgrade_change_hashes_as_expected(
-    received_data_items: &ParsedDataItems,
+    received_data: &ExpandedBlockData,
     calculated_upgrade_change_hashes: Option<&Vec<ChangeHash>>,
 ) -> Result<()> {
     match (
-        &received_data_items.upgrade_change_hashes_with_proof,
+        &received_data.upgrade_change_hashes_with_proof,
         calculated_upgrade_change_hashes,
     ) {
         (Some(received_hashes), Some(calculated_hashes)) => {
