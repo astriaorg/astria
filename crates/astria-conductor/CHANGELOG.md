@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Bump MSRV to 1.83.0 [#1857](https://github.com/astriaorg/astria/pull/1857).
 - Add stop height logic, remove chain id env vars, accomodate new genesis info
 shape [#1843](https://github.com/astriaorg/astria/pull/1843).
 - Bump penumbra dependencies [#1740](https://github.com/astriaorg/astria/pull/1740).
