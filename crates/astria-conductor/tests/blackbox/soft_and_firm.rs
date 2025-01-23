@@ -595,9 +595,8 @@ async fn conductor_restarts_on_permission_denied() {
 }
 
 /// Tests if the conductor correctly stops and procedes to restart after reaching the sequencer stop
-/// height (from genesis info provided by rollup). In `SoftAndFirm` mode executor should not call
-/// `execute_block` or `update_commitment_state` for any soft blocks at or above the stop height.
-/// The conductor DOES call these on the firm block at the stop height, then proceeds to restart.
+/// height (from genesis info provided by rollup). In `SoftAndFirm` mode executor should execute
+/// both the soft and firm blocks at the stop height and then perform a restart.
 ///
 /// This test consists of the following steps:
 /// 1. Mount commitment state and genesis info with a sequencer stop height of 3, only responding up
@@ -608,11 +607,10 @@ async fn conductor_restarts_on_permission_denied() {
 ///    which should both be called. These are mounted with a slight delay to ensure that the soft
 ///    block arrives first after restart.
 /// 5. Mount `execute_block` and `update_commitment_state` for both soft and firm blocks at height
-///    3. The soft block should not be executed since it is at the stop height, but the firm should
-///    be.
-/// 6. Await satisfaction of the `execute_block` and `update_commitment_state` for the firm block at
-///    height 3 with a timeout of 1000ms. The test sleeps during this time, so that the following
-///    mounts do not occur before the conductor restarts.
+///    3.
+/// 6. Await satisfaction of the `execute_block` and `update_commitment_state` for the soft and firm
+///    blocks at height 3 with a timeout of 1000ms. The test sleeps during this time, so that the
+///    following mounts do not occur before the conductor restarts.
 /// 7. Mount new genesis info with a sequencer stop height of 10 and a rollup start block height of
 ///    2, along with corresponding commitment state, reflecting that block 1 has already been
 ///    executed and the commitment state updated.
@@ -694,8 +692,7 @@ async fn conductor_restarts_after_reaching_stop_height() {
         expected_calls: 1, // This should not be called again after restart
     );
 
-    // This should not be called, since it is at the sequencer stop height
-    let _update_commitment_state_soft_1 = mount_update_commitment_state!(
+    let update_commitment_state_soft_1 = mount_update_commitment_state!(
         test_conductor,
         mock_name: "update_commitment_state_soft_1",
         firm: (
@@ -709,7 +706,7 @@ async fn conductor_restarts_after_reaching_stop_height() {
             parent: [1; 64],
         ),
         base_celestia_height: 1,
-        expected_calls: 0,
+        expected_calls: 1,
     );
 
     let update_commitment_state_firm_1 = mount_update_commitment_state!(
@@ -731,9 +728,10 @@ async fn conductor_restarts_after_reaching_stop_height() {
 
     timeout(
         Duration::from_millis(1000),
-        join(
+        join3(
             execute_block_1.wait_until_satisfied(),
             update_commitment_state_firm_1.wait_until_satisfied(),
+            update_commitment_state_soft_1.wait_until_satisfied(),
         ),
     )
     .await
@@ -809,7 +807,7 @@ async fn conductor_restarts_after_reaching_stop_height() {
     );
 
     timeout(
-        Duration::from_millis(1000),
+        Duration::from_millis(2000),
         join3(
             execute_block_2.wait_until_satisfied(),
             update_commitment_state_soft_2.wait_until_satisfied(),
@@ -829,11 +827,9 @@ async fn conductor_restarts_after_reaching_stop_height() {
 /// 2. Mount Celestia network head and sequencer genesis.
 /// 3. Mount ABCI info and sequencer (soft blocks) for height 3.
 /// 4. Mount firm blocks at height 3, with corresponding `update_commitment_state` mount.
-/// 5. Mount `execute_block` and `update_commitment_state` for firm block at height
-///    3. The soft block should not be executed since it is at the stop height, but the firmshould
-///       be.
-/// 6. Await satisfaction of the `execute_block` and `update_commitment_state` for the firm block
-///    height 3 with a timeout of 1000ms.
+/// 5. Mount `execute_block` and `update_commitment_state` for soft and firm blocks at height 3.
+/// 6. Await satisfaction of the `execute_block` and `update_commitment_state` for the soft and firm
+///    block height 3 with a timeout of 1000ms.
 /// 7. Allow ample time for the conductor to potentially restart erroneously.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn conductor_stops_at_stop_height() {
@@ -886,6 +882,7 @@ async fn conductor_stops_at_stop_height() {
         test_conductor,
         celestia_height: 1,
         sequencer_heights: [3],
+        delay: Some(Duration::from_millis(200)), // ensure soft block is received first
     );
     mount_sequencer_commit!(
         test_conductor,
@@ -899,6 +896,23 @@ async fn conductor_stops_at_stop_height() {
         number: 2,
         hash: [2; 64],
         parent: [1; 64],
+    );
+
+    let update_commitment_state_soft_1 = mount_update_commitment_state!(
+        test_conductor,
+        mock_name: "update_commitment_state_soft_1",
+        firm: (
+            number: 1,
+            hash: [1; 64],
+            parent: [0; 64],
+        ),
+        soft: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        base_celestia_height: 1,
+        expected_calls: 1,
     );
 
     let update_commitment_state_firm_1 = mount_update_commitment_state!(
@@ -919,9 +933,10 @@ async fn conductor_stops_at_stop_height() {
 
     timeout(
         Duration::from_millis(1000),
-        join(
+        join3(
             execute_block_1.wait_until_satisfied(),
             update_commitment_state_firm_1.wait_until_satisfied(),
+            update_commitment_state_soft_1.wait_until_satisfied(),
         ),
     )
     .await

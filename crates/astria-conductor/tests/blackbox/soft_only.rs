@@ -467,11 +467,11 @@ async fn exits_on_sequencer_chain_id_mismatch() {
 }
 
 /// Tests that the conductor correctly stops at the sequencer stop block height in soft only mode,
-/// not executing the soft block at that height. Then, tests that the conductor correctly restarts
+/// executing the soft block at that height. Then, tests that the conductor correctly restarts
 /// and continues executing soft blocks after receiving updated genesis info and commitment state.
 ///
 /// It consists of the following steps:
-/// 1. Mount commitment state and genesis info with a stop height of 4, responding only up to 1 time
+/// 1. Mount commitment state and genesis info with a stop height of 3, responding only up to 1 time
 ///    so that the same information is not retrieved after restarting.
 /// 2. Mount sequencer genesis, ABCI info, and sequencer blocks for heights 3 and 4.
 /// 3. Mount `execute_block` and `update_commitment_state` mocks for the soft block at height 3,
@@ -493,7 +493,7 @@ async fn conductor_restarts_after_reaching_stop_block_height() {
     mount_get_genesis_info!(
         test_conductor,
         sequencer_start_block_height: 1,
-        sequencer_stop_block_height: 4,
+        sequencer_stop_block_height: 3,
         celestia_block_variance: 10,
         rollup_start_block_height: 0,
         up_to_n_times: 1, // We need to mount a new genesis info after restart

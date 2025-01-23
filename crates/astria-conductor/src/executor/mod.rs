@@ -497,10 +497,10 @@ impl Executor {
         // TODO(https://github.com/astriaorg/astria/issues/624): add retry logic before failing hard.
         let executable_block = ExecutableBlock::from_sequencer(block, self.state.rollup_id());
 
-        // Stop executing soft blocks at the sequencer stop block height (exclusive). If we are also
-        // executing firm blocks, we let execution continue since one more firm block will be
-        // executed before `execute_firm` initiates a restart. If we are in soft-only mode, we
-        // return a `StopHeightExceded::Sequencer` error to signal a restart.
+        // Stop executing soft blocks at the sequencer stop block height (inclusive). If we are also
+        // executing firm blocks, we let execution continue so that the firm block at the stop
+        // height is executed before restarting. If we are in soft-only mode, we return a
+        // `StopHeightExceded::Sequencer` value to signal a restart.
         if self.is_soft_block_height_exceded(&executable_block) {
             if self.mode.is_with_firm() {
                 // If we are continuing to execute firm blocks, we should close the soft block
@@ -806,11 +806,11 @@ impl Executor {
         )
     }
 
-    /// Returns whether the height of the soft block is greater than or equal to the stop block
+    /// Returns whether the height of the soft block is greater than the stop block
     /// height.
     fn is_soft_block_height_exceded(&self, block: &ExecutableBlock) -> bool {
         let stop_height = self.state.sequencer_stop_block_height();
-        stop_height > 0 && block.height.value() >= stop_height
+        stop_height > 0 && block.height.value() > stop_height
     }
 
     /// Returns whether the height of the firm block is greater than the stop block height.
