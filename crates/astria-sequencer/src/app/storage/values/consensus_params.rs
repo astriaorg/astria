@@ -177,7 +177,7 @@ impl From<ConsensusParams> for DomainConsensusParams {
     }
 }
 
-impl<'a> From<ConsensusParams> for crate::storage::StoredValue<'a> {
+impl From<ConsensusParams> for crate::storage::StoredValue<'_> {
     fn from(params: ConsensusParams) -> Self {
         crate::storage::StoredValue::App(Value(ValueImpl::ConsensusParams(params)))
     }

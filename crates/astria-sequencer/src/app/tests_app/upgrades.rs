@@ -88,15 +88,13 @@ const NEW_CURRENCY_PAIR_1_PRICE: u128 = 1_001;
 
 fn signed_tx(nonce: u32) -> Arc<Transaction> {
     let tx = TransactionBody::builder()
-        .actions(vec![
-            Transfer {
-                to: astria_address_from_hex_string(BOB_ADDRESS),
-                amount: 100_000,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![Transfer {
+            to: astria_address_from_hex_string(BOB_ADDRESS),
+            amount: 100_000,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .nonce(nonce)
         .try_build()

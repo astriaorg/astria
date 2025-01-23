@@ -6,6 +6,7 @@ use sha2::{
 
 use super::{
     block::{
+        self,
         ExtendedCommitInfoWithProof,
         RollupTransactionsParts,
         SequencerBlock,
@@ -147,7 +148,7 @@ enum SubmittedRollupDataErrorKind {
 /// they can be converted directly into one another. This can change in the future.
 pub struct UncheckedSubmittedRollupData {
     /// The hash of the sequencer block. Must be 32 bytes.
-    pub sequencer_block_hash: [u8; 32],
+    pub sequencer_block_hash: block::Hash,
     /// The 32 bytes identifying the rollup this blob belongs to. Matches
     /// `astria.sequencerblock.v1.RollupTransactions.rollup_id`
     pub rollup_id: RollupId,
@@ -167,7 +168,7 @@ impl UncheckedSubmittedRollupData {
 #[derive(Clone, Debug)]
 pub struct SubmittedRollupData {
     /// The hash of the sequencer block. Must be 32 bytes.
-    sequencer_block_hash: [u8; 32],
+    sequencer_block_hash: block::Hash,
     /// The 32 bytes identifying the rollup this blob belongs to. Matches
     /// `astria.sequencerblock.v1.RollupTransactions.rollup_id`
     rollup_id: RollupId,
@@ -194,7 +195,7 @@ impl SubmittedRollupData {
     }
 
     #[must_use]
-    pub fn sequencer_block_hash(&self) -> &[u8; 32] {
+    pub fn sequencer_block_hash(&self) -> &block::Hash {
         &self.sequencer_block_hash
     }
 
@@ -248,7 +249,7 @@ impl SubmittedRollupData {
             proof,
         } = self;
         raw::SubmittedRollupData {
-            sequencer_block_hash: Bytes::copy_from_slice(&sequencer_block_hash),
+            sequencer_block_hash: Bytes::copy_from_slice(sequencer_block_hash.as_bytes()),
             rollup_id: Some(rollup_id.to_raw()),
             transactions,
             proof: Some(proof.into_raw()),
@@ -413,7 +414,7 @@ enum SubmittedMetadataErrorKind {
 /// access the sequencer block's internal types.
 #[derive(Clone, Debug)]
 pub struct UncheckedSubmittedMetadata {
-    pub block_hash: [u8; 32],
+    pub block_hash: block::Hash,
     /// The original `CometBFT` header that is the input to this blob's original sequencer block.
     /// Corresponds to `astria.SequencerBlock.header`.
     pub header: SequencerBlockHeader,
@@ -529,7 +530,7 @@ impl UncheckedSubmittedMetadata {
 #[derive(Clone, Debug)]
 pub struct SubmittedMetadata {
     /// The block hash obtained from hashing `.header`.
-    block_hash: [u8; 32],
+    block_hash: block::Hash,
     /// The sequencer block header.
     header: SequencerBlockHeader,
     /// The rollup IDs for which `SubmittedRollupData`s were submitted to celestia.
@@ -572,7 +573,7 @@ impl<'a> Iterator for RollupIdIter<'a> {
 impl SubmittedMetadata {
     /// Returns the block hash of the tendermint header stored in this blob.
     #[must_use]
-    pub fn block_hash(&self) -> &[u8; 32] {
+    pub fn block_hash(&self) -> &block::Hash {
         &self.block_hash
     }
 
@@ -695,7 +696,7 @@ impl SubmittedMetadata {
             extended_commit_info_with_proof,
         } = self;
         raw::SubmittedMetadata {
-            block_hash: Bytes::copy_from_slice(&block_hash),
+            block_hash: Bytes::copy_from_slice(block_hash.as_bytes()),
             header: Some(header.into_raw()),
             rollup_ids: rollup_ids.into_iter().map(RollupId::into_raw).collect(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),

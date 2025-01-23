@@ -36,6 +36,7 @@ use astria_core::{
     },
     sequencerblock::v1::{
         block::{
+            self,
             ParsedDataItems,
             SequencerBlockBuilder,
         },
@@ -637,7 +638,10 @@ impl App {
             .pre_execute_transactions(block_data)
             .await
             .wrap_err("failed to prepare for executing block")?;
-        ensure_upgrade_change_hashes_as_expected(&parsed_data_items, &upgrade_change_hashes)?;
+        ensure_upgrade_change_hashes_as_expected(
+            &parsed_data_items,
+            upgrade_change_hashes.as_ref(),
+        )?;
 
         // we don't care about the cometbft max_tx_bytes here, as cometbft would have
         // rejected the proposal if it was too large.
@@ -734,11 +738,7 @@ impl App {
         };
 
         // get copy of transactions to execute from mempool
-        let pending_txs = self
-            .mempool
-            .builder_queue(&self.state)
-            .await
-            .expect("failed to fetch pending transactions");
+        let pending_txs = self.mempool.builder_queue().await;
 
         let mut unused_count = pending_txs.len();
         for (tx_hash, tx) in pending_txs {
@@ -1145,7 +1145,7 @@ impl App {
         finalize_block_tx_results.extend(tx_results);
 
         let sequencer_block = SequencerBlockBuilder {
-            block_hash,
+            block_hash: block::Hash::new(block_hash),
             chain_id,
             height,
             time,
@@ -1235,7 +1235,10 @@ impl App {
                 .pre_execute_transactions(block_data)
                 .await
                 .wrap_err("failed to execute block")?;
-            ensure_upgrade_change_hashes_as_expected(&parsed_data_items, &upgrade_change_hashes)?;
+            ensure_upgrade_change_hashes_as_expected(
+                &parsed_data_items,
+                upgrade_change_hashes.as_ref(),
+            )?;
 
             let mut tx_results = Vec::with_capacity(parsed_data_items.rollup_transactions.len());
             for tx in &parsed_data_items.rollup_transactions {
@@ -1621,7 +1624,6 @@ impl App {
     ///
     /// NOTE: the updated params are NOT put to storage - this needs to be done after calling this
     ///       method if the params are `Some`.
-    #[expect(clippy::doc_markdown, reason = "false positive")]
     async fn update_consensus_params_if_upgrade_due(
         &mut self,
         block_height: tendermint::block::Height,
@@ -1758,7 +1760,7 @@ fn set_vote_extensions_enable_height_to_next_block_height(
 
 fn ensure_upgrade_change_hashes_as_expected(
     received_data_items: &ParsedDataItems,
-    calculated_upgrade_change_hashes: &Option<Vec<ChangeHash>>,
+    calculated_upgrade_change_hashes: Option<&Vec<ChangeHash>>,
 ) -> Result<()> {
     match (
         &received_data_items.upgrade_change_hashes_with_proof,

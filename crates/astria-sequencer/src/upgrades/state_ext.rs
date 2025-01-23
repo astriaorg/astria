@@ -100,13 +100,11 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        assert!(
-            state
-                .get_upgrade_change_info(&UPGRADE_1, &TestChange.name())
-                .await
-                .unwrap()
-                .is_none()
-        );
+        assert!(state
+            .get_upgrade_change_info(&UPGRADE_1, &TestChange.name())
+            .await
+            .unwrap()
+            .is_none());
 
         state
             .put_upgrade_change_info(&UPGRADE_1, &TestChange)

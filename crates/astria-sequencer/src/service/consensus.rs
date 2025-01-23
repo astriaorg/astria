@@ -332,14 +332,12 @@ mod tests {
 
     fn make_unsigned_tx() -> TransactionBody {
         TransactionBody::builder()
-            .actions(vec![
-                RollupDataSubmission {
-                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                    data: Bytes::from_static(b"hello world"),
-                    fee_asset: crate::benchmark_and_test_utils::nria().into(),
-                }
-                .into(),
-            ])
+            .actions(vec![RollupDataSubmission {
+                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                data: Bytes::from_static(b"hello world"),
+                fee_asset: crate::benchmark_and_test_utils::nria().into(),
+            }
+            .into()])
             .chain_id("test")
             .try_build()
             .unwrap()
@@ -438,7 +436,7 @@ mod tests {
     async fn process_proposal_fail_missing_action_commitment() {
         let (mut consensus_service, _) = new_consensus_service(None).await;
         let mut process_proposal = new_process_proposal_request(&[]);
-        process_proposal.txs = vec![];
+        process_proposal.txs.clear();
         let error_message = format!(
             "{:#}",
             consensus_service

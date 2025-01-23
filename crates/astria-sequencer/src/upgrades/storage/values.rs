@@ -35,7 +35,7 @@ pub(in crate::upgrades) struct ChangeInfo<'a> {
     hash: Cow<'a, [u8; DomainChangeHash::LENGTH]>,
 }
 
-impl<'a> Debug for ChangeInfo<'a> {
+impl Debug for ChangeInfo<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("ChangeInfo")
             .field("name", &self.name)

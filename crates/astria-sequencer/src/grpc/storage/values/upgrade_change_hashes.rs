@@ -23,7 +23,7 @@ use super::{
 #[derive(BorshSerialize, BorshDeserialize)]
 pub(super) struct ChangeHash<'a>(Cow<'a, [u8; 32]>);
 
-impl<'a> Debug for ChangeHash<'a> {
+impl Debug for ChangeHash<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", base64(self.0.as_slice()))
     }

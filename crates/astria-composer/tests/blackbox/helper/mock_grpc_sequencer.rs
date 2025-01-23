@@ -82,6 +82,7 @@ impl MockGrpcSequencer {
         &self,
         nonce_to_mount: u32,
         debug_name: impl Into<String>,
+        expected_requests: u64,
     ) {
         let resp = GetPendingNonceResponse {
             inner: nonce_to_mount,
@@ -92,7 +93,7 @@ impl MockGrpcSequencer {
         )
         .respond_with(constant_response(resp))
         .up_to_n_times(1)
-        .expect(1)
+        .expect(expected_requests)
         .with_name(debug_name)
         .mount(&self.mock_server)
         .await;

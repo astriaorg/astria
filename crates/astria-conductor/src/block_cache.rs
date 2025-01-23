@@ -105,7 +105,9 @@ impl<T: GetSequencerHeight> BlockCache<T> {
 pub(crate) enum Error {
     #[error("block at sequencer height {height} already in cache")]
     Occupied { height: u64 },
-    #[error("block too old: expect sequencer height {current_height} or newer, got {block_height}")]
+    #[error(
+        "block too old: expect sequencer height {current_height} or newer, got {block_height}"
+    )]
     Old {
         block_height: u64,
         current_height: u64,
@@ -120,7 +122,7 @@ pin_project! {
     }
 }
 
-impl<'a, T> Future for NextBlock<'a, T> {
+impl<T> Future for NextBlock<'_, T> {
     type Output = Option<T>;
 
     fn poll(

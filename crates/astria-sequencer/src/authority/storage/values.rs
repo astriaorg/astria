@@ -36,7 +36,7 @@ enum ValueImpl<'a> {
 #[derive(BorshSerialize, BorshDeserialize)]
 pub(in crate::authority) struct AddressBytes<'a>(Cow<'a, [u8; ADDRESS_LEN]>);
 
-impl<'a> Debug for AddressBytes<'a> {
+impl Debug for AddressBytes<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", base64(self.0.as_slice()))
     }
@@ -75,7 +75,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for AddressBytes<'a> {
 #[derive(BorshSerialize, BorshDeserialize)]
 struct VerificationKey<'a>(Cow<'a, [u8; 32]>);
 
-impl<'a> Debug for VerificationKey<'a> {
+impl Debug for VerificationKey<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", base64(self.0.as_slice()))
     }

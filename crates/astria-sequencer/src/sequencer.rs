@@ -81,28 +81,94 @@ const MAX_RETRIES_TO_CONNECT_TO_ORACLE_SIDECAR: u32 = 36;
 
 pub struct Sequencer;
 
+type GrpcServerHandle = JoinHandle<Result<(), tonic::transport::Error>>;
+type AbciServerHandle = JoinHandle<()>;
+
+struct RunningGrpcServer {
+    pub handle: GrpcServerHandle,
+    pub shutdown_tx: oneshot::Sender<()>,
+}
+
+struct RunningAbciServer {
+    pub handle: AbciServerHandle,
+    pub shutdown_rx: oneshot::Receiver<()>,
+}
+
+enum InitializationOutcome {
+    Initialized {
+        grpc_server: RunningGrpcServer,
+        abci_server: RunningAbciServer,
+    },
+    ShutDownForUpgrade,
+}
+
 impl Sequencer {
-    #[expect(clippy::missing_errors_doc, reason = "not a public function")]
-    #[expect(clippy::too_many_lines, reason = "to be refactored")]
-    pub async fn run_until_stopped(config: Config, metrics: &'static Metrics) -> Result<()> {
+    /// Builds and runs the sequencer until it is either stopped by a signal or an error occurs.
+    ///
+    /// # Errors
+    /// Returns an error in the following cases:
+    /// - Database file does not exist, or cannot be loaded into storage
+    /// - The app fails to initialize
+    /// - Info service fails to initialize
+    /// - The server builder fails to return a server
+    /// - The gRPC address cannot be parsed
+    /// - The gRPC server fails to exit properly
+    pub async fn spawn(config: Config, metrics: &'static Metrics) -> Result<()> {
+        let mut signals = spawn_signal_handler();
+        let initialize_fut = Self::initialize(config, metrics);
+        select! {
+            _ = signals.stop_rx.changed() => {
+                info_span!("initialize").in_scope(|| info!("shutting down sequencer"));
+                Ok(())
+            }
+
+            result = initialize_fut => {
+                match result? {
+                    InitializationOutcome::Initialized{grpc_server,abci_server  } => {
+                        Self::run_until_stopped(grpc_server, abci_server, &mut signals).await
+                    }
+                    InitializationOutcome::ShutDownForUpgrade => { Ok(()) }
+                }
+            }
+        }
+    }
+
+    async fn run_until_stopped(
+        grpc_server: RunningGrpcServer,
+        abci_server: RunningAbciServer,
+        signals: &mut SignalReceiver,
+    ) -> Result<()> {
+        select! {
+            _ = signals.stop_rx.changed() => {
+                info_span!("run_until_stopped").in_scope(|| info!("shutting down sequencer"));
+            }
+
+            _ = abci_server.shutdown_rx => {
+                info_span!("run_until_stopped").in_scope(|| error!("ABCI server task exited, this shouldn't happen"));
+            }
+        }
+
+        grpc_server
+            .shutdown_tx
+            .send(())
+            .map_err(|()| eyre!("failed to send shutdown signal to grpc server"))?;
+        grpc_server
+            .handle
+            .await
+            .wrap_err("grpc server task failed")?
+            .wrap_err("grpc server failed")?;
+        abci_server.handle.abort();
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    async fn initialize(
+        config: Config,
+        metrics: &'static Metrics,
+    ) -> Result<InitializationOutcome> {
         cnidarium::register_metrics();
         register_histogram_global("cnidarium_get_raw_duration_seconds");
         register_histogram_global("cnidarium_nonverifiable_get_raw_duration_seconds");
-
-        let db_dir_exists = config
-            .db_filepath
-            .try_exists()
-            .context("failed checking for existence of db storage file")?;
-        let span = info_span!("Sequencer::run_until_stopped");
-        span.in_scope(|| {
-            info!(
-                path = %config.db_filepath.display(),
-                "{} storage db",
-                if db_dir_exists { "opening" } else { "creating" }
-            );
-        });
-
-        let mut signals = spawn_signal_handler();
 
         let substore_prefixes = vec![penumbra_ibc::IBC_SUBSTORE_PREFIX];
 
@@ -137,7 +203,7 @@ impl Sequencer {
                 latest_block_time = %block_time,
                 "shutting down for upgrade"
             );
-            return Ok(());
+            return Ok(InitializationOutcome::ShutDownForUpgrade);
         }
 
         // the native asset should be configurable only at genesis.
@@ -189,7 +255,7 @@ impl Sequencer {
             service::Info::new(storage.clone()).wrap_err("failed initializing info service")?;
         let snapshot_service = service::Snapshot;
 
-        let server = Server::builder()
+        let abci_server = Server::builder()
             .consensus(consensus_service)
             .info(info_service)
             .mempool(mempool_service)
@@ -197,19 +263,21 @@ impl Sequencer {
             .finish()
             .ok_or_eyre("server builder didn't return server; are all fields set?")?;
 
-        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
-        let (server_exit_tx, server_exit_rx) = tokio::sync::oneshot::channel();
+        let (grpc_shutdown_tx, grpc_shutdown_rx) = tokio::sync::oneshot::channel();
+        let (abci_shutdown_tx, abci_shutdown_rx) = tokio::sync::oneshot::channel();
 
         let grpc_addr = config
             .grpc_addr
             .parse()
             .wrap_err("failed to parse grpc_addr address")?;
         let grpc_server_handle =
-            start_grpc_server(&storage, mempool, upgrades, grpc_addr, shutdown_rx);
+            start_grpc_server(&storage, mempool, upgrades, grpc_addr, grpc_shutdown_rx);
 
-        span.in_scope(|| info!(config.listen_addr, "starting sequencer"));
-        let server_handle = tokio::spawn(async move {
-            match server.listen_tcp(&config.listen_addr).await {
+        debug!(config.listen_addr, "starting sequencer");
+
+        let listen_addr = config.listen_addr.clone();
+        let abci_server_handle = tokio::spawn(async move {
+            match abci_server.listen_tcp(listen_addr).await {
                 Ok(()) => {
                     // this shouldn't happen, as there isn't a way for the ABCI server to exit
                     info_span!("abci_server").in_scope(|| info!("ABCI server exited successfully"));
@@ -219,32 +287,22 @@ impl Sequencer {
                         .in_scope(|| error!(err = e.as_ref(), "ABCI server exited with error"));
                 }
             }
-            let _ = server_exit_tx.send(());
+            let _ = abci_shutdown_tx.send(());
         });
 
-        select! {
-            _ = signals.stop_rx.changed() => {
-                span.in_scope(|| info!("shutting down sequencer"));
-            }
+        let grpc_server = RunningGrpcServer {
+            handle: grpc_server_handle,
+            shutdown_tx: grpc_shutdown_tx,
+        };
+        let abci_server = RunningAbciServer {
+            handle: abci_server_handle,
+            shutdown_rx: abci_shutdown_rx,
+        };
 
-            () = consensus_token.cancelled() => {
-                span.in_scope(|| info!("consensus server shutting down sequencer"));
-            },
-
-            _ = server_exit_rx => {
-                span.in_scope(|| error!("ABCI server task exited, this shouldn't happen"));
-            }
-        }
-
-        shutdown_tx
-            .send(())
-            .map_err(|()| eyre!("failed to send shutdown signal to grpc server"))?;
-        grpc_server_handle
-            .await
-            .wrap_err("grpc server task failed")?
-            .wrap_err("grpc server failed")?;
-        server_handle.abort();
-        Ok(())
+        Ok(InitializationOutcome::Initialized {
+            grpc_server,
+            abci_server,
+        })
     }
 }
 

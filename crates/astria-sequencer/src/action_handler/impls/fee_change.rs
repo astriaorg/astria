@@ -82,12 +82,9 @@ impl ActionHandler for FeeChange {
             Self::IbcSudoChange(fees) => state
                 .put_fees(*fees)
                 .wrap_err("failed to put ibc sudo change fees"),
-            Self::AddCurrencyPairs(fees) => state
+            Self::PriceFeed(fees) => state
                 .put_fees(*fees)
-                .wrap_err("failed to put add currency pairs fees"),
-            Self::RemoveCurrencyPairs(fees) => state
-                .put_fees(*fees)
-                .wrap_err("failed to put remove currency pairs fees"),
+                .wrap_err("failed to put price feed fees"),
         }
     }
 }
@@ -208,13 +205,11 @@ mod tests {
         });
         state.put_sudo_address([1; 20]).unwrap();
 
-        assert!(
-            state
-                .get_fees::<F>()
-                .await
-                .expect("should not error fetching unstored action fees")
-                .is_none()
-        );
+        assert!(state
+            .get_fees::<F>()
+            .await
+            .expect("should not error fetching unstored action fees")
+            .is_none());
 
         // Execute an initial fee change tx to store the first version of the fees.
         let initial_fees = FeeComponents::<F>::new(1, 2);

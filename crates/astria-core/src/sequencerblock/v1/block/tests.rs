@@ -52,16 +52,12 @@ fn sequencer_block_from_cometbft_block_gives_expected_merkle_proofs() {
     }
 
     let data_hash = *sequencer_block.header().data_hash();
-    assert!(
-        sequencer_block
-            .rollup_transactions_proof()
-            .verify(&Sha256::digest(rollup_transaction_tree.root()), data_hash)
-    );
-    assert!(
-        sequencer_block
-            .rollup_ids_proof()
-            .verify(&Sha256::digest(rollup_ids_root), data_hash)
-    );
+    assert!(sequencer_block
+        .rollup_transactions_proof()
+        .verify(&Sha256::digest(rollup_transaction_tree.root()), data_hash));
+    assert!(sequencer_block
+        .rollup_ids_proof()
+        .verify(&Sha256::digest(rollup_ids_root), data_hash));
 }
 
 #[test]

@@ -225,6 +225,7 @@ mod tests {
         primitive::v1::RollupId,
         sequencerblock::v1::{
             block::{
+                self,
                 ExtendedCommitInfoWithProof,
                 SequencerBlockHeader,
             },
@@ -240,7 +241,6 @@ mod tests {
             block::Commit,
             validator,
             validator::Info as Validator,
-            Hash,
         },
         tendermint_proto,
         tendermint_rpc::endpoint::validators,
@@ -374,7 +374,7 @@ mod tests {
         let header = SequencerBlockHeader::try_from_raw(header).unwrap();
 
         let sequencer_blob = UncheckedSubmittedMetadata {
-            block_hash: [0u8; 32],
+            block_hash: block::Hash::new([0u8; 32]),
             header,
             rollup_ids: vec![],
             rollup_transactions_proof,
@@ -431,7 +431,7 @@ mod tests {
         let header = SequencerBlockHeader::try_from_raw(header).unwrap();
 
         let sequencer_blob = UncheckedSubmittedMetadata {
-            block_hash: [0u8; 32],
+            block_hash: block::Hash::new([0u8; 32]),
             header,
             rollup_ids: vec![rollup_id],
             rollup_transactions_proof,
@@ -553,12 +553,12 @@ mod tests {
             round: 0u16.into(),
             block_id: tendermint::block::Id {
                 hash: "74BD4E7F7EF902A84D55589F2AA60B332F1C2F34DDE7652C80BFEB8E7471B1DA"
-                    .parse::<Hash>()
+                    .parse::<tendermint::Hash>()
                     .unwrap(),
                 part_set_header: tendermint::block::parts::Header::new(
                     1,
                     "7632FFB5D84C3A64279BC9EA86992418ED23832C66E0C3504B7025A9AF42C8C4"
-                        .parse::<Hash>()
+                        .parse::<tendermint::Hash>()
                         .unwrap(),
                 )
                 .unwrap(),
@@ -572,11 +572,9 @@ mod tests {
             &tendermint::chain::Id::try_from("test-chain-g3ejvw").unwrap(),
         );
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("commit voting power is less than 2/3 of total voting power")
-        );
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("commit voting power is less than 2/3 of total voting power"));
     }
 }

@@ -49,7 +49,7 @@ impl BorshDeserialize for BlockTimestamp {
     }
 }
 
-impl<'a> From<BlockTimestamp> for crate::storage::StoredValue<'a> {
+impl From<BlockTimestamp> for crate::storage::StoredValue<'_> {
     fn from(block_timestamp: BlockTimestamp) -> Self {
         crate::storage::StoredValue::App(Value(ValueImpl::BlockTimestamp(block_timestamp)))
     }

@@ -24,7 +24,7 @@ impl From<Count> for u64 {
     }
 }
 
-impl<'a> From<Count> for crate::storage::StoredValue<'a> {
+impl From<Count> for crate::storage::StoredValue<'_> {
     fn from(count: Count) -> Self {
         crate::storage::StoredValue::ConnectOracle(Value(ValueImpl::Count(count)))
     }
