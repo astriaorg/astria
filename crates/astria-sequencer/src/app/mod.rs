@@ -42,11 +42,7 @@ use astria_core::{
         },
         DataItem,
     },
-    upgrades::v1::{
-        ChangeHash,
-        Upgrade,
-        Upgrades,
-    },
+    upgrades::v1::ChangeHash,
     Protobuf as _,
 };
 use astria_eyre::{
@@ -86,14 +82,12 @@ use tendermint::{
     },
     account,
     block::Header,
-    consensus::params::VersionParams,
     AppHash,
     Hash,
     Time,
 };
 use tracing::{
     debug,
-    error,
     info,
     instrument,
     warn,
@@ -148,11 +142,7 @@ use crate::{
         block_size_constraints::BlockSizeConstraints,
         commitment::generate_rollup_datas_commitment,
     },
-    upgrades::{
-        get_consensus_params_from_cometbft,
-        should_shut_down,
-        StateWriteExt as _,
-    },
+    upgrades::UpgradesHandler,
 };
 
 // ephemeral store key for the cache of results of executing of transactions in `prepare_proposal`.
@@ -261,9 +251,7 @@ pub(crate) struct App {
     )]
     app_hash: AppHash,
 
-    upgrades: Upgrades,
-
-    cometbft_rpc_addr: String,
+    upgrades_handler: UpgradesHandler,
 
     // used to create and verify vote extensions, if this is a validator node.
     vote_extension_handler: vote_extension::Handler,
@@ -276,8 +264,7 @@ impl App {
     pub(crate) async fn new(
         snapshot: Snapshot,
         mempool: Mempool,
-        upgrades: Upgrades,
-        cometbft_rpc_addr: String,
+        upgrades_handler: UpgradesHandler,
         vote_extension_handler: vote_extension::Handler,
         metrics: &'static Metrics,
     ) -> Result<Self> {
@@ -305,8 +292,7 @@ impl App {
             recost_mempool: false,
             write_batch: None,
             app_hash,
-            upgrades,
-            cometbft_rpc_addr,
+            upgrades_handler,
             vote_extension_handler,
             metrics,
         })
@@ -1022,9 +1008,19 @@ impl App {
         &mut self,
         block_data: BlockData,
     ) -> Result<Option<Vec<ChangeHash>>> {
+        let mut delta_delta = StateDelta::new(self.state.clone());
         let upgrade_change_hashes = self
-            .execute_upgrade_if_due(block_data.height)
+            .upgrades_handler
+            .execute_upgrade_if_due(&mut delta_delta, block_data.height)
             .wrap_err("failed to execute upgrade")?;
+        if upgrade_change_hashes.is_some() {
+            let _ = self.apply(delta_delta);
+        } else {
+            // We need to drop this so there's only one reference to `self.state` left in order to
+            // apply changes made in `self.begin_block()` below.
+            drop(delta_delta);
+        }
+
         let chain_id = self
             .state
             .get_chain_id()
@@ -1301,12 +1297,15 @@ impl App {
                  just now or during the proposal phase",
             );
 
-        self.update_consensus_params_if_upgrade_due(
-            finalize_block.height,
-            &mut consensus_param_updates,
-        )
-        .await
-        .wrap_err("failed to update consensus params")?;
+        self.upgrades_handler
+            .finalize_block(
+                &mut self.state,
+                finalize_block.height,
+                &mut consensus_param_updates,
+            )
+            .await
+            .wrap_err("upgrades handler failed to finalize block")?;
+
         if let Some(consensus_params) = consensus_param_updates.clone() {
             info!(
                 consensus_params = %display_consensus_params(&consensus_params),
@@ -1540,7 +1539,9 @@ impl App {
         // Get the latest version of the state, now that we've committed it.
         self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
 
-        should_shut_down(&self.upgrades, &storage.latest_snapshot()).await
+        self.upgrades_handler
+            .should_shut_down(&storage.latest_snapshot())
+            .await
     }
 
     // StateDelta::apply only works when the StateDelta wraps an underlying
@@ -1564,127 +1565,6 @@ impl App {
         events
     }
 
-    /// Execute any changes to global state required as part of any upgrade with an activation
-    /// height == `block_height`.
-    ///
-    /// At a minimum, the `info` of each `Change` in such an upgrade must be written to verifiable
-    /// storage.
-    ///
-    /// Returns `Ok(None)` if no upgrade was executed, or `Ok(Some(hashes of executed changes))` if
-    /// an upgrade was executed.
-    fn execute_upgrade_if_due(
-        &mut self,
-        block_height: tendermint::block::Height,
-    ) -> Result<Option<Vec<ChangeHash>>> {
-        let Some(upgrade) = self
-            .upgrades
-            .upgrade_activating_at_height(block_height.value())
-        else {
-            return Ok(None);
-        };
-        let mut delta_delta = StateDelta::new(self.state.clone());
-        let upgrade_name = upgrade.name();
-        let mut change_hashes = vec![];
-        for change in upgrade.changes() {
-            change_hashes.push(change.calculate_hash());
-            delta_delta
-                .put_upgrade_change_info(&upgrade_name, change)
-                .wrap_err("failed to put upgrade change info")?;
-            info!(upgrade = %upgrade_name, change = %change.name(), "executed upgrade change");
-        }
-
-        // NOTE: any further state changes specific to individual upgrades should be
-        //       executed here after matching on the upgrade variant.
-
-        #[expect(
-            irrefutable_let_patterns,
-            reason = "will become refutable once we have more than one upgrade variant"
-        )]
-        if let Upgrade::Upgrade1(upgrade_1) = upgrade {
-            let genesis_state = upgrade_1.connect_oracle_change().genesis();
-            MarketMapComponent::handle_genesis(&mut delta_delta, genesis_state.market_map())
-                .wrap_err("failed to handle market map genesis")?;
-            info!("handled market map genesis");
-            OracleComponent::handle_genesis(&mut delta_delta, genesis_state.oracle())
-                .wrap_err("failed to handle oracle genesis")?;
-            info!("handled oracle genesis");
-        }
-
-        let _ = self.apply(delta_delta);
-
-        Ok(Some(change_hashes))
-    }
-
-    /// Updates `params` with any changes to CometBFT consensus params required as part of any
-    /// upgrade with an activation height == `block_height`.
-    ///
-    /// If no upgrade is due, this is a no-op. Otherwise, `params` is updated if `Some` or set to
-    /// `Some` if passed as `None`.
-    ///
-    /// At a minimum, the ABCI application version should be increased.
-    ///
-    /// NOTE: the updated params are NOT put to storage - this needs to be done after calling this
-    ///       method if the params are `Some`.
-    async fn update_consensus_params_if_upgrade_due(
-        &mut self,
-        block_height: tendermint::block::Height,
-        maybe_params: &mut Option<tendermint::consensus::Params>,
-    ) -> Result<()> {
-        let Some(upgrade) = self
-            .upgrades
-            .upgrade_activating_at_height(block_height.value())
-        else {
-            return Ok(());
-        };
-
-        let mut params = match maybe_params.take() {
-            Some(value) => value,
-            None => {
-                match self
-                    .state
-                    .get_consensus_params()
-                    .await
-                    .wrap_err("failed to get consensus params from storage")?
-                {
-                    Some(value) => value,
-                    None => get_consensus_params_from_cometbft(
-                        &self.cometbft_rpc_addr,
-                        block_height.value(),
-                    )
-                    .await
-                    .wrap_err("failed to get consensus params from cometbft")?,
-                }
-            }
-        };
-
-        let new_app_version = upgrade.app_version();
-        if let Some(existing_app_version) = &params.version {
-            if new_app_version <= existing_app_version.app {
-                error!(
-                    "new app version {new_app_version} should be greater than existing version {}",
-                    existing_app_version.app
-                );
-            }
-        }
-        params.version = Some(VersionParams {
-            app: new_app_version,
-        });
-
-        // NOTE: any further changes specific to individual upgrades should be applied here after
-        //       matching on the upgrade variant.
-
-        #[expect(
-            irrefutable_let_patterns,
-            reason = "will become refutable once we have more than one upgrade variant"
-        )]
-        if let Upgrade::Upgrade1(_) = upgrade {
-            set_vote_extensions_enable_height_to_next_block_height(block_height, &mut params);
-        }
-
-        *maybe_params = Some(params);
-        Ok(())
-    }
-
     /// Returns whether or not the block at the given height uses encoded `DataItem`s as the raw
     /// `txs` field of `response::PrepareProposal`, and hence also `request::ProcessProposal` and
     /// `request::FinalizeBlock`.
@@ -1693,13 +1573,16 @@ impl App {
     /// files, the assumption is that this network uses `DataItem`s from genesis onwards.
     ///
     /// Returns `true` if and only if:
-    /// - `Upgrade1` is in `self.upgrades` and `block_height` is greater than or equal to its
-    ///   activation height, or
-    /// - `Upgrade1` is not in `self.upgrades`.
+    /// - `Upgrade1` is in upgrades and `block_height` is greater than or equal to its activation
+    ///   height, or
+    /// - `Upgrade1` is not in upgrades.
     fn uses_data_item_enum(&self, block_height: tendermint::block::Height) -> bool {
-        self.upgrades.upgrade_1().map_or(true, |upgrade_1| {
-            block_height.value() >= upgrade_1.activation_height()
-        })
+        self.upgrades_handler
+            .upgrades()
+            .upgrade_1()
+            .map_or(true, |upgrade_1| {
+                block_height.value() >= upgrade_1.activation_height()
+            })
     }
 
     /// Returns `true` if vote extensions are enabled for the block at the given height, i.e. if
@@ -1736,27 +1619,6 @@ fn vote_extensions_enable_height(consensus_params: &tendermint::consensus::Param
         .abci
         .vote_extensions_enable_height
         .map_or(0, |height| height.value())
-}
-
-fn set_vote_extensions_enable_height_to_next_block_height(
-    current_block_height: tendermint::block::Height,
-    consensus_params: &mut tendermint::consensus::Params,
-) {
-    // Set the vote_extensions_enable_height as the next block height (it must be a future
-    // height to be valid).
-    let new_enable_height = current_block_height.increment();
-    if let Some(existing_enable_height) = consensus_params.abci.vote_extensions_enable_height {
-        // If vote extensions are already enabled, they cannot be disabled, and the
-        // `vote_extensions_enable_height` cannot be changed.
-        if existing_enable_height.value() != VOTE_EXTENSIONS_DISABLED_HEIGHT {
-            error!(
-                %existing_enable_height, %new_enable_height,
-                "vote extensions enable height already set; ignoring update",
-            );
-            return;
-        }
-    }
-    consensus_params.abci.vote_extensions_enable_height = Some(new_enable_height);
 }
 
 fn ensure_upgrade_change_hashes_as_expected(

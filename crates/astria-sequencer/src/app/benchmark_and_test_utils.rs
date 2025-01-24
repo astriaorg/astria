@@ -205,18 +205,11 @@ impl AppInitializer {
         let snapshot = storage.latest_snapshot();
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mempool = Mempool::new(metrics, 100);
-        let upgrades = self.upgrades.unwrap_or_default();
+        let upgrades_handler = self.upgrades.unwrap_or_default().into();
         let ve_handler = crate::app::vote_extension::Handler::new(None);
-        let mut app = App::new(
-            snapshot,
-            mempool,
-            upgrades,
-            String::new(),
-            ve_handler,
-            metrics,
-        )
-        .await
-        .unwrap();
+        let mut app = App::new(snapshot, mempool, upgrades_handler, ve_handler, metrics)
+            .await
+            .unwrap();
 
         let genesis_state = self.genesis_state.unwrap_or_else(get_test_genesis_state);
         let consensus_params = self

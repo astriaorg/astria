@@ -71,10 +71,7 @@ use crate::{
     mempool::Mempool,
     metrics::Metrics,
     service,
-    upgrades::{
-        ensure_historical_upgrades_applied,
-        should_shut_down,
-    },
+    upgrades::UpgradesHandler,
 };
 
 const MAX_RETRIES_TO_CONNECT_TO_ORACLE_SIDECAR: u32 = 36;
@@ -183,17 +180,20 @@ impl Sequencer {
         .map_err(anyhow_to_eyre)
         .wrap_err("failed to load storage backing chain state")?;
         let snapshot = storage.latest_snapshot();
-        let upgrades =
-            Upgrades::new(&config.upgrades_filepath).wrap_err("failed constructing upgrades")?;
 
-        ensure_historical_upgrades_applied(&upgrades, &snapshot)
+        let upgrades_handler =
+            UpgradesHandler::new(&config.upgrades_filepath, config.cometbft_rpc_addr.clone())
+                .wrap_err("failed constructing upgrades handler")?;
+        upgrades_handler
+            .ensure_historical_upgrades_applied(&snapshot)
             .await
             .wrap_err("historical upgrades not applied")?;
         if let ShouldShutDown::ShutDownForUpgrade {
             upgrade_activation_height,
             block_time,
             hex_encoded_app_hash,
-        } = should_shut_down(&upgrades, &snapshot)
+        } = upgrades_handler
+            .should_shut_down(&snapshot)
             .await
             .wrap_err("failed to establish if sequencer should shut down for upgrade")?
         {
@@ -225,11 +225,11 @@ impl Sequencer {
         let oracle_client = new_oracle_client(&config)
             .await
             .wrap_err("failed to create connected oracle client")?;
+        let upgrades = upgrades_handler.upgrades().clone();
         let app = App::new(
             snapshot,
             mempool.clone(),
-            upgrades.clone(),
-            config.cometbft_rpc_addr.clone(),
+            upgrades_handler,
             crate::app::vote_extension::Handler::new(oracle_client),
             metrics,
         )
