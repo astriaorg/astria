@@ -10,6 +10,7 @@ use std::collections::HashSet;
 use astria_core::{
     primitive::v1::RollupId,
     protocol::test_utils::ConfigureSequencerBlock,
+    sequencerblock::v1::block,
 };
 use helpers::{
     SequencerBlockToMount,
@@ -256,7 +257,7 @@ async fn should_filter_rollup() {
         .map(|id| (*id, vec![1; 1]))
         .collect();
     let block = ConfigureSequencerBlock {
-        block_hash: Some([99u8; 32]),
+        block_hash: Some(block::Hash::new([99u8; 32])),
         height: 1,
         proposer_address: Some(AccountId::try_from(vec![0u8; 20]).unwrap()),
         sequence_data,

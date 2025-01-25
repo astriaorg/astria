@@ -95,13 +95,6 @@ mod tests {
         let mut a = json!({
             "genesis_time": "2023-06-21T15:58:36.741257Z",
             "initial_height": "0",
-            "consensus_params": {
-                "validator": {
-                    "pub_key_types": [
-                      "ed25519"
-                    ]
-                  }
-            }
         });
 
         let b = json!({
@@ -124,13 +117,6 @@ mod tests {
         let output = json!({
             "genesis_time": "2023-06-21T15:58:36.741257Z",
             "initial_height": "0",
-            "consensus_params": {
-                "validator": {
-                    "pub_key_types": [
-                      "ed25519"
-                    ]
-                  }
-            },
             "app_state": {
                 "accounts": [
                     {

@@ -1,0 +1,38 @@
+{
+  "markets": {
+    "BTC/USD": {
+      "ticker": {
+        "currency_pair": {
+          "Base": "BTC",
+          "Quote": "USD"
+        },
+        "decimals": 5,
+        "min_provider_count": 1,
+        "enabled": true
+      },
+      "provider_configs": [
+        {
+          "name": "coingecko_api",
+          "off_chain_ticker": "bitcoin/usd"
+        }
+      ]
+    },
+    "ETH/USD": {
+      "ticker": {
+        "currency_pair": {
+          "Base": "ETH",
+          "Quote": "USD"
+        },
+        "decimals": 6,
+        "min_provider_count": 1,
+        "enabled": true
+      },
+      "provider_configs": [
+        {
+          "name": "coingecko_api",
+          "off_chain_ticker": "ethereum/usd"
+        }
+      ]
+    }
+  }
+}

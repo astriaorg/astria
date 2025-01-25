@@ -722,6 +722,7 @@ dependencies = [
  "penumbra-proto",
  "prost",
  "rand 0.8.5",
+ "regex",
  "serde",
  "sha2 0.10.8",
  "tempfile",
@@ -837,9 +838,12 @@ dependencies = [
  "divan",
  "futures",
  "hex",
+ "humantime",
  "ibc-proto",
  "ibc-types",
+ "indexmap 2.4.0",
  "insta",
+ "itertools 0.12.1",
  "maplit",
  "matchit",
  "penumbra-ibc",
@@ -863,6 +867,7 @@ dependencies = [
  "tower-actor",
  "tower-http",
  "tracing",
+ "tryhard",
 ]
 
 [[package]]
@@ -963,6 +968,8 @@ dependencies = [
  "hex",
  "indenter",
  "itertools 0.12.1",
+ "maplit",
+ "pbjson-types",
  "penumbra-ibc",
  "predicates",
  "prost",

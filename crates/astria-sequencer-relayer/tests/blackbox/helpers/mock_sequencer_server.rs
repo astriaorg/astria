@@ -18,7 +18,10 @@ use astria_core::{
     },
     primitive::v1::RollupId,
     protocol::test_utils::ConfigureSequencerBlock,
-    sequencerblock::v1::SequencerBlock,
+    sequencerblock::v1::{
+        block,
+        SequencerBlock,
+    },
 };
 use astria_eyre::eyre::{
     self,
@@ -96,8 +99,6 @@ impl MockSequencerServer {
     }
 }
 
-// TODO(https://github.com/astriaorg/astria/issues/1859): box enum variants to avoid large sizes
-#[expect(clippy::large_enum_variant, reason = "should be fixed")]
 pub enum SequencerBlockToMount {
     GoodAtHeight(u32),
     BadAtHeight(u32),
@@ -144,7 +145,7 @@ fn prepare_sequencer_block_response(
     let block = match block_to_mount {
         SequencerBlockToMount::GoodAtHeight(height)
         | SequencerBlockToMount::BadAtHeight(height) => ConfigureSequencerBlock {
-            block_hash: Some([99u8; 32]),
+            block_hash: Some(block::Hash::new([99u8; 32])),
             height,
             proposer_address: Some(proposer),
             sequence_data: vec![(

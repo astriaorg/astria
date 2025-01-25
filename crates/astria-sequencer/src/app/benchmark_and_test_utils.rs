@@ -1,6 +1,11 @@
 use std::collections::HashMap;
 
 use astria_core::{
+    connect::market_map::v2::{
+        MarketMap,
+        Params,
+    },
+    generated::protocol::genesis::v1::ConnectGenesis,
     primitive::v1::asset::{
         Denom,
         IbcPrefixed,
@@ -22,6 +27,7 @@ use astria_core::{
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
+            PriceFeed,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
@@ -86,6 +92,7 @@ pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1::GenesisFees 
         ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0)),
         sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0)),
         ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0)),
+        price_feed: Some(FeeComponents::<PriceFeed>::new(0, 0)),
     }
 }
 
@@ -113,10 +120,29 @@ pub(crate) fn proto_genesis_state(
         }),
         allowed_fee_assets: vec![nria().to_string()],
         fees: Some(default_fees().to_raw()),
+        connect: Some(ConnectGenesis {
+            market_map: Some(
+                astria_core::connect::market_map::v2::GenesisState {
+                    market_map: MarketMap {
+                        markets: indexmap::IndexMap::new(),
+                    },
+                    last_updated: 0,
+                    params: Params {
+                        market_authorities: vec![],
+                        admin: astria_address_from_hex_string(ALICE_ADDRESS),
+                    },
+                }
+                .into_raw(),
+            ),
+            oracle: Some(astria_core::generated::connect::oracle::v2::GenesisState {
+                currency_pair_genesis: vec![],
+                next_id: 0,
+            }),
+        }),
     }
 }
 
-pub(crate) fn genesis_state() -> GenesisAppState {
+pub(crate) fn get_test_genesis_state() -> GenesisAppState {
     proto_genesis_state().try_into().unwrap()
 }
 
@@ -130,15 +156,19 @@ pub(crate) async fn initialize_app_with_storage(
     let snapshot = storage.latest_snapshot();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
     let mempool = Mempool::new(metrics, 100);
-    let mut app = App::new(snapshot, mempool, metrics).await.unwrap();
+    let ve_handler = crate::app::vote_extension::Handler::new(None);
+    let mut app = App::new(snapshot, mempool, ve_handler, metrics)
+        .await
+        .unwrap();
 
-    let genesis_state = genesis_state.unwrap_or_else(self::genesis_state);
+    let genesis_state = genesis_state.unwrap_or_else(get_test_genesis_state);
 
     app.init_chain(
         storage.clone(),
         genesis_state,
         genesis_validators,
         "test".to_string(),
+        1,
     )
     .await
     .unwrap();
@@ -247,6 +277,7 @@ pub(crate) fn mock_state_put_account_nonce(
     state.put_account_nonce(address, nonce).unwrap();
 }
 
+#[expect(clippy::too_many_lines, reason = "this is needed for test set up")]
 pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
     let storage = cnidarium::TempStorage::new().await.unwrap();
     let snapshot = storage.latest_snapshot();
@@ -359,6 +390,12 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
     state
         .put_fees(ibc_sudo_change_fees)
         .wrap_err("failed to initiate ibc sudo change fee components")
+        .unwrap();
+
+    let price_feed_fees = FeeComponents::<PriceFeed>::new(0, 0);
+    state
+        .put_fees(price_feed_fees)
+        .wrap_err("failed to initiate price feed fee components")
         .unwrap();
 
     // put denoms as allowed fee asset

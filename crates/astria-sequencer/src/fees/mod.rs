@@ -12,6 +12,7 @@ use astria_core::{
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
+            PriceFeed,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
@@ -447,6 +448,28 @@ impl FeeHandler for IbcRelay {
 
     fn snake_case_name() -> &'static str {
         "ibc_relay"
+    }
+
+    fn variable_component(&self) -> u128 {
+        0
+    }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        None
+    }
+}
+
+impl FeeHandler for PriceFeed {
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "price_feed"
     }
 
     fn variable_component(&self) -> u128 {

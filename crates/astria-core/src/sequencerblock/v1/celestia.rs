@@ -16,7 +16,14 @@ use super::{
     IncorrectRollupIdLength,
     RollupId,
 };
-use crate::Protobuf;
+use crate::{
+    generated::protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping as RawExtendedCommitInfoWithCurrencyPairMapping,
+    protocol::connect::v1::{
+        ExtendedCommitInfoWithCurrencyPairMapping,
+        ExtendedCommitInfoWithCurrencyPairMappingError,
+    },
+    Protobuf,
+};
 
 /// A [`super::SequencerBlock`] split and prepared for submission to a data availability provider.
 ///
@@ -36,6 +43,8 @@ impl PreparedBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         } = block.into_parts();
 
         let head = SubmittedMetadata {
@@ -44,6 +53,8 @@ impl PreparedBlock {
             rollup_ids: rollup_transactions.keys().copied().collect(),
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         };
 
         let mut tail = Vec::with_capacity(rollup_transactions.len());
@@ -340,6 +351,34 @@ impl SubmittedMetadataError {
             kind: SubmittedMetadataErrorKind::RollupIdsNotInCometBftBlock,
         }
     }
+
+    fn extended_commit_info_proof(source: <merkle::Proof as Protobuf>::Error) -> Self {
+        Self {
+            kind: SubmittedMetadataErrorKind::ExtendedCommitInfoProof {
+                source,
+            },
+        }
+    }
+
+    fn extended_commit_info_not_in_sequencer_block() -> Self {
+        Self {
+            kind: SubmittedMetadataErrorKind::ExtendedCommitInfoNotInSequencerBlock,
+        }
+    }
+
+    fn decode_extended_commit_info(source: prost::DecodeError) -> Self {
+        Self {
+            kind: SubmittedMetadataErrorKind::DecodeExtendedCommitInfo(source),
+        }
+    }
+
+    fn invalid_extended_commit_info(
+        source: ExtendedCommitInfoWithCurrencyPairMappingError,
+    ) -> Self {
+        Self {
+            kind: SubmittedMetadataErrorKind::InvalidExtendedCommitInfo(source),
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -375,6 +414,21 @@ enum SubmittedMetadataErrorKind {
     RollupTransactionsNotInCometBftBlock,
     #[error("the Merkle Tree Hash of the rollup IDs was not a leaf in the sequencer block data")]
     RollupIdsNotInCometBftBlock,
+    #[error(
+        "failed constructing a Merkle Hash Tree Proof for the extended commit info from the raw \
+         source type"
+    )]
+    ExtendedCommitInfoProof {
+        source: <merkle::Proof as Protobuf>::Error,
+    },
+    #[error(
+        "the extended commit info in the sequencer block was not included in the block's data hash"
+    )]
+    ExtendedCommitInfoNotInSequencerBlock,
+    #[error("failed decoding the extended commit info from the raw protobuf")]
+    DecodeExtendedCommitInfo(prost::DecodeError),
+    #[error("failed constructing the extended commit info proof from the raw protobuf")]
+    InvalidExtendedCommitInfo(ExtendedCommitInfoWithCurrencyPairMappingError),
 }
 
 /// A shadow of [`SubmittedMetadata`] with public access to its fields.
@@ -401,6 +455,11 @@ pub struct UncheckedSubmittedMetadata {
     /// `astria.SequencerBlock.header.data_hash`. This field corresponds to
     /// `astria.SequencerBlock.rollup_ids_proof`.
     pub rollup_ids_proof: merkle::Proof,
+    /// The extended commit info for the block, if vote extensions were enabled at this height.
+    pub extended_commit_info: Option<Bytes>,
+    /// The proof that the extended commit info is included in the cometbft block data (if it
+    /// exists), specifically the third item in the data field.
+    pub extended_commit_info_proof: Option<merkle::Proof>,
 }
 
 impl UncheckedSubmittedMetadata {
@@ -425,7 +484,8 @@ impl UncheckedSubmittedMetadata {
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
-            ..
+            extended_commit_info,
+            extended_commit_info_proof,
         } = raw;
         let header = 'header: {
             let Some(header) = header else {
@@ -462,12 +522,19 @@ impl UncheckedSubmittedMetadata {
             .try_into()
             .map_err(|_| SubmittedMetadataError::block_hash(block_hash.len()))?;
 
+        let extended_commit_info_proof = extended_commit_info_proof
+            .map(merkle::Proof::try_from_raw)
+            .transpose()
+            .map_err(SubmittedMetadataError::extended_commit_info_proof)?;
+
         Ok(Self {
             block_hash,
             header,
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         })
     }
 }
@@ -492,6 +559,11 @@ pub struct SubmittedMetadata {
     /// `astria.SequencerBlock.header.data_hash`. This field corresponds to
     /// `astria.SequencerBlock.rollup_ids_proof`.
     rollup_ids_proof: merkle::Proof,
+    /// The extended commit info for the block, if vote extensions were enabled at this height.
+    extended_commit_info: Option<Bytes>,
+    /// The proof that the extended commit info is included in the cometbft block data (if it
+    /// exists).
+    extended_commit_info_proof: Option<merkle::Proof>,
 }
 
 /// An iterator over rollup IDs.
@@ -549,6 +621,34 @@ impl SubmittedMetadata {
         self.rollup_ids.contains(&rollup_id)
     }
 
+    /// Returns the decoded `ExtendedCommitInfoWithCurrencyPairMapping` contained in this blob.
+    ///
+    /// # Panics
+    ///
+    /// - if the `extended_commit_info` field is not a valid protobuf
+    ///   `ExtendedCommitInfoWithCurrencyPairMapping`; this should not happen as this type can only
+    ///   be constructed with a valid protobuf.
+    #[must_use]
+    pub fn decoded_extended_commit_info(
+        &self,
+    ) -> Option<ExtendedCommitInfoWithCurrencyPairMapping> {
+        use prost::Message as _;
+
+        let extended_commit_info = self.extended_commit_info.clone()?;
+
+        let raw_info = RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info)
+            .expect(
+                "must be a valid protobuf as the type was verified when constructing the \
+                 sequencer block",
+            );
+        Some(
+            ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info).expect(
+                "must be a valid ExtendedCommitInfoWithCurrencyPairMapping as the type was \
+                 verified when constructing the sequencer block",
+            ),
+        )
+    }
+
     /// Converts into the unchecked representation fo this type.
     #[must_use]
     pub fn into_unchecked(self) -> UncheckedSubmittedMetadata {
@@ -558,6 +658,8 @@ impl SubmittedMetadata {
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         } = self;
         UncheckedSubmittedMetadata {
             block_hash,
@@ -565,6 +667,8 @@ impl SubmittedMetadata {
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         }
     }
 
@@ -575,12 +679,16 @@ impl SubmittedMetadata {
     pub fn try_from_unchecked(
         unchecked: UncheckedSubmittedMetadata,
     ) -> Result<Self, SubmittedMetadataError> {
+        use prost::Message as _;
+
         let UncheckedSubmittedMetadata {
             block_hash,
             header,
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         } = unchecked;
 
         if !rollup_transactions_proof.verify(
@@ -598,12 +706,35 @@ impl SubmittedMetadata {
             return Err(SubmittedMetadataError::rollup_ids_not_in_cometbft_block());
         }
 
+        // verify `extended_commit_info` proof and is well-formed
+        if let Some(ref extended_commit_info_proof) = extended_commit_info_proof {
+            let Some(ref extended_commit_info) = extended_commit_info else {
+                return Err(SubmittedMetadataError::field_not_set(
+                    "extended_commit_info",
+                ));
+            };
+
+            if !extended_commit_info_proof
+                .verify(&Sha256::digest(extended_commit_info), *header.data_hash())
+            {
+                return Err(SubmittedMetadataError::extended_commit_info_not_in_sequencer_block());
+            }
+
+            let raw_info =
+                RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info.clone())
+                    .map_err(SubmittedMetadataError::decode_extended_commit_info)?;
+            ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info)
+                .map_err(SubmittedMetadataError::invalid_extended_commit_info)?;
+        }
+
         Ok(Self {
             block_hash,
             header,
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
+            extended_commit_info,
+            extended_commit_info_proof,
         })
     }
 
@@ -615,7 +746,8 @@ impl SubmittedMetadata {
             rollup_ids,
             rollup_transactions_proof,
             rollup_ids_proof,
-            ..
+            extended_commit_info,
+            extended_commit_info_proof,
         } = self;
         raw::SubmittedMetadata {
             block_hash: Bytes::copy_from_slice(block_hash.as_bytes()),
@@ -623,6 +755,8 @@ impl SubmittedMetadata {
             rollup_ids: rollup_ids.into_iter().map(RollupId::into_raw).collect(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
+            extended_commit_info,
+            extended_commit_info_proof: extended_commit_info_proof.map(merkle::Proof::into_raw),
         }
     }
 

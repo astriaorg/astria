@@ -23,9 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `astria_core_crypto as crypto` (this change is transparent)
   [#1800](https://github.com/astriaorg/astria/pull/1800/).
 - Move definitions of address domain type to `astria-core-address` and
-  reexport items using the same aliases [#1802](https://github.com/astriaorg/astria/pull/1802).
-- Move all Astria APIs generated from the Protobuf spec from `astria_core::generated`
-  to `astria_core::generated::astria`
+  reexported items using the same aliases [#1802](https://github.com/astriaorg/astria/pull/1802).
+- Move all Astria APIs generated from the Protobuf spec from
+  `astria_core::generated` to `astria_core::generated::astria`
   [#1825](https://github.com/astriaorg/astria/pull/1825).
 - Update `idna` dependency to resolve cargo audit warning [#1869](https://github.com/astriaorg/astria/pull/1869).
 - Replaced all instances of `[u8; 32]` by newtype

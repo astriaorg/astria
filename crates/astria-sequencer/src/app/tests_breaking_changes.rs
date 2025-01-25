@@ -11,10 +11,12 @@
 
 use std::{
     collections::HashMap,
+    str::FromStr as _,
     sync::Arc,
 };
 
 use astria_core::{
+    connect::types::v2::CurrencyPair,
     primitive::v1::{
         Address,
         RollupId,
@@ -26,8 +28,10 @@ use astria_core::{
                 BridgeLock,
                 BridgeSudoChange,
                 BridgeUnlock,
+                CurrencyPairsChange,
                 IbcRelayerChange,
                 IbcSudoChange,
+                PriceFeed,
                 RollupDataSubmission,
                 Transfer,
                 ValidatorUpdate,
@@ -40,10 +44,7 @@ use astria_core::{
     Protobuf,
 };
 use cnidarium::StateDelta;
-use prost::{
-    bytes::Bytes,
-    Message as _,
-};
+use prost::bytes::Bytes;
 use tendermint::{
     abci,
     abci::types::CommitInfo,
@@ -65,6 +66,7 @@ use crate::{
             get_alice_signing_key,
             get_bridge_signing_key,
             initialize_app,
+            transactions_with_extended_commit_info_and_commitments,
         },
     },
     authority::StateReadExt as _,
@@ -75,7 +77,6 @@ use crate::{
         ASTRIA_PREFIX,
     },
     bridge::StateWriteExt as _,
-    proposal::commitment::generate_rollup_datas_commitment,
 };
 
 #[tokio::test]
@@ -139,7 +140,6 @@ async fn app_finalize_block_snapshot() {
         source_action_index: starting_index_of_action,
     };
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
-    let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
 
     let timestamp = Time::unix_epoch();
     let block_hash = Hash::try_from([99u8; 32].to_vec()).unwrap();
@@ -149,7 +149,10 @@ async fn app_finalize_block_snapshot() {
         time: timestamp,
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs: commitments.into_transactions(vec![signed_tx.to_raw().encode_to_vec().into()]),
+        txs: transactions_with_extended_commit_info_and_commitments(
+            &vec![signed_tx],
+            Some(deposits),
+        ),
         decided_last_commit: CommitInfo {
             votes: vec![],
             round: Round::default(),
@@ -352,6 +355,20 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .unwrap();
 
     let signed_tx = Arc::new(tx_bridge.sign(&bridge));
+    app.execute_transaction(signed_tx).await.unwrap();
+
+    let currency_pair_tia = CurrencyPair::from_str("TIA/USD").unwrap();
+    let currency_pair_eth = CurrencyPair::from_str("ETH/USD").unwrap();
+    let tx = TransactionBody::builder()
+        .actions(vec![PriceFeed::Oracle(CurrencyPairsChange::Addition(
+            vec![currency_pair_tia.clone(), currency_pair_eth.clone()],
+        ))
+        .into()])
+        .chain_id("test")
+        .nonce(4)
+        .try_build()
+        .unwrap();
+    let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let sudo_address = app.state.get_sudo_address().await.unwrap();

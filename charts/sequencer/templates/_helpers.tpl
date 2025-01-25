@@ -11,6 +11,9 @@ Namepsace to deploy elements into.
 {{- define "cometBFT.image" -}}
 {{ .Values.images.cometBFT.repo }}:{{ if .Values.global.dev }}{{ .Values.images.cometBFT.devTag }}{{ else }}{{ .Values.images.cometBFT.tag }}{{ end }}
 {{- end }}
+{{- define "connect.image" -}}
+{{ .Values.images.connect.repo }}:{{ if .Values.global.dev }}{{ .Values.images.connect.devTag }}{{ else }}{{ .Values.images.connect.tag }}{{ end }}
+{{- end }}
 
 {{/*
 Return if ingress is stable.

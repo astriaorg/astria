@@ -199,6 +199,11 @@ mod tests {
     };
     use penumbra_ibc::IbcRelay;
     use prost::Message as _;
+    use tendermint::v0_38::abci::{
+        request,
+        InfoRequest,
+        InfoResponse,
+    };
 
     use super::*;
     use crate::{

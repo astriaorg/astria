@@ -1,4 +1,5 @@
 mod block_hash;
+mod extended_commit_info;
 mod proof;
 mod rollup_ids;
 mod rollup_transactions;
@@ -11,6 +12,7 @@ use borsh::{
 
 pub(in crate::grpc) use self::{
     block_hash::BlockHash,
+    extended_commit_info::ExtendedCommitInfo,
     proof::Proof,
     rollup_ids::RollupIds,
     rollup_transactions::RollupTransactions,
@@ -27,4 +29,5 @@ enum ValueImpl<'a> {
     SequencerBlockHeader(SequencerBlockHeader<'a>),
     RollupTransactions(RollupTransactions<'a>),
     Proof(Proof<'a>),
+    ExtendedCommitInfo(ExtendedCommitInfo<'a>),
 }

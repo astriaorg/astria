@@ -42,7 +42,10 @@ use tendermint::{
             PrepareProposal,
             ProcessProposal,
         },
-        types::CommitInfo,
+        types::{
+            CommitInfo,
+            ExtendedCommitInfo,
+        },
     },
     account,
     block::{
@@ -74,7 +77,6 @@ use crate::{
     },
     bridge::StateWriteExt as _,
     fees::StateReadExt as _,
-    proposal::commitment::generate_rollup_datas_commitment,
 };
 
 fn default_tendermint_header() -> Header {
@@ -258,16 +260,13 @@ async fn app_transfer_block_fees_to_sudo() {
     let signed_tx = tx.sign(&alice);
 
     let proposer_address: tendermint::account::Id = [99u8; 20].to_vec().try_into().unwrap();
-
-    let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], HashMap::new());
-
     let finalize_block = abci::request::FinalizeBlock {
         hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
         height: 1u32.into(),
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address,
-        txs: commitments.into_transactions(vec![signed_tx.to_raw().encode_to_vec().into()]),
+        txs: transactions_with_extended_commit_info_and_commitments(&vec![signed_tx], None),
         decided_last_commit: CommitInfo {
             votes: vec![],
             round: Round::default(),
@@ -373,7 +372,6 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         source_action_index: starting_index_of_action,
     };
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
-    let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
 
     let finalize_block = abci::request::FinalizeBlock {
         hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
@@ -381,7 +379,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs: commitments.into_transactions(vec![signed_tx.to_raw().encode_to_vec().into()]),
+        txs: transactions_with_extended_commit_info_and_commitments(&[signed_tx], Some(deposits)),
         decided_last_commit: CommitInfo {
             votes: vec![],
             round: Round::default(),
@@ -465,7 +463,6 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         source_action_index: starting_index_of_action,
     };
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
-    let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
 
     let timestamp = Time::now();
     let block_hash = Hash::try_from([99u8; 32].to_vec()).unwrap();
@@ -475,7 +472,10 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         time: timestamp,
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs: commitments.into_transactions(vec![signed_tx.to_raw().encode_to_vec().into()]),
+        txs: transactions_with_extended_commit_info_and_commitments(
+            &[signed_tx.clone()],
+            Some(deposits),
+        ),
         decided_last_commit: CommitInfo {
             votes: vec![],
             round: Round::default(),
@@ -511,7 +511,10 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         proposer_address,
         txs: vec![],
         max_tx_bytes: 1_000_000,
-        local_last_commit: None,
+        local_last_commit: Some(ExtendedCommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
     };
     let proposal_fingerprint = prepare_proposal.clone().into();
@@ -539,7 +542,10 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
         txs: finalize_block.txs.clone(),
-        proposed_last_commit: None,
+        proposed_last_commit: Some(CommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
     };
 
@@ -634,7 +640,10 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
     let prepare_args = abci::request::PrepareProposal {
         max_tx_bytes: 200_000,
         txs: vec![],
-        local_last_commit: None,
+        local_last_commit: Some(ExtendedCommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
         height: Height::default(),
         time: Time::now(),
@@ -653,9 +662,9 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
     // see only first tx made it in
     assert_eq!(
         result.txs.len(),
-        3,
-        "total transaction length should be three, including the two commitments and the one tx \
-         that fit"
+        4,
+        "total transaction length should be four, including the extended commit info, two \
+         commitments and the one tx that fit"
     );
     assert_eq!(
         app.mempool.len().await,
@@ -719,7 +728,10 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
     let prepare_args = abci::request::PrepareProposal {
         max_tx_bytes: 600_000, // make large enough to overflow sequencer bytes first
         txs: vec![],
-        local_last_commit: None,
+        local_last_commit: Some(ExtendedCommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
         height: Height::default(),
         time: Time::now(),
@@ -738,9 +750,9 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
     // see only first tx made it in
     assert_eq!(
         result.txs.len(),
-        3,
-        "total transaction length should be three, including the two commitments and the one tx \
-         that fit"
+        4,
+        "total transaction length should be four, including the extended commit info, two \
+         commitments and the one tx that fit"
     );
     assert_eq!(
         app.mempool.len().await,
@@ -782,12 +794,6 @@ async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
         .sign(&alice);
 
     let txs: Vec<Transaction> = vec![tx_pass, tx_overflow];
-    let generated_commitment = generate_rollup_datas_commitment(&txs, HashMap::new());
-    let txs = generated_commitment.into_transactions(
-        txs.into_iter()
-            .map(|tx| tx.to_raw().encode_to_vec().into())
-            .collect(),
-    );
 
     let process_proposal = ProcessProposal {
         hash: Hash::default(),
@@ -795,8 +801,11 @@ async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs,
-        proposed_last_commit: None,
+        txs: transactions_with_extended_commit_info_and_commitments(&txs, None),
+        proposed_last_commit: Some(CommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
     };
 
@@ -830,12 +839,6 @@ async fn app_process_proposal_transaction_fails_to_execute_fails() {
         .sign(&alice);
 
     let txs: Vec<Transaction> = vec![tx_fail];
-    let generated_commitment = generate_rollup_datas_commitment(&txs, HashMap::new());
-    let txs = generated_commitment.into_transactions(
-        txs.into_iter()
-            .map(|tx| tx.to_raw().encode_to_vec().into())
-            .collect(),
-    );
 
     let process_proposal = ProcessProposal {
         hash: Hash::default(),
@@ -843,8 +846,11 @@ async fn app_process_proposal_transaction_fails_to_execute_fails() {
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs,
-        proposed_last_commit: None,
+        txs: transactions_with_extended_commit_info_and_commitments(&txs, None),
+        proposed_last_commit: Some(CommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
     };
 

@@ -24,6 +24,7 @@ use astria_core::{
                 IbcSudoChange,
                 Ics20Withdrawal,
                 InitBridgeAccount,
+                PriceFeed,
                 RollupDataSubmission,
                 SudoAddressChange,
                 Transfer,
@@ -302,6 +303,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
         OnceCell::new();
     let fee_asset_change_fees: OnceCell<Option<FeeComponents<FeeAssetChange>>> = OnceCell::new();
     let fee_change_fees: OnceCell<Option<FeeComponents<FeeChange>>> = OnceCell::new();
+    let price_feed_fees: OnceCell<Option<FeeComponents<PriceFeed>>> = OnceCell::new();
 
     let mut fees_by_asset = HashMap::new();
     for action in tx.actions() {
@@ -360,6 +362,10 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
             }
             Action::FeeChange(act) => {
                 let fees = get_or_init_fees(state, &fee_change_fees).await?;
+                calculate_and_add_fees(act, &mut fees_by_asset, fees);
+            }
+            Action::PriceFeed(act) => {
+                let fees = get_or_init_fees(state, &price_feed_fees).await?;
                 calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
         }
