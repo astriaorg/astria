@@ -149,7 +149,7 @@ impl Runner {
             response,
         } = request;
 
-        let mut finalized_blocks = self.event_bus_subscription.finalized_blocks();
+        let finalized_blocks = self.event_bus_subscription.finalized_blocks();
         self.stream_tasks.spawn(block_commitment_stream(
             finalized_blocks,
             response,
