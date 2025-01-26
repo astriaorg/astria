@@ -150,7 +150,6 @@ impl Runner {
         } = request;
 
         let mut finalized_blocks = self.event_bus_subscription.finalized_blocks();
-        finalized_blocks.mark_latest_event_as_seen();
         self.stream_tasks.spawn(block_commitment_stream(
             finalized_blocks,
             response,

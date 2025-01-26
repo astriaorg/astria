@@ -24,14 +24,6 @@ impl<T> EventReceiver<T>
 where
     T: Clone,
 {
-    /// Marks the current message in the receiver end of the watch as seen.
-    ///
-    /// This is useful in situations where we want to ignore the current value of the watch
-    /// and wait for the next value.
-    pub(crate) fn mark_latest_event_as_seen(&mut self) {
-        self.inner.mark_unchanged();
-    }
-
     /// Returns the latest value of the event, waiting for the value to change if it hasn't already.
     pub(crate) async fn receive(&mut self) -> astria_eyre::Result<T> {
         // We want to only receive the latest value through the receiver, so we wait for the
