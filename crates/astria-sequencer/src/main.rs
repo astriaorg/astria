@@ -55,7 +55,7 @@ async fn main() -> ExitCode {
         "initializing sequencer"
     );
 
-    Sequencer::run_until_stopped(cfg, metrics)
+    Sequencer::spawn(cfg, metrics)
         .await
         .expect("failed to run sequencer");
 
