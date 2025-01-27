@@ -48,16 +48,13 @@ use crate::{
 
 pub struct Sequencer;
 
-type GRPCServerHandle = JoinHandle<Result<(), tonic::transport::Error>>;
-type ABCIServerHandle = JoinHandle<()>;
-
-struct RunningGRPCServer {
-    pub handle: GRPCServerHandle,
+struct RunningGrpcServer {
+    pub handle: JoinHandle<Result<(), tonic::transport::Error>>,
     pub shutdown_tx: oneshot::Sender<()>,
 }
 
-struct RunningABCIServer {
-    pub handle: ABCIServerHandle,
+struct RunningAbciServer {
+    pub handle: JoinHandle<()>,
     pub shutdown_rx: oneshot::Receiver<()>,
 }
 
@@ -89,8 +86,8 @@ impl Sequencer {
     }
 
     async fn run_until_stopped(
-        abci_server: RunningABCIServer,
-        grpc_server: RunningGRPCServer,
+        abci_server: RunningAbciServer,
+        grpc_server: RunningGrpcServer,
         signals: &mut SignalReceiver,
     ) -> Result<()> {
         select! {
@@ -120,7 +117,7 @@ impl Sequencer {
     async fn initialize(
         config: Config,
         metrics: &'static Metrics,
-    ) -> Result<(RunningGRPCServer, RunningABCIServer)> {
+    ) -> Result<(RunningGrpcServer, RunningAbciServer)> {
         cnidarium::register_metrics();
         register_histogram_global("cnidarium_get_raw_duration_seconds");
         register_histogram_global("cnidarium_nonverifiable_get_raw_duration_seconds");
@@ -191,11 +188,11 @@ impl Sequencer {
             let _ = abci_shutdown_tx.send(());
         });
 
-        let grpc_server = RunningGRPCServer {
+        let grpc_server = RunningGrpcServer {
             handle: grpc_server_handle,
             shutdown_tx: grpc_shutdown_tx,
         };
-        let abci_server = RunningABCIServer {
+        let abci_server = RunningAbciServer {
             handle: abci_server_handle,
             shutdown_rx: abci_shutdown_rx,
         };
