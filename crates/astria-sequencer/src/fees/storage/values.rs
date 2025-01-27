@@ -1,19 +1,7 @@
 use astria_core::protocol::{
     fees::v1::FeeComponents as DomainFeeComponents,
     transaction::v1::action::{
-        BridgeLock,
-        BridgeSudoChange,
-        BridgeUnlock,
-        FeeAssetChange,
-        FeeChange,
-        IbcRelayerChange,
-        IbcSudoChange,
-        Ics20Withdrawal,
-        InitBridgeAccount,
-        RollupDataSubmission,
-        SudoAddressChange,
-        Transfer,
-        ValidatorUpdate,
+        BridgeLock, BridgeSudoChange, BridgeTransfer, BridgeUnlock, FeeAssetChange, FeeChange, IbcRelayerChange, IbcSudoChange, Ics20Withdrawal, InitBridgeAccount, RollupDataSubmission, SudoAddressChange, Transfer, ValidatorUpdate
     },
 };
 use astria_eyre::eyre::bail;
@@ -38,6 +26,7 @@ enum ValueImpl {
     InitBridgeAccountFees(FeeComponents),
     BridgeLockFees(FeeComponents),
     BridgeUnlockFees(FeeComponents),
+    BridgeTransferFees(FeeComponents),
     BridgeSudoChangeFees(FeeComponents),
     IbcRelayFees(FeeComponents),
     ValidatorUpdateFees(FeeComponents),
@@ -101,6 +90,7 @@ impl_from_for_fee_storage!(
     DomainFeeComponents<InitBridgeAccount> => InitBridgeAccountFees,
     DomainFeeComponents<BridgeLock> => BridgeLockFees,
     DomainFeeComponents<BridgeUnlock> => BridgeUnlockFees,
+    DomainFeeComponents<BridgeTransfer> => BridgeTransferFees,
     DomainFeeComponents<BridgeSudoChange> => BridgeSudoChangeFees,
     DomainFeeComponents<IbcRelay> => IbcRelayFees,
     DomainFeeComponents<ValidatorUpdate> => ValidatorUpdateFees,
