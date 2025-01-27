@@ -221,7 +221,7 @@ impl Executor {
     }
 }
 
-pub(crate) struct Initialized {
+struct Initialized {
     config: crate::Config,
 
     /// The execution client driving the rollup.
@@ -582,14 +582,14 @@ impl Initialized {
         )
     }
 
-    #[instrument(skip_all, err, ret)]
+    #[instrument(skip_all, err)]
     async fn shutdown(mut self, reason: eyre::Result<&'static str>) -> eyre::Result<()> {
         info!("signaling all reader tasks to exit");
         self.reader_cancellation_token.cancel();
         while let Some((task, exit_status)) = self.reader_tasks.join_next().await {
             match crate::utils::flatten(exit_status) {
                 Ok(()) => info!(task, "task exited"),
-                Err(error) => warn!(task, %error, "task exited"),
+                Err(error) => warn!(task, %error, "task exited with error"),
             }
         }
         report_exit(reason, "shutting down")

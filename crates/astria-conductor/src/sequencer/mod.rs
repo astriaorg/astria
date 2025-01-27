@@ -83,7 +83,7 @@ pub(crate) struct Reader {
 
 impl Reader {
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        let () = select!(
+        select!(
             () = self.shutdown.clone().cancelled_owned() => {
                 return report_exit(Ok("received shutdown signal while waiting for Sequencer reader task to initialize"), "");
             }
