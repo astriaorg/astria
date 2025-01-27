@@ -21,9 +21,11 @@ use crate::{
         IncorrectRollupIdLength,
         RollupId,
     },
-    protocol::fees::v1::{
-        FeeComponentError,
-        FeeComponents,
+    protocol::{
+        fees::v1::{
+            FeeComponentError,
+            FeeComponents,
+        },
     },
     Protobuf,
 };
@@ -51,6 +53,8 @@ pub enum Action {
     BridgeUnlock(BridgeUnlock),
     BridgeSudoChange(BridgeSudoChange),
     FeeChange(FeeChange),
+    EnshrineAuctioneer(EnshrineAuctioneer),
+    UnenshrineAuctioneer(UnenshrineAuctioneer),
 }
 
 impl Protobuf for Action {
@@ -75,6 +79,8 @@ impl Protobuf for Action {
             Action::BridgeUnlock(act) => Value::BridgeUnlock(act.to_raw()),
             Action::BridgeSudoChange(act) => Value::BridgeSudoChange(act.to_raw()),
             Action::FeeChange(act) => Value::FeeChange(act.to_raw()),
+            Action::EnshrineAuctioneer(act) => Value::EnshrineAuctioneer(act.to_raw()),
+            Action::UnenshrineAuctioneer(act) => Value::UnenshrineAuctioneer(act.to_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -148,6 +154,12 @@ impl Protobuf for Action {
             Value::FeeChange(act) => {
                 Self::FeeChange(FeeChange::try_from_raw_ref(&act).map_err(Error::fee_change)?)
             }
+            Value::EnshrineAuctioneer(act) => Self::EnshrineAuctioneer(
+                EnshrineAuctioneer::try_from_raw(act).map_err(Error::enshrine_auctioneer)?,
+            ),
+            Value::UnenshrineAuctioneer(act) => Self::UnenshrineAuctioneer(
+                UnenshrineAuctioneer::try_from_raw(act).map_err(Error::unenshrine_auctioneer)?,
+            ),
         };
         Ok(action)
     }
@@ -295,6 +307,8 @@ impl ActionName for Action {
             Action::BridgeUnlock(_) => "BridgeUnlock",
             Action::BridgeSudoChange(_) => "BridgeSudoChange",
             Action::FeeChange(_) => "FeeChange",
+            Action::EnshrineAuctioneer(_) => "EnshrineAuctioneer",
+            Action::UnenshrineAuctioneer(_) => "UnenshrineAuctioneer",
         }
     }
 }
@@ -363,6 +377,14 @@ impl Error {
     fn fee_change(inner: FeeChangeError) -> Self {
         Self(ActionErrorKind::FeeChange(inner))
     }
+
+    fn enshrine_auctioneer(inner: EnshrineAuctioneerError) -> Self {
+        Self(ActionErrorKind::EnshrineAuctioneer(inner))
+    }
+
+    fn unenshrine_auctioneer(inner: UnenshrineAuctioneerError) -> Self {
+        Self(ActionErrorKind::UnenshrineAuctioneer(inner))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -397,6 +419,10 @@ enum ActionErrorKind {
     BridgeSudoChange(#[source] BridgeSudoChangeError),
     #[error("fee change action was not valid")]
     FeeChange(#[source] FeeChangeError),
+    #[error("enshrine auctioneer action was not valid")]
+    EnshrineAuctioneer(#[source] EnshrineAuctioneerError),
+    #[error("unenshrine auctioneer action was not valid")]
+    UnenshrineAuctioneer(#[source] UnenshrineAuctioneerError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1765,6 +1791,269 @@ enum BridgeUnlockErrorKind {
     BridgeAddress { source: AddressError },
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct EnshrineAuctioneerError(EnshrineAuctioneerErrorKind);
+
+impl EnshrineAuctioneerError {
+    #[must_use]
+    fn field_not_set(field: &'static str) -> Self {
+        Self(EnshrineAuctioneerErrorKind::FieldNotSet(field))
+    }
+
+    #[must_use]
+    fn address(source: AddressError) -> Self {
+        Self(EnshrineAuctioneerErrorKind::Address {
+            source,
+        })
+    }
+
+    #[must_use]
+    fn fee_asset(source: asset::ParseDenomError) -> Self {
+        Self(EnshrineAuctioneerErrorKind::FeeAsset {
+            source,
+        })
+    }
+
+    #[must_use]
+    fn asset(source: asset::ParseDenomError) -> Self {
+        Self(EnshrineAuctioneerErrorKind::Asset {
+            source,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum EnshrineAuctioneerErrorKind {
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error("the `to` field was invalid")]
+    Address { source: AddressError },
+    #[error("the `fee_asset` field was invalid")]
+    FeeAsset { source: asset::ParseDenomError },
+    #[error("the `asset` field was invalid")]
+    Asset { source: asset::ParseDenomError },
+}
+
+#[derive(Debug, Clone)]
+pub struct EnshrineAuctioneer {
+    pub auctioneer_address: Address,
+    pub staker_address: Address,
+    pub fee_asset: asset::Denom,
+    pub asset: asset::Denom,
+    pub amount: u128,
+}
+
+impl Protobuf for EnshrineAuctioneer {
+    type Error = EnshrineAuctioneerError;
+    type Raw = raw::EnshrineAuctioneer;
+
+    #[must_use]
+    fn into_raw(self) -> raw::EnshrineAuctioneer {
+        raw::EnshrineAuctioneer {
+            auctioneer_address: Some(self.auctioneer_address.into_raw()),
+            staker_address: Some(self.staker_address.into_raw()),
+            fee_asset: self.fee_asset.to_string(),
+            asset: self.asset.to_string(),
+            amount: Some(self.amount.into())
+        }
+    }
+
+    #[must_use]
+    fn to_raw(&self) -> raw::EnshrineAuctioneer {
+        raw::EnshrineAuctioneer {
+            auctioneer_address: Some(self.auctioneer_address.to_raw()),
+            staker_address: Some(self.staker_address.to_raw()),
+            fee_asset: self.fee_asset.to_string(),
+            asset: self.asset.to_string(),
+            amount: Some(self.amount.into()),
+        }
+    }
+
+    /// Convert from a raw, unchecked protobuf [`raw::EnshrineAuctioneer`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `auctioneer_address` field is not set
+    /// - if the `staker_address` field is invalid
+    /// - if the `fee_asset` field is invalid
+    /// - if the `asset` field is invalid
+    fn try_from_raw(proto: raw::EnshrineAuctioneer) -> Result<Self, Self::Error> {
+        let raw::EnshrineAuctioneer {
+            auctioneer_address,
+            staker_address,
+            fee_asset,
+            asset,
+            amount,
+        } = proto;
+        let amount = amount.ok_or(EnshrineAuctioneerError::field_not_set("amount"))?;
+        let auctioneer_address = auctioneer_address
+            .ok_or_else(|| EnshrineAuctioneerError::field_not_set("auctioneer_address"))
+            .and_then(|auctioneer_address| {
+                Address::try_from_raw(auctioneer_address).map_err(EnshrineAuctioneerError::address)
+            })?;
+        let staker_address = staker_address
+            .ok_or_else(|| EnshrineAuctioneerError::field_not_set("staker_address"))
+            .and_then(|staker_address| {
+                Address::try_from_raw(staker_address).map_err(EnshrineAuctioneerError::address)
+            })?;
+        let fee_asset = fee_asset
+            .parse()
+            .map_err(EnshrineAuctioneerError::fee_asset)?;
+        let asset = asset.parse().map_err(EnshrineAuctioneerError::asset)?;
+
+        Ok(Self {
+            auctioneer_address,
+            staker_address,
+            fee_asset,
+            asset,
+            amount: amount.into(),
+        })
+    }
+
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::EnshrineAuctioneer`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `auctioneer_address` field is not set
+    /// - if the `staker_address` field is invalid
+    /// - if the `fee_asset` field is invalid
+    /// - if the `asset` field is invalid
+    fn try_from_raw_ref(proto: &raw::EnshrineAuctioneer) -> Result<Self, EnshrineAuctioneerError> {
+        Self::try_from_raw(proto.clone())
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct UnenshrineAuctioneerError(UnenshrineAuctioneerErrorKind);
+
+impl UnenshrineAuctioneerError {
+    #[must_use]
+    fn field_not_set(field: &'static str) -> Self {
+        Self(UnenshrineAuctioneerErrorKind::FieldNotSet(field))
+    }
+
+    #[must_use]
+    fn address(source: AddressError) -> Self {
+        Self(UnenshrineAuctioneerErrorKind::Address {
+            source,
+        })
+    }
+
+    #[must_use]
+    fn fee_asset(source: asset::ParseDenomError) -> Self {
+        Self(UnenshrineAuctioneerErrorKind::FeeAsset {
+            source,
+        })
+    }
+
+    #[must_use]
+    fn asset(source: asset::ParseDenomError) -> Self {
+        Self(UnenshrineAuctioneerErrorKind::Asset {
+            source,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum UnenshrineAuctioneerErrorKind {
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error("the `to` field was invalid")]
+    Address { source: AddressError },
+    #[error("the `fee_asset` field was invalid")]
+    FeeAsset { source: asset::ParseDenomError },
+    #[error("the `asset` field was invalid")]
+    Asset { source: asset::ParseDenomError },
+}
+
+#[derive(Debug, Clone)]
+pub struct UnenshrineAuctioneer {
+    pub auctioneer_address: Address,
+    pub staker_address: Address,
+    pub fee_asset: asset::Denom,
+    pub asset: asset::Denom,
+}
+
+impl Protobuf for UnenshrineAuctioneer {
+    type Error = UnenshrineAuctioneerError;
+    type Raw = raw::UnenshrineAuctioneer;
+
+    #[must_use]
+    fn into_raw(self) -> raw::UnenshrineAuctioneer {
+        raw::UnenshrineAuctioneer {
+            auctioneer_address: Some(self.auctioneer_address.into_raw()),
+            staker_address: Some(self.staker_address.into_raw()),
+            fee_asset: self.fee_asset.to_string(),
+            asset: self.asset.to_string(),
+        }
+    }
+
+    #[must_use]
+    fn to_raw(&self) -> raw::UnenshrineAuctioneer {
+        raw::UnenshrineAuctioneer {
+            auctioneer_address: Some(self.auctioneer_address.to_raw()),
+            staker_address: Some(self.staker_address.to_raw()),
+            fee_asset: self.fee_asset.to_string(),
+            asset: self.asset.to_string(),
+        }
+    }
+
+    /// Convert from a raw, unchecked protobuf [`raw::UnenshrineAuctioneer`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `auctioneer_address` field is not set
+    /// - if the `staker_address` field is invalid
+    /// - if the `fee_asset` field is invalid
+    /// - if the `asset` field is invalid
+    fn try_from_raw(proto: raw::UnenshrineAuctioneer) -> Result<Self, Self::Error> {
+        let raw::UnenshrineAuctioneer {
+            auctioneer_address,
+            staker_address,
+            fee_asset,
+            asset,
+        } = proto;
+        let auctioneer_address = auctioneer_address
+            .ok_or_else(|| UnenshrineAuctioneerError::field_not_set("auctioneer_address"))
+            .and_then(|auctioneer_address| {
+                Address::try_from_raw(auctioneer_address)
+                    .map_err(UnenshrineAuctioneerError::address)
+            })?;
+        let staker_address = staker_address
+            .ok_or_else(|| UnenshrineAuctioneerError::field_not_set("staker_address"))
+            .and_then(|staker_address| {
+                Address::try_from_raw(staker_address).map_err(UnenshrineAuctioneerError::address)
+            })?;
+        let fee_asset = fee_asset
+            .parse()
+            .map_err(UnenshrineAuctioneerError::fee_asset)?;
+        let asset = asset.parse().map_err(UnenshrineAuctioneerError::asset)?;
+
+        Ok(Self {
+            auctioneer_address,
+            staker_address,
+            fee_asset,
+            asset,
+        })
+    }
+
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::UnenshrineAuctioneer`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `auctioneer_address` field is not set
+    /// - if the `staker_address` field is invalid
+    /// - if the `fee_asset` field is invalid
+    /// - if the `asset` field is invalid
+    fn try_from_raw_ref(
+        proto: &raw::UnenshrineAuctioneer,
+    ) -> Result<Self, UnenshrineAuctioneerError> {
+        Self::try_from_raw(proto.clone())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct BridgeSudoChange {
     pub bridge_address: Address,
@@ -1943,6 +2232,8 @@ pub enum FeeChange {
     IbcRelayerChange(FeeComponents<IbcRelayerChange>),
     SudoAddressChange(FeeComponents<SudoAddressChange>),
     IbcSudoChange(FeeComponents<IbcSudoChange>),
+    EnshrineAuctioneer(FeeComponents<EnshrineAuctioneer>),
+    UnenshrineAuctioneer(FeeComponents<UnenshrineAuctioneer>),
 }
 
 impl Protobuf for FeeChange {
@@ -1994,6 +2285,12 @@ impl Protobuf for FeeChange {
                 }
                 Self::IbcSudoChange(fee_change) => {
                     raw::fee_change::FeeComponents::IbcSudoChange(fee_change.to_raw())
+                }
+                Self::EnshrineAuctioneer(fee_change) => {
+                    raw::fee_change::FeeComponents::EnshrineAuctioneer(fee_change.to_raw())
+                }
+                Self::UnenshrineAuctioneer(fee_change) => {
+                    raw::fee_change::FeeComponents::UnenshrineAuctioneer(fee_change.to_raw())
                 }
             }),
         }
@@ -2065,6 +2362,16 @@ impl Protobuf for FeeChange {
             Some(raw::fee_change::FeeComponents::IbcSudoChange(fee_change)) => Self::IbcSudoChange(
                 FeeComponents::<IbcSudoChange>::try_from_raw_ref(fee_change)?,
             ),
+            Some(raw::fee_change::FeeComponents::EnshrineAuctioneer(fee_change)) => {
+                Self::EnshrineAuctioneer(FeeComponents::<EnshrineAuctioneer>::try_from_raw_ref(
+                    fee_change,
+                )?)
+            }
+            Some(raw::fee_change::FeeComponents::UnenshrineAuctioneer(fee_change)) => {
+                Self::UnenshrineAuctioneer(FeeComponents::<UnenshrineAuctioneer>::try_from_raw_ref(
+                    fee_change,
+                )?)
+            }
             None => return Err(FeeChangeError::field_unset("fee_components")),
         })
     }
@@ -2151,5 +2458,17 @@ impl From<FeeComponents<SudoAddressChange>> for FeeChange {
 impl From<FeeComponents<IbcSudoChange>> for FeeChange {
     fn from(fee: FeeComponents<IbcSudoChange>) -> Self {
         FeeChange::IbcSudoChange(fee)
+    }
+}
+
+impl From<FeeComponents<EnshrineAuctioneer>> for FeeChange {
+    fn from(fee: FeeComponents<EnshrineAuctioneer>) -> Self {
+        FeeChange::EnshrineAuctioneer(fee)
+    }
+}
+
+impl From<FeeComponents<UnenshrineAuctioneer>> for FeeChange {
+    fn from(fee: FeeComponents<UnenshrineAuctioneer>) -> Self {
+        FeeChange::UnenshrineAuctioneer(fee)
     }
 }

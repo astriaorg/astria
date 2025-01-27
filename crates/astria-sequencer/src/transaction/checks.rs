@@ -120,6 +120,12 @@ async fn add_total_transfers_for_transaction<S: StateRead>(
                     .and_modify(|amt| *amt = amt.saturating_add(act.amount))
                     .or_insert(act.amount);
             }
+            Action::EnshrineAuctioneer(act) => {
+                cost_by_asset
+                    .entry(act.asset.to_ibc_prefixed())
+                    .and_modify(|amt| *amt = amt.saturating_add(act.amount))
+                    .or_insert(act.amount);
+            }
             Action::ValidatorUpdate(_)
             | Action::SudoAddressChange(_)
             | Action::IbcSudoChange(_)
@@ -129,6 +135,7 @@ async fn add_total_transfers_for_transaction<S: StateRead>(
             | Action::Ibc(_)
             | Action::IbcRelayerChange(_)
             | Action::FeeAssetChange(_)
+            | Action::UnenshrineAuctioneer(_)
             | Action::FeeChange(_) => {
                 continue;
             }

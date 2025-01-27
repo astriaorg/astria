@@ -82,6 +82,12 @@ impl ActionHandler for FeeChange {
             Self::IbcSudoChange(fees) => state
                 .put_fees(*fees)
                 .wrap_err("failed to put ibc sudo change fees"),
+            Self::EnshrineAuctioneer(fees) => state
+                .put_fees(*fees)
+                .wrap_err("failed to put enshrine auctioneer fees"),
+            Self::UnenshrineAuctioneer(fees) => state
+                .put_fees(*fees)
+                .wrap_err("failed to put unenshrine auctioneer fees"),
         }
     }
 }
@@ -209,6 +215,16 @@ mod tests {
     #[tokio::test]
     async fn ibc_sudo_change_fee_change_action_executes_as_expected() {
         test_fee_change_action::<IbcSudoChange>().await;
+    }
+
+    #[tokio::test]
+    async fn enshrine_auctioneer_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<EnshrineAuctioneer>().await;
+    }
+
+    #[tokio::test]
+    async fn unenshrine_auctioneer_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<UnenshrineAuctioneer>().await;
     }
 
     async fn test_fee_change_action<'a, F>()

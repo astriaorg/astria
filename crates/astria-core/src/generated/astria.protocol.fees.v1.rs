@@ -223,6 +223,36 @@ impl ::prost::Name for IbcSudoChangeFeeComponents {
         ::prost::alloc::format!("astria.protocol.fees.v1.{}", Self::NAME)
     }
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct EnshrineAuctioneerFeeComponents {
+    #[prost(message, optional, tag = "1")]
+    pub base: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    #[prost(message, optional, tag = "2")]
+    pub multiplier: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+}
+impl ::prost::Name for EnshrineAuctioneerFeeComponents {
+    const NAME: &'static str = "EnshrineAuctioneerFeeComponents";
+    const PACKAGE: &'static str = "astria.protocol.fees.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.fees.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UnenshrineAuctioneerFeeComponents {
+    #[prost(message, optional, tag = "1")]
+    pub base: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    #[prost(message, optional, tag = "2")]
+    pub multiplier: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+}
+impl ::prost::Name for UnenshrineAuctioneerFeeComponents {
+    const NAME: &'static str = "UnenshrineAuctioneerFeeComponents";
+    const PACKAGE: &'static str = "astria.protocol.fees.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.fees.v1.{}", Self::NAME)
+    }
+}
 /// Response to a transaction fee ABCI query.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

@@ -18,6 +18,7 @@ use astria_core::{
                 BridgeLock,
                 BridgeSudoChange,
                 BridgeUnlock,
+                EnshrineAuctioneer,
                 FeeAssetChange,
                 FeeChange,
                 IbcRelayerChange,
@@ -27,6 +28,7 @@ use astria_core::{
                 RollupDataSubmission,
                 SudoAddressChange,
                 Transfer,
+                UnenshrineAuctioneer,
                 ValidatorUpdate,
             },
             Action,
@@ -302,6 +304,10 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
         OnceCell::new();
     let fee_asset_change_fees: OnceCell<Option<FeeComponents<FeeAssetChange>>> = OnceCell::new();
     let fee_change_fees: OnceCell<Option<FeeComponents<FeeChange>>> = OnceCell::new();
+    let enshrine_auctioneer_fees: OnceCell<Option<FeeComponents<EnshrineAuctioneer>>> =
+        OnceCell::new();
+    let unenshrine_auctioneer_fees: OnceCell<Option<FeeComponents<UnenshrineAuctioneer>>> =
+        OnceCell::new();
 
     let mut fees_by_asset = HashMap::new();
     for action in tx.actions() {
@@ -360,6 +366,14 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
             }
             Action::FeeChange(act) => {
                 let fees = get_or_init_fees(state, &fee_change_fees).await?;
+                calculate_and_add_fees(act, &mut fees_by_asset, fees);
+            }
+            Action::EnshrineAuctioneer(act) => {
+                let fees = get_or_init_fees(state, &enshrine_auctioneer_fees).await?;
+                calculate_and_add_fees(act, &mut fees_by_asset, fees);
+            }
+            Action::UnenshrineAuctioneer(act) => {
+                let fees = get_or_init_fees(state, &unenshrine_auctioneer_fees).await?;
                 calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
         }
@@ -458,6 +472,8 @@ struct AllFeeComponents {
     ibc_relayer_change: FetchResult,
     sudo_address_change: FetchResult,
     ibc_sudo_change: FetchResult,
+    enshrine_auctioneer: FetchResult,
+    unenshrine_auctioneer: FetchResult,
 }
 
 #[derive(serde::Serialize)]
@@ -497,6 +513,8 @@ async fn get_all_fee_components<S: StateRead>(state: &S) -> AllFeeComponents {
         ibc_relayer_change,
         fee_asset_change,
         fee_change,
+        enshrine_auctioneer,
+        unenshrine_auctioneer,
     ) = join!(
         state.get_fees::<Transfer>().map(FetchResult::from),
         state
@@ -514,6 +532,12 @@ async fn get_all_fee_components<S: StateRead>(state: &S) -> AllFeeComponents {
         state.get_fees::<IbcRelayerChange>().map(FetchResult::from),
         state.get_fees::<FeeAssetChange>().map(FetchResult::from),
         state.get_fees::<FeeChange>().map(FetchResult::from),
+        state
+            .get_fees::<EnshrineAuctioneer>()
+            .map(FetchResult::from),
+        state
+            .get_fees::<UnenshrineAuctioneer>()
+            .map(FetchResult::from),
     );
     AllFeeComponents {
         transfer,
@@ -530,6 +554,8 @@ async fn get_all_fee_components<S: StateRead>(state: &S) -> AllFeeComponents {
         ibc_relayer_change,
         sudo_address_change,
         ibc_sudo_change,
+        enshrine_auctioneer,
+        unenshrine_auctioneer,
     }
 }
 

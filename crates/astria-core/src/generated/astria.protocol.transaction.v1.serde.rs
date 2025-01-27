@@ -54,6 +54,12 @@ impl serde::Serialize for Action {
                 action::Value::IbcSudoChange(v) => {
                     struct_ser.serialize_field("ibcSudoChange", v)?;
                 }
+                action::Value::EnshrineAuctioneer(v) => {
+                    struct_ser.serialize_field("enshrineAuctioneer", v)?;
+                }
+                action::Value::UnenshrineAuctioneer(v) => {
+                    struct_ser.serialize_field("unenshrineAuctioneer", v)?;
+                }
             }
         }
         struct_ser.end()
@@ -92,6 +98,10 @@ impl<'de> serde::Deserialize<'de> for Action {
             "feeChange",
             "ibc_sudo_change",
             "ibcSudoChange",
+            "enshrine_auctioneer",
+            "enshrineAuctioneer",
+            "unenshrine_auctioneer",
+            "unenshrineAuctioneer",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -110,6 +120,8 @@ impl<'de> serde::Deserialize<'de> for Action {
             FeeAssetChange,
             FeeChange,
             IbcSudoChange,
+            EnshrineAuctioneer,
+            UnenshrineAuctioneer,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -145,6 +157,8 @@ impl<'de> serde::Deserialize<'de> for Action {
                             "feeAssetChange" | "fee_asset_change" => Ok(GeneratedField::FeeAssetChange),
                             "feeChange" | "fee_change" => Ok(GeneratedField::FeeChange),
                             "ibcSudoChange" | "ibc_sudo_change" => Ok(GeneratedField::IbcSudoChange),
+                            "enshrineAuctioneer" | "enshrine_auctioneer" => Ok(GeneratedField::EnshrineAuctioneer),
+                            "unenshrineAuctioneer" | "unenshrine_auctioneer" => Ok(GeneratedField::UnenshrineAuctioneer),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -263,6 +277,20 @@ impl<'de> serde::Deserialize<'de> for Action {
                                 return Err(serde::de::Error::duplicate_field("ibcSudoChange"));
                             }
                             value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::IbcSudoChange)
+;
+                        }
+                        GeneratedField::EnshrineAuctioneer => {
+                            if value__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("enshrineAuctioneer"));
+                            }
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::EnshrineAuctioneer)
+;
+                        }
+                        GeneratedField::UnenshrineAuctioneer => {
+                            if value__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("unenshrineAuctioneer"));
+                            }
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::UnenshrineAuctioneer)
 ;
                         }
                     }
@@ -782,6 +810,168 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlock {
         deserializer.deserialize_struct("astria.protocol.transaction.v1.BridgeUnlock", FIELDS, GeneratedVisitor)
     }
 }
+impl serde::Serialize for EnshrineAuctioneer {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.auctioneer_address.is_some() {
+            len += 1;
+        }
+        if self.staker_address.is_some() {
+            len += 1;
+        }
+        if !self.fee_asset.is_empty() {
+            len += 1;
+        }
+        if !self.asset.is_empty() {
+            len += 1;
+        }
+        if self.amount.is_some() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.EnshrineAuctioneer", len)?;
+        if let Some(v) = self.auctioneer_address.as_ref() {
+            struct_ser.serialize_field("auctioneerAddress", v)?;
+        }
+        if let Some(v) = self.staker_address.as_ref() {
+            struct_ser.serialize_field("stakerAddress", v)?;
+        }
+        if !self.fee_asset.is_empty() {
+            struct_ser.serialize_field("feeAsset", &self.fee_asset)?;
+        }
+        if !self.asset.is_empty() {
+            struct_ser.serialize_field("asset", &self.asset)?;
+        }
+        if let Some(v) = self.amount.as_ref() {
+            struct_ser.serialize_field("amount", v)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for EnshrineAuctioneer {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "auctioneer_address",
+            "auctioneerAddress",
+            "staker_address",
+            "stakerAddress",
+            "fee_asset",
+            "feeAsset",
+            "asset",
+            "amount",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            AuctioneerAddress,
+            StakerAddress,
+            FeeAsset,
+            Asset,
+            Amount,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "auctioneerAddress" | "auctioneer_address" => Ok(GeneratedField::AuctioneerAddress),
+                            "stakerAddress" | "staker_address" => Ok(GeneratedField::StakerAddress),
+                            "feeAsset" | "fee_asset" => Ok(GeneratedField::FeeAsset),
+                            "asset" => Ok(GeneratedField::Asset),
+                            "amount" => Ok(GeneratedField::Amount),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = EnshrineAuctioneer;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transaction.v1.EnshrineAuctioneer")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<EnshrineAuctioneer, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut auctioneer_address__ = None;
+                let mut staker_address__ = None;
+                let mut fee_asset__ = None;
+                let mut asset__ = None;
+                let mut amount__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::AuctioneerAddress => {
+                            if auctioneer_address__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("auctioneerAddress"));
+                            }
+                            auctioneer_address__ = map_.next_value()?;
+                        }
+                        GeneratedField::StakerAddress => {
+                            if staker_address__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("stakerAddress"));
+                            }
+                            staker_address__ = map_.next_value()?;
+                        }
+                        GeneratedField::FeeAsset => {
+                            if fee_asset__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("feeAsset"));
+                            }
+                            fee_asset__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::Asset => {
+                            if asset__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("asset"));
+                            }
+                            asset__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::Amount => {
+                            if amount__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("amount"));
+                            }
+                            amount__ = map_.next_value()?;
+                        }
+                    }
+                }
+                Ok(EnshrineAuctioneer {
+                    auctioneer_address: auctioneer_address__,
+                    staker_address: staker_address__,
+                    fee_asset: fee_asset__.unwrap_or_default(),
+                    asset: asset__.unwrap_or_default(),
+                    amount: amount__,
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transaction.v1.EnshrineAuctioneer", FIELDS, GeneratedVisitor)
+    }
+}
 impl serde::Serialize for FeeAssetChange {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -945,6 +1135,12 @@ impl serde::Serialize for FeeChange {
                 fee_change::FeeComponents::ValidatorUpdate(v) => {
                     struct_ser.serialize_field("validatorUpdate", v)?;
                 }
+                fee_change::FeeComponents::EnshrineAuctioneer(v) => {
+                    struct_ser.serialize_field("enshrineAuctioneer", v)?;
+                }
+                fee_change::FeeComponents::UnenshrineAuctioneer(v) => {
+                    struct_ser.serialize_field("unenshrineAuctioneer", v)?;
+                }
             }
         }
         struct_ser.end()
@@ -984,6 +1180,10 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
             "transfer",
             "validator_update",
             "validatorUpdate",
+            "enshrine_auctioneer",
+            "enshrineAuctioneer",
+            "unenshrine_auctioneer",
+            "unenshrineAuctioneer",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -1002,6 +1202,8 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
             SudoAddressChange,
             Transfer,
             ValidatorUpdate,
+            EnshrineAuctioneer,
+            UnenshrineAuctioneer,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -1037,6 +1239,8 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
                             "sudoAddressChange" | "sudo_address_change" => Ok(GeneratedField::SudoAddressChange),
                             "transfer" => Ok(GeneratedField::Transfer),
                             "validatorUpdate" | "validator_update" => Ok(GeneratedField::ValidatorUpdate),
+                            "enshrineAuctioneer" | "enshrine_auctioneer" => Ok(GeneratedField::EnshrineAuctioneer),
+                            "unenshrineAuctioneer" | "unenshrine_auctioneer" => Ok(GeneratedField::UnenshrineAuctioneer),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -1155,6 +1359,20 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
                                 return Err(serde::de::Error::duplicate_field("validatorUpdate"));
                             }
                             fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::ValidatorUpdate)
+;
+                        }
+                        GeneratedField::EnshrineAuctioneer => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("enshrineAuctioneer"));
+                            }
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::EnshrineAuctioneer)
+;
+                        }
+                        GeneratedField::UnenshrineAuctioneer => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("unenshrineAuctioneer"));
+                            }
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::UnenshrineAuctioneer)
 ;
                         }
                     }
@@ -2633,5 +2851,150 @@ impl<'de> serde::Deserialize<'de> for Transfer {
             }
         }
         deserializer.deserialize_struct("astria.protocol.transaction.v1.Transfer", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for UnenshrineAuctioneer {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.auctioneer_address.is_some() {
+            len += 1;
+        }
+        if self.staker_address.is_some() {
+            len += 1;
+        }
+        if !self.fee_asset.is_empty() {
+            len += 1;
+        }
+        if !self.asset.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.UnenshrineAuctioneer", len)?;
+        if let Some(v) = self.auctioneer_address.as_ref() {
+            struct_ser.serialize_field("auctioneerAddress", v)?;
+        }
+        if let Some(v) = self.staker_address.as_ref() {
+            struct_ser.serialize_field("stakerAddress", v)?;
+        }
+        if !self.fee_asset.is_empty() {
+            struct_ser.serialize_field("feeAsset", &self.fee_asset)?;
+        }
+        if !self.asset.is_empty() {
+            struct_ser.serialize_field("asset", &self.asset)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for UnenshrineAuctioneer {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "auctioneer_address",
+            "auctioneerAddress",
+            "staker_address",
+            "stakerAddress",
+            "fee_asset",
+            "feeAsset",
+            "asset",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            AuctioneerAddress,
+            StakerAddress,
+            FeeAsset,
+            Asset,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "auctioneerAddress" | "auctioneer_address" => Ok(GeneratedField::AuctioneerAddress),
+                            "stakerAddress" | "staker_address" => Ok(GeneratedField::StakerAddress),
+                            "feeAsset" | "fee_asset" => Ok(GeneratedField::FeeAsset),
+                            "asset" => Ok(GeneratedField::Asset),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = UnenshrineAuctioneer;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transaction.v1.UnenshrineAuctioneer")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<UnenshrineAuctioneer, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut auctioneer_address__ = None;
+                let mut staker_address__ = None;
+                let mut fee_asset__ = None;
+                let mut asset__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::AuctioneerAddress => {
+                            if auctioneer_address__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("auctioneerAddress"));
+                            }
+                            auctioneer_address__ = map_.next_value()?;
+                        }
+                        GeneratedField::StakerAddress => {
+                            if staker_address__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("stakerAddress"));
+                            }
+                            staker_address__ = map_.next_value()?;
+                        }
+                        GeneratedField::FeeAsset => {
+                            if fee_asset__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("feeAsset"));
+                            }
+                            fee_asset__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::Asset => {
+                            if asset__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("asset"));
+                            }
+                            asset__ = Some(map_.next_value()?);
+                        }
+                    }
+                }
+                Ok(UnenshrineAuctioneer {
+                    auctioneer_address: auctioneer_address__,
+                    staker_address: staker_address__,
+                    fee_asset: fee_asset__.unwrap_or_default(),
+                    asset: asset__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transaction.v1.UnenshrineAuctioneer", FIELDS, GeneratedVisitor)
     }
 }

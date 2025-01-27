@@ -3,6 +3,7 @@ pub(crate) mod action_handler;
 pub(crate) mod address;
 pub(crate) mod app;
 pub(crate) mod assets;
+pub(crate) mod auctioneer_enshrinement;
 pub(crate) mod authority;
 #[cfg(any(test, feature = "benchmark"))]
 pub(crate) mod benchmark_and_test_utils;

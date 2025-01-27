@@ -14,6 +14,7 @@ use super::{
     BridgeLock,
     BridgeSudoChange,
     BridgeUnlock,
+    EnshrineAuctioneer,
     FeeAssetChange,
     FeeChange,
     IbcRelayerChange,
@@ -23,6 +24,7 @@ use super::{
     RollupDataSubmission,
     SudoAddressChange,
     Transfer,
+    UnenshrineAuctioneer,
     ValidatorUpdate,
 };
 
@@ -55,6 +57,8 @@ impl_belong_to_group!(
     (FeeAssetChange, Group::BundleableSudo),
     (IbcRelay, Group::BundleableGeneral),
     (IbcSudoChange, Group::UnbundleableSudo),
+    (EnshrineAuctioneer, Group::BundleableGeneral),
+    (UnenshrineAuctioneer, Group::BundleableGeneral)
 );
 
 impl Action {
@@ -74,6 +78,8 @@ impl Action {
             Action::FeeAssetChange(_) => FeeAssetChange::GROUP,
             Action::Ibc(_) => IbcRelay::GROUP,
             Action::IbcSudoChange(_) => IbcSudoChange::GROUP,
+            Action::EnshrineAuctioneer(_) => EnshrineAuctioneer::GROUP,
+            Action::UnenshrineAuctioneer(_) => UnenshrineAuctioneer::GROUP,
         }
     }
 }

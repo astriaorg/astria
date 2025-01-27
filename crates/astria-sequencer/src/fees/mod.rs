@@ -6,6 +6,7 @@ use astria_core::{
             BridgeLock,
             BridgeSudoChange,
             BridgeUnlock,
+            EnshrineAuctioneer,
             FeeAssetChange,
             FeeChange,
             IbcRelayerChange,
@@ -15,6 +16,7 @@ use astria_core::{
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
+            UnenshrineAuctioneer,
             ValidatorUpdate,
         },
     },
@@ -455,6 +457,50 @@ impl FeeHandler for IbcRelay {
 
     fn fee_asset(&self) -> Option<&asset::Denom> {
         None
+    }
+}
+
+impl FeeHandler for EnshrineAuctioneer {
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "enshrine_auctioneer"
+    }
+
+    fn variable_component(&self) -> u128 {
+        0
+    }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        Some(&self.fee_asset)
+    }
+}
+
+impl FeeHandler for UnenshrineAuctioneer {
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "unenshrine_auctioneer"
+    }
+
+    fn variable_component(&self) -> u128 {
+        0
+    }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        Some(&self.fee_asset)
     }
 }
 

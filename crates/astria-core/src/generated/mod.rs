@@ -97,6 +97,19 @@ pub mod astria {
             pub mod v1;
         }
         #[path = ""]
+        pub mod auctioneer {
+            #[path = "astria.protocol.auctioneer.v1.rs"]
+            pub mod v1 {
+                include!("astria.protocol.auctioneer.v1.rs");
+
+                #[cfg(feature = "serde")]
+                mod _serde_impls {
+                    use super::*;
+                    include!("astria.protocol.auctioneer.v1.serde.rs");
+                }
+            }
+        }
+        #[path = ""]
         pub mod fees {
             #[path = "astria.protocol.fees.v1.rs"]
             pub mod v1 {

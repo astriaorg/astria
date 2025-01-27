@@ -30,6 +30,10 @@ message Action {
     FeeAssetChange fee_asset_change = 53;
     FeeChange fee_change = 55;
     IbcSudoChange ibc_sudo_change = 56;
+
+    // auctioneer actions
+    EnshrineAuctioneer enshrine_auctioneer = 60;
+    UnenshrineAuctioneer unenshrine_auctioneer = 61;
   }
 }
 
@@ -211,6 +215,32 @@ message BridgeSudoChange {
   string fee_asset = 4;
 }
 
+message EnshrineAuctioneer {
+  // the address of the auctioneer to enshrine. all auctioneer block commitment txs should come from
+  // this auctioneer address
+  astria.primitive.v1.Address auctioneer_address = 1;
+  // TODO - do we need a separate address to stake collateral? or is it the same as the auctioneer address?
+  // the address of the staker which stakes collateral for the auctioneer.
+  astria.primitive.v1.Address staker_address = 2;
+  // the asset used to pay the transaction fee
+  string fee_asset = 3;
+  // the asset to be staked
+  string asset = 4;
+  // the amount of collateral to stake
+  astria.primitive.v1.Uint128 amount = 5;
+}
+
+message UnenshrineAuctioneer {
+  // the address of the auctioneer to unenshrine
+  astria.primitive.v1.Address auctioneer_address = 1;
+  // the staked collateral is transferred back to this address
+  astria.primitive.v1.Address staker_address = 2;
+  // the asset used to pay the transaction fee
+  string fee_asset = 3;
+  // the asset to be staked
+  string asset = 4;
+}
+
 message FeeChange {
   // the new fee components values
   oneof fee_components {
@@ -228,6 +258,8 @@ message FeeChange {
     astria.protocol.fees.v1.SudoAddressChangeFeeComponents sudo_address_change = 12;
     astria.protocol.fees.v1.TransferFeeComponents transfer = 13;
     astria.protocol.fees.v1.ValidatorUpdateFeeComponents validator_update = 14;
+    astria.protocol.fees.v1.EnshrineAuctioneerFeeComponents enshrine_auctioneer = 15;
+    astria.protocol.fees.v1.UnenshrineAuctioneerFeeComponents unenshrine_auctioneer = 16;
   }
 }
 

@@ -17,6 +17,7 @@ use crate::{
         BridgeLock,
         BridgeSudoChange,
         BridgeUnlock,
+        EnshrineAuctioneer,
         FeeAssetChange,
         FeeChange,
         IbcRelayerChange,
@@ -26,6 +27,7 @@ use crate::{
         RollupDataSubmission,
         SudoAddressChange,
         Transfer,
+        UnenshrineAuctioneer,
         ValidatorUpdate,
     },
     Protobuf,
@@ -108,6 +110,8 @@ impl_protobuf_for_fee_components!(
     FeeComponents<FeeChange> => raw::FeeChangeFeeComponents,
     FeeComponents<SudoAddressChange> => raw::SudoAddressChangeFeeComponents,
     FeeComponents<IbcSudoChange> => raw::IbcSudoChangeFeeComponents,
+    FeeComponents<EnshrineAuctioneer> => raw::EnshrineAuctioneerFeeComponents,
+    FeeComponents<UnenshrineAuctioneer> => raw::UnenshrineAuctioneerFeeComponents
 );
 
 pub struct FeeComponents<T: ?Sized> {

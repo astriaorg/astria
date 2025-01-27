@@ -3,7 +3,7 @@
 pub struct Action {
     #[prost(
         oneof = "action::Value",
-        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55, 56"
+        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55, 56, 60, 61"
     )]
     pub value: ::core::option::Option<action::Value>,
 }
@@ -46,6 +46,11 @@ pub mod action {
         FeeChange(super::FeeChange),
         #[prost(message, tag = "56")]
         IbcSudoChange(super::IbcSudoChange),
+        /// auctioneer actions
+        #[prost(message, tag = "60")]
+        EnshrineAuctioneer(super::EnshrineAuctioneer),
+        #[prost(message, tag = "61")]
+        UnenshrineAuctioneer(super::UnenshrineAuctioneer),
     }
 }
 impl ::prost::Name for Action {
@@ -398,11 +403,70 @@ impl ::prost::Name for BridgeSudoChange {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct EnshrineAuctioneer {
+    /// the address of the auctioneer to enshrine. all auctioneer block commitment txs should come from
+    /// this auctioneer address
+    #[prost(message, optional, tag = "1")]
+    pub auctioneer_address: ::core::option::Option<
+        super::super::super::primitive::v1::Address,
+    >,
+    /// TODO - do we need a separate address to stake collateral? or is it the same as the auctioneer address?
+    /// the address of the staker which stakes collateral for the auctioneer.
+    #[prost(message, optional, tag = "2")]
+    pub staker_address: ::core::option::Option<
+        super::super::super::primitive::v1::Address,
+    >,
+    /// the asset used to pay the transaction fee
+    #[prost(string, tag = "3")]
+    pub fee_asset: ::prost::alloc::string::String,
+    /// the asset to be staked
+    #[prost(string, tag = "4")]
+    pub asset: ::prost::alloc::string::String,
+    /// the amount of collateral to stake
+    #[prost(message, optional, tag = "5")]
+    pub amount: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+}
+impl ::prost::Name for EnshrineAuctioneer {
+    const NAME: &'static str = "EnshrineAuctioneer";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UnenshrineAuctioneer {
+    /// the address of the auctioneer to unenshrine
+    #[prost(message, optional, tag = "1")]
+    pub auctioneer_address: ::core::option::Option<
+        super::super::super::primitive::v1::Address,
+    >,
+    /// the staked collateral is transferred back to this address
+    #[prost(message, optional, tag = "2")]
+    pub staker_address: ::core::option::Option<
+        super::super::super::primitive::v1::Address,
+    >,
+    /// the asset used to pay the transaction fee
+    #[prost(string, tag = "3")]
+    pub fee_asset: ::prost::alloc::string::String,
+    /// the asset to be staked
+    #[prost(string, tag = "4")]
+    pub asset: ::prost::alloc::string::String,
+}
+impl ::prost::Name for UnenshrineAuctioneer {
+    const NAME: &'static str = "UnenshrineAuctioneer";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FeeChange {
     /// the new fee components values
     #[prost(
         oneof = "fee_change::FeeComponents",
-        tags = "1, 2, 3, 4, 5, 7, 6, 8, 9, 10, 11, 12, 13, 14"
+        tags = "1, 2, 3, 4, 5, 7, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16"
     )]
     pub fee_components: ::core::option::Option<fee_change::FeeComponents>,
 }
@@ -442,6 +506,14 @@ pub mod fee_change {
         Transfer(super::super::super::fees::v1::TransferFeeComponents),
         #[prost(message, tag = "14")]
         ValidatorUpdate(super::super::super::fees::v1::ValidatorUpdateFeeComponents),
+        #[prost(message, tag = "15")]
+        EnshrineAuctioneer(
+            super::super::super::fees::v1::EnshrineAuctioneerFeeComponents,
+        ),
+        #[prost(message, tag = "16")]
+        UnenshrineAuctioneer(
+            super::super::super::fees::v1::UnenshrineAuctioneerFeeComponents,
+        ),
     }
 }
 impl ::prost::Name for FeeChange {

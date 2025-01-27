@@ -1,6 +1,7 @@
 pub(crate) mod bridge_lock;
 pub(crate) mod bridge_sudo_change;
 pub(crate) mod bridge_unlock;
+mod enshrine_auctioneer;
 pub(crate) mod fee_asset_change;
 pub(crate) mod fee_change;
 pub(crate) mod ibc_relayer_change;
@@ -13,4 +14,5 @@ pub(crate) mod sudo_address_change;
 pub(crate) mod test_utils;
 pub(crate) mod transaction;
 pub(crate) mod transfer;
+mod unenshrine_auctioneer;
 pub(crate) mod validator_update;
