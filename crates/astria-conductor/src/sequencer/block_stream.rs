@@ -53,7 +53,7 @@ impl Heights {
         let height_exists_on_sequencer = potential_height <= latest_observed_sequencer_height;
         let last_height_reached = self
             .last_height
-            .map_or(false, |last_height| potential_height >= last_height.into());
+            .map_or(false, |last_height| potential_height > last_height.into());
 
         if not_too_far_ahead && height_exists_on_sequencer && !last_height_reached {
             Some(potential_height)
@@ -328,7 +328,7 @@ mod tests {
     fn next_height_is_none_if_last_height_reached() {
         let heights = Heights {
             rollup_expects: 4,
-            greatest_requested_height: Some(5),
+            greatest_requested_height: Some(6),
             latest_observed_sequencer_height: Some(6),
             last_height: Some(NonZeroU64::new(6).unwrap()),
             max_ahead: 5,

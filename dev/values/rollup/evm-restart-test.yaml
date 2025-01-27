@@ -11,20 +11,29 @@ global:
 evm-rollup:
   genesis:
     # The name of the rollup chain, used to generate the Rollup ID
-    rollupName: "{{ .Values.global.rollupName }}"
+    rollupName: "{{ Values.global.rollupName }}"
 
     # The "forks" for upgrading the chain. Contains necessary information for starting
     # and, if desired, restarting the chain at a given height. The necessary fields
     # for the genesis fork are provided, and additional forks can be added as needed.
-    forks:
+    launch:
       ## These values are used to configure the genesis block of the rollup chain
       ## no defaults as they are unique to each chain
-      launch:
+      genesis:
         # The block height to start the chain at, 0 for genesis
-        height: "0"
+        height: 0
+        # Whether to halt the rollup chain at the given height. False for genesis
+        halt: false
+        # Checksum of the snapshot to use upon restart
+        snapshotChecksum: ""
+        # Will fill the extra data in each block, can be left empty
+        # can also fill with something unique for your chain.
+        extraDataOverride: ""
         # Configure the fee collector for the evm tx fees, activated at block heights.
         # If not configured, all tx fees will be burned.
         feeCollector: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
+        # Configure EIP-1559 params, activated at block heights.
+        eip1559Params: {}
         sequencer:
           # The chain id of the sequencer chain
           chainId: "sequencer-test-chain-0"
@@ -32,6 +41,8 @@ evm-rollup:
           addressPrefix: "astria"
           # Block height to start syncing rollup from, lowest possible is 2
           startHeight: 2
+          # Block height (on sequencer) to stop syncing rollup at, continuing to next configuration fork
+          stopHeight: 20
         celestia:
           # The chain id of the celestia chain
           chainId: "celestia-local-0"
@@ -39,14 +50,23 @@ evm-rollup:
           startHeight: 2
           # The variance in Celestia height to allow before halting the chain
           heightVariance: 10
-          # Configure the sequencer bridge addresses and allowed assets if using
-          # the astria canonical bridge. Recommend removing alloc values if so.
+        # Configure the sequencer bridge addresses and allowed assets if using
+        # the astria canonical bridge. Recommend removing alloc values if so.
         bridgeAddresses:
           - bridgeAddress: "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
             startHeight: 1
             senderAddress: "0x0000000000000000000000000000000000000000"
             assetDenom: "nria"
             assetPrecision: 9
+      restart:
+        height: 18
+        halt: true
+        sequencer:
+          addressPrefix: "astria"
+          startHeight: 20
+          stopHeight: 1000
+        celestia:
+          startHeight: 20
 
     ## These are general configuration values with some recommended defaults
 

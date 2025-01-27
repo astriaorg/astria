@@ -126,3 +126,8 @@ only `CommitmentState.firm.number += 1` is advanced).
 Soft being ahead of firm is the expected operation. In certain rare situations
 the numbers can match exactly, and step `firm-only.10` and `firm-only.11` are
 executed as written.
+
+## Startup, Restarts, Execution, and Commitments
+
+See [`astria.execution.v1alpha2` API documentation](./execution-api.md) for more
+information on Conductor startup, restart, execution, and commitment logic.

@@ -269,10 +269,10 @@ impl State {
     ///
     /// ```text
     /// sequencer_height_of_rollup :=
-    ///    sequencer_start_height + (firm_rollup_number - rollup_start_height) + 1
+    ///    sequencer_start_height + (firm_rollup_number - rollup_start_height)
     ///
     /// has_firm_number_been_reached :=
-    ///     (sequencer_height_of_rollup + 1) >= sequencer_stop_height
+    ///     sequencer_height_of_rollup >= sequencer_stop_height
     /// ````
     pub(crate) fn has_firm_number_reached_stop_height(&self) -> bool {
         let Some(sequencer_stop_height) = self.sequencer_stop_block_height() else {
@@ -286,7 +286,7 @@ impl State {
                  can always be mapped to a sequencer height",
             );
 
-        sequencer_height_of_rollup.value().saturating_add(1) >= sequencer_stop_height.get()
+        sequencer_height_of_rollup.value() >= sequencer_stop_height.get()
     }
 
     /// Returns if the tracked soft state of the rollup has reached the sequencer stop height.
@@ -295,10 +295,10 @@ impl State {
     ///
     /// ```text
     /// sequencer_height_of_rollup :=
-    ///    sequencer_start_height + (soft_rollup_number - rollup_start_height) + 1
+    ///    sequencer_start_height + (soft_rollup_number - rollup_start_height)
     ///
-    /// has_firm_number_been_reached :=
-    ///     (sequencer_height_of_rollup + 1) >= sequencer_stop_height
+    /// has_soft_number_been_reached :=
+    ///     sequencer_height_of_rollup >= sequencer_stop_height
     /// ````
     pub(crate) fn has_soft_number_reached_stop_height(&self) -> bool {
         let Some(sequencer_stop_height) = self.sequencer_stop_block_height() else {
@@ -311,7 +311,7 @@ impl State {
                  which ensures that the number can always be mapped to a sequencer height",
             );
 
-        sequencer_height_of_rollup.value().saturating_add(1) >= sequencer_stop_height.get()
+        sequencer_height_of_rollup.value() >= sequencer_stop_height.get()
     }
 
     /// Sets the inner commitment state.

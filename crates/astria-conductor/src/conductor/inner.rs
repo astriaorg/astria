@@ -359,7 +359,7 @@ mod tests {
             &make_rollup_state(
                 GenesisInfo {
                     sequencer_start_block_height: 10,
-                    sequencer_stop_block_height: 100,
+                    sequencer_stop_block_height: 99,
                     rollup_start_block_height: 10,
                     halt_at_stop_height: false,
                     ..make_genesis_info()
@@ -391,7 +391,7 @@ mod tests {
             &make_rollup_state(
                 GenesisInfo {
                     sequencer_start_block_height: 10,
-                    sequencer_stop_block_height: 100,
+                    sequencer_stop_block_height: 99,
                     rollup_start_block_height: 10,
                     halt_at_stop_height: true,
                     ..make_genesis_info()
@@ -426,7 +426,7 @@ mod tests {
             &make_rollup_state(
                 GenesisInfo {
                     sequencer_start_block_height: 10,
-                    sequencer_stop_block_height: 100,
+                    sequencer_stop_block_height: 99,
                     rollup_start_block_height: 10,
                     halt_at_stop_height: false,
                     ..make_genesis_info()
@@ -458,7 +458,7 @@ mod tests {
             &make_rollup_state(
                 GenesisInfo {
                     sequencer_start_block_height: 10,
-                    sequencer_stop_block_height: 100,
+                    sequencer_stop_block_height: 99,
                     rollup_start_block_height: 10,
                     halt_at_stop_height: true,
                     ..make_genesis_info()

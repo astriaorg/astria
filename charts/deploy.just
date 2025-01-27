@@ -170,8 +170,9 @@ clean-persisted-data:
 deploy-local-metrics:
   kubectl apply -f kubernetes/metrics-server-local.yml
 
+defaultValues := "dev/values/rollup/dev.yaml"
 defaultTag := ""
-deploy-smoke-test tag=defaultTag:
+deploy-smoke-test tag=defaultTag values=defaultValues:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
   @just wait-for-ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
@@ -184,7 +185,7 @@ deploy-smoke-test tag=defaultTag:
     {{ if tag != '' { replace('--set images.sequencer.devTag=# --set sequencer-relayer.images.sequencerRelayer.devTag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
   @just wait-for-sequencer > /dev/null
-  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-stack -f dev/values/rollup/dev.yaml \
+  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-stack -f {{ values }} \
     {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
     --set blockscout-stack.enabled=false \
     --set postgresql.enabled=false \

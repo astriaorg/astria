@@ -447,13 +447,13 @@ impl RunningReader {
         }
     }
 
-    /// The stop height is reached if a) the next height to be forwarded would be equal
-    /// or greater than the stop height, and b) there is no block currently in flight.
+    /// The stop height is reached if a) the next height to be forwarded would be greater
+    /// than the stop height, and b) there is no block currently in flight.
     fn has_reached_stop_height(&self) -> bool {
         self.rollup_state
             .sequencer_stop_block_height()
             .map_or(false, |stop_height| {
-                self.block_cache.next_height_to_pop() >= stop_height.get()
+                self.block_cache.next_height_to_pop() > stop_height.get()
             })
             && self.enqueued_block.is_terminated()
     }

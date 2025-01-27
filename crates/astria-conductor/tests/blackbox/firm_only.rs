@@ -551,7 +551,7 @@ async fn conductor_restarts_after_reaching_stop_block_height() {
     mount_get_genesis_info!(
         test_conductor,
         sequencer_start_block_height: 1,
-        sequencer_stop_block_height: 4,
+        sequencer_stop_block_height: 3,
         celestia_block_variance: 10,
         rollup_start_block_height: 0,
         up_to_n_times: 1, // Only respond once, since updated information is needed after restart.
@@ -640,7 +640,7 @@ async fn conductor_restarts_after_reaching_stop_block_height() {
     // Mount new genesis info and commitment state with updated heights
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_start_block_height: 1,
+        sequencer_start_block_height: 2,
         sequencer_stop_block_height: 10,
         celestia_block_variance: 10,
         rollup_start_block_height: 1,
