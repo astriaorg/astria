@@ -854,6 +854,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "astria-optimistic-execution-proxy"
+version = "0.0.1"
+dependencies = [
+ "astria-build-info",
+ "astria-config",
+ "astria-core",
+ "astria-eyre",
+ "astria-sequencer-client",
+ "astria-telemetry",
+ "base64 0.21.7",
+ "bytes",
+ "futures",
+ "hex",
+ "http 0.2.12",
+ "http-body 0.4.6",
+ "humantime",
+ "hyper 0.14.30",
+ "itertools 0.12.1",
+ "pbjson-types",
+ "pin-project-lite",
+ "prost",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.63",
+ "tokio",
+ "tokio-stream",
+ "tokio-util 0.7.13",
+ "tonic 0.10.2",
+ "tower 0.5.2",
+ "tower-http",
+ "tracing",
+ "tryhard",
+]
+
+[[package]]
 name = "astria-sequencer"
 version = "1.0.0"
 dependencies = [
