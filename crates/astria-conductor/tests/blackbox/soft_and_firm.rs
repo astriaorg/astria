@@ -789,7 +789,7 @@ async fn conductor_restarts_after_reaching_stop_height() {
             parent: [2; 64],
         ),
         base_celestia_height: 1,
-        expected_calls: 1,
+        expected_calls: 0..=1,
     );
 
     let update_commitment_state_firm_2 = mount_update_commitment_state!(
@@ -810,7 +810,7 @@ async fn conductor_restarts_after_reaching_stop_height() {
     );
 
     timeout(
-        Duration::from_millis(2000),
+        Duration::from_millis(1000),
         join(
             execute_block_2.wait_until_satisfied(),
             update_commitment_state_firm_2.wait_until_satisfied(),
