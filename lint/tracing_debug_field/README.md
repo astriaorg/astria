@@ -9,7 +9,7 @@ utility.
 
 ## Why is this bad?
 
-Debug formatted fields are bad for observability as they are usually unparseable
+Debug formatted fields are bad for observability as they are usually unparsable
 and unreadable. They also surface language-specific implementation details that
 are unnecessary and too verbose for operators.
 
