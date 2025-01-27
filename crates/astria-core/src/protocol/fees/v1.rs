@@ -16,8 +16,8 @@ use crate::{
     protocol::transaction::v1::action::{
         BridgeLock,
         BridgeSudoChange,
-        BridgeUnlock,
         BridgeTransfer,
+        BridgeUnlock,
         FeeAssetChange,
         FeeChange,
         IbcRelayerChange,

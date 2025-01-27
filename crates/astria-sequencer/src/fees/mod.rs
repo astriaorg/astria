@@ -3,7 +3,20 @@ use astria_core::{
     protocol::{
         fees::v1::FeeComponents,
         transaction::v1::action::{
-            BridgeLock, BridgeSudoChange, BridgeTransfer, BridgeUnlock, FeeAssetChange, FeeChange, IbcRelayerChange, IbcSudoChange, Ics20Withdrawal, InitBridgeAccount, RollupDataSubmission, SudoAddressChange, Transfer, ValidatorUpdate
+            BridgeLock,
+            BridgeSudoChange,
+            BridgeTransfer,
+            BridgeUnlock,
+            FeeAssetChange,
+            FeeChange,
+            IbcRelayerChange,
+            IbcSudoChange,
+            Ics20Withdrawal,
+            InitBridgeAccount,
+            RollupDataSubmission,
+            SudoAddressChange,
+            Transfer,
+            ValidatorUpdate,
         },
     },
     Protobuf,

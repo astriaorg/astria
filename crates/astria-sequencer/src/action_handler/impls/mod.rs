@@ -1,7 +1,7 @@
 pub(crate) mod bridge_lock;
 pub(crate) mod bridge_sudo_change;
-pub(crate) mod bridge_unlock;
 pub(crate) mod bridge_transfer;
+pub(crate) mod bridge_unlock;
 pub(crate) mod fee_asset_change;
 pub(crate) mod fee_change;
 pub(crate) mod ibc_relayer_change;

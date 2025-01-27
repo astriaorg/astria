@@ -17,8 +17,8 @@ use astria_core::{
             action::{
                 BridgeLock,
                 BridgeSudoChange,
-                BridgeUnlock,
                 BridgeTransfer,
+                BridgeUnlock,
                 FeeAssetChange,
                 FeeChange,
                 IbcRelayerChange,

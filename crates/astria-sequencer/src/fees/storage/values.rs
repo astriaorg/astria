@@ -1,7 +1,20 @@
 use astria_core::protocol::{
     fees::v1::FeeComponents as DomainFeeComponents,
     transaction::v1::action::{
-        BridgeLock, BridgeSudoChange, BridgeTransfer, BridgeUnlock, FeeAssetChange, FeeChange, IbcRelayerChange, IbcSudoChange, Ics20Withdrawal, InitBridgeAccount, RollupDataSubmission, SudoAddressChange, Transfer, ValidatorUpdate
+        BridgeLock,
+        BridgeSudoChange,
+        BridgeTransfer,
+        BridgeUnlock,
+        FeeAssetChange,
+        FeeChange,
+        IbcRelayerChange,
+        IbcSudoChange,
+        Ics20Withdrawal,
+        InitBridgeAccount,
+        RollupDataSubmission,
+        SudoAddressChange,
+        Transfer,
+        ValidatorUpdate,
     },
 };
 use astria_eyre::eyre::bail;
