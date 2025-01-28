@@ -36,6 +36,9 @@ genesis:
     # address of the bridge account. needs funds to sign bridge init tx
     - address: astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr
       balance: "69000000"
+    # address of the messenger rollup composer
+    - address: astria1h7dglw48ef45fe95cr56mvru8hmlzk7gfk0e0a
+      balance: "333333333333333333"
 
 resources:
   cometbft:

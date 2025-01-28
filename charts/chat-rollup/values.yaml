@@ -8,15 +8,15 @@ global:
 
 images:
   chat:
-    repo: chat-rollup
+    repo: ghcr.io/astriaorg/novm-messenger
     pullPolicy: IfNotPresent
-    tag: local-v0.0.10
-    devTag: local-v0.0.10
+    tag: latest
+    devTag: latest
   frontend:
-    repo: chat-rollup
+    repo: messenger-frontend
     pullPolicy: IfNotPresent
-    tag: local-v0.0.8
-    devTag: local-v0.0.8
+    tag: local-v0.0.1
+    devTag: local-v0.0.1
   conductor:
     repo: ghcr.io/astriaorg/conductor
     pullPolicy: IfNotPresent
@@ -29,75 +29,17 @@ genesis:
   ## no defaults as they are unique to each chain
 
   # The name of the rollup chain, used to generate the Rollup ID
-  rollupName: ""
+  rollupName: "astria-chat"
   # Block height to start syncing rollup from, lowest possible is 2
-  sequencerInitialHeight: ""
+  sequencerInitialHeight: "2"
   # The first Celestia height to utilize when looking for rollup data
-  celestiaInitialHeight: ""
+  celestiaInitialHeight: "2"
   # The variance in Celestia height to allow before halting the chain
-  celestiaHeightVariance: ""
-  # Will fill the extra data in each block, can be left empty
-  # can also fill with something unique for your chain.
-  extraDataOverride: ""
-
-  ## These are general configuration values with some recommended defaults
-
-  # Configure the gas Limit
-  gasLimit: "50000000"
-  # If set to true the genesis block will contain extra data
-  overrideGenesisExtraData: true
-  # The hrp for bech32m addresses, unlikely to be changed
-  sequencerAddressPrefix: "astria"
-
-  ## These values are used to configure astria native bridging
-  ## Many of the fields have commented out example fields
-
-  # Configure the sequencer bridge addresses and allowed assets if using
-  # the astria canonical bridge. Recommend removing alloc values if so.
-  bridgeAddresses: []
-    # - address: "684ae50c49a434199199c9c698115391152d7b3f"
-    #   startHeight: 1
-    #   assetDenom: "nria"
-    #   senderAddress: "0x0000000000000000000000000000000000000000"
-    #   assetPrecision: 9
-
-
-  ## Fee configuration
-
-  # Configure the fee collector for the evm tx fees, activated at block heights.
-  # If not configured, all tx fees will be burned.
-  feeCollectors: {}
-  # 1: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
-  # Configure EIP-1559 params, activated at block heights
-  eip1559Params: {}
-    # 1:
-    #   minBaseFee: 0
-    #   elasticityMultiplier: 2
-    #   baseFeeChangeDenominator: 8
-
-  ## Standard Eth Genesis config values
-  # An EVM chain number id, different from the astria rollup name
-  chainId: ""
-  # Configuration of Eth forks, setting to 0 will enable from height,
-  # left as is these forks will not activate.
-  cancunTime: ""
-  pragueTime: ""
-  verkleTime: ""
+  celestiaHeightVariance: "1000"
   # Can configure the genesis allocs for the chain
-  alloc:
-    # Deploying the deterministic deploy proxy contract in genesis
-    # Forge and other tools use this for their CREATE2 usage, but
-    # can only be included through the genesis block after EIP-155
-    # https://github.com/Arachnid/deterministic-deployment-proxy
-    - address: "0x4e59b44847b379578588920cA78FbF26c0B4956C"
-      value:
-        balance: "0"
-        code: "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3"
-    # Example of simple genesis account funding
-    # - address: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
-    #   value:
-    #   # The balance must be a string due to size
-    #   balance: "1000000000000000000000000000"
+  genesisAccounts: 
+    - address: "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+      balance: "100000000000"
 
 config:
   rollupName: "astria-chat"

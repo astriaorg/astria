@@ -16,6 +16,20 @@ spec:
       labels:
         app: {{ include "rollup.appName" . }}
     spec:
+      initContainers:
+        - name: init-messenger
+          command: [ "/scripts/init-geth.sh" ]
+          image: {{ include "rollup.image" . }}
+          imagePullPolicy: {{ .Values.images.chat.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "rollup.name" . }}-chat-env
+          volumeMounts:
+            - mountPath: /scripts/
+              name: {{ include "rollup.name" . }}-executor-scripts-volume
+            - mountPath: /home/chat
+              name: {{ include "rollup.name" $ }}-rollup-shared-storage-vol
+              subPath: {{ include "rollup.name" . }}/executor
       containers:
         - name: chat
           command: [ "/usr/local/bin/chat-rollup" ]
@@ -25,6 +39,9 @@ spec:
             - configMapRef:
                 name: {{ include "rollup.name" . }}-chat-env
           volumeMounts:
+            - mountPath: /scripts/
+              name: {{ include "rollup.name" . }}-executor-scripts-volume
+              readOnly: true
             - mountPath: /home/chat
               name: {{ include "rollup.name" . }}-rollup-shared-storage-vol
           ports:
@@ -55,7 +72,7 @@ spec:
               name: conductor-metr
           {{- end }}
         - name: chat-frontend
-          image: {{ include "chat-frontend.image" . }}
+          image: {{ include "frontend.image" . }}
           imagePullPolicy: {{ .Values.images.conductor.pullPolicy }}
           stdin: {{ .Values.global.useTTY }}
           tty: {{ .Values.global.useTTY }}
@@ -68,6 +85,10 @@ spec:
             - containerPort: 3000
               name: frontend
       volumes:
+        - name: {{ include "rollup.name" . }}-executor-scripts-volume
+          configMap:
+            name: {{ include "rollup.name" . }}-executor-scripts
+            defaultMode: 0500
         - name: {{ include "rollup.name" $ }}-rollup-shared-storage-vol
           {{- if .Values.storage.enabled }}
           persistentVolumeClaim:

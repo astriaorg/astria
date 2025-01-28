@@ -48,3 +48,23 @@ storage:
 
 ingress:
   enabled: true
+
+composer:
+  enabled: true
+  config:
+    logLevel: "debug"
+    maxBytesPerBundle: 200000
+    bundleQueueCapacity: 40000
+    maxSubmitInterval: 2000
+    sequencerAddressPrefix: astria
+    sequencerNativeAssetBaseDenomination: "nria"
+    sequencerRpc: http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657
+    sequencerGrpc: http://node0-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080
+    sequencerChainId: sequencer-test-chain-0
+    privateKey:
+      devContent: "30cd5f982c8f3a08b72c60c36fe97b9f1da1c70d152edf1b08d1a2af89b3703e"
+      secret:
+        filename: "key.hex"
+        resourceName: "projects/$PROJECT_ID/secrets/sequencerPrivateKey/versions/latest"
+    rollups: []
+

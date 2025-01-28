@@ -103,3 +103,11 @@ Return the appropriate apiVersion for ingress.
 {{- define "rollup.DataDir" -}}
 {{ include "rollup.HomeDir" . }}/{{ include "rollup.name" . }}
 {{- end }}
+
+{{/* New sequencer address */}}
+{{- define "sequencer.address"}}{ "bech32m": "{{ . }}" }
+{{- end }}
+
+{{/* uint64 fee converted to a astria proto Uint128 with only lo set */}}
+{{- define "sequencer.toUint128Proto"}}{ "lo": {{ . }} }
+{{- end }}
