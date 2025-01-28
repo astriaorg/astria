@@ -216,7 +216,7 @@ mod test {
             .put_bridge_account_withdrawer_address(&from_address, from_address)
             .unwrap();
         state
-            .put_bridge_account_ibc_asset(&to_address, &"other-asset".parse::<Denom>().unwrap())
+            .put_bridge_account_ibc_asset(&to_address, "other-asset".parse::<Denom>().unwrap())
             .unwrap();
         let to_rollup_id = RollupId::new([3; 32]);
         state
