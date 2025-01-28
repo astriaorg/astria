@@ -328,7 +328,7 @@ mod tests {
     }
 
     #[test]
-    fn should_restart_despire_error() {
+    fn should_restart_despite_error() {
         let tonic_error: Result<&str, tonic::Status> =
             Err(tonic::Status::new(tonic::Code::PermissionDenied, "error"));
         let err = tonic_error.wrap_err("wrapper_1");
