@@ -102,6 +102,7 @@ impl ActionHandler for BridgeTransfer {
 mod test {
     use astria_core::{
         primitive::v1::{
+            asset::Denom,
             RollupId,
             TransactionId,
         },
@@ -119,6 +120,7 @@ mod test {
         address::StateWriteExt as _,
         assets::StateWriteExt as _,
         benchmark_and_test_utils::{
+            assert_eyre_error,
             astria_address,
             ASTRIA_PREFIX,
         },
@@ -178,6 +180,71 @@ mod test {
         };
 
         bridge_unlock.check_stateless().await.unwrap();
-        bridge_unlock.check_and_execute(state).await.unwrap();
+        bridge_unlock.check_and_execute(&mut state).await.unwrap();
+
+        let deposits = state
+            .get_cached_block_deposits()
+            .values()
+            .next()
+            .unwrap()
+            .clone();
+        assert_eq!(deposits.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn bridge_transfer_accounts_have_different_asset_fails() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let from_address = astria_address(&[1; 20]);
+        state.put_transaction_context(TransactionContext {
+            address_bytes: *from_address.address_bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+
+        let asset = test_asset();
+        let transfer_amount = 100;
+
+        let to_address = astria_address(&[2; 20]);
+        state
+            .put_bridge_account_ibc_asset(&from_address, &asset)
+            .unwrap();
+        state
+            .put_bridge_account_withdrawer_address(&from_address, from_address)
+            .unwrap();
+        state
+            .put_bridge_account_ibc_asset(&to_address, &"other-asset".parse::<Denom>().unwrap())
+            .unwrap();
+        let to_rollup_id = RollupId::new([3; 32]);
+        state
+            .put_bridge_account_rollup_id(&to_address, to_rollup_id)
+            .unwrap();
+        state
+            .put_ibc_asset(test_asset().unwrap_trace_prefixed().clone())
+            .unwrap();
+        state
+            .put_account_balance(&from_address, &asset, transfer_amount)
+            .unwrap();
+
+        let bridge_unlock = BridgeTransfer {
+            to: to_address,
+            amount: transfer_amount,
+            fee_asset: asset.clone(),
+            memo: String::new(),
+            bridge_address: from_address,
+            rollup_block_number: 1,
+            rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
+            destination_chain_address: "noot".to_string(),
+        };
+
+        bridge_unlock.check_stateless().await.unwrap();
+        let result = bridge_unlock.check_and_execute(state).await;
+        assert_eyre_error(
+            &result.unwrap_err(),
+            "bridge accounts must have the same asset",
+        );
     }
 }
