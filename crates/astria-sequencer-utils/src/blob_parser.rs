@@ -489,17 +489,17 @@ impl Display for RollupTransaction {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         colored_ln(f, "hash", &self.hash)?;
         colored_ln(f, "nonce", &self.nonce)?;
-        colored_ln(f, "block hash", none_or_value(&self.block_hash))?;
-        colored_ln(f, "block number", none_or_value(&self.block_number))?;
+        colored_ln(f, "block hash", none_or_value(self.block_hash.as_ref()))?;
+        colored_ln(f, "block number", none_or_value(self.block_number.as_ref()))?;
         colored_ln(
             f,
             "transaction index",
-            none_or_value(&self.transaction_index),
+            none_or_value(self.transaction_index.as_ref()),
         )?;
         colored_ln(f, "from", &self.from)?;
-        colored_ln(f, "to", none_or_value(&self.to))?;
+        colored_ln(f, "to", none_or_value(self.to.as_ref()))?;
         colored_ln(f, "value", &self.value)?;
-        colored_ln(f, "gas price", none_or_value(&self.gas_price))?;
+        colored_ln(f, "gas price", none_or_value(self.gas_price.as_ref()))?;
         colored_ln(f, "gas", &self.gas)?;
         colored_ln(f, "input", &self.input)?;
         colored_ln(f, "v", self.v)?;
@@ -790,10 +790,10 @@ fn indent<'a, 'b>(f: &'a mut Formatter<'b>) -> indenter::Indented<'a, Formatter<
     indented(f).with_str("    ")
 }
 
-fn none_or_value<T: ToString>(maybe_value: &Option<T>) -> String {
+fn none_or_value<T: ToString>(maybe_value: Option<&T>) -> String {
     maybe_value
         .as_ref()
-        .map_or("none".to_string(), T::to_string)
+        .map_or("none".to_string(), |o| o.to_string())
 }
 
 fn colored_label(f: &mut Formatter<'_>, label: &str) -> fmt::Result {

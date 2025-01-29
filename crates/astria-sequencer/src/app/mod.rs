@@ -588,11 +588,7 @@ impl App {
         };
 
         // get copy of transactions to execute from mempool
-        let pending_txs = self
-            .mempool
-            .builder_queue(&self.state)
-            .await
-            .expect("failed to fetch pending transactions");
+        let pending_txs = self.mempool.builder_queue().await;
 
         let mut unused_count = pending_txs.len();
         for (tx_hash, tx) in pending_txs {

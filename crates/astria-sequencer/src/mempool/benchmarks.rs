@@ -193,20 +193,11 @@ fn builder_queue<T: MempoolSize>(bencher: divan::Bencher) {
         .build()
         .unwrap();
 
-    let mut mock_state = runtime.block_on(mock_state_getter());
-
-    // iterate over all signers and put their balances and nonces into the mock state
-    for i in 0..SIGNER_COUNT {
-        let signing_key = SigningKey::from([i; 32]);
-        let signing_address = signing_key.address_bytes();
-        mock_state_put_account_nonce(&mut mock_state, &signing_address, 0);
-    }
-
     bencher
         .with_inputs(|| init_mempool::<T>())
         .bench_values(move |mempool| {
             runtime.block_on(async {
-                mempool.builder_queue(&mock_state).await.unwrap();
+                mempool.builder_queue().await;
             });
         });
 }
