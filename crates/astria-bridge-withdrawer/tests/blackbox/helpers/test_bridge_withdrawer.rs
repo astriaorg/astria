@@ -79,15 +79,12 @@ static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
         telemetry::configure()
             .set_no_otel(true)
-            .set_stdout_writer(std::io::stdout)
-            .set_pretty_print(true)
             .set_filter_directives(&filter_directives)
             .try_init::<Metrics>(&())
             .unwrap();
     } else {
         telemetry::configure()
             .set_no_otel(true)
-            .set_stdout_writer(std::io::sink)
             .try_init::<Metrics>(&())
             .unwrap();
     }
@@ -285,7 +282,6 @@ impl TestBridgeWithdrawerConfig {
             no_otel: false,
             no_metrics: false,
             metrics_http_listener_addr: String::new(),
-            pretty_print: true,
         };
 
         info!(config = serde_json::to_string(&config).unwrap());
@@ -297,7 +293,9 @@ impl TestBridgeWithdrawerConfig {
         let metrics = Box::leak(Box::new(metrics));
 
         let (bridge_withdrawer, bridge_withdrawer_shutdown_handle) =
-            BridgeWithdrawer::new(config.clone(), metrics).unwrap();
+            BridgeWithdrawer::new(config.clone(), metrics)
+                .await
+                .unwrap();
         let api_address = bridge_withdrawer.local_addr();
         let bridge_withdrawer = tokio::task::spawn(bridge_withdrawer.run());
 

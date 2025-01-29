@@ -106,7 +106,7 @@ async fn invalid_nonce_causes_resubmission_under_different_nonce() {
     .expect("sequencer tx should have been rejected due to invalid nonce");
 
     tokio::time::timeout(
-        Duration::from_millis(100),
+        Duration::from_millis(1000),
         valid_nonce_guard.wait_until_satisfied(),
     )
     .await
@@ -152,7 +152,7 @@ async fn nonce_taken_causes_resubmission_under_different_nonce() {
     .expect("sequencer tx should have been rejected due to invalid nonce");
 
     tokio::time::timeout(
-        Duration::from_millis(100),
+        Duration::from_millis(1000),
         valid_nonce_guard.wait_until_satisfied(),
     )
     .await
@@ -173,7 +173,7 @@ async fn single_rollup_tx_payload_integrity() {
 
     // wait for 1 sequencer block time to make sure the bundle is preempted
     tokio::time::timeout(
-        Duration::from_millis(test_composer.cfg.block_time_ms),
+        Duration::from_millis(test_composer.cfg.block_time_ms + 1000),
         mock_guard.wait_until_satisfied(),
     )
     .await

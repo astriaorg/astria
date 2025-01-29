@@ -113,6 +113,7 @@ impl serde::Serialize for Ics20WithdrawalFromRollup {
         let mut struct_ser = serializer.serialize_struct("astria.protocol.memos.v1.Ics20WithdrawalFromRollup", len)?;
         if self.rollup_block_number != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("rollupBlockNumber", ToString::to_string(&self.rollup_block_number).as_str())?;
         }
         if !self.rollup_withdrawal_event_id.is_empty() {

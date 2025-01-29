@@ -6,9 +6,17 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-pbjson-build = "0.6.2"
-prost-build = "0.12.3"
+pbjson-build = "0.7.0"
+prost-build = "0.13.4"
 tempfile = "3.8.1"
-tonic-build = "0.10.2"
+tonic-build = "0.12.3"
 walkdir = "2.4.0"
 which = "5.0.0"
+
+[patch.crates-io]
+# This is current main as of Feb 28, 2025, which already contains tonic v0.13.0 and thus
+# does not work as a patch for tonic v0.12.3 (the version of this workspace toml).
+# tonic-build = { git = "https://github.com/hyperium/tonic", rev = "fc940ce158513d5d989772c571a34ee5f6f43292" }
+# 
+# This is the version that has bumped tower to 0.5 without also bumping tonic.
+tonic-build = { git = "https://github.com/hyperium/tonic", rev = "58345a6bf29b4c17eccc949dd6d7640928dff0cc" }
