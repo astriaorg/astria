@@ -47,6 +47,7 @@ pub fn make_tx_sync_success_response() -> tx_sync::Response {
         data: vec![].into(),
         log: "tx success".to_string(),
         hash: vec![0u8; 32].try_into().unwrap(),
+        codespace: String::new(),
     }
 }
 
@@ -57,6 +58,7 @@ pub fn make_tx_sync_failure_response() -> tx_sync::Response {
         data: vec![].into(),
         log: "tx failed".to_string(),
         hash: vec![0u8; 32].try_into().unwrap(),
+        codespace: String::new(),
     }
 }
 

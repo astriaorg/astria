@@ -1249,10 +1249,10 @@ async fn transaction_execution_records_fee_event() {
 
     let event = events.first().unwrap();
     assert_eq!(event.kind, "tx.fees");
-    assert_eq!(event.attributes[0].key, "actionName");
-    assert_eq!(event.attributes[1].key, "asset");
-    assert_eq!(event.attributes[2].key, "feeAmount");
-    assert_eq!(event.attributes[3].key, "positionInTransaction");
+    assert_eq!(event.attributes[0].key_bytes(), b"actionName");
+    assert_eq!(event.attributes[1].key_bytes(), b"asset");
+    assert_eq!(event.attributes[2].key_bytes(), b"feeAmount");
+    assert_eq!(event.attributes[3].key_bytes(), b"positionInTransaction");
 }
 
 #[tokio::test]
@@ -1299,9 +1299,9 @@ async fn ensure_all_event_attributes_are_indexed() {
         .flat_map(|event| &event.attributes)
         .for_each(|attribute| {
             assert!(
-                attribute.index,
+                attribute.index(),
                 "attribute {} is not indexed",
-                attribute.key,
+                String::from_utf8_lossy(attribute.key_bytes()),
             );
         });
 }
