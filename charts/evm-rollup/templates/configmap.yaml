@@ -65,24 +65,24 @@ data:
 {{- if or
   (and
     .Values.config.geth.snapshot.create.enabled
-    .Values.config.geth.snapshot.create.storage.s3.enabled
+    .Values.config.geth.snapshot.create.storage.upload.enabled
   )
-  (and
-    .Values.config.geth.snapshot.restore.enabled
-    (hasPrefix "s3://" .Values.config.geth.snapshot.restore.url)
-  )
+  (.Values.config.geth.snapshot.restore.enabled)
 }}
 {{- if not .Values.secretProvider.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "rollup.name" . }}-aws-credentials
+  name: {{ include "rollup.name" . }}-rclone-config
   namespace: {{ include "rollup.namespace" .  }}
 data:
-  credentials: |
-    [default]
-    aws_access_key_id = {{ .Values.aws.credentials.devContent.accessKeyId }}
-    aws_secret_access_key = {{ .Values.aws.credentials.devContent.secretAccessKey }}
+  rclone.conf: |
+    {{- range $section, $config := .Values.rclone.config.devContent }}
+    [{{ $section }}]
+    {{- range $key, $value := $config }}
+    {{ $key | snakecase }} = {{ $value }}
+    {{- end }}
+    {{- end }}
 ---
 {{- end }}
 {{- end }}

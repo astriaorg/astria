@@ -19,16 +19,16 @@ spec:
       initContainers:
         {{- if .Values.config.geth.snapshot.restore.enabled }}
         - name: restore-snapshot
-          image: amazon/aws-cli
-          imagePullPolicy: IfNotPresent
+          image: {{ .Values.images.snapshot.repo }}:{{ .Values.images.snapshot.tag }}
+          imagePullPolicy: {{ .Values.images.snapshot.pullPolicy }}
           command: [ "/scripts/restore-snapshot.sh" ]
           envFrom:
             - configMapRef:
                 name: {{ include "rollup.name" . }}-geth-env
           volumeMounts:
-            {{- if hasPrefix "s3://" .Values.config.geth.snapshot.restore.url }}
-            - mountPath: /root/.aws
-              name: {{ include "rollup.name" . }}-aws-credentials-volume
+            {{- if .Values.config.geth.snapshot.restore.enabled }}
+            - mountPath: /root/.config/rclone/
+              name: {{ include "rollup.name" . }}-rclone-config-volume
             {{- end }}
             - mountPath: /scripts/
               name: {{ include "rollup.name" . }}-executor-scripts-volume
@@ -111,19 +111,17 @@ spec:
           {{- end }}
       volumes:
         {{- if .Values.config.geth.snapshot.restore.enabled }}
-        {{- if hasPrefix "s3://" .Values.config.geth.snapshot.restore.url }}
-        - name: {{ include "rollup.name" . }}-aws-credentials-volume
+        - name: {{ include "rollup.name" . }}-rclone-config-volume
           {{- if .Values.secretProvider.enabled }}
           csi:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
-              secretProviderClass: {{ include "rollup.name" . }}-secrets-aws
+              secretProviderClass: {{ include "rollup.name" . }}-secrets-rclone
           {{- else }}
           configMap:
-            name: {{ include "rollup.name" . }}-aws-credentials
+            name: {{ include "rollup.name" . }}-rclone-config
           {{- end }}
-        {{- end }}
         {{- end }}
         - name: {{ include "rollup.name" . }}-executor-scripts-volume
           configMap:
