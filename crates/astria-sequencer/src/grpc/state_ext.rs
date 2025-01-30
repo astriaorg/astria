@@ -7,7 +7,6 @@ use astria_core::{
         SequencerBlock,
         SequencerBlockHeader,
         SequencerBlockParts,
-        UpgradeChangeHashesWithProof,
     },
     upgrades::v1::ChangeHash,
 };
@@ -163,25 +162,22 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_upgrade_change_hashes_with_proof(
-        &self,
-        block_hash: &block::Hash,
-    ) -> Result<Option<UpgradeChangeHashesWithProof>> {
-        let upgrade_change_hashes = get_upgrade_change_hashes(self, block_hash)
+    async fn get_upgrade_change_hashes(&self, block_hash: &block::Hash) -> Result<Vec<ChangeHash>> {
+        let Some(bytes) = self
+            .nonverifiable_get_raw(
+                keys::upgrade_change_hashes_by_hash(block_hash.as_bytes()).as_bytes(),
+            )
             .await
-            .wrap_err("failed to get upgrade change hashes by block hash")?;
-        let upgrade_change_hashes_proof =
-            get_upgrade_change_hashes_proof(self, block_hash)
-                .await
-                .wrap_err("failed to get upgrade change hashes proof by block hash")?;
-        match (upgrade_change_hashes, upgrade_change_hashes_proof) {
-            (Some(hashes), Some(proof)) => Ok(Some(
-                UpgradeChangeHashesWithProof::unchecked_from_parts(hashes, proof),
-            )),
-            (None, None) => Ok(None),
-            (Some(_), None) => bail!("upgrade change hashes stored without proof"),
-            (None, Some(_)) => bail!("upgrade change hashes not stored, but proof is"),
-        }
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read upgrade change hashes by block hash from state")?
+        else {
+            return Ok(vec![]);
+        };
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| {
+                storage::UpgradeChangeHashes::try_from(value).map(Vec::<ChangeHash>::from)
+            })
+            .wrap_err("invalid upgrade change hashes bytes")
     }
 
     #[instrument(skip_all)]
@@ -227,7 +223,7 @@ pub(crate) trait StateWriteExt: StateWrite {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
-            upgrade_change_hashes_with_proof,
+            upgrade_change_hashes,
             extended_commit_info_with_proof,
         } = block.into_parts();
 
@@ -237,17 +233,8 @@ pub(crate) trait StateWriteExt: StateWrite {
         put_rollups_transactions(self, &block_hash, rollup_transactions.into_iter())?;
         put_rollups_transactions_proof(self, &block_hash, rollup_transactions_proof)?;
         put_rollup_ids_proof(self, &block_hash, rollup_ids_proof)?;
-        if let Some(upgrade_change_hashes_with_proof) = upgrade_change_hashes_with_proof {
-            put_upgrade_change_hashes(
-                self,
-                &block_hash,
-                upgrade_change_hashes_with_proof.upgrade_change_hashes(),
-            )?;
-            put_upgrade_change_hashes_proof(
-                self,
-                &block_hash,
-                upgrade_change_hashes_with_proof.proof(),
-            )?;
+        if !upgrade_change_hashes.is_empty() {
+            put_upgrade_change_hashes(self, &block_hash, &upgrade_change_hashes)?;
         }
         if let Some(extended_commit_info_with_proof) = extended_commit_info_with_proof {
             put_extended_commit_info(
@@ -286,11 +273,10 @@ async fn get_sequencer_block_by_hash<S: StateRead + ?Sized>(
         .get_rollup_ids_proof_by_block_hash(hash)
         .await
         .wrap_err("failed to get rollup ids proof by block hash")?;
-    let upgrade_change_hashes_with_proof =
-        state
-            .get_upgrade_change_hashes_with_proof(hash)
-            .await
-            .wrap_err("failed to get upgrade change hashes with proof")?;
+    let upgrade_change_hashes = state
+        .get_upgrade_change_hashes(hash)
+        .await
+        .wrap_err("failed to get upgrade change hashes")?;
     let extended_commit_info_with_proof = state
         .get_extended_commit_info_with_proof(hash)
         .await
@@ -306,7 +292,7 @@ async fn get_sequencer_block_by_hash<S: StateRead + ?Sized>(
         rollup_transactions: Default::default(),
         rollup_transactions_proof,
         rollup_ids_proof,
-        upgrade_change_hashes_with_proof,
+        upgrade_change_hashes,
         extended_commit_info_with_proof,
     };
 
@@ -319,50 +305,6 @@ async fn get_sequencer_block_by_hash<S: StateRead + ?Sized>(
     }
 
     Ok(SequencerBlock::unchecked_from_parts(parts))
-}
-
-#[instrument(skip_all)]
-async fn get_upgrade_change_hashes<S: StateRead + ?Sized>(
-    state: &S,
-    block_hash: &block::Hash,
-) -> Result<Option<Vec<ChangeHash>>> {
-    let Some(bytes) = state
-        .nonverifiable_get_raw(
-            keys::upgrade_change_hashes_by_hash(block_hash.as_bytes()).as_bytes(),
-        )
-        .await
-        .map_err(anyhow_to_eyre)
-        .wrap_err("failed to read upgrade change hashes by block hash from state")?
-    else {
-        return Ok(None);
-    };
-    StoredValue::deserialize(&bytes)
-        .and_then(|value| {
-            storage::UpgradeChangeHashes::try_from(value)
-                .map(|change_hashes| Some(change_hashes.into()))
-        })
-        .wrap_err("invalid upgrade change hashes bytes")
-}
-
-#[instrument(skip_all)]
-async fn get_upgrade_change_hashes_proof<S: StateRead + ?Sized>(
-    state: &S,
-    block_hash: &block::Hash,
-) -> Result<Option<merkle::Proof>> {
-    let Some(bytes) = state
-        .nonverifiable_get_raw(
-            keys::upgrade_change_hashes_proof_by_hash(block_hash.as_bytes()).as_bytes(),
-        )
-        .await
-        .map_err(anyhow_to_eyre)
-        .wrap_err("failed to read upgrade change hashes proof by block hash from state")?
-    else {
-        return Ok(None);
-    };
-    let proof = StoredValue::deserialize(&bytes)
-        .and_then(|value| storage::Proof::try_from(value).map(merkle::Proof::from))
-        .wrap_err("invalid upgrade change hashes proof bytes")?;
-    Ok(Some(proof))
 }
 
 #[instrument(skip_all)]
@@ -528,21 +470,6 @@ fn put_upgrade_change_hashes<S: StateWrite + ?Sized>(
     .context("failed to serialize upgrade change hashes")?;
     state.nonverifiable_put_raw(
         keys::upgrade_change_hashes_by_hash(block_hash.as_bytes()).into(),
-        bytes,
-    );
-    Ok(())
-}
-
-fn put_upgrade_change_hashes_proof<S: StateWrite + ?Sized>(
-    state: &mut S,
-    block_hash: &block::Hash,
-    proof: &merkle::Proof,
-) -> Result<()> {
-    let bytes = StoredValue::from(storage::Proof::from(proof))
-        .serialize()
-        .context("failed to serialize upgrade change hashes proof")?;
-    state.nonverifiable_put_raw(
-        keys::upgrade_change_hashes_proof_by_hash(block_hash.as_bytes()).into(),
         bytes,
     );
     Ok(())
@@ -885,7 +812,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_upgrade_change_hashes_with_proof() {
+    async fn get_upgrade_change_hashes() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
@@ -896,15 +823,10 @@ mod tests {
             .expect("writing block to database should work");
 
         let hashes = state
-            .get_upgrade_change_hashes_with_proof(block.block_hash())
+            .get_upgrade_change_hashes(block.block_hash())
             .await
-            .expect("should read upgrade change hashes in state")
-            .expect("should have upgrade change hashes in state");
-        assert_eq!(
-            block.upgrade_change_hashes().unwrap(),
-            hashes.upgrade_change_hashes()
-        );
-        assert_eq!(block.upgrade_change_hashes_proof().unwrap(), hashes.proof());
+            .expect("should read upgrade change hashes in state");
+        assert_eq!(block.upgrade_change_hashes(), &hashes);
     }
 
     #[tokio::test]

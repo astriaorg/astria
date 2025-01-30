@@ -303,7 +303,7 @@ impl SequencerBlockError {
         Self(SequencerBlockErrorKind::InvalidRollupIdsProof)
     }
 
-    fn upgrade_change_hashes(source: UpgradeChangeHashesError) -> Self {
+    fn upgrade_change_hashes(source: ChangeHashError) -> Self {
         Self(SequencerBlockErrorKind::UpgradeChangeHashes(source))
     }
 
@@ -388,8 +388,8 @@ enum SequencerBlockErrorKind {
          `data_hash` given the rollup IDs proof"
     )]
     InvalidRollupIdsProof,
-    #[error("upgrade change hashes or proof error")]
-    UpgradeChangeHashes(#[source] UpgradeChangeHashesError),
+    #[error(transparent)]
+    UpgradeChangeHashes(ChangeHashError),
     #[error("extended commit info or proof error")]
     ExtendedCommitInfo(#[source] ExtendedCommitInfoError),
     #[error("failed to decode extended commit info")]
@@ -637,7 +637,7 @@ pub struct SequencerBlockParts {
     pub rollup_transactions: IndexMap<RollupId, RollupTransactions>,
     pub rollup_transactions_proof: merkle::Proof,
     pub rollup_ids_proof: merkle::Proof,
-    pub upgrade_change_hashes_with_proof: Option<UpgradeChangeHashesWithProof>,
+    pub upgrade_change_hashes: Vec<ChangeHash>,
     pub extended_commit_info_with_proof: Option<ExtendedCommitInfoWithProof>,
 }
 
@@ -767,7 +767,7 @@ impl SequencerBlockBuilder {
             rollup_transactions_proof,
             rollup_ids_root,
             rollup_ids_proof,
-            upgrade_change_hashes_with_proof,
+            upgrade_change_hashes,
             extended_commit_info_with_proof,
             user_submitted_transactions,
         } = expanded_block_data;
@@ -851,7 +851,7 @@ impl SequencerBlockBuilder {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
-            upgrade_change_hashes_with_proof,
+            upgrade_change_hashes,
             extended_commit_info_with_proof,
         })
     }
@@ -885,10 +885,10 @@ pub struct SequencerBlock {
     /// `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
     /// the rollup transactions.
     rollup_ids_proof: merkle::Proof,
-    /// The hashes of any upgrade changes applied during this block and their proof.
+    /// The hashes of any upgrade changes applied during this block.
     ///
-    /// If this is `Some`, then the hashes are the third item in the cometbft block's `data`.
-    upgrade_change_hashes_with_proof: Option<UpgradeChangeHashesWithProof>,
+    /// If this is not empty, then the hashes are the third item in the cometbft block's `data`.
+    upgrade_change_hashes: Vec<ChangeHash>,
     /// The extended commit info for the block and its proof, if vote extensions were enabled at
     /// this height.
     ///
@@ -933,17 +933,8 @@ impl SequencerBlock {
     }
 
     #[must_use]
-    pub fn upgrade_change_hashes(&self) -> Option<&Vec<ChangeHash>> {
-        self.upgrade_change_hashes_with_proof
-            .as_ref()
-            .map(UpgradeChangeHashesWithProof::upgrade_change_hashes)
-    }
-
-    #[must_use]
-    pub fn upgrade_change_hashes_proof(&self) -> Option<&merkle::Proof> {
-        self.upgrade_change_hashes_with_proof
-            .as_ref()
-            .map(UpgradeChangeHashesWithProof::proof)
+    pub fn upgrade_change_hashes(&self) -> &Vec<ChangeHash> {
+        &self.upgrade_change_hashes
     }
 
     #[must_use]
@@ -976,7 +967,7 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
-            upgrade_change_hashes_with_proof,
+            upgrade_change_hashes,
             extended_commit_info_with_proof,
         } = self;
         SequencerBlockParts {
@@ -985,7 +976,7 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
-            upgrade_change_hashes_with_proof,
+            upgrade_change_hashes,
             extended_commit_info_with_proof,
         }
     }
@@ -1004,7 +995,7 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
-            upgrade_change_hashes_with_proof,
+            upgrade_change_hashes,
             extended_commit_info_with_proof,
         } = self;
         raw::SequencerBlock {
@@ -1016,8 +1007,10 @@ impl SequencerBlock {
                 .collect(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
-            upgrade_change_hashes_with_proof: upgrade_change_hashes_with_proof
-                .map(UpgradeChangeHashesWithProof::into_raw),
+            upgrade_change_hashes: upgrade_change_hashes
+                .into_iter()
+                .map(|change_hash| Bytes::copy_from_slice(change_hash.as_bytes()))
+                .collect(),
             extended_commit_info_with_proof: extended_commit_info_with_proof
                 .map(ExtendedCommitInfoWithProof::into_raw),
         }
@@ -1046,7 +1039,7 @@ impl SequencerBlock {
             rollup_transactions_proof: self.rollup_transactions_proof,
             all_rollup_ids,
             rollup_ids_proof: self.rollup_ids_proof,
-            upgrade_change_hashes_with_proof: self.upgrade_change_hashes_with_proof,
+            upgrade_change_hashes: self.upgrade_change_hashes,
             extended_commit_info_with_proof: self.extended_commit_info_with_proof,
         }
     }
@@ -1074,7 +1067,7 @@ impl SequencerBlock {
             rollup_transactions_proof: self.rollup_transactions_proof.clone(),
             all_rollup_ids,
             rollup_ids_proof: self.rollup_ids_proof.clone(),
-            upgrade_change_hashes_with_proof: self.upgrade_change_hashes_with_proof.clone(),
+            upgrade_change_hashes: self.upgrade_change_hashes.clone(),
             extended_commit_info_with_proof: self.extended_commit_info_with_proof.clone(),
         }
     }
@@ -1103,7 +1096,7 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
-            upgrade_change_hashes_with_proof,
+            upgrade_change_hashes,
             extended_commit_info_with_proof,
         } = raw;
 
@@ -1147,12 +1140,11 @@ impl SequencerBlock {
             return Err(SequencerBlockError::invalid_rollup_ids_proof());
         }
 
-        let upgrade_change_hashes_with_proof = upgrade_change_hashes_with_proof
-            .map(|raw| {
-                UpgradeChangeHashesWithProof::try_from_raw(raw, data_hash)
-                    .map_err(SequencerBlockError::upgrade_change_hashes)
-            })
-            .transpose()?;
+        let upgrade_change_hashes = upgrade_change_hashes
+            .into_iter()
+            .map(|raw_hash| ChangeHash::try_from(raw_hash.as_ref()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(SequencerBlockError::upgrade_change_hashes)?;
 
         let extended_commit_info_with_proof = extended_commit_info_with_proof
             .map(|raw| {
@@ -1167,7 +1159,7 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
-            upgrade_change_hashes_with_proof,
+            upgrade_change_hashes,
             extended_commit_info_with_proof,
         })
     }
@@ -1187,7 +1179,7 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
-            upgrade_change_hashes_with_proof,
+            upgrade_change_hashes,
             extended_commit_info_with_proof,
         } = parts;
         Self {
@@ -1196,7 +1188,7 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
-            upgrade_change_hashes_with_proof,
+            upgrade_change_hashes,
             extended_commit_info_with_proof,
         }
     }
@@ -1422,10 +1414,9 @@ pub struct ExpandedBlockData {
     /// in `data`).
     pub rollup_ids_proof: merkle::Proof,
     /// The optional third item in `data`: the collection of `ChangeHash`es applied as part of an
-    /// upgrade executed during this block, along with the proof that this entry exists in the data
-    /// Merkle tree. If no such upgrade exists, there will be no entry in `data` for this, as
-    /// opposed to an empty or `None` entry.
-    pub upgrade_change_hashes_with_proof: Option<UpgradeChangeHashesWithProof>,
+    /// upgrade executed during this block. If no such upgrade exists, there will be no entry in
+    /// `data` for this, as opposed to an empty or `None` entry.
+    pub upgrade_change_hashes: Vec<ChangeHash>,
     /// The optional next item in `data` (third or fourth depending on whether an upgrade exists in
     /// `data`): the encoded extended commit info, along with the proof that this entry exists in
     /// the data Merkle tree. If extended commit info is enabled at this block height, this entry
@@ -1488,7 +1479,7 @@ impl ExpandedBlockData {
             rollup_transactions_proof,
             rollup_ids_root,
             rollup_ids_proof,
-            upgrade_change_hashes_with_proof: None,
+            upgrade_change_hashes: vec![],
             extended_commit_info_with_proof: None,
             user_submitted_transactions,
         })
@@ -1508,10 +1499,6 @@ impl ExpandedBlockData {
     ///
     /// Returns an error if the data is not in this order, or cannot be parsed.
     #[expect(clippy::missing_panics_doc, reason = "can't panic")]
-    #[expect(
-        clippy::too_many_lines,
-        reason = "code wouldn't benefit overall from being split into smaller functions"
-    )]
     pub fn new_from_typed_data(
         data: &[Bytes],
         with_extended_commit_info: bool,
@@ -1539,7 +1526,7 @@ impl ExpandedBlockData {
         merkle_tree_leaves.push(Sha256::digest(rollup_ids_root));
 
         // Third item might be upgrade change hashes - peek to check before advancing the iterator.
-        let maybe_upgrade_item = matches!(
+        let upgrade_change_hashes = matches!(
             data_iter.peek().map(|(index, bytes)| {
                 DataItem::decode(*index, bytes.as_ref()).map_err(SequencerBlockError::data_item)
             }),
@@ -1553,13 +1540,10 @@ impl ExpandedBlockData {
             let upgrade_change_hashes = DataItem::decode(index, bytes.as_ref())
                 .and_then(|data_item| data_item.into_upgrade_change_hashes(index))
                 .expect("must be upgrade, since it's upgrade in peek");
-            // Concatenate the raw bytes of all the change hashes to use as the input for the
-            // Merkle tree leaf for this item.
-            let concatenated_hashes = concatenate_upgrade_change_hashes(&upgrade_change_hashes);
-            merkle_tree_leaves.push(Sha256::digest(&concatenated_hashes));
-            Ok((index, upgrade_change_hashes))
+            Ok(upgrade_change_hashes)
         })
-        .transpose()?;
+        .transpose()?
+        .unwrap_or_default();
 
         // If `with_extended_commit_info` is true, the next item must be an extended commit info.
         let maybe_extended_commit_info_item = with_extended_commit_info
@@ -1570,6 +1554,7 @@ impl ExpandedBlockData {
                 let encoded_extended_commit_info = DataItem::decode(index, bytes.as_ref())
                     .and_then(|data_item| data_item.into_extended_commit_info(index))
                     .map_err(SequencerBlockError::data_item)?;
+                let merkle_index = merkle_tree_leaves.len();
                 merkle_tree_leaves.push(Sha256::digest(&encoded_extended_commit_info));
 
                 let raw_info = RawExtendedCommitInfoWithCurrencyPairMapping::decode(
@@ -1580,7 +1565,11 @@ impl ExpandedBlockData {
                     ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info)
                         .map_err(SequencerBlockError::invalid_extended_commit_info)?;
 
-                Ok((index, extended_commit_info, encoded_extended_commit_info))
+                Ok((
+                    merkle_index,
+                    extended_commit_info,
+                    encoded_extended_commit_info,
+                ))
             })
             .transpose()?;
 
@@ -1607,17 +1596,6 @@ impl ExpandedBlockData {
             "the leaf must exist in the tree as `rollup_ids_root` was created from the same index \
              in `data` used to construct the tree",
         );
-        let upgrade_change_hashes_with_proof =
-            maybe_upgrade_item.map(|(index, upgrade_change_hashes)| {
-                let upgrade_change_hashes_proof = tree.construct_proof(index).expect(
-                    "the leaf must exist in the tree as `upgrade_change_hashes` was created from \
-                     the same index in `data` used to construct the tree",
-                );
-                UpgradeChangeHashesWithProof {
-                    upgrade_change_hashes,
-                    proof: upgrade_change_hashes_proof,
-                }
-            });
         let extended_commit_info_with_proof = maybe_extended_commit_info_item.map(
             |(index, extended_commit_info, encoded_extended_commit_info)| {
                 let extended_commit_info_proof = tree.construct_proof(index).expect(
@@ -1638,7 +1616,7 @@ impl ExpandedBlockData {
             rollup_transactions_proof,
             rollup_ids_root,
             rollup_ids_proof,
-            upgrade_change_hashes_with_proof,
+            upgrade_change_hashes,
             extended_commit_info_with_proof,
             user_submitted_transactions,
         })
@@ -1649,7 +1627,7 @@ impl ExpandedBlockData {
     pub fn injected_transaction_count(&self) -> usize {
         // `rollup_transactions_root` and `rollup_ids_root` are always present.
         2_usize
-            .saturating_add(usize::from(self.upgrade_change_hashes_with_proof.is_some()))
+            .saturating_add(usize::from(!self.upgrade_change_hashes.is_empty()))
             .saturating_add(usize::from(self.extended_commit_info_with_proof.is_some()))
     }
 }
@@ -1678,7 +1656,7 @@ pub struct FilteredSequencerBlockParts {
     pub rollup_transactions_proof: merkle::Proof,
     pub all_rollup_ids: Vec<RollupId>,
     pub rollup_ids_proof: merkle::Proof,
-    pub upgrade_change_hashes_with_proof: Option<UpgradeChangeHashesWithProof>,
+    pub upgrade_change_hashes: Vec<ChangeHash>,
     pub extended_commit_info_with_proof: Option<ExtendedCommitInfoWithProof>,
 }
 
@@ -1699,7 +1677,7 @@ pub struct FilteredSequencerBlock {
     /// proof that `rollup_ids` is included in `data_hash`
     rollup_ids_proof: merkle::Proof,
     /// hashes of any upgrade changes applied during this block and their proof.
-    upgrade_change_hashes_with_proof: Option<UpgradeChangeHashesWithProof>,
+    upgrade_change_hashes: Vec<ChangeHash>,
     /// extended commit info for the block and its proof, if vote extensions were enabled at this
     /// height.
     extended_commit_info_with_proof: Option<ExtendedCommitInfoWithProof>,
@@ -1747,17 +1725,8 @@ impl FilteredSequencerBlock {
     }
 
     #[must_use]
-    pub fn upgrade_change_hashes(&self) -> Option<&Vec<ChangeHash>> {
-        self.upgrade_change_hashes_with_proof
-            .as_ref()
-            .map(UpgradeChangeHashesWithProof::upgrade_change_hashes)
-    }
-
-    #[must_use]
-    pub fn upgrade_change_hashes_proof(&self) -> Option<&merkle::Proof> {
-        self.upgrade_change_hashes_with_proof
-            .as_ref()
-            .map(UpgradeChangeHashesWithProof::proof)
+    pub fn upgrade_change_hashes(&self) -> &Vec<ChangeHash> {
+        &self.upgrade_change_hashes
     }
 
     #[must_use]
@@ -1790,7 +1759,7 @@ impl FilteredSequencerBlock {
             rollup_transactions_proof,
             all_rollup_ids,
             rollup_ids_proof,
-            upgrade_change_hashes_with_proof,
+            upgrade_change_hashes,
             extended_commit_info_with_proof,
         } = self;
         raw::FilteredSequencerBlock {
@@ -1803,8 +1772,10 @@ impl FilteredSequencerBlock {
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
             all_rollup_ids: all_rollup_ids.iter().map(RollupId::to_raw).collect(),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
-            upgrade_change_hashes_with_proof: upgrade_change_hashes_with_proof
-                .map(UpgradeChangeHashesWithProof::into_raw),
+            upgrade_change_hashes: upgrade_change_hashes
+                .into_iter()
+                .map(|change_hash| Bytes::copy_from_slice(change_hash.as_bytes()))
+                .collect(),
             extended_commit_info_with_proof: extended_commit_info_with_proof
                 .map(ExtendedCommitInfoWithProof::into_raw),
         }
@@ -1844,7 +1815,7 @@ impl FilteredSequencerBlock {
             rollup_transactions_proof,
             all_rollup_ids,
             rollup_ids_proof,
-            upgrade_change_hashes_with_proof,
+            upgrade_change_hashes,
             extended_commit_info_with_proof,
         } = raw;
 
@@ -1907,12 +1878,11 @@ impl FilteredSequencerBlock {
             return Err(FilteredSequencerBlockError::invalid_rollup_ids_proof());
         }
 
-        let upgrade_change_hashes_with_proof = upgrade_change_hashes_with_proof
-            .map(|raw| {
-                UpgradeChangeHashesWithProof::try_from_raw(raw, header.data_hash)
-                    .map_err(FilteredSequencerBlockError::upgrade_change_hashes)
-            })
-            .transpose()?;
+        let upgrade_change_hashes = upgrade_change_hashes
+            .into_iter()
+            .map(|raw_hash| ChangeHash::try_from(raw_hash.as_ref()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(FilteredSequencerBlockError::upgrade_change_hashes)?;
 
         let extended_commit_info_with_proof = extended_commit_info_with_proof
             .map(|raw| {
@@ -1928,7 +1898,7 @@ impl FilteredSequencerBlock {
             rollup_transactions_proof,
             all_rollup_ids,
             rollup_ids_proof,
-            upgrade_change_hashes_with_proof,
+            upgrade_change_hashes,
             extended_commit_info_with_proof,
         })
     }
@@ -1943,7 +1913,7 @@ impl FilteredSequencerBlock {
             rollup_transactions_proof,
             all_rollup_ids,
             rollup_ids_proof,
-            upgrade_change_hashes_with_proof,
+            upgrade_change_hashes,
             extended_commit_info_with_proof,
         } = self;
         FilteredSequencerBlockParts {
@@ -1953,7 +1923,7 @@ impl FilteredSequencerBlock {
             rollup_transactions_proof,
             all_rollup_ids,
             rollup_ids_proof,
-            upgrade_change_hashes_with_proof,
+            upgrade_change_hashes,
             extended_commit_info_with_proof,
         }
     }
@@ -1996,8 +1966,8 @@ enum FilteredSequencerBlockErrorKind {
     TransactionProofInvalid(merkle::audit::InvalidProof),
     #[error("failed constructing a rollup ID proof from the raw protobuf rollup ID proof")]
     IdProofInvalid(merkle::audit::InvalidProof),
-    #[error("upgrade change hashes or proof error")]
-    UpgradeChangeHashes(#[source] UpgradeChangeHashesError),
+    #[error(transparent)]
+    UpgradeChangeHashes(ChangeHashError),
     #[error("extended commit info or proof error")]
     ExtendedCommitInfo(#[source] ExtendedCommitInfoError),
 }
@@ -2051,7 +2021,7 @@ impl FilteredSequencerBlockError {
         Self(FilteredSequencerBlockErrorKind::IdProofInvalid(source))
     }
 
-    fn upgrade_change_hashes(source: UpgradeChangeHashesError) -> Self {
+    fn upgrade_change_hashes(source: ChangeHashError) -> Self {
         Self(FilteredSequencerBlockErrorKind::UpgradeChangeHashes(source))
     }
 
@@ -2204,129 +2174,6 @@ enum DepositErrorKind {
     IncorrectAsset(#[source] asset::ParseDenomError),
     #[error("field `source_transaction_id` was invalid")]
     TransactionIdError(#[source] TransactionIdError),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct UpgradeChangeHashesWithProof {
-    upgrade_change_hashes: Vec<ChangeHash>,
-    proof: merkle::Proof,
-}
-
-impl UpgradeChangeHashesWithProof {
-    #[must_use]
-    pub fn upgrade_change_hashes(&self) -> &Vec<ChangeHash> {
-        &self.upgrade_change_hashes
-    }
-
-    #[must_use]
-    pub fn proof(&self) -> &merkle::Proof {
-        &self.proof
-    }
-
-    #[must_use]
-    pub fn into_raw(self) -> raw::UpgradeChangeHashesWithProof {
-        let Self {
-            upgrade_change_hashes,
-            proof,
-        } = self;
-        raw::UpgradeChangeHashesWithProof {
-            upgrade_change_hashes: upgrade_change_hashes
-                .into_iter()
-                .map(|change_hash| Bytes::copy_from_slice(change_hash.as_bytes()))
-                .collect(),
-            proof: Some(proof.into_raw()),
-        }
-    }
-
-    /// Constructs `Self` from a raw protobuf `UpgradeChangeHashesWithProof`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if conversion or verification fails.
-    pub fn try_from_raw(
-        raw: raw::UpgradeChangeHashesWithProof,
-        data_hash: [u8; SHA256_DIGEST_LENGTH],
-    ) -> Result<Self, UpgradeChangeHashesError> {
-        let upgrade_change_hashes = raw
-            .upgrade_change_hashes
-            .into_iter()
-            .map(|raw_hash| ChangeHash::try_from(raw_hash.as_ref()))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(UpgradeChangeHashesError::change_hash_error)?;
-        let raw_proof = raw
-            .proof
-            .ok_or_else(UpgradeChangeHashesError::proof_not_set)?;
-        let proof = merkle::Proof::try_from_raw(raw_proof)
-            .map_err(UpgradeChangeHashesError::invalid_proof)?;
-
-        // Verify the hash of the upgrade change hashes is a leaf in the Merkle proof.
-        let concatenated_hashes = concatenate_upgrade_change_hashes(&upgrade_change_hashes);
-        if !proof.verify(&Sha256::digest(&concatenated_hashes), data_hash) {
-            return Err(UpgradeChangeHashesError::not_in_sequencer_block());
-        }
-
-        Ok(Self {
-            upgrade_change_hashes,
-            proof,
-        })
-    }
-
-    #[cfg(feature = "unchecked-constructors")]
-    #[doc(hidden)]
-    #[must_use]
-    pub fn unchecked_from_parts(
-        upgrade_change_hashes: Vec<ChangeHash>,
-        proof: merkle::Proof,
-    ) -> Self {
-        Self {
-            upgrade_change_hashes,
-            proof,
-        }
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error(transparent)]
-pub struct UpgradeChangeHashesError(UpgradeChangeHashesErrorKind);
-
-impl UpgradeChangeHashesError {
-    fn change_hash_error(source: ChangeHashError) -> Self {
-        Self(UpgradeChangeHashesErrorKind::ChangeHashError(source))
-    }
-
-    fn proof_not_set() -> Self {
-        Self(UpgradeChangeHashesErrorKind::ProofNotSet)
-    }
-
-    fn invalid_proof(source: merkle::audit::InvalidProof) -> Self {
-        Self(UpgradeChangeHashesErrorKind::InvalidProof(source))
-    }
-
-    fn not_in_sequencer_block() -> Self {
-        Self(UpgradeChangeHashesErrorKind::NotInSequencerBlock)
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-enum UpgradeChangeHashesErrorKind {
-    #[error(transparent)]
-    ChangeHashError(ChangeHashError),
-    #[error("the upgrade change hashes proof field not set")]
-    ProofNotSet,
-    #[error("failed to convert into native upgrade change hashes proof from the raw protobuf")]
-    InvalidProof(merkle::audit::InvalidProof),
-    #[error(
-        "the upgrade change hashes in the sequencer block was not included in the block's data \
-         hash"
-    )]
-    NotInSequencerBlock,
-}
-
-fn concatenate_upgrade_change_hashes(upgrade_change_hashes: &[ChangeHash]) -> Vec<u8> {
-    upgrade_change_hashes
-        .iter()
-        .flat_map(|change_hash| change_hash.as_bytes().iter().copied())
-        .collect()
 }
 
 /// The `extended_commit_info` is verified to be of the form

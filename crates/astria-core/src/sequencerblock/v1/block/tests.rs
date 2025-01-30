@@ -263,7 +263,7 @@ mod expanded_block_data {
         let items = ExpandedBlockData::new_from_untyped_data(&data).unwrap();
         assert_eq!(ROLLUP_TXS_ROOT, items.rollup_transactions_root);
         assert_eq!(ROLLUP_IDS_ROOT, items.rollup_ids_root);
-        assert!(items.upgrade_change_hashes_with_proof.is_none());
+        assert!(items.upgrade_change_hashes.is_empty());
         assert!(items.extended_commit_info_with_proof.is_none());
         assert!(items.user_submitted_transactions.is_empty());
     }
@@ -373,7 +373,7 @@ mod expanded_block_data {
         let items = ExpandedBlockData::new_from_typed_data(&data, false).unwrap();
         assert_eq!(ROLLUP_TXS_ROOT, items.rollup_transactions_root);
         assert_eq!(ROLLUP_IDS_ROOT, items.rollup_ids_root);
-        assert!(items.upgrade_change_hashes_with_proof.is_none());
+        assert!(items.upgrade_change_hashes.is_empty());
         assert!(items.extended_commit_info_with_proof.is_none());
         assert!(items.user_submitted_transactions.is_empty());
     }
@@ -391,7 +391,7 @@ mod expanded_block_data {
         let items = ExpandedBlockData::new_from_typed_data(&data, false).unwrap();
         assert_eq!(ROLLUP_TXS_ROOT, items.rollup_transactions_root);
         assert_eq!(ROLLUP_IDS_ROOT, items.rollup_ids_root);
-        assert!(items.upgrade_change_hashes_with_proof.is_none());
+        assert!(items.upgrade_change_hashes.is_empty());
         assert!(items.extended_commit_info_with_proof.is_none());
         assert_eq!(tx(0).id(), items.user_submitted_transactions[0].id());
         assert_eq!(tx(1).id(), items.user_submitted_transactions[1].id());
@@ -409,7 +409,7 @@ mod expanded_block_data {
         let items = ExpandedBlockData::new_from_typed_data(&data, true).unwrap();
         assert_eq!(ROLLUP_TXS_ROOT, items.rollup_transactions_root);
         assert_eq!(ROLLUP_IDS_ROOT, items.rollup_ids_root);
-        assert!(items.upgrade_change_hashes_with_proof.is_none());
+        assert!(items.upgrade_change_hashes.is_empty());
         assert_eq!(
             &minimal_extended_commit_info(),
             items
@@ -434,7 +434,7 @@ mod expanded_block_data {
         let items = ExpandedBlockData::new_from_typed_data(&data, true).unwrap();
         assert_eq!(ROLLUP_TXS_ROOT, items.rollup_transactions_root);
         assert_eq!(ROLLUP_IDS_ROOT, items.rollup_ids_root);
-        assert!(items.upgrade_change_hashes_with_proof.is_none());
+        assert!(items.upgrade_change_hashes.is_empty());
         assert_eq!(
             &minimal_extended_commit_info(),
             items
@@ -457,13 +457,7 @@ mod expanded_block_data {
         let items = ExpandedBlockData::new_from_typed_data(&data, false).unwrap();
         assert_eq!(ROLLUP_TXS_ROOT, items.rollup_transactions_root);
         assert_eq!(ROLLUP_IDS_ROOT, items.rollup_ids_root);
-        assert_eq!(
-            &upgrade_change_hashes(),
-            items
-                .upgrade_change_hashes_with_proof
-                .unwrap()
-                .upgrade_change_hashes()
-        );
+        assert_eq!(upgrade_change_hashes(), items.upgrade_change_hashes);
         assert!(items.extended_commit_info_with_proof.is_none());
         assert!(items.user_submitted_transactions.is_empty());
     }
@@ -481,13 +475,7 @@ mod expanded_block_data {
         let items = ExpandedBlockData::new_from_typed_data(&data, false).unwrap();
         assert_eq!(ROLLUP_TXS_ROOT, items.rollup_transactions_root);
         assert_eq!(ROLLUP_IDS_ROOT, items.rollup_ids_root);
-        assert_eq!(
-            &upgrade_change_hashes(),
-            items
-                .upgrade_change_hashes_with_proof
-                .unwrap()
-                .upgrade_change_hashes()
-        );
+        assert_eq!(upgrade_change_hashes(), items.upgrade_change_hashes);
         assert!(items.extended_commit_info_with_proof.is_none());
         assert_eq!(tx(0).id(), items.user_submitted_transactions[0].id());
         assert_eq!(tx(1).id(), items.user_submitted_transactions[1].id());
@@ -505,13 +493,7 @@ mod expanded_block_data {
         let items = ExpandedBlockData::new_from_typed_data(&data, true).unwrap();
         assert_eq!(ROLLUP_TXS_ROOT, items.rollup_transactions_root);
         assert_eq!(ROLLUP_IDS_ROOT, items.rollup_ids_root);
-        assert_eq!(
-            &upgrade_change_hashes(),
-            items
-                .upgrade_change_hashes_with_proof
-                .unwrap()
-                .upgrade_change_hashes()
-        );
+        assert_eq!(upgrade_change_hashes(), items.upgrade_change_hashes);
         assert_eq!(
             &minimal_extended_commit_info(),
             items
@@ -536,13 +518,7 @@ mod expanded_block_data {
         let items = ExpandedBlockData::new_from_typed_data(&data, true).unwrap();
         assert_eq!(ROLLUP_TXS_ROOT, items.rollup_transactions_root);
         assert_eq!(ROLLUP_IDS_ROOT, items.rollup_ids_root);
-        assert_eq!(
-            &upgrade_change_hashes(),
-            items
-                .upgrade_change_hashes_with_proof
-                .unwrap()
-                .upgrade_change_hashes()
-        );
+        assert_eq!(upgrade_change_hashes(), items.upgrade_change_hashes);
         assert_eq!(
             &minimal_extended_commit_info(),
             items
@@ -717,31 +693,6 @@ mod try_from_raw {
         assert_err_matches!(
             error_kind,
             FilteredSequencerBlockErrorKind::InvalidRollupIdsProof
-        );
-    }
-
-    #[test]
-    fn upgrade_change_hashes_with_proof_should_fail_bad_proof() {
-        let data = [
-            rollup_txs_root_bytes(),
-            rollup_ids_root_bytes(),
-            upgrade_change_hashes_bytes(),
-        ];
-        let items = ExpandedBlockData::new_from_typed_data(&data, false).unwrap();
-        let mut change_hashes_with_proof =
-            items.upgrade_change_hashes_with_proof.unwrap().into_raw();
-
-        // Change the proof to be invalid.
-        change_hashes_with_proof.proof.as_mut().unwrap().leaf_index = 0;
-
-        let UpgradeChangeHashesError(error_kind) = UpgradeChangeHashesWithProof::try_from_raw(
-            change_hashes_with_proof,
-            items.data_root_hash,
-        )
-        .unwrap_err();
-        assert_err_matches!(
-            error_kind,
-            UpgradeChangeHashesErrorKind::NotInSequencerBlock
         );
     }
 

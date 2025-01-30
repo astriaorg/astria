@@ -47,13 +47,6 @@ pub(in crate::grpc) fn upgrade_change_hashes_by_hash(hash: &[u8; 32]) -> String 
     )
 }
 
-pub(in crate::grpc) fn upgrade_change_hashes_proof_by_hash(hash: &[u8; 32]) -> String {
-    format!(
-        "grpc/upgrade_change_hashes_proof/{}",
-        Base64Display::new(hash, &URL_SAFE)
-    )
-}
-
 pub(in crate::grpc) fn extended_commit_info_by_hash(hash: &[u8; 32]) -> String {
     format!(
         "grpc/extended_commit_info/{}",
@@ -98,10 +91,6 @@ mod tests {
             upgrade_change_hashes_by_hash(&HASH)
         );
         insta::assert_snapshot!(
-            "upgrade_change_hashes_proof_by_hash",
-            upgrade_change_hashes_proof_by_hash(&HASH)
-        );
-        insta::assert_snapshot!(
             "extended_commit_info_by_hash",
             extended_commit_info_by_hash(&HASH)
         );
@@ -120,7 +109,6 @@ mod tests {
         assert!(rollup_transactions_proof_by_hash(&HASH).starts_with(COMPONENT_PREFIX));
         assert!(rollup_ids_proof_by_hash(&HASH).starts_with(COMPONENT_PREFIX));
         assert!(upgrade_change_hashes_by_hash(&HASH).starts_with(COMPONENT_PREFIX));
-        assert!(upgrade_change_hashes_proof_by_hash(&HASH).starts_with(COMPONENT_PREFIX));
         assert!(extended_commit_info_by_hash(&HASH).starts_with(COMPONENT_PREFIX));
         assert!(extended_commit_info_proof_by_hash(&HASH).starts_with(COMPONENT_PREFIX));
     }

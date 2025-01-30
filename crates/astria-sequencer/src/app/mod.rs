@@ -419,10 +419,15 @@ impl App {
             .pre_execute_transactions(block_data)
             .await
             .wrap_err("failed to prepare for executing block")?;
-        let encoded_upgrade_change_hashes = upgrade_change_hashes
-            .map(|hashes| DataItem::UpgradeChangeHashes(hashes).encode())
-            .transpose()
-            .wrap_err("failed to encode upgrade change hashes")?;
+        let encoded_upgrade_change_hashes = if upgrade_change_hashes.is_empty() {
+            None
+        } else {
+            Some(
+                DataItem::UpgradeChangeHashes(upgrade_change_hashes)
+                    .encode()
+                    .wrap_err("failed to encode upgrade change hashes")?,
+            )
+        };
 
         let uses_data_item_enum = self.uses_data_item_enum(prepare_proposal.height);
         let mut block_size_constraints =
@@ -1004,21 +1009,18 @@ impl App {
     /// This *must* be called any time before a block's txs are executed, whether it's
     /// during the proposal phase, or finalize_block phase.
     #[instrument(name = "App::pre_execute_transactions", skip_all, err(level = Level::WARN))]
-    async fn pre_execute_transactions(
-        &mut self,
-        block_data: BlockData,
-    ) -> Result<Option<Vec<ChangeHash>>> {
+    async fn pre_execute_transactions(&mut self, block_data: BlockData) -> Result<Vec<ChangeHash>> {
         let mut delta_delta = StateDelta::new(self.state.clone());
         let upgrade_change_hashes = self
             .upgrades_handler
             .execute_upgrade_if_due(&mut delta_delta, block_data.height)
             .wrap_err("failed to execute upgrade")?;
-        if upgrade_change_hashes.is_some() {
-            let _ = self.apply(delta_delta);
-        } else {
+        if upgrade_change_hashes.is_empty() {
             // We need to drop this so there's only one reference to `self.state` left in order to
             // apply changes made in `self.begin_block()` below.
             drop(delta_delta);
+        } else {
+            let _ = self.apply(delta_delta);
         }
 
         let chain_id = self
@@ -1623,24 +1625,14 @@ fn vote_extensions_enable_height(consensus_params: &tendermint::consensus::Param
 
 fn ensure_upgrade_change_hashes_as_expected(
     received_data: &ExpandedBlockData,
-    calculated_upgrade_change_hashes: Option<&Vec<ChangeHash>>,
+    calculated_upgrade_change_hashes: &[ChangeHash],
 ) -> Result<()> {
-    match (
-        &received_data.upgrade_change_hashes_with_proof,
-        calculated_upgrade_change_hashes,
-    ) {
-        (Some(received_hashes), Some(calculated_hashes)) => {
-            ensure!(
-                received_hashes.upgrade_change_hashes() == calculated_hashes,
-                "upgrade change hashes ({:?}) do not match expected ({calculated_hashes:?})",
-                received_hashes.upgrade_change_hashes()
-            );
-            Ok(())
-        }
-        (None, None) => Ok(()),
-        (Some(_), None) => bail!("received upgrade change hashes, but no upgrade due"),
-        (None, Some(_)) => bail!("upgrade due, but didn't receive upgrade change hashes"),
-    }
+    ensure!(
+        received_data.upgrade_change_hashes == calculated_upgrade_change_hashes,
+        "upgrade change hashes ({:?}) do not match expected ({calculated_upgrade_change_hashes:?})",
+        received_data.upgrade_change_hashes
+    );
+    Ok(())
 }
 
 pub(crate) enum ShouldShutDown {

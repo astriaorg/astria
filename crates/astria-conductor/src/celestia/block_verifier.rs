@@ -379,7 +379,7 @@ mod tests {
             rollup_ids: vec![],
             rollup_transactions_proof,
             rollup_ids_proof,
-            upgrade_change_hashes_with_proof: None,
+            upgrade_change_hashes: vec![],
             extended_commit_info_with_proof: Some(extended_commit_info_with_proof),
         }
         .try_into_celestia_sequencer_blob()
@@ -436,7 +436,7 @@ mod tests {
             rollup_ids: vec![rollup_id],
             rollup_transactions_proof,
             rollup_ids_proof,
-            upgrade_change_hashes_with_proof: None,
+            upgrade_change_hashes: vec![],
             extended_commit_info_with_proof: Some(extended_commit_info_with_proof),
         }
         .try_into_celestia_sequencer_blob()

@@ -455,9 +455,7 @@ async fn execute_block_100(proposer: &mut Node, validator: &mut Node, non_valida
     // Extended commit info will not be produced yet.
     let expanded_block_data =
         ExpandedBlockData::new_from_typed_data(&prepare_proposal_response.txs, false).unwrap();
-    assert!(expanded_block_data
-        .upgrade_change_hashes_with_proof
-        .is_some());
+    assert!(!expanded_block_data.upgrade_change_hashes.is_empty());
     assert_eq!(1, expanded_block_data.user_submitted_transactions.len());
 
     // Execute `ProcessProposal` for block 100 on the proposer and on the non-proposing validator.
@@ -527,9 +525,7 @@ async fn execute_block_101(proposer: &mut Node, validator: &mut Node, non_valida
     // commit info is provided, and that the tx inserted to the mempool is also included.
     let expanded_block_data =
         ExpandedBlockData::new_from_typed_data(&prepare_proposal_response.txs, false).unwrap();
-    assert!(expanded_block_data
-        .upgrade_change_hashes_with_proof
-        .is_none());
+    assert!(expanded_block_data.upgrade_change_hashes.is_empty());
     assert_eq!(1, expanded_block_data.user_submitted_transactions.len());
 
     // Execute `ProcessProposal` for block 101 on the proposer and on the non-proposing validator.
@@ -615,9 +611,7 @@ async fn execute_block_102(proposer: &mut Node, validator: &mut Node, non_valida
     // commit info is provided, and that the tx inserted to the mempool is also included.
     let expanded_block_data =
         ExpandedBlockData::new_from_typed_data(&prepare_proposal_response.txs, true).unwrap();
-    assert!(expanded_block_data
-        .upgrade_change_hashes_with_proof
-        .is_none());
+    assert!(expanded_block_data.upgrade_change_hashes.is_empty());
     assert!(expanded_block_data
         .extended_commit_info_with_proof
         .is_some());

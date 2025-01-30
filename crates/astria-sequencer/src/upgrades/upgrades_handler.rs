@@ -160,18 +160,17 @@ impl UpgradesHandler {
     /// At a minimum, the `info` of each `Change` in such an upgrade must be written to verifiable
     /// storage.
     ///
-    /// Returns `Ok(None)` if no upgrade was executed, or `Ok(Some(hashes of executed changes))` if
-    /// an upgrade was executed.
+    /// Returns an empty `Vec` if no upgrade was executed.
     pub(crate) fn execute_upgrade_if_due<S: StateWrite>(
         &mut self,
         mut state: S,
         block_height: tendermint::block::Height,
-    ) -> Result<Option<Vec<ChangeHash>>> {
+    ) -> Result<Vec<ChangeHash>> {
         let Some(upgrade) = self
             .upgrades
             .upgrade_activating_at_height(block_height.value())
         else {
-            return Ok(None);
+            return Ok(vec![]);
         };
         let upgrade_name = upgrade.name();
         let mut change_hashes = vec![];
@@ -200,7 +199,7 @@ impl UpgradesHandler {
             info!("handled oracle genesis");
         }
 
-        Ok(Some(change_hashes))
+        Ok(change_hashes)
     }
 
     /// Updates `params` with any changes to CometBFT consensus params required as part of any

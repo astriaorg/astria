@@ -17,10 +17,7 @@ use astria_core::{
         },
     },
     primitive::v1::RollupId,
-    sequencerblock::v1::block::{
-        ExtendedCommitInfoWithProof,
-        UpgradeChangeHashesWithProof,
-    },
+    sequencerblock::v1::block::ExtendedCommitInfoWithProof,
     upgrades::v1::{
         Upgrade,
         Upgrades,
@@ -150,12 +147,12 @@ impl SequencerService for SequencerServer {
                 Status::internal(format!("failed to get rollup ids proof from storage: {e}"))
             })?;
 
-        let upgrade_change_hashes_with_proof = snapshot
-            .get_upgrade_change_hashes_with_proof(&block_hash)
+        let upgrade_change_hashes = snapshot
+            .get_upgrade_change_hashes(&block_hash)
             .await
             .map_err(|e| {
                 Status::internal(format!(
-                    "failed to get upgrade change hashes with proof from storage: {e}"
+                    "failed to get upgrade change hashes from storage: {e}"
                 ))
             })?;
 
@@ -200,8 +197,10 @@ impl SequencerService for SequencerServer {
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
             all_rollup_ids,
-            upgrade_change_hashes_with_proof: upgrade_change_hashes_with_proof
-                .map(UpgradeChangeHashesWithProof::into_raw),
+            upgrade_change_hashes: upgrade_change_hashes
+                .into_iter()
+                .map(|change_hash| Bytes::copy_from_slice(change_hash.as_bytes()))
+                .collect(),
             extended_commit_info_with_proof: extended_commit_info_with_proof
                 .map(ExtendedCommitInfoWithProof::into_raw),
         };
