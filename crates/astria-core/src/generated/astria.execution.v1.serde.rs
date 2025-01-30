@@ -710,16 +710,16 @@ impl serde::Serialize for GenesisInfo {
         if self.rollup_id.is_some() {
             len += 1;
         }
-        if self.sequencer_start_block_height != 0 {
-            len += 1;
-        }
-        if self.sequencer_stop_block_height != 0 {
+        if self.sequencer_start_height != 0 {
             len += 1;
         }
         if self.celestia_block_variance != 0 {
             len += 1;
         }
-        if self.rollup_start_block_height != 0 {
+        if self.rollup_start_block_number != 0 {
+            len += 1;
+        }
+        if self.rollup_stop_block_number != 0 {
             len += 1;
         }
         if !self.sequencer_chain_id.is_empty() {
@@ -735,19 +735,20 @@ impl serde::Serialize for GenesisInfo {
         if let Some(v) = self.rollup_id.as_ref() {
             struct_ser.serialize_field("rollupId", v)?;
         }
-        if self.sequencer_start_block_height != 0 {
-            struct_ser.serialize_field("sequencerStartBlockHeight", &self.sequencer_start_block_height)?;
-        }
-        if self.sequencer_stop_block_height != 0 {
-            struct_ser.serialize_field("sequencerStopBlockHeight", &self.sequencer_stop_block_height)?;
+        if self.sequencer_start_height != 0 {
+            struct_ser.serialize_field("sequencerStartHeight", &self.sequencer_start_height)?;
         }
         if self.celestia_block_variance != 0 {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("celestiaBlockVariance", ToString::to_string(&self.celestia_block_variance).as_str())?;
         }
-        if self.rollup_start_block_height != 0 {
+        if self.rollup_start_block_number != 0 {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("rollupStartBlockHeight", ToString::to_string(&self.rollup_start_block_height).as_str())?;
+            struct_ser.serialize_field("rollupStartBlockNumber", ToString::to_string(&self.rollup_start_block_number).as_str())?;
+        }
+        if self.rollup_stop_block_number != 0 {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("rollupStopBlockNumber", ToString::to_string(&self.rollup_stop_block_number).as_str())?;
         }
         if !self.sequencer_chain_id.is_empty() {
             struct_ser.serialize_field("sequencerChainId", &self.sequencer_chain_id)?;
@@ -770,14 +771,14 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
         const FIELDS: &[&str] = &[
             "rollup_id",
             "rollupId",
-            "sequencer_start_block_height",
-            "sequencerStartBlockHeight",
-            "sequencer_stop_block_height",
-            "sequencerStopBlockHeight",
+            "sequencer_start_height",
+            "sequencerStartHeight",
             "celestia_block_variance",
             "celestiaBlockVariance",
-            "rollup_start_block_height",
-            "rollupStartBlockHeight",
+            "rollup_start_block_number",
+            "rollupStartBlockNumber",
+            "rollup_stop_block_number",
+            "rollupStopBlockNumber",
             "sequencer_chain_id",
             "sequencerChainId",
             "celestia_chain_id",
@@ -789,10 +790,10 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             RollupId,
-            SequencerStartBlockHeight,
-            SequencerStopBlockHeight,
+            SequencerStartHeight,
             CelestiaBlockVariance,
-            RollupStartBlockHeight,
+            RollupStartBlockNumber,
+            RollupStopBlockNumber,
             SequencerChainId,
             CelestiaChainId,
             HaltAtStopHeight,
@@ -818,10 +819,10 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
                     {
                         match value {
                             "rollupId" | "rollup_id" => Ok(GeneratedField::RollupId),
-                            "sequencerStartBlockHeight" | "sequencer_start_block_height" => Ok(GeneratedField::SequencerStartBlockHeight),
-                            "sequencerStopBlockHeight" | "sequencer_stop_block_height" => Ok(GeneratedField::SequencerStopBlockHeight),
+                            "sequencerStartHeight" | "sequencer_start_height" => Ok(GeneratedField::SequencerStartHeight),
                             "celestiaBlockVariance" | "celestia_block_variance" => Ok(GeneratedField::CelestiaBlockVariance),
-                            "rollupStartBlockHeight" | "rollup_start_block_height" => Ok(GeneratedField::RollupStartBlockHeight),
+                            "rollupStartBlockNumber" | "rollup_start_block_number" => Ok(GeneratedField::RollupStartBlockNumber),
+                            "rollupStopBlockNumber" | "rollup_stop_block_number" => Ok(GeneratedField::RollupStopBlockNumber),
                             "sequencerChainId" | "sequencer_chain_id" => Ok(GeneratedField::SequencerChainId),
                             "celestiaChainId" | "celestia_chain_id" => Ok(GeneratedField::CelestiaChainId),
                             "haltAtStopHeight" | "halt_at_stop_height" => Ok(GeneratedField::HaltAtStopHeight),
@@ -845,10 +846,10 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
                     V: serde::de::MapAccess<'de>,
             {
                 let mut rollup_id__ = None;
-                let mut sequencer_start_block_height__ = None;
-                let mut sequencer_stop_block_height__ = None;
+                let mut sequencer_start_height__ = None;
                 let mut celestia_block_variance__ = None;
-                let mut rollup_start_block_height__ = None;
+                let mut rollup_start_block_number__ = None;
+                let mut rollup_stop_block_number__ = None;
                 let mut sequencer_chain_id__ = None;
                 let mut celestia_chain_id__ = None;
                 let mut halt_at_stop_height__ = None;
@@ -860,19 +861,11 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
                             }
                             rollup_id__ = map_.next_value()?;
                         }
-                        GeneratedField::SequencerStartBlockHeight => {
-                            if sequencer_start_block_height__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("sequencerStartBlockHeight"));
+                        GeneratedField::SequencerStartHeight => {
+                            if sequencer_start_height__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sequencerStartHeight"));
                             }
-                            sequencer_start_block_height__ = 
-                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
-                            ;
-                        }
-                        GeneratedField::SequencerStopBlockHeight => {
-                            if sequencer_stop_block_height__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("sequencerStopBlockHeight"));
-                            }
-                            sequencer_stop_block_height__ = 
+                            sequencer_start_height__ = 
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
@@ -884,11 +877,19 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
-                        GeneratedField::RollupStartBlockHeight => {
-                            if rollup_start_block_height__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("rollupStartBlockHeight"));
+                        GeneratedField::RollupStartBlockNumber => {
+                            if rollup_start_block_number__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("rollupStartBlockNumber"));
                             }
-                            rollup_start_block_height__ = 
+                            rollup_start_block_number__ = 
+                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
+                            ;
+                        }
+                        GeneratedField::RollupStopBlockNumber => {
+                            if rollup_stop_block_number__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("rollupStopBlockNumber"));
+                            }
+                            rollup_stop_block_number__ = 
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
@@ -914,10 +915,10 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
                 }
                 Ok(GenesisInfo {
                     rollup_id: rollup_id__,
-                    sequencer_start_block_height: sequencer_start_block_height__.unwrap_or_default(),
-                    sequencer_stop_block_height: sequencer_stop_block_height__.unwrap_or_default(),
+                    sequencer_start_height: sequencer_start_height__.unwrap_or_default(),
                     celestia_block_variance: celestia_block_variance__.unwrap_or_default(),
-                    rollup_start_block_height: rollup_start_block_height__.unwrap_or_default(),
+                    rollup_start_block_number: rollup_start_block_number__.unwrap_or_default(),
+                    rollup_stop_block_number: rollup_stop_block_number__.unwrap_or_default(),
                     sequencer_chain_id: sequencer_chain_id__.unwrap_or_default(),
                     celestia_chain_id: celestia_chain_id__.unwrap_or_default(),
                     halt_at_stop_height: halt_at_stop_height__.unwrap_or_default(),

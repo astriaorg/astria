@@ -57,10 +57,10 @@ async fn simple() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_start_block_height: 1,
-        sequencer_stop_block_height: 10,
+        sequencer_start_height: 1,
         celestia_block_variance: 10,
-        rollup_start_block_height: 0,
+        rollup_start_block_number: 0,
+        rollup_stop_block_number: 9,
     );
 
     mount_get_commitment_state!(
@@ -140,10 +140,10 @@ async fn submits_two_heights_in_succession() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_start_block_height: 1,
-        sequencer_stop_block_height: 10,
+        sequencer_start_height: 1,
         celestia_block_variance: 10,
-        rollup_start_block_height: 0,
+        rollup_start_block_number: 0,
+        rollup_stop_block_number: 9,
     );
 
     mount_get_commitment_state!(
@@ -254,10 +254,10 @@ async fn skips_already_executed_heights() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_start_block_height: 1,
-        sequencer_stop_block_height: 10,
+        sequencer_start_height: 1,
         celestia_block_variance: 10,
-        rollup_start_block_height: 0,
+        rollup_start_block_number: 0,
+        rollup_stop_block_number: 9,
     );
 
     mount_get_commitment_state!(
@@ -340,10 +340,10 @@ async fn fetch_from_later_celestia_height() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_start_block_height: 1,
-        sequencer_stop_block_height: 10,
+        sequencer_start_height: 1,
         celestia_block_variance: 10,
-        rollup_start_block_height: 0,
+        rollup_start_block_number: 0,
+        rollup_stop_block_number: 9,
     );
 
     mount_get_commitment_state!(
@@ -458,10 +458,11 @@ async fn exits_on_celestia_chain_id_mismatch() {
         matcher::message_type::<GetGenesisInfoRequest>(),
     )
     .respond_with(GrpcResponse::constant_response(
-        genesis_info!(sequencer_start_block_height: 1,
-            sequencer_stop_block_height: 10,
+        genesis_info!(sequencer_start_height: 1,
             celestia_block_variance: 10,
-            rollup_start_block_height: 0,),
+            rollup_start_block_number: 0,
+            rollup_stop_block_number: 9
+        ),
     ))
     .expect(0..)
     .mount(&mock_grpc.mock_server)
@@ -550,10 +551,10 @@ async fn conductor_restarts_after_reaching_stop_block_height() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_start_block_height: 1,
-        sequencer_stop_block_height: 3,
+        sequencer_start_height: 1,
         celestia_block_variance: 10,
-        rollup_start_block_height: 0,
+        rollup_start_block_number: 0,
+        rollup_stop_block_number: 2,
         up_to_n_times: 1, // Only respond once, since updated information is needed after restart.
     );
 
@@ -640,10 +641,10 @@ async fn conductor_restarts_after_reaching_stop_block_height() {
     // Mount new genesis info and commitment state with updated heights
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_start_block_height: 2,
-        sequencer_stop_block_height: 10,
+        sequencer_start_height: 2,
         celestia_block_variance: 10,
-        rollup_start_block_height: 1,
+        rollup_start_block_number: 1,
+        rollup_stop_block_number: 9,
     );
 
     mount_get_commitment_state!(

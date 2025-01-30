@@ -12,6 +12,11 @@ use astria_core::{
     },
     primitive::v1::RollupId,
 };
+use astria_eyre::eyre::{
+    self,
+    eyre,
+    WrapErr as _,
+};
 use bytes::Bytes;
 use sequencer_client::tendermint::block::Height as SequencerHeight;
 use tokio::sync::watch::{
@@ -34,14 +39,14 @@ pub(super) fn channel(state: State) -> (StateSender, StateReceiver) {
 #[derive(Debug, thiserror::Error)]
 #[error(
     "could not map rollup number to sequencer height for commitment type `{commitment_type}`: the \
-     operation `{sequencer_start_height} + ({rollup_number} - {rollup_start_height}`) failed \
-     because `{issue}`"
+     operation `{sequencer_start_height} + ({rollup_number} - {rollup_start_block_number}`) \
+     failed because `{issue}`"
 )]
 pub(crate) struct InvalidState {
     commitment_type: &'static str,
     issue: &'static str,
     sequencer_start_height: u64,
-    rollup_start_height: u64,
+    rollup_start_block_number: u64,
     rollup_number: u64,
 }
 
@@ -78,6 +83,28 @@ impl StateReceiver {
         self.inner.changed().await?;
         Ok(self.next_expected_soft_sequencer_height())
     }
+
+    pub(crate) fn sequencer_stop_height(&self) -> eyre::Result<Option<NonZeroU64>> {
+        let Some(rollup_stop_block_number) = self.inner.borrow().rollup_stop_block_number() else {
+            return Ok(None);
+        };
+        let sequencer_start_height = self.inner.borrow().sequencer_start_height();
+        let rollup_start_block_number = self.inner.borrow().rollup_start_block_number();
+        Ok(NonZeroU64::new(
+            map_rollup_number_to_sequencer_height(
+                sequencer_start_height,
+                rollup_start_block_number,
+                rollup_stop_block_number
+                    .get()
+                    .try_into()
+                    .wrap_err("rollup stop block number overflows u32::MAX")?,
+            )
+            .map_err(|e| {
+                eyre!(e).wrap_err("failed to map rollup stop block number to sequencer height")
+            })?
+            .into(),
+        ))
+    }
 }
 
 pub(super) struct StateSender {
@@ -95,20 +122,20 @@ fn map_firm_to_sequencer_height(
     genesis_info: &GenesisInfo,
     commitment_state: &CommitmentState,
 ) -> Result<SequencerHeight, InvalidState> {
-    let sequencer_start_height = genesis_info.sequencer_start_block_height();
-    let rollup_start_height = genesis_info.rollup_start_block_height();
+    let sequencer_start_height = genesis_info.sequencer_start_height();
+    let rollup_start_block_number = genesis_info.rollup_start_block_number();
     let rollup_number = commitment_state.firm().number();
 
     map_rollup_number_to_sequencer_height(
         sequencer_start_height,
-        rollup_start_height,
+        rollup_start_block_number,
         rollup_number,
     )
     .map_err(|issue| InvalidState {
         commitment_type: "firm",
         issue,
         sequencer_start_height,
-        rollup_start_height,
+        rollup_start_block_number,
         rollup_number: rollup_number.into(),
     })
 }
@@ -117,20 +144,20 @@ fn map_soft_to_sequencer_height(
     genesis_info: &GenesisInfo,
     commitment_state: &CommitmentState,
 ) -> Result<SequencerHeight, InvalidState> {
-    let sequencer_start_height = genesis_info.sequencer_start_block_height();
-    let rollup_start_height = genesis_info.rollup_start_block_height();
+    let sequencer_start_height = genesis_info.sequencer_start_height();
+    let rollup_start_block_number = genesis_info.rollup_start_block_number();
     let rollup_number = commitment_state.soft().number();
 
     map_rollup_number_to_sequencer_height(
         sequencer_start_height,
-        rollup_start_height,
+        rollup_start_block_number,
         rollup_number,
     )
     .map_err(|issue| InvalidState {
         commitment_type: "soft",
         issue,
         sequencer_start_height,
-        rollup_start_height,
+        rollup_start_block_number,
         rollup_number: rollup_number.into(),
     })
 }
@@ -225,10 +252,10 @@ forward_impls!(
     [soft_hash -> Bytes],
     [celestia_block_variance -> u64],
     [rollup_id -> RollupId],
-    [sequencer_start_block_height -> u64],
+    [sequencer_start_height -> u64],
     [celestia_base_block_height -> u64],
-    [sequencer_stop_block_height -> Option<NonZeroU64>],
-    [rollup_start_block_height -> u64],
+    [rollup_start_block_number -> u64],
+    [rollup_stop_block_number -> Option<NonZeroU64>],
     [has_firm_number_reached_stop_height -> bool],
     [has_soft_number_reached_stop_height -> bool],
 );
@@ -237,7 +264,6 @@ forward_impls!(
     StateReceiver:
     [celestia_base_block_height -> u64],
     [celestia_block_variance -> u64],
-    [sequencer_stop_block_height -> Option<NonZeroU64>],
     [rollup_id -> RollupId],
     [sequencer_chain_id -> String],
     [celestia_chain_id -> String],
@@ -263,55 +289,20 @@ impl State {
         })
     }
 
-    /// Returns if the tracked firm state of the rollup has reached the sequencer stop height.
-    ///
-    /// The sequencer stop height being reached is defined as:
-    ///
-    /// ```text
-    /// sequencer_height_of_rollup :=
-    ///    sequencer_start_height + (firm_rollup_number - rollup_start_height)
-    ///
-    /// has_firm_number_been_reached :=
-    ///     sequencer_height_of_rollup >= sequencer_stop_height
-    /// ````
+    /// Returns if the tracked firm state of the rollup has reached the rollup stop block number.
     pub(crate) fn has_firm_number_reached_stop_height(&self) -> bool {
-        let Some(sequencer_stop_height) = self.sequencer_stop_block_height() else {
+        let Some(rollup_stop_block_number) = self.rollup_stop_block_number() else {
             return false;
         };
-
-        let sequencer_height_of_rollup =
-            map_firm_to_sequencer_height(&self.genesis_info, &self.commitment_state).expect(
-                "state must only be set through State::try_from_genesis_info_and_commitment_state \
-                 and/or StateSender::try_update_commitment_state, which ensures that the number \
-                 can always be mapped to a sequencer height",
-            );
-
-        sequencer_height_of_rollup.value() >= sequencer_stop_height.get()
+        u64::from(self.commitment_state.firm().number()) >= rollup_stop_block_number.get()
     }
 
-    /// Returns if the tracked soft state of the rollup has reached the sequencer stop height.
-    ///
-    /// The sequencer stop height being reached is defined as:
-    ///
-    /// ```text
-    /// sequencer_height_of_rollup :=
-    ///    sequencer_start_height + (soft_rollup_number - rollup_start_height)
-    ///
-    /// has_soft_number_been_reached :=
-    ///     sequencer_height_of_rollup >= sequencer_stop_height
-    /// ````
+    /// Returns if the tracked soft state of the rollup has reached the rollup stop block number.
     pub(crate) fn has_soft_number_reached_stop_height(&self) -> bool {
-        let Some(sequencer_stop_height) = self.sequencer_stop_block_height() else {
+        let Some(rollup_stop_block_number) = self.rollup_stop_block_number() else {
             return false;
         };
-
-        let sequencer_height_of_rollup =
-            map_soft_to_sequencer_height(&self.genesis_info, &self.commitment_state).expect(
-                "state must only be updated through StateSender::try_update_commitment_state, \
-                 which ensures that the number can always be mapped to a sequencer height",
-            );
-
-        sequencer_height_of_rollup.value() >= sequencer_stop_height.get()
+        u64::from(self.commitment_state.soft().number()) >= rollup_stop_block_number.get()
     }
 
     /// Sets the inner commitment state.
@@ -355,16 +346,12 @@ impl State {
         self.genesis_info.celestia_block_variance()
     }
 
-    pub(crate) fn sequencer_start_block_height(&self) -> u64 {
-        self.genesis_info.sequencer_start_block_height()
+    pub(crate) fn sequencer_start_height(&self) -> u64 {
+        self.genesis_info.sequencer_start_height()
     }
 
     pub(crate) fn halt_at_stop_height(&self) -> bool {
         self.genesis_info.halt_at_stop_height()
-    }
-
-    pub(crate) fn sequencer_stop_block_height(&self) -> Option<NonZeroU64> {
-        self.genesis_info.sequencer_stop_block_height()
     }
 
     fn sequencer_chain_id(&self) -> String {
@@ -379,8 +366,12 @@ impl State {
         self.genesis_info.rollup_id()
     }
 
-    pub(crate) fn rollup_start_block_height(&self) -> u64 {
-        self.genesis_info.rollup_start_block_height()
+    pub(crate) fn rollup_start_block_number(&self) -> u64 {
+        self.genesis_info.rollup_start_block_number()
+    }
+
+    pub(crate) fn rollup_stop_block_number(&self) -> Option<NonZeroU64> {
+        self.genesis_info.rollup_stop_block_number()
     }
 
     pub(crate) fn firm_block_number_as_sequencer_height(&self) -> SequencerHeight {
@@ -410,15 +401,15 @@ impl State {
 
 /// Maps a rollup height to a sequencer height.
 ///
-/// Returns error if `sequencer_start_height + (rollup_number - rollup_start_height)`
+/// Returns error if `sequencer_start_height + (rollup_number - rollup_start_block_number)`
 /// overflows `u32::MAX`.
 fn map_rollup_number_to_sequencer_height(
     sequencer_start_height: u64,
-    rollup_start_height: u64,
+    rollup_start_block_number: u64,
     rollup_number: u32,
 ) -> Result<SequencerHeight, &'static str> {
     let delta = u64::from(rollup_number)
-        .checked_sub(rollup_start_height)
+        .checked_sub(rollup_start_block_number)
         .ok_or("rollup start height exceeds rollup number")?;
     let sequencer_height = sequencer_start_height
         .checked_add(delta)
@@ -430,17 +421,17 @@ fn map_rollup_number_to_sequencer_height(
 
 /// Maps a sequencer height to a rollup height.
 ///
-/// Returns `None` if `sequencer_height - sequencer_start_height + rollup_start_height`
+/// Returns `None` if `sequencer_height - sequencer_start_height + rollup_start_block_number`
 /// underflows or if the result does not fit in `u32`.
 pub(super) fn map_sequencer_height_to_rollup_height(
     sequencer_start_height: u64,
-    rollup_start_height: u64,
+    rollup_start_block_number: u64,
     sequencer_height: SequencerHeight,
 ) -> Option<u32> {
     sequencer_height
         .value()
         .checked_sub(sequencer_start_height)?
-        .checked_add(rollup_start_height)?
+        .checked_add(rollup_start_block_number)?
         .try_into()
         .ok()
 }
@@ -488,10 +479,10 @@ mod tests {
         let rollup_id = RollupId::new([24; 32]);
         GenesisInfo::try_from_raw(raw::GenesisInfo {
             rollup_id: Some(rollup_id.to_raw()),
-            sequencer_start_block_height: 10,
-            sequencer_stop_block_height: 100,
+            sequencer_start_height: 10,
             celestia_block_variance: 0,
-            rollup_start_block_height: 0,
+            rollup_start_block_number: 0,
+            rollup_stop_block_number: 90,
             sequencer_chain_id: "test-sequencer-0".to_string(),
             celestia_chain_id: "test-celestia-0".to_string(),
             halt_at_stop_height: false,

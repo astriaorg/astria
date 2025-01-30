@@ -177,7 +177,7 @@ fn should_restart_or_shutdown(
     config: &Config,
     status: &crate::executor::State,
 ) -> eyre::Result<RestartOrShutdown> {
-    let Some(sequencer_stop_height) = status.sequencer_stop_block_height() else {
+    let Some(rollup_stop_block_number) = status.rollup_stop_block_number() else {
         return Err(eyre!(
             "executor exited with a success value even though it was not configured to run with a \
              stop height and even though it received no shutdown signal; this should not happen"
@@ -202,9 +202,9 @@ fn should_restart_or_shutdown(
                     config.execution_commit_level,
                     status.firm_number(),
                     status.firm_block_number_as_sequencer_height(),
-                    status.rollup_start_block_height(),
-                    status.sequencer_start_block_height(),
-                    sequencer_stop_height,
+                    status.rollup_start_block_number(),
+                    status.sequencer_start_height(),
+                    rollup_stop_block_number,
                 ))
             }
         }
@@ -225,9 +225,9 @@ fn should_restart_or_shutdown(
                     config.execution_commit_level,
                     status.soft_number(),
                     status.soft_block_number_as_sequencer_height(),
-                    status.rollup_start_block_height(),
-                    status.sequencer_start_block_height(),
-                    sequencer_stop_height,
+                    status.rollup_start_block_number(),
+                    status.sequencer_start_height(),
+                    rollup_stop_block_number,
                 ))
             }
         }
@@ -309,10 +309,10 @@ mod tests {
         let rollup_id = RollupId::new([24; 32]);
         GenesisInfo {
             rollup_id: Some(rollup_id.to_raw()),
-            sequencer_start_block_height: 10,
-            sequencer_stop_block_height: 100,
+            sequencer_start_height: 10,
             celestia_block_variance: 0,
-            rollup_start_block_height: 0,
+            rollup_start_block_number: 0,
+            rollup_stop_block_number: 90,
             sequencer_chain_id: "test-sequencer-0".to_string(),
             celestia_chain_id: "test-celestia-0".to_string(),
             halt_at_stop_height: false,
@@ -358,9 +358,9 @@ mod tests {
             },
             &make_rollup_state(
                 GenesisInfo {
-                    sequencer_start_block_height: 10,
-                    sequencer_stop_block_height: 99,
-                    rollup_start_block_height: 10,
+                    sequencer_start_height: 10,
+                    rollup_start_block_number: 10,
+                    rollup_stop_block_number: 99,
                     halt_at_stop_height: false,
                     ..make_genesis_info()
                 },
@@ -390,9 +390,9 @@ mod tests {
             },
             &make_rollup_state(
                 GenesisInfo {
-                    sequencer_start_block_height: 10,
-                    sequencer_stop_block_height: 99,
-                    rollup_start_block_height: 10,
+                    sequencer_start_height: 10,
+                    rollup_start_block_number: 10,
+                    rollup_stop_block_number: 99,
                     halt_at_stop_height: true,
                     ..make_genesis_info()
                 },
@@ -425,9 +425,9 @@ mod tests {
             },
             &make_rollup_state(
                 GenesisInfo {
-                    sequencer_start_block_height: 10,
-                    sequencer_stop_block_height: 99,
-                    rollup_start_block_height: 10,
+                    sequencer_start_height: 10,
+                    rollup_start_block_number: 10,
+                    rollup_stop_block_number: 99,
                     halt_at_stop_height: false,
                     ..make_genesis_info()
                 },
@@ -457,9 +457,9 @@ mod tests {
             },
             &make_rollup_state(
                 GenesisInfo {
-                    sequencer_start_block_height: 10,
-                    sequencer_stop_block_height: 99,
-                    rollup_start_block_height: 10,
+                    sequencer_start_height: 10,
+                    rollup_start_block_number: 10,
+                    rollup_stop_block_number: 99,
                     halt_at_stop_height: true,
                     ..make_genesis_info()
                 },

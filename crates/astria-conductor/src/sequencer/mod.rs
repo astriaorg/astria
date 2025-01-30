@@ -150,7 +150,9 @@ impl RunningReader {
         } = reader;
 
         let next_expected_height = rollup_state.next_expected_soft_sequencer_height();
-        let sequencer_end_height = rollup_state.sequencer_stop_block_height();
+        let sequencer_end_height = rollup_state
+            .sequencer_stop_height()
+            .wrap_err("failed to obtain sequencer stop height")?;
 
         let latest_height_stream =
             sequencer_cometbft_client.stream_latest_height(sequencer_block_time);
@@ -187,7 +189,7 @@ impl RunningReader {
 
     async fn run_loop(&mut self) -> eyre::Result<&'static str> {
         loop {
-            if self.has_reached_stop_height() {
+            if self.has_reached_stop_height()? {
                 return Ok("stop height reached");
             }
 
@@ -292,13 +294,15 @@ impl RunningReader {
 
     /// The stop height is reached if a) the next height to be forwarded would be greater
     /// than the stop height, and b) there is no block currently in flight.
-    fn has_reached_stop_height(&self) -> bool {
-        self.rollup_state
-            .sequencer_stop_block_height()
-            .map_or(false, |stop_height| {
-                self.block_cache.next_height_to_pop() > stop_height.get()
-            })
-            && self.enqueued_block.is_terminated()
+    fn has_reached_stop_height(&self) -> eyre::Result<bool> {
+        Ok(self
+            .rollup_state
+            .sequencer_stop_height()
+            .wrap_err("failed to obtain sequencer stop height")?
+            .map_or(false, |height| {
+                self.block_cache.next_height_to_pop() > height.get()
+                    && self.enqueued_block.is_terminated()
+            }))
     }
 }
 

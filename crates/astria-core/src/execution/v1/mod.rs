@@ -63,13 +63,13 @@ pub struct GenesisInfo {
     /// The rollup id which is used to identify the rollup txs.
     rollup_id: RollupId,
     /// The Sequencer block height which contains the first block of the rollup.
-    sequencer_start_block_height: tendermint::block::Height,
-    /// The Sequencer block height to stop at.
-    sequencer_stop_block_height: tendermint::block::Height,
+    sequencer_start_height: tendermint::block::Height,
     /// The allowed variance in the block height of celestia when looking for sequencer blocks.
     celestia_block_variance: u64,
     /// The rollup block number to map to the sequencer start block height.
-    rollup_start_block_height: u64,
+    rollup_start_block_number: u64,
+    /// The rollup block number to restart/halt at after executing.
+    rollup_stop_block_number: Option<NonZeroU64>,
     /// The chain ID of the sequencer network.
     sequencer_chain_id: tendermint::chain::Id,
     /// The chain ID of the celestia network.
@@ -85,13 +85,8 @@ impl GenesisInfo {
     }
 
     #[must_use]
-    pub fn sequencer_start_block_height(&self) -> u64 {
-        self.sequencer_start_block_height.into()
-    }
-
-    #[must_use]
-    pub fn sequencer_stop_block_height(&self) -> Option<NonZeroU64> {
-        NonZeroU64::new(self.sequencer_stop_block_height.value())
+    pub fn sequencer_start_height(&self) -> u64 {
+        self.sequencer_start_height.into()
     }
 
     #[must_use]
@@ -110,8 +105,13 @@ impl GenesisInfo {
     }
 
     #[must_use]
-    pub fn rollup_start_block_height(&self) -> u64 {
-        self.rollup_start_block_height
+    pub fn rollup_start_block_number(&self) -> u64 {
+        self.rollup_start_block_number
+    }
+
+    #[must_use]
+    pub fn rollup_stop_block_number(&self) -> Option<NonZeroU64> {
+        self.rollup_stop_block_number
     }
 
     #[must_use]
@@ -133,10 +133,10 @@ impl Protobuf for GenesisInfo {
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let raw::GenesisInfo {
             rollup_id,
-            sequencer_start_block_height,
-            sequencer_stop_block_height,
+            sequencer_start_height,
             celestia_block_variance,
-            rollup_start_block_height,
+            rollup_start_block_number,
+            rollup_stop_block_number,
             sequencer_chain_id,
             celestia_chain_id,
             halt_at_stop_height,
@@ -157,10 +157,10 @@ impl Protobuf for GenesisInfo {
 
         Ok(Self {
             rollup_id,
-            sequencer_start_block_height: (*sequencer_start_block_height).into(),
-            sequencer_stop_block_height: (*sequencer_stop_block_height).into(),
+            sequencer_start_height: (*sequencer_start_height).into(),
             celestia_block_variance: *celestia_block_variance,
-            rollup_start_block_height: *rollup_start_block_height,
+            rollup_start_block_number: *rollup_start_block_number,
+            rollup_stop_block_number: NonZeroU64::new(*rollup_stop_block_number),
             sequencer_chain_id,
             celestia_chain_id,
             halt_at_stop_height: *halt_at_stop_height,
@@ -170,32 +170,26 @@ impl Protobuf for GenesisInfo {
     fn to_raw(&self) -> Self::Raw {
         let Self {
             rollup_id,
-            sequencer_start_block_height,
-            sequencer_stop_block_height,
+            sequencer_start_height,
             celestia_block_variance,
-            rollup_start_block_height,
+            rollup_start_block_number,
+            rollup_stop_block_number,
             sequencer_chain_id,
             celestia_chain_id,
             halt_at_stop_height,
         } = self;
 
-        let sequencer_start_block_height: u32 =
-            (*sequencer_start_block_height).value().try_into().expect(
-                "block height overflow, this should not happen since tendermint heights are i64 \
-                 under the hood",
-            );
-        let sequencer_stop_block_height: u32 =
-            (*sequencer_stop_block_height).value().try_into().expect(
-                "block height overflow, this should not happen since tendermint heights are i64 \
-                 under the hood",
-            );
+        let sequencer_start_height: u32 = (*sequencer_start_height).value().try_into().expect(
+            "block height overflow, this should not happen since tendermint heights are i64 under \
+             the hood",
+        );
 
         Self::Raw {
             rollup_id: Some(rollup_id.to_raw()),
-            sequencer_start_block_height,
-            sequencer_stop_block_height,
+            sequencer_start_height,
             celestia_block_variance: *celestia_block_variance,
-            rollup_start_block_height: *rollup_start_block_height,
+            rollup_start_block_number: *rollup_start_block_number,
+            rollup_stop_block_number: rollup_stop_block_number.map(NonZeroU64::get).unwrap_or(0),
             sequencer_chain_id: sequencer_chain_id.to_string(),
             celestia_chain_id: celestia_chain_id.to_string(),
             halt_at_stop_height: *halt_at_stop_height,

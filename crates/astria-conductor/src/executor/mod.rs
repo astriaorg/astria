@@ -371,20 +371,21 @@ impl Initialized {
             std::cmp::Ordering::Equal => {}
         }
 
-        let sequencer_start_height = self.state.sequencer_start_block_height();
-        let rollup_start_height = self.state.rollup_start_block_height();
+        let sequencer_start_height = self.state.sequencer_start_height();
+        let rollup_start_block_number = self.state.rollup_start_block_number();
         let current_block_height = executable_block.height;
         let Some(block_number) = state::map_sequencer_height_to_rollup_height(
             sequencer_start_height,
-            rollup_start_height,
+            rollup_start_block_number,
             current_block_height,
         ) else {
             bail!(
                 "failed to map block height rollup number. This means the operation
-                `sequencer_height - sequencer_start_height + rollup_start_height` underflowed or \
-                 was not a valid cometbft height. Sequencer height: `{current_block_height}`,
+                `sequencer_height - sequencer_start_height + rollup_start_block_number` \
+                 underflowed or was not a valid cometbft height. Sequencer height: \
+                 `{current_block_height}`,
                  sequencer start height: `{sequencer_start_height}`,
-                 rollup start height: `{rollup_start_height}`"
+                 rollup start height: `{rollup_start_block_number}`"
             )
         };
 
@@ -428,19 +429,20 @@ impl Initialized {
             "expected block at sequencer height {expected_height}, but got {block_height}",
         );
 
-        let sequencer_start_height = self.state.sequencer_start_block_height();
-        let rollup_start_height = self.state.rollup_start_block_height();
+        let sequencer_start_height = self.state.sequencer_start_height();
+        let rollup_start_block_number = self.state.rollup_start_block_number();
         let Some(block_number) = state::map_sequencer_height_to_rollup_height(
             sequencer_start_height,
-            rollup_start_height,
+            rollup_start_block_number,
             block_height,
         ) else {
             bail!(
                 "failed to map block height rollup number. This means the operation
-                `sequencer_height - sequencer_start_height + rollup_start_height` underflowed or \
-                 was not a valid cometbft height. Sequencer block height: `{block_height}`,
+                `sequencer_height - sequencer_start_height + rollup_start_block_number` \
+                 underflowed or was not a valid cometbft height. Sequencer block height: \
+                 `{block_height}`,
                  sequencer start height: `{sequencer_start_height}`,
-                 rollup start height: `{rollup_start_height}`"
+                 rollup start height: `{rollup_start_block_number}`"
             )
         };
 
@@ -605,7 +607,7 @@ impl Initialized {
         match task {
             ReaderKind::Firm if self.config.is_with_firm() => {
                 match (
-                    self.state.sequencer_stop_block_height().is_some(),
+                    self.state.rollup_stop_block_number().is_some(),
                     self.state.has_firm_number_reached_stop_height(),
                 ) {
                     (true, true) => {
@@ -640,7 +642,7 @@ impl Initialized {
 
             ReaderKind::Soft if self.config.is_with_soft() => {
                 match (
-                    self.state.sequencer_stop_block_height().is_some(),
+                    self.state.rollup_stop_block_number().is_some(),
                     self.state.has_soft_number_reached_stop_height(),
                 ) {
                     (true, true) => {
