@@ -39,7 +39,8 @@ use super::{
 use crate::{
     app::{
         ShouldShutDown,
-        StateReadExt,
+        StateReadExt as _,
+        StateWriteExt,
     },
     connect::{
         market_map::component::MarketMapComponent,
@@ -202,46 +203,34 @@ impl UpgradesHandler {
         Ok(change_hashes)
     }
 
-    /// Updates `params` with any changes to CometBFT consensus params required as part of any
-    /// upgrade with an activation height == `block_height`.
+    /// Updates CometBFT consensus params as required by any upgrade with an activation height ==
+    /// `block_height`.
     ///
-    /// Called during finalize block.
+    /// Returns `None` if no upgrade is due.
     ///
-    /// If no upgrade is due, this is a no-op. Otherwise, `params` is updated if `Some` or set to
-    /// `Some` if passed as `None`.
-    ///
-    /// At a minimum, the ABCI application version should be increased.
-    ///
-    /// NOTE: the updated params are NOT put to storage - this needs to be done after calling this
-    ///       method if the params are `Some`.
-    pub(crate) async fn finalize_block<S: StateReadExt>(
+    /// If an upgrade is due, at a minimum, the ABCI application version should be increased.
+    pub(crate) async fn end_block<S: StateWriteExt>(
         &self,
-        state: S,
+        mut state: S,
         block_height: tendermint::block::Height,
-        maybe_params: &mut Option<tendermint::consensus::Params>,
-    ) -> Result<()> {
+    ) -> Result<Option<tendermint::consensus::Params>> {
         let Some(upgrade) = self
             .upgrades
             .upgrade_activating_at_height(block_height.value())
         else {
-            return Ok(());
+            return Ok(None);
         };
 
-        let mut params = match maybe_params.take() {
+        let mut params = match state
+            .get_consensus_params()
+            .await
+            .wrap_err("failed to get consensus params from storage")?
+        {
             Some(value) => value,
-            None => {
-                match state
-                    .get_consensus_params()
-                    .await
-                    .wrap_err("failed to get consensus params from storage")?
-                {
-                    Some(value) => value,
-                    None => self
-                        .get_consensus_params_from_cometbft(block_height.value())
-                        .await
-                        .wrap_err("failed to get consensus params from cometbft")?,
-                }
-            }
+            None => self
+                .get_consensus_params_from_cometbft(block_height.value())
+                .await
+                .wrap_err("failed to get consensus params from cometbft")?,
         };
 
         let new_app_version = upgrade.app_version();
@@ -268,8 +257,11 @@ impl UpgradesHandler {
             set_vote_extensions_enable_height_to_next_block_height(block_height, &mut params);
         }
 
-        *maybe_params = Some(params);
-        Ok(())
+        state
+            .put_consensus_params(params.clone())
+            .wrap_err("failed to put consensus params to storage")?;
+
+        Ok(Some(params))
     }
 
     /// Returns the CometBFT consensus params by querying the given CometBFT endpoint.

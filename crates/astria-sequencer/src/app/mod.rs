@@ -1157,11 +1157,24 @@ impl App {
             .put_sequencer_block(sequencer_block)
             .wrap_err("failed to write sequencer block to state")?;
 
+        let consensus_param_updates = self
+            .upgrades_handler
+            .end_block(&mut state_tx, height)
+            .await
+            .wrap_err("upgrades handler failed to end block")?;
+
+        if let Some(consensus_params) = &consensus_param_updates {
+            info!(
+                consensus_params = %display_consensus_params(consensus_params),
+                "updated consensus params"
+            );
+        }
+
         let result = PostTransactionExecutionResult {
             events: end_block.events,
             validator_updates: end_block.validator_updates,
-            consensus_param_updates: end_block.consensus_param_updates,
             tx_results: finalize_block_tx_results,
+            consensus_param_updates,
         };
 
         state_tx.object_put(POST_TRANSACTION_EXECUTION_RESULT_KEY, result);
@@ -1290,7 +1303,7 @@ impl App {
             events,
             tx_results,
             validator_updates,
-            mut consensus_param_updates,
+            consensus_param_updates,
         } = self
             .state
             .object_get(POST_TRANSACTION_EXECUTION_RESULT_KEY)
@@ -1298,27 +1311,6 @@ impl App {
                 "post_transaction_execution_result must be present, as txs were already executed \
                  just now or during the proposal phase",
             );
-
-        self.upgrades_handler
-            .finalize_block(
-                &mut self.state,
-                finalize_block.height,
-                &mut consensus_param_updates,
-            )
-            .await
-            .wrap_err("upgrades handler failed to finalize block")?;
-
-        if let Some(consensus_params) = consensus_param_updates.clone() {
-            info!(
-                consensus_params = %display_consensus_params(&consensus_params),
-                "updated consensus params"
-            );
-            let mut delta_delta = StateDelta::new(self.state.clone());
-            delta_delta
-                .put_consensus_params(consensus_params)
-                .wrap_err("failed to put consensus params to storage")?;
-            let _ = self.apply(delta_delta);
-        }
 
         // prepare the `StagedWriteBatch` for a later commit.
         let app_hash = self
