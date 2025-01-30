@@ -9,14 +9,10 @@ use base64::{
     display::Base64Display,
     engine::general_purpose::STANDARD,
 };
-use borsh::{
-    BorshDeserialize,
-    BorshSerialize,
-};
 use thiserror::Error;
 
 /// A SHA256 digest of a Borsh-encoded upgrade change.
-#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, BorshSerialize, BorshDeserialize)]
+#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ChangeHash([u8; 32]);
 
 impl ChangeHash {

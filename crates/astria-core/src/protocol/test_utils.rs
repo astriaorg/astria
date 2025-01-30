@@ -220,10 +220,8 @@ impl ConfigureSequencerBlock {
 
         let mut data = if use_data_items {
             vec![
-                DataItem::RollupTransactionsRoot(rollup_transactions_tree.root())
-                    .encode()
-                    .unwrap(),
-                DataItem::RollupIdsRoot(rollup_ids_root).encode().unwrap(),
+                DataItem::RollupTransactionsRoot(rollup_transactions_tree.root()).encode(),
+                DataItem::RollupIdsRoot(rollup_ids_root).encode(),
             ]
         } else {
             vec![
@@ -279,9 +277,7 @@ pub fn upgrade_change_hashes() -> Vec<ChangeHash> {
 
 #[must_use]
 pub fn upgrade_change_hashes_bytes() -> Bytes {
-    DataItem::UpgradeChangeHashes(upgrade_change_hashes())
-        .encode()
-        .unwrap()
+    DataItem::UpgradeChangeHashes(upgrade_change_hashes()).encode()
 }
 
 #[must_use]
@@ -305,7 +301,6 @@ pub fn minimal_extended_commit_info_bytes() -> Bytes {
             .into(),
     )
     .encode()
-    .unwrap()
 }
 
 #[must_use]

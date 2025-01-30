@@ -4,14 +4,9 @@ mod tests;
 use std::{
     collections::HashMap,
     fmt::Display,
-    io,
     sync::Arc,
 };
 
-use borsh::{
-    BorshDeserialize,
-    BorshSerialize,
-};
 use bytes::Bytes;
 use indexmap::IndexMap;
 use prost::Message as _;
@@ -1252,7 +1247,6 @@ enum ExtendedCommitInfoErrorKind {
 /// a different hash from their original one by CometBFT, making it difficult for clients to
 /// identify their txs and meaning they would not be cleared out of the CometBFT mempool when added
 /// to a block.
-#[derive(BorshSerialize, BorshDeserialize)]
 pub enum DataItem {
     RollupTransactionsRoot([u8; SHA256_DIGEST_LENGTH]),
     RollupIdsRoot([u8; SHA256_DIGEST_LENGTH]),
@@ -1262,9 +1256,9 @@ pub enum DataItem {
 
 impl DataItem {
     /// The number of bytes output by [`Self::encode`] when `self` is `RollupIdsRoot`.
-    pub const ENCODED_ROLLUP_IDS_ROOT_LENGTH: usize = SHA256_DIGEST_LENGTH + 1;
+    pub const ENCODED_ROLLUP_IDS_ROOT_LENGTH: usize = SHA256_DIGEST_LENGTH + 2;
     /// The number of bytes output by [`Self::encode`] when `self` is `RollupTransactionsRoot`.
-    pub const ENCODED_ROLLUP_TRANSACTIONS_ROOT_LENGTH: usize = SHA256_DIGEST_LENGTH + 1;
+    pub const ENCODED_ROLLUP_TRANSACTIONS_ROOT_LENGTH: usize = SHA256_DIGEST_LENGTH + 2;
     const EXTENDED_COMMIT_INFO_VARIANT_NAME: &'static str = "extended commit info";
     const ROLLUP_IDS_ROOT_VARIANT_NAME: &'static str = "rollup ids root";
     const ROLLUP_TXS_ROOT_VARIANT_NAME: &'static str = "rollup transactions root";
@@ -1279,25 +1273,76 @@ impl DataItem {
         }
     }
 
-    /// Returns the Borsh-encoded bytes of `self`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if encoding fails.
-    pub fn encode(&self) -> Result<Bytes, DataItemError> {
-        borsh::to_vec(self)
-            .map(Bytes::from)
-            .map_err(|source| DataItemError::encode(source, self.variant_name()))
+    /// Returns the protobuf-encoded bytes of `self`.
+    pub fn encode(&self) -> Bytes {
+        let value = match self {
+            DataItem::RollupTransactionsRoot(root) => {
+                raw::data_item::Value::RollupTransactionsRoot(Bytes::copy_from_slice(root))
+            }
+            DataItem::RollupIdsRoot(root) => {
+                raw::data_item::Value::RollupIdsRoot(Bytes::copy_from_slice(root))
+            }
+            DataItem::UpgradeChangeHashes(change_hashes) => {
+                let hashes = change_hashes
+                    .iter()
+                    .map(|change_hash| Bytes::copy_from_slice(change_hash.as_bytes()))
+                    .collect();
+                raw::data_item::Value::UpgradeChangeHashes(raw::data_item::UpgradeChangeHashes {
+                    hashes,
+                })
+            }
+            DataItem::ExtendedCommitInfo(info) => {
+                raw::data_item::Value::ExtendedCommitInfo(info.clone())
+            }
+        };
+        raw::DataItem {
+            value: Some(value),
+        }
+        .encode_to_vec()
+        .into()
     }
 
-    /// Decodes a `DataItem` from the Borsh-encoded `bytes`.
+    /// Decodes a `DataItem` from the protobuf-encoded `bytes`.
     ///
     /// # Errors
     ///
     /// Returns an error if decoding fails.
     fn decode(index_in_data_collection: usize, bytes: &[u8]) -> Result<Self, DataItemError> {
-        borsh::from_slice::<Self>(bytes)
-            .map_err(|source| DataItemError::decode(source, index_in_data_collection))
+        let raw = raw::DataItem::decode(bytes)
+            .map_err(|source| DataItemError::decode(source, index_in_data_collection))?;
+        let value = raw
+            .value
+            .ok_or_else(|| DataItemError::field_not_set("value"))?;
+        match value {
+            raw::data_item::Value::RollupTransactionsRoot(root) => {
+                let decoded_root = root.as_ref().try_into().map_err(|_| {
+                    DataItemError::incorrect_hash_length("rollup_transactions_root", root.len())
+                })?;
+                Ok(DataItem::RollupTransactionsRoot(decoded_root))
+            }
+            raw::data_item::Value::RollupIdsRoot(root) => {
+                let decoded_root = root.as_ref().try_into().map_err(|_| {
+                    DataItemError::incorrect_hash_length("rollup_ids_root", root.len())
+                })?;
+                Ok(DataItem::RollupIdsRoot(decoded_root))
+            }
+            raw::data_item::Value::UpgradeChangeHashes(hashes) => {
+                let decoded_hashes = hashes
+                    .hashes
+                    .into_iter()
+                    .map(|hash| {
+                        let bytes = hash.as_ref().try_into().map_err(|_| {
+                            DataItemError::incorrect_hash_length("upgrade_change_hash", hash.len())
+                        })?;
+                        Ok(ChangeHash::new(bytes))
+                    })
+                    .collect::<Result<_, _>>()?;
+                Ok(DataItem::UpgradeChangeHashes(decoded_hashes))
+            }
+            raw::data_item::Value::ExtendedCommitInfo(info) => {
+                Ok(DataItem::ExtendedCommitInfo(info))
+            }
+        }
     }
 
     fn into_rollup_transactions_root(
@@ -1356,17 +1401,21 @@ impl DataItem {
 pub struct DataItemError(DataItemErrorKind);
 
 impl DataItemError {
-    fn encode(source: io::Error, variant: &'static str) -> Self {
-        Self(DataItemErrorKind::Encode {
-            source,
-            variant,
-        })
-    }
-
-    fn decode(source: io::Error, index: usize) -> Self {
+    fn decode(source: prost::DecodeError, index: usize) -> Self {
         Self(DataItemErrorKind::Decode {
             source,
             index,
+        })
+    }
+
+    fn field_not_set(field: &'static str) -> Self {
+        Self(DataItemErrorKind::FieldNotSet(field))
+    }
+
+    fn incorrect_hash_length(name: &'static str, actual: usize) -> Self {
+        Self(DataItemErrorKind::IncorrectHashLength {
+            name,
+            actual,
         })
     }
 
@@ -1381,13 +1430,15 @@ impl DataItemError {
 
 #[derive(Debug, thiserror::Error)]
 enum DataItemErrorKind {
-    #[error("failed to borsh-encode {variant} as data item")]
-    Encode {
-        source: io::Error,
-        variant: &'static str,
+    #[error("item {index} of cometbft `block.data` could not be protobuf-decoded")]
+    Decode {
+        source: prost::DecodeError,
+        index: usize,
     },
-    #[error("item {index} of cometbft `block.data` could not be borsh-decoded")]
-    Decode { source: io::Error, index: usize },
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error("{name} hash must have exactly 32 bytes, but {actual} bytes provided")]
+    IncorrectHashLength { name: &'static str, actual: usize },
     #[error("unexpected data element `{actual}` at index {index}, expected `{expected}`")]
     Mismatch {
         index: usize,
@@ -1486,7 +1537,7 @@ impl ExpandedBlockData {
     }
 
     /// Constructs a new `ExpandedBlockData` from `data`, expecting the entries to be in the
-    /// post-upgrade1 form of Borsh-encoded `DataItem`s.
+    /// post-upgrade1 form of protobuf-encoded `DataItem`s.
     ///
     /// The expected order is:
     ///   - `RollupTransactionsRoot`

@@ -422,11 +422,7 @@ impl App {
         let encoded_upgrade_change_hashes = if upgrade_change_hashes.is_empty() {
             None
         } else {
-            Some(
-                DataItem::UpgradeChangeHashes(upgrade_change_hashes)
-                    .encode()
-                    .wrap_err("failed to encode upgrade change hashes")?,
-            )
+            Some(DataItem::UpgradeChangeHashes(upgrade_change_hashes).encode())
         };
 
         let uses_data_item_enum = self.uses_data_item_enum(prepare_proposal.height);
@@ -472,8 +468,7 @@ impl App {
             let mut encoded_extended_commit_info = DataItem::ExtendedCommitInfo(
                 extended_commit_info.into_raw().encode_to_vec().into(),
             )
-            .encode()
-            .wrap_err("failed to encode extended commit info")?;
+            .encode();
 
             if block_size_constraints
                 .cometbft_checked_add(encoded_extended_commit_info.len())
@@ -485,9 +480,7 @@ impl App {
                     encoded_extended_commit_info_len = encoded_extended_commit_info.len(),
                     "extended commit info is too large to fit in block; not including in block"
                 );
-                encoded_extended_commit_info = DataItem::ExtendedCommitInfo(Bytes::new())
-                    .encode()
-                    .wrap_err("failed to encode empty extended commit info")?;
+                encoded_extended_commit_info = DataItem::ExtendedCommitInfo(Bytes::new()).encode();
                 block_size_constraints
                     .cometbft_checked_add(encoded_extended_commit_info.len())
                     .wrap_err("exceeded size limit while adding empty extended commit info")?;
@@ -516,8 +509,7 @@ impl App {
             generate_rollup_datas_commitment::<true>(&signed_txs_included, deposits).into_iter()
         } else {
             generate_rollup_datas_commitment::<false>(&signed_txs_included, deposits).into_iter()
-        }
-        .wrap_err("failed to generate commitments")?;
+        };
 
         let txs = commitments_iter
             .chain(encoded_upgrade_change_hashes.into_iter())

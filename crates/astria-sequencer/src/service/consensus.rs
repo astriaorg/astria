@@ -465,7 +465,7 @@ mod tests {
                 .err()
                 .unwrap()
         );
-        let expected = "item 0 of cometbft `block.data` could not be borsh-decoded";
+        let expected = "item 0 of cometbft `block.data` could not be protobuf-decoded";
         assert!(
             error_message.contains(expected),
             "`{error_message}` didn't contain `{expected}`"
@@ -476,9 +476,7 @@ mod tests {
     async fn process_proposal_fail_wrong_commitment_value() {
         let (mut consensus_service, _) = new_consensus_service(None).await;
         let mut process_proposal = new_process_proposal_request(&[]);
-        process_proposal.txs[0] = DataItem::RollupTransactionsRoot([99u8; 32])
-            .encode()
-            .unwrap();
+        process_proposal.txs[0] = DataItem::RollupTransactionsRoot([99u8; 32]).encode();
         let error_message = format!(
             "{:#}",
             consensus_service

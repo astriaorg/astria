@@ -75,10 +75,7 @@ fn block_to_filtered_roundtrip() {
 #[test]
 fn encoded_rollup_txs_root_length_should_be_correct() {
     assert_eq!(
-        DataItem::RollupTransactionsRoot([1; 32])
-            .encode()
-            .unwrap()
-            .len(),
+        DataItem::RollupTransactionsRoot([1; 32]).encode().len(),
         DataItem::ENCODED_ROLLUP_TRANSACTIONS_ROOT_LENGTH
     );
 }
@@ -86,7 +83,7 @@ fn encoded_rollup_txs_root_length_should_be_correct() {
 #[test]
 fn encoded_rollup_ids_root_length_should_be_correct() {
     assert_eq!(
-        DataItem::RollupIdsRoot([1; 32]).encode().unwrap().len(),
+        DataItem::RollupIdsRoot([1; 32]).encode().len(),
         DataItem::ENCODED_ROLLUP_IDS_ROOT_LENGTH
     );
 }
@@ -96,9 +93,7 @@ fn rollup_txs_root_legacy_bytes() -> Bytes {
 }
 
 fn rollup_txs_root_bytes() -> Bytes {
-    DataItem::RollupTransactionsRoot(ROLLUP_TXS_ROOT)
-        .encode()
-        .unwrap()
+    DataItem::RollupTransactionsRoot(ROLLUP_TXS_ROOT).encode()
 }
 
 fn rollup_ids_root_legacy_bytes() -> Bytes {
@@ -106,7 +101,7 @@ fn rollup_ids_root_legacy_bytes() -> Bytes {
 }
 
 fn rollup_ids_root_bytes() -> Bytes {
-    DataItem::RollupIdsRoot(ROLLUP_IDS_ROOT).encode().unwrap()
+    DataItem::RollupIdsRoot(ROLLUP_IDS_ROOT).encode()
 }
 
 fn tx(nonce: u32) -> Transaction {

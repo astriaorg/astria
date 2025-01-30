@@ -244,6 +244,47 @@ impl ::prost::Name for RollupData {
         ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
     }
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DataItem {
+    #[prost(oneof = "data_item::Value", tags = "1, 2, 3, 4")]
+    pub value: ::core::option::Option<data_item::Value>,
+}
+/// Nested message and enum types in `DataItem`.
+pub mod data_item {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Message)]
+    pub struct UpgradeChangeHashes {
+        #[prost(bytes = "bytes", repeated, tag = "1")]
+        pub hashes: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
+    }
+    impl ::prost::Name for UpgradeChangeHashes {
+        const NAME: &'static str = "UpgradeChangeHashes";
+        const PACKAGE: &'static str = "astria.sequencerblock.v1";
+        fn full_name() -> ::prost::alloc::string::String {
+            ::prost::alloc::format!("astria.sequencerblock.v1.DataItem.{}", Self::NAME)
+        }
+    }
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(bytes, tag = "1")]
+        RollupTransactionsRoot(::prost::bytes::Bytes),
+        #[prost(bytes, tag = "2")]
+        RollupIdsRoot(::prost::bytes::Bytes),
+        #[prost(message, tag = "3")]
+        UpgradeChangeHashes(UpgradeChangeHashes),
+        #[prost(bytes, tag = "4")]
+        ExtendedCommitInfo(::prost::bytes::Bytes),
+    }
+}
+impl ::prost::Name for DataItem {
+    const NAME: &'static str = "DataItem";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
+    }
+}
 /// If no upgrade change hashes exist in the block, this will be the third item in the cometbft
 /// block data field, otherwise it will be fourth.
 #[allow(clippy::derive_partial_eq_without_eq)]

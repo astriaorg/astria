@@ -189,12 +189,10 @@ pub(crate) fn transactions_with_extended_commit_info_and_commitments(
     let extended_commit_info = ExtendedCommitInfoWithCurrencyPairMapping::empty(0u16.into());
     let encoded_extended_commit_info =
         DataItem::ExtendedCommitInfo(extended_commit_info.into_raw().encode_to_vec().into())
-            .encode()
-            .unwrap();
+            .encode();
     let commitments = generate_rollup_datas_commitment::<true>(txs, deposits.unwrap_or_default());
     let txs_with_commit_info: Vec<Bytes> = commitments
         .into_iter()
-        .unwrap()
         .chain(std::iter::once(encoded_extended_commit_info))
         .chain(txs.iter().map(|tx| tx.to_raw().encode_to_vec().into()))
         .collect();

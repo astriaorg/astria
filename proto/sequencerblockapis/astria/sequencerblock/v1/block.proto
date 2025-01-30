@@ -153,6 +153,18 @@ message RollupData {
   }
 }
 
+message DataItem {
+  message UpgradeChangeHashes {
+    repeated bytes hashes = 1;
+  }
+  oneof value {
+    bytes rollup_transactions_root = 1;
+    bytes rollup_ids_root = 2;
+    UpgradeChangeHashes upgrade_change_hashes = 3;
+    bytes extended_commit_info = 4;
+  }
+}
+
 // If no upgrade change hashes exist in the block, this will be the third item in the cometbft
 // block data field, otherwise it will be fourth.
 message ExtendedCommitInfoWithProof {

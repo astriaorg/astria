@@ -15,10 +15,6 @@ use astria_core::{
         RollupData,
     },
 };
-use astria_eyre::eyre::{
-    Result,
-    WrapErr,
-};
 use bytes::Bytes;
 
 /// Wrapper for values returned by [`generate_rollup_datas_commitment`].
@@ -41,22 +37,24 @@ impl<const USES_DATA_ITEM_ENUM: bool> GeneratedCommitments<USES_DATA_ITEM_ENUM> 
             64
         }
     }
+}
 
-    pub(crate) fn into_iter(self) -> Result<std::array::IntoIter<Bytes, 2>> {
+impl<const USES_DATA_ITEM_ENUM: bool> IntoIterator for GeneratedCommitments<USES_DATA_ITEM_ENUM> {
+    type IntoIter = std::array::IntoIter<Self::Item, 2>;
+    type Item = Bytes;
+
+    fn into_iter(self) -> Self::IntoIter {
         if USES_DATA_ITEM_ENUM {
-            let rollup_datas_root = DataItem::RollupTransactionsRoot(self.rollup_datas_root)
-                .encode()
-                .wrap_err("failed to encode rollup transactions root")?;
-            let rollup_ids_root = DataItem::RollupIdsRoot(self.rollup_ids_root)
-                .encode()
-                .wrap_err("failed to encode rollup ids root")?;
-            Ok([rollup_datas_root, rollup_ids_root].into_iter())
+            let rollup_datas_root =
+                DataItem::RollupTransactionsRoot(self.rollup_datas_root).encode();
+            let rollup_ids_root = DataItem::RollupIdsRoot(self.rollup_ids_root).encode();
+            [rollup_datas_root, rollup_ids_root].into_iter()
         } else {
-            Ok([
+            [
                 self.rollup_datas_root.to_vec().into(),
                 self.rollup_ids_root.to_vec().into(),
             ]
-            .into_iter())
+            .into_iter()
         }
     }
 }
