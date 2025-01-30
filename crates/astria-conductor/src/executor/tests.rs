@@ -17,11 +17,11 @@ use super::{
         StateReceiver,
         StateSender,
     },
-    RollupId,
 };
-use crate::config::CommitLevel;
-
-const ROLLUP_ID: RollupId = RollupId::new([42u8; 32]);
+use crate::{
+    config::CommitLevel,
+    test_utils::make_genesis_info,
+};
 
 fn make_block(number: u32) -> raw::Block {
     raw::Block {
@@ -46,12 +46,7 @@ fn make_state(
         soft,
     }: MakeState,
 ) -> (StateSender, StateReceiver) {
-    let genesis_info = GenesisInfo::try_from_raw(raw::GenesisInfo {
-        rollup_id: Some(ROLLUP_ID.to_raw()),
-        sequencer_genesis_block_height: 1,
-        celestia_block_variance: 1,
-    })
-    .unwrap();
+    let genesis_info = GenesisInfo::try_from_raw(make_genesis_info()).unwrap();
     let commitment_state = CommitmentState::try_from_raw(raw::CommitmentState {
         firm: Some(make_block(firm)),
         soft: Some(make_block(soft)),

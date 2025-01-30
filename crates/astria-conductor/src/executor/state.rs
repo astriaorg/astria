@@ -438,68 +438,11 @@ pub(super) fn map_sequencer_height_to_rollup_height(
 
 #[cfg(test)]
 mod tests {
-    use astria_core::{
-        generated::astria::execution::v1 as raw,
-        Protobuf as _,
-    };
-    use pbjson_types::Timestamp;
-
     use super::*;
-
-    fn make_commitment_state() -> CommitmentState {
-        let firm = Block::try_from_raw(raw::Block {
-            number: 1,
-            hash: vec![42u8; 32].into(),
-            parent_block_hash: vec![41u8; 32].into(),
-            timestamp: Some(Timestamp {
-                seconds: 123_456,
-                nanos: 789,
-            }),
-        })
-        .unwrap();
-        let soft = Block::try_from_raw(raw::Block {
-            number: 2,
-            hash: vec![43u8; 32].into(),
-            parent_block_hash: vec![42u8; 32].into(),
-            timestamp: Some(Timestamp {
-                seconds: 123_456,
-                nanos: 789,
-            }),
-        })
-        .unwrap();
-        CommitmentState::builder()
-            .firm(firm)
-            .soft(soft)
-            .base_celestia_height(1u64)
-            .build()
-            .unwrap()
-    }
-
-    fn make_genesis_info() -> GenesisInfo {
-        let rollup_id = RollupId::new([24; 32]);
-        GenesisInfo::try_from_raw(raw::GenesisInfo {
-            rollup_id: Some(rollup_id.to_raw()),
-            sequencer_start_height: 10,
-            celestia_block_variance: 0,
-            rollup_start_block_number: 0,
-            rollup_stop_block_number: 90,
-            sequencer_chain_id: "test-sequencer-0".to_string(),
-            celestia_chain_id: "test-celestia-0".to_string(),
-            halt_at_stop_height: false,
-        })
-        .unwrap()
-    }
-
-    fn make_state() -> State {
-        State::try_from_genesis_info_and_commitment_state(
-            make_genesis_info(),
-            make_commitment_state(),
-        )
-        .unwrap()
-    }
+    use crate::test_utils::test_rollup_state;
 
     fn make_channel() -> (StateSender, StateReceiver) {
-        super::channel(make_state())
+        super::channel(test_rollup_state())
     }
 
     #[test]

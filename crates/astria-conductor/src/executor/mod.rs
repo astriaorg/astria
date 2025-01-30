@@ -61,8 +61,8 @@ pub(crate) use builder::Builder;
 
 mod client;
 mod state;
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 pub(super) use client::Client;
 pub(crate) use state::{
     State,
