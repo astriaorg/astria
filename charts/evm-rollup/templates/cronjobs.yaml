@@ -1,0 +1,60 @@
+{{- if .Values.config.geth.snapshot.create.enabled }}
+---
+kind: CronJob
+apiVersion: batch/v1
+metadata:
+  name: {{ include "rollup.name" . }}-geth-snapshots
+  labels:
+    app: {{ include "rollup.appName" . }}
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  schedule: "{{ .Values.config.geth.snapshot.create.schedule }}"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: create-snapshot
+            image: {{ .Values.images.snapshot.repo }}:{{ .Values.images.snapshot.tag }}
+            imagePullPolicy: {{ .Values.images.snapshot.pullPolicy }}
+            command: [ "/scripts/create-snapshot.sh" ]
+            envFrom:
+              - configMapRef:
+                  name: {{ include "rollup.name" . }}-geth-env
+            volumeMounts:
+              {{- if .Values.config.geth.snapshot.create.storage.upload.enabled }}
+              - mountPath: /root/.config/rclone/
+                name: {{ include "rollup.name" . }}-rclone-config-volume
+              {{- end }}
+              - mountPath: /scripts/
+                name: {{ include "rollup.name" . }}-executor-scripts-volume
+              - mountPath: /home/geth
+                name: {{ include "rollup.name" $ }}-rollup-shared-storage-vol
+                subPath: {{ include "rollup.name" . }}/executor
+          restartPolicy: OnFailure
+          volumes:
+            {{- if .Values.config.geth.snapshot.create.storage.upload.enabled }}
+            - name: {{ include "rollup.name" . }}-rclone-config-volume
+              {{- if .Values.secretProvider.enabled }}
+              csi:
+                driver: secrets-store.csi.k8s.io
+                readOnly: true
+                volumeAttributes:
+                  secretProviderClass: {{ include "rollup.name" . }}-secrets-rclone
+              {{- else }}
+              configMap:
+                name: {{ include "rollup.name" . }}-rclone-config
+              {{- end }}
+            {{- end }}
+            - name: {{ include "rollup.name" . }}-executor-scripts-volume
+              configMap:
+                name: {{ include "rollup.name" . }}-executor-scripts
+                defaultMode: 0500
+            - name: {{ include "rollup.name" $ }}-rollup-shared-storage-vol
+              {{- if .Values.storage.enabled }}
+              persistentVolumeClaim:
+                claimName: {{ include "rollup.name" $ }}-rollup-shared-storage-pvc-geth
+              {{- else }}
+              emptyDir: {}
+              {{- end }}
+{{- end }}

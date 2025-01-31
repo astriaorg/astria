@@ -1,6 +1,33 @@
-* @joroshiba @SuperFluffy @noot
+* @joroshiba
 
-*.snap @joroshiba
+astria-bridge-contracts/ @SuperFluffy @joroshiba
+astria-bridge-withdrawer/ @SuperFluffy @joroshiba
+astria-build-info/ @SuperFluffy @joroshiba
+astria-cli/ @SuperFluffy @joroshiba
+astria-composer/ @SuperFluffy @joroshiba
+astria-conductor/ @SuperFluffy @joroshiba
+astria-config/ @SuperFluffy @joroshiba
+astria-core/ @SuperFluffy @fraser999
+astria-core-address/ @SuperFluffy @fraser999
+astria-core-consts/ @SuperFluffy @fraser999
+astria-core-crypto/ @SuperFluffy @fraser999
+astria-eyre/ @SuperFluffy @fraser999
+astria-grpc-mock/ @SuperFluffy @fraser999
+astria-grpc-mock-test/ @SuperFluffy @fraser999
+astria-grpc-mock-test-codegen/ @SuperFluffy @fraser999
+astria-merkle/ @SuperFluffy @joroshiba
+astria-sequencer/ @noot @fraser999
+astria-sequencer-client/ @SuperFluffy @fraser999
+astria-sequencer-relayer/ @fraser999 @SuperFluffy
+astria-sequencer-utils/ @fraser999 @noot
+astria-telemetry/ @SuperFluffy @fraser999
+astria-test-utils/ @SuperFluffy @joroshiba
+
+tools/astria-address @SuperFluffy @joroshiba
+tools/protobuf-compiler @SuperFluffy @joroshiba
+tools/solidity-compiler @SuperFluffy @joroshiba
+
+*.snap @joroshiba @SuperFluffy @fraser999
 
 specs/ @astriaorg/engineering
 justfile @astriaorg/engineering
@@ -10,7 +37,9 @@ taplo.toml @astriaorg/engineering
 .gitignore @astriaorg/engineering
 
 /.github/ @astriaorg/infra
-/containerfiles/ @astriaorg/infra
+/.github/workflows/lint.yml @superfluffy @fraser999
+/.github/workflows/test.yml @superfluffy @fraser999
+/containerfiles/ @superfluffy @fraser999
 /charts/ @astriaorg/infra
 /dev/ @astriaorg/infra
 .dockerignore @astriaorg/infra
@@ -22,11 +51,9 @@ buf.lock @astriaorg/api-reviewers
 buf.yaml @astriaorg/api-reviewers
 buf.work.yaml @astriaorg/api-reviewers
 
-*.rs @astriaorg/rust-reviewers
-Cargo.toml @astriaorg/rust-reviewers
-Cargo.lock @astriaorg/rust-reviewers
-rust-toolchain @astriaorg/rust-reviewers
-.cargo/ @astriaorg/rust-reviewers
-nextest.toml @astriaorg/rust-reviewers
-rusfmt.toml @astriaorg/rust-reviewers
-crates/*/CHANGELOG.md @astriaorg/rust-reviewers
+/Cargo.toml @SuperFluffy @fraser999
+/Cargo.lock @SuperFluffy @fraser999
+/rust-toolchain @SuperFluffy @fraser999
+/.cargo/ @SuperFluffy @fraser999
+/nextest.toml @SuperFluffy @fraser999
+/rusfmt.toml @SuperFluffy @fraser999
