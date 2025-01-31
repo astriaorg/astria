@@ -30,16 +30,16 @@ async fn one_block_is_relayed_to_celestia() {
     sequencer_relayer
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
         .await;
-    let get_tx_guard = sequencer_relayer
-        .mount_celestia_app_get_tx_response_as_scoped(53, "get tx 1")
+    let tx_status_guard = sequencer_relayer
+        .mount_celestia_app_tx_status_response_as_scoped(53, "COMMITTED", 1)
         .await;
     // The `MIN_POLL_INTERVAL_SECS` is 1, meaning the relayer waits for 1 second before attempting
-    // the first `GetTx`, so we wait for 2 seconds.
+    // the first `tx_status`, so we wait for 2 seconds.
     sequencer_relayer
         .timeout_ms(
             2_000,
-            "waiting for get tx guard",
-            get_tx_guard.wait_until_satisfied(),
+            "waiting for tx status guard",
+            tx_status_guard.wait_until_satisfied(),
         )
         .await;
 
@@ -61,7 +61,7 @@ async fn one_block_is_relayed_to_celestia() {
     );
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn report_degraded_if_block_fetch_fails() {
     let sequencer_relayer = TestSequencerRelayerConfig::default().spawn_relayer().await;
 
@@ -80,8 +80,8 @@ async fn report_degraded_if_block_fetch_fails() {
     sequencer_relayer
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
         .await;
-    let get_tx_guard = sequencer_relayer
-        .mount_celestia_app_get_tx_response_as_scoped(53, "get tx 1")
+    let tx_status_guard = sequencer_relayer
+        .mount_celestia_app_tx_status_response_as_scoped(53, "COMMITTED", 1)
         .await;
     let healthz_status = sequencer_relayer
         .wait_for_healthz(StatusCode::OK, 2_000, "waiting for first healthz")
@@ -90,8 +90,8 @@ async fn report_degraded_if_block_fetch_fails() {
     sequencer_relayer
         .timeout_ms(
             2_000,
-            "waiting for get tx guard",
-            get_tx_guard.wait_until_satisfied(),
+            "waiting for tx status guard",
+            tx_status_guard.wait_until_satisfied(),
         )
         .await;
 
@@ -139,14 +139,14 @@ async fn later_height_in_state_leads_to_expected_relay() {
     sequencer_relayer
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
         .await;
-    let get_tx_guard = sequencer_relayer
-        .mount_celestia_app_get_tx_response_as_scoped(53, "get tx 1")
+    let tx_status_guard = sequencer_relayer
+        .mount_celestia_app_tx_status_response_as_scoped(53, "COMMITTED", 1)
         .await;
     sequencer_relayer
         .timeout_ms(
             2_000,
-            "waiting for get tx guard",
-            get_tx_guard.wait_until_satisfied(),
+            "waiting for tx status guard",
+            tx_status_guard.wait_until_satisfied(),
         )
         .await;
 
@@ -194,27 +194,21 @@ async fn three_blocks_are_relayed() {
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
         .await;
     sequencer_relayer
-        .mount_celestia_app_get_tx_response(53, "get tx 1")
-        .await;
-    sequencer_relayer
         .mount_celestia_app_broadcast_tx_response("broadcast tx 2")
-        .await;
-    sequencer_relayer
-        .mount_celestia_app_get_tx_response(53, "get tx 2")
         .await;
     sequencer_relayer
         .mount_celestia_app_broadcast_tx_response("broadcast tx 3")
         .await;
-    let get_tx_guard = sequencer_relayer
-        .mount_celestia_app_get_tx_response_as_scoped(53, "get tx 3")
+    let tx_status_guard = sequencer_relayer
+        .mount_celestia_app_tx_status_response_as_scoped(53, "COMMITTED", 3)
         .await;
-    // Each block will have taken ~1 second due to the delay before each `GetTx`, so use 4.5
+    // Each block will have taken ~1 second due to the delay before each `tx_status`, so use 4.5
     // seconds.
     sequencer_relayer
         .timeout_ms(
             4_500,
-            "waiting for get tx guard",
-            get_tx_guard.wait_until_satisfied(),
+            "waiting for tx status guard",
+            tx_status_guard.wait_until_satisfied(),
         )
         .await;
 
@@ -272,14 +266,14 @@ async fn should_filter_rollup() {
     sequencer_relayer
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
         .await;
-    let get_tx_guard = sequencer_relayer
-        .mount_celestia_app_get_tx_response_as_scoped(53, "get tx 1")
+    let tx_status_guard = sequencer_relayer
+        .mount_celestia_app_tx_status_response_as_scoped(53, "COMMITTED", 1)
         .await;
     sequencer_relayer
         .timeout_ms(
             10_000,
-            "waiting for get tx guard",
-            get_tx_guard.wait_until_satisfied(),
+            "waiting for tx status guard",
+            tx_status_guard.wait_until_satisfied(),
         )
         .await;
 
@@ -325,14 +319,14 @@ async fn should_shut_down() {
     // process.
     sequencer_relayer.relayer_shutdown_handle.take();
 
-    let get_tx_guard = sequencer_relayer
-        .mount_celestia_app_get_tx_response_as_scoped(53, "get tx 1")
+    let tx_status_guard = sequencer_relayer
+        .mount_celestia_app_tx_status_response_as_scoped(53, "COMMITTED", 1)
         .await;
     sequencer_relayer
         .timeout_ms(
             2_000,
-            "waiting for get tx guard",
-            get_tx_guard.wait_until_satisfied(),
+            "waiting for tx status guard",
+            tx_status_guard.wait_until_satisfied(),
         )
         .await;
 

@@ -83,6 +83,7 @@ use prost::{
     Message,
     Name,
 };
+use serde_json::json;
 use tokio::task::JoinHandle;
 use tonic::{
     transport::Server,
@@ -90,19 +91,22 @@ use tonic::{
     Response,
     Status,
 };
+use wiremock::MockServer as HttpMockServer;
 
 const GET_NODE_INFO_GRPC_NAME: &str = "get_node_info";
 const QUERY_ACCOUNT_GRPC_NAME: &str = "query_account";
 const QUERY_AUTH_PARAMS_GRPC_NAME: &str = "query_auth_params";
 const QUERY_BLOB_PARAMS_GRPC_NAME: &str = "query_blob_params";
 const MIN_GAS_PRICE_GRPC_NAME: &str = "min_gas_price";
-const GET_TX_GRPC_NAME: &str = "get_tx";
+const TX_STATUS_JSONRPC_NAME: &str = "tx_status";
 const BROADCAST_TX_GRPC_NAME: &str = "broadcast_tx";
 
 pub struct MockCelestiaAppServer {
     _server: JoinHandle<eyre::Result<()>>,
-    pub mock_server: MockServer,
-    pub local_addr: SocketAddr,
+    pub mock_grpc_server: MockServer,
+    pub mock_http_server: HttpMockServer,
+    pub grpc_local_addr: SocketAddr,
+    pub http_local_addr: String,
     pub namespaces: Arc<Mutex<Vec<Namespace>>>,
 }
 
@@ -110,18 +114,25 @@ impl MockCelestiaAppServer {
     pub async fn spawn(celestia_chain_id: String) -> Self {
         use tokio_stream::wrappers::TcpListenerStream;
 
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let local_addr = listener.local_addr().unwrap();
+        let grpc_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let grpc_local_addr = grpc_listener.local_addr().unwrap();
+        let mock_grpc_server = MockServer::new();
 
-        let mock_server = MockServer::new();
-        register_get_node_info(&mock_server, celestia_chain_id).await;
-        register_query_account(&mock_server).await;
-        register_query_auth_params(&mock_server).await;
-        register_query_blob_params(&mock_server).await;
-        register_min_gas_price(&mock_server).await;
+        let http_listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let mock_http_server = HttpMockServer::builder()
+            .listener(http_listener)
+            .start()
+            .await;
+        let http_local_addr = mock_http_server.uri();
+
+        register_get_node_info(&mock_grpc_server, celestia_chain_id).await;
+        register_query_account(&mock_grpc_server).await;
+        register_query_auth_params(&mock_grpc_server).await;
+        register_query_blob_params(&mock_grpc_server).await;
+        register_min_gas_price(&mock_grpc_server).await;
 
         let server = {
-            let service_impl = CelestiaAppServiceImpl(mock_server.clone());
+            let service_impl = CelestiaAppServiceImpl(mock_grpc_server.clone());
             tokio::spawn(async move {
                 Server::builder()
                     .add_service(NodeInfoServer::new(service_impl.clone()))
@@ -129,22 +140,24 @@ impl MockCelestiaAppServer {
                     .add_service(BlobQueryServer::new(service_impl.clone()))
                     .add_service(MinGasPriceServer::new(service_impl.clone()))
                     .add_service(TxServer::new(service_impl))
-                    .serve_with_incoming(TcpListenerStream::new(listener))
+                    .serve_with_incoming(TcpListenerStream::new(grpc_listener))
                     .await
                     .wrap_err("gRPC sequencer server failed")
             })
         };
         Self {
             _server: server,
-            mock_server,
-            local_addr,
+            mock_grpc_server,
+            mock_http_server,
+            grpc_local_addr,
+            http_local_addr,
             namespaces: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
     pub async fn mount_broadcast_tx_response(&self, debug_name: impl Into<String>) {
         self.prepare_broadcast_tx_response(debug_name)
-            .mount(&self.mock_server)
+            .mount(&self.mock_grpc_server)
             .await;
     }
 
@@ -153,23 +166,7 @@ impl MockCelestiaAppServer {
         debug_name: impl Into<String>,
     ) -> MockGuard {
         self.prepare_broadcast_tx_response(debug_name)
-            .mount_as_scoped(&self.mock_server)
-            .await
-    }
-
-    pub async fn mount_get_tx_response(&self, height: i64, debug_name: impl Into<String>) {
-        Self::prepare_get_tx_response(height, debug_name)
-            .mount(&self.mock_server)
-            .await;
-    }
-
-    pub async fn mount_get_tx_response_as_scoped(
-        &self,
-        height: i64,
-        debug_name: impl Into<String>,
-    ) -> MockGuard {
-        Self::prepare_get_tx_response(height, debug_name)
-            .mount_as_scoped(&self.mock_server)
+            .mount_as_scoped(&self.mock_grpc_server)
             .await
     }
 
@@ -202,32 +199,57 @@ impl MockCelestiaAppServer {
             .with_name(debug_name)
     }
 
-    fn prepare_get_tx_response(height: i64, debug_name: impl Into<String>) -> Mock {
-        let debug_name = debug_name.into();
-        // We only use the `tx_response.code` and `tx_response.height` fields in the success case.
-        // The `txhash` would be an actual hex-encoded SHA256 in prod, but here we can just use the
-        // debug name for ease of debugging.
-        let tx_response = TxResponse {
-            height,
-            txhash: debug_name.clone(),
-            code: 0,
-            ..TxResponse::default()
-        };
-        let response = GetTxResponse {
-            tx: None,
-            tx_response: Some(tx_response),
-        };
-        Mock::for_rpc_given(GET_TX_GRPC_NAME, message_type::<GetTxRequest>())
-            .respond_with(constant_response(response))
-            .up_to_n_times(1)
-            .expect(1)
-            .with_name(debug_name)
+    pub async fn mount_tx_status_response(&self, status: String, height: i64) {
+        prepare_tx_status_response(status, height)
+            .mount(&self.mock_http_server)
+            .await;
     }
+
+    pub async fn mount_tx_status_response_as_scoped(
+        &self,
+        status: String,
+        height: i64,
+        expected: u64,
+    ) -> wiremock::MockGuard {
+        prepare_tx_status_response(status, height)
+            .expect(expected)
+            .mount_as_scoped(&self.mock_http_server)
+            .await
+    }
+}
+
+fn prepare_tx_status_response(status: String, height: i64) -> wiremock::Mock {
+    use wiremock::{
+        matchers::body_partial_json,
+        Mock,
+        ResponseTemplate,
+    };
+
+    Mock::given(body_partial_json(json!({
+        "jsonrpc": "2.0",
+        "method": TX_STATUS_JSONRPC_NAME
+    })))
+    .respond_with(move |request: &wiremock::Request| {
+        let body: serde_json::Value = serde_json::from_slice(&request.body).unwrap();
+        ResponseTemplate::new(200).set_body_json(json!({
+          "jsonrpc": "2.0",
+          "id": body.get("id"),
+          "result": {
+            "height": height.to_string(),
+            "index": 0,
+            "execution_code": 0,
+            "error": "",
+            "status": status
+          }
+        }))
+    })
+    .named(TX_STATUS_JSONRPC_NAME)
+    .expect(1)
 }
 
 /// Registers a handler for all incoming `GetNodeInfoRequest`s which responds with the same
 /// `GetNodeInfoResponse` every time.
-async fn register_get_node_info(mock_server: &MockServer, celestia_chain_id: String) {
+async fn register_get_node_info(mock_grpc_server: &MockServer, celestia_chain_id: String) {
     let default_node_info = Some(DefaultNodeInfo {
         network: celestia_chain_id,
         ..Default::default()
@@ -243,14 +265,14 @@ async fn register_get_node_info(mock_server: &MockServer, celestia_chain_id: Str
     )
     .respond_with(constant_response(response))
     .with_name("global get node info")
-    .mount(mock_server)
+    .mount(mock_grpc_server)
     .await;
 }
 
 /// Registers a handler for all incoming `QueryAccountRequest`s which responds with a
 /// `QueryAccountResponse` using the received account address, but otherwise the same data every
 /// time.
-async fn register_query_account(mock_server: &MockServer) {
+async fn register_query_account(mock_grpc_server: &MockServer) {
     let responder = |request: &QueryAccountRequest| {
         let account = BaseAccount {
             address: request.address.clone(),
@@ -272,7 +294,7 @@ async fn register_query_account(mock_server: &MockServer) {
     )
     .respond_with(dynamic_response(responder))
     .with_name("global query account")
-    .mount(mock_server)
+    .mount(mock_grpc_server)
     .await;
 }
 
@@ -280,7 +302,7 @@ async fn register_query_account(mock_server: &MockServer) {
 /// `QueryAuthParamsResponse` every time.
 ///
 /// The response is as per current values in Celestia mainnet.
-async fn register_query_auth_params(mock_server: &MockServer) {
+async fn register_query_auth_params(mock_grpc_server: &MockServer) {
     let params = AuthParams {
         max_memo_characters: 256,
         tx_sig_limit: 7,
@@ -297,7 +319,7 @@ async fn register_query_auth_params(mock_server: &MockServer) {
     )
     .respond_with(constant_response(response))
     .with_name("global query auth params")
-    .mount(mock_server)
+    .mount(mock_grpc_server)
     .await;
 }
 
@@ -305,7 +327,7 @@ async fn register_query_auth_params(mock_server: &MockServer) {
 /// `QueryBlobParamsResponse` every time.
 ///
 /// The response is as per current values in Celestia mainnet.
-async fn register_query_blob_params(mock_server: &MockServer) {
+async fn register_query_blob_params(mock_grpc_server: &MockServer) {
     let response = QueryBlobParamsResponse {
         params: Some(BlobParams {
             gas_per_blob_byte: 8,
@@ -318,7 +340,7 @@ async fn register_query_blob_params(mock_server: &MockServer) {
     )
     .respond_with(constant_response(response))
     .with_name("global query blob params")
-    .mount(mock_server)
+    .mount(mock_grpc_server)
     .await;
 }
 
@@ -326,7 +348,7 @@ async fn register_query_blob_params(mock_server: &MockServer) {
 /// `MinGasPriceResponse` every time.
 ///
 /// The response is as per the current value in Celestia mainnet.
-async fn register_min_gas_price(mock_server: &MockServer) {
+async fn register_min_gas_price(mock_grpc_server: &MockServer) {
     let response = MinGasPriceResponse {
         minimum_gas_price: "0.002000000000000000utia".to_string(),
     };
@@ -336,7 +358,7 @@ async fn register_min_gas_price(mock_server: &MockServer) {
     )
     .respond_with(constant_response(response))
     .with_name("global min gas price")
-    .mount(mock_server)
+    .mount(mock_grpc_server)
     .await;
 }
 
@@ -406,7 +428,7 @@ impl TxService for CelestiaAppServiceImpl {
         self: Arc<Self>,
         request: Request<GetTxRequest>,
     ) -> Result<Response<GetTxResponse>, Status> {
-        self.0.handle_request(GET_TX_GRPC_NAME, request).await
+        self.0.handle_request("get_tx", request).await
     }
 
     async fn broadcast_tx(

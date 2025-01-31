@@ -34,7 +34,7 @@ use tracing::{
 use super::BlobTxHash;
 
 /// Represents a submission made to Celestia which has been confirmed as stored via a successful
-/// `GetTx` call.
+/// `tx_status` call.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub(super) struct CompletedSubmission {
     /// The height of the Celestia block in which the submission was stored.
@@ -322,7 +322,7 @@ impl PreparedSubmission {
         &self.blob_tx_hash
     }
 
-    /// Returns the maximum duration for which the Celestia app should be polled with `GetTx`
+    /// Returns the maximum duration for which the Celestia app should be polled with `tx_status`
     /// requests to confirm successful storage of the associated `BlobTx`.
     ///
     /// This is at least 15 seconds, but up to a maximum of a minute from when the submission was

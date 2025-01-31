@@ -77,26 +77,9 @@ pub(in crate::relayer) enum TrySubmitError {
         namespace: String,
         log: String,
     },
-    /// The celestia app responded with the given error status to a `GetTxRequest`.
-    #[error("failed to get transaction")]
-    FailedToGetTx(#[source] GrpcResponseError),
-    /// The get transaction response was empty.
-    #[error("the get transaction response was empty")]
-    EmptyGetTxResponse,
-    /// The get transaction response contains an error code.
-    #[error(
-        "get transaction response contains error code `{code}`, tx `{tx_hash}`, namespace \
-         `{namespace}`, log: {log}"
-    )]
-    GetTxResponseErrorCode {
-        tx_hash: String,
-        code: u32,
-        namespace: String,
-        log: String,
-    },
-    /// The get transaction response specified a negative block height.
-    #[error("get transaction response specifies a negative block height ({0})")]
-    GetTxResponseNegativeBlockHeight(i64),
+    /// The transaction was either evicted from the mempool or the call to `tx_status` failed.
+    #[error("failed to confirm transaction submission")]
+    FailedToConfirmSubmission(#[source] ConfirmSubmissionError),
 }
 
 /// A gRPC status representing an error response from an RPC call.
@@ -137,3 +120,26 @@ impl std::error::Error for GrpcResponseError {
 #[derive(Error, Clone, Debug)]
 #[error(transparent)]
 pub(in crate::relayer) struct ProtobufDecodeError(#[from] DecodeError);
+
+/// An error in getting the status of a transaction via RPC `tx_status`.
+#[derive(Debug, Clone, thiserror::Error)]
+pub(in crate::relayer) enum TxStatusError {
+    #[error("received unfamilair response for tx `{hash}` from `tx_status`: {status}")]
+    UnfamiliarStatus { status: String, hash: String },
+    #[error("request for `tx_status` failed: {error}")]
+    // Using `String` here because jsonrpsee::core::Error does not implement `Clone`.
+    FailedToGetTxStatus { error: String },
+    #[error("failed to parse `height` into u64")]
+    HeightParse(#[from] std::num::ParseIntError),
+}
+
+/// An error in confirming the submission of a transaction.
+#[derive(Debug, Clone, thiserror::Error)]
+pub(in crate::relayer) enum ConfirmSubmissionError {
+    #[error("tx `{hash}` evicted from mempool")]
+    Evicted { hash: String },
+    #[error("received `UNKNOWN` status from `tx_status` for tx: {hash}")]
+    UnknownStatus { hash: String },
+    #[error("failed to get tx status")]
+    TxStatus(#[from] TxStatusError),
+}

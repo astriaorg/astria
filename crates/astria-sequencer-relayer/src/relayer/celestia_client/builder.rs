@@ -11,6 +11,7 @@ use astria_core::generated::cosmos::{
     tx::v1beta1::service_client::ServiceClient as TxClient,
 };
 use http::Uri;
+use jsonrpsee::http_client::HttpClientBuilder;
 use tendermint::account::Id as AccountId;
 use thiserror::Error;
 use tonic::transport::{
@@ -58,6 +59,10 @@ pub(in crate::relayer) enum BuilderError {
         configured: String,
         received: String,
     },
+    /// Failed to construct Celestia HTTP RPC client.
+    #[error("failed to construct Celestia HTTP RPC client: {error}")]
+    // Using `String` here because jsonrpsee::core::Error does not implement `Clone`.
+    HttpClient { error: String },
 }
 
 /// An error while encoding a Bech32 string.
@@ -71,6 +76,8 @@ pub(in crate::relayer) struct Builder {
     configured_celestia_chain_id: String,
     /// The inner `tonic` gRPC channel shared by the various generated gRPC clients.
     grpc_channel: Channel,
+    /// The HTTP RPC endpoint for querying transaction status.
+    tx_status_endpoint: String,
     /// The crypto keys associated with our Celestia account.
     signing_keys: CelestiaKeys,
     /// The Bech32-encoded address of our Celestia account.
@@ -83,15 +90,19 @@ impl Builder {
     /// Returns a new `Builder`, or an error if Bech32-encoding the `signing_keys` address fails.
     pub(in crate::relayer) fn new(
         configured_celestia_chain_id: String,
-        uri: Uri,
+        grpc_endpoint: Uri,
+        tx_status_endpoint: String,
         signing_keys: CelestiaKeys,
         state: Arc<State>,
     ) -> Result<Self, BuilderError> {
-        let grpc_channel = Endpoint::from(uri).timeout(REQUEST_TIMEOUT).connect_lazy();
+        let grpc_channel = Endpoint::from(grpc_endpoint)
+            .timeout(REQUEST_TIMEOUT)
+            .connect_lazy();
         let address = bech32_encode(&signing_keys.address)?;
         Ok(Self {
             configured_celestia_chain_id,
             grpc_channel,
+            tx_status_endpoint,
             signing_keys,
             address,
             state,
@@ -106,6 +117,7 @@ impl Builder {
         let Self {
             configured_celestia_chain_id,
             grpc_channel,
+            tx_status_endpoint,
             signing_keys,
             address,
             state,
@@ -121,10 +133,16 @@ impl Builder {
         info!(celestia_chain_id = %received_celestia_chain_id, "confirmed celestia chain id");
         state.set_celestia_connected(true);
 
+        let tx_status_client = HttpClientBuilder::default()
+            .build(tx_status_endpoint)
+            .map_err(|e| BuilderError::HttpClient {
+                error: e.to_string(),
+            })?;
         let tx_client = TxClient::new(grpc_channel.clone());
         Ok(CelestiaClient {
             grpc_channel,
             tx_client,
+            tx_status_client,
             signing_keys,
             address,
             chain_id: received_celestia_chain_id,

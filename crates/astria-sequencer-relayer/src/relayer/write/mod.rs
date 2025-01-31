@@ -303,7 +303,7 @@ impl BlobSubmitter {
 /// This should only be called where submission state on startup is `Prepared`, meaning we don't yet
 /// know whether that final submission attempt succeeded or not.
 ///
-/// Internally, this polls `GetTx` for up to one minute.  The returned `SubmissionState` is
+/// Internally, this polls `tx_status` for up to one minute.  The returned `SubmissionState` is
 /// guaranteed to be in `Started` state, either holding the heights of the previously prepared
 /// submission if confirmed by Celestia, or holding the heights of the last known confirmed
 /// submission in the case of timing out.
