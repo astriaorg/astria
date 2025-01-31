@@ -122,6 +122,8 @@ use tracing::{
     Level,
 };
 
+use crate::Metrics;
+
 // From https://github.com/celestiaorg/cosmos-sdk/blob/v1.18.3-sdk-v0.46.14/types/errors/errors.go#L75
 const INSUFFICIENT_FEE_CODE: u32 = 13;
 
@@ -147,7 +149,7 @@ struct TxStatusResponse {
 /// chain.
 ///
 /// It is constructed using a [`CelestiaClientBuilder`].
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(super) struct CelestiaClient {
     /// The inner `tonic` gRPC channel shared by the various generated gRPC clients.
     grpc_channel: Channel,
@@ -161,6 +163,7 @@ pub(super) struct CelestiaClient {
     address: Bech32Address,
     /// The Celestia network ID.
     chain_id: String,
+    metrics: &'static Metrics,
 }
 
 impl CelestiaClient {
@@ -396,20 +399,21 @@ impl CelestiaClient {
         // The min seconds to sleep after receiving a TxStatus response and sending the next
         // request.
         const POLL_INTERVAL_SECS: u64 = 1;
-        // How long to wait after starting `confirm_submission` before starting to log errors.
-        const START_LOGGING_DELAY: Duration = Duration::from_secs(12);
-        // The minimum duration between logging errors.
-        const LOG_ERROR_INTERVAL: Duration = Duration::from_secs(5);
+        // The minimum duration between logs.
+        const LOG_INTERVAL: Duration = Duration::from_secs(5);
+        // The maximum amount of time to wait for a transaction to be committed if its status is
+        // `UNKNOWN`.
+        const MAX_WAIT_FOR_UNKNOWN: Duration = Duration::from_secs(10);
 
         let start = Instant::now();
         let mut logged_at = start;
 
-        let mut log_pending_if_due = || {
-            if start.elapsed() <= START_LOGGING_DELAY || logged_at.elapsed() <= LOG_ERROR_INTERVAL {
+        let mut log_if_due = |status: &str| {
+            if logged_at.elapsed() <= LOG_INTERVAL {
                 return;
             }
             debug!(
-                reason = "transaction still pending",
+                reason = format!("transaction status: {status}"),
                 tx_hash = %hex_encoded_tx_hash,
                 elapsed_seconds = start.elapsed().as_secs_f32(),
                 "waiting to confirm blob submission"
@@ -420,14 +424,18 @@ impl CelestiaClient {
         loop {
             match self.tx_status(hex_encoded_tx_hash.clone()).await {
                 Ok(TxStatus::Unknown) => {
-                    break Err(ConfirmSubmissionError::UnknownStatus {
-                        hash: hex_encoded_tx_hash,
-                    })
+                    if start.elapsed() > MAX_WAIT_FOR_UNKNOWN {
+                        break Err(ConfirmSubmissionError::UnknownStatus {
+                            hash: hex_encoded_tx_hash,
+                        });
+                    }
+                    log_if_due("UNKNOWN");
                 }
                 Ok(TxStatus::Pending) => {
-                    log_pending_if_due();
+                    log_if_due("PENDING");
                 }
                 Ok(TxStatus::Evicted) => {
+                    self.metrics.increment_celestia_evicted_transaction_count();
                     break Err(ConfirmSubmissionError::Evicted {
                         hash: hex_encoded_tx_hash,
                     });

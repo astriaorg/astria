@@ -31,6 +31,7 @@ use super::{
     CelestiaKeys,
     GrpcResponseError,
 };
+use crate::Metrics;
 
 /// All gRPCs will time out with the given duration.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
@@ -84,6 +85,7 @@ pub(in crate::relayer) struct Builder {
     address: Bech32Address,
     /// A handle to the mutable state of the relayer.
     state: Arc<State>,
+    metrics: &'static Metrics,
 }
 
 impl Builder {
@@ -94,6 +96,7 @@ impl Builder {
         tx_status_endpoint: String,
         signing_keys: CelestiaKeys,
         state: Arc<State>,
+        metrics: &'static Metrics,
     ) -> Result<Self, BuilderError> {
         let grpc_channel = Endpoint::from(grpc_endpoint)
             .timeout(REQUEST_TIMEOUT)
@@ -106,6 +109,7 @@ impl Builder {
             signing_keys,
             address,
             state,
+            metrics,
         })
     }
 
@@ -121,6 +125,7 @@ impl Builder {
             signing_keys,
             address,
             state,
+            metrics,
         } = self;
 
         if received_celestia_chain_id != configured_celestia_chain_id {
@@ -146,6 +151,7 @@ impl Builder {
             signing_keys,
             address,
             chain_id: received_celestia_chain_id,
+            metrics,
         })
     }
 

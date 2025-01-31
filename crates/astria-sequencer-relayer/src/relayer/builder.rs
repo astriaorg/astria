@@ -85,6 +85,7 @@ impl Builder {
                 celestia_app_http_endpoint,
                 celestia_keys,
                 state.clone(),
+                metrics,
             )
             .wrap_err("failed to create celestia client builder")?
         };
