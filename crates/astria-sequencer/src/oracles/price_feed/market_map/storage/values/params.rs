@@ -35,7 +35,7 @@ pub(in crate::oracles::price_feed::market_map) struct Params<'a> {
     prefix: Cow<'a, str>,
 }
 
-impl<'a> Debug for Params<'a> {
+impl Debug for Params<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("Params")
             .field(

@@ -59,11 +59,10 @@ pub struct SequencerBlock {
     /// / The block hash of the cometbft block that corresponds to this sequencer block.
     #[prost(bytes = "bytes", tag = "5")]
     pub block_hash: ::prost::bytes::Bytes,
-    /// The hashes of any upgrade changes applied during this block and their proof.
-    #[prost(message, optional, tag = "6")]
-    pub upgrade_change_hashes_with_proof: ::core::option::Option<
-        UpgradeChangeHashesWithProof,
-    >,
+    /// The SHA256 digests of all upgrade changes applied during this block, if an upgrade was
+    /// activated at this height.
+    #[prost(bytes = "bytes", repeated, tag = "6")]
+    pub upgrade_change_hashes: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
     /// The extended commit info with proof for the block, if vote extensions were enabled at this
     /// height.
     #[prost(message, optional, tag = "7")]
@@ -195,11 +194,10 @@ pub struct FilteredSequencerBlock {
     /// the rollup transactions.
     #[prost(message, optional, tag = "6")]
     pub rollup_ids_proof: ::core::option::Option<super::super::primitive::v1::Proof>,
-    /// The hashes of any upgrade changes applied during this block and their proof.
-    #[prost(message, optional, tag = "7")]
-    pub upgrade_change_hashes_with_proof: ::core::option::Option<
-        UpgradeChangeHashesWithProof,
-    >,
+    /// The SHA256 digests of all upgrade changes applied during this block, if an upgrade was
+    /// activated at this height.
+    #[prost(bytes = "bytes", repeated, tag = "7")]
+    pub upgrade_change_hashes: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
     /// The extended commit info with proof for the block, if vote extensions were enabled at this
     /// height.
     #[prost(message, optional, tag = "8")]
@@ -248,23 +246,47 @@ impl ::prost::Name for RollupData {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct UpgradeChangeHashesWithProof {
-    /// The SHA256 digests of all upgrade changes applied during this block, if an upgrade was
-    /// activated at this height.
-    #[prost(bytes = "bytes", repeated, tag = "1")]
-    pub upgrade_change_hashes: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
-    /// The proof that the change hashes are included in the cometbft block data (if it exists),
-    /// specifically the third item in the data field.
-    #[prost(message, optional, tag = "2")]
-    pub proof: ::core::option::Option<super::super::primitive::v1::Proof>,
+pub struct DataItem {
+    #[prost(oneof = "data_item::Value", tags = "1, 2, 3, 4")]
+    pub value: ::core::option::Option<data_item::Value>,
 }
-impl ::prost::Name for UpgradeChangeHashesWithProof {
-    const NAME: &'static str = "UpgradeChangeHashesWithProof";
+/// Nested message and enum types in `DataItem`.
+pub mod data_item {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Message)]
+    pub struct UpgradeChangeHashes {
+        #[prost(bytes = "bytes", repeated, tag = "1")]
+        pub hashes: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
+    }
+    impl ::prost::Name for UpgradeChangeHashes {
+        const NAME: &'static str = "UpgradeChangeHashes";
+        const PACKAGE: &'static str = "astria.sequencerblock.v1";
+        fn full_name() -> ::prost::alloc::string::String {
+            ::prost::alloc::format!("astria.sequencerblock.v1.DataItem.{}", Self::NAME)
+        }
+    }
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(bytes, tag = "1")]
+        RollupTransactionsRoot(::prost::bytes::Bytes),
+        #[prost(bytes, tag = "2")]
+        RollupIdsRoot(::prost::bytes::Bytes),
+        #[prost(message, tag = "3")]
+        UpgradeChangeHashes(UpgradeChangeHashes),
+        #[prost(bytes, tag = "4")]
+        ExtendedCommitInfo(::prost::bytes::Bytes),
+    }
+}
+impl ::prost::Name for DataItem {
+    const NAME: &'static str = "DataItem";
     const PACKAGE: &'static str = "astria.sequencerblock.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
     }
 }
+/// If no upgrade change hashes exist in the block, this will be the third item in the cometbft
+/// block data field, otherwise it will be fourth.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ExtendedCommitInfoWithProof {
@@ -272,8 +294,7 @@ pub struct ExtendedCommitInfoWithProof {
     #[prost(bytes = "bytes", tag = "1")]
     pub extended_commit_info: ::prost::bytes::Bytes,
     /// The proof that the extended commit info is included in the cometbft block data (if it
-    /// exists). If no upgrade change hashes exist in the block, this will be the third item in the
-    /// cometbft block data field, otherwise it will be fourth.
+    /// exists).
     #[prost(message, optional, tag = "2")]
     pub proof: ::core::option::Option<super::super::primitive::v1::Proof>,
 }
@@ -414,11 +435,10 @@ pub struct SubmittedMetadata {
     /// Corresponds to `astria.sequencerblock.v1.SequencerBlock.rollup_ids_proof`.
     #[prost(message, optional, tag = "5")]
     pub rollup_ids_proof: ::core::option::Option<super::super::primitive::v1::Proof>,
-    /// The hashes of any upgrade changes applied during this block and their proof.
-    #[prost(message, optional, tag = "6")]
-    pub upgrade_change_hashes_with_proof: ::core::option::Option<
-        UpgradeChangeHashesWithProof,
-    >,
+    /// The SHA256 digests of all upgrade changes applied during this block, if an upgrade was
+    /// activated at this height.
+    #[prost(bytes = "bytes", repeated, tag = "6")]
+    pub upgrade_change_hashes: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
     /// The extended commit info with proof for the block, if vote extensions were enabled at this
     /// height.
     #[prost(message, optional, tag = "7")]
@@ -506,9 +526,38 @@ impl ::prost::Name for GetUpgradesInfoRequest {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetUpgradesInfoResponse {
     #[prost(message, repeated, tag = "1")]
-    pub applied: ::prost::alloc::vec::Vec<super::super::upgrades::v1::ChangeInfo>,
+    pub applied: ::prost::alloc::vec::Vec<get_upgrades_info_response::ChangeInfo>,
     #[prost(message, repeated, tag = "2")]
-    pub scheduled: ::prost::alloc::vec::Vec<super::super::upgrades::v1::ChangeInfo>,
+    pub scheduled: ::prost::alloc::vec::Vec<get_upgrades_info_response::ChangeInfo>,
+}
+/// Nested message and enum types in `GetUpgradesInfoResponse`.
+pub mod get_upgrades_info_response {
+    /// Brief details of a given upgrade change.
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Message)]
+    pub struct ChangeInfo {
+        /// The block height at which this change was applied.
+        #[prost(uint64, tag = "1")]
+        pub activation_height: u64,
+        /// The human-readable name assigned to to this change.
+        #[prost(string, tag = "2")]
+        pub change_name: ::prost::alloc::string::String,
+        /// The app version running after the change was applied.
+        #[prost(uint64, tag = "3")]
+        pub app_version: u64,
+        /// The SHA256 digest of this change after Borsh-encoding. The digest is base64 (standard) encoded.
+        #[prost(string, tag = "4")]
+        pub base64_hash: ::prost::alloc::string::String,
+    }
+    impl ::prost::Name for ChangeInfo {
+        const NAME: &'static str = "ChangeInfo";
+        const PACKAGE: &'static str = "astria.sequencerblock.v1";
+        fn full_name() -> ::prost::alloc::string::String {
+            ::prost::alloc::format!(
+                "astria.sequencerblock.v1.GetUpgradesInfoResponse.{}", Self::NAME
+            )
+        }
+    }
 }
 impl ::prost::Name for GetUpgradesInfoResponse {
     const NAME: &'static str = "GetUpgradesInfoResponse";

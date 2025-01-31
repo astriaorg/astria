@@ -36,16 +36,13 @@ use astria_core::{
     },
     sequencerblock::v1::{
         block::{
-            ParsedDataItems,
+            self,
+            ExpandedBlockData,
             SequencerBlockBuilder,
         },
         DataItem,
     },
-    upgrades::v1::{
-        ChangeHash,
-        Upgrade,
-        Upgrades,
-    },
+    upgrades::v1::ChangeHash,
     Protobuf as _,
 };
 use astria_eyre::{
@@ -85,14 +82,12 @@ use tendermint::{
     },
     account,
     block::Header,
-    consensus::params::VersionParams,
     AppHash,
     Hash,
     Time,
 };
 use tracing::{
     debug,
-    error,
     info,
     instrument,
     warn,
@@ -147,11 +142,7 @@ use crate::{
         block_size_constraints::BlockSizeConstraints,
         commitment::generate_rollup_datas_commitment,
     },
-    upgrades::{
-        get_consensus_params_from_cometbft,
-        should_shut_down,
-        StateWriteExt as _,
-    },
+    upgrades::UpgradesHandler,
 };
 
 // ephemeral store key for the cache of results of executing of transactions in `prepare_proposal`.
@@ -260,9 +251,7 @@ pub(crate) struct App {
     )]
     app_hash: AppHash,
 
-    upgrades: Upgrades,
-
-    cometbft_rpc_addr: String,
+    upgrades_handler: UpgradesHandler,
 
     // used to create and verify vote extensions, if this is a validator node.
     vote_extension_handler: vote_extension::Handler,
@@ -275,8 +264,7 @@ impl App {
     pub(crate) async fn new(
         snapshot: Snapshot,
         mempool: Mempool,
-        upgrades: Upgrades,
-        cometbft_rpc_addr: String,
+        upgrades_handler: UpgradesHandler,
         vote_extension_handler: vote_extension::Handler,
         metrics: &'static Metrics,
     ) -> Result<Self> {
@@ -304,8 +292,7 @@ impl App {
             recost_mempool: false,
             write_batch: None,
             app_hash,
-            upgrades,
-            cometbft_rpc_addr,
+            upgrades_handler,
             vote_extension_handler,
             metrics,
         })
@@ -432,10 +419,11 @@ impl App {
             .pre_execute_transactions(block_data)
             .await
             .wrap_err("failed to prepare for executing block")?;
-        let encoded_upgrade_change_hashes = upgrade_change_hashes
-            .map(|hashes| DataItem::UpgradeChangeHashes(hashes).encode())
-            .transpose()
-            .wrap_err("failed to encode upgrade change hashes")?;
+        let encoded_upgrade_change_hashes = if upgrade_change_hashes.is_empty() {
+            None
+        } else {
+            Some(DataItem::UpgradeChangeHashes(upgrade_change_hashes).encode())
+        };
 
         let uses_data_item_enum = self.uses_data_item_enum(prepare_proposal.height);
         let mut block_size_constraints =
@@ -480,8 +468,7 @@ impl App {
             let mut encoded_extended_commit_info = DataItem::ExtendedCommitInfo(
                 extended_commit_info.into_raw().encode_to_vec().into(),
             )
-            .encode()
-            .wrap_err("failed to encode extended commit info")?;
+            .encode();
 
             if block_size_constraints
                 .cometbft_checked_add(encoded_extended_commit_info.len())
@@ -493,9 +480,7 @@ impl App {
                     encoded_extended_commit_info_len = encoded_extended_commit_info.len(),
                     "extended commit info is too large to fit in block; not including in block"
                 );
-                encoded_extended_commit_info = DataItem::ExtendedCommitInfo(Bytes::new())
-                    .encode()
-                    .wrap_err("failed to encode empty extended commit info")?;
+                encoded_extended_commit_info = DataItem::ExtendedCommitInfo(Bytes::new()).encode();
                 block_size_constraints
                     .cometbft_checked_add(encoded_extended_commit_info.len())
                     .wrap_err("exceeded size limit while adding empty extended commit info")?;
@@ -524,8 +509,7 @@ impl App {
             generate_rollup_datas_commitment::<true>(&signed_txs_included, deposits).into_iter()
         } else {
             generate_rollup_datas_commitment::<false>(&signed_txs_included, deposits).into_iter()
-        }
-        .wrap_err("failed to generate commitments")?;
+        };
 
         let txs = commitments_iter
             .chain(encoded_upgrade_change_hashes.into_iter())
@@ -553,13 +537,13 @@ impl App {
         storage: Storage,
     ) -> Result<()> {
         let uses_data_item_enum = self.uses_data_item_enum(process_proposal.height);
-        let parsed_data_items = if uses_data_item_enum {
+        let expanded_block_data = if uses_data_item_enum {
             let with_extended_commit_info = self
                 .vote_extensions_enabled(process_proposal.height)
                 .await?;
-            ParsedDataItems::new_from_typed_data(&process_proposal.txs, with_extended_commit_info)
+            ExpandedBlockData::new_from_typed_data(&process_proposal.txs, with_extended_commit_info)
         } else {
-            ParsedDataItems::new_from_untyped_data(&process_proposal.txs)
+            ExpandedBlockData::new_from_untyped_data(&process_proposal.txs)
         }
         .wrap_err("failed to parse data items")?;
 
@@ -589,7 +573,7 @@ impl App {
                     process_proposal.height,
                     process_proposal.time,
                     process_proposal.proposer_address,
-                    parsed_data_items,
+                    expanded_block_data,
                     tx_results,
                 )
                 .await
@@ -608,7 +592,7 @@ impl App {
         self.update_state_for_new_round(&storage);
 
         if let Some(extended_commit_info_with_proof) =
-            &parsed_data_items.extended_commit_info_with_proof
+            &expanded_block_data.extended_commit_info_with_proof
         {
             let Some(last_commit) = process_proposal.proposed_last_commit else {
                 bail!("proposed last commit is empty; this should not occur")
@@ -637,7 +621,10 @@ impl App {
             .pre_execute_transactions(block_data)
             .await
             .wrap_err("failed to prepare for executing block")?;
-        ensure_upgrade_change_hashes_as_expected(&parsed_data_items, &upgrade_change_hashes)?;
+        ensure_upgrade_change_hashes_as_expected(
+            &expanded_block_data,
+            upgrade_change_hashes.as_ref(),
+        )?;
 
         // we don't care about the cometbft max_tx_bytes here, as cometbft would have
         // rejected the proposal if it was too large.
@@ -647,37 +634,37 @@ impl App {
 
         let tx_results = self
             .process_proposal_tx_execution(
-                &parsed_data_items.rollup_transactions,
+                &expanded_block_data.user_submitted_transactions,
                 block_size_constraints,
             )
             .await
             .wrap_err("failed to execute transactions")?;
 
         self.metrics
-            .record_proposal_transactions(parsed_data_items.rollup_transactions.len());
+            .record_proposal_transactions(expanded_block_data.user_submitted_transactions.len());
 
         let deposits = self.state.get_cached_block_deposits();
         self.metrics.record_proposal_deposits(deposits.len());
 
         let (expected_rollup_datas_root, expected_rollup_ids_root) = if uses_data_item_enum {
             let commitments = generate_rollup_datas_commitment::<true>(
-                &parsed_data_items.rollup_transactions,
+                &expanded_block_data.user_submitted_transactions,
                 deposits,
             );
             (commitments.rollup_datas_root, commitments.rollup_ids_root)
         } else {
             let commitments = generate_rollup_datas_commitment::<false>(
-                &parsed_data_items.rollup_transactions,
+                &expanded_block_data.user_submitted_transactions,
                 deposits,
             );
             (commitments.rollup_datas_root, commitments.rollup_ids_root)
         };
         ensure!(
-            parsed_data_items.rollup_transactions_root == expected_rollup_datas_root,
+            expanded_block_data.rollup_transactions_root == expected_rollup_datas_root,
             "rollup transactions commitment does not match expected",
         );
         ensure!(
-            parsed_data_items.rollup_ids_root == expected_rollup_ids_root,
+            expanded_block_data.rollup_ids_root == expected_rollup_ids_root,
             "rollup IDs commitment does not match expected",
         );
 
@@ -687,7 +674,7 @@ impl App {
             process_proposal.height,
             process_proposal.time,
             process_proposal.proposer_address,
-            parsed_data_items,
+            expanded_block_data,
             tx_results,
         )
         .await
@@ -734,11 +721,7 @@ impl App {
         };
 
         // get copy of transactions to execute from mempool
-        let pending_txs = self
-            .mempool
-            .builder_queue(&self.state)
-            .await
-            .expect("failed to fetch pending transactions");
+        let pending_txs = self.mempool.builder_queue().await;
 
         let mut unused_count = pending_txs.len();
         for (tx_hash, tx) in pending_txs {
@@ -1018,13 +1001,20 @@ impl App {
     /// This *must* be called any time before a block's txs are executed, whether it's
     /// during the proposal phase, or finalize_block phase.
     #[instrument(name = "App::pre_execute_transactions", skip_all, err(level = Level::WARN))]
-    async fn pre_execute_transactions(
-        &mut self,
-        block_data: BlockData,
-    ) -> Result<Option<Vec<ChangeHash>>> {
+    async fn pre_execute_transactions(&mut self, block_data: BlockData) -> Result<Vec<ChangeHash>> {
+        let mut delta_delta = StateDelta::new(self.state.clone());
         let upgrade_change_hashes = self
-            .execute_upgrade_if_due(block_data.height)
+            .upgrades_handler
+            .execute_upgrade_if_due(&mut delta_delta, block_data.height)
             .wrap_err("failed to execute upgrade")?;
+        if upgrade_change_hashes.is_empty() {
+            // We need to drop this so there's only one reference to `self.state` left in order to
+            // apply changes made in `self.begin_block()` below.
+            drop(delta_delta);
+        } else {
+            let _ = self.apply(delta_delta);
+        }
+
         let chain_id = self
             .state
             .get_chain_id()
@@ -1102,7 +1092,7 @@ impl App {
         height: tendermint::block::Height,
         time: tendermint::Time,
         proposer_address: account::Id,
-        parsed_data_items: ParsedDataItems,
+        expanded_block_data: ExpandedBlockData,
         tx_results: Vec<ExecTxResult>,
     ) -> Result<()> {
         let Hash::Sha256(block_hash) = block_hash else {
@@ -1135,22 +1125,22 @@ impl App {
         // tx result for the commitments and other injected data items, even though they're not
         // actually user txs.
         //
-        // the tx_results passed to this function only contain results for every user
+        // the tx_results passed to this function only contain results for every user-submitted
         // transaction, not the injected ones.
-        let non_rollup_tx_count = parsed_data_items.non_rollup_transaction_count();
+        let injected_tx_count = expanded_block_data.injected_transaction_count();
         let mut finalize_block_tx_results: Vec<ExecTxResult> =
-            Vec::with_capacity(parsed_data_items.rollup_transactions.len());
+            Vec::with_capacity(expanded_block_data.user_submitted_transactions.len());
         finalize_block_tx_results
-            .extend(std::iter::repeat(ExecTxResult::default()).take(non_rollup_tx_count));
+            .extend(std::iter::repeat(ExecTxResult::default()).take(injected_tx_count));
         finalize_block_tx_results.extend(tx_results);
 
         let sequencer_block = SequencerBlockBuilder {
-            block_hash,
+            block_hash: block::Hash::new(block_hash),
             chain_id,
             height,
             time,
             proposer_address,
-            parsed_data_items,
+            expanded_block_data,
             deposits: deposits_in_this_block,
         }
         .try_build()
@@ -1159,11 +1149,24 @@ impl App {
             .put_sequencer_block(sequencer_block)
             .wrap_err("failed to write sequencer block to state")?;
 
+        let consensus_param_updates = self
+            .upgrades_handler
+            .end_block(&mut state_tx, height)
+            .await
+            .wrap_err("upgrades handler failed to end block")?;
+
+        if let Some(consensus_params) = &consensus_param_updates {
+            info!(
+                consensus_params = %display_consensus_params(consensus_params),
+                "updated consensus params"
+            );
+        }
+
         let result = PostTransactionExecutionResult {
             events: end_block.events,
             validator_updates: end_block.validator_updates,
-            consensus_param_updates: end_block.consensus_param_updates,
             tx_results: finalize_block_tx_results,
+            consensus_param_updates,
         };
 
         state_tx.object_put(POST_TRANSACTION_EXECUTION_RESULT_KEY, result);
@@ -1194,17 +1197,17 @@ impl App {
         }
 
         let uses_data_item_enum = self.uses_data_item_enum(finalize_block.height);
-        let parsed_data_items = if uses_data_item_enum {
+        let expanded_block_data = if uses_data_item_enum {
             let with_extended_commit_info =
                 self.vote_extensions_enabled(finalize_block.height).await?;
-            ParsedDataItems::new_from_typed_data(&finalize_block.txs, with_extended_commit_info)
+            ExpandedBlockData::new_from_typed_data(&finalize_block.txs, with_extended_commit_info)
         } else {
-            ParsedDataItems::new_from_untyped_data(&finalize_block.txs)
+            ExpandedBlockData::new_from_untyped_data(&finalize_block.txs)
         }
         .wrap_err("failed to parse data items")?;
 
         if let Some(extended_commit_info_with_proof) =
-            &parsed_data_items.extended_commit_info_with_proof
+            &expanded_block_data.extended_commit_info_with_proof
         {
             let extended_commit_info = extended_commit_info_with_proof.extended_commit_info();
             let mut state_tx: StateDelta<Arc<StateDelta<Snapshot>>> =
@@ -1235,10 +1238,14 @@ impl App {
                 .pre_execute_transactions(block_data)
                 .await
                 .wrap_err("failed to execute block")?;
-            ensure_upgrade_change_hashes_as_expected(&parsed_data_items, &upgrade_change_hashes)?;
+            ensure_upgrade_change_hashes_as_expected(
+                &expanded_block_data,
+                upgrade_change_hashes.as_ref(),
+            )?;
 
-            let mut tx_results = Vec::with_capacity(parsed_data_items.rollup_transactions.len());
-            for tx in &parsed_data_items.rollup_transactions {
+            let mut tx_results =
+                Vec::with_capacity(expanded_block_data.user_submitted_transactions.len());
+            for tx in &expanded_block_data.user_submitted_transactions {
                 match self.execute_transaction(tx.clone()).await {
                     Ok(events) => tx_results.push(ExecTxResult {
                         events,
@@ -1270,7 +1277,7 @@ impl App {
                 finalize_block.height,
                 finalize_block.time,
                 finalize_block.proposer_address,
-                parsed_data_items,
+                expanded_block_data,
                 tx_results,
             )
             .await
@@ -1288,7 +1295,7 @@ impl App {
             events,
             tx_results,
             validator_updates,
-            mut consensus_param_updates,
+            consensus_param_updates,
         } = self
             .state
             .object_get(POST_TRANSACTION_EXECUTION_RESULT_KEY)
@@ -1296,24 +1303,6 @@ impl App {
                 "post_transaction_execution_result must be present, as txs were already executed \
                  just now or during the proposal phase",
             );
-
-        self.update_consensus_params_if_upgrade_due(
-            finalize_block.height,
-            &mut consensus_param_updates,
-        )
-        .await
-        .wrap_err("failed to update consensus params")?;
-        if let Some(consensus_params) = consensus_param_updates.clone() {
-            info!(
-                consensus_params = %display_consensus_params(&consensus_params),
-                "updated consensus params"
-            );
-            let mut delta_delta = StateDelta::new(self.state.clone());
-            delta_delta
-                .put_consensus_params(consensus_params)
-                .wrap_err("failed to put consensus params to storage")?;
-            let _ = self.apply(delta_delta);
-        }
 
         // prepare the `StagedWriteBatch` for a later commit.
         let app_hash = self
@@ -1536,7 +1525,9 @@ impl App {
         // Get the latest version of the state, now that we've committed it.
         self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
 
-        should_shut_down(&self.upgrades, &storage.latest_snapshot()).await
+        self.upgrades_handler
+            .should_shut_down(&storage.latest_snapshot())
+            .await
     }
 
     // StateDelta::apply only works when the StateDelta wraps an underlying
@@ -1560,128 +1551,6 @@ impl App {
         events
     }
 
-    /// Execute any changes to global state required as part of any upgrade with an activation
-    /// height == `block_height`.
-    ///
-    /// At a minimum, the `info` of each `Change` in such an upgrade must be written to verifiable
-    /// storage.
-    ///
-    /// Returns `Ok(None)` if no upgrade was executed, or `Ok(Some(hashes of executed changes))` if
-    /// an upgrade was executed.
-    fn execute_upgrade_if_due(
-        &mut self,
-        block_height: tendermint::block::Height,
-    ) -> Result<Option<Vec<ChangeHash>>> {
-        let Some(upgrade) = self
-            .upgrades
-            .upgrade_activating_at_height(block_height.value())
-        else {
-            return Ok(None);
-        };
-        let mut delta_delta = StateDelta::new(self.state.clone());
-        let upgrade_name = upgrade.name();
-        let mut change_hashes = vec![];
-        for change in upgrade.changes() {
-            change_hashes.push(change.calculate_hash());
-            delta_delta
-                .put_upgrade_change_info(&upgrade_name, change)
-                .wrap_err("failed to put upgrade change info")?;
-            info!(upgrade = %upgrade_name, change = %change.name(), "executed upgrade change");
-        }
-
-        // NOTE: any further state changes specific to individual upgrades should be
-        //       executed here after matching on the upgrade variant.
-
-        #[expect(
-            irrefutable_let_patterns,
-            reason = "will become refutable once we have more than one upgrade variant"
-        )]
-        if let Upgrade::Upgrade1(upgrade_1) = upgrade {
-            let genesis_state = upgrade_1.price_feed_change().genesis();
-            MarketMapComponent::handle_genesis(&mut delta_delta, genesis_state.market_map())
-                .wrap_err("failed to handle market map genesis")?;
-            info!("handled market map genesis");
-            OracleComponent::handle_genesis(&mut delta_delta, genesis_state.oracle())
-                .wrap_err("failed to handle oracle genesis")?;
-            info!("handled oracle genesis");
-        }
-
-        let _ = self.apply(delta_delta);
-
-        Ok(Some(change_hashes))
-    }
-
-    /// Updates `params` with any changes to CometBFT consensus params required as part of any
-    /// upgrade with an activation height == `block_height`.
-    ///
-    /// If no upgrade is due, this is a no-op. Otherwise, `params` is updated if `Some` or set to
-    /// `Some` if passed as `None`.
-    ///
-    /// At a minimum, the ABCI application version should be increased.
-    ///
-    /// NOTE: the updated params are NOT put to storage - this needs to be done after calling this
-    ///       method if the params are `Some`.
-    #[expect(clippy::doc_markdown, reason = "false positive")]
-    async fn update_consensus_params_if_upgrade_due(
-        &mut self,
-        block_height: tendermint::block::Height,
-        maybe_params: &mut Option<tendermint::consensus::Params>,
-    ) -> Result<()> {
-        let Some(upgrade) = self
-            .upgrades
-            .upgrade_activating_at_height(block_height.value())
-        else {
-            return Ok(());
-        };
-
-        let mut params = match maybe_params.take() {
-            Some(value) => value,
-            None => {
-                match self
-                    .state
-                    .get_consensus_params()
-                    .await
-                    .wrap_err("failed to get consensus params from storage")?
-                {
-                    Some(value) => value,
-                    None => get_consensus_params_from_cometbft(
-                        &self.cometbft_rpc_addr,
-                        block_height.value(),
-                    )
-                    .await
-                    .wrap_err("failed to get consensus params from cometbft")?,
-                }
-            }
-        };
-
-        let new_app_version = upgrade.app_version();
-        if let Some(existing_app_version) = &params.version {
-            if new_app_version <= existing_app_version.app {
-                error!(
-                    "new app version {new_app_version} should be greater than existing version {}",
-                    existing_app_version.app
-                );
-            }
-        }
-        params.version = Some(VersionParams {
-            app: new_app_version,
-        });
-
-        // NOTE: any further changes specific to individual upgrades should be applied here after
-        //       matching on the upgrade variant.
-
-        #[expect(
-            irrefutable_let_patterns,
-            reason = "will become refutable once we have more than one upgrade variant"
-        )]
-        if let Upgrade::Upgrade1(_) = upgrade {
-            set_vote_extensions_enable_height_to_next_block_height(block_height, &mut params);
-        }
-
-        *maybe_params = Some(params);
-        Ok(())
-    }
-
     /// Returns whether or not the block at the given height uses encoded `DataItem`s as the raw
     /// `txs` field of `response::PrepareProposal`, and hence also `request::ProcessProposal` and
     /// `request::FinalizeBlock`.
@@ -1690,13 +1559,16 @@ impl App {
     /// files, the assumption is that this network uses `DataItem`s from genesis onwards.
     ///
     /// Returns `true` if and only if:
-    /// - `Upgrade1` is in `self.upgrades` and `block_height` is greater than or equal to its
-    ///   activation height, or
-    /// - `Upgrade1` is not in `self.upgrades`.
+    /// - `Upgrade1` is in upgrades and `block_height` is greater than or equal to its activation
+    ///   height, or
+    /// - `Upgrade1` is not in upgrades.
     fn uses_data_item_enum(&self, block_height: tendermint::block::Height) -> bool {
-        self.upgrades.upgrade_1().map_or(true, |upgrade_1| {
-            block_height.value() >= upgrade_1.activation_height()
-        })
+        self.upgrades_handler
+            .upgrades()
+            .upgrade_1()
+            .map_or(true, |upgrade_1| {
+                block_height.value() >= upgrade_1.activation_height()
+            })
     }
 
     /// Returns `true` if vote extensions are enabled for the block at the given height, i.e. if
@@ -1735,47 +1607,16 @@ fn vote_extensions_enable_height(consensus_params: &tendermint::consensus::Param
         .map_or(0, |height| height.value())
 }
 
-fn set_vote_extensions_enable_height_to_next_block_height(
-    current_block_height: tendermint::block::Height,
-    consensus_params: &mut tendermint::consensus::Params,
-) {
-    // Set the vote_extensions_enable_height as the next block height (it must be a future
-    // height to be valid).
-    let new_enable_height = current_block_height.increment();
-    if let Some(existing_enable_height) = consensus_params.abci.vote_extensions_enable_height {
-        // If vote extensions are already enabled, they cannot be disabled, and the
-        // `vote_extensions_enable_height` cannot be changed.
-        if existing_enable_height.value() != VOTE_EXTENSIONS_DISABLED_HEIGHT {
-            error!(
-                %existing_enable_height, %new_enable_height,
-                "vote extensions enable height already set; ignoring update",
-            );
-            return;
-        }
-    }
-    consensus_params.abci.vote_extensions_enable_height = Some(new_enable_height);
-}
-
 fn ensure_upgrade_change_hashes_as_expected(
-    received_data_items: &ParsedDataItems,
-    calculated_upgrade_change_hashes: &Option<Vec<ChangeHash>>,
+    received_data: &ExpandedBlockData,
+    calculated_upgrade_change_hashes: &[ChangeHash],
 ) -> Result<()> {
-    match (
-        &received_data_items.upgrade_change_hashes_with_proof,
-        calculated_upgrade_change_hashes,
-    ) {
-        (Some(received_hashes), Some(calculated_hashes)) => {
-            ensure!(
-                received_hashes.upgrade_change_hashes() == calculated_hashes,
-                "upgrade change hashes ({:?}) do not match expected ({calculated_hashes:?})",
-                received_hashes.upgrade_change_hashes()
-            );
-            Ok(())
-        }
-        (None, None) => Ok(()),
-        (Some(_), None) => bail!("received upgrade change hashes, but no upgrade due"),
-        (None, Some(_)) => bail!("upgrade due, but didn't receive upgrade change hashes"),
-    }
+    ensure!(
+        received_data.upgrade_change_hashes == calculated_upgrade_change_hashes,
+        "upgrade change hashes ({:?}) do not match expected ({calculated_upgrade_change_hashes:?})",
+        received_data.upgrade_change_hashes
+    );
+    Ok(())
 }
 
 pub(crate) enum ShouldShutDown {

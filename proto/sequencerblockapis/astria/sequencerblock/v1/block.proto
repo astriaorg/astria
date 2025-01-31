@@ -47,8 +47,9 @@ message SequencerBlock {
   astria.primitive.v1.Proof rollup_ids_proof = 4;
   /// The block hash of the cometbft block that corresponds to this sequencer block.
   bytes block_hash = 5;
-  // The hashes of any upgrade changes applied during this block and their proof.
-  optional UpgradeChangeHashesWithProof upgrade_change_hashes_with_proof = 6;
+  // The SHA256 digests of all upgrade changes applied during this block, if an upgrade was
+  // activated at this height.
+  repeated bytes upgrade_change_hashes = 6;
   // The extended commit info with proof for the block, if vote extensions were enabled at this
   // height.
   optional ExtendedCommitInfoWithProof extended_commit_info_with_proof = 7;
@@ -130,8 +131,9 @@ message FilteredSequencerBlock {
   // `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
   // the rollup transactions.
   astria.primitive.v1.Proof rollup_ids_proof = 6;
-  // The hashes of any upgrade changes applied during this block and their proof.
-  optional UpgradeChangeHashesWithProof upgrade_change_hashes_with_proof = 7;
+  // The SHA256 digests of all upgrade changes applied during this block, if an upgrade was
+  // activated at this height.
+  repeated bytes upgrade_change_hashes = 7;
   // The extended commit info with proof for the block, if vote extensions were enabled at this
   // height.
   optional ExtendedCommitInfoWithProof extended_commit_info_with_proof = 8;
@@ -151,21 +153,25 @@ message RollupData {
   }
 }
 
-message UpgradeChangeHashesWithProof {
-  // The SHA256 digests of all upgrade changes applied during this block, if an upgrade was
-  // activated at this height.
-  repeated bytes upgrade_change_hashes = 1;
-  // The proof that the change hashes are included in the cometbft block data (if it exists),
-  // specifically the third item in the data field.
-  astria.primitive.v1.Proof proof = 2;
+message DataItem {
+  message UpgradeChangeHashes {
+    repeated bytes hashes = 1;
+  }
+  oneof value {
+    bytes rollup_transactions_root = 1;
+    bytes rollup_ids_root = 2;
+    UpgradeChangeHashes upgrade_change_hashes = 3;
+    bytes extended_commit_info = 4;
+  }
 }
 
+// If no upgrade change hashes exist in the block, this will be the third item in the cometbft
+// block data field, otherwise it will be fourth.
 message ExtendedCommitInfoWithProof {
   // The extended commit info for the block, if vote extensions were enabled at this height.
   bytes extended_commit_info = 1;
   // The proof that the extended commit info is included in the cometbft block data (if it
-  // exists). If no upgrade change hashes exist in the block, this will be the third item in the
-  // cometbft block data field, otherwise it will be fourth.
+  // exists).
   astria.primitive.v1.Proof proof = 2;
 }
 

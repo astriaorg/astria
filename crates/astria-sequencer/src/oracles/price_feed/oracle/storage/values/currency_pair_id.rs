@@ -25,7 +25,7 @@ impl From<CurrencyPairId> for DomainCurrencyPairId {
     }
 }
 
-impl<'a> From<CurrencyPairId> for crate::storage::StoredValue<'a> {
+impl From<CurrencyPairId> for crate::storage::StoredValue<'_> {
     fn from(id: CurrencyPairId) -> Self {
         crate::storage::StoredValue::PriceFeedOracle(Value(ValueImpl::CurrencyPairId(id)))
     }

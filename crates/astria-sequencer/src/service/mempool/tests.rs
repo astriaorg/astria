@@ -41,8 +41,7 @@ async fn future_nonces_are_accepted() {
     let mut app = App::new(
         snapshot,
         mempool.clone(),
-        Upgrades::default(),
-        String::new(),
+        Upgrades::default().into(),
         ve_handler,
         metrics,
     )
@@ -86,8 +85,7 @@ async fn rechecks_pass() {
     let mut app = App::new(
         snapshot,
         mempool.clone(),
-        Upgrades::default(),
-        String::new(),
+        Upgrades::default().into(),
         ve_handler,
         metrics,
     )
@@ -139,8 +137,7 @@ async fn can_reinsert_after_recheck_fail() {
     let mut app = App::new(
         snapshot,
         mempool.clone(),
-        Upgrades::default(),
-        String::new(),
+        Upgrades::default().into(),
         ve_handler,
         metrics,
     )
@@ -202,8 +199,7 @@ async fn recheck_adds_non_tracked_tx() {
     let mut app = App::new(
         snapshot,
         mempool.clone(),
-        Upgrades::default(),
-        String::new(),
+        Upgrades::default().into(),
         ve_handler,
         metrics,
     )

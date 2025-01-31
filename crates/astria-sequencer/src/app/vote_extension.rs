@@ -71,7 +71,7 @@ use crate::{
 const MAXIMUM_PRICE_BYTE_LEN: usize = 33;
 
 pub(crate) struct Handler {
-    // gRPC client for the connect oracle sidecar.
+    // gRPC client for the price feed oracle sidecar.
     oracle_client: Option<OracleClient<Channel>>,
 }
 

@@ -33,7 +33,6 @@ pub struct Config {
     /// The path to the file containing the JSON-encoded upgrades for this network.
     pub upgrades_filepath: PathBuf,
     /// The address of the CometBFT RPC endpoint for this sequencer.
-    #[expect(clippy::doc_markdown, reason = "false positive")]
     pub cometbft_rpc_addr: String,
     /// If the price feed is disabled. If false, the `price_feed_grpc_addr` must be set.
     /// Should be false for validator nodes and true for non-validator nodes.

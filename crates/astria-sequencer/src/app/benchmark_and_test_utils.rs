@@ -14,7 +14,6 @@ use astria_core::{
         },
         test_utils::dummy_price_feed_genesis,
         transaction::v1::action::{
-            AddCurrencyPairs,
             BridgeLock,
             BridgeSudoChange,
             BridgeUnlock,
@@ -24,7 +23,7 @@ use astria_core::{
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
-            RemoveCurrencyPairs,
+            PriceFeed,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
@@ -90,13 +89,12 @@ pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1::GenesisFees 
         ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0)),
         sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0)),
         ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0)),
-        add_currency_pairs: Some(FeeComponents::<AddCurrencyPairs>::new(0, 0)),
-        remove_currency_pairs: Some(FeeComponents::<RemoveCurrencyPairs>::new(0, 0)),
+        price_feed: Some(FeeComponents::<PriceFeed>::new(0, 0)),
     }
 }
 
-pub(crate) fn proto_genesis_state()
--> astria_core::generated::astria::protocol::genesis::v1::GenesisAppState {
+pub(crate) fn proto_genesis_state(
+) -> astria_core::generated::astria::protocol::genesis::v1::GenesisAppState {
     use astria_core::generated::astria::protocol::genesis::v1::{
         GenesisAppState,
         IbcParameters,
@@ -207,18 +205,11 @@ impl AppInitializer {
         let snapshot = storage.latest_snapshot();
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mempool = Mempool::new(metrics, 100);
-        let upgrades = self.upgrades.unwrap_or_default();
+        let upgrades_handler = self.upgrades.unwrap_or_default().into();
         let ve_handler = crate::app::vote_extension::Handler::new(None);
-        let mut app = App::new(
-            snapshot,
-            mempool,
-            upgrades,
-            String::new(),
-            ve_handler,
-            metrics,
-        )
-        .await
-        .unwrap();
+        let mut app = App::new(snapshot, mempool, upgrades_handler, ve_handler, metrics)
+            .await
+            .unwrap();
 
         let genesis_state = self.genesis_state.unwrap_or_else(get_test_genesis_state);
         let consensus_params = self
@@ -455,16 +446,10 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .wrap_err("failed to initiate ibc sudo change fee components")
         .unwrap();
 
-    let add_currency_pairs_fees = FeeComponents::<AddCurrencyPairs>::new(0, 0);
+    let price_feed_fees = FeeComponents::<PriceFeed>::new(0, 0);
     state
-        .put_fees(add_currency_pairs_fees)
-        .wrap_err("failed to initiate add currency pairs fee components")
-        .unwrap();
-
-    let remove_currency_pairs_fees = FeeComponents::<RemoveCurrencyPairs>::new(0, 0);
-    state
-        .put_fees(remove_currency_pairs_fees)
-        .wrap_err("failed to initiate remove currency pairs fee components")
+        .put_fees(price_feed_fees)
+        .wrap_err("failed to initiate price feed fee components")
         .unwrap();
 
     // put denoms as allowed fee asset

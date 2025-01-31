@@ -18,7 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Move `astria_core::crypto` to `astria-core-crypto` and reexported
+- Bump MSRV to 1.83.0 [#1857](https://github.com/astriaorg/astria/pull/1857).
+- Move `astria_core::crypto` to `astria-core-crypto` and reexport
   `astria_core_crypto as crypto` (this change is transparent)
   [#1800](https://github.com/astriaorg/astria/pull/1800/).
 - Move definitions of address domain type to `astria-core-address` and
@@ -27,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `astria_core::generated` to `astria_core::generated::astria`
   [#1825](https://github.com/astriaorg/astria/pull/1825).
 - Update `idna` dependency to resolve cargo audit warning [#1869](https://github.com/astriaorg/astria/pull/1869).
+- Replaced all instances of `[u8; 32]` by newtype
+  `astria_core::sequencerblock::v1::block::Hash` where appropriate [#1884](https://github.com/astriaorg/astria/pull/1884).
 
 ### Removed
 

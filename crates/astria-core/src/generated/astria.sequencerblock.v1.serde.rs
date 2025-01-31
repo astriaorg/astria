@@ -1,3 +1,236 @@
+impl serde::Serialize for DataItem {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.value.is_some() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1.DataItem", len)?;
+        if let Some(v) = self.value.as_ref() {
+            match v {
+                data_item::Value::RollupTransactionsRoot(v) => {
+                    #[allow(clippy::needless_borrow)]
+                    struct_ser.serialize_field("rollupTransactionsRoot", pbjson::private::base64::encode(&v).as_str())?;
+                }
+                data_item::Value::RollupIdsRoot(v) => {
+                    #[allow(clippy::needless_borrow)]
+                    struct_ser.serialize_field("rollupIdsRoot", pbjson::private::base64::encode(&v).as_str())?;
+                }
+                data_item::Value::UpgradeChangeHashes(v) => {
+                    struct_ser.serialize_field("upgradeChangeHashes", v)?;
+                }
+                data_item::Value::ExtendedCommitInfo(v) => {
+                    #[allow(clippy::needless_borrow)]
+                    struct_ser.serialize_field("extendedCommitInfo", pbjson::private::base64::encode(&v).as_str())?;
+                }
+            }
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for DataItem {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "rollup_transactions_root",
+            "rollupTransactionsRoot",
+            "rollup_ids_root",
+            "rollupIdsRoot",
+            "upgrade_change_hashes",
+            "upgradeChangeHashes",
+            "extended_commit_info",
+            "extendedCommitInfo",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            RollupTransactionsRoot,
+            RollupIdsRoot,
+            UpgradeChangeHashes,
+            ExtendedCommitInfo,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "rollupTransactionsRoot" | "rollup_transactions_root" => Ok(GeneratedField::RollupTransactionsRoot),
+                            "rollupIdsRoot" | "rollup_ids_root" => Ok(GeneratedField::RollupIdsRoot),
+                            "upgradeChangeHashes" | "upgrade_change_hashes" => Ok(GeneratedField::UpgradeChangeHashes),
+                            "extendedCommitInfo" | "extended_commit_info" => Ok(GeneratedField::ExtendedCommitInfo),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = DataItem;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.sequencerblock.v1.DataItem")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<DataItem, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut value__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::RollupTransactionsRoot => {
+                            if value__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("rollupTransactionsRoot"));
+                            }
+                            value__ = map_.next_value::<::std::option::Option<::pbjson::private::BytesDeserialize<_>>>()?.map(|x| data_item::Value::RollupTransactionsRoot(x.0));
+                        }
+                        GeneratedField::RollupIdsRoot => {
+                            if value__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("rollupIdsRoot"));
+                            }
+                            value__ = map_.next_value::<::std::option::Option<::pbjson::private::BytesDeserialize<_>>>()?.map(|x| data_item::Value::RollupIdsRoot(x.0));
+                        }
+                        GeneratedField::UpgradeChangeHashes => {
+                            if value__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("upgradeChangeHashes"));
+                            }
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(data_item::Value::UpgradeChangeHashes)
+;
+                        }
+                        GeneratedField::ExtendedCommitInfo => {
+                            if value__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("extendedCommitInfo"));
+                            }
+                            value__ = map_.next_value::<::std::option::Option<::pbjson::private::BytesDeserialize<_>>>()?.map(|x| data_item::Value::ExtendedCommitInfo(x.0));
+                        }
+                    }
+                }
+                Ok(DataItem {
+                    value: value__,
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.sequencerblock.v1.DataItem", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for data_item::UpgradeChangeHashes {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.hashes.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1.DataItem.UpgradeChangeHashes", len)?;
+        if !self.hashes.is_empty() {
+            struct_ser.serialize_field("hashes", &self.hashes.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for data_item::UpgradeChangeHashes {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "hashes",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Hashes,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "hashes" => Ok(GeneratedField::Hashes),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = data_item::UpgradeChangeHashes;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.sequencerblock.v1.DataItem.UpgradeChangeHashes")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<data_item::UpgradeChangeHashes, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut hashes__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Hashes => {
+                            if hashes__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("hashes"));
+                            }
+                            hashes__ = 
+                                Some(map_.next_value::<Vec<::pbjson::private::BytesDeserialize<_>>>()?
+                                    .into_iter().map(|x| x.0).collect())
+                            ;
+                        }
+                    }
+                }
+                Ok(data_item::UpgradeChangeHashes {
+                    hashes: hashes__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.sequencerblock.v1.DataItem.UpgradeChangeHashes", FIELDS, GeneratedVisitor)
+    }
+}
 impl serde::Serialize for Deposit {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -337,7 +570,7 @@ impl serde::Serialize for FilteredSequencerBlock {
         if self.rollup_ids_proof.is_some() {
             len += 1;
         }
-        if self.upgrade_change_hashes_with_proof.is_some() {
+        if !self.upgrade_change_hashes.is_empty() {
             len += 1;
         }
         if self.extended_commit_info_with_proof.is_some() {
@@ -363,8 +596,8 @@ impl serde::Serialize for FilteredSequencerBlock {
         if let Some(v) = self.rollup_ids_proof.as_ref() {
             struct_ser.serialize_field("rollupIdsProof", v)?;
         }
-        if let Some(v) = self.upgrade_change_hashes_with_proof.as_ref() {
-            struct_ser.serialize_field("upgradeChangeHashesWithProof", v)?;
+        if !self.upgrade_change_hashes.is_empty() {
+            struct_ser.serialize_field("upgradeChangeHashes", &self.upgrade_change_hashes.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
         }
         if let Some(v) = self.extended_commit_info_with_proof.as_ref() {
             struct_ser.serialize_field("extendedCommitInfoWithProof", v)?;
@@ -390,8 +623,8 @@ impl<'de> serde::Deserialize<'de> for FilteredSequencerBlock {
             "allRollupIds",
             "rollup_ids_proof",
             "rollupIdsProof",
-            "upgrade_change_hashes_with_proof",
-            "upgradeChangeHashesWithProof",
+            "upgrade_change_hashes",
+            "upgradeChangeHashes",
             "extended_commit_info_with_proof",
             "extendedCommitInfoWithProof",
         ];
@@ -404,7 +637,7 @@ impl<'de> serde::Deserialize<'de> for FilteredSequencerBlock {
             RollupTransactionsProof,
             AllRollupIds,
             RollupIdsProof,
-            UpgradeChangeHashesWithProof,
+            UpgradeChangeHashes,
             ExtendedCommitInfoWithProof,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
@@ -433,7 +666,7 @@ impl<'de> serde::Deserialize<'de> for FilteredSequencerBlock {
                             "rollupTransactionsProof" | "rollup_transactions_proof" => Ok(GeneratedField::RollupTransactionsProof),
                             "allRollupIds" | "all_rollup_ids" => Ok(GeneratedField::AllRollupIds),
                             "rollupIdsProof" | "rollup_ids_proof" => Ok(GeneratedField::RollupIdsProof),
-                            "upgradeChangeHashesWithProof" | "upgrade_change_hashes_with_proof" => Ok(GeneratedField::UpgradeChangeHashesWithProof),
+                            "upgradeChangeHashes" | "upgrade_change_hashes" => Ok(GeneratedField::UpgradeChangeHashes),
                             "extendedCommitInfoWithProof" | "extended_commit_info_with_proof" => Ok(GeneratedField::ExtendedCommitInfoWithProof),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
@@ -460,7 +693,7 @@ impl<'de> serde::Deserialize<'de> for FilteredSequencerBlock {
                 let mut rollup_transactions_proof__ = None;
                 let mut all_rollup_ids__ = None;
                 let mut rollup_ids_proof__ = None;
-                let mut upgrade_change_hashes_with_proof__ = None;
+                let mut upgrade_change_hashes__ = None;
                 let mut extended_commit_info_with_proof__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
@@ -502,11 +735,14 @@ impl<'de> serde::Deserialize<'de> for FilteredSequencerBlock {
                             }
                             rollup_ids_proof__ = map_.next_value()?;
                         }
-                        GeneratedField::UpgradeChangeHashesWithProof => {
-                            if upgrade_change_hashes_with_proof__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("upgradeChangeHashesWithProof"));
+                        GeneratedField::UpgradeChangeHashes => {
+                            if upgrade_change_hashes__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("upgradeChangeHashes"));
                             }
-                            upgrade_change_hashes_with_proof__ = map_.next_value()?;
+                            upgrade_change_hashes__ = 
+                                Some(map_.next_value::<Vec<::pbjson::private::BytesDeserialize<_>>>()?
+                                    .into_iter().map(|x| x.0).collect())
+                            ;
                         }
                         GeneratedField::ExtendedCommitInfoWithProof => {
                             if extended_commit_info_with_proof__.is_some() {
@@ -523,7 +759,7 @@ impl<'de> serde::Deserialize<'de> for FilteredSequencerBlock {
                     rollup_transactions_proof: rollup_transactions_proof__,
                     all_rollup_ids: all_rollup_ids__.unwrap_or_default(),
                     rollup_ids_proof: rollup_ids_proof__,
-                    upgrade_change_hashes_with_proof: upgrade_change_hashes_with_proof__,
+                    upgrade_change_hashes: upgrade_change_hashes__.unwrap_or_default(),
                     extended_commit_info_with_proof: extended_commit_info_with_proof__,
                 })
             }
@@ -1100,6 +1336,158 @@ impl<'de> serde::Deserialize<'de> for GetUpgradesInfoResponse {
         deserializer.deserialize_struct("astria.sequencerblock.v1.GetUpgradesInfoResponse", FIELDS, GeneratedVisitor)
     }
 }
+impl serde::Serialize for get_upgrades_info_response::ChangeInfo {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.activation_height != 0 {
+            len += 1;
+        }
+        if !self.change_name.is_empty() {
+            len += 1;
+        }
+        if self.app_version != 0 {
+            len += 1;
+        }
+        if !self.base64_hash.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1.GetUpgradesInfoResponse.ChangeInfo", len)?;
+        if self.activation_height != 0 {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("activationHeight", ToString::to_string(&self.activation_height).as_str())?;
+        }
+        if !self.change_name.is_empty() {
+            struct_ser.serialize_field("changeName", &self.change_name)?;
+        }
+        if self.app_version != 0 {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("appVersion", ToString::to_string(&self.app_version).as_str())?;
+        }
+        if !self.base64_hash.is_empty() {
+            struct_ser.serialize_field("base64Hash", &self.base64_hash)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for get_upgrades_info_response::ChangeInfo {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "activation_height",
+            "activationHeight",
+            "change_name",
+            "changeName",
+            "app_version",
+            "appVersion",
+            "base64_hash",
+            "base64Hash",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            ActivationHeight,
+            ChangeName,
+            AppVersion,
+            Base64Hash,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "activationHeight" | "activation_height" => Ok(GeneratedField::ActivationHeight),
+                            "changeName" | "change_name" => Ok(GeneratedField::ChangeName),
+                            "appVersion" | "app_version" => Ok(GeneratedField::AppVersion),
+                            "base64Hash" | "base64_hash" => Ok(GeneratedField::Base64Hash),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = get_upgrades_info_response::ChangeInfo;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.sequencerblock.v1.GetUpgradesInfoResponse.ChangeInfo")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<get_upgrades_info_response::ChangeInfo, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut activation_height__ = None;
+                let mut change_name__ = None;
+                let mut app_version__ = None;
+                let mut base64_hash__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::ActivationHeight => {
+                            if activation_height__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("activationHeight"));
+                            }
+                            activation_height__ = 
+                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
+                            ;
+                        }
+                        GeneratedField::ChangeName => {
+                            if change_name__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("changeName"));
+                            }
+                            change_name__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::AppVersion => {
+                            if app_version__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("appVersion"));
+                            }
+                            app_version__ = 
+                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
+                            ;
+                        }
+                        GeneratedField::Base64Hash => {
+                            if base64_hash__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("base64Hash"));
+                            }
+                            base64_hash__ = Some(map_.next_value()?);
+                        }
+                    }
+                }
+                Ok(get_upgrades_info_response::ChangeInfo {
+                    activation_height: activation_height__.unwrap_or_default(),
+                    change_name: change_name__.unwrap_or_default(),
+                    app_version: app_version__.unwrap_or_default(),
+                    base64_hash: base64_hash__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.sequencerblock.v1.GetUpgradesInfoResponse.ChangeInfo", FIELDS, GeneratedVisitor)
+    }
+}
 impl serde::Serialize for Price {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -1596,7 +1984,7 @@ impl serde::Serialize for SequencerBlock {
         if !self.block_hash.is_empty() {
             len += 1;
         }
-        if self.upgrade_change_hashes_with_proof.is_some() {
+        if !self.upgrade_change_hashes.is_empty() {
             len += 1;
         }
         if self.extended_commit_info_with_proof.is_some() {
@@ -1619,8 +2007,8 @@ impl serde::Serialize for SequencerBlock {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("blockHash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
         }
-        if let Some(v) = self.upgrade_change_hashes_with_proof.as_ref() {
-            struct_ser.serialize_field("upgradeChangeHashesWithProof", v)?;
+        if !self.upgrade_change_hashes.is_empty() {
+            struct_ser.serialize_field("upgradeChangeHashes", &self.upgrade_change_hashes.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
         }
         if let Some(v) = self.extended_commit_info_with_proof.as_ref() {
             struct_ser.serialize_field("extendedCommitInfoWithProof", v)?;
@@ -1644,8 +2032,8 @@ impl<'de> serde::Deserialize<'de> for SequencerBlock {
             "rollupIdsProof",
             "block_hash",
             "blockHash",
-            "upgrade_change_hashes_with_proof",
-            "upgradeChangeHashesWithProof",
+            "upgrade_change_hashes",
+            "upgradeChangeHashes",
             "extended_commit_info_with_proof",
             "extendedCommitInfoWithProof",
         ];
@@ -1657,7 +2045,7 @@ impl<'de> serde::Deserialize<'de> for SequencerBlock {
             RollupTransactionsProof,
             RollupIdsProof,
             BlockHash,
-            UpgradeChangeHashesWithProof,
+            UpgradeChangeHashes,
             ExtendedCommitInfoWithProof,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
@@ -1685,7 +2073,7 @@ impl<'de> serde::Deserialize<'de> for SequencerBlock {
                             "rollupTransactionsProof" | "rollup_transactions_proof" => Ok(GeneratedField::RollupTransactionsProof),
                             "rollupIdsProof" | "rollup_ids_proof" => Ok(GeneratedField::RollupIdsProof),
                             "blockHash" | "block_hash" => Ok(GeneratedField::BlockHash),
-                            "upgradeChangeHashesWithProof" | "upgrade_change_hashes_with_proof" => Ok(GeneratedField::UpgradeChangeHashesWithProof),
+                            "upgradeChangeHashes" | "upgrade_change_hashes" => Ok(GeneratedField::UpgradeChangeHashes),
                             "extendedCommitInfoWithProof" | "extended_commit_info_with_proof" => Ok(GeneratedField::ExtendedCommitInfoWithProof),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
@@ -1711,7 +2099,7 @@ impl<'de> serde::Deserialize<'de> for SequencerBlock {
                 let mut rollup_transactions_proof__ = None;
                 let mut rollup_ids_proof__ = None;
                 let mut block_hash__ = None;
-                let mut upgrade_change_hashes_with_proof__ = None;
+                let mut upgrade_change_hashes__ = None;
                 let mut extended_commit_info_with_proof__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
@@ -1747,11 +2135,14 @@ impl<'de> serde::Deserialize<'de> for SequencerBlock {
                                 Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
                             ;
                         }
-                        GeneratedField::UpgradeChangeHashesWithProof => {
-                            if upgrade_change_hashes_with_proof__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("upgradeChangeHashesWithProof"));
+                        GeneratedField::UpgradeChangeHashes => {
+                            if upgrade_change_hashes__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("upgradeChangeHashes"));
                             }
-                            upgrade_change_hashes_with_proof__ = map_.next_value()?;
+                            upgrade_change_hashes__ = 
+                                Some(map_.next_value::<Vec<::pbjson::private::BytesDeserialize<_>>>()?
+                                    .into_iter().map(|x| x.0).collect())
+                            ;
                         }
                         GeneratedField::ExtendedCommitInfoWithProof => {
                             if extended_commit_info_with_proof__.is_some() {
@@ -1767,7 +2158,7 @@ impl<'de> serde::Deserialize<'de> for SequencerBlock {
                     rollup_transactions_proof: rollup_transactions_proof__,
                     rollup_ids_proof: rollup_ids_proof__,
                     block_hash: block_hash__.unwrap_or_default(),
-                    upgrade_change_hashes_with_proof: upgrade_change_hashes_with_proof__,
+                    upgrade_change_hashes: upgrade_change_hashes__.unwrap_or_default(),
                     extended_commit_info_with_proof: extended_commit_info_with_proof__,
                 })
             }
@@ -1990,7 +2381,7 @@ impl serde::Serialize for SubmittedMetadata {
         if self.rollup_ids_proof.is_some() {
             len += 1;
         }
-        if self.upgrade_change_hashes_with_proof.is_some() {
+        if !self.upgrade_change_hashes.is_empty() {
             len += 1;
         }
         if self.extended_commit_info_with_proof.is_some() {
@@ -2013,8 +2404,8 @@ impl serde::Serialize for SubmittedMetadata {
         if let Some(v) = self.rollup_ids_proof.as_ref() {
             struct_ser.serialize_field("rollupIdsProof", v)?;
         }
-        if let Some(v) = self.upgrade_change_hashes_with_proof.as_ref() {
-            struct_ser.serialize_field("upgradeChangeHashesWithProof", v)?;
+        if !self.upgrade_change_hashes.is_empty() {
+            struct_ser.serialize_field("upgradeChangeHashes", &self.upgrade_change_hashes.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
         }
         if let Some(v) = self.extended_commit_info_with_proof.as_ref() {
             struct_ser.serialize_field("extendedCommitInfoWithProof", v)?;
@@ -2038,8 +2429,8 @@ impl<'de> serde::Deserialize<'de> for SubmittedMetadata {
             "rollupTransactionsProof",
             "rollup_ids_proof",
             "rollupIdsProof",
-            "upgrade_change_hashes_with_proof",
-            "upgradeChangeHashesWithProof",
+            "upgrade_change_hashes",
+            "upgradeChangeHashes",
             "extended_commit_info_with_proof",
             "extendedCommitInfoWithProof",
         ];
@@ -2051,7 +2442,7 @@ impl<'de> serde::Deserialize<'de> for SubmittedMetadata {
             RollupIds,
             RollupTransactionsProof,
             RollupIdsProof,
-            UpgradeChangeHashesWithProof,
+            UpgradeChangeHashes,
             ExtendedCommitInfoWithProof,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
@@ -2079,7 +2470,7 @@ impl<'de> serde::Deserialize<'de> for SubmittedMetadata {
                             "rollupIds" | "rollup_ids" => Ok(GeneratedField::RollupIds),
                             "rollupTransactionsProof" | "rollup_transactions_proof" => Ok(GeneratedField::RollupTransactionsProof),
                             "rollupIdsProof" | "rollup_ids_proof" => Ok(GeneratedField::RollupIdsProof),
-                            "upgradeChangeHashesWithProof" | "upgrade_change_hashes_with_proof" => Ok(GeneratedField::UpgradeChangeHashesWithProof),
+                            "upgradeChangeHashes" | "upgrade_change_hashes" => Ok(GeneratedField::UpgradeChangeHashes),
                             "extendedCommitInfoWithProof" | "extended_commit_info_with_proof" => Ok(GeneratedField::ExtendedCommitInfoWithProof),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
@@ -2105,7 +2496,7 @@ impl<'de> serde::Deserialize<'de> for SubmittedMetadata {
                 let mut rollup_ids__ = None;
                 let mut rollup_transactions_proof__ = None;
                 let mut rollup_ids_proof__ = None;
-                let mut upgrade_change_hashes_with_proof__ = None;
+                let mut upgrade_change_hashes__ = None;
                 let mut extended_commit_info_with_proof__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
@@ -2141,11 +2532,14 @@ impl<'de> serde::Deserialize<'de> for SubmittedMetadata {
                             }
                             rollup_ids_proof__ = map_.next_value()?;
                         }
-                        GeneratedField::UpgradeChangeHashesWithProof => {
-                            if upgrade_change_hashes_with_proof__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("upgradeChangeHashesWithProof"));
+                        GeneratedField::UpgradeChangeHashes => {
+                            if upgrade_change_hashes__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("upgradeChangeHashes"));
                             }
-                            upgrade_change_hashes_with_proof__ = map_.next_value()?;
+                            upgrade_change_hashes__ = 
+                                Some(map_.next_value::<Vec<::pbjson::private::BytesDeserialize<_>>>()?
+                                    .into_iter().map(|x| x.0).collect())
+                            ;
                         }
                         GeneratedField::ExtendedCommitInfoWithProof => {
                             if extended_commit_info_with_proof__.is_some() {
@@ -2161,7 +2555,7 @@ impl<'de> serde::Deserialize<'de> for SubmittedMetadata {
                     rollup_ids: rollup_ids__.unwrap_or_default(),
                     rollup_transactions_proof: rollup_transactions_proof__,
                     rollup_ids_proof: rollup_ids_proof__,
-                    upgrade_change_hashes_with_proof: upgrade_change_hashes_with_proof__,
+                    upgrade_change_hashes: upgrade_change_hashes__.unwrap_or_default(),
                     extended_commit_info_with_proof: extended_commit_info_with_proof__,
                 })
             }
@@ -2499,117 +2893,5 @@ impl<'de> serde::Deserialize<'de> for SubmittedRollupDataList {
             }
         }
         deserializer.deserialize_struct("astria.sequencerblock.v1.SubmittedRollupDataList", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for UpgradeChangeHashesWithProof {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if !self.upgrade_change_hashes.is_empty() {
-            len += 1;
-        }
-        if self.proof.is_some() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1.UpgradeChangeHashesWithProof", len)?;
-        if !self.upgrade_change_hashes.is_empty() {
-            struct_ser.serialize_field("upgradeChangeHashes", &self.upgrade_change_hashes.iter().map(pbjson::private::base64::encode).collect::<Vec<_>>())?;
-        }
-        if let Some(v) = self.proof.as_ref() {
-            struct_ser.serialize_field("proof", v)?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for UpgradeChangeHashesWithProof {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "upgrade_change_hashes",
-            "upgradeChangeHashes",
-            "proof",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            UpgradeChangeHashes,
-            Proof,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "upgradeChangeHashes" | "upgrade_change_hashes" => Ok(GeneratedField::UpgradeChangeHashes),
-                            "proof" => Ok(GeneratedField::Proof),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = UpgradeChangeHashesWithProof;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.sequencerblock.v1.UpgradeChangeHashesWithProof")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<UpgradeChangeHashesWithProof, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut upgrade_change_hashes__ = None;
-                let mut proof__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::UpgradeChangeHashes => {
-                            if upgrade_change_hashes__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("upgradeChangeHashes"));
-                            }
-                            upgrade_change_hashes__ = 
-                                Some(map_.next_value::<Vec<::pbjson::private::BytesDeserialize<_>>>()?
-                                    .into_iter().map(|x| x.0).collect())
-                            ;
-                        }
-                        GeneratedField::Proof => {
-                            if proof__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("proof"));
-                            }
-                            proof__ = map_.next_value()?;
-                        }
-                    }
-                }
-                Ok(UpgradeChangeHashesWithProof {
-                    upgrade_change_hashes: upgrade_change_hashes__.unwrap_or_default(),
-                    proof: proof__,
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.sequencerblock.v1.UpgradeChangeHashesWithProof", FIELDS, GeneratedVisitor)
     }
 }

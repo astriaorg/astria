@@ -102,7 +102,7 @@ impl From<CurrencyPairState> for DomainCurrencyPairState {
     }
 }
 
-impl<'a> From<CurrencyPairState> for crate::storage::StoredValue<'a> {
+impl From<CurrencyPairState> for crate::storage::StoredValue<'_> {
     fn from(state: CurrencyPairState) -> Self {
         crate::storage::StoredValue::PriceFeedOracle(Value(ValueImpl::CurrencyPairState(state)))
     }

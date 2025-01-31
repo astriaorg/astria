@@ -51,8 +51,9 @@ use crate::{
     },
     sequencerblock::v1::{
         block::{
+            self,
             Deposit,
-            ParsedDataItems,
+            ExpandedBlockData,
             SequencerBlockBuilder,
         },
         DataItem,
@@ -88,7 +89,7 @@ impl From<(i64, u32)> for UnixTimeStamp {
 ///
 /// If the proposer address is not set it will be generated from the signing key.
 pub struct ConfigureSequencerBlock {
-    pub block_hash: Option<[u8; 32]>,
+    pub block_hash: Option<block::Hash>,
     pub chain_id: Option<String>,
     pub height: u32,
     pub proposer_address: Option<tendermint::account::Id>,
@@ -149,7 +150,7 @@ impl ConfigureSequencerBlock {
             with_extended_commit_info,
         } = self;
 
-        let block_hash = block_hash.unwrap_or_default();
+        let block_hash = block_hash.unwrap_or_else(|| block::Hash::new([0; 32]));
         let chain_id = chain_id.unwrap_or_else(|| "test".to_string());
 
         let signing_key = signing_key.unwrap_or_else(|| SigningKey::new(rand::rngs::OsRng));
@@ -219,10 +220,8 @@ impl ConfigureSequencerBlock {
 
         let mut data = if use_data_items {
             vec![
-                DataItem::RollupTransactionsRoot(rollup_transactions_tree.root())
-                    .encode()
-                    .unwrap(),
-                DataItem::RollupIdsRoot(rollup_ids_root).encode().unwrap(),
+                DataItem::RollupTransactionsRoot(rollup_transactions_tree.root()).encode(),
+                DataItem::RollupIdsRoot(rollup_ids_root).encode(),
             ]
         } else {
             vec![
@@ -248,8 +247,8 @@ impl ConfigureSequencerBlock {
         }
 
         data.extend(txs.into_iter().map(|tx| tx.to_raw().encode_to_vec().into()));
-        let parsed_data_items =
-            ParsedDataItems::new_from_typed_data(&data, with_extended_commit_info).unwrap();
+        let expanded_block_data =
+            ExpandedBlockData::new_from_typed_data(&data, with_extended_commit_info).unwrap();
 
         SequencerBlockBuilder {
             block_hash,
@@ -257,7 +256,7 @@ impl ConfigureSequencerBlock {
             height: height.into(),
             time: Time::from_unix_timestamp(unix_timestamp.secs, unix_timestamp.nanos).unwrap(),
             proposer_address,
-            parsed_data_items,
+            expanded_block_data,
             deposits: deposits_map,
         }
         .try_build()
@@ -278,9 +277,7 @@ pub fn upgrade_change_hashes() -> Vec<ChangeHash> {
 
 #[must_use]
 pub fn upgrade_change_hashes_bytes() -> Bytes {
-    DataItem::UpgradeChangeHashes(upgrade_change_hashes())
-        .encode()
-        .unwrap()
+    DataItem::UpgradeChangeHashes(upgrade_change_hashes()).encode()
 }
 
 #[must_use]
@@ -304,7 +301,6 @@ pub fn minimal_extended_commit_info_bytes() -> Bytes {
             .into(),
     )
     .encode()
-    .unwrap()
 }
 
 #[must_use]

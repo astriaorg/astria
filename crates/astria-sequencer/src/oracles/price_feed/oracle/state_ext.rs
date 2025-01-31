@@ -405,27 +405,21 @@ mod tests {
         let mut state = StateDelta::new(snapshot);
 
         // Getting should return `None` when the pair is not stored.
-        assert!(
-            state
-                .get_currency_pair_state(&eth_usd())
-                .await
-                .unwrap()
-                .is_none()
-        );
-        assert!(
-            state
-                .get_currency_pair_id(&eth_usd())
-                .await
-                .unwrap()
-                .is_none()
-        );
-        assert!(
-            state
-                .get_currency_pair(CurrencyPairId::new(1))
-                .await
-                .unwrap()
-                .is_none()
-        );
+        assert!(state
+            .get_currency_pair_state(&eth_usd())
+            .await
+            .unwrap()
+            .is_none());
+        assert!(state
+            .get_currency_pair_id(&eth_usd())
+            .await
+            .unwrap()
+            .is_none());
+        assert!(state
+            .get_currency_pair(CurrencyPairId::new(1))
+            .await
+            .unwrap()
+            .is_none());
 
         // Putting a currency pair state should succeed.
         state

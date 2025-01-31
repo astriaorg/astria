@@ -33,8 +33,7 @@ message Action {
     IbcSudoChange ibc_sudo_change = 56;
 
     // Price feed actions are defined on 71-80
-    AddCurrencyPairs add_currency_pairs = 71;
-    RemoveCurrencyPairs remove_currency_pairs = 72;
+    PriceFeed price_feed = 71;
   }
 }
 
@@ -233,8 +232,7 @@ message FeeChange {
     astria.protocol.fees.v1.SudoAddressChangeFeeComponents sudo_address_change = 12;
     astria.protocol.fees.v1.TransferFeeComponents transfer = 13;
     astria.protocol.fees.v1.ValidatorUpdateFeeComponents validator_update = 14;
-    astria.protocol.fees.v1.AddCurrencyPairsFeeComponents add_currency_pairs = 15;
-    astria.protocol.fees.v1.RemoveCurrencyPairsFeeComponents remove_currency_pairs = 16;
+    astria.protocol.fees.v1.PriceFeedFeeComponents price_feed = 15;
   }
 }
 
@@ -242,10 +240,21 @@ message IbcSudoChange {
   astria.primitive.v1.Address new_address = 1;
 }
 
-message AddCurrencyPairs {
-  repeated price_feed.types.v2.CurrencyPair pairs = 1;
+// A transaction that modifies the price feed oracle settings.
+message PriceFeed {
+  oneof value {
+    CurrencyPairsChange oracle = 1;
+  }
 }
 
-message RemoveCurrencyPairs {
+// Add or remove currency pairs to/from the price feed oracle.
+message CurrencyPairsChange {
+  oneof value {
+    CurrencyPairs addition = 1;
+    CurrencyPairs removal = 2;
+  }
+}
+
+message CurrencyPairs {
   repeated price_feed.types.v2.CurrencyPair pairs = 1;
 }

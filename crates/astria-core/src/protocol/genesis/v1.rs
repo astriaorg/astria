@@ -27,7 +27,6 @@ use crate::{
             FeeComponents,
         },
         transaction::v1::action::{
-            AddCurrencyPairs,
             BridgeLock,
             BridgeSudoChange,
             BridgeUnlock,
@@ -37,7 +36,7 @@ use crate::{
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
-            RemoveCurrencyPairs,
+            PriceFeed,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
@@ -296,12 +295,6 @@ impl Protobuf for GenesisAppState {
     type Error = GenesisAppStateError;
     type Raw = raw::GenesisAppState;
 
-    // TODO (https://github.com/astriaorg/astria/issues/1580): remove this once Rust is upgraded to/past 1.83
-    #[expect(
-        clippy::allow_attributes,
-        clippy::allow_attributes_without_reason,
-        reason = "false positive on `allowed_fee_assets` due to \"allow\" in the name"
-    )]
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let Self::Raw {
             address_prefixes,
@@ -761,8 +754,7 @@ pub struct GenesisFees {
     pub ibc_relayer_change: Option<FeeComponents<IbcRelayerChange>>,
     pub sudo_address_change: Option<FeeComponents<SudoAddressChange>>,
     pub ibc_sudo_change: Option<FeeComponents<IbcSudoChange>>,
-    pub add_currency_pairs: Option<FeeComponents<AddCurrencyPairs>>,
-    pub remove_currency_pairs: Option<FeeComponents<RemoveCurrencyPairs>>,
+    pub price_feed: Option<FeeComponents<PriceFeed>>,
 }
 
 impl Protobuf for GenesisFees {
@@ -789,8 +781,7 @@ impl Protobuf for GenesisFees {
             ibc_relayer_change,
             sudo_address_change,
             ibc_sudo_change,
-            add_currency_pairs,
-            remove_currency_pairs,
+            price_feed,
         } = raw;
         let rollup_data_submission = rollup_data_submission
             .clone()
@@ -877,17 +868,11 @@ impl Protobuf for GenesisFees {
             .transpose()
             .map_err(|e| FeesError::fee_components("ibc_sudo_change", e))?;
 
-        let add_currency_pairs = add_currency_pairs
+        let price_feed = price_feed
             .clone()
-            .map(FeeComponents::<AddCurrencyPairs>::try_from_raw)
+            .map(FeeComponents::<PriceFeed>::try_from_raw)
             .transpose()
-            .map_err(|e| FeesError::fee_components("add_currency_pairs", e))?;
-
-        let remove_currency_pairs = remove_currency_pairs
-            .clone()
-            .map(FeeComponents::<RemoveCurrencyPairs>::try_from_raw)
-            .transpose()
-            .map_err(|e| FeesError::fee_components("remove_currency_pairs", e))?;
+            .map_err(|e| FeesError::fee_components("price_feed", e))?;
 
         Ok(Self {
             rollup_data_submission,
@@ -904,8 +889,7 @@ impl Protobuf for GenesisFees {
             ibc_relayer_change,
             sudo_address_change,
             ibc_sudo_change,
-            add_currency_pairs,
-            remove_currency_pairs,
+            price_feed,
         })
     }
 
@@ -925,8 +909,7 @@ impl Protobuf for GenesisFees {
             ibc_relayer_change,
             sudo_address_change,
             ibc_sudo_change,
-            add_currency_pairs,
-            remove_currency_pairs,
+            price_feed,
         } = self;
         Self::Raw {
             transfer: transfer.map(|act| FeeComponents::<Transfer>::to_raw(&act)),
@@ -952,10 +935,7 @@ impl Protobuf for GenesisFees {
                 .map(|act| FeeComponents::<SudoAddressChange>::to_raw(&act)),
             ibc_sudo_change: ibc_sudo_change
                 .map(|act| FeeComponents::<IbcSudoChange>::to_raw(&act)),
-            add_currency_pairs: add_currency_pairs
-                .map(|act| FeeComponents::<AddCurrencyPairs>::to_raw(&act)),
-            remove_currency_pairs: remove_currency_pairs
-                .map(|act| FeeComponents::<RemoveCurrencyPairs>::to_raw(&act)),
+            price_feed: price_feed.map(|act| FeeComponents::<PriceFeed>::to_raw(&act)),
         }
     }
 }
@@ -1142,10 +1122,7 @@ mod tests {
                 ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0).to_raw()),
                 sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0).to_raw()),
                 ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0).to_raw()),
-                add_currency_pairs: Some(FeeComponents::<AddCurrencyPairs>::new(0, 0).to_raw()),
-                remove_currency_pairs: Some(
-                    FeeComponents::<RemoveCurrencyPairs>::new(0, 0).to_raw(),
-                ),
+                price_feed: Some(FeeComponents::<PriceFeed>::new(0, 0).to_raw()),
             }),
             price_feed: Some(
                 PriceFeedGenesis {

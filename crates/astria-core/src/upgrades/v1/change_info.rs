@@ -8,7 +8,7 @@ use super::{
     ChangeHash,
     ChangeName,
 };
-use crate::generated::upgrades::v1 as raw;
+use crate::generated::sequencerblock::v1::get_upgrades_info_response as raw;
 
 /// Brief details of a given upgrade change.
 ///

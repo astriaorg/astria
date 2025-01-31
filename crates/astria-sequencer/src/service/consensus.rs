@@ -332,14 +332,12 @@ mod tests {
 
     fn make_unsigned_tx() -> TransactionBody {
         TransactionBody::builder()
-            .actions(vec![
-                RollupDataSubmission {
-                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                    data: Bytes::from_static(b"hello world"),
-                    fee_asset: crate::benchmark_and_test_utils::nria().into(),
-                }
-                .into(),
-            ])
+            .actions(vec![RollupDataSubmission {
+                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                data: Bytes::from_static(b"hello world"),
+                fee_asset: crate::benchmark_and_test_utils::nria().into(),
+            }
+            .into()])
             .chain_id("test")
             .try_build()
             .unwrap()
@@ -438,7 +436,7 @@ mod tests {
     async fn process_proposal_fail_missing_action_commitment() {
         let (mut consensus_service, _) = new_consensus_service(None).await;
         let mut process_proposal = new_process_proposal_request(&[]);
-        process_proposal.txs = vec![];
+        process_proposal.txs.clear();
         let error_message = format!(
             "{:#}",
             consensus_service
@@ -467,7 +465,7 @@ mod tests {
                 .err()
                 .unwrap()
         );
-        let expected = "item 0 of cometbft `block.data` could not be borsh-decoded";
+        let expected = "item 0 of cometbft `block.data` could not be protobuf-decoded";
         assert!(
             error_message.contains(expected),
             "`{error_message}` didn't contain `{expected}`"
@@ -478,9 +476,7 @@ mod tests {
     async fn process_proposal_fail_wrong_commitment_value() {
         let (mut consensus_service, _) = new_consensus_service(None).await;
         let mut process_proposal = new_process_proposal_request(&[]);
-        process_proposal.txs[0] = DataItem::RollupTransactionsRoot([99u8; 32])
-            .encode()
-            .unwrap();
+        process_proposal.txs[0] = DataItem::RollupTransactionsRoot([99u8; 32]).encode();
         let error_message = format!(
             "{:#}",
             consensus_service
@@ -555,8 +551,7 @@ mod tests {
         let mut app = App::new(
             snapshot,
             mempool.clone(),
-            Upgrades::default(),
-            String::new(),
+            Upgrades::default().into(),
             crate::app::vote_extension::Handler::new(None),
             metrics,
         )

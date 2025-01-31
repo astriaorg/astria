@@ -8,6 +8,7 @@ use astria_core::{
     primitive::v1::RollupId,
     protocol::price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
     sequencerblock::v1::block::{
+        self,
         FilteredSequencerBlock,
         FilteredSequencerBlockParts,
         PriceFeedData,
@@ -77,7 +78,7 @@ pub(crate) enum FirmSendError {
     #[error("failed sending blocks to executor")]
     Channel {
         #[from]
-        source: mpsc::error::SendError<ReconstructedBlock>,
+        source: mpsc::error::SendError<Box<ReconstructedBlock>>,
     },
 }
 
@@ -88,7 +89,7 @@ pub(crate) enum FirmTrySendError {
     #[error("failed sending blocks to executor")]
     Channel {
         #[from]
-        source: mpsc::error::TrySendError<ReconstructedBlock>,
+        source: mpsc::error::TrySendError<Box<ReconstructedBlock>>,
     },
 }
 
@@ -118,7 +119,7 @@ pub(crate) enum SoftTrySendError {
 /// information.
 #[derive(Debug, Clone)]
 pub(crate) struct Handle<TStateInit = StateNotInit> {
-    firm_blocks: Option<mpsc::Sender<ReconstructedBlock>>,
+    firm_blocks: Option<mpsc::Sender<Box<ReconstructedBlock>>>,
     soft_blocks: Option<channel::Sender<FilteredSequencerBlock>>,
     state: StateReceiver,
     _state_init: TStateInit,
@@ -149,20 +150,18 @@ impl Handle<StateIsInit> {
     #[instrument(skip_all, err)]
     pub(crate) async fn send_firm_block(
         self,
-        block: ReconstructedBlock,
+        block: impl Into<Box<ReconstructedBlock>>,
     ) -> Result<(), FirmSendError> {
         let sender = self.firm_blocks.as_ref().ok_or(FirmSendError::NotSet)?;
-        sender.send(block).await?;
-        Ok(())
+        Ok(sender.send(block.into()).await?)
     }
 
     pub(crate) fn try_send_firm_block(
         &self,
-        block: ReconstructedBlock,
+        block: impl Into<Box<ReconstructedBlock>>,
     ) -> Result<(), FirmTrySendError> {
         let sender = self.firm_blocks.as_ref().ok_or(FirmTrySendError::NotSet)?;
-        sender.try_send(block)?;
-        Ok(())
+        Ok(sender.try_send(block.into())?)
     }
 
     #[instrument(skip_all, err)]
@@ -229,7 +228,7 @@ pub(crate) struct Executor {
     /// The channel of which this executor receives blocks for executing
     /// firm commitments.
     /// Only set if `mode` is `FirmOnly` or `SoftAndFirm`.
-    firm_blocks: Option<mpsc::Receiver<ReconstructedBlock>>,
+    firm_blocks: Option<mpsc::Receiver<Box<ReconstructedBlock>>>,
 
     /// The channel of which this executor receives blocks for executing
     /// soft commitments.
@@ -288,7 +287,7 @@ impl Executor {
                 {
                     debug_span!("conductor::Executor::run_until_stopped").in_scope(||debug!(
                         block.height = %block.sequencer_height(),
-                        block.hash = %telemetry::display::base64(&block.block_hash),
+                        block.hash = %block.block_hash(),
                         "received block from celestia reader",
                     ));
                     if let Err(error) = self.execute_firm(block).await {
@@ -301,7 +300,7 @@ impl Executor {
                 {
                     debug_span!("conductor::Executor::run_until_stopped").in_scope(||debug!(
                         block.height = %block.height(),
-                        block.hash = %telemetry::display::base64(&block.block_hash()),
+                        block.hash = %block.block_hash(),
                         "received block from sequencer reader",
                     ));
                     if let Err(error) = self.execute_soft(block).await {
@@ -391,7 +390,7 @@ impl Executor {
     }
 
     #[instrument(skip_all, fields(
-        block.hash = %telemetry::display::base64(&block.block_hash()),
+        block.hash = %block.block_hash(),
         block.height = block.height().value(),
         err,
     ))]
@@ -455,13 +454,13 @@ impl Executor {
     }
 
     #[instrument(skip_all, fields(
-        block.hash = %telemetry::display::base64(&block.block_hash),
+        block.hash = %block.block_hash(),
         block.height = block.sequencer_height().value(),
         err,
     ))]
-    async fn execute_firm(&mut self, block: ReconstructedBlock) -> eyre::Result<()> {
+    async fn execute_firm(&mut self, block: Box<ReconstructedBlock>) -> eyre::Result<()> {
         let celestia_height = block.celestia_height;
-        let executable_block = ExecutableBlock::from_reconstructed(block);
+        let executable_block = ExecutableBlock::from_reconstructed(*block);
         let expected_height = self.state.next_expected_firm_sequencer_height();
         let block_height = executable_block.height;
         ensure!(
@@ -535,7 +534,7 @@ impl Executor {
     /// This function is called via [`Executor::execute_firm`] or [`Executor::execute_soft`],
     /// and should not be called directly.
     #[instrument(skip_all, fields(
-        block.hash = %telemetry::display::base64(&block.hash),
+        block.hash = %block.hash,
         block.height = block.height.value(),
         block.num_of_transactions = block.transactions.len(),
         rollup.parent_hash = %telemetry::display::base64(&parent_hash),
@@ -693,7 +692,7 @@ enum Update {
 
 #[derive(Debug)]
 struct ExecutableBlock {
-    hash: [u8; 32],
+    hash: block::Hash,
     height: SequencerHeight,
     timestamp: pbjson_types::Timestamp,
     transactions: Vec<Bytes>,

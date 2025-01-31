@@ -52,16 +52,12 @@ fn sequencer_block_from_cometbft_block_gives_expected_merkle_proofs() {
     }
 
     let data_hash = *sequencer_block.header().data_hash();
-    assert!(
-        sequencer_block
-            .rollup_transactions_proof()
-            .verify(&Sha256::digest(rollup_transaction_tree.root()), data_hash)
-    );
-    assert!(
-        sequencer_block
-            .rollup_ids_proof()
-            .verify(&Sha256::digest(rollup_ids_root), data_hash)
-    );
+    assert!(sequencer_block
+        .rollup_transactions_proof()
+        .verify(&Sha256::digest(rollup_transaction_tree.root()), data_hash));
+    assert!(sequencer_block
+        .rollup_ids_proof()
+        .verify(&Sha256::digest(rollup_ids_root), data_hash));
 }
 
 #[test]
@@ -79,10 +75,7 @@ fn block_to_filtered_roundtrip() {
 #[test]
 fn encoded_rollup_txs_root_length_should_be_correct() {
     assert_eq!(
-        DataItem::RollupTransactionsRoot([1; 32])
-            .encode()
-            .unwrap()
-            .len(),
+        DataItem::RollupTransactionsRoot([1; 32]).encode().len(),
         DataItem::ENCODED_ROLLUP_TRANSACTIONS_ROOT_LENGTH
     );
 }
@@ -90,7 +83,7 @@ fn encoded_rollup_txs_root_length_should_be_correct() {
 #[test]
 fn encoded_rollup_ids_root_length_should_be_correct() {
     assert_eq!(
-        DataItem::RollupIdsRoot([1; 32]).encode().unwrap().len(),
+        DataItem::RollupIdsRoot([1; 32]).encode().len(),
         DataItem::ENCODED_ROLLUP_IDS_ROOT_LENGTH
     );
 }
@@ -100,9 +93,7 @@ fn rollup_txs_root_legacy_bytes() -> Bytes {
 }
 
 fn rollup_txs_root_bytes() -> Bytes {
-    DataItem::RollupTransactionsRoot(ROLLUP_TXS_ROOT)
-        .encode()
-        .unwrap()
+    DataItem::RollupTransactionsRoot(ROLLUP_TXS_ROOT).encode()
 }
 
 fn rollup_ids_root_legacy_bytes() -> Bytes {
@@ -110,7 +101,7 @@ fn rollup_ids_root_legacy_bytes() -> Bytes {
 }
 
 fn rollup_ids_root_bytes() -> Bytes {
-    DataItem::RollupIdsRoot(ROLLUP_IDS_ROOT).encode().unwrap()
+    DataItem::RollupIdsRoot(ROLLUP_IDS_ROOT).encode()
 }
 
 fn tx(nonce: u32) -> Transaction {
@@ -161,15 +152,15 @@ macro_rules! assert_err_matches {
     };
 }
 
-// Tests for the `ParsedDataItems` constructors.
-mod parsed_data_items {
+// Tests for the `ExpandedBlockData` constructors.
+mod expanded_block_data {
     use super::*;
 
     #[test]
     fn should_fail_to_parse_legacy_txs_missing_rollup_txs_root() {
         let data = [];
         let SequencerBlockError(error_kind) =
-            ParsedDataItems::new_from_untyped_data(&data).unwrap_err();
+            ExpandedBlockData::new_from_untyped_data(&data).unwrap_err();
         assert_err_matches!(
             error_kind,
             SequencerBlockErrorKind::NoRollupTransactionsRoot
@@ -180,7 +171,7 @@ mod parsed_data_items {
     fn should_fail_to_parse_legacy_txs_malformed_rollup_txs_root() {
         let data = [vec![0; 31].into()];
         let SequencerBlockError(error_kind) =
-            ParsedDataItems::new_from_untyped_data(&data).unwrap_err();
+            ExpandedBlockData::new_from_untyped_data(&data).unwrap_err();
         assert_err_matches!(
             error_kind,
             SequencerBlockErrorKind::IncorrectRollupTransactionsRootLength
@@ -191,7 +182,7 @@ mod parsed_data_items {
     fn should_fail_to_parse_legacy_txs_missing_rollup_ids_root() {
         let data = [rollup_txs_root_legacy_bytes()];
         let SequencerBlockError(error_kind) =
-            ParsedDataItems::new_from_untyped_data(&data).unwrap_err();
+            ExpandedBlockData::new_from_untyped_data(&data).unwrap_err();
         assert_err_matches!(error_kind, SequencerBlockErrorKind::NoRollupIdsRoot);
     }
 
@@ -199,7 +190,7 @@ mod parsed_data_items {
     fn should_fail_to_parse_legacy_txs_malformed_rollup_ids_root() {
         let data = [rollup_txs_root_legacy_bytes(), vec![0; 31].into()];
         let SequencerBlockError(error_kind) =
-            ParsedDataItems::new_from_untyped_data(&data).unwrap_err();
+            ExpandedBlockData::new_from_untyped_data(&data).unwrap_err();
         assert_err_matches!(
             error_kind,
             SequencerBlockErrorKind::IncorrectRollupIdsRootLength
@@ -214,7 +205,7 @@ mod parsed_data_items {
             vec![3].into(),
         ];
         let SequencerBlockError(error_kind) =
-            ParsedDataItems::new_from_untyped_data(&data).unwrap_err();
+            ExpandedBlockData::new_from_untyped_data(&data).unwrap_err();
         assert_err_matches!(
             error_kind,
             SequencerBlockErrorKind::TransactionProtobufDecode(_)
@@ -234,7 +225,7 @@ mod parsed_data_items {
             bad_tx.encode_to_vec().into(),
         ];
         let SequencerBlockError(error_kind) =
-            ParsedDataItems::new_from_untyped_data(&data).unwrap_err();
+            ExpandedBlockData::new_from_untyped_data(&data).unwrap_err();
         assert_err_matches!(
             error_kind,
             SequencerBlockErrorKind::RawTransactionConversion(_)
@@ -242,7 +233,7 @@ mod parsed_data_items {
     }
 
     #[test]
-    fn should_parse_legacy_txs_with_rollup_txs() {
+    fn should_parse_legacy_txs_with_user_submitted_txs() {
         let data = [
             rollup_txs_root_legacy_bytes(),
             rollup_ids_root_legacy_bytes(),
@@ -250,33 +241,33 @@ mod parsed_data_items {
             tx_bytes(1),
             tx_bytes(2),
         ];
-        let items = ParsedDataItems::new_from_untyped_data(&data).unwrap();
+        let items = ExpandedBlockData::new_from_untyped_data(&data).unwrap();
         assert_eq!(ROLLUP_TXS_ROOT, items.rollup_transactions_root);
         assert_eq!(ROLLUP_IDS_ROOT, items.rollup_ids_root);
-        assert_eq!(tx(0).id(), items.rollup_transactions[0].id());
-        assert_eq!(tx(1).id(), items.rollup_transactions[1].id());
-        assert_eq!(tx(2).id(), items.rollup_transactions[2].id());
+        assert_eq!(tx(0).id(), items.user_submitted_transactions[0].id());
+        assert_eq!(tx(1).id(), items.user_submitted_transactions[1].id());
+        assert_eq!(tx(2).id(), items.user_submitted_transactions[2].id());
     }
 
     #[test]
-    fn should_parse_legacy_txs_with_no_rollup_txs() {
+    fn should_parse_legacy_txs_with_no_user_submitted_txs() {
         let data = [
             rollup_txs_root_legacy_bytes(),
             rollup_ids_root_legacy_bytes(),
         ];
-        let items = ParsedDataItems::new_from_untyped_data(&data).unwrap();
+        let items = ExpandedBlockData::new_from_untyped_data(&data).unwrap();
         assert_eq!(ROLLUP_TXS_ROOT, items.rollup_transactions_root);
         assert_eq!(ROLLUP_IDS_ROOT, items.rollup_ids_root);
-        assert!(items.upgrade_change_hashes_with_proof.is_none());
+        assert!(items.upgrade_change_hashes.is_empty());
         assert!(items.extended_commit_info_with_proof.is_none());
-        assert!(items.rollup_transactions.is_empty());
+        assert!(items.user_submitted_transactions.is_empty());
     }
 
     #[test]
     fn should_fail_to_parse_data_items_missing_rollup_txs_root() {
         let data = [];
         let SequencerBlockError(error_kind) =
-            ParsedDataItems::new_from_typed_data(&data, true).unwrap_err();
+            ExpandedBlockData::new_from_typed_data(&data, true).unwrap_err();
         assert_err_matches!(
             error_kind,
             SequencerBlockErrorKind::NoRollupTransactionsRoot
@@ -287,7 +278,7 @@ mod parsed_data_items {
     fn should_fail_to_parse_data_items_malformed_item() {
         let data = [vec![0; 31].into()];
         let SequencerBlockError(error_kind) =
-            ParsedDataItems::new_from_typed_data(&data, true).unwrap_err();
+            ExpandedBlockData::new_from_typed_data(&data, true).unwrap_err();
         assert_err_matches!(
             error_kind,
             SequencerBlockErrorKind::DataItem(DataItemError(DataItemErrorKind::Decode { .. }))
@@ -298,7 +289,7 @@ mod parsed_data_items {
     fn should_fail_to_parse_data_items_rollup_txs_root_not_first_item() {
         let data = [rollup_ids_root_bytes(), rollup_txs_root_bytes()];
         let SequencerBlockError(error_kind) =
-            ParsedDataItems::new_from_typed_data(&data, true).unwrap_err();
+            ExpandedBlockData::new_from_typed_data(&data, true).unwrap_err();
         assert_err_matches!(
             error_kind,
             SequencerBlockErrorKind::DataItem(DataItemError(DataItemErrorKind::Mismatch { index, .. }))
@@ -310,7 +301,7 @@ mod parsed_data_items {
     fn should_fail_to_parse_data_items_missing_rollup_ids_root() {
         let data = [rollup_txs_root_bytes()];
         let SequencerBlockError(error_kind) =
-            ParsedDataItems::new_from_typed_data(&data, true).unwrap_err();
+            ExpandedBlockData::new_from_typed_data(&data, true).unwrap_err();
         assert_err_matches!(error_kind, SequencerBlockErrorKind::NoRollupIdsRoot);
     }
 
@@ -318,7 +309,7 @@ mod parsed_data_items {
     fn should_fail_to_parse_data_items_rollup_ids_root_not_second_item() {
         let data = [rollup_txs_root_bytes(), rollup_txs_root_bytes()];
         let SequencerBlockError(error_kind) =
-            ParsedDataItems::new_from_typed_data(&data, true).unwrap_err();
+            ExpandedBlockData::new_from_typed_data(&data, true).unwrap_err();
         assert_err_matches!(
             error_kind,
             SequencerBlockErrorKind::DataItem(DataItemError(DataItemErrorKind::Mismatch { index, .. }))
@@ -330,7 +321,7 @@ mod parsed_data_items {
     fn should_fail_to_parse_data_items_missing_required_extended_commit_info() {
         let data = [rollup_txs_root_bytes(), rollup_ids_root_bytes()];
         let SequencerBlockError(error_kind) =
-            ParsedDataItems::new_from_typed_data(&data, true).unwrap_err();
+            ExpandedBlockData::new_from_typed_data(&data, true).unwrap_err();
         assert_err_matches!(error_kind, SequencerBlockErrorKind::NoExtendedCommitInfo);
     }
 
@@ -343,7 +334,7 @@ mod parsed_data_items {
             vec![3].into(),
         ];
         let SequencerBlockError(error_kind) =
-            ParsedDataItems::new_from_typed_data(&data, true).unwrap_err();
+            ExpandedBlockData::new_from_typed_data(&data, true).unwrap_err();
         assert_err_matches!(
             error_kind,
             SequencerBlockErrorKind::TransactionProtobufDecode(_)
@@ -364,7 +355,7 @@ mod parsed_data_items {
             bad_tx.encode_to_vec().into(),
         ];
         let SequencerBlockError(error_kind) =
-            ParsedDataItems::new_from_typed_data(&data, true).unwrap_err();
+            ExpandedBlockData::new_from_typed_data(&data, true).unwrap_err();
         assert_err_matches!(
             error_kind,
             SequencerBlockErrorKind::RawTransactionConversion(_)
@@ -372,18 +363,19 @@ mod parsed_data_items {
     }
 
     #[test]
-    fn should_parse_with_no_upgrade_change_hashes_no_extended_commit_info_no_rollup_txs() {
+    fn should_parse_with_no_upgrade_change_hashes_no_extended_commit_info_no_user_submitted_txs() {
         let data = [rollup_txs_root_bytes(), rollup_ids_root_bytes()];
-        let items = ParsedDataItems::new_from_typed_data(&data, false).unwrap();
+        let items = ExpandedBlockData::new_from_typed_data(&data, false).unwrap();
         assert_eq!(ROLLUP_TXS_ROOT, items.rollup_transactions_root);
         assert_eq!(ROLLUP_IDS_ROOT, items.rollup_ids_root);
-        assert!(items.upgrade_change_hashes_with_proof.is_none());
+        assert!(items.upgrade_change_hashes.is_empty());
         assert!(items.extended_commit_info_with_proof.is_none());
-        assert!(items.rollup_transactions.is_empty());
+        assert!(items.user_submitted_transactions.is_empty());
     }
 
     #[test]
-    fn should_parse_with_no_upgrade_change_hashes_no_extended_commit_info_some_rollup_txs() {
+    fn should_parse_with_no_upgrade_change_hashes_no_extended_commit_info_some_user_submitted_txs()
+    {
         let data = [
             rollup_txs_root_bytes(),
             rollup_ids_root_bytes(),
@@ -391,27 +383,28 @@ mod parsed_data_items {
             tx_bytes(1),
             tx_bytes(2),
         ];
-        let items = ParsedDataItems::new_from_typed_data(&data, false).unwrap();
+        let items = ExpandedBlockData::new_from_typed_data(&data, false).unwrap();
         assert_eq!(ROLLUP_TXS_ROOT, items.rollup_transactions_root);
         assert_eq!(ROLLUP_IDS_ROOT, items.rollup_ids_root);
-        assert!(items.upgrade_change_hashes_with_proof.is_none());
+        assert!(items.upgrade_change_hashes.is_empty());
         assert!(items.extended_commit_info_with_proof.is_none());
-        assert_eq!(tx(0).id(), items.rollup_transactions[0].id());
-        assert_eq!(tx(1).id(), items.rollup_transactions[1].id());
-        assert_eq!(tx(2).id(), items.rollup_transactions[2].id());
+        assert_eq!(tx(0).id(), items.user_submitted_transactions[0].id());
+        assert_eq!(tx(1).id(), items.user_submitted_transactions[1].id());
+        assert_eq!(tx(2).id(), items.user_submitted_transactions[2].id());
     }
 
     #[test]
-    fn should_parse_with_no_upgrade_change_hashes_some_extended_commit_info_no_rollup_txs() {
+    fn should_parse_with_no_upgrade_change_hashes_some_extended_commit_info_no_user_submitted_txs()
+    {
         let data = [
             rollup_txs_root_bytes(),
             rollup_ids_root_bytes(),
             minimal_extended_commit_info_bytes(),
         ];
-        let items = ParsedDataItems::new_from_typed_data(&data, true).unwrap();
+        let items = ExpandedBlockData::new_from_typed_data(&data, true).unwrap();
         assert_eq!(ROLLUP_TXS_ROOT, items.rollup_transactions_root);
         assert_eq!(ROLLUP_IDS_ROOT, items.rollup_ids_root);
-        assert!(items.upgrade_change_hashes_with_proof.is_none());
+        assert!(items.upgrade_change_hashes.is_empty());
         assert_eq!(
             &minimal_extended_commit_info(),
             items
@@ -419,11 +412,12 @@ mod parsed_data_items {
                 .unwrap()
                 .extended_commit_info()
         );
-        assert!(items.rollup_transactions.is_empty());
+        assert!(items.user_submitted_transactions.is_empty());
     }
 
     #[test]
-    fn should_parse_with_no_upgrade_change_hashes_some_extended_commit_info_some_rollup_txs() {
+    fn should_parse_with_no_upgrade_change_hashes_some_extended_commit_info_some_user_submitted_txs(
+    ) {
         let data = [
             rollup_txs_root_bytes(),
             rollup_ids_root_bytes(),
@@ -432,10 +426,10 @@ mod parsed_data_items {
             tx_bytes(1),
             tx_bytes(2),
         ];
-        let items = ParsedDataItems::new_from_typed_data(&data, true).unwrap();
+        let items = ExpandedBlockData::new_from_typed_data(&data, true).unwrap();
         assert_eq!(ROLLUP_TXS_ROOT, items.rollup_transactions_root);
         assert_eq!(ROLLUP_IDS_ROOT, items.rollup_ids_root);
-        assert!(items.upgrade_change_hashes_with_proof.is_none());
+        assert!(items.upgrade_change_hashes.is_empty());
         assert_eq!(
             &minimal_extended_commit_info(),
             items
@@ -443,34 +437,28 @@ mod parsed_data_items {
                 .unwrap()
                 .extended_commit_info()
         );
-        assert_eq!(tx(0).id(), items.rollup_transactions[0].id());
-        assert_eq!(tx(1).id(), items.rollup_transactions[1].id());
-        assert_eq!(tx(2).id(), items.rollup_transactions[2].id());
+        assert_eq!(tx(0).id(), items.user_submitted_transactions[0].id());
+        assert_eq!(tx(1).id(), items.user_submitted_transactions[1].id());
+        assert_eq!(tx(2).id(), items.user_submitted_transactions[2].id());
     }
 
     #[test]
-    fn should_parse_with_upgrade_change_hashes_no_extended_commit_info_no_rollup_txs() {
+    fn should_parse_with_upgrade_change_hashes_no_extended_commit_info_no_user_submitted_txs() {
         let data = [
             rollup_txs_root_bytes(),
             rollup_ids_root_bytes(),
             upgrade_change_hashes_bytes(),
         ];
-        let items = ParsedDataItems::new_from_typed_data(&data, false).unwrap();
+        let items = ExpandedBlockData::new_from_typed_data(&data, false).unwrap();
         assert_eq!(ROLLUP_TXS_ROOT, items.rollup_transactions_root);
         assert_eq!(ROLLUP_IDS_ROOT, items.rollup_ids_root);
-        assert_eq!(
-            &upgrade_change_hashes(),
-            items
-                .upgrade_change_hashes_with_proof
-                .unwrap()
-                .upgrade_change_hashes()
-        );
+        assert_eq!(upgrade_change_hashes(), items.upgrade_change_hashes);
         assert!(items.extended_commit_info_with_proof.is_none());
-        assert!(items.rollup_transactions.is_empty());
+        assert!(items.user_submitted_transactions.is_empty());
     }
 
     #[test]
-    fn should_parse_with_upgrade_change_hashes_no_extended_commit_info_some_rollup_txs() {
+    fn should_parse_with_upgrade_change_hashes_no_extended_commit_info_some_user_submitted_txs() {
         let data = [
             rollup_txs_root_bytes(),
             rollup_ids_root_bytes(),
@@ -479,40 +467,28 @@ mod parsed_data_items {
             tx_bytes(1),
             tx_bytes(2),
         ];
-        let items = ParsedDataItems::new_from_typed_data(&data, false).unwrap();
+        let items = ExpandedBlockData::new_from_typed_data(&data, false).unwrap();
         assert_eq!(ROLLUP_TXS_ROOT, items.rollup_transactions_root);
         assert_eq!(ROLLUP_IDS_ROOT, items.rollup_ids_root);
-        assert_eq!(
-            &upgrade_change_hashes(),
-            items
-                .upgrade_change_hashes_with_proof
-                .unwrap()
-                .upgrade_change_hashes()
-        );
+        assert_eq!(upgrade_change_hashes(), items.upgrade_change_hashes);
         assert!(items.extended_commit_info_with_proof.is_none());
-        assert_eq!(tx(0).id(), items.rollup_transactions[0].id());
-        assert_eq!(tx(1).id(), items.rollup_transactions[1].id());
-        assert_eq!(tx(2).id(), items.rollup_transactions[2].id());
+        assert_eq!(tx(0).id(), items.user_submitted_transactions[0].id());
+        assert_eq!(tx(1).id(), items.user_submitted_transactions[1].id());
+        assert_eq!(tx(2).id(), items.user_submitted_transactions[2].id());
     }
 
     #[test]
-    fn should_parse_with_upgrade_change_hashes_some_extended_commit_info_no_rollup_txs() {
+    fn should_parse_with_upgrade_change_hashes_some_extended_commit_info_no_user_submitted_txs() {
         let data = [
             rollup_txs_root_bytes(),
             rollup_ids_root_bytes(),
             upgrade_change_hashes_bytes(),
             minimal_extended_commit_info_bytes(),
         ];
-        let items = ParsedDataItems::new_from_typed_data(&data, true).unwrap();
+        let items = ExpandedBlockData::new_from_typed_data(&data, true).unwrap();
         assert_eq!(ROLLUP_TXS_ROOT, items.rollup_transactions_root);
         assert_eq!(ROLLUP_IDS_ROOT, items.rollup_ids_root);
-        assert_eq!(
-            &upgrade_change_hashes(),
-            items
-                .upgrade_change_hashes_with_proof
-                .unwrap()
-                .upgrade_change_hashes()
-        );
+        assert_eq!(upgrade_change_hashes(), items.upgrade_change_hashes);
         assert_eq!(
             &minimal_extended_commit_info(),
             items
@@ -520,11 +496,11 @@ mod parsed_data_items {
                 .unwrap()
                 .extended_commit_info()
         );
-        assert!(items.rollup_transactions.is_empty());
+        assert!(items.user_submitted_transactions.is_empty());
     }
 
     #[test]
-    fn should_parse_with_upgrade_change_hashes_some_extended_commit_info_some_rollup_txs() {
+    fn should_parse_with_upgrade_change_hashes_some_extended_commit_info_some_user_submitted_txs() {
         let data = [
             rollup_txs_root_bytes(),
             rollup_ids_root_bytes(),
@@ -534,16 +510,10 @@ mod parsed_data_items {
             tx_bytes(1),
             tx_bytes(2),
         ];
-        let items = ParsedDataItems::new_from_typed_data(&data, true).unwrap();
+        let items = ExpandedBlockData::new_from_typed_data(&data, true).unwrap();
         assert_eq!(ROLLUP_TXS_ROOT, items.rollup_transactions_root);
         assert_eq!(ROLLUP_IDS_ROOT, items.rollup_ids_root);
-        assert_eq!(
-            &upgrade_change_hashes(),
-            items
-                .upgrade_change_hashes_with_proof
-                .unwrap()
-                .upgrade_change_hashes()
-        );
+        assert_eq!(upgrade_change_hashes(), items.upgrade_change_hashes);
         assert_eq!(
             &minimal_extended_commit_info(),
             items
@@ -551,9 +521,9 @@ mod parsed_data_items {
                 .unwrap()
                 .extended_commit_info()
         );
-        assert_eq!(tx(0).id(), items.rollup_transactions[0].id());
-        assert_eq!(tx(1).id(), items.rollup_transactions[1].id());
-        assert_eq!(tx(2).id(), items.rollup_transactions[2].id());
+        assert_eq!(tx(0).id(), items.user_submitted_transactions[0].id());
+        assert_eq!(tx(1).id(), items.user_submitted_transactions[1].id());
+        assert_eq!(tx(2).id(), items.user_submitted_transactions[2].id());
     }
 }
 
@@ -722,38 +692,13 @@ mod try_from_raw {
     }
 
     #[test]
-    fn upgrade_change_hashes_with_proof_should_fail_bad_proof() {
-        let data = [
-            rollup_txs_root_bytes(),
-            rollup_ids_root_bytes(),
-            upgrade_change_hashes_bytes(),
-        ];
-        let items = ParsedDataItems::new_from_typed_data(&data, false).unwrap();
-        let mut change_hashes_with_proof =
-            items.upgrade_change_hashes_with_proof.unwrap().into_raw();
-
-        // Change the proof to be invalid.
-        change_hashes_with_proof.proof.as_mut().unwrap().leaf_index = 0;
-
-        let UpgradeChangeHashesError(error_kind) = UpgradeChangeHashesWithProof::try_from_raw(
-            change_hashes_with_proof,
-            items.data_root_hash,
-        )
-        .unwrap_err();
-        assert_err_matches!(
-            error_kind,
-            UpgradeChangeHashesErrorKind::NotInSequencerBlock
-        );
-    }
-
-    #[test]
     fn extended_commit_info_with_proof_should_fail_bad_proof() {
         let data = [
             rollup_txs_root_bytes(),
             rollup_ids_root_bytes(),
             minimal_extended_commit_info_bytes(),
         ];
-        let items = ParsedDataItems::new_from_typed_data(&data, true).unwrap();
+        let items = ExpandedBlockData::new_from_typed_data(&data, true).unwrap();
         let mut extended_commit_info_with_proof =
             items.extended_commit_info_with_proof.unwrap().into_raw();
 
