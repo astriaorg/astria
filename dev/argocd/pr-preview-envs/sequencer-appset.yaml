@@ -114,6 +114,7 @@ spec:
                 config:
                   relayer:
                     celestiaAppGrpc: http://celestia-app-service.pr-{{.number}}.svc.cluster.local:9090
+                    celestiaAppHttp: http://celestia-app-service.pr-{{.number}}.svc.cluster.local:26657
                     cometbftRpc: http://node0-sequencer-rpc-service.pr-{{.number}}.svc.cluster.local:26657
                     sequencerGrpc: http://node0-sequencer-grpc-service.pr-{{.number}}.svc.cluster.local:8080
 
