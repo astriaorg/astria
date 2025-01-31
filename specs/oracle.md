@@ -145,10 +145,32 @@ prices are not updated.
 
 #### `process_proposal`
 
-
+Other validators receive the proposed block in `process_proposal`. If it contains
+non-empty extended commit info, it validates it by checking that the signature for each
+vote extension is valid, and corresponds to an actual validator. It checks
+that each VE is itself a valid `OracleVoteExtension`. It also checks that >2/3
+voting power submitted valid VEs. If these checks pass, then the validator 
+accepts the proposal (assuming the rest of the block is also valid), otherwise,
+it rejects the proposal. If the block's extended commit info is empty, then we
+assume the proposer did not receive the necessarily amount of VEs to create a
+valid VE set, and skip oracle validation to ensure liveness.
 
 #### `finalize_block`
 
+When a block with an extended commit info set is finalized, the node uses the price
+data inside the vote extensions to calculate updated prices for each currency pair.
+For each currency pair, the node takes the validator-power-weighted median of
+the prices to calculate the new price, which is then stored in the app state.
+
 ### Conductor
 
-### EVM rollup 
+The conductor receives the full extended commit info set either from the sequencer
+or from DA via `SequencerBlock`. The conductor verifies that this was actually
+included in the block data using `extended_commit_info_proof`, which is a merkle
+proof into the block's `data_hash`. The conductor does not need to perform the
+entire validation that `process_proposal` does, as if the extended commit info
+was included in a block, it was already validated by >2/3 voting power of the network.
+
+The conductor then calculates the prices for each pair using the same algorithm
+as `finalize_block` and formats them into `RollupData::OracleData`, which it
+sends to the rollup execution node via the execution API.
