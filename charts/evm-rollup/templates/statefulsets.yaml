@@ -17,6 +17,25 @@ spec:
         app: {{ include "rollup.appName" . }}
     spec:
       initContainers:
+        {{- if .Values.config.geth.snapshot.restore.enabled }}
+        - name: restore-snapshot
+          image: {{ .Values.images.snapshot.repo }}:{{ .Values.images.snapshot.tag }}
+          imagePullPolicy: {{ .Values.images.snapshot.pullPolicy }}
+          command: [ "/scripts/restore-snapshot.sh" ]
+          envFrom:
+            - configMapRef:
+                name: {{ include "rollup.name" . }}-geth-env
+          volumeMounts:
+            {{- if .Values.config.geth.snapshot.restore.enabled }}
+            - mountPath: /root/.config/rclone/
+              name: {{ include "rollup.name" . }}-rclone-config-volume
+            {{- end }}
+            - mountPath: /scripts/
+              name: {{ include "rollup.name" . }}-executor-scripts-volume
+            - mountPath: /home/geth
+              name: {{ include "rollup.name" $ }}-rollup-shared-storage-vol
+              subPath: {{ include "rollup.name" . }}/executor
+        {{- end }}
         {{- if .Values.config.geth.purgeMempool }}
         - name: purge-mempool
           image: {{ include "rollup.image" . }}
@@ -91,6 +110,19 @@ spec:
               name: conductor-metr
           {{- end }}
       volumes:
+        {{- if .Values.config.geth.snapshot.restore.enabled }}
+        - name: {{ include "rollup.name" . }}-rclone-config-volume
+          {{- if .Values.secretProvider.enabled }}
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ include "rollup.name" . }}-secrets-rclone
+          {{- else }}
+          configMap:
+            name: {{ include "rollup.name" . }}-rclone-config
+          {{- end }}
+        {{- end }}
         - name: {{ include "rollup.name" . }}-executor-scripts-volume
           configMap:
             name: {{ include "rollup.name" . }}-executor-scripts
