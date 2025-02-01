@@ -85,7 +85,7 @@ impl ActionHandler for BridgeUnlock {
     }
 }
 
-pub(crate) async fn check_bridge_unlock<S: StateRead>(
+pub(super) async fn check_bridge_unlock<S: StateRead>(
     bridge_unlock: &BridgeUnlock,
     state: &S,
 ) -> Result<()> {

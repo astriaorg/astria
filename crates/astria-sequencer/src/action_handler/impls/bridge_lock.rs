@@ -64,7 +64,7 @@ impl ActionHandler for BridgeLock {
     }
 }
 
-pub(crate) async fn execute_bridge_lock<S: StateWrite>(
+pub(super) async fn execute_bridge_lock<S: StateWrite>(
     bridge_lock: &BridgeLock,
     mut state: S,
 ) -> Result<()> {

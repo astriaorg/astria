@@ -1922,8 +1922,6 @@ pub struct BridgeTransfer {
     pub destination_chain_address: String,
     // the address of the bridge account to transfer from.
     pub bridge_address: Address,
-    // A field for users to additional identifying information
-    pub memo: String,
     // The block number of the rollup block containing the withdrawal event.
     pub rollup_block_number: u64,
     // The identifier of the withdrawal event in the rollup block.
@@ -1940,7 +1938,6 @@ impl Protobuf for BridgeTransfer {
             to: Some(self.to.into_raw()),
             amount: Some(self.amount.into()),
             fee_asset: self.fee_asset.to_string(),
-            memo: self.memo,
             bridge_address: Some(self.bridge_address.into_raw()),
             destination_chain_address: self.destination_chain_address,
             rollup_block_number: self.rollup_block_number,
@@ -1954,7 +1951,6 @@ impl Protobuf for BridgeTransfer {
             to: Some(self.to.to_raw()),
             amount: Some(self.amount.into()),
             fee_asset: self.fee_asset.to_string(),
-            memo: self.memo.clone(),
             bridge_address: Some(self.bridge_address.to_raw()),
             destination_chain_address: self.destination_chain_address.clone(),
             rollup_block_number: self.rollup_block_number,
@@ -1976,7 +1972,6 @@ impl Protobuf for BridgeTransfer {
             to,
             amount,
             fee_asset,
-            memo,
             bridge_address,
             destination_chain_address,
             rollup_block_number,
@@ -1997,7 +1992,6 @@ impl Protobuf for BridgeTransfer {
             to,
             amount: amount.into(),
             fee_asset,
-            memo,
             bridge_address,
             destination_chain_address,
             rollup_block_number,

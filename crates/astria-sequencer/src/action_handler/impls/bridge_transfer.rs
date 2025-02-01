@@ -35,7 +35,7 @@ impl ActionHandler for BridgeTransfer {
         let bridge_unlock = BridgeUnlock {
             to: self.to,
             amount: self.amount,
-            memo: self.memo.clone(),
+            memo: String::new(),
             rollup_withdrawal_event_id: self.rollup_withdrawal_event_id.clone(),
             rollup_block_number: self.rollup_block_number,
             fee_asset: self.fee_asset.clone(),
@@ -51,7 +51,7 @@ impl ActionHandler for BridgeTransfer {
         let bridge_unlock = BridgeUnlock {
             to: self.to,
             amount: self.amount,
-            memo: self.memo.clone(),
+            memo: String::new(),
             rollup_withdrawal_event_id: self.rollup_withdrawal_event_id.clone(),
             rollup_block_number: self.rollup_block_number,
             fee_asset: self.fee_asset.clone(),
@@ -172,7 +172,6 @@ mod test {
             to: to_address,
             amount: transfer_amount,
             fee_asset: asset.clone(),
-            memo: String::new(),
             bridge_address: from_address,
             rollup_block_number: 1,
             rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
@@ -233,7 +232,6 @@ mod test {
             to: to_address,
             amount: transfer_amount,
             fee_asset: asset.clone(),
-            memo: String::new(),
             bridge_address: from_address,
             rollup_block_number: 1,
             rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
