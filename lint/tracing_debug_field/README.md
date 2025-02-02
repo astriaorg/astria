@@ -20,7 +20,7 @@ Depending on the complexity of what must be logged:
 1. Use or implement `std::fmt::Display` for an object and the `%` sigil
    (this usually works for newtype wrappers of strings or string-like objects).
 2. For binary types, implement `Display` with a base16 (hex) or base64 encoding.
-3. Reduce the information that is emitted in to the necessary amount so not the
+3. Reduce the information that is emitted into the necessary amount so not the
    entire kitchen-sink is logged. For example, emit the number of items
    contained in a container, or the range of a map's keys instead of the
    items/keys themselves.
