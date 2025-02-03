@@ -9,13 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- Add `celestia_app_html_endpoint` env var for polling Celestia's `tx_status` RPC [#1940](https://github.com/astriaorg/astria/pull/1940).
-
 ### Changed
 
 - Update `idna` dependency to resolve cargo audit warning [#1869](https://github.com/astriaorg/astria/pull/1869).
+- Use `TxStatus` gRPC to confirm transaction commitment instead of `GetTx` [#1940](https://github.com/astriaorg/astria/pull/1940).
 
 ## [1.0.0] - 2024-10-25
 
