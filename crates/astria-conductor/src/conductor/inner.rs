@@ -1,7 +1,4 @@
-use std::{
-    future::Future,
-    time::Duration,
-};
+use std::time::Duration;
 
 use astria_eyre::eyre::{
     self,
@@ -9,7 +6,6 @@ use astria_eyre::eyre::{
     Report,
     WrapErr as _,
 };
-use pin_project_lite::pin_project;
 use tokio::{
     select,
     task::JoinHandle,
@@ -50,46 +46,22 @@ impl std::fmt::Display for RestartOrShutdown {
 
 struct ShutdownSignalReceived;
 
-pin_project! {
-    /// A handle returned by [`ConductorInner::spawn`].
-    pub(super) struct InnerHandle {
-        shutdown_token: CancellationToken,
-        task: Option<tokio::task::JoinHandle<eyre::Result<RestartOrShutdown>>>,
-    }
-}
-
-impl Future for InnerHandle {
-    type Output = Result<eyre::Result<RestartOrShutdown>, tokio::task::JoinError>;
-
-    fn poll(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        use futures::future::FutureExt as _;
-        let this = self.project();
-        let task = this
-            .task
-            .as_mut()
-            .expect("the Conductor handle must not be polled after shutdown");
-        task.poll_unpin(cx)
-    }
-}
-
-pub(super) struct ConductorInner {
+/// The business logic of Conductur.
+pub(super) struct Inner {
     /// Token to signal to all tasks to shut down gracefully.
     shutdown_token: CancellationToken,
 
     executor: Option<JoinHandle<eyre::Result<()>>>,
 }
 
-impl ConductorInner {
-    /// Create a new [`ConductorInner`] from a [`Config`].
+impl Inner {
+    /// Create a new [`Inner`] from a [`Config`].
     ///
     /// # Errors
     /// Returns an error in the following cases if one of its constituent
     /// actors could not be spawned (executor, sequencer reader, or data availability reader).
     /// This usually happens if the actors failed to connect to their respective endpoints.
-    fn new(
+    pub(super) fn new(
         config: Config,
         metrics: &'static Metrics,
         shutdown_token: CancellationToken,
@@ -108,11 +80,11 @@ impl ConductorInner {
         })
     }
 
-    /// Runs [`ConductorInner`] until it receives an exit signal.
+    /// Runs [`Inner`] until it receives an exit signal.
     ///
     /// # Panics
     /// Panics if it could not install a signal handler.
-    async fn run_until_stopped(mut self) -> eyre::Result<RestartOrShutdown> {
+    pub(super) async fn run_until_stopped(mut self) -> eyre::Result<RestartOrShutdown> {
         info_span!("Conductor::run_until_stopped").in_scope(|| info!("conductor is running"));
 
         let exit_reason = select! {
@@ -134,24 +106,6 @@ impl ConductorInner {
         };
 
         self.restart_or_shutdown(exit_reason).await
-    }
-
-    /// Creates and spawns a Conductor on the tokio runtime.
-    ///
-    /// This calls [`tokio::spawn`] and returns a [`InnerHandle`] to the
-    /// running Conductor task.
-    pub(super) fn spawn(
-        cfg: Config,
-        metrics: &'static Metrics,
-        shutdown_token: CancellationToken,
-    ) -> eyre::Result<InnerHandle> {
-        let conductor = Self::new(cfg, metrics, shutdown_token)?;
-        let shutdown_token = conductor.shutdown_token.clone();
-        let task = tokio::spawn(conductor.run_until_stopped());
-        Ok(InnerHandle {
-            shutdown_token,
-            task: Some(task),
-        })
     }
 
     /// Shuts down all tasks.
