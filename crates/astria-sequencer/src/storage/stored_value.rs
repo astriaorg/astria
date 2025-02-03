@@ -19,6 +19,7 @@ pub(crate) enum StoredValue<'a> {
     Ibc(crate::ibc::storage::Value<'a>),
     App(crate::app::storage::Value<'a>),
     Grpc(crate::grpc::storage::Value<'a>),
+    Auctioneer(crate::auctioneer::storage::Value<'a>),
 }
 
 impl StoredValue<'_> {

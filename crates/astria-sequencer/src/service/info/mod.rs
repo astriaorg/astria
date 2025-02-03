@@ -175,11 +175,13 @@ mod tests {
         protocol::{
             account::v1::BalanceResponse,
             asset::v1::DenomResponse,
+            auctioneer::v1::EnshrinedAuctioneerEntry,
             fees::v1::FeeComponents,
             transaction::v1::action::{
                 BridgeLock,
                 BridgeSudoChange,
                 BridgeUnlock,
+                EnshrineAuctioneer,
                 FeeAssetChange,
                 FeeChange,
                 IbcRelayerChange,
@@ -189,6 +191,7 @@ mod tests {
                 RollupDataSubmission,
                 SudoAddressChange,
                 Transfer,
+                UnenshrineAuctioneer,
                 ValidatorUpdate,
             },
         },
@@ -487,7 +490,15 @@ mod tests {
               "validator_update": {
                 "base": 14,
                 "multiplier": 14
-            }
+            },
+            "enshrine_auctioneer": {
+                "base": 14,
+                "multiplier": 14
+            },
+            "unenshrine_auctioneer": {
+                "base": 14,
+                "multiplier": 14
+            },
         })
     }
 
@@ -533,6 +544,12 @@ mod tests {
             .unwrap();
         state
             .put_fees(FeeComponents::<ValidatorUpdate>::new(14, 14))
+            .unwrap();
+        state
+            .put_fees(FeeComponents::<EnshrineAuctioneer>::new(14, 14))
+            .unwrap();
+        state
+            .put_fees(FeeComponents::<UnenshrineAuctioneer>::new(14, 14))
             .unwrap();
     }
 }

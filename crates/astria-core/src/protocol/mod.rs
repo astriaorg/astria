@@ -13,9 +13,9 @@ pub mod genesis;
 pub mod memos;
 pub mod transaction;
 
+pub mod auctioneer;
 #[cfg(any(feature = "test-utils", test))]
 pub mod test_utils;
-mod auctioneer;
 
 /// Extracts all data within [`Sequence`] actions in the given [`Transaction`]s, wraps them as
 /// [`RollupData::SequencedData`] and groups them by [`RollupId`].

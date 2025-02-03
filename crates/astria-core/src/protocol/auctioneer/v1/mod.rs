@@ -1,8 +1,13 @@
 use astria_core_address::Address;
-use crate::primitive::v1::{AddressError, asset};
-use crate::Protobuf;
-use crate::protocol::transaction::v1::action::EnshrineAuctioneerError;
-use crate::generated::astria::protocol::auctioneer::v1::EnshrinedAuctioneerEntry as RawEnshrinedAuctioneerEntry;
+
+use crate::{
+    generated::astria::protocol::auctioneer::v1::EnshrinedAuctioneerEntry as RawEnshrinedAuctioneerEntry,
+    primitive::v1::{
+        asset,
+        AddressError,
+    },
+    Protobuf,
+};
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
@@ -49,6 +54,7 @@ impl EnshrinedAuctioneerEntryError {
 }
 
 #[derive(Debug, thiserror::Error)]
+#[must_use]
 enum EnshrineAuctioneerErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
@@ -60,12 +66,13 @@ enum EnshrineAuctioneerErrorKind {
     Asset { source: asset::ParseDenomError },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnshrinedAuctioneerEntry {
     pub auctioneer_address: Address,
     pub staker_address: Address,
     pub staked_amount: u128,
     pub fee_asset: asset::Denom,
-    pub asset: asset::Denom
+    pub asset: asset::Denom,
 }
 
 impl Protobuf for EnshrinedAuctioneerEntry {
@@ -79,7 +86,7 @@ impl Protobuf for EnshrinedAuctioneerEntry {
             staker_address: Some(self.staker_address.into_raw()),
             fee_asset: self.fee_asset.to_string(),
             asset: self.asset.to_string(),
-            staked_amount: Some(self.staked_amount.into())
+            staked_amount: Some(self.staked_amount.into()),
         }
     }
 
@@ -94,7 +101,8 @@ impl Protobuf for EnshrinedAuctioneerEntry {
         }
     }
 
-    /// Convert from a raw, unchecked protobuf [`crate::generated::astria::protocol::transaction::v1::EnshrineAuctioneer`].
+    /// Convert from a raw, unchecked protobuf
+    /// [`crate::generated::astria::protocol::transaction::v1::EnshrineAuctioneer`].
     ///
     /// # Errors
     ///
@@ -110,21 +118,26 @@ impl Protobuf for EnshrinedAuctioneerEntry {
             asset,
             staked_amount,
         } = proto;
-        let staked_amount = staked_amount.ok_or(EnshrinedAuctioneerEntryError::field_not_set("amount"))?;
+        let staked_amount =
+            staked_amount.ok_or(EnshrinedAuctioneerEntryError::field_not_set("amount"))?;
         let auctioneer_address = auctioneer_address
             .ok_or_else(|| EnshrinedAuctioneerEntryError::field_not_set("auctioneer_address"))
             .and_then(|auctioneer_address| {
-                Address::try_from_raw(auctioneer_address).map_err(EnshrinedAuctioneerEntryError::address)
+                Address::try_from_raw(auctioneer_address)
+                    .map_err(EnshrinedAuctioneerEntryError::address)
             })?;
         let staker_address = staker_address
             .ok_or_else(|| EnshrinedAuctioneerEntryError::field_not_set("staker_address"))
             .and_then(|staker_address| {
-                Address::try_from_raw(staker_address).map_err(EnshrinedAuctioneerEntryError::address)
+                Address::try_from_raw(staker_address)
+                    .map_err(EnshrinedAuctioneerEntryError::address)
             })?;
         let fee_asset = fee_asset
             .parse()
             .map_err(EnshrinedAuctioneerEntryError::fee_asset)?;
-        let asset = asset.parse().map_err(EnshrinedAuctioneerEntryError::asset)?;
+        let asset = asset
+            .parse()
+            .map_err(EnshrinedAuctioneerEntryError::asset)?;
 
         Ok(Self {
             auctioneer_address,
@@ -135,7 +148,8 @@ impl Protobuf for EnshrinedAuctioneerEntry {
         })
     }
 
-    /// Convert from a reference to a raw, unchecked protobuf [`crate::generated::astria::protocol::transaction::v1::EnshrineAuctioneer`].
+    /// Convert from a reference to a raw, unchecked protobuf
+    /// [`crate::generated::astria::protocol::transaction::v1::EnshrineAuctioneer`].
     ///
     /// # Errors
     ///
@@ -143,7 +157,9 @@ impl Protobuf for EnshrinedAuctioneerEntry {
     /// - if the `staker_address` field is invalid
     /// - if the `fee_asset` field is invalid
     /// - if the `asset` field is invalid
-    fn try_from_raw_ref(proto: &RawEnshrinedAuctioneerEntry) -> Result<Self, EnshrinedAuctioneerEntryError> {
+    fn try_from_raw_ref(
+        proto: &RawEnshrinedAuctioneerEntry,
+    ) -> Result<Self, EnshrinedAuctioneerEntryError> {
         Self::try_from_raw(proto.clone())
     }
 }

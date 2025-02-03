@@ -21,11 +21,9 @@ use crate::{
         IncorrectRollupIdLength,
         RollupId,
     },
-    protocol::{
-        fees::v1::{
-            FeeComponentError,
-            FeeComponents,
-        },
+    protocol::fees::v1::{
+        FeeComponentError,
+        FeeComponents,
     },
     Protobuf,
 };
@@ -1855,7 +1853,7 @@ impl Protobuf for EnshrineAuctioneer {
             staker_address: Some(self.staker_address.into_raw()),
             fee_asset: self.fee_asset.to_string(),
             asset: self.asset.to_string(),
-            amount: Some(self.amount.into())
+            amount: Some(self.amount.into()),
         }
     }
 
