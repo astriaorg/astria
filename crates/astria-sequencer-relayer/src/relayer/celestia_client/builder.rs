@@ -88,12 +88,12 @@ impl Builder {
     /// Returns a new `Builder`, or an error if Bech32-encoding the `signing_keys` address fails.
     pub(in crate::relayer) fn new(
         configured_celestia_chain_id: String,
-        grpc_endpoint: Uri,
+        uri: Uri,
         signing_keys: CelestiaKeys,
         state: Arc<State>,
         metrics: &'static Metrics,
     ) -> Result<Self, BuilderError> {
-        let grpc_channel = Endpoint::from(grpc_endpoint)
+        let grpc_channel = Endpoint::from(uri)
             .timeout(REQUEST_TIMEOUT)
             .connect_lazy();
         let address = bech32_encode(&signing_keys.address)?;
