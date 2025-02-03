@@ -44,6 +44,16 @@ pub(super) enum RestartOrShutdown {
     Shutdown,
 }
 
+impl std::fmt::Display for RestartOrShutdown {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let msg = match self {
+            RestartOrShutdown::Restart => "restarting",
+            RestartOrShutdown::Shutdown => "shutting down",
+        };
+        f.write_str(msg)
+    }
+}
+
 enum ExitReason {
     ShutdownSignal,
     TaskFailed {
