@@ -128,7 +128,7 @@ pub(crate) fn proto_genesis_state(
                     },
                     last_updated: 0,
                     params: Params {
-                        market_authorities: vec![],
+                        market_authorities: vec![astria_address_from_hex_string(ALICE_ADDRESS)],
                         admin: astria_address_from_hex_string(ALICE_ADDRESS),
                     },
                 }
