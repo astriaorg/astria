@@ -34,7 +34,6 @@ use sequencer_client::{
     SequencerClientExt,
     Transaction,
 };
-use signer::SequencerKey;
 use state::State;
 use tokio::{
     select,
@@ -61,7 +60,10 @@ use super::{
 use crate::metrics::Metrics;
 
 mod builder;
+pub(crate) mod frost_signer;
 pub(crate) mod signer;
+
+use crate::bridge_withdrawer::submitter::signer::Signer;
 
 pub(super) struct Submitter {
     shutdown_token: CancellationToken,
@@ -70,7 +72,7 @@ pub(super) struct Submitter {
     batches_rx: mpsc::Receiver<Batch>,
     sequencer_cometbft_client: sequencer_client::HttpClient,
     sequencer_grpc_client: SequencerServiceClient<Channel>,
-    signer: SequencerKey,
+    signer: Box<dyn Signer>,
     metrics: &'static Metrics,
 }
 
@@ -178,7 +180,7 @@ impl Submitter {
             .wrap_err("failed to build unsigned transaction")?;
 
         // sign transaction
-        let signed = unsigned.sign(signer.signing_key());
+        let signed = signer.sign(unsigned);
         debug!(transaction_id = %&signed.id(), "signed transaction");
 
         // submit transaction and handle response

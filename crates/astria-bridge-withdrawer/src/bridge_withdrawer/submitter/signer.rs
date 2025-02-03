@@ -9,6 +9,10 @@ use std::{
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::Address,
+    protocol::transaction::v1::{
+        Transaction,
+        TransactionBody,
+    },
 };
 use astria_eyre::eyre::{
     self,
@@ -16,6 +20,11 @@ use astria_eyre::eyre::{
     eyre,
     Context,
 };
+
+pub(crate) trait Signer: Send + Sync {
+    fn address(&self) -> &Address;
+    fn sign(&self, tx: TransactionBody) -> Transaction;
+}
 
 pub(crate) struct SequencerKey {
     address: Address,
@@ -96,12 +105,14 @@ impl SequencerKey {
             prefix: None,
         }
     }
+}
 
-    pub(crate) fn address(&self) -> &Address {
+impl Signer for SequencerKey {
+    fn address(&self) -> &Address {
         &self.address
     }
 
-    pub(crate) fn signing_key(&self) -> &SigningKey {
-        &self.signing_key
+    fn sign(&self, tx: TransactionBody) -> Transaction {
+        tx.sign(&self.signing_key)
     }
 }

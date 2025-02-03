@@ -119,13 +119,18 @@ impl BridgeWithdrawer {
         let startup_handle = startup::InfoHandle::new(state.subscribe());
 
         // make submitter object
+        let signer = crate::bridge_withdrawer::submitter::signer::SequencerKey::builder()
+            .path(sequencer_key_path)
+            .prefix(sequencer_address_prefix)
+            .try_build()
+            .wrap_err("failed to load sequencer private key")?;
+
         let (submitter, submitter_handle) = submitter::Builder {
             shutdown_token: shutdown_handle.token(),
             startup_handle: startup_handle.clone(),
             sequencer_cometbft_client,
             sequencer_grpc_client,
-            sequencer_key_path,
-            sequencer_address_prefix: sequencer_address_prefix.clone(),
+            signer: Box::new(signer),
             state: state.clone(),
             metrics,
         }
