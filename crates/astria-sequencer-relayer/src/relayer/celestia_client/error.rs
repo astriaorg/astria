@@ -129,8 +129,6 @@ pub(in crate::relayer) enum TxStatusError {
     #[error("request for `tx_status` failed: {error}")]
     // Using `String` here because jsonrpsee::core::Error does not implement `Clone`.
     FailedToGetTxStatus { error: String },
-    #[error("failed to parse `height` into u64")]
-    HeightParse(#[from] std::num::ParseIntError),
 }
 
 /// An error in confirming the submission of a transaction.
@@ -139,7 +137,9 @@ pub(in crate::relayer) enum ConfirmSubmissionError {
     #[error("tx `{hash}` evicted from mempool")]
     Evicted { hash: String },
     #[error("received `UNKNOWN` status from `tx_status` for tx: {hash}")]
-    UnknownStatus { hash: String },
+    StatusUnknown { hash: String },
     #[error("failed to get tx status")]
     TxStatus(#[from] TxStatusError),
+    #[error("received negative block height from Celestia: {height}")]
+    NegativeHeight { height: i64 },
 }

@@ -192,14 +192,29 @@ pub mod astria {
 
 #[path = ""]
 pub mod celestia {
-    #[path = "celestia.blob.v1.rs"]
-    pub mod v1 {
-        include!("celestia.blob.v1.rs");
+    pub mod blob {
+        #[path = "celestia.blob.v1.rs"]
+        pub mod v1 {
+            include!("celestia.blob.v1.rs");
 
-        #[cfg(feature = "serde")]
-        mod _serde_impl {
-            use super::*;
-            include!("celestia.blob.v1.serde.rs");
+            #[cfg(feature = "serde")]
+            mod _serde_impl {
+                use super::*;
+                include!("celestia.blob.v1.serde.rs");
+            }
+        }
+    }
+    pub mod core {
+        pub mod v1 {
+            pub mod tx {
+                include!("celestia.core.v1.tx.rs");
+
+                #[cfg(feature = "serde")]
+                mod _serde_impl {
+                    use super::*;
+                    include!("celestia.core.v1.tx.serde.rs");
+                }
+            }
         }
     }
 }

@@ -31,7 +31,6 @@ pub struct Config {
     pub cometbft_endpoint: String,
     pub sequencer_grpc_endpoint: String,
     pub celestia_app_grpc_endpoint: String,
-    pub celestia_app_http_endpoint: String,
     pub celestia_app_key_file: String,
     pub block_time: u64,
     // Would ideally be private; accessed via the public getter which converts this to a collection

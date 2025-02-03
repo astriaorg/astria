@@ -11,6 +11,7 @@ use astria_core::{
     primitive::v1::RollupId,
     protocol::test_utils::ConfigureSequencerBlock,
 };
+use futures::future::join;
 use helpers::{
     SequencerBlockToMount,
     TestSequencerRelayerConfig,
@@ -31,7 +32,13 @@ async fn one_block_is_relayed_to_celestia() {
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
         .await;
     let tx_status_guard = sequencer_relayer
-        .mount_celestia_app_tx_status_response_as_scoped(53, "COMMITTED", 1)
+        .mount_celestia_app_tx_status_response_as_scoped(
+            "tx status 1",
+            53,
+            "COMMITTED",
+            Some(1),
+            None,
+        )
         .await;
     // The `MIN_POLL_INTERVAL_SECS` is 1, meaning the relayer waits for 1 second before attempting
     // the first `tx_status`, so we wait for 2 seconds.
@@ -81,7 +88,13 @@ async fn report_degraded_if_block_fetch_fails() {
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
         .await;
     let tx_status_guard = sequencer_relayer
-        .mount_celestia_app_tx_status_response_as_scoped(53, "COMMITTED", 1)
+        .mount_celestia_app_tx_status_response_as_scoped(
+            "tx status 1",
+            53,
+            "COMMITTED",
+            Some(1),
+            None,
+        )
         .await;
     let healthz_status = sequencer_relayer
         .wait_for_healthz(StatusCode::OK, 2_000, "waiting for first healthz")
@@ -140,7 +153,13 @@ async fn later_height_in_state_leads_to_expected_relay() {
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
         .await;
     let tx_status_guard = sequencer_relayer
-        .mount_celestia_app_tx_status_response_as_scoped(53, "COMMITTED", 1)
+        .mount_celestia_app_tx_status_response_as_scoped(
+            "tx status 1",
+            53,
+            "COMMITTED",
+            Some(1),
+            None,
+        )
         .await;
     sequencer_relayer
         .timeout_ms(
@@ -200,7 +219,13 @@ async fn three_blocks_are_relayed() {
         .mount_celestia_app_broadcast_tx_response("broadcast tx 3")
         .await;
     let tx_status_guard = sequencer_relayer
-        .mount_celestia_app_tx_status_response_as_scoped(53, "COMMITTED", 3)
+        .mount_celestia_app_tx_status_response_as_scoped(
+            "tx status 1",
+            53,
+            "COMMITTED",
+            Some(3),
+            None,
+        )
         .await;
     // Each block will have taken ~1 second due to the delay before each `tx_status`, so use 4.5
     // seconds.
@@ -267,7 +292,13 @@ async fn should_filter_rollup() {
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
         .await;
     let tx_status_guard = sequencer_relayer
-        .mount_celestia_app_tx_status_response_as_scoped(53, "COMMITTED", 1)
+        .mount_celestia_app_tx_status_response_as_scoped(
+            "tx status 1",
+            53,
+            "COMMITTED",
+            Some(1),
+            None,
+        )
         .await;
     sequencer_relayer
         .timeout_ms(
@@ -305,7 +336,7 @@ async fn should_shut_down() {
         .mount_sequencer_block_response(block_to_mount, "good block 1")
         .await;
     let broadcast_guard = sequencer_relayer
-        .mount_celestia_app_broadcast_tx_response_as_scoped("broadcast tx 1")
+        .mount_celestia_app_broadcast_tx_response_as_scoped("broadcast tx 1", None, None)
         .await;
     sequencer_relayer
         .timeout_ms(
@@ -320,7 +351,13 @@ async fn should_shut_down() {
     sequencer_relayer.relayer_shutdown_handle.take();
 
     let tx_status_guard = sequencer_relayer
-        .mount_celestia_app_tx_status_response_as_scoped(53, "COMMITTED", 1)
+        .mount_celestia_app_tx_status_response_as_scoped(
+            "tx status 1",
+            53,
+            "COMMITTED",
+            Some(1),
+            None,
+        )
         .await;
     sequencer_relayer
         .timeout_ms(
@@ -355,4 +392,309 @@ async fn should_exit_if_celestia_chain_id_mismatch() {
     .await;
 
     sequencer_relayer.wait_for_relayer_shutdown(100).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn confirm_submission_loops_on_pending_status() {
+    let sequencer_relayer = TestSequencerRelayerConfig::default().spawn_relayer().await;
+
+    sequencer_relayer.mount_abci_response(1).await;
+    let block_to_mount = SequencerBlockToMount::GoodAtHeight(1);
+    sequencer_relayer
+        .mount_sequencer_block_response(block_to_mount, "good block 1")
+        .await;
+    sequencer_relayer
+        .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
+        .await;
+
+    // Expect relayer to loop when it receives a PENDING status. Only respond up to the number of
+    // expected times, since a committed response will be mounted after.
+    let tx_pending_guard = sequencer_relayer
+        .mount_celestia_app_tx_status_response_as_scoped(
+            "tx status 1",
+            53,
+            "PENDING",
+            Some(2),
+            Some(2),
+        )
+        .await;
+    // Allow 3 seconds for two `tx_status` calls. MIN_POLL_INTERVAL_SECS is 1, so with two calls
+    // we're allowing 1 extra second for this mount to be satisfied.
+    sequencer_relayer
+        .timeout_ms(
+            3_000,
+            "waiting for tx status pending guard",
+            tx_pending_guard.wait_until_satisfied(),
+        )
+        .await;
+
+    // Mount committed tx status response after sending two pending responses. Relayer should
+    // continue normal execution after this.
+    let tx_confirmed_guard = sequencer_relayer
+        .mount_celestia_app_tx_status_response_as_scoped(
+            "tx status 2",
+            53,
+            "COMMITTED",
+            Some(1),
+            Some(1),
+        )
+        .await;
+    sequencer_relayer
+        .timeout_ms(
+            2_000,
+            "waiting for tx status confirmed guard",
+            tx_confirmed_guard.wait_until_satisfied(),
+        )
+        .await;
+
+    // Assert the relayer reports the correct Celestia and sequencer heights.
+    sequencer_relayer
+        .wait_for_latest_confirmed_celestia_height(53, 1_000)
+        .await;
+    sequencer_relayer
+        .wait_for_latest_fetched_sequencer_height(1, 1_000)
+        .await;
+    sequencer_relayer
+        .wait_for_latest_observed_sequencer_height(1, 1_000)
+        .await;
+
+    assert_eq!(
+        sequencer_relayer.celestia_app_received_blob_count(),
+        2,
+        "expected 2 blobs in total, 1 header blob and 1 rollup blob"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn confirm_submission_loops_on_unknown_status_up_to_time_limit() {
+    let sequencer_relayer = TestSequencerRelayerConfig::default().spawn_relayer().await;
+
+    sequencer_relayer.mount_abci_response(1).await;
+    let block_to_mount = SequencerBlockToMount::GoodAtHeight(1);
+    sequencer_relayer
+        .mount_sequencer_block_response(block_to_mount, "good block 1")
+        .await;
+    sequencer_relayer
+        .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
+        .await;
+
+    // Expect relayer to loop when it receives a UNKNOWN status. Only respond up to the number of
+    // expected times, since a committed response will be mounted after.
+    let tx_unknown_guard = sequencer_relayer
+        .mount_celestia_app_tx_status_response_as_scoped(
+            "tx status 1",
+            53,
+            "UNKNOWN",
+            Some(2),
+            Some(2),
+        )
+        .await;
+    // Allow 3 seconds for two `tx_status` calls. MIN_POLL_INTERVAL_SECS is 1, so with two calls
+    // we're allowing 1 extra second for this mount to be satisfied.
+    sequencer_relayer
+        .timeout_ms(
+            3_000,
+            "waiting for tx status unknown guard",
+            tx_unknown_guard.wait_until_satisfied(),
+        )
+        .await;
+
+    // Mount committed tx status response after sending two unknown responses. Relayer should
+    // continue normal execution after this.
+    let tx_confirmed_guard = sequencer_relayer
+        .mount_celestia_app_tx_status_response_as_scoped(
+            "tx status 2",
+            53,
+            "COMMITTED",
+            Some(1),
+            Some(1),
+        )
+        .await;
+    sequencer_relayer
+        .timeout_ms(
+            2_000,
+            "waiting for tx status confirmed guard",
+            tx_confirmed_guard.wait_until_satisfied(),
+        )
+        .await;
+
+    // Assert the relayer reports the correct Celestia and sequencer heights.
+    sequencer_relayer
+        .wait_for_latest_confirmed_celestia_height(53, 1_000)
+        .await;
+    sequencer_relayer
+        .wait_for_latest_fetched_sequencer_height(1, 1_000)
+        .await;
+    sequencer_relayer
+        .wait_for_latest_observed_sequencer_height(1, 1_000)
+        .await;
+
+    assert_eq!(
+        sequencer_relayer.celestia_app_received_blob_count(),
+        2,
+        "expected 2 blobs in total, 1 header blob and 1 rollup blob"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn retries_submission_after_receiving_evicted_tx_status() {
+    let sequencer_relayer = TestSequencerRelayerConfig::default().spawn_relayer().await;
+
+    sequencer_relayer.mount_abci_response(1).await;
+    let block_to_mount = SequencerBlockToMount::GoodAtHeight(1);
+    sequencer_relayer
+        .mount_sequencer_block_response(block_to_mount, "good block 1")
+        .await;
+    let broadcast_tx_guard_1 = sequencer_relayer
+        .mount_celestia_app_broadcast_tx_response_as_scoped("broadcast tx 1", Some(1), Some(1))
+        .await;
+    let tx_evicted_guard = sequencer_relayer
+        .mount_celestia_app_tx_status_response_as_scoped(
+            "tx status 1",
+            53,
+            "EVICTED",
+            Some(1),
+            Some(1),
+        )
+        .await;
+
+    sequencer_relayer
+        .timeout_ms(
+            2_000,
+            "waiting for first broadcast tx guard and tx status evicted guard",
+            join(
+                broadcast_tx_guard_1.wait_until_satisfied(),
+                tx_evicted_guard.wait_until_satisfied(),
+            ),
+        )
+        .await;
+
+    // Relayer should retry submission after receiving an EVICTED status.
+
+    let broadcast_tx_guard_2 = sequencer_relayer
+        .mount_celestia_app_broadcast_tx_response_as_scoped("broadcast tx 2", Some(1), Some(1))
+        .await;
+    let tx_confirmed_guard = sequencer_relayer
+        .mount_celestia_app_tx_status_response_as_scoped(
+            "tx status 2",
+            53,
+            "COMMITTED",
+            Some(1),
+            Some(1),
+        )
+        .await;
+    sequencer_relayer
+        .timeout_ms(
+            2_000,
+            "waiting for second broadcast tx guard and tx status confirmed guard",
+            join(
+                tx_confirmed_guard.wait_until_satisfied(),
+                broadcast_tx_guard_2.wait_until_satisfied(),
+            ),
+        )
+        .await;
+
+    // Assert the relayer reports the correct Celestia and sequencer heights.
+    sequencer_relayer
+        .wait_for_latest_confirmed_celestia_height(53, 1_000)
+        .await;
+    sequencer_relayer
+        .wait_for_latest_fetched_sequencer_height(1, 1_000)
+        .await;
+    sequencer_relayer
+        .wait_for_latest_observed_sequencer_height(1, 1_000)
+        .await;
+
+    assert_eq!(
+        sequencer_relayer.celestia_app_received_blob_count(),
+        4,
+        "expected 4 blobs in total, 2 header blobs and 2 rollup blobs"
+    );
+    assert!(sequencer_relayer
+        .metrics_handle
+        .render()
+        .contains("astria_sequencer_relayer_celestia_evicted_transaction_count 1"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn confirm_submission_exits_for_unknown_status_after_time_limit() {
+    let sequencer_relayer = TestSequencerRelayerConfig::default().spawn_relayer().await;
+
+    sequencer_relayer.mount_abci_response(1).await;
+    let block_to_mount = SequencerBlockToMount::GoodAtHeight(1);
+    sequencer_relayer
+        .mount_sequencer_block_response(block_to_mount, "good block 1")
+        .await;
+
+    let broadcast_tx_guard_1 = sequencer_relayer
+        .mount_celestia_app_broadcast_tx_response_as_scoped("broadcast tx 1", Some(1), Some(1))
+        .await;
+
+    let tx_unknown_guard = sequencer_relayer
+        .mount_celestia_app_tx_status_response_as_scoped(
+            "tx status 1",
+            53,
+            "UNKNOWN",
+            Some(10),
+            Some(10),
+        )
+        .await;
+
+    sequencer_relayer
+        .timeout_ms(
+            11_000,
+            "waiting for first broadcast tx guard and tx status evicted guard",
+            join(
+                broadcast_tx_guard_1.wait_until_satisfied(),
+                tx_unknown_guard.wait_until_satisfied(),
+            ),
+        )
+        .await;
+
+    // Relayer should retry submission after receiving an UNKNOWN status more than 10s after
+    // beginning to poll.
+
+    let broadcast_tx_guard_2 = sequencer_relayer
+        .mount_celestia_app_broadcast_tx_response_as_scoped("broadcast tx 2", Some(1), Some(1))
+        .await;
+    let tx_confirmed_guard = sequencer_relayer
+        .mount_celestia_app_tx_status_response_as_scoped(
+            "tx status 2",
+            53,
+            "COMMITTED",
+            Some(1),
+            Some(1),
+        )
+        .await;
+    sequencer_relayer
+        .timeout_ms(
+            2_000,
+            "waiting for second broadcast tx guard and tx status confirmed guard",
+            join(
+                tx_confirmed_guard.wait_until_satisfied(),
+                broadcast_tx_guard_2.wait_until_satisfied(),
+            ),
+        )
+        .await;
+
+    // Assert the relayer reports the correct Celestia and sequencer heights.
+    sequencer_relayer
+        .wait_for_latest_confirmed_celestia_height(53, 1_000)
+        .await;
+    sequencer_relayer
+        .wait_for_latest_fetched_sequencer_height(1, 1_000)
+        .await;
+    sequencer_relayer
+        .wait_for_latest_observed_sequencer_height(1, 1_000)
+        .await;
+
+    assert_eq!(
+        sequencer_relayer.celestia_app_received_blob_count(),
+        4,
+        "expected 4 blobs in total, 2 header blobs and 2 rollup blobs"
+    );
+    assert!(sequencer_relayer
+        .metrics_handle
+        .render()
+        .contains("astria_sequencer_relayer_celestia_unknown_status_transaction_count 1"));
 }

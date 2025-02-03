@@ -27,6 +27,7 @@ pub struct Metrics {
     celestia_fees_utia_per_uncompressed_blob_byte: Gauge,
     celestia_fees_utia_per_compressed_blob_byte: Gauge,
     celestia_evicted_transaction_count: Counter,
+    celestia_unknown_status_transaction_count: Counter,
 }
 
 impl Metrics {
@@ -92,6 +93,10 @@ impl Metrics {
 
     pub(crate) fn increment_celestia_evicted_transaction_count(&self) {
         self.celestia_evicted_transaction_count.increment(1);
+    }
+
+    pub(crate) fn increment_celestia_unknown_status_transaction_count(&self) {
+        self.celestia_unknown_status_transaction_count.increment(1);
     }
 }
 
@@ -224,6 +229,13 @@ impl telemetry::Metrics for Metrics {
                 "The number of transactions evicted from the Celestia mempool",
             )?
             .register()?;
+        let celestia_unknown_status_transaction_count = builder
+            .new_counter_factory(
+                CELESTIA_UNKNOWN_STATUS_TRANSACTION_COUNT,
+                "The number of transactions whose status in the Celestia mempool remains unknown \
+                 after 10s",
+            )?
+            .register()?;
 
         Ok(Self {
             celestia_submission_height,
@@ -242,6 +254,7 @@ impl telemetry::Metrics for Metrics {
             celestia_fees_utia_per_uncompressed_blob_byte,
             celestia_fees_utia_per_compressed_blob_byte,
             celestia_evicted_transaction_count,
+            celestia_unknown_status_transaction_count,
         })
     }
 }
@@ -263,6 +276,7 @@ metric_names!(const METRICS_NAMES:
     CELESTIA_FEES_UTIA_PER_UNCOMPRESSED_BLOB_BYTE,
     CELESTIA_FEES_UTIA_PER_COMPRESSED_BLOB_BYTE,
     CELESTIA_EVICTED_TRANSACTION_COUNT,
+    CELESTIA_UNKNOWN_STATUS_TRANSACTION_COUNT,
 );
 
 #[cfg(test)]
@@ -314,6 +328,14 @@ mod tests {
         assert_const(
             CELESTIA_FEES_UTIA_PER_COMPRESSED_BLOB_BYTE,
             "celestia_fees_utia_per_compressed_blob_byte",
+        );
+        assert_const(
+            CELESTIA_EVICTED_TRANSACTION_COUNT,
+            "celestia_evicted_transaction_count",
+        );
+        assert_const(
+            CELESTIA_UNKNOWN_STATUS_TRANSACTION_COUNT,
+            "celestia_unknown_status_transaction_count",
         );
     }
 }

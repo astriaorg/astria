@@ -269,15 +269,22 @@ impl TestSequencerRelayer {
     pub async fn mount_celestia_app_broadcast_tx_response_as_scoped(
         &self,
         debug_name: impl Into<String>,
+        expected: Option<u64>,
+        up_to_n_times: Option<u64>,
     ) -> GrpcMockGuard {
         self.celestia_app
-            .mount_broadcast_tx_response_as_scoped(debug_name)
+            .mount_broadcast_tx_response_as_scoped(debug_name, expected, up_to_n_times)
             .await
     }
 
-    pub async fn mount_celestia_app_tx_status_response(&self, celestia_height: i64, status: &str) {
+    pub async fn mount_celestia_app_tx_status_response(
+        &self,
+        debug_name: impl Into<String>,
+        celestia_height: i64,
+        status: &str,
+    ) {
         self.celestia_app
-            .mount_tx_status_response(status.to_string(), celestia_height)
+            .mount_tx_status_response(debug_name, status.to_string(), celestia_height)
             .await;
     }
 
@@ -285,12 +292,20 @@ impl TestSequencerRelayer {
     /// awaiting its satisfaction.
     pub async fn mount_celestia_app_tx_status_response_as_scoped(
         &self,
+        debug_name: impl Into<String>,
         celestia_height: i64,
         status: &str,
-        expected: u64,
-    ) -> wiremock::MockGuard {
+        expected: Option<u64>,
+        up_to_n_times: Option<u64>,
+    ) -> GrpcMockGuard {
         self.celestia_app
-            .mount_tx_status_response_as_scoped(status.to_string(), celestia_height, expected)
+            .mount_tx_status_response_as_scoped(
+                debug_name,
+                status.to_string(),
+                celestia_height,
+                expected,
+                up_to_n_times,
+            )
             .await
     }
 
@@ -670,8 +685,7 @@ impl TestSequencerRelayerConfig {
         LazyLock::force(&TELEMETRY);
 
         let celestia_app = MockCelestiaAppServer::spawn(self.celestia_chain_id.clone()).await;
-        let celestia_app_grpc_endpoint = format!("http://{}", celestia_app.grpc_local_addr);
-        let celestia_app_http_endpoint = celestia_app.http_local_addr.clone();
+        let celestia_app_grpc_endpoint = format!("http://{}", celestia_app.local_addr);
         let celestia_keyfile = write_file(
             b"c8076374e2a4a58db1c924e3dafc055e9685481054fe99e58ed67f5c6ed80e62".as_slice(),
         )
@@ -708,7 +722,6 @@ impl TestSequencerRelayerConfig {
             cometbft_endpoint: cometbft.uri(),
             sequencer_grpc_endpoint,
             celestia_app_grpc_endpoint,
-            celestia_app_http_endpoint,
             celestia_app_key_file: celestia_keyfile.path().to_string_lossy().to_string(),
             block_time: 1000,
             only_include_rollups,

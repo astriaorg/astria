@@ -25,11 +25,6 @@ humantime = { workspace = true }
 humantime-serde = "1.1.1"
 hyper = { workspace = true }
 itoa = { workspace = true }
-jsonrpsee = { version = "0.20", features = [
-  "client-core",
-  "jsonrpsee-http-client",
-  "macros",
-] }
 pbjson-types = { workspace = true }
 pin-project-lite = { workspace = true }
 prost = { workspace = true }

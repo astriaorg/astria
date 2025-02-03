@@ -30,7 +30,6 @@ pub(crate) struct Builder {
     pub(crate) sequencer_chain_id: String,
     pub(crate) celestia_chain_id: String,
     pub(crate) celestia_app_grpc_endpoint: String,
-    pub(crate) celestia_app_http_endpoint: String,
     pub(crate) celestia_app_key_file: String,
     pub(crate) cometbft_endpoint: String,
     pub(crate) sequencer_poll_period: Duration,
@@ -48,7 +47,6 @@ impl Builder {
             sequencer_chain_id,
             celestia_chain_id,
             celestia_app_grpc_endpoint,
-            celestia_app_http_endpoint,
             celestia_app_key_file,
             cometbft_endpoint,
             sequencer_poll_period,
@@ -82,7 +80,6 @@ impl Builder {
             CelestiaClientBuilder::new(
                 celestia_chain_id,
                 uri,
-                celestia_app_http_endpoint,
                 celestia_keys,
                 state.clone(),
                 metrics,

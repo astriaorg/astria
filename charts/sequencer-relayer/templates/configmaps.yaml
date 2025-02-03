@@ -30,7 +30,6 @@ data:
   ASTRIA_SEQUENCER_RELAYER_CELESTIA_CHAIN_ID: "{{ .Values.config.relayer.celestiaChainId }}"
   {{- if not .Values.global.dev }}
   {{- else }}
-  ASTRIA_SEQUENCER_RELAYER_CELESTIA_APP_HTTP_ENDPOINT: "{{ .Values.config.relayer.celestiaAppHttp }}"
   {{- end }}
 ---
 apiVersion: v1

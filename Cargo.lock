@@ -922,7 +922,6 @@ dependencies = [
  "isahc",
  "itertools 0.12.1",
  "itoa",
- "jsonrpsee",
  "k256",
  "pbjson-types",
  "pin-project-lite",

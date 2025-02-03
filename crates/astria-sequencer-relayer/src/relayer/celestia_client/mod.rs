@@ -22,11 +22,17 @@ use std::{
 };
 
 use astria_core::generated::{
-    celestia::v1::{
-        query_client::QueryClient as BlobQueryClient,
-        MsgPayForBlobs,
-        Params as BlobParams,
-        QueryParamsRequest as QueryBlobParamsRequest,
+    celestia::{
+        blob::v1::{
+            query_client::QueryClient as BlobQueryClient,
+            MsgPayForBlobs,
+            Params as BlobParams,
+            QueryParamsRequest as QueryBlobParamsRequest,
+        },
+        core::v1::tx::{
+            tx_client::TxClient as TxStatusClient,
+            TxStatusRequest,
+        },
     },
     cosmos::{
         auth::v1beta1::{
@@ -89,7 +95,6 @@ use hex::{
     FromHex,
     FromHexError,
 };
-use jsonrpsee::proc_macros::rpc;
 use prost::{
     bytes::Bytes,
     Message as _,
@@ -136,13 +141,7 @@ enum TxStatus {
     Unknown,
     Pending,
     Evicted,
-    Committed(u64),
-}
-
-#[derive(Debug, Deserialize)]
-struct TxStatusResponse {
-    pub height: String,
-    pub status: String,
+    Committed(i64),
 }
 
 /// A client using the gRPC interface of a remote Celestia app to submit blob data to the Celestia
@@ -155,8 +154,8 @@ pub(super) struct CelestiaClient {
     grpc_channel: Channel,
     /// A gRPC client to broadcast and get transactions.
     tx_client: TxClient<Channel>,
-    /// An HTTP client to receive transaction status.
-    tx_status_client: jsonrpsee::http_client::HttpClient,
+    /// A gRPC client for querying transaction status.
+    tx_status_client: TxStatusClient<Channel>,
     /// The crypto keys associated with our Celestia account.
     signing_keys: CelestiaKeys,
     /// The Bech32-encoded address of our Celestia account.
@@ -361,23 +360,20 @@ impl CelestiaClient {
     async fn tx_status(&mut self, hex_encoded_tx_hash: String) -> Result<TxStatus, TxStatusError> {
         let response = self
             .tx_status_client
-            .tx_status(hex_encoded_tx_hash.clone())
+            .tx_status(TxStatusRequest {
+                tx_id: hex_encoded_tx_hash.clone(),
+            })
             .await
             .map_err(|e| TxStatusError::FailedToGetTxStatus {
                 error: e.to_string(),
             })?;
-        match response.status.as_str() {
+        match response.get_ref().status.as_str() {
             TX_STATUS_UNKNOWN => Ok(TxStatus::Unknown),
             TX_STATUS_PENDING => Ok(TxStatus::Pending),
             TX_STATUS_EVICTED => Ok(TxStatus::Evicted),
-            TX_STATUS_COMMITTED => Ok(TxStatus::Committed(
-                response
-                    .height
-                    .parse::<u64>()
-                    .map_err(TxStatusError::HeightParse)?,
-            )),
+            TX_STATUS_COMMITTED => Ok(TxStatus::Committed(response.get_ref().height)),
             _ => Err(TxStatusError::UnfamiliarStatus {
-                status: response.status.to_string(),
+                status: response.get_ref().status.to_string(),
                 hash: hex_encoded_tx_hash,
             }),
         }
@@ -422,10 +418,13 @@ impl CelestiaClient {
         };
 
         loop {
+            tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECS)).await;
             match self.tx_status(hex_encoded_tx_hash.clone()).await {
                 Ok(TxStatus::Unknown) => {
                     if start.elapsed() > MAX_WAIT_FOR_UNKNOWN {
-                        break Err(ConfirmSubmissionError::UnknownStatus {
+                        self.metrics
+                            .increment_celestia_unknown_status_transaction_count();
+                        break Err(ConfirmSubmissionError::StatusUnknown {
                             hash: hex_encoded_tx_hash,
                         });
                     }
@@ -440,12 +439,17 @@ impl CelestiaClient {
                         hash: hex_encoded_tx_hash,
                     });
                 }
-                Ok(TxStatus::Committed(height)) => break Ok(height),
+                Ok(TxStatus::Committed(height)) => {
+                    break Ok(height.try_into().map_err(|_| {
+                        ConfirmSubmissionError::NegativeHeight {
+                            height,
+                        }
+                    })?)
+                }
                 Err(error) => {
                     break Err(ConfirmSubmissionError::TxStatus(error));
                 }
             }
-            tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECS)).await;
         }
     }
 }
@@ -887,10 +891,4 @@ impl<'de> Deserialize<'de> for BlobTxHash {
 pub(in crate::relayer) enum DeserializeBlobTxHashError {
     #[error("failed to decode as hex for blob tx hash: {0}")]
     Hex(String),
-}
-
-#[rpc(client)]
-pub trait TxStatusClient {
-    #[method(name = "tx_status")]
-    async fn tx_status(&self, hash: String) -> Result<TxStatusResponse, jsonrpsee::core::Error>;
 }
