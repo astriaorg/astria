@@ -41,7 +41,7 @@ async fn one_block_is_relayed_to_celestia() {
         )
         .await;
     // The `MIN_POLL_INTERVAL_SECS` is 1, meaning the relayer waits for 1 second before attempting
-    // the first `tx_status`, so we wait for 2 seconds.
+    // the first `TxStatus`, so we wait for 2 seconds.
     sequencer_relayer
         .timeout_ms(
             2_000,
@@ -418,7 +418,7 @@ async fn confirm_submission_loops_on_pending_status() {
             Some(2),
         )
         .await;
-    // Allow 3 seconds for two `tx_status` calls. MIN_POLL_INTERVAL_SECS is 1, so with two calls
+    // Allow 3 seconds for two `TxStatus` calls. MIN_POLL_INTERVAL_SECS is 1, so with two calls
     // we're allowing 1 extra second for this mount to be satisfied.
     sequencer_relayer
         .timeout_ms(
@@ -489,7 +489,7 @@ async fn confirm_submission_loops_on_unknown_status_up_to_time_limit() {
             Some(2),
         )
         .await;
-    // Allow 3 seconds for two `tx_status` calls. MIN_POLL_INTERVAL_SECS is 1, so with two calls
+    // Allow 3 seconds for two `TxStatus` calls. MIN_POLL_INTERVAL_SECS is 1, so with two calls
     // we're allowing 1 extra second for this mount to be satisfied.
     sequencer_relayer
         .timeout_ms(

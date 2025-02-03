@@ -233,7 +233,7 @@ impl CelestiaClient {
         let hex_encoded_tx_hash = self.broadcast_tx(blob_tx).await?;
         if hex_encoded_tx_hash != blob_tx_hash.to_hex() {
             // This is not a critical error. Worst case, we restart the process now and try for a
-            // short while to get `tx_status` for this tx using the wrong hash, resulting in a
+            // short while to get `TxStatus` for this tx using the wrong hash, resulting in a
             // likely duplicate submission of this set of blobs.
             warn!(
                 "tx hash `{hex_encoded_tx_hash}` returned from celestia app is not the same as \
@@ -247,7 +247,7 @@ impl CelestiaClient {
             .map_err(TrySubmitError::FailedToConfirmSubmission)
     }
 
-    /// Repeatedly sends `tx_status` until a successful response is received or `timeout` duration
+    /// Repeatedly sends `TxStatus` until a successful response is received or `timeout` duration
     /// has elapsed.
     ///
     /// Returns the height of the Celestia block in which the blobs were submitted, or `None` if
@@ -348,13 +348,13 @@ impl CelestiaClient {
         lowercase_hex_encoded_tx_hash_from_response(response)
     }
 
-    /// Returns the reponse of `tx_status` RPC call given a transaction's hash. If the transaction
+    /// Returns the reponse of `TxStatus` RPC call given a transaction's hash. If the transaction
     /// is committed, the height of the block in which it was committed will be returned with
     /// `TxStatusResponse::Committed`.
     ///
     /// # Errors
     /// Returns an error in the following cases:
-    /// - The call to `tx_status` failed.
+    /// - The call to `TxStatus` failed.
     /// - The status of the transaction is not recognized.
     #[instrument(skip_all, err(level = Level::WARN))]
     async fn tx_status(&mut self, hex_encoded_tx_hash: String) -> Result<TxStatus, TxStatusError> {
@@ -379,7 +379,7 @@ impl CelestiaClient {
         }
     }
 
-    /// Repeatedly calls `tx_status` until the transaction is committed, returning the height of the
+    /// Repeatedly calls `TxStatus` until the transaction is committed, returning the height of the
     /// block in which the transaction was included.
     ///
     /// # Errors

@@ -77,7 +77,7 @@ pub(in crate::relayer) enum TrySubmitError {
         namespace: String,
         log: String,
     },
-    /// The transaction was either evicted from the mempool or the call to `tx_status` failed.
+    /// The transaction was either evicted from the mempool or the call to `TxStatus` failed.
     #[error("failed to confirm transaction submission")]
     FailedToConfirmSubmission(#[source] ConfirmSubmissionError),
 }
@@ -121,12 +121,12 @@ impl std::error::Error for GrpcResponseError {
 #[error(transparent)]
 pub(in crate::relayer) struct ProtobufDecodeError(#[from] DecodeError);
 
-/// An error in getting the status of a transaction via RPC `tx_status`.
+/// An error in getting the status of a transaction via RPC `TxStatus`.
 #[derive(Debug, Clone, thiserror::Error)]
 pub(in crate::relayer) enum TxStatusError {
-    #[error("received unfamilair response for tx `{hash}` from `tx_status`: {status}")]
+    #[error("received unfamilair response for tx `{hash}` from `TxStatus`: {status}")]
     UnfamiliarStatus { status: String, hash: String },
-    #[error("request for `tx_status` failed: {error}")]
+    #[error("request for `TxStatus` failed: {error}")]
     // Using `String` here because jsonrpsee::core::Error does not implement `Clone`.
     FailedToGetTxStatus { error: String },
 }
@@ -136,7 +136,7 @@ pub(in crate::relayer) enum TxStatusError {
 pub(in crate::relayer) enum ConfirmSubmissionError {
     #[error("tx `{hash}` evicted from mempool")]
     Evicted { hash: String },
-    #[error("received `UNKNOWN` status from `tx_status` for tx: {hash}")]
+    #[error("received `UNKNOWN` status from `TxStatus` for tx: {hash}")]
     StatusUnknown { hash: String },
     #[error("failed to get tx status")]
     TxStatus(#[from] TxStatusError),
