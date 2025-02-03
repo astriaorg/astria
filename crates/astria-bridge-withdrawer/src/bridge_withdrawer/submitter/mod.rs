@@ -180,7 +180,11 @@ impl Submitter {
             .wrap_err("failed to build unsigned transaction")?;
 
         // sign transaction
-        let signed = signer.sign(unsigned);
+        // TODO: how to handle failure?
+        let signed = signer
+            .sign(unsigned)
+            .await
+            .wrap_err("failed to sign transaction")?;
         debug!(transaction_id = %&signed.id(), "signed transaction");
 
         // submit transaction and handle response

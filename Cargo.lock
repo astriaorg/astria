@@ -535,6 +535,7 @@ dependencies = [
  "humantime",
  "hyper 0.14.30",
  "ibc-types",
+ "pbjson-types",
  "pin-project-lite",
  "prost",
  "reqwest",

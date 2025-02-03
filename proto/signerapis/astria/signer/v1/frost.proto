@@ -1,0 +1,46 @@
+syntax = 'proto3';
+
+package astria.signer.v1;
+
+import "astria/protocol/transaction/v1/transaction.proto";
+
+message GetVerifyingShareRequest {}
+
+message GetVerifyingShareResponse {
+    // the verifying share (partial public key) of the participant.
+    // this is used for the coordinator to determine the identifier of the participant.
+    // TODO: do we need to verify this (ie. have the server send back a signed message
+    // with the verifying share)?
+    bytes verifying_share = 1;
+}
+
+message CommitmentWithIdentifier {
+    bytes commitment = 1;
+    bytes participant_identifier = 2;
+}
+
+message Part1Request {}
+
+message Part1Response {
+    bytes commitment = 1;
+    // required for the participant to internally track the nonce
+    // corresponding to the commitment.
+    uint32 request_identifier = 2;
+}
+
+message Part2Request {
+    repeated CommitmentWithIdentifier commitments = 1;
+    astria.protocol.transaction.v1.TransactionBody transaction_body = 2;
+    uint32 request_identifier = 3;
+}
+
+message Part2Response {
+    bytes signature_share = 1;
+}
+
+service FrostParticipantService {
+    rpc GetVerifyingShare(GetVerifyingShareRequest) returns (GetVerifyingShareResponse) {}
+    rpc Part1(Part1Request) returns (Part1Response) {}
+    rpc Part2(Part2Request) returns (Part2Response) {}
+}
+

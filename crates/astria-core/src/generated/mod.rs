@@ -188,6 +188,12 @@ pub mod astria {
         #[path = "astria.composer.v1.rs"]
         pub mod v1;
     }
+
+    #[path = ""]
+    pub mod signer {
+        #[path = "astria.signer.v1.rs"]
+        pub mod v1;
+    }   
 }
 
 #[path = ""]

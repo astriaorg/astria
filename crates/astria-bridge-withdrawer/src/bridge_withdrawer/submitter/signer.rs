@@ -20,10 +20,12 @@ use astria_eyre::eyre::{
     eyre,
     Context,
 };
+use tonic::async_trait;
 
+#[async_trait]
 pub(crate) trait Signer: Send + Sync {
     fn address(&self) -> &Address;
-    fn sign(&self, tx: TransactionBody) -> Transaction;
+    async fn sign(&self, tx: TransactionBody) -> eyre::Result<Transaction>;
 }
 
 pub(crate) struct SequencerKey {
@@ -107,12 +109,13 @@ impl SequencerKey {
     }
 }
 
+#[async_trait]
 impl Signer for SequencerKey {
     fn address(&self) -> &Address {
         &self.address
     }
 
-    fn sign(&self, tx: TransactionBody) -> Transaction {
-        tx.sign(&self.signing_key)
+    async fn sign(&self, tx: TransactionBody) -> eyre::Result<Transaction> {
+        Ok(tx.sign(&self.signing_key))
     }
 }
