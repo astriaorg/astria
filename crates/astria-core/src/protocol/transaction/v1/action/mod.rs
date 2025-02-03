@@ -2104,6 +2104,7 @@ pub enum FeeChange {
     IbcRelayerChange(FeeComponents<IbcRelayerChange>),
     SudoAddressChange(FeeComponents<SudoAddressChange>),
     IbcSudoChange(FeeComponents<IbcSudoChange>),
+    BridgeTransfer(FeeComponents<BridgeTransfer>),
 }
 
 impl Protobuf for FeeChange {
@@ -2155,6 +2156,9 @@ impl Protobuf for FeeChange {
                 }
                 Self::IbcSudoChange(fee_change) => {
                     raw::fee_change::FeeComponents::IbcSudoChange(fee_change.to_raw())
+                }
+                Self::BridgeTransfer(fee_change) => {
+                    raw::fee_change::FeeComponents::BridgeTransfer(fee_change.to_raw())
                 }
             }),
         }
@@ -2226,6 +2230,11 @@ impl Protobuf for FeeChange {
             Some(raw::fee_change::FeeComponents::IbcSudoChange(fee_change)) => Self::IbcSudoChange(
                 FeeComponents::<IbcSudoChange>::try_from_raw_ref(fee_change)?,
             ),
+            Some(raw::fee_change::FeeComponents::BridgeTransfer(fee_change)) => {
+                Self::BridgeTransfer(FeeComponents::<BridgeTransfer>::try_from_raw_ref(
+                    fee_change,
+                )?)
+            }
             None => return Err(FeeChangeError::field_unset("fee_components")),
         })
     }
@@ -2312,5 +2321,11 @@ impl From<FeeComponents<SudoAddressChange>> for FeeChange {
 impl From<FeeComponents<IbcSudoChange>> for FeeChange {
     fn from(fee: FeeComponents<IbcSudoChange>) -> Self {
         FeeChange::IbcSudoChange(fee)
+    }
+}
+
+impl From<FeeComponents<BridgeTransfer>> for FeeChange {
+    fn from(fee: FeeComponents<BridgeTransfer>) -> Self {
+        FeeChange::BridgeTransfer(fee)
     }
 }
