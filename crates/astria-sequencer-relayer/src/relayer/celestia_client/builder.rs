@@ -93,9 +93,7 @@ impl Builder {
         state: Arc<State>,
         metrics: &'static Metrics,
     ) -> Result<Self, BuilderError> {
-        let grpc_channel = Endpoint::from(uri)
-            .timeout(REQUEST_TIMEOUT)
-            .connect_lazy();
+        let grpc_channel = Endpoint::from(uri).timeout(REQUEST_TIMEOUT).connect_lazy();
         let address = bech32_encode(&signing_keys.address)?;
         Ok(Self {
             configured_celestia_chain_id,
