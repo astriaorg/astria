@@ -15,10 +15,10 @@ dependencies:
   repository: file://../evm-bridge-withdrawer
   version: 1.0.1
 - name: postgresql
-  repository: https://charts.bitnami.com/bitnami
+  repository: oci://registry-1.docker.io/bitnamicharts
   version: 15.2.4
 - name: blockscout-stack
   repository: https://blockscout.github.io/helm-charts
   version: 1.6.8
-digest: sha256:7920e0f663dca131ade762d5a5f3db71e30b9c88f64b2f4376b699a9fcf2d222
-generated: "2025-01-08T10:49:45.20252158-05:00"
+digest: sha256:81e317678e8766eb8be8b7ba040e42367b5be6cd7a569ecaad3bb6cd6adc7516
+generated: "2025-01-22T15:49:18.754522137Z"
