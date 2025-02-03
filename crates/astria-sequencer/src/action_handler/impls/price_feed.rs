@@ -1,6 +1,5 @@
 use astria_core::{
     connect::{
-        market_map::v2::MarketMap,
         oracle::v2::CurrencyPairState,
         types::v2::{
             CurrencyPair,
@@ -28,7 +27,6 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
-use indexmap::IndexMap;
 use tracing::debug;
 
 use crate::{
@@ -179,14 +177,11 @@ async fn check_and_execute_change_markets<S: StateWrite>(
         "address {from} is not a market authority"
     );
 
-    // create a new market map if one does not already exist
     let mut market_map = state
         .get_market_map()
         .await
         .wrap_err("failed to get market map")?
-        .unwrap_or(MarketMap {
-            markets: IndexMap::new(),
-        });
+        .ok_or_eyre("market map not found in state")?;
     match change_markets_action {
         ChangeMarkets::Create(create_markets) => {
             for market in create_markets {
@@ -276,6 +271,7 @@ mod test {
         connect::{
             market_map::v2::{
                 Market,
+                MarketMap,
                 Params,
             },
             oracle::v2::CurrencyPairState,
@@ -285,6 +281,7 @@ mod test {
         protocol::transaction::v1::action::PriceFeed,
     };
     use cnidarium::StateDelta;
+    use indexmap::IndexMap;
 
     use super::*;
     use crate::{
@@ -458,6 +455,11 @@ mod test {
             transaction_id: TransactionId::new([0; 32]),
             position_in_transaction: 0,
         });
+        state
+            .put_market_map(MarketMap {
+                markets: IndexMap::new(),
+            })
+            .unwrap();
 
         let ticker = example_ticker_with_metadata(String::new());
         let market = Market {
@@ -759,7 +761,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn update_markets_fails_if_market_map_is_not_in_state() {
+    async fn market_map_action_fails_if_market_map_is_not_in_state() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = cnidarium::StateDelta::new(snapshot);
@@ -772,6 +774,38 @@ mod test {
             transaction_id: TransactionId::new([0; 32]),
             position_in_transaction: 0,
         });
+
+        let params = Params {
+            market_authorities: vec![authority_address],
+            admin: authority_address,
+        };
+        state.put_params(params).unwrap();
+
+        let action = PriceFeed::MarketMap(MarketMapChange::Markets(ChangeMarkets::Update(vec![])));
+
+        let res = action.check_and_execute(&mut state).await.unwrap_err();
+        assert!(res.to_string().contains("market map not found in state"));
+    }
+
+    #[tokio::test]
+    async fn update_markets_fails_if_market_map_is_empty() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = cnidarium::StateDelta::new(snapshot);
+
+        let authority_address = astria_address(&[0; 20]);
+
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        state.put_transaction_context(TransactionContext {
+            address_bytes: *authority_address.address_bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+        state
+            .put_market_map(MarketMap {
+                markets: IndexMap::new(),
+            })
+            .unwrap();
 
         let params = Params {
             market_authorities: vec![authority_address],
