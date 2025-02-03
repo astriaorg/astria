@@ -1,25 +1,17 @@
-use std::{
-    future::Future,
-    time::Duration,
-};
+use std::time::Duration;
 
 use astria_eyre::eyre::{
     self,
     eyre,
-    Result,
+    Report,
     WrapErr as _,
 };
-use itertools::Itertools as _;
-use pin_project_lite::pin_project;
-use sequencer_client::HttpClient;
 use tokio::{
     select,
+    task::JoinHandle,
     time::timeout,
 };
-use tokio_util::{
-    sync::CancellationToken,
-    task::JoinMap,
-};
+use tokio_util::sync::CancellationToken;
 use tracing::{
     error,
     info,
@@ -29,16 +21,14 @@ use tracing::{
 };
 
 use crate::{
-    celestia,
     executor,
-    sequencer,
-    utils::flatten,
     Config,
     Metrics,
 };
 
 /// Exit value of the inner conductor impl to signal to the outer task whether to restart or
 /// shutdown
+#[derive(Debug)]
 pub(super) enum RestartOrShutdown {
     Restart,
     Shutdown,
@@ -54,177 +44,68 @@ impl std::fmt::Display for RestartOrShutdown {
     }
 }
 
-enum ExitReason {
-    ShutdownSignal,
-    TaskFailed {
-        name: &'static str,
-        error: eyre::Report,
-    },
-}
+struct ShutdownSignalReceived;
 
-pin_project! {
-    /// A handle returned by [`ConductorInner::spawn`].
-    pub(super) struct InnerHandle {
-        shutdown_token: CancellationToken,
-        task: Option<tokio::task::JoinHandle<Result<RestartOrShutdown>>>,
-    }
-}
-
-impl Future for InnerHandle {
-    type Output = Result<Result<RestartOrShutdown>, tokio::task::JoinError>;
-
-    fn poll(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        use futures::future::FutureExt as _;
-        let this = self.project();
-        let task = this
-            .task
-            .as_mut()
-            .expect("the Conductor handle must not be polled after shutdown");
-        task.poll_unpin(cx)
-    }
-}
-
-pub(super) struct ConductorInner {
+/// The business logic of Conductur.
+pub(super) struct Inner {
     /// Token to signal to all tasks to shut down gracefully.
     shutdown_token: CancellationToken,
 
-    /// The different long-running tasks that make up the conductor;
-    tasks: JoinMap<&'static str, eyre::Result<()>>,
+    executor: Option<JoinHandle<eyre::Result<()>>>,
 }
 
-impl ConductorInner {
-    const CELESTIA: &'static str = "celestia";
-    const EXECUTOR: &'static str = "executor";
-    const SEQUENCER: &'static str = "sequencer";
-
-    /// Create a new [`ConductorInner`] from a [`Config`].
+impl Inner {
+    /// Create a new [`Inner`] from a [`Config`].
     ///
     /// # Errors
     /// Returns an error in the following cases if one of its constituent
     /// actors could not be spawned (executor, sequencer reader, or data availability reader).
     /// This usually happens if the actors failed to connect to their respective endpoints.
-    fn new(
-        cfg: Config,
+    pub(super) fn new(
+        config: Config,
         metrics: &'static Metrics,
         shutdown_token: CancellationToken,
     ) -> eyre::Result<Self> {
-        let mut tasks = JoinMap::new();
-
-        let sequencer_cometbft_client = HttpClient::new(&*cfg.sequencer_cometbft_url)
-            .wrap_err("failed constructing sequencer cometbft RPC client")?;
-
-        // Spawn the executor task.
-        let executor_handle = {
-            let (executor, handle) = executor::Builder {
-                mode: cfg.execution_commit_level,
-                rollup_address: cfg.execution_rpc_url,
-                shutdown: shutdown_token.clone(),
-                metrics,
-            }
-            .build()
-            .wrap_err("failed constructing executor")?;
-
-            tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
-            handle
-        };
-
-        if cfg.execution_commit_level.is_with_soft() {
-            let sequencer_grpc_client =
-                sequencer::SequencerGrpcClient::new(&cfg.sequencer_grpc_url)
-                    .wrap_err("failed constructing grpc client for Sequencer")?;
-
-            // The `sync_start_block_height` represents the height of the next
-            // sequencer block that can be executed on top of the rollup state.
-            // This value is derived by the Executor.
-            let sequencer_reader = sequencer::Builder {
-                sequencer_grpc_client,
-                sequencer_cometbft_client: sequencer_cometbft_client.clone(),
-                sequencer_block_time: Duration::from_millis(cfg.sequencer_block_time_ms),
-                expected_sequencer_chain_id: cfg.expected_sequencer_chain_id.clone(),
-                shutdown: shutdown_token.clone(),
-                executor: executor_handle.clone(),
-            }
-            .build();
-            tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
+        let executor = executor::Builder {
+            config,
+            shutdown: shutdown_token.clone(),
+            metrics,
         }
-
-        if cfg.execution_commit_level.is_with_firm() {
-            let celestia_token = if cfg.no_celestia_auth {
-                None
-            } else {
-                Some(cfg.celestia_bearer_token)
-            };
-
-            let reader = celestia::Builder {
-                celestia_http_endpoint: cfg.celestia_node_http_url,
-                celestia_token,
-                celestia_block_time: Duration::from_millis(cfg.celestia_block_time_ms),
-                executor: executor_handle.clone(),
-                sequencer_cometbft_client: sequencer_cometbft_client.clone(),
-                sequencer_requests_per_second: cfg.sequencer_requests_per_second,
-                expected_celestia_chain_id: cfg.expected_celestia_chain_id,
-                expected_sequencer_chain_id: cfg.expected_sequencer_chain_id,
-                shutdown: shutdown_token.clone(),
-                metrics,
-            }
-            .build()
-            .wrap_err("failed to build Celestia Reader")?;
-
-            tasks.spawn(Self::CELESTIA, reader.run_until_stopped());
-        };
+        .build()
+        .wrap_err("failed constructing executor")?;
 
         Ok(Self {
             shutdown_token,
-            tasks,
+            executor: Some(tokio::spawn(executor.run_until_stopped())),
         })
     }
 
-    /// Runs [`ConductorInner`] until it receives an exit signal.
+    /// Runs [`Inner`] until it receives an exit signal.
     ///
     /// # Panics
     /// Panics if it could not install a signal handler.
-    async fn run_until_stopped(mut self) -> Result<RestartOrShutdown> {
+    pub(super) async fn run_until_stopped(mut self) -> eyre::Result<RestartOrShutdown> {
         info_span!("Conductor::run_until_stopped").in_scope(|| info!("conductor is running"));
 
         let exit_reason = select! {
             biased;
 
             () = self.shutdown_token.cancelled() => {
-                ExitReason::ShutdownSignal
+                Ok(ShutdownSignalReceived)
             },
 
-            Some((name, res)) = self.tasks.join_next() => {
-                match flatten(res) {
-                    Ok(()) => ExitReason::TaskFailed{name, error: eyre!("task `{name}` exited unexpectedly")},
-                    Err(err) => ExitReason::TaskFailed{name, error: err.wrap_err(format!("task `{name}` failed"))},
+            res = self.executor.as_mut().expect("task must always be set at this point") => {
+                // XXX: must Option::take the JoinHandle to avoid polling it in the shutdown logic.
+                self.executor.take();
+                match res {
+                    Ok(Ok(())) => Err(eyre!("executor exited unexpectedly")),
+                    Ok(Err(err)) => Err(err.wrap_err("executor exited with error")),
+                    Err(err) => Err(Report::new(err).wrap_err("executor panicked")),
                 }
             }
         };
 
-        let message = "initiating shutdown";
-        report_exit(&exit_reason, message);
-        self.shutdown(exit_reason).await
-    }
-
-    /// Creates and spawns a Conductor on the tokio runtime.
-    ///
-    /// This calls [`tokio::spawn`] and returns a [`InnerHandle`] to the
-    /// running Conductor task.
-    pub(super) fn spawn(
-        cfg: Config,
-        metrics: &'static Metrics,
-        shutdown_token: CancellationToken,
-    ) -> eyre::Result<InnerHandle> {
-        let conductor = Self::new(cfg, metrics, shutdown_token)?;
-        let shutdown_token = conductor.shutdown_token.clone();
-        let task = tokio::spawn(conductor.run_until_stopped());
-        Ok(InnerHandle {
-            shutdown_token,
-            task: Some(task),
-        })
+        self.restart_or_shutdown(exit_reason).await
     }
 
     /// Shuts down all tasks.
@@ -232,89 +113,43 @@ impl ConductorInner {
     /// Waits 25 seconds for all tasks to shut down before aborting them. 25 seconds
     /// because kubernetes issues SIGKILL 30 seconds after SIGTERM, giving 5 seconds
     /// to abort the remaining tasks.
-    #[instrument(skip_all)]
-    async fn shutdown(mut self, exit_reason: ExitReason) -> Result<RestartOrShutdown> {
+    #[instrument(skip_all, err, ret(Display))]
+    async fn restart_or_shutdown(
+        mut self,
+        exit_reason: eyre::Result<ShutdownSignalReceived>,
+    ) -> eyre::Result<RestartOrShutdown> {
         self.shutdown_token.cancel();
-        let mut restart_or_shutdown = RestartOrShutdown::Shutdown;
-
-        match &exit_reason {
-            ExitReason::ShutdownSignal => {
-                info!("received shutdown signal, skipping check for restart");
-            }
-            ExitReason::TaskFailed {
-                name,
-                error,
-            } => {
-                if check_for_restart(name, error) {
-                    restart_or_shutdown = RestartOrShutdown::Restart;
+        let restart_or_shutdown = match exit_reason {
+            Ok(ShutdownSignalReceived) => Ok(RestartOrShutdown::Shutdown),
+            Err(error) => {
+                error!(%error, "executor failed; checking error chain if conductor should be restarted");
+                if check_for_restart(&error) {
+                    Ok(RestartOrShutdown::Restart)
+                } else {
+                    Err(error)
                 }
-            }
-        }
-
-        info!("signalled all tasks to shut down; waiting for 25 seconds to exit");
-
-        let shutdown_loop = async {
-            while let Some((name, res)) = self.tasks.join_next().await {
-                let message = "task shut down";
-                match flatten(res) {
-                    Ok(()) => {
-                        info!(name, message);
-                    }
-                    Err(error) => {
-                        if check_for_restart(name, &error)
-                            && !matches!(exit_reason, ExitReason::ShutdownSignal)
-                        {
-                            restart_or_shutdown = RestartOrShutdown::Restart;
-                        }
-                        error!(name, %error, message);
-                    }
-                };
             }
         };
 
-        if timeout(Duration::from_secs(25), shutdown_loop)
-            .await
-            .is_err()
-        {
-            let tasks = self.tasks.keys().join(", ");
-            warn!(
-                tasks = format_args!("[{tasks}]"),
-                "aborting all tasks that have not yet shut down",
-            );
-            self.tasks.abort_all();
-        } else {
-            info!("all tasks shut down regularly");
-        }
-        info!("shutting down");
-
-        if let ExitReason::TaskFailed {
-            error, ..
-        } = exit_reason
-        {
-            if matches!(restart_or_shutdown, RestartOrShutdown::Shutdown) {
-                return Err(error);
+        if let Some(mut executor) = self.executor.take() {
+            let wait_until_timeout = Duration::from_secs(25);
+            if timeout(wait_until_timeout, &mut executor).await.is_err() {
+                warn!(
+                    "waited `{}` for executor start to respond to shutdown signal; aborting",
+                    humantime::format_duration(wait_until_timeout)
+                );
+                executor.abort();
+            } else {
+                info!("executor shut down regularly");
             }
         }
-        Ok(restart_or_shutdown)
+
+        restart_or_shutdown
     }
 }
 
 #[instrument(skip_all)]
-fn report_exit(exit_reason: &ExitReason, message: &str) {
-    match exit_reason {
-        ExitReason::ShutdownSignal => info!(reason = "received shutdown signal", message),
-        ExitReason::TaskFailed {
-            name: task,
-            error: reason,
-        } => error!(%reason, %task, message),
-    }
-}
-
-#[instrument(skip_all)]
-fn check_for_restart(name: &str, err: &eyre::Report) -> bool {
-    if name != ConductorInner::EXECUTOR {
-        return false;
-    }
+fn check_for_restart(err: &eyre::Report) -> bool {
     let mut current = Some(err.as_ref() as &dyn std::error::Error);
     while let Some(err) = current {
         if let Some(status) = err.downcast_ref::<tonic::Status>() {
@@ -338,6 +173,6 @@ mod tests {
         let err = tonic_error.wrap_err("wrapper_1");
         let err = err.wrap_err("wrapper_2");
         let err = err.wrap_err("wrapper_3");
-        assert!(super::check_for_restart("executor", &err.unwrap_err()));
+        assert!(super::check_for_restart(&err.unwrap_err()));
     }
 }
