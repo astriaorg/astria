@@ -7,7 +7,7 @@ is price data for specific currency pairs, eg. BTC/USD, ETH/USD, TIA/USD. The
 oracle protocol is based off Skip's [Connect](https://github.com/skip-mev/connect/tree/main)
 protocol. Astria uses Skip's oracle sidecar to fetch price data.
 
-### High level overview
+## High level overview
 
 Astria uses CometBFT for consensus, which communicates with the application
 logic using [ABCI++](https://docs.cometbft.com/v0.37/spec/abci/abci++_basic_concepts#consensusblock-execution-methods).
@@ -64,15 +64,16 @@ pub struct SequencerBlock {
     /// fields omitted 
     /// ...
 
-    /// The extended commit info for the block, if vote extensions were enabled at this height.
+    /// The extended commit info for the block, if vote extensions were enabled
+    /// at this height.
     ///
-    /// This is verified to be of the form `ExtendedCommitInfoWithCurrencyPairMapping` when the
-    /// type is constructed, but is left as `Bytes` so that it can be verified against the
-    /// `data_hash` using the `extended_commit_info_proof` (as re-encoding the protobuf type
-    /// may not be deterministic).
+    /// This is verified to be of the form `ExtendedCommitInfoWithCurrencyPairMapping`
+    /// when the type is constructed, but is left as `Bytes` so that it can be
+    /// verified against the `data_hash` using the `extended_commit_info_proof`
+    /// (as re-encoding the protobuf type may not be deterministic).
     extended_commit_info: Option<Bytes>,
-    /// The proof that the extended commit info is included in the cometbft block data (if it
-    /// exists), specifically the third item in the data field.
+    /// The proof that the extended commit info is included in the cometbft block
+    /// data (if it exists), specifically the third item in the data field.
     extended_commit_info_proof: Option<merkle::Proof>,
 }
 ```
