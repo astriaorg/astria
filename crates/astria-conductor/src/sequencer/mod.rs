@@ -150,7 +150,7 @@ impl RunningReader {
         } = reader;
 
         let next_expected_height = rollup_state.next_expected_soft_sequencer_height();
-        let sequencer_end_height = rollup_state
+        let sequencer_stop_height = rollup_state
             .sequencer_stop_height()
             .wrap_err("failed to obtain sequencer stop height")?;
 
@@ -163,7 +163,7 @@ impl RunningReader {
         let blocks_from_heights = BlocksFromHeightStream::new(
             rollup_state.rollup_id(),
             next_expected_height,
-            sequencer_end_height,
+            sequencer_stop_height,
             sequencer_grpc_client,
         );
 
