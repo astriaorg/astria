@@ -473,7 +473,7 @@ impl ::prost::Name for IbcSudoChange {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PriceFeed {
-    #[prost(oneof = "price_feed::Value", tags = "1")]
+    #[prost(oneof = "price_feed::Value", tags = "1, 2")]
     pub value: ::core::option::Option<price_feed::Value>,
 }
 /// Nested message and enum types in `PriceFeed`.
@@ -483,6 +483,8 @@ pub mod price_feed {
     pub enum Value {
         #[prost(message, tag = "1")]
         Oracle(super::CurrencyPairsChange),
+        #[prost(message, tag = "2")]
+        MarketMap(super::MarketMapChange),
     }
 }
 impl ::prost::Name for PriceFeed {
@@ -527,6 +529,90 @@ pub struct CurrencyPairs {
 }
 impl ::prost::Name for CurrencyPairs {
     const NAME: &'static str = "CurrencyPairs";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MarketMapChange {
+    #[prost(oneof = "market_map_change::Value", tags = "1, 2")]
+    pub value: ::core::option::Option<market_map_change::Value>,
+}
+/// Nested message and enum types in `MarketMapChange`.
+pub mod market_map_change {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(message, tag = "1")]
+        Markets(super::ChangeMarkets),
+        #[prost(message, tag = "2")]
+        Params(super::UpdateMarketMapParams),
+    }
+}
+impl ::prost::Name for MarketMapChange {
+    const NAME: &'static str = "MarketMapChange";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+    }
+}
+/// Either creates, updates existing, or removes markets.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ChangeMarkets {
+    #[prost(oneof = "change_markets::Action", tags = "1, 2, 3")]
+    pub action: ::core::option::Option<change_markets::Action>,
+}
+/// Nested message and enum types in `ChangeMarkets`.
+pub mod change_markets {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Action {
+        #[prost(message, tag = "1")]
+        Create(super::Markets),
+        #[prost(message, tag = "2")]
+        Update(super::Markets),
+        #[prost(message, tag = "3")]
+        Remove(super::Markets),
+    }
+}
+impl ::prost::Name for ChangeMarkets {
+    const NAME: &'static str = "ChangeMarkets";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+    }
+}
+/// A list of markets for creation, updating, or removal.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Markets {
+    #[prost(message, repeated, tag = "1")]
+    pub markets: ::prost::alloc::vec::Vec<
+        super::super::super::super::connect::marketmap::v2::Market,
+    >,
+}
+impl ::prost::Name for Markets {
+    const NAME: &'static str = "Markets";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+    }
+}
+/// Updates the market map parameters.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UpdateMarketMapParams {
+    /// Params defines the new parameters for the x/marketmap module.
+    #[prost(message, optional, tag = "1")]
+    pub params: ::core::option::Option<
+        super::super::super::super::connect::marketmap::v2::Params,
+    >,
+}
+impl ::prost::Name for UpdateMarketMapParams {
+    const NAME: &'static str = "UpdateMarketMapParams";
     const PACKAGE: &'static str = "astria.protocol.transaction.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
