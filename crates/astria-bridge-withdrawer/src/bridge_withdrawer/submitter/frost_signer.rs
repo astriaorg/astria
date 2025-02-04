@@ -5,15 +5,12 @@ use std::collections::{
 
 use astria_core::{
     crypto::VerificationKey,
-    generated::astria::{
-        protocol::transaction,
-        signer::v1::{
-            frost_participant_service_client::FrostParticipantServiceClient,
-            CommitmentWithIdentifier,
-            GetVerifyingShareRequest,
-            Part1Request,
-            Part2Request,
-        },
+    generated::astria::signer::v1::{
+        frost_participant_service_client::FrostParticipantServiceClient,
+        CommitmentWithIdentifier,
+        GetVerifyingShareRequest,
+        Part1Request,
+        Part2Request,
     },
     primitive::v1::Address,
     protocol::transaction::v1::{
@@ -28,10 +25,8 @@ use astria_eyre::eyre::{
     eyre,
     Context,
 };
-use ethers::types::Sign;
 use frost_ed25519::{
     keys::{
-        KeyPackage,
         PublicKeyPackage,
         VerifyingShare,
     },
@@ -43,7 +38,7 @@ use super::Signer;
 
 pub(crate) async fn initialize_frost_participant_clients(
     endpoints: Vec<String>,
-    public_key_package: PublicKeyPackage,
+    public_key_package: &PublicKeyPackage,
 ) -> eyre::Result<HashMap<Identifier, FrostParticipantServiceClient<tonic::transport::Channel>>> {
     // TODO: maybe remove this check, and just check we have >= min_signers in build()
     ensure!(
@@ -80,7 +75,7 @@ pub(crate) async fn initialize_frost_participant_clients(
 }
 
 pub(crate) struct FrostSignerBuilder {
-    key_package: Option<KeyPackage>,
+    min_signers: Option<usize>,
     public_key_package: Option<PublicKeyPackage>,
     address_prefix: Option<String>,
     participant_clients:
@@ -88,9 +83,18 @@ pub(crate) struct FrostSignerBuilder {
 }
 
 impl FrostSignerBuilder {
-    pub(crate) fn key_package(self, key_package: KeyPackage) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
-            key_package: Some(key_package),
+            min_signers: None,
+            public_key_package: None,
+            address_prefix: None,
+            participant_clients: HashMap::new(),
+        }
+    }
+
+    pub(crate) fn min_signers(self, min_signers: usize) -> Self {
+        Self {
+            min_signers: Some(min_signers),
             ..self
         }
     }
@@ -123,9 +127,9 @@ impl FrostSignerBuilder {
     }
 
     pub(crate) fn try_build(self) -> eyre::Result<FrostSigner> {
-        let key_package = self
-            .key_package
-            .ok_or_else(|| eyre!("key package is required"))?;
+        let min_signers = self
+            .min_signers
+            .ok_or_else(|| eyre!("minimum number of signers is required"))?;
         let public_key_package = self
             .public_key_package
             .ok_or_else(|| eyre!("public key package is required"))?;
@@ -147,7 +151,7 @@ impl FrostSignerBuilder {
             .wrap_err("failed to build address")?;
 
         Ok(FrostSigner {
-            key_package,
+            min_signers,
             public_key_package,
             address,
             participant_clients: self.participant_clients,
@@ -156,7 +160,7 @@ impl FrostSignerBuilder {
 }
 
 pub(crate) struct FrostSigner {
-    key_package: KeyPackage,
+    min_signers: usize,
     public_key_package: PublicKeyPackage,
     address: Address,
     participant_clients:
@@ -171,10 +175,6 @@ impl Signer for FrostSigner {
             Message as _,
             Name as _,
         };
-
-        // TODO: -1 for min_other_signers; or do we want all participants
-        // to be separate processes?
-        let min_signers: usize = (*self.key_package.min_signers()).into();
 
         // part 1
         let stream = futures::stream::FuturesUnordered::new();
@@ -202,7 +202,7 @@ impl Signer for FrostSigner {
             };
         }
         ensure!(
-            commitments.len() >= min_signers,
+            commitments.len() >= self.min_signers,
             "not enough part 1 commitments"
         );
 
@@ -223,14 +223,12 @@ impl Signer for FrostSigner {
                 .ok_or_else(|| eyre!("failed to find participant client"))?
                 .clone();
             let request_commitments = request_commitments.clone();
-            let tx = tx.clone();
+            let tx_bytes = tx_bytes.clone();
             stream.push(async move {
                 let resp = client
                     .part2(Part2Request {
                         request_identifier,
-                        transaction_body: Some(tx.into_raw()), /* TODO: this needs to
-                                                                * be bytes for
-                                                                * determinism */
+                        message: tx_bytes.into(),
                         commitments: request_commitments,
                     })
                     .await
@@ -254,7 +252,7 @@ impl Signer for FrostSigner {
             };
         }
         ensure!(
-            sig_shares.len() >= min_signers,
+            sig_shares.len() >= self.min_signers,
             "not enough part 2 signature shares"
         );
 

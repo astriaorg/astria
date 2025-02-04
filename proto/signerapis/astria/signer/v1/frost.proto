@@ -2,8 +2,6 @@ syntax = 'proto3';
 
 package astria.signer.v1;
 
-import "astria/protocol/transaction/v1/transaction.proto";
-
 message GetVerifyingShareRequest {}
 
 message GetVerifyingShareResponse {
@@ -30,7 +28,7 @@ message Part1Response {
 
 message Part2Request {
     repeated CommitmentWithIdentifier commitments = 1;
-    astria.protocol.transaction.v1.TransactionBody transaction_body = 2;
+    bytes message = 2;
     uint32 request_identifier = 3;
 }
 

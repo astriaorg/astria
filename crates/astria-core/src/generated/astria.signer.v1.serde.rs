@@ -475,7 +475,7 @@ impl serde::Serialize for Part2Request {
         if !self.commitments.is_empty() {
             len += 1;
         }
-        if self.transaction_body.is_some() {
+        if !self.message.is_empty() {
             len += 1;
         }
         if self.request_identifier != 0 {
@@ -485,8 +485,9 @@ impl serde::Serialize for Part2Request {
         if !self.commitments.is_empty() {
             struct_ser.serialize_field("commitments", &self.commitments)?;
         }
-        if let Some(v) = self.transaction_body.as_ref() {
-            struct_ser.serialize_field("transactionBody", v)?;
+        if !self.message.is_empty() {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("message", pbjson::private::base64::encode(&self.message).as_str())?;
         }
         if self.request_identifier != 0 {
             struct_ser.serialize_field("requestIdentifier", &self.request_identifier)?;
@@ -502,8 +503,7 @@ impl<'de> serde::Deserialize<'de> for Part2Request {
     {
         const FIELDS: &[&str] = &[
             "commitments",
-            "transaction_body",
-            "transactionBody",
+            "message",
             "request_identifier",
             "requestIdentifier",
         ];
@@ -511,7 +511,7 @@ impl<'de> serde::Deserialize<'de> for Part2Request {
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             Commitments,
-            TransactionBody,
+            Message,
             RequestIdentifier,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
@@ -535,7 +535,7 @@ impl<'de> serde::Deserialize<'de> for Part2Request {
                     {
                         match value {
                             "commitments" => Ok(GeneratedField::Commitments),
-                            "transactionBody" | "transaction_body" => Ok(GeneratedField::TransactionBody),
+                            "message" => Ok(GeneratedField::Message),
                             "requestIdentifier" | "request_identifier" => Ok(GeneratedField::RequestIdentifier),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
@@ -557,7 +557,7 @@ impl<'de> serde::Deserialize<'de> for Part2Request {
                     V: serde::de::MapAccess<'de>,
             {
                 let mut commitments__ = None;
-                let mut transaction_body__ = None;
+                let mut message__ = None;
                 let mut request_identifier__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
@@ -567,11 +567,13 @@ impl<'de> serde::Deserialize<'de> for Part2Request {
                             }
                             commitments__ = Some(map_.next_value()?);
                         }
-                        GeneratedField::TransactionBody => {
-                            if transaction_body__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("transactionBody"));
+                        GeneratedField::Message => {
+                            if message__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("message"));
                             }
-                            transaction_body__ = map_.next_value()?;
+                            message__ = 
+                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
+                            ;
                         }
                         GeneratedField::RequestIdentifier => {
                             if request_identifier__.is_some() {
@@ -585,7 +587,7 @@ impl<'de> serde::Deserialize<'de> for Part2Request {
                 }
                 Ok(Part2Request {
                     commitments: commitments__.unwrap_or_default(),
-                    transaction_body: transaction_body__,
+                    message: message__.unwrap_or_default(),
                     request_identifier: request_identifier__.unwrap_or_default(),
                 })
             }

@@ -272,6 +272,10 @@ impl TestBridgeWithdrawerConfig {
             sequencer_grpc_endpoint: format!("http://{}", sequencer_mock.local_addr),
             sequencer_chain_id: SEQUENCER_CHAIN_ID.into(),
             sequencer_key_path,
+            frost_threshold_signing_enabled: false,
+            frost_min_signers: 0,
+            frost_public_key_package_path: String::new(),
+            frost_participant_endpoints: Vec::new(),
             fee_asset_denomination: asset_denom.clone(),
             rollup_asset_denomination: asset_denom.as_trace_prefixed().unwrap().clone(),
             sequencer_bridge_address: default_bridge_address().to_string(),
@@ -297,7 +301,7 @@ impl TestBridgeWithdrawerConfig {
         let metrics = Box::leak(Box::new(metrics));
 
         let (bridge_withdrawer, bridge_withdrawer_shutdown_handle) =
-            BridgeWithdrawer::new(config.clone(), metrics).unwrap();
+            BridgeWithdrawer::new(config.clone(), metrics).await.unwrap();
         let api_address = bridge_withdrawer.local_addr();
         let bridge_withdrawer = tokio::task::spawn(bridge_withdrawer.run());
 

@@ -13,6 +13,8 @@ impl ::prost::Name for GetVerifyingShareRequest {
 pub struct GetVerifyingShareResponse {
     /// the verifying share (partial public key) of the participant.
     /// this is used for the coordinator to determine the identifier of the participant.
+    /// TODO: do we need to verify this (ie. have the server send back a signed message
+    /// with the verifying share)?
     #[prost(bytes = "bytes", tag = "1")]
     pub verifying_share: ::prost::bytes::Bytes,
 }
@@ -70,10 +72,8 @@ impl ::prost::Name for Part1Response {
 pub struct Part2Request {
     #[prost(message, repeated, tag = "1")]
     pub commitments: ::prost::alloc::vec::Vec<CommitmentWithIdentifier>,
-    #[prost(message, optional, tag = "2")]
-    pub transaction_body: ::core::option::Option<
-        super::super::protocol::transaction::v1::TransactionBody,
-    >,
+    #[prost(bytes = "bytes", tag = "2")]
+    pub message: ::prost::bytes::Bytes,
     #[prost(uint32, tag = "3")]
     pub request_identifier: u32,
 }
