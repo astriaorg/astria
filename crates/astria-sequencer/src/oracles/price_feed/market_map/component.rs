@@ -25,9 +25,6 @@ impl MarketMapComponent {
         mut state: S,
         market_map_genesis: &GenesisState,
     ) -> Result<()> {
-        // TODO: put market map authorities and admin in state;
-        // only required for related actions however
-
         state
             .put_market_map(market_map_genesis.market_map.clone())
             .wrap_err("failed to put market map")?;

@@ -12,15 +12,19 @@ use astria_core::{
             IbcParameters,
         },
         price_feed::{
-            marketmap,
-            marketmap::v2::{
-                Market,
-                MarketMap,
+            marketmap::{
+                self,
+                v2::{
+                    Market,
+                    MarketMap,
+                },
             },
-            oracle,
-            oracle::v2::{
-                CurrencyPairGenesis,
-                QuotePrice,
+            oracle::{
+                self,
+                v2::{
+                    CurrencyPairGenesis,
+                    QuotePrice,
+                },
             },
             types::v2::CurrencyPair,
         },

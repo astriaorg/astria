@@ -16,7 +16,13 @@ use std::{
 };
 
 use astria_core::{
-    oracles::price_feed::types::v2::CurrencyPair,
+    oracles::price_feed::{
+        market_map::v2::{
+            Market,
+            Params,
+        },
+        types::v2::CurrencyPair,
+    },
     primitive::v1::{
         Address,
         RollupId,
@@ -28,12 +34,15 @@ use astria_core::{
                 BridgeLock,
                 BridgeSudoChange,
                 BridgeUnlock,
+                ChangeMarkets,
                 CurrencyPairsChange,
                 IbcRelayerChange,
                 IbcSudoChange,
+                MarketMapChange,
                 PriceFeed,
                 RollupDataSubmission,
                 Transfer,
+                UpdateMarketMapParams,
                 ValidatorUpdate,
             },
             Action,
@@ -59,6 +68,7 @@ use crate::{
             default_genesis_accounts,
             proto_genesis_state,
             AppInitializer,
+            ALICE_ADDRESS,
             BOB_ADDRESS,
             CAROL_ADDRESS,
         },
@@ -76,6 +86,7 @@ use crate::{
         ASTRIA_PREFIX,
     },
     bridge::StateWriteExt as _,
+    test_utils::example_ticker_from_currency_pair,
 };
 
 #[tokio::test]
@@ -184,6 +195,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     let alice = get_alice_signing_key();
     let bridge = get_bridge_signing_key();
     let bridge_address = astria_address(&bridge.address_bytes());
+    let alice_address = astria_address_from_hex_string(ALICE_ADDRESS);
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let carol_address = astria_address_from_hex_string(CAROL_ADDRESS);
 
@@ -246,6 +258,39 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             }
             .into(),
             Action::ValidatorUpdate(update.clone()),
+            PriceFeed::MarketMap(MarketMapChange::Markets(ChangeMarkets::Create(vec![
+                Market {
+                    ticker: example_ticker_from_currency_pair(
+                        "testAssetOne",
+                        "testAssetTwo",
+                        "create market".to_string(),
+                    ),
+                    provider_configs: vec![],
+                },
+            ])))
+            .into(),
+            PriceFeed::MarketMap(MarketMapChange::Markets(ChangeMarkets::Update(vec![
+                Market {
+                    ticker: example_ticker_from_currency_pair(
+                        "testAssetOne",
+                        "testAssetTwo",
+                        "update market".to_string(),
+                    ),
+                    provider_configs: vec![],
+                },
+            ])))
+            .into(),
+            PriceFeed::MarketMap(MarketMapChange::Markets(ChangeMarkets::Remove(vec![
+                Market {
+                    ticker: example_ticker_from_currency_pair(
+                        "testAssetOne",
+                        "testAssetTwo",
+                        "remove market".to_string(),
+                    ),
+                    provider_configs: vec![],
+                },
+            ])))
+            .into(),
         ])
         .chain_id("test")
         .try_build()
@@ -259,6 +304,13 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             FeeAssetChange::Addition("test-0".parse().unwrap()).into(),
             FeeAssetChange::Addition("test-1".parse().unwrap()).into(),
             FeeAssetChange::Removal("test-0".parse().unwrap()).into(),
+            PriceFeed::MarketMap(MarketMapChange::Params(UpdateMarketMapParams {
+                params: Params {
+                    market_authorities: vec![bob_address, carol_address],
+                    admin: alice_address,
+                },
+            }))
+            .into(),
         ])
         .nonce(1)
         .chain_id("test")

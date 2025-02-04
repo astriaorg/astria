@@ -11,9 +11,17 @@ use prost::Name as _;
 
 use super::raw;
 use crate::{
-    oracles::price_feed::types::v2::{
-        CurrencyPair,
-        CurrencyPairError,
+    oracles::price_feed::{
+        market_map::v2::{
+            Market,
+            MarketError,
+            Params,
+            ParamsError,
+        },
+        types::v2::{
+            CurrencyPair,
+            CurrencyPairError,
+        },
     },
     primitive::v1::{
         asset::{
@@ -2102,6 +2110,7 @@ impl Protobuf for FeeChange {
 #[derive(Debug, Clone)]
 pub enum PriceFeed {
     Oracle(CurrencyPairsChange),
+    MarketMap(MarketMapChange),
 }
 
 impl Protobuf for PriceFeed {
@@ -2113,6 +2122,12 @@ impl Protobuf for PriceFeed {
         match self {
             PriceFeed::Oracle(currency_pairs_change) => {
                 let raw = raw::price_feed::Value::Oracle(currency_pairs_change.into_raw());
+                Self::Raw {
+                    value: Some(raw),
+                }
+            }
+            PriceFeed::MarketMap(market_map_change) => {
+                let raw = raw::price_feed::Value::MarketMap(market_map_change.into_raw());
                 Self::Raw {
                     value: Some(raw),
                 }
@@ -2138,6 +2153,11 @@ impl Protobuf for PriceFeed {
                     CurrencyPairsChange::try_from_raw(currency_pairs_change)
                         .map_err(Self::Error::oracle)?;
                 Ok(Self::Oracle(currency_pairs_change))
+            }
+            Some(raw::price_feed::Value::MarketMap(market_map_change)) => {
+                let market_map_change = MarketMapChange::try_from_raw(market_map_change)
+                    .map_err(Self::Error::market_map)?;
+                Ok(Self::MarketMap(market_map_change))
             }
             None => Err(Self::Error::unset()),
         }
@@ -2168,6 +2188,11 @@ impl PriceFeedError {
     fn oracle(err: CurrencyPairsChangeError) -> Self {
         Self(PriceFeedErrorKind::Oracle(err))
     }
+
+    #[must_use]
+    fn market_map(err: MarketMapChangeError) -> Self {
+        Self(PriceFeedErrorKind::MarketMap(err))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -2176,6 +2201,8 @@ enum PriceFeedErrorKind {
     Unset,
     #[error(transparent)]
     Oracle(CurrencyPairsChangeError),
+    #[error(transparent)]
+    MarketMap(MarketMapChangeError),
 }
 
 #[derive(Debug, Clone)]
@@ -2367,4 +2394,235 @@ impl From<FeeComponents<PriceFeed>> for FeeChange {
     fn from(fee: FeeComponents<PriceFeed>) -> Self {
         FeeChange::PriceFeed(fee)
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum MarketMapChange {
+    Markets(ChangeMarkets),
+    Params(UpdateMarketMapParams),
+}
+
+impl Protobuf for MarketMapChange {
+    type Error = MarketMapChangeError;
+    type Raw = raw::MarketMapChange;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        match &raw.value {
+            Some(raw::market_map_change::Value::Markets(change_markets)) => Ok(Self::Markets(
+                ChangeMarkets::try_from_raw_ref(change_markets)
+                    .map_err(MarketMapChangeError::invalid_change_markets_action)?,
+            )),
+            Some(raw::market_map_change::Value::Params(update_market_map_params)) => {
+                Ok(Self::Params(
+                    UpdateMarketMapParams::try_from_raw_ref(update_market_map_params)
+                        .map_err(MarketMapChangeError::invalid_update_market_map_params_action)?,
+                ))
+            }
+            None => Err(MarketMapChangeError::missing_value()),
+        }
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let value = match self {
+            Self::Markets(change_markets) => {
+                raw::market_map_change::Value::Markets(change_markets.to_raw())
+            }
+            Self::Params(update_market_map_params) => {
+                raw::market_map_change::Value::Params(update_market_map_params.to_raw())
+            }
+        };
+        Self::Raw {
+            value: Some(value),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct MarketMapChangeError(MarketMapChangeErrorKind);
+
+impl MarketMapChangeError {
+    #[must_use]
+    pub fn invalid_change_markets_action(err: ChangeMarketsError) -> Self {
+        Self(MarketMapChangeErrorKind::InvalidChangeMarketsAction(err))
+    }
+
+    #[must_use]
+    pub fn invalid_update_market_map_params_action(err: UpdateMarketMapParamsError) -> Self {
+        Self(MarketMapChangeErrorKind::InvalidUpdateMarketMapParamsAction(err))
+    }
+
+    #[must_use]
+    pub fn missing_value() -> Self {
+        Self(MarketMapChangeErrorKind::MissingValue)
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum MarketMapChangeErrorKind {
+    #[error(transparent)]
+    InvalidChangeMarketsAction(#[from] ChangeMarketsError),
+    #[error(transparent)]
+    InvalidUpdateMarketMapParamsAction(#[from] UpdateMarketMapParamsError),
+    #[error("missing market map change value")]
+    MissingValue,
+}
+
+/// Takes a list of markets and either creates, updates, or removes them depending on its variant.
+/// Must be signed by an address included in the market map [`Params`]' `market_authorities`.
+/// - **Create:** Creates the markets in the market map. If no market map is found, one will be
+///   created. If any of the markets to create already exist, this action will err.
+/// - **Update:** Updates the markets in the market map, matching based on `Ticker.currency_pair`).
+///   If no market map is found, or any market is missing a counterpart in the map, this action will
+///   err.
+/// - **Remove:** Removes the markets from the market map. If a market is not found in the map, it
+///   will be ignored.
+#[derive(Debug, Clone)]
+pub enum ChangeMarkets {
+    Create(Vec<Market>),
+    Update(Vec<Market>),
+    Remove(Vec<Market>),
+}
+
+impl Protobuf for ChangeMarkets {
+    type Error = ChangeMarketsError;
+    type Raw = raw::ChangeMarkets;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        match &raw.action {
+            Some(raw::change_markets::Action::Create(markets)) => Ok(Self::Create(
+                markets
+                    .markets
+                    .iter()
+                    .map(|market| Market::try_from_raw(market.clone()))
+                    .collect::<Result<_, _>>()
+                    .map_err(ChangeMarketsError::invalid_market)?,
+            )),
+            Some(raw::change_markets::Action::Update(markets)) => Ok(Self::Update(
+                markets
+                    .markets
+                    .iter()
+                    .map(|market| Market::try_from_raw(market.clone()))
+                    .collect::<Result<_, _>>()
+                    .map_err(ChangeMarketsError::invalid_market)?,
+            )),
+            Some(raw::change_markets::Action::Remove(markets)) => Ok(Self::Remove(
+                markets
+                    .markets
+                    .iter()
+                    .map(|market| Market::try_from_raw(market.clone()))
+                    .collect::<Result<_, _>>()
+                    .map_err(ChangeMarketsError::invalid_market)?,
+            )),
+            None => Err(ChangeMarketsError::missing_markets()),
+        }
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let action = match self {
+            Self::Create(markets) => raw::change_markets::Action::Create(raw::Markets {
+                markets: markets
+                    .iter()
+                    .map(|market| Market::into_raw(market.clone()))
+                    .collect(),
+            }),
+            Self::Update(markets) => raw::change_markets::Action::Update(raw::Markets {
+                markets: markets
+                    .iter()
+                    .map(|market| Market::into_raw(market.clone()))
+                    .collect(),
+            }),
+            Self::Remove(markets) => raw::change_markets::Action::Remove(raw::Markets {
+                markets: markets
+                    .iter()
+                    .map(|market| Market::into_raw(market.clone()))
+                    .collect(),
+            }),
+        };
+        Self::Raw {
+            action: Some(action),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct ChangeMarketsError(ChangeMarketsErrorKind);
+
+impl ChangeMarketsError {
+    #[must_use]
+    pub fn invalid_market(err: MarketError) -> Self {
+        Self(ChangeMarketsErrorKind::InvalidMarket(err))
+    }
+
+    #[must_use]
+    pub fn missing_markets() -> Self {
+        Self(ChangeMarketsErrorKind::MissingMarkets)
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ChangeMarketsErrorKind {
+    #[error("invalid market in market list")]
+    InvalidMarket(#[from] MarketError),
+    #[error("change market action contained no markets to change")]
+    MissingMarkets,
+}
+
+/// Updates the market map Params, which contains the market authority addresses as well as an admin
+/// address. This will execute whether there are params in the state already or not. Must be signed
+/// by the sequencer network authority sudo address.
+#[derive(Debug, Clone)]
+pub struct UpdateMarketMapParams {
+    /// The new parameters for the `connect/marketmap` module.
+    pub params: Params,
+}
+
+impl Protobuf for UpdateMarketMapParams {
+    type Error = UpdateMarketMapParamsError;
+    type Raw = raw::UpdateMarketMapParams;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let params = Params::try_from_raw(
+            raw.params
+                .clone()
+                .ok_or(UpdateMarketMapParamsError::missing_params())?,
+        )
+        .map_err(UpdateMarketMapParamsError::invalid_params)?;
+        Ok(Self {
+            params,
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        Self::Raw {
+            params: Some(self.params.clone().into_raw()),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct UpdateMarketMapParamsError(UpdateMarketMapParamsErrorKind);
+
+impl UpdateMarketMapParamsError {
+    #[must_use]
+    pub fn missing_params() -> Self {
+        Self(UpdateMarketMapParamsErrorKind::MissingParams)
+    }
+
+    #[must_use]
+    pub fn invalid_params(err: ParamsError) -> Self {
+        Self(UpdateMarketMapParamsErrorKind::InvalidParams(err))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum UpdateMarketMapParamsErrorKind {
+    #[error("missing params")]
+    MissingParams,
+    #[error("invalid params")]
+    InvalidParams(#[from] ParamsError),
+    #[error("authority string could not be parsed to address")]
+    AuthorityParse(#[from] AddressError),
 }
