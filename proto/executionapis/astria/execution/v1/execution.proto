@@ -32,7 +32,7 @@ message GenesisInfo {
   // this chain ID (if extracting firm Sequencer blocks from Celestia blobs).
   string celestia_chain_id = 8;
   // Requests Conductor to halt at the stop number instead of re-fetching the genesis and continuing execution.
-  bool halt_at_rollup_stop_number= 9;
+  bool halt_at_rollup_stop_number = 9;
 }
 
 // The set of information which deterministic driver of block production
