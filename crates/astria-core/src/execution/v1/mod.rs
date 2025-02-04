@@ -41,9 +41,9 @@ enum GenesisInfoErrorKind {
     IncorrectRollupIdLength(IncorrectRollupIdLength),
     #[error("`rollup_id` was not set")]
     NoRollupId,
-    #[error("invalid tendermint chain ID for sequencer")]
+    #[error("field `sequencer_chain_id` was invalid")]
     InvalidSequencerId(#[source] tendermint::Error),
-    #[error("invalid celestia-tendermint chain ID for celestia")]
+    #[error("field `celestia_chain_id` was invalid")]
     InvalidCelestiaId(#[source] celestia_tendermint::Error),
 }
 
@@ -74,7 +74,7 @@ pub struct GenesisInfo {
     sequencer_chain_id: tendermint::chain::Id,
     /// The chain ID of the celestia network.
     celestia_chain_id: celestia_tendermint::chain::Id,
-    /// Whether the conductor halt at the stop height, or otherwise attempt restart.
+    /// Whether the conductor should halt at the stop height instead of restarting.
     halt_at_stop_height: bool,
 }
 
@@ -95,8 +95,8 @@ impl GenesisInfo {
     }
 
     #[must_use]
-    pub fn sequencer_chain_id(&self) -> &tendermint::chain::Id {
-        &self.sequencer_chain_id
+    pub fn sequencer_chain_id(&self) -> &str {
+        self.sequencer_chain_id.as_str()
     }
 
     #[must_use]
