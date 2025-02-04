@@ -6,9 +6,9 @@ import "astria/primitive/v1/types.proto";
 import "astria/protocol/fees/v1/types.proto";
 import "astria_vendored/penumbra/core/component/ibc/v1/ibc.proto";
 import "astria_vendored/tendermint/abci/types.proto";
-import "price_feed/marketmap/v2/market.proto";
-import "price_feed/marketmap/v2/params.proto";
-import "price_feed/types/v2/currency_pair.proto";
+import "connect/marketmap/v2/market.proto";
+import "connect/marketmap/v2/params.proto";
+import "connect/types/v2/currency_pair.proto";
 
 message Action {
   oneof value {
@@ -259,7 +259,7 @@ message CurrencyPairsChange {
 }
 
 message CurrencyPairs {
-  repeated price_feed.types.v2.CurrencyPair pairs = 1;
+  repeated connect.types.v2.CurrencyPair pairs = 1;
 }
 
 message MarketMapChange {
@@ -280,11 +280,11 @@ message ChangeMarkets {
 
 // A list of markets for creation, updating, or removal.
 message Markets {
-  repeated price_feed.marketmap.v2.Market markets = 1;
+  repeated connect.marketmap.v2.Market markets = 1;
 }
 
 // Updates the market map parameters.
 message UpdateMarketMapParams {
   // Params defines the new parameters for the x/marketmap module.
-  price_feed.marketmap.v2.Params params = 1;
+  connect.marketmap.v2.Params params = 1;
 }

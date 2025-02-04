@@ -10,8 +10,8 @@ pub struct OracleVoteExtension {
 }
 impl ::prost::Name for OracleVoteExtension {
     const NAME: &'static str = "OracleVoteExtension";
-    const PACKAGE: &'static str = "price_feed.abci.v2";
+    const PACKAGE: &'static str = "connect.abci.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("price_feed.abci.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.abci.v2.{}", Self::NAME)
     }
 }

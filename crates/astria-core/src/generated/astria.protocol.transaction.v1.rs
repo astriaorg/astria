@@ -524,7 +524,7 @@ impl ::prost::Name for CurrencyPairsChange {
 pub struct CurrencyPairs {
     #[prost(message, repeated, tag = "1")]
     pub pairs: ::prost::alloc::vec::Vec<
-        super::super::super::super::price_feed::types::v2::CurrencyPair,
+        super::super::super::super::connect::types::v2::CurrencyPair,
     >,
 }
 impl ::prost::Name for CurrencyPairs {
@@ -591,7 +591,7 @@ impl ::prost::Name for ChangeMarkets {
 pub struct Markets {
     #[prost(message, repeated, tag = "1")]
     pub markets: ::prost::alloc::vec::Vec<
-        super::super::super::super::price_feed::marketmap::v2::Market,
+        super::super::super::super::connect::marketmap::v2::Market,
     >,
 }
 impl ::prost::Name for Markets {
@@ -608,7 +608,7 @@ pub struct UpdateMarketMapParams {
     /// Params defines the new parameters for the x/marketmap module.
     #[prost(message, optional, tag = "1")]
     pub params: ::core::option::Option<
-        super::super::super::super::price_feed::marketmap::v2::Params,
+        super::super::super::super::connect::marketmap::v2::Params,
     >,
 }
 impl ::prost::Name for UpdateMarketMapParams {

@@ -4,9 +4,9 @@
 pub struct QueryPricesRequest {}
 impl ::prost::Name for QueryPricesRequest {
     const NAME: &'static str = "QueryPricesRequest";
-    const PACKAGE: &'static str = "price_feed.service.v2";
+    const PACKAGE: &'static str = "connect.service.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("price_feed.service.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.service.v2.{}", Self::NAME)
     }
 }
 /// QueryPricesResponse defines the response type for the Prices method.
@@ -28,9 +28,9 @@ pub struct QueryPricesResponse {
 }
 impl ::prost::Name for QueryPricesResponse {
     const NAME: &'static str = "QueryPricesResponse";
-    const PACKAGE: &'static str = "price_feed.service.v2";
+    const PACKAGE: &'static str = "connect.service.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("price_feed.service.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.service.v2.{}", Self::NAME)
     }
 }
 /// QueryMarketMapRequest defines the request type for the MarketMap method.
@@ -39,9 +39,9 @@ impl ::prost::Name for QueryPricesResponse {
 pub struct QueryMarketMapRequest {}
 impl ::prost::Name for QueryMarketMapRequest {
     const NAME: &'static str = "QueryMarketMapRequest";
-    const PACKAGE: &'static str = "price_feed.service.v2";
+    const PACKAGE: &'static str = "connect.service.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("price_feed.service.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.service.v2.{}", Self::NAME)
     }
 }
 /// QueryMarketMapResponse defines the response type for the MarketMap method.
@@ -54,9 +54,9 @@ pub struct QueryMarketMapResponse {
 }
 impl ::prost::Name for QueryMarketMapResponse {
     const NAME: &'static str = "QueryMarketMapResponse";
-    const PACKAGE: &'static str = "price_feed.service.v2";
+    const PACKAGE: &'static str = "connect.service.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("price_feed.service.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.service.v2.{}", Self::NAME)
     }
 }
 /// QueryVersionRequest defines the request type for the Version method.
@@ -65,9 +65,9 @@ impl ::prost::Name for QueryMarketMapResponse {
 pub struct QueryVersionRequest {}
 impl ::prost::Name for QueryVersionRequest {
     const NAME: &'static str = "QueryVersionRequest";
-    const PACKAGE: &'static str = "price_feed.service.v2";
+    const PACKAGE: &'static str = "connect.service.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("price_feed.service.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.service.v2.{}", Self::NAME)
     }
 }
 /// QueryVersionResponse defines the response type for the Version method.
@@ -80,9 +80,9 @@ pub struct QueryVersionResponse {
 }
 impl ::prost::Name for QueryVersionResponse {
     const NAME: &'static str = "QueryVersionResponse";
-    const PACKAGE: &'static str = "price_feed.service.v2";
+    const PACKAGE: &'static str = "connect.service.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("price_feed.service.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.service.v2.{}", Self::NAME)
     }
 }
 /// Generated client implementations.
@@ -191,11 +191,11 @@ pub mod oracle_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/price_feed.service.v2.Oracle/Prices",
+                "/connect.service.v2.Oracle/Prices",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("price_feed.service.v2.Oracle", "Prices"));
+                .insert(GrpcMethod::new("connect.service.v2.Oracle", "Prices"));
             self.inner.unary(req, path, codec).await
         }
         /// MarketMap defines a method for fetching the latest market map
@@ -218,11 +218,11 @@ pub mod oracle_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/price_feed.service.v2.Oracle/MarketMap",
+                "/connect.service.v2.Oracle/MarketMap",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("price_feed.service.v2.Oracle", "MarketMap"));
+                .insert(GrpcMethod::new("connect.service.v2.Oracle", "MarketMap"));
             self.inner.unary(req, path, codec).await
         }
         /// Version defines a method for fetching the current version of the oracle
@@ -245,11 +245,11 @@ pub mod oracle_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/price_feed.service.v2.Oracle/Version",
+                "/connect.service.v2.Oracle/Version",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("price_feed.service.v2.Oracle", "Version"));
+                .insert(GrpcMethod::new("connect.service.v2.Oracle", "Version"));
             self.inner.unary(req, path, codec).await
         }
     }
@@ -369,7 +369,7 @@ pub mod oracle_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/price_feed.service.v2.Oracle/Prices" => {
+                "/connect.service.v2.Oracle/Prices" => {
                     #[allow(non_camel_case_types)]
                     struct PricesSvc<T: Oracle>(pub Arc<T>);
                     impl<
@@ -415,7 +415,7 @@ pub mod oracle_server {
                     };
                     Box::pin(fut)
                 }
-                "/price_feed.service.v2.Oracle/MarketMap" => {
+                "/connect.service.v2.Oracle/MarketMap" => {
                     #[allow(non_camel_case_types)]
                     struct MarketMapSvc<T: Oracle>(pub Arc<T>);
                     impl<
@@ -461,7 +461,7 @@ pub mod oracle_server {
                     };
                     Box::pin(fut)
                 }
-                "/price_feed.service.v2.Oracle/Version" => {
+                "/connect.service.v2.Oracle/Version" => {
                     #[allow(non_camel_case_types)]
                     struct VersionSvc<T: Oracle>(pub Arc<T>);
                     impl<
@@ -545,6 +545,6 @@ pub mod oracle_server {
         }
     }
     impl<T: Oracle> tonic::server::NamedService for OracleServer<T> {
-        const NAME: &'static str = "price_feed.service.v2.Oracle";
+        const NAME: &'static str = "connect.service.v2.Oracle";
     }
 }

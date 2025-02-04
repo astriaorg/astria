@@ -1,10 +1,10 @@
 syntax = "proto3";
-package price_feed.marketmap.v2;
+package connect.marketmap.v2;
 
+import "connect/marketmap/v2/market.proto";
+import "connect/marketmap/v2/params.proto";
+import "connect/types/v2/currency_pair.proto";
 import "google/api/annotations.proto";
-import "price_feed/marketmap/v2/market.proto";
-import "price_feed/marketmap/v2/params.proto";
-import "price_feed/types/v2/currency_pair.proto";
 
 option go_package = "github.com/skip-mev/connect/v2/x/marketmap/types";
 
@@ -13,23 +13,23 @@ service Query {
   // MarketMap returns the full market map stored in the x/marketmap
   // module.
   rpc MarketMap(MarketMapRequest) returns (MarketMapResponse) {
-    option (google.api.http) = {get: "/price_feed/marketmap/v2/marketmap"};
+    option (google.api.http) = {get: "/connect/marketmap/v2/marketmap"};
   }
 
   // Market returns a market stored in the x/marketmap
   // module.
   rpc Market(MarketRequest) returns (MarketResponse) {
-    option (google.api.http) = {get: "/price_feed/marketmap/v2/market"};
+    option (google.api.http) = {get: "/connect/marketmap/v2/market"};
   }
 
   // LastUpdated returns the last height the market map was updated at.
   rpc LastUpdated(LastUpdatedRequest) returns (LastUpdatedResponse) {
-    option (google.api.http) = {get: "/price_feed/marketmap/v2/last_updated"};
+    option (google.api.http) = {get: "/connect/marketmap/v2/last_updated"};
   }
 
   // Params returns the current x/marketmap module parameters.
   rpc Params(ParamsRequest) returns (ParamsResponse) {
-    option (google.api.http) = {get: "/price_feed/marketmap/v2/params"};
+    option (google.api.http) = {get: "/connect/marketmap/v2/params"};
   }
 }
 
@@ -57,7 +57,7 @@ message MarketMapResponse {
 message MarketRequest {
   // CurrencyPair is the currency pair associated with the market being
   // requested.
-  price_feed.types.v2.CurrencyPair currency_pair = 1;
+  connect.types.v2.CurrencyPair currency_pair = 1;
 }
 
 // MarketResponse is the query response for the Market query.

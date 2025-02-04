@@ -22,7 +22,7 @@ pub struct IdWithCurrencyPair {
     pub id: u64,
     #[prost(message, optional, tag = "2")]
     pub currency_pair: ::core::option::Option<
-        super::super::super::super::price_feed::types::v2::CurrencyPair,
+        super::super::super::super::connect::types::v2::CurrencyPair,
     >,
     #[prost(uint64, tag = "3")]
     pub decimals: u64,

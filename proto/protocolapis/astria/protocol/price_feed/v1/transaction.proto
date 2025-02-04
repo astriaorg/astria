@@ -3,7 +3,7 @@ syntax = "proto3";
 package astria.protocol.price_feed.v1;
 
 import "astria_vendored/tendermint/abci/types.proto";
-import "price_feed/types/v2/currency_pair.proto";
+import "connect/types/v2/currency_pair.proto";
 
 message ExtendedCommitInfoWithCurrencyPairMapping {
   astria_vendored.tendermint.abci.ExtendedCommitInfo extended_commit_info = 1;
@@ -12,6 +12,6 @@ message ExtendedCommitInfoWithCurrencyPairMapping {
 
 message IdWithCurrencyPair {
   uint64 id = 1;
-  .price_feed.types.v2.CurrencyPair currency_pair = 2;
+  connect.types.v2.CurrencyPair currency_pair = 2;
   uint64 decimals = 3;
 }

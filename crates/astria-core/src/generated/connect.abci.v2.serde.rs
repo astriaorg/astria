@@ -1,4 +1,4 @@
-impl serde::Serialize for CurrencyPair {
+impl serde::Serialize for OracleVoteExtension {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -6,37 +6,31 @@ impl serde::Serialize for CurrencyPair {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if !self.base.is_empty() {
+        if !self.prices.is_empty() {
             len += 1;
         }
-        if !self.quote.is_empty() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("price_feed.types.v2.CurrencyPair", len)?;
-        if !self.base.is_empty() {
-            struct_ser.serialize_field("Base", &self.base)?;
-        }
-        if !self.quote.is_empty() {
-            struct_ser.serialize_field("Quote", &self.quote)?;
+        let mut struct_ser = serializer.serialize_struct("connect.abci.v2.OracleVoteExtension", len)?;
+        if !self.prices.is_empty() {
+            let v: std::collections::HashMap<_, _> = self.prices.iter()
+                .map(|(k, v)| (k, pbjson::private::base64::encode(v))).collect();
+            struct_ser.serialize_field("prices", &v)?;
         }
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for CurrencyPair {
+impl<'de> serde::Deserialize<'de> for OracleVoteExtension {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "Base",
-            "Quote",
+            "prices",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            Base,
-            Quote,
+            Prices,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -58,8 +52,7 @@ impl<'de> serde::Deserialize<'de> for CurrencyPair {
                         E: serde::de::Error,
                     {
                         match value {
-                            "Base" => Ok(GeneratedField::Base),
-                            "Quote" => Ok(GeneratedField::Quote),
+                            "prices" => Ok(GeneratedField::Prices),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -69,40 +62,35 @@ impl<'de> serde::Deserialize<'de> for CurrencyPair {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = CurrencyPair;
+            type Value = OracleVoteExtension;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct price_feed.types.v2.CurrencyPair")
+                formatter.write_str("struct connect.abci.v2.OracleVoteExtension")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<CurrencyPair, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<OracleVoteExtension, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut base__ = None;
-                let mut quote__ = None;
+                let mut prices__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::Base => {
-                            if base__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("Base"));
+                        GeneratedField::Prices => {
+                            if prices__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("prices"));
                             }
-                            base__ = Some(map_.next_value()?);
-                        }
-                        GeneratedField::Quote => {
-                            if quote__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("Quote"));
-                            }
-                            quote__ = Some(map_.next_value()?);
+                            prices__ = Some(
+                                map_.next_value::<std::collections::BTreeMap<::pbjson::private::NumberDeserialize<u64>, ::pbjson::private::BytesDeserialize<_>>>()?
+                                    .into_iter().map(|(k,v)| (k.0, v.0)).collect()
+                            );
                         }
                     }
                 }
-                Ok(CurrencyPair {
-                    base: base__.unwrap_or_default(),
-                    quote: quote__.unwrap_or_default(),
+                Ok(OracleVoteExtension {
+                    prices: prices__.unwrap_or_default(),
                 })
             }
         }
-        deserializer.deserialize_struct("price_feed.types.v2.CurrencyPair", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.abci.v2.OracleVoteExtension", FIELDS, GeneratedVisitor)
     }
 }

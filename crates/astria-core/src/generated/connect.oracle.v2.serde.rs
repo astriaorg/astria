@@ -18,7 +18,7 @@ impl serde::Serialize for CurrencyPairGenesis {
         if self.id != 0 {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("price_feed.oracle.v2.CurrencyPairGenesis", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.oracle.v2.CurrencyPairGenesis", len)?;
         if let Some(v) = self.currency_pair.as_ref() {
             struct_ser.serialize_field("currencyPair", v)?;
         }
@@ -94,7 +94,7 @@ impl<'de> serde::Deserialize<'de> for CurrencyPairGenesis {
             type Value = CurrencyPairGenesis;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct price_feed.oracle.v2.CurrencyPairGenesis")
+                formatter.write_str("struct connect.oracle.v2.CurrencyPairGenesis")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<CurrencyPairGenesis, V::Error>
@@ -145,7 +145,7 @@ impl<'de> serde::Deserialize<'de> for CurrencyPairGenesis {
                 })
             }
         }
-        deserializer.deserialize_struct("price_feed.oracle.v2.CurrencyPairGenesis", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.oracle.v2.CurrencyPairGenesis", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for CurrencyPairState {
@@ -165,7 +165,7 @@ impl serde::Serialize for CurrencyPairState {
         if self.id != 0 {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("price_feed.oracle.v2.CurrencyPairState", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.oracle.v2.CurrencyPairState", len)?;
         if let Some(v) = self.price.as_ref() {
             struct_ser.serialize_field("price", v)?;
         }
@@ -233,7 +233,7 @@ impl<'de> serde::Deserialize<'de> for CurrencyPairState {
             type Value = CurrencyPairState;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct price_feed.oracle.v2.CurrencyPairState")
+                formatter.write_str("struct connect.oracle.v2.CurrencyPairState")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<CurrencyPairState, V::Error>
@@ -276,7 +276,7 @@ impl<'de> serde::Deserialize<'de> for CurrencyPairState {
                 })
             }
         }
-        deserializer.deserialize_struct("price_feed.oracle.v2.CurrencyPairState", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.oracle.v2.CurrencyPairState", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for GenesisState {
@@ -293,7 +293,7 @@ impl serde::Serialize for GenesisState {
         if self.next_id != 0 {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("price_feed.oracle.v2.GenesisState", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.oracle.v2.GenesisState", len)?;
         if !self.currency_pair_genesis.is_empty() {
             struct_ser.serialize_field("currencyPairGenesis", &self.currency_pair_genesis)?;
         }
@@ -356,7 +356,7 @@ impl<'de> serde::Deserialize<'de> for GenesisState {
             type Value = GenesisState;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct price_feed.oracle.v2.GenesisState")
+                formatter.write_str("struct connect.oracle.v2.GenesisState")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<GenesisState, V::Error>
@@ -389,7 +389,7 @@ impl<'de> serde::Deserialize<'de> for GenesisState {
                 })
             }
         }
-        deserializer.deserialize_struct("price_feed.oracle.v2.GenesisState", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.oracle.v2.GenesisState", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for GetAllCurrencyPairsRequest {
@@ -400,7 +400,7 @@ impl serde::Serialize for GetAllCurrencyPairsRequest {
     {
         use serde::ser::SerializeStruct;
         let len = 0;
-        let struct_ser = serializer.serialize_struct("price_feed.oracle.v2.GetAllCurrencyPairsRequest", len)?;
+        let struct_ser = serializer.serialize_struct("connect.oracle.v2.GetAllCurrencyPairsRequest", len)?;
         struct_ser.end()
     }
 }
@@ -446,7 +446,7 @@ impl<'de> serde::Deserialize<'de> for GetAllCurrencyPairsRequest {
             type Value = GetAllCurrencyPairsRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct price_feed.oracle.v2.GetAllCurrencyPairsRequest")
+                formatter.write_str("struct connect.oracle.v2.GetAllCurrencyPairsRequest")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<GetAllCurrencyPairsRequest, V::Error>
@@ -460,7 +460,7 @@ impl<'de> serde::Deserialize<'de> for GetAllCurrencyPairsRequest {
                 })
             }
         }
-        deserializer.deserialize_struct("price_feed.oracle.v2.GetAllCurrencyPairsRequest", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.oracle.v2.GetAllCurrencyPairsRequest", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for GetAllCurrencyPairsResponse {
@@ -474,7 +474,7 @@ impl serde::Serialize for GetAllCurrencyPairsResponse {
         if !self.currency_pairs.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("price_feed.oracle.v2.GetAllCurrencyPairsResponse", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.oracle.v2.GetAllCurrencyPairsResponse", len)?;
         if !self.currency_pairs.is_empty() {
             struct_ser.serialize_field("currencyPairs", &self.currency_pairs)?;
         }
@@ -529,7 +529,7 @@ impl<'de> serde::Deserialize<'de> for GetAllCurrencyPairsResponse {
             type Value = GetAllCurrencyPairsResponse;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct price_feed.oracle.v2.GetAllCurrencyPairsResponse")
+                formatter.write_str("struct connect.oracle.v2.GetAllCurrencyPairsResponse")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<GetAllCurrencyPairsResponse, V::Error>
@@ -552,7 +552,7 @@ impl<'de> serde::Deserialize<'de> for GetAllCurrencyPairsResponse {
                 })
             }
         }
-        deserializer.deserialize_struct("price_feed.oracle.v2.GetAllCurrencyPairsResponse", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.oracle.v2.GetAllCurrencyPairsResponse", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for GetCurrencyPairMappingRequest {
@@ -563,7 +563,7 @@ impl serde::Serialize for GetCurrencyPairMappingRequest {
     {
         use serde::ser::SerializeStruct;
         let len = 0;
-        let struct_ser = serializer.serialize_struct("price_feed.oracle.v2.GetCurrencyPairMappingRequest", len)?;
+        let struct_ser = serializer.serialize_struct("connect.oracle.v2.GetCurrencyPairMappingRequest", len)?;
         struct_ser.end()
     }
 }
@@ -609,7 +609,7 @@ impl<'de> serde::Deserialize<'de> for GetCurrencyPairMappingRequest {
             type Value = GetCurrencyPairMappingRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct price_feed.oracle.v2.GetCurrencyPairMappingRequest")
+                formatter.write_str("struct connect.oracle.v2.GetCurrencyPairMappingRequest")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<GetCurrencyPairMappingRequest, V::Error>
@@ -623,7 +623,7 @@ impl<'de> serde::Deserialize<'de> for GetCurrencyPairMappingRequest {
                 })
             }
         }
-        deserializer.deserialize_struct("price_feed.oracle.v2.GetCurrencyPairMappingRequest", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.oracle.v2.GetCurrencyPairMappingRequest", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for GetCurrencyPairMappingResponse {
@@ -637,7 +637,7 @@ impl serde::Serialize for GetCurrencyPairMappingResponse {
         if !self.currency_pair_mapping.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("price_feed.oracle.v2.GetCurrencyPairMappingResponse", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.oracle.v2.GetCurrencyPairMappingResponse", len)?;
         if !self.currency_pair_mapping.is_empty() {
             struct_ser.serialize_field("currencyPairMapping", &self.currency_pair_mapping)?;
         }
@@ -692,7 +692,7 @@ impl<'de> serde::Deserialize<'de> for GetCurrencyPairMappingResponse {
             type Value = GetCurrencyPairMappingResponse;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct price_feed.oracle.v2.GetCurrencyPairMappingResponse")
+                formatter.write_str("struct connect.oracle.v2.GetCurrencyPairMappingResponse")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<GetCurrencyPairMappingResponse, V::Error>
@@ -718,7 +718,7 @@ impl<'de> serde::Deserialize<'de> for GetCurrencyPairMappingResponse {
                 })
             }
         }
-        deserializer.deserialize_struct("price_feed.oracle.v2.GetCurrencyPairMappingResponse", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.oracle.v2.GetCurrencyPairMappingResponse", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for GetPriceRequest {
@@ -732,7 +732,7 @@ impl serde::Serialize for GetPriceRequest {
         if !self.currency_pair.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("price_feed.oracle.v2.GetPriceRequest", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.oracle.v2.GetPriceRequest", len)?;
         if !self.currency_pair.is_empty() {
             struct_ser.serialize_field("currencyPair", &self.currency_pair)?;
         }
@@ -787,7 +787,7 @@ impl<'de> serde::Deserialize<'de> for GetPriceRequest {
             type Value = GetPriceRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct price_feed.oracle.v2.GetPriceRequest")
+                formatter.write_str("struct connect.oracle.v2.GetPriceRequest")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<GetPriceRequest, V::Error>
@@ -810,7 +810,7 @@ impl<'de> serde::Deserialize<'de> for GetPriceRequest {
                 })
             }
         }
-        deserializer.deserialize_struct("price_feed.oracle.v2.GetPriceRequest", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.oracle.v2.GetPriceRequest", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for GetPriceResponse {
@@ -833,7 +833,7 @@ impl serde::Serialize for GetPriceResponse {
         if self.id != 0 {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("price_feed.oracle.v2.GetPriceResponse", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.oracle.v2.GetPriceResponse", len)?;
         if let Some(v) = self.price.as_ref() {
             struct_ser.serialize_field("price", v)?;
         }
@@ -908,7 +908,7 @@ impl<'de> serde::Deserialize<'de> for GetPriceResponse {
             type Value = GetPriceResponse;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct price_feed.oracle.v2.GetPriceResponse")
+                formatter.write_str("struct connect.oracle.v2.GetPriceResponse")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<GetPriceResponse, V::Error>
@@ -961,7 +961,7 @@ impl<'de> serde::Deserialize<'de> for GetPriceResponse {
                 })
             }
         }
-        deserializer.deserialize_struct("price_feed.oracle.v2.GetPriceResponse", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.oracle.v2.GetPriceResponse", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for GetPricesRequest {
@@ -975,7 +975,7 @@ impl serde::Serialize for GetPricesRequest {
         if !self.currency_pair_ids.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("price_feed.oracle.v2.GetPricesRequest", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.oracle.v2.GetPricesRequest", len)?;
         if !self.currency_pair_ids.is_empty() {
             struct_ser.serialize_field("currencyPairIds", &self.currency_pair_ids)?;
         }
@@ -1030,7 +1030,7 @@ impl<'de> serde::Deserialize<'de> for GetPricesRequest {
             type Value = GetPricesRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct price_feed.oracle.v2.GetPricesRequest")
+                formatter.write_str("struct connect.oracle.v2.GetPricesRequest")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<GetPricesRequest, V::Error>
@@ -1053,7 +1053,7 @@ impl<'de> serde::Deserialize<'de> for GetPricesRequest {
                 })
             }
         }
-        deserializer.deserialize_struct("price_feed.oracle.v2.GetPricesRequest", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.oracle.v2.GetPricesRequest", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for GetPricesResponse {
@@ -1067,7 +1067,7 @@ impl serde::Serialize for GetPricesResponse {
         if !self.prices.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("price_feed.oracle.v2.GetPricesResponse", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.oracle.v2.GetPricesResponse", len)?;
         if !self.prices.is_empty() {
             struct_ser.serialize_field("prices", &self.prices)?;
         }
@@ -1121,7 +1121,7 @@ impl<'de> serde::Deserialize<'de> for GetPricesResponse {
             type Value = GetPricesResponse;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct price_feed.oracle.v2.GetPricesResponse")
+                formatter.write_str("struct connect.oracle.v2.GetPricesResponse")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<GetPricesResponse, V::Error>
@@ -1144,7 +1144,7 @@ impl<'de> serde::Deserialize<'de> for GetPricesResponse {
                 })
             }
         }
-        deserializer.deserialize_struct("price_feed.oracle.v2.GetPricesResponse", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.oracle.v2.GetPricesResponse", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for QuotePrice {
@@ -1164,7 +1164,7 @@ impl serde::Serialize for QuotePrice {
         if self.block_height != 0 {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("price_feed.oracle.v2.QuotePrice", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.oracle.v2.QuotePrice", len)?;
         if !self.price.is_empty() {
             struct_ser.serialize_field("price", &self.price)?;
         }
@@ -1233,7 +1233,7 @@ impl<'de> serde::Deserialize<'de> for QuotePrice {
             type Value = QuotePrice;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct price_feed.oracle.v2.QuotePrice")
+                formatter.write_str("struct connect.oracle.v2.QuotePrice")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<QuotePrice, V::Error>
@@ -1274,6 +1274,6 @@ impl<'de> serde::Deserialize<'de> for QuotePrice {
                 })
             }
         }
-        deserializer.deserialize_struct("price_feed.oracle.v2.QuotePrice", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.oracle.v2.QuotePrice", FIELDS, GeneratedVisitor)
     }
 }

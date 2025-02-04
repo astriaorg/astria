@@ -6,7 +6,7 @@ impl serde::Serialize for QueryMarketMapRequest {
     {
         use serde::ser::SerializeStruct;
         let len = 0;
-        let struct_ser = serializer.serialize_struct("price_feed.service.v2.QueryMarketMapRequest", len)?;
+        let struct_ser = serializer.serialize_struct("connect.service.v2.QueryMarketMapRequest", len)?;
         struct_ser.end()
     }
 }
@@ -52,7 +52,7 @@ impl<'de> serde::Deserialize<'de> for QueryMarketMapRequest {
             type Value = QueryMarketMapRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct price_feed.service.v2.QueryMarketMapRequest")
+                formatter.write_str("struct connect.service.v2.QueryMarketMapRequest")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<QueryMarketMapRequest, V::Error>
@@ -66,7 +66,7 @@ impl<'de> serde::Deserialize<'de> for QueryMarketMapRequest {
                 })
             }
         }
-        deserializer.deserialize_struct("price_feed.service.v2.QueryMarketMapRequest", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.service.v2.QueryMarketMapRequest", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for QueryMarketMapResponse {
@@ -80,7 +80,7 @@ impl serde::Serialize for QueryMarketMapResponse {
         if self.market_map.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("price_feed.service.v2.QueryMarketMapResponse", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.service.v2.QueryMarketMapResponse", len)?;
         if let Some(v) = self.market_map.as_ref() {
             struct_ser.serialize_field("marketMap", v)?;
         }
@@ -135,7 +135,7 @@ impl<'de> serde::Deserialize<'de> for QueryMarketMapResponse {
             type Value = QueryMarketMapResponse;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct price_feed.service.v2.QueryMarketMapResponse")
+                formatter.write_str("struct connect.service.v2.QueryMarketMapResponse")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<QueryMarketMapResponse, V::Error>
@@ -158,7 +158,7 @@ impl<'de> serde::Deserialize<'de> for QueryMarketMapResponse {
                 })
             }
         }
-        deserializer.deserialize_struct("price_feed.service.v2.QueryMarketMapResponse", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.service.v2.QueryMarketMapResponse", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for QueryPricesRequest {
@@ -169,7 +169,7 @@ impl serde::Serialize for QueryPricesRequest {
     {
         use serde::ser::SerializeStruct;
         let len = 0;
-        let struct_ser = serializer.serialize_struct("price_feed.service.v2.QueryPricesRequest", len)?;
+        let struct_ser = serializer.serialize_struct("connect.service.v2.QueryPricesRequest", len)?;
         struct_ser.end()
     }
 }
@@ -215,7 +215,7 @@ impl<'de> serde::Deserialize<'de> for QueryPricesRequest {
             type Value = QueryPricesRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct price_feed.service.v2.QueryPricesRequest")
+                formatter.write_str("struct connect.service.v2.QueryPricesRequest")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<QueryPricesRequest, V::Error>
@@ -229,7 +229,7 @@ impl<'de> serde::Deserialize<'de> for QueryPricesRequest {
                 })
             }
         }
-        deserializer.deserialize_struct("price_feed.service.v2.QueryPricesRequest", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.service.v2.QueryPricesRequest", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for QueryPricesResponse {
@@ -249,7 +249,7 @@ impl serde::Serialize for QueryPricesResponse {
         if !self.version.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("price_feed.service.v2.QueryPricesResponse", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.service.v2.QueryPricesResponse", len)?;
         if !self.prices.is_empty() {
             struct_ser.serialize_field("prices", &self.prices)?;
         }
@@ -315,7 +315,7 @@ impl<'de> serde::Deserialize<'de> for QueryPricesResponse {
             type Value = QueryPricesResponse;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct price_feed.service.v2.QueryPricesResponse")
+                formatter.write_str("struct connect.service.v2.QueryPricesResponse")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<QueryPricesResponse, V::Error>
@@ -356,7 +356,7 @@ impl<'de> serde::Deserialize<'de> for QueryPricesResponse {
                 })
             }
         }
-        deserializer.deserialize_struct("price_feed.service.v2.QueryPricesResponse", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.service.v2.QueryPricesResponse", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for QueryVersionRequest {
@@ -367,7 +367,7 @@ impl serde::Serialize for QueryVersionRequest {
     {
         use serde::ser::SerializeStruct;
         let len = 0;
-        let struct_ser = serializer.serialize_struct("price_feed.service.v2.QueryVersionRequest", len)?;
+        let struct_ser = serializer.serialize_struct("connect.service.v2.QueryVersionRequest", len)?;
         struct_ser.end()
     }
 }
@@ -413,7 +413,7 @@ impl<'de> serde::Deserialize<'de> for QueryVersionRequest {
             type Value = QueryVersionRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct price_feed.service.v2.QueryVersionRequest")
+                formatter.write_str("struct connect.service.v2.QueryVersionRequest")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<QueryVersionRequest, V::Error>
@@ -427,7 +427,7 @@ impl<'de> serde::Deserialize<'de> for QueryVersionRequest {
                 })
             }
         }
-        deserializer.deserialize_struct("price_feed.service.v2.QueryVersionRequest", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.service.v2.QueryVersionRequest", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for QueryVersionResponse {
@@ -441,7 +441,7 @@ impl serde::Serialize for QueryVersionResponse {
         if !self.version.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("price_feed.service.v2.QueryVersionResponse", len)?;
+        let mut struct_ser = serializer.serialize_struct("connect.service.v2.QueryVersionResponse", len)?;
         if !self.version.is_empty() {
             struct_ser.serialize_field("version", &self.version)?;
         }
@@ -495,7 +495,7 @@ impl<'de> serde::Deserialize<'de> for QueryVersionResponse {
             type Value = QueryVersionResponse;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct price_feed.service.v2.QueryVersionResponse")
+                formatter.write_str("struct connect.service.v2.QueryVersionResponse")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<QueryVersionResponse, V::Error>
@@ -518,6 +518,6 @@ impl<'de> serde::Deserialize<'de> for QueryVersionResponse {
                 })
             }
         }
-        deserializer.deserialize_struct("price_feed.service.v2.QueryVersionResponse", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("connect.service.v2.QueryVersionResponse", FIELDS, GeneratedVisitor)
     }
 }

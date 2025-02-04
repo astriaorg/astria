@@ -10,8 +10,8 @@ pub struct CurrencyPair {
 }
 impl ::prost::Name for CurrencyPair {
     const NAME: &'static str = "CurrencyPair";
-    const PACKAGE: &'static str = "price_feed.types.v2";
+    const PACKAGE: &'static str = "connect.types.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("price_feed.types.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.types.v2.{}", Self::NAME)
     }
 }

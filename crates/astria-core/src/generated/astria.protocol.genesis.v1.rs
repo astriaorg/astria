@@ -164,11 +164,11 @@ impl ::prost::Name for GenesisFees {
 pub struct PriceFeedGenesis {
     #[prost(message, optional, tag = "1")]
     pub market_map: ::core::option::Option<
-        super::super::super::super::price_feed::marketmap::v2::GenesisState,
+        super::super::super::super::connect::marketmap::v2::GenesisState,
     >,
     #[prost(message, optional, tag = "2")]
     pub oracle: ::core::option::Option<
-        super::super::super::super::price_feed::oracle::v2::GenesisState,
+        super::super::super::super::connect::oracle::v2::GenesisState,
     >,
 }
 impl ::prost::Name for PriceFeedGenesis {

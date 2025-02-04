@@ -323,7 +323,7 @@ impl ::prost::Name for PriceFeedData {
 pub struct Price {
     #[prost(message, optional, tag = "1")]
     pub currency_pair: ::core::option::Option<
-        super::super::super::price_feed::types::v2::CurrencyPair,
+        super::super::super::connect::types::v2::CurrencyPair,
     >,
     #[prost(message, optional, tag = "2")]
     pub price: ::core::option::Option<super::super::primitive::v1::Uint128>,

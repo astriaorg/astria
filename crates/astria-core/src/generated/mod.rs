@@ -224,64 +224,66 @@ pub mod celestia {
     }
 }
 
+use price_feed as connect;
+
 #[path = ""]
 pub mod price_feed {
     pub mod abci {
         pub mod v2 {
-            include!("price_feed.abci.v2.rs");
+            include!("connect.abci.v2.rs");
 
             #[cfg(feature = "serde")]
             mod _serde_impl {
                 use super::*;
-                include!("price_feed.abci.v2.serde.rs");
+                include!("connect.abci.v2.serde.rs");
             }
         }
     }
 
     pub mod marketmap {
         pub mod v2 {
-            include!("price_feed.marketmap.v2.rs");
+            include!("connect.marketmap.v2.rs");
 
             #[cfg(feature = "serde")]
             mod _serde_impl {
                 use super::*;
-                include!("price_feed.marketmap.v2.serde.rs");
+                include!("connect.marketmap.v2.serde.rs");
             }
         }
     }
 
     pub mod oracle {
         pub mod v2 {
-            include!("price_feed.oracle.v2.rs");
+            include!("connect.oracle.v2.rs");
 
             #[cfg(feature = "serde")]
             mod _serde_impl {
                 use super::*;
-                include!("price_feed.oracle.v2.serde.rs");
+                include!("connect.oracle.v2.serde.rs");
             }
         }
     }
 
     pub mod service {
         pub mod v2 {
-            include!("price_feed.service.v2.rs");
+            include!("connect.service.v2.rs");
 
             #[cfg(feature = "serde")]
             mod _serde_impl {
                 use super::*;
-                include!("price_feed.service.v2.serde.rs");
+                include!("connect.service.v2.serde.rs");
             }
         }
     }
 
     pub mod types {
         pub mod v2 {
-            include!("price_feed.types.v2.rs");
+            include!("connect.types.v2.rs");
 
             #[cfg(feature = "serde")]
             mod _serde_impl {
                 use super::*;
-                include!("price_feed.types.v2.serde.rs");
+                include!("connect.types.v2.serde.rs");
             }
         }
     }

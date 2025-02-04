@@ -1,223 +1,271 @@
-/// QuotePrice is the representation of the aggregated prices for a CurrencyPair,
-/// where price represents the price of Base in terms of Quote
+/// Market encapsulates a Ticker and its provider-specific configuration.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct QuotePrice {
-    #[prost(string, tag = "1")]
-    pub price: ::prost::alloc::string::String,
-    /// BlockTimestamp tracks the block height associated with this price update.
-    /// We include block timestamp alongside the price to ensure that smart
-    /// contracts and applications are not utilizing stale oracle prices
-    #[prost(message, optional, tag = "2")]
-    pub block_timestamp: ::core::option::Option<::pbjson_types::Timestamp>,
-    /// BlockHeight is height of block mentioned above
-    #[prost(uint64, tag = "3")]
-    pub block_height: u64,
-}
-impl ::prost::Name for QuotePrice {
-    const NAME: &'static str = "QuotePrice";
-    const PACKAGE: &'static str = "price_feed.oracle.v2";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("price_feed.oracle.v2.{}", Self::NAME)
-    }
-}
-/// CurrencyPairState represents the stateful information tracked by the x/oracle
-/// module per-currency-pair.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CurrencyPairState {
-    /// QuotePrice is the latest price for a currency-pair, notice this value can
-    /// be null in the case that no price exists for the currency-pair
+pub struct Market {
+    /// Ticker represents a price feed for a given asset pair i.e. BTC/USD. The
+    /// price feed is scaled to a number of decimal places and has a minimum number
+    /// of providers required to consider the ticker valid.
     #[prost(message, optional, tag = "1")]
-    pub price: ::core::option::Option<QuotePrice>,
-    /// Nonce is the number of updates this currency-pair has received
-    #[prost(uint64, tag = "2")]
-    pub nonce: u64,
-    /// ID is the ID of the CurrencyPair
-    #[prost(uint64, tag = "3")]
-    pub id: u64,
+    pub ticker: ::core::option::Option<Ticker>,
+    /// ProviderConfigs is the list of provider-specific configs for this Market.
+    #[prost(message, repeated, tag = "2")]
+    pub provider_configs: ::prost::alloc::vec::Vec<ProviderConfig>,
 }
-impl ::prost::Name for CurrencyPairState {
-    const NAME: &'static str = "CurrencyPairState";
-    const PACKAGE: &'static str = "price_feed.oracle.v2";
+impl ::prost::Name for Market {
+    const NAME: &'static str = "Market";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("price_feed.oracle.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
-/// CurrencyPairGenesis is the information necessary for initialization of a
-/// CurrencyPair.
+/// Ticker represents a price feed for a given asset pair i.e. BTC/USD. The price
+/// feed is scaled to a number of decimal places and has a minimum number of
+/// providers required to consider the ticker valid.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CurrencyPairGenesis {
-    /// The CurrencyPair to be added to module state
+pub struct Ticker {
+    /// CurrencyPair is the currency pair for this ticker.
     #[prost(message, optional, tag = "1")]
     pub currency_pair: ::core::option::Option<super::super::types::v2::CurrencyPair>,
-    /// A genesis price if one exists (note this will be empty, unless it results
-    /// from forking the state of this module)
-    #[prost(message, optional, tag = "2")]
-    pub currency_pair_price: ::core::option::Option<QuotePrice>,
-    /// nonce is the nonce (number of updates) for the CP (same case as above,
-    /// likely 0 unless it results from fork of module)
+    /// Decimals is the number of decimal places for the ticker. The number of
+    /// decimal places is used to convert the price to a human-readable format.
+    #[prost(uint64, tag = "2")]
+    pub decimals: u64,
+    /// MinProviderCount is the minimum number of providers required to consider
+    /// the ticker valid.
     #[prost(uint64, tag = "3")]
-    pub nonce: u64,
-    /// id is the ID of the CurrencyPair
-    #[prost(uint64, tag = "4")]
-    pub id: u64,
+    pub min_provider_count: u64,
+    /// Enabled is the flag that denotes if the Ticker is enabled for price
+    /// fetching by an oracle.
+    #[prost(bool, tag = "14")]
+    pub enabled: bool,
+    /// MetadataJSON is a string of JSON that encodes any extra configuration
+    /// for the given ticker.
+    #[prost(string, tag = "15")]
+    pub metadata_json: ::prost::alloc::string::String,
 }
-impl ::prost::Name for CurrencyPairGenesis {
-    const NAME: &'static str = "CurrencyPairGenesis";
-    const PACKAGE: &'static str = "price_feed.oracle.v2";
+impl ::prost::Name for Ticker {
+    const NAME: &'static str = "Ticker";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("price_feed.oracle.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
-/// GenesisState is the genesis-state for the x/oracle module, it takes a set of
-/// predefined CurrencyPairGeneses
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ProviderConfig {
+    /// Name corresponds to the name of the provider for which the configuration is
+    /// being set.
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+    /// OffChainTicker is the off-chain representation of the ticker i.e. BTC/USD.
+    /// The off-chain ticker is unique to a given provider and is used to fetch the
+    /// price of the ticker from the provider.
+    #[prost(string, tag = "2")]
+    pub off_chain_ticker: ::prost::alloc::string::String,
+    /// NormalizeByPair is the currency pair for this ticker to be normalized by.
+    /// For example, if the desired Ticker is BTC/USD, this market could be reached
+    /// using: OffChainTicker = BTC/USDT NormalizeByPair = USDT/USD This field is
+    /// optional and nullable.
+    #[prost(message, optional, tag = "3")]
+    pub normalize_by_pair: ::core::option::Option<super::super::types::v2::CurrencyPair>,
+    /// Invert is a boolean indicating if the BASE and QUOTE of the market should
+    /// be inverted. i.e. BASE -> QUOTE, QUOTE -> BASE
+    #[prost(bool, tag = "4")]
+    pub invert: bool,
+    /// MetadataJSON is a string of JSON that encodes any extra configuration
+    /// for the given provider config.
+    #[prost(string, tag = "15")]
+    pub metadata_json: ::prost::alloc::string::String,
+}
+impl ::prost::Name for ProviderConfig {
+    const NAME: &'static str = "ProviderConfig";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
+    }
+}
+/// MarketMap maps ticker strings to their Markets.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MarketMap {
+    /// Markets is the full list of tickers and their associated configurations
+    /// to be stored on-chain.
+    #[prost(btree_map = "string, message", tag = "1")]
+    pub markets: ::prost::alloc::collections::BTreeMap<
+        ::prost::alloc::string::String,
+        Market,
+    >,
+}
+impl ::prost::Name for MarketMap {
+    const NAME: &'static str = "MarketMap";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
+    }
+}
+/// Params defines the parameters for the x/marketmap module.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Params {
+    /// MarketAuthorities is the list of authority accounts that are able to
+    /// control updating the marketmap.
+    #[prost(string, repeated, tag = "1")]
+    pub market_authorities: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// Admin is an address that can remove addresses from the MarketAuthorities
+    /// list. Only governance can add to the MarketAuthorities or change the Admin.
+    #[prost(string, tag = "2")]
+    pub admin: ::prost::alloc::string::String,
+}
+impl ::prost::Name for Params {
+    const NAME: &'static str = "Params";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
+    }
+}
+/// GenesisState defines the x/marketmap module's genesis state.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GenesisState {
-    /// CurrencyPairGenesis is the set of CurrencyPairGeneses for the module. I.e
-    /// the starting set of CurrencyPairs for the module + information regarding
-    /// their latest update.
-    #[prost(message, repeated, tag = "1")]
-    pub currency_pair_genesis: ::prost::alloc::vec::Vec<CurrencyPairGenesis>,
-    /// NextID is the next ID to be used for a CurrencyPair
+    /// MarketMap defines the global set of market configurations for all providers
+    /// and markets.
+    #[prost(message, optional, tag = "1")]
+    pub market_map: ::core::option::Option<MarketMap>,
+    /// LastUpdated is the last block height that the market map was updated.
+    /// This field can be used as an optimization for clients checking if there
+    /// is a new update to the map.
     #[prost(uint64, tag = "2")]
-    pub next_id: u64,
+    pub last_updated: u64,
+    /// Params are the parameters for the x/marketmap module.
+    #[prost(message, optional, tag = "3")]
+    pub params: ::core::option::Option<Params>,
 }
 impl ::prost::Name for GenesisState {
     const NAME: &'static str = "GenesisState";
-    const PACKAGE: &'static str = "price_feed.oracle.v2";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("price_feed.oracle.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
+/// MarketMapRequest is the query request for the MarketMap query.
+/// It takes no arguments.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetAllCurrencyPairsRequest {}
-impl ::prost::Name for GetAllCurrencyPairsRequest {
-    const NAME: &'static str = "GetAllCurrencyPairsRequest";
-    const PACKAGE: &'static str = "price_feed.oracle.v2";
+pub struct MarketMapRequest {}
+impl ::prost::Name for MarketMapRequest {
+    const NAME: &'static str = "MarketMapRequest";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("price_feed.oracle.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
-/// GetAllCurrencyPairsResponse returns all CurrencyPairs that the module is
-/// currently tracking.
+/// MarketMapResponse is the query response for the MarketMap query.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetAllCurrencyPairsResponse {
-    #[prost(message, repeated, tag = "1")]
-    pub currency_pairs: ::prost::alloc::vec::Vec<super::super::types::v2::CurrencyPair>,
-}
-impl ::prost::Name for GetAllCurrencyPairsResponse {
-    const NAME: &'static str = "GetAllCurrencyPairsResponse";
-    const PACKAGE: &'static str = "price_feed.oracle.v2";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("price_feed.oracle.v2.{}", Self::NAME)
-    }
-}
-/// GetPriceRequest takes an identifier for the
-/// CurrencyPair in the format base/quote.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetPriceRequest {
-    /// CurrencyPair represents the pair that the user wishes to query.
-    #[prost(string, tag = "1")]
-    pub currency_pair: ::prost::alloc::string::String,
-}
-impl ::prost::Name for GetPriceRequest {
-    const NAME: &'static str = "GetPriceRequest";
-    const PACKAGE: &'static str = "price_feed.oracle.v2";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("price_feed.oracle.v2.{}", Self::NAME)
-    }
-}
-/// GetPriceResponse is the response from the GetPrice grpc method exposed from
-/// the x/oracle query service.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetPriceResponse {
-    /// QuotePrice represents the quote-price for the CurrencyPair given in
-    /// GetPriceRequest (possibly nil if no update has been made)
+pub struct MarketMapResponse {
+    /// MarketMap defines the global set of market configurations for all providers
+    /// and markets.
     #[prost(message, optional, tag = "1")]
-    pub price: ::core::option::Option<QuotePrice>,
-    /// nonce represents the nonce for the CurrencyPair if it exists in state
+    pub market_map: ::core::option::Option<MarketMap>,
+    /// LastUpdated is the last block height that the market map was updated.
+    /// This field can be used as an optimization for clients checking if there
+    /// is a new update to the map.
     #[prost(uint64, tag = "2")]
-    pub nonce: u64,
-    /// decimals represents the number of decimals that the quote-price is
-    /// represented in. It is used to scale the QuotePrice to its proper value.
-    #[prost(uint64, tag = "3")]
-    pub decimals: u64,
-    /// ID represents the identifier for the CurrencyPair.
-    #[prost(uint64, tag = "4")]
-    pub id: u64,
+    pub last_updated: u64,
+    /// ChainId is the chain identifier for the market map.
+    #[prost(string, tag = "3")]
+    pub chain_id: ::prost::alloc::string::String,
 }
-impl ::prost::Name for GetPriceResponse {
-    const NAME: &'static str = "GetPriceResponse";
-    const PACKAGE: &'static str = "price_feed.oracle.v2";
+impl ::prost::Name for MarketMapResponse {
+    const NAME: &'static str = "MarketMapResponse";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("price_feed.oracle.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
-/// GetPricesRequest takes an identifier for the CurrencyPair
-/// in the format base/quote.
+/// MarketRequest is the query request for the Market query.
+/// It takes the currency pair of the market as an argument.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetPricesRequest {
-    #[prost(string, repeated, tag = "1")]
-    pub currency_pair_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+pub struct MarketRequest {
+    /// CurrencyPair is the currency pair associated with the market being
+    /// requested.
+    #[prost(message, optional, tag = "1")]
+    pub currency_pair: ::core::option::Option<super::super::types::v2::CurrencyPair>,
 }
-impl ::prost::Name for GetPricesRequest {
-    const NAME: &'static str = "GetPricesRequest";
-    const PACKAGE: &'static str = "price_feed.oracle.v2";
+impl ::prost::Name for MarketRequest {
+    const NAME: &'static str = "MarketRequest";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("price_feed.oracle.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
-/// GetPricesResponse is the response from the GetPrices grpc method exposed from
-/// the x/oracle query service.
+/// MarketResponse is the query response for the Market query.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetPricesResponse {
-    #[prost(message, repeated, tag = "1")]
-    pub prices: ::prost::alloc::vec::Vec<GetPriceResponse>,
+pub struct MarketResponse {
+    /// Market is the configuration of a single market to be price-fetched for.
+    #[prost(message, optional, tag = "1")]
+    pub market: ::core::option::Option<Market>,
 }
-impl ::prost::Name for GetPricesResponse {
-    const NAME: &'static str = "GetPricesResponse";
-    const PACKAGE: &'static str = "price_feed.oracle.v2";
+impl ::prost::Name for MarketResponse {
+    const NAME: &'static str = "MarketResponse";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("price_feed.oracle.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
-/// GetCurrencyPairMappingRequest is the GetCurrencyPairMapping request type.
+/// ParamsRequest is the request type for the Query/Params RPC method.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetCurrencyPairMappingRequest {}
-impl ::prost::Name for GetCurrencyPairMappingRequest {
-    const NAME: &'static str = "GetCurrencyPairMappingRequest";
-    const PACKAGE: &'static str = "price_feed.oracle.v2";
+pub struct ParamsRequest {}
+impl ::prost::Name for ParamsRequest {
+    const NAME: &'static str = "ParamsRequest";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("price_feed.oracle.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
-/// GetCurrencyPairMappingResponse is the GetCurrencyPairMapping response type.
+/// ParamsResponse is the response type for the Query/Params RPC method.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetCurrencyPairMappingResponse {
-    /// currency_pair_mapping is a mapping of the id representing the currency pair
-    /// to the currency pair itself.
-    #[prost(btree_map = "uint64, message", tag = "1")]
-    pub currency_pair_mapping: ::prost::alloc::collections::BTreeMap<
-        u64,
-        super::super::types::v2::CurrencyPair,
-    >,
+pub struct ParamsResponse {
+    #[prost(message, optional, tag = "1")]
+    pub params: ::core::option::Option<Params>,
 }
-impl ::prost::Name for GetCurrencyPairMappingResponse {
-    const NAME: &'static str = "GetCurrencyPairMappingResponse";
-    const PACKAGE: &'static str = "price_feed.oracle.v2";
+impl ::prost::Name for ParamsResponse {
+    const NAME: &'static str = "ParamsResponse";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("price_feed.oracle.v2.{}", Self::NAME)
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
+    }
+}
+/// LastUpdatedRequest is the request type for the Query/LastUpdated RPC
+/// method.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct LastUpdatedRequest {}
+impl ::prost::Name for LastUpdatedRequest {
+    const NAME: &'static str = "LastUpdatedRequest";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
+    }
+}
+/// LastUpdatedResponse is the response type for the Query/LastUpdated RPC
+/// method.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct LastUpdatedResponse {
+    #[prost(uint64, tag = "1")]
+    pub last_updated: u64,
+}
+impl ::prost::Name for LastUpdatedResponse {
+    const NAME: &'static str = "LastUpdatedResponse";
+    const PACKAGE: &'static str = "connect.marketmap.v2";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("connect.marketmap.v2.{}", Self::NAME)
     }
 }
 /// Generated client implementations.
@@ -226,7 +274,7 @@ pub mod query_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
     use tonic::codegen::http::Uri;
-    /// Query is the query service for the x/oracle module.
+    /// Query is the query service for the x/marketmap module.
     #[derive(Debug, Clone)]
     pub struct QueryClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -307,12 +355,13 @@ pub mod query_client {
             self.inner = self.inner.max_encoding_message_size(limit);
             self
         }
-        /// Get all the currency pairs the x/oracle module is tracking price-data for.
-        pub async fn get_all_currency_pairs(
+        /// MarketMap returns the full market map stored in the x/marketmap
+        /// module.
+        pub async fn market_map(
             &mut self,
-            request: impl tonic::IntoRequest<super::GetAllCurrencyPairsRequest>,
+            request: impl tonic::IntoRequest<super::MarketMapRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::GetAllCurrencyPairsResponse>,
+            tonic::Response<super::MarketMapResponse>,
             tonic::Status,
         > {
             self.inner
@@ -326,24 +375,19 @@ pub mod query_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/price_feed.oracle.v2.Query/GetAllCurrencyPairs",
+                "/connect.marketmap.v2.Query/MarketMap",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("price_feed.oracle.v2.Query", "GetAllCurrencyPairs"),
-                );
+                .insert(GrpcMethod::new("connect.marketmap.v2.Query", "MarketMap"));
             self.inner.unary(req, path, codec).await
         }
-        /// Given a CurrencyPair (or its identifier) return the latest QuotePrice for
-        /// that CurrencyPair.
-        pub async fn get_price(
+        /// Market returns a market stored in the x/marketmap
+        /// module.
+        pub async fn market(
             &mut self,
-            request: impl tonic::IntoRequest<super::GetPriceRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::GetPriceResponse>,
-            tonic::Status,
-        > {
+            request: impl tonic::IntoRequest<super::MarketRequest>,
+        ) -> std::result::Result<tonic::Response<super::MarketResponse>, tonic::Status> {
             self.inner
                 .ready()
                 .await
@@ -355,18 +399,19 @@ pub mod query_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/price_feed.oracle.v2.Query/GetPrice",
+                "/connect.marketmap.v2.Query/Market",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("price_feed.oracle.v2.Query", "GetPrice"));
+                .insert(GrpcMethod::new("connect.marketmap.v2.Query", "Market"));
             self.inner.unary(req, path, codec).await
         }
-        pub async fn get_prices(
+        /// LastUpdated returns the last height the market map was updated at.
+        pub async fn last_updated(
             &mut self,
-            request: impl tonic::IntoRequest<super::GetPricesRequest>,
+            request: impl tonic::IntoRequest<super::LastUpdatedRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::GetPricesResponse>,
+            tonic::Response<super::LastUpdatedResponse>,
             tonic::Status,
         > {
             self.inner
@@ -380,23 +425,18 @@ pub mod query_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/price_feed.oracle.v2.Query/GetPrices",
+                "/connect.marketmap.v2.Query/LastUpdated",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("price_feed.oracle.v2.Query", "GetPrices"));
+                .insert(GrpcMethod::new("connect.marketmap.v2.Query", "LastUpdated"));
             self.inner.unary(req, path, codec).await
         }
-        /// Get the mapping of currency pair ID -> currency pair. This is useful for
-        /// indexers that have access to the ID of a currency pair, but no way to get
-        /// the underlying currency pair from it.
-        pub async fn get_currency_pair_mapping(
+        /// Params returns the current x/marketmap module parameters.
+        pub async fn params(
             &mut self,
-            request: impl tonic::IntoRequest<super::GetCurrencyPairMappingRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::GetCurrencyPairMappingResponse>,
-            tonic::Status,
-        > {
+            request: impl tonic::IntoRequest<super::ParamsRequest>,
+        ) -> std::result::Result<tonic::Response<super::ParamsResponse>, tonic::Status> {
             self.inner
                 .ready()
                 .await
@@ -408,16 +448,11 @@ pub mod query_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/price_feed.oracle.v2.Query/GetCurrencyPairMapping",
+                "/connect.marketmap.v2.Query/Params",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "price_feed.oracle.v2.Query",
-                        "GetCurrencyPairMapping",
-                    ),
-                );
+                .insert(GrpcMethod::new("connect.marketmap.v2.Query", "Params"));
             self.inner.unary(req, path, codec).await
         }
     }
@@ -430,42 +465,36 @@ pub mod query_server {
     /// Generated trait containing gRPC methods that should be implemented for use with QueryServer.
     #[async_trait]
     pub trait Query: Send + Sync + 'static {
-        /// Get all the currency pairs the x/oracle module is tracking price-data for.
-        async fn get_all_currency_pairs(
+        /// MarketMap returns the full market map stored in the x/marketmap
+        /// module.
+        async fn market_map(
             self: std::sync::Arc<Self>,
-            request: tonic::Request<super::GetAllCurrencyPairsRequest>,
+            request: tonic::Request<super::MarketMapRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::GetAllCurrencyPairsResponse>,
+            tonic::Response<super::MarketMapResponse>,
             tonic::Status,
         >;
-        /// Given a CurrencyPair (or its identifier) return the latest QuotePrice for
-        /// that CurrencyPair.
-        async fn get_price(
+        /// Market returns a market stored in the x/marketmap
+        /// module.
+        async fn market(
             self: std::sync::Arc<Self>,
-            request: tonic::Request<super::GetPriceRequest>,
+            request: tonic::Request<super::MarketRequest>,
+        ) -> std::result::Result<tonic::Response<super::MarketResponse>, tonic::Status>;
+        /// LastUpdated returns the last height the market map was updated at.
+        async fn last_updated(
+            self: std::sync::Arc<Self>,
+            request: tonic::Request<super::LastUpdatedRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::GetPriceResponse>,
+            tonic::Response<super::LastUpdatedResponse>,
             tonic::Status,
         >;
-        async fn get_prices(
+        /// Params returns the current x/marketmap module parameters.
+        async fn params(
             self: std::sync::Arc<Self>,
-            request: tonic::Request<super::GetPricesRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::GetPricesResponse>,
-            tonic::Status,
-        >;
-        /// Get the mapping of currency pair ID -> currency pair. This is useful for
-        /// indexers that have access to the ID of a currency pair, but no way to get
-        /// the underlying currency pair from it.
-        async fn get_currency_pair_mapping(
-            self: std::sync::Arc<Self>,
-            request: tonic::Request<super::GetCurrencyPairMappingRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::GetCurrencyPairMappingResponse>,
-            tonic::Status,
-        >;
+            request: tonic::Request<super::ParamsRequest>,
+        ) -> std::result::Result<tonic::Response<super::ParamsResponse>, tonic::Status>;
     }
-    /// Query is the query service for the x/oracle module.
+    /// Query is the query service for the x/marketmap module.
     #[derive(Debug)]
     pub struct QueryServer<T: Query> {
         inner: _Inner<T>,
@@ -545,25 +574,23 @@ pub mod query_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/price_feed.oracle.v2.Query/GetAllCurrencyPairs" => {
+                "/connect.marketmap.v2.Query/MarketMap" => {
                     #[allow(non_camel_case_types)]
-                    struct GetAllCurrencyPairsSvc<T: Query>(pub Arc<T>);
-                    impl<
-                        T: Query,
-                    > tonic::server::UnaryService<super::GetAllCurrencyPairsRequest>
-                    for GetAllCurrencyPairsSvc<T> {
-                        type Response = super::GetAllCurrencyPairsResponse;
+                    struct MarketMapSvc<T: Query>(pub Arc<T>);
+                    impl<T: Query> tonic::server::UnaryService<super::MarketMapRequest>
+                    for MarketMapSvc<T> {
+                        type Response = super::MarketMapResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::GetAllCurrencyPairsRequest>,
+                            request: tonic::Request<super::MarketMapRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as Query>::get_all_currency_pairs(inner, request).await
+                                <T as Query>::market_map(inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -575,7 +602,7 @@ pub mod query_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = GetAllCurrencyPairsSvc(inner);
+                        let method = MarketMapSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -591,23 +618,23 @@ pub mod query_server {
                     };
                     Box::pin(fut)
                 }
-                "/price_feed.oracle.v2.Query/GetPrice" => {
+                "/connect.marketmap.v2.Query/Market" => {
                     #[allow(non_camel_case_types)]
-                    struct GetPriceSvc<T: Query>(pub Arc<T>);
-                    impl<T: Query> tonic::server::UnaryService<super::GetPriceRequest>
-                    for GetPriceSvc<T> {
-                        type Response = super::GetPriceResponse;
+                    struct MarketSvc<T: Query>(pub Arc<T>);
+                    impl<T: Query> tonic::server::UnaryService<super::MarketRequest>
+                    for MarketSvc<T> {
+                        type Response = super::MarketResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::GetPriceRequest>,
+                            request: tonic::Request<super::MarketRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as Query>::get_price(inner, request).await
+                                <T as Query>::market(inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -619,7 +646,7 @@ pub mod query_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = GetPriceSvc(inner);
+                        let method = MarketSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -635,23 +662,23 @@ pub mod query_server {
                     };
                     Box::pin(fut)
                 }
-                "/price_feed.oracle.v2.Query/GetPrices" => {
+                "/connect.marketmap.v2.Query/LastUpdated" => {
                     #[allow(non_camel_case_types)]
-                    struct GetPricesSvc<T: Query>(pub Arc<T>);
-                    impl<T: Query> tonic::server::UnaryService<super::GetPricesRequest>
-                    for GetPricesSvc<T> {
-                        type Response = super::GetPricesResponse;
+                    struct LastUpdatedSvc<T: Query>(pub Arc<T>);
+                    impl<T: Query> tonic::server::UnaryService<super::LastUpdatedRequest>
+                    for LastUpdatedSvc<T> {
+                        type Response = super::LastUpdatedResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::GetPricesRequest>,
+                            request: tonic::Request<super::LastUpdatedRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as Query>::get_prices(inner, request).await
+                                <T as Query>::last_updated(inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -663,7 +690,7 @@ pub mod query_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = GetPricesSvc(inner);
+                        let method = LastUpdatedSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -679,26 +706,23 @@ pub mod query_server {
                     };
                     Box::pin(fut)
                 }
-                "/price_feed.oracle.v2.Query/GetCurrencyPairMapping" => {
+                "/connect.marketmap.v2.Query/Params" => {
                     #[allow(non_camel_case_types)]
-                    struct GetCurrencyPairMappingSvc<T: Query>(pub Arc<T>);
-                    impl<
-                        T: Query,
-                    > tonic::server::UnaryService<super::GetCurrencyPairMappingRequest>
-                    for GetCurrencyPairMappingSvc<T> {
-                        type Response = super::GetCurrencyPairMappingResponse;
+                    struct ParamsSvc<T: Query>(pub Arc<T>);
+                    impl<T: Query> tonic::server::UnaryService<super::ParamsRequest>
+                    for ParamsSvc<T> {
+                        type Response = super::ParamsResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::GetCurrencyPairMappingRequest>,
+                            request: tonic::Request<super::ParamsRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as Query>::get_currency_pair_mapping(inner, request)
-                                    .await
+                                <T as Query>::params(inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -710,7 +734,7 @@ pub mod query_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = GetCurrencyPairMappingSvc(inner);
+                        let method = ParamsSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -764,6 +788,6 @@ pub mod query_server {
         }
     }
     impl<T: Query> tonic::server::NamedService for QueryServer<T> {
-        const NAME: &'static str = "price_feed.oracle.v2.Query";
+        const NAME: &'static str = "connect.marketmap.v2.Query";
     }
 }
