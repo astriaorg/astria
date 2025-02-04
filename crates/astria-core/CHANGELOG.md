@@ -30,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update `idna` dependency to resolve cargo audit warning [#1869](https://github.com/astriaorg/astria/pull/1869).
 - Replaced all instances of `[u8; 32]` by newtype
   `astria_core::sequencerblock::v1::block::Hash` where appropriate [#1884](https://github.com/astriaorg/astria/pull/1884).
+- Updated domain type `astria_core::execution::v1::GenesisInfo` to accomodate conductor stop height restart logic;
+  removed `GenesisInfo::sequencer_genesis_height` [#1928](https://github.com/astriaorg/astria/pull/1928).
 
 ### Removed
 
