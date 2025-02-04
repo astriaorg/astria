@@ -7,11 +7,11 @@ global:
 
 images:
   auctioneer:
-    repo: ghcr.io/astriaorg/astria-auctioneer
+    repo: ghcr.io/astriaorg/auctioneer
     pullPolicy: IfNotPresent
     # TODO - update to latest tag
-    tag: "pr-1822"
-    devTag: "pr-1822"
+    tag: "pr-1839"
+    devTag: "pr-1839"
 
 config:
   sequencerGrpcEndpoint: ""

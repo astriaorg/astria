@@ -16,7 +16,7 @@ spec:
     matchLabels:
       app: auctioneer
   endpoints:
-    - port: auctioneer-metrics
+    - port: auct-metrics
       path: /
       {{- with .Values.serviceMonitor.interval }}
       interval: {{ . }}
