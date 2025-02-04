@@ -153,7 +153,6 @@ pub struct MockBuilder {
 impl MockBuilder {
     /// Adds an additional `Matcher` to the [`MockBuilder`]'s `matchers` set. There is no maximum
     /// number of matchers that can be pushed. See [`MockBuilder`] docs for example usage.
-    #[must_use]
     pub fn and(mut self, matcher: impl Match + 'static) -> Self {
         self.matchers.push(Matcher(Box::new(matcher)));
         self
@@ -161,7 +160,6 @@ impl MockBuilder {
 
     /// Returns a [`Mock`] which will respond with the given [`ResponseTemplate`]'s `respond()`
     /// implementation. See [`MockBuilder`] docs for example usage.
-    #[must_use]
     pub fn respond_with(self, rsp: ResponseTemplate) -> Mock {
         let Self {
             rpc,

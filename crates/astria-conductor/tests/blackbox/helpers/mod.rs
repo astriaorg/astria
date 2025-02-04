@@ -391,7 +391,7 @@ impl TestConductor {
         &self,
         mock_name: Option<&str>,
         commitment_state: CommitmentState,
-        expected_calls: impl Into<astria_grpc_mock::mock::Times>,
+        expected_calls: impl Into<astria_grpc_mock::Times>,
     ) -> astria_grpc_mock::MockGuard {
         use astria_core::generated::astria::execution::v1::UpdateCommitmentStateRequest;
         use astria_grpc_mock::{
