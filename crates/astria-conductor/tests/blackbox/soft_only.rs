@@ -14,10 +14,7 @@ use futures::future::{
     join4,
 };
 use telemetry::metrics;
-use tokio::time::{
-    sleep,
-    timeout,
-};
+use tokio::time::timeout;
 
 use crate::{
     commitment_state,
@@ -475,8 +472,7 @@ async fn exits_on_sequencer_chain_id_mismatch() {
 ///    so that the same information is not retrieved after restarting.
 /// 2. Mount sequencer genesis, ABCI info, and sequencer blocks for heights 3 and 4.
 /// 3. Mount `execute_block` and `update_commitment_state` mocks for the soft block at height 3,
-///    expecting only 1 call and timing out after 1000ms. During this time, the test sleeps so that
-///    the following mounts are not performed before the conductor restarts.
+///    expecting only 1 call and timing out after 1000ms.
 /// 4. Mount updated commitment state and genesis info with a stop height of 10 (more than high
 ///    enough) and a rollup start block height of 2, reflecting that the first block has already
 ///    been executed.
@@ -487,7 +483,7 @@ async fn exits_on_sequencer_chain_id_mismatch() {
     reason = "All lines reasonably necessary for the thoroughness of this test"
 )]
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn conductor_restarts_after_reaching_stop_block_height() {
+async fn restarts_after_reaching_stop_block_height() {
     let test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
 
     mount_get_genesis_info!(
@@ -570,9 +566,6 @@ async fn conductor_restarts_after_reaching_stop_block_height() {
         "conductor should have executed the first soft block and updated the first soft \
          commitment state within 1000ms",
     );
-
-    // Wait until conductor is restarted before performing next set of mounts
-    sleep(Duration::from_millis(1000)).await;
 
     mount_get_genesis_info!(
         test_conductor,

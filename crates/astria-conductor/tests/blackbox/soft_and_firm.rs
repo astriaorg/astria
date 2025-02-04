@@ -5,10 +5,7 @@ use futures::future::{
     join,
     join3,
 };
-use tokio::time::{
-    sleep,
-    timeout,
-};
+use tokio::time::timeout;
 
 use crate::{
     helpers::spawn_conductor,
@@ -466,7 +463,7 @@ async fn missing_block_is_fetched_for_updating_firm_commitment() {
     reason = "all lines fairly necessary, and I don't think a test warrants a refactor"
 )]
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn conductor_restarts_on_permission_denied() {
+async fn restarts_on_permission_denied() {
     let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
 
     mount_get_genesis_info!(
@@ -607,8 +604,7 @@ async fn conductor_restarts_on_permission_denied() {
 ///    arrive first.
 /// 5. Mount `execute_block` and `update_commitment_state` for both soft and firm blocks at height 3
 /// 6. Await satisfaction of the `execute_block` and `update_commitment_state` for the soft and firm
-///    blocks at height 3 with a timeout of 1000ms. The test sleeps during this time, so that the
-///    following mounts do not occur before the conductor restarts.
+///    blocks at height 3 with a timeout of 1000ms.
 /// 7. Mount new genesis info with a sequencer stop height of 10 and a rollup start block height of
 ///    2, along with corresponding commitment state, reflecting that block 1 has already been
 ///    executed and the commitment state updated.
@@ -619,7 +615,7 @@ async fn conductor_restarts_on_permission_denied() {
     reason = "All lines reasonably necessary for the thoroughness of this test"
 )]
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn conductor_restarts_after_reaching_soft_stop_height_first() {
+async fn restarts_after_reaching_soft_stop_height_first() {
     let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
 
     mount_get_genesis_info!(
@@ -739,9 +735,6 @@ async fn conductor_restarts_after_reaching_soft_stop_height_first() {
     .await
     .expect("conductor should have updated the firm commitment state within 1000ms");
 
-    // Wait until conductor is restarted before performing next set of mounts
-    sleep(Duration::from_millis(1000)).await;
-
     mount_get_genesis_info!(
         test_conductor,
         sequencer_start_height: 2,
@@ -836,8 +829,7 @@ async fn conductor_restarts_after_reaching_soft_stop_height_first() {
 ///    firm block will be received first.
 /// 5. Mount `execute_block` and `update_commitment_state` for firm block at height 3.
 /// 6. Await satisfaction of the `execute_block` and `update_commitment_state` for the firm block at
-///    height 3 with a timeout of 1000ms. The test sleeps during this time, so that the following
-///    mounts do not occur before the conductor restarts.
+///    height 3 with a timeout of 1000ms.
 /// 7. Mount new genesis info with a sequencer stop height of 10 and a rollup start block height of
 ///    2, along with corresponding commitment state, reflecting that block 1 has already been
 ///    executed and the commitment state updated.
@@ -849,7 +841,7 @@ async fn conductor_restarts_after_reaching_soft_stop_height_first() {
     reason = "All lines reasonably necessary for the thoroughness of this test"
 )]
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn conductor_restarts_after_reaching_firm_stop_height_first() {
+async fn restarts_after_reaching_firm_stop_height_first() {
     let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
 
     mount_get_genesis_info!(
@@ -969,9 +961,6 @@ async fn conductor_restarts_after_reaching_firm_stop_height_first() {
     .await
     .expect("conductor should have updated the firm commitment state within 1000ms");
 
-    // Wait until conductor is restarted before performing next set of mounts
-    sleep(Duration::from_millis(1000)).await;
-
     mount_get_genesis_info!(
         test_conductor,
         sequencer_start_height: 2,
@@ -1067,7 +1056,7 @@ async fn conductor_restarts_after_reaching_firm_stop_height_first() {
 ///    `conductor_restarts_after_reaching_soft_stop_height_first`.
 /// 7. Allow ample time for the conductor to potentially restart erroneously.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn conductor_stops_at_stop_height() {
+async fn stops_at_stop_height() {
     let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
 
     mount_get_genesis_info!(
@@ -1174,7 +1163,4 @@ async fn conductor_stops_at_stop_height() {
     )
     .await
     .expect("conductor should have updated the firm commitment state within 1000ms");
-
-    // Allow time for a potential erroneous restart
-    sleep(Duration::from_millis(1000)).await;
 }

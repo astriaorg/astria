@@ -15,10 +15,7 @@ use futures::future::{
 };
 use serde_json::json;
 use telemetry::metrics;
-use tokio::time::{
-    sleep,
-    timeout,
-};
+use tokio::time::timeout;
 use wiremock::{
     matchers::{
         body_partial_json,
@@ -546,7 +543,7 @@ async fn exits_on_celestia_chain_id_mismatch() {
 ///    satisfaction.
 #[expect(clippy::too_many_lines, reason = "All lines reasonably necessary")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn conductor_restarts_after_reaching_stop_block_height() {
+async fn restarts_after_reaching_stop_block_height() {
     let test_conductor = spawn_conductor(CommitLevel::FirmOnly).await;
 
     mount_get_genesis_info!(
@@ -634,9 +631,6 @@ async fn conductor_restarts_after_reaching_stop_block_height() {
         "conductor should have executed the first firm block and updated the first firm \
          commitment state twice within 1000ms",
     );
-
-    // Wait for conductor to restart before performing the next set of mounts
-    sleep(Duration::from_millis(1000)).await;
 
     // Mount new genesis info and commitment state with updated heights
     mount_get_genesis_info!(
