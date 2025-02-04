@@ -105,7 +105,7 @@ macro_rules! genesis_info {
             celestia_block_variance: $variance,
             rollup_start_block_number: $rollup_start_block_number,
             rollup_stop_block_number: $rollup_stop_block_number,
-            halt_at_stop_height: false,
+            halt_at_rollup_stop_number: false,
         )
     };
     (
@@ -114,7 +114,7 @@ macro_rules! genesis_info {
         $variance:expr,rollup_start_block_number:
         $rollup_start_block_number:expr,
         rollup_stop_block_number: $rollup_stop_block_number:expr,
-        halt_at_stop_height: $halt_at_stop_height:expr $(,)?
+        halt_at_rollup_stop_number: $halt_at_rollup_stop_number:expr $(,)?
     ) => {
         ::astria_core::generated::astria::execution::v1::GenesisInfo {
             rollup_id: Some($crate::ROLLUP_ID.to_raw()),
@@ -124,7 +124,7 @@ macro_rules! genesis_info {
             rollup_stop_block_number: $rollup_stop_block_number,
             sequencer_chain_id: $crate::SEQUENCER_CHAIN_ID.to_string(),
             celestia_chain_id: $crate::helpers::CELESTIA_CHAIN_ID.to_string(),
-            halt_at_stop_height: $halt_at_stop_height,
+            halt_at_rollup_stop_number: $halt_at_rollup_stop_number,
         }
     };
 }
@@ -422,7 +422,7 @@ macro_rules! mount_get_genesis_info {
             rollup_start_block_number: $rollup_start_block_number,
             rollup_stop_block_number: $rollup_stop_block_number,
             up_to_n_times: $up_to_n_times,
-            halt_at_stop_height: false,
+            halt_at_rollup_stop_number: false,
             expected_calls: 1,
         )
     };
@@ -433,7 +433,7 @@ macro_rules! mount_get_genesis_info {
         rollup_start_block_number: $rollup_start_block_number:expr,
         rollup_stop_block_number: $rollup_stop_block_number:expr,
         up_to_n_times: $up_to_n_times:expr,
-        halt_at_stop_height: $halt_at_stop_height:expr,
+        halt_at_rollup_stop_number: $halt_at_rollup_stop_number:expr,
         expected_calls: $expected_calls:expr
         $(,)?
     ) => {
@@ -443,7 +443,7 @@ macro_rules! mount_get_genesis_info {
                 celestia_block_variance: $variance,
                 rollup_start_block_number: $rollup_start_block_number,
                 rollup_stop_block_number: $rollup_stop_block_number,
-                halt_at_stop_height: $halt_at_stop_height,
+                halt_at_rollup_stop_number: $halt_at_rollup_stop_number,
             ),
             $up_to_n_times,
             $expected_calls,

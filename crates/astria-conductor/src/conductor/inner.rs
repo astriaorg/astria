@@ -187,7 +187,7 @@ fn should_restart_or_shutdown(
     match config.execution_commit_level {
         crate::config::CommitLevel::FirmOnly | crate::config::CommitLevel::SoftAndFirm => {
             if status.has_firm_number_reached_stop_height() {
-                let restart_or_shutdown = if status.halt_at_stop_height() {
+                let restart_or_shutdown = if status.halt_at_rollup_stop_number() {
                     RestartOrShutdown::Shutdown
                 } else {
                     RestartOrShutdown::Restart
@@ -210,7 +210,7 @@ fn should_restart_or_shutdown(
         }
         crate::config::CommitLevel::SoftOnly => {
             if status.has_soft_number_reached_stop_height() {
-                let restart_or_shutdown = if status.halt_at_stop_height() {
+                let restart_or_shutdown = if status.halt_at_rollup_stop_number() {
                     RestartOrShutdown::Shutdown
                 } else {
                     RestartOrShutdown::Restart
@@ -313,7 +313,7 @@ mod tests {
                     sequencer_start_height: 10,
                     rollup_start_block_number: 10,
                     rollup_stop_block_number: 99,
-                    halt_at_stop_height: false,
+                    halt_at_rollup_stop_number: false,
                     ..make_genesis_info()
                 },
                 CommitmentState {
@@ -345,7 +345,7 @@ mod tests {
                     sequencer_start_height: 10,
                     rollup_start_block_number: 10,
                     rollup_stop_block_number: 99,
-                    halt_at_stop_height: true,
+                    halt_at_rollup_stop_number: true,
                     ..make_genesis_info()
                 },
                 CommitmentState {
@@ -380,7 +380,7 @@ mod tests {
                     sequencer_start_height: 10,
                     rollup_start_block_number: 10,
                     rollup_stop_block_number: 99,
-                    halt_at_stop_height: false,
+                    halt_at_rollup_stop_number: false,
                     ..make_genesis_info()
                 },
                 CommitmentState {
@@ -412,7 +412,7 @@ mod tests {
                     sequencer_start_height: 10,
                     rollup_start_block_number: 10,
                     rollup_stop_block_number: 99,
-                    halt_at_stop_height: true,
+                    halt_at_rollup_stop_number: true,
                     ..make_genesis_info()
                 },
                 CommitmentState {

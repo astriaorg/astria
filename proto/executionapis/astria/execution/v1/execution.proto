@@ -19,12 +19,20 @@ message GenesisInfo {
   uint64 celestia_block_variance = 4;
   // The rollup block number to map to the sequencer start block height.
   uint64 rollup_start_block_number = 5;
-  // The rollup block number to restart/halt at after executing.
+  // The rollup block number to re-fetch the genesis info and continue executing with new data.
   uint64 rollup_stop_block_number = 6;
+  // The ID of the Astria Sequencer network to retrieve Sequencer blocks from.
+  // Conductor implementations should verify that the Sequencer network they are connected to
+  // have this chain ID (if fetching soft Sequencer blocks), and verify that the Sequencer metadata
+  // blobs retrieved from Celestia contain this chain ID (if extracting firm Sequencer blocks from
+  // Celestia blobs).
   string sequencer_chain_id = 7;
+  // The ID of the Celestia network to retrieve blobs from.
+  // Conductor implementations should verify that the Celestia network they are connected to have
+  // this chain ID (if extracting firm Sequencer blocks from Celestia blobs).
   string celestia_chain_id = 8;
-  // True if the conductor should halt at the stop height instead of attempting restart.
-  bool halt_at_stop_height = 9;
+  // Requests Conductor to halt at the stop number instead of re-fetching the genesis and continuing execution.
+  bool halt_at_rollup_stop_number= 9;
 }
 
 // The set of information which deterministic driver of block production

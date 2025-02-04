@@ -17,16 +17,24 @@ pub struct GenesisInfo {
     /// The rollup block number to map to the sequencer start block height.
     #[prost(uint64, tag = "5")]
     pub rollup_start_block_number: u64,
-    /// The rollup block number to restart/halt at after executing.
+    /// The rollup block number to re-fetch the genesis info and continue executing with new data.
     #[prost(uint64, tag = "6")]
     pub rollup_stop_block_number: u64,
+    /// The ID of the Astria Sequencer network to retrieve Sequencer blocks from.
+    /// Conductor implementations should verify that the Sequencer network they are connected to
+    /// have this chain ID (if fetching soft Sequencer blocks), and verify that the Sequencer metadata
+    /// blobs retrieved from Celestia contain this chain ID (if extracting firm Sequencer blocks from
+    /// Celestia blobs).
     #[prost(string, tag = "7")]
     pub sequencer_chain_id: ::prost::alloc::string::String,
+    /// The ID of the Celestia network to retrieve blobs from.
+    /// Conductor implementations should verify that the Celestia network they are connected to have
+    /// this chain ID (if extracting firm Sequencer blocks from Celestia blobs).
     #[prost(string, tag = "8")]
     pub celestia_chain_id: ::prost::alloc::string::String,
-    /// True if the conductor should halt at the stop height instead of attempting restart.
+    /// Requests Conductor to halt at the stop number instead of re-fetching the genesis and continuing execution.
     #[prost(bool, tag = "9")]
-    pub halt_at_stop_height: bool,
+    pub halt_at_rollup_stop_number: bool,
 }
 impl ::prost::Name for GenesisInfo {
     const NAME: &'static str = "GenesisInfo";

@@ -75,7 +75,7 @@ pub struct GenesisInfo {
     /// The chain ID of the celestia network.
     celestia_chain_id: celestia_tendermint::chain::Id,
     /// Whether the conductor should halt at the stop height instead of restarting.
-    halt_at_stop_height: bool,
+    halt_at_rollup_stop_number: bool,
 }
 
 impl GenesisInfo {
@@ -115,8 +115,8 @@ impl GenesisInfo {
     }
 
     #[must_use]
-    pub fn halt_at_stop_height(&self) -> bool {
-        self.halt_at_stop_height
+    pub fn halt_at_rollup_stop_number(&self) -> bool {
+        self.halt_at_rollup_stop_number
     }
 }
 
@@ -139,7 +139,7 @@ impl Protobuf for GenesisInfo {
             rollup_stop_block_number,
             sequencer_chain_id,
             celestia_chain_id,
-            halt_at_stop_height,
+            halt_at_rollup_stop_number,
         } = raw;
         let Some(rollup_id) = rollup_id else {
             return Err(Self::Error::no_rollup_id());
@@ -163,7 +163,7 @@ impl Protobuf for GenesisInfo {
             rollup_stop_block_number: NonZeroU64::new(*rollup_stop_block_number),
             sequencer_chain_id,
             celestia_chain_id,
-            halt_at_stop_height: *halt_at_stop_height,
+            halt_at_rollup_stop_number: *halt_at_rollup_stop_number,
         })
     }
 
@@ -176,7 +176,7 @@ impl Protobuf for GenesisInfo {
             rollup_stop_block_number,
             sequencer_chain_id,
             celestia_chain_id,
-            halt_at_stop_height,
+            halt_at_rollup_stop_number,
         } = self;
 
         let sequencer_start_height: u32 = (*sequencer_start_height).value().try_into().expect(
@@ -192,7 +192,7 @@ impl Protobuf for GenesisInfo {
             rollup_stop_block_number: rollup_stop_block_number.map(NonZeroU64::get).unwrap_or(0),
             sequencer_chain_id: sequencer_chain_id.to_string(),
             celestia_chain_id: celestia_chain_id.to_string(),
-            halt_at_stop_height: *halt_at_stop_height,
+            halt_at_rollup_stop_number: *halt_at_rollup_stop_number,
         }
     }
 }

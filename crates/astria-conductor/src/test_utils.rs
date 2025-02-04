@@ -46,7 +46,7 @@ pub(crate) fn make_genesis_info() -> GenesisInfo {
         rollup_stop_block_number: 90,
         sequencer_chain_id: "test-sequencer-0".to_string(),
         celestia_chain_id: "test-celestia-0".to_string(),
-        halt_at_stop_height: false,
+        halt_at_rollup_stop_number: false,
     }
 }
 

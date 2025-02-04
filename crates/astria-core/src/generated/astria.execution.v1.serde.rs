@@ -728,7 +728,7 @@ impl serde::Serialize for GenesisInfo {
         if !self.celestia_chain_id.is_empty() {
             len += 1;
         }
-        if self.halt_at_stop_height {
+        if self.halt_at_rollup_stop_number {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.execution.v1.GenesisInfo", len)?;
@@ -756,8 +756,8 @@ impl serde::Serialize for GenesisInfo {
         if !self.celestia_chain_id.is_empty() {
             struct_ser.serialize_field("celestiaChainId", &self.celestia_chain_id)?;
         }
-        if self.halt_at_stop_height {
-            struct_ser.serialize_field("haltAtStopHeight", &self.halt_at_stop_height)?;
+        if self.halt_at_rollup_stop_number {
+            struct_ser.serialize_field("haltAtRollupStopNumber", &self.halt_at_rollup_stop_number)?;
         }
         struct_ser.end()
     }
@@ -783,8 +783,8 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
             "sequencerChainId",
             "celestia_chain_id",
             "celestiaChainId",
-            "halt_at_stop_height",
-            "haltAtStopHeight",
+            "halt_at_rollup_stop_number",
+            "haltAtRollupStopNumber",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -796,7 +796,7 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
             RollupStopBlockNumber,
             SequencerChainId,
             CelestiaChainId,
-            HaltAtStopHeight,
+            HaltAtRollupStopNumber,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -825,7 +825,7 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
                             "rollupStopBlockNumber" | "rollup_stop_block_number" => Ok(GeneratedField::RollupStopBlockNumber),
                             "sequencerChainId" | "sequencer_chain_id" => Ok(GeneratedField::SequencerChainId),
                             "celestiaChainId" | "celestia_chain_id" => Ok(GeneratedField::CelestiaChainId),
-                            "haltAtStopHeight" | "halt_at_stop_height" => Ok(GeneratedField::HaltAtStopHeight),
+                            "haltAtRollupStopNumber" | "halt_at_rollup_stop_number" => Ok(GeneratedField::HaltAtRollupStopNumber),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -852,7 +852,7 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
                 let mut rollup_stop_block_number__ = None;
                 let mut sequencer_chain_id__ = None;
                 let mut celestia_chain_id__ = None;
-                let mut halt_at_stop_height__ = None;
+                let mut halt_at_rollup_stop_number__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::RollupId => {
@@ -905,11 +905,11 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
                             }
                             celestia_chain_id__ = Some(map_.next_value()?);
                         }
-                        GeneratedField::HaltAtStopHeight => {
-                            if halt_at_stop_height__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("haltAtStopHeight"));
+                        GeneratedField::HaltAtRollupStopNumber => {
+                            if halt_at_rollup_stop_number__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("haltAtRollupStopNumber"));
                             }
-                            halt_at_stop_height__ = Some(map_.next_value()?);
+                            halt_at_rollup_stop_number__ = Some(map_.next_value()?);
                         }
                     }
                 }
@@ -921,7 +921,7 @@ impl<'de> serde::Deserialize<'de> for GenesisInfo {
                     rollup_stop_block_number: rollup_stop_block_number__.unwrap_or_default(),
                     sequencer_chain_id: sequencer_chain_id__.unwrap_or_default(),
                     celestia_chain_id: celestia_chain_id__.unwrap_or_default(),
-                    halt_at_stop_height: halt_at_stop_height__.unwrap_or_default(),
+                    halt_at_rollup_stop_number: halt_at_rollup_stop_number__.unwrap_or_default(),
                 })
             }
         }

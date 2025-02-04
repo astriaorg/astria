@@ -350,8 +350,8 @@ impl State {
         self.genesis_info.sequencer_start_height()
     }
 
-    pub(crate) fn halt_at_stop_height(&self) -> bool {
-        self.genesis_info.halt_at_stop_height()
+    pub(crate) fn halt_at_rollup_stop_number(&self) -> bool {
+        self.genesis_info.halt_at_rollup_stop_number()
     }
 
     fn sequencer_chain_id(&self) -> String {

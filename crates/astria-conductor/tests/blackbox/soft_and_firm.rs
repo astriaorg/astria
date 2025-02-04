@@ -473,7 +473,7 @@ async fn restarts_on_permission_denied() {
         rollup_start_block_number: 0,
         rollup_stop_block_number: 9,
         up_to_n_times: 2,
-        halt_at_stop_height: false,
+        halt_at_rollup_stop_number: false,
         expected_calls: 2,
     );
 
@@ -1040,7 +1040,7 @@ async fn restarts_after_reaching_firm_stop_height_first() {
 }
 
 /// Tests if the conductor correctly stops and does not restart after reaching the sequencer stop
-/// height if genesis info's `halt_at_stop_height` is `true`.
+/// height if genesis info's `halt_at_rollup_stop_number` is `true`.
 ///
 /// This test consists of the following steps:
 /// 1. Mount commitment state and genesis info with a sequencer stop height of 3, expecting only 1
@@ -1066,7 +1066,7 @@ async fn stops_at_stop_height() {
         rollup_start_block_number: 0,
         rollup_stop_block_number: 2,
         up_to_n_times: 2, // allow for calls after an potential erroneous restart
-        halt_at_stop_height: true,
+        halt_at_rollup_stop_number: true,
         expected_calls: 1,
     );
 
