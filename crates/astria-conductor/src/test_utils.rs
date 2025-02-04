@@ -59,7 +59,3 @@ pub(crate) fn make_rollup_state(
         astria_core::execution::v1::CommitmentState::try_from_raw(commitment_state).unwrap();
     State::try_from_genesis_info_and_commitment_state(genesis_info, commitment_state).unwrap()
 }
-
-pub(crate) fn test_rollup_state() -> State {
-    make_rollup_state(make_genesis_info(), make_commitment_state())
-}

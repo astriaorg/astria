@@ -439,10 +439,17 @@ pub(super) fn map_sequencer_height_to_rollup_height(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::test_rollup_state;
+    use crate::test_utils::{
+        make_commitment_state,
+        make_genesis_info,
+        make_rollup_state,
+    };
 
     fn make_channel() -> (StateSender, StateReceiver) {
-        super::channel(test_rollup_state())
+        super::channel(make_rollup_state(
+            make_genesis_info(),
+            make_commitment_state(),
+        ))
     }
 
     #[test]
