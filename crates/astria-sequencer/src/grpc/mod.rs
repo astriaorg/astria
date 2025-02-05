@@ -1,4 +1,4 @@
-pub(crate) mod connect;
+pub(crate) mod price_feed;
 pub(crate) mod sequencer;
 mod state_ext;
 pub(crate) mod storage;

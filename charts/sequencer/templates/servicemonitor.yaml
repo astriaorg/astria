@@ -34,8 +34,8 @@ spec:
       {{- with .Values.serviceMonitor.scrapeTimeout  }}
       scrapeTimeout: {{ . }}
       {{- end }}
-    {{- if .Values.sequencer.oracle.metrics.enabled }}
-    - port: oracle-metric
+    {{- if .Values.sequencer.priceFeed.metrics.enabled }}
+    - port: price-fd-metric
       path: /
       {{- with .Values.serviceMonitor.interval }}
       interval: {{ . }}
