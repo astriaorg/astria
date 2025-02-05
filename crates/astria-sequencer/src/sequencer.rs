@@ -6,10 +6,7 @@ use astria_core::{
         price_feed::{
             marketmap::v2::query_server::QueryServer as MarketMapQueryServer,
             oracle::v2::query_server::QueryServer as OracleQueryServer,
-            service::v2::{
-                oracle_client::OracleClient,
-                QueryPricesRequest,
-            },
+            service::v2::oracle_client::OracleClient,
         },
     },
     upgrades::v1::Upgrades,
@@ -445,16 +442,12 @@ async fn connect_to_price_feed_sidecar(
     endpoint: &Endpoint,
     uri: &Uri,
 ) -> Result<OracleClient<Channel>> {
-    let mut client = OracleClient::new(
+    let client = OracleClient::new(
         endpoint
             .connect()
             .await
             .wrap_err("failed to connect to price feed sidecar")?,
     );
-    let _ = client
-        .prices(QueryPricesRequest::default())
-        .await
-        .wrap_err("price feed sidecar responded with error to query for prices");
     debug!(uri = %uri, "price feed sidecar is reachable");
     Ok(client)
 }
