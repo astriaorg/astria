@@ -6,10 +6,7 @@ use astria_core::{
         connect::{
             marketmap::v2::query_server::QueryServer as MarketMapQueryServer,
             oracle::v2::query_server::QueryServer as OracleQueryServer,
-            service::v2::{
-                oracle_client::OracleClient,
-                QueryPricesRequest,
-            },
+            service::v2::oracle_client::OracleClient,
         },
     },
     upgrades::v1::Upgrades,
@@ -441,16 +438,12 @@ async fn new_oracle_client(config: &Config) -> Result<Option<OracleClient<Channe
 
 #[instrument(skip_all, err(level = tracing::Level::WARN))]
 async fn connect_to_oracle(endpoint: &Endpoint, uri: &Uri) -> Result<OracleClient<Channel>> {
-    let mut oracle_client = OracleClient::new(
+    let oracle_client = OracleClient::new(
         endpoint
             .connect()
             .await
             .wrap_err("failed to connect to oracle sidecar")?,
     );
-    let _ = oracle_client
-        .prices(QueryPricesRequest::default())
-        .await
-        .wrap_err("oracle sidecar responded with error to query for prices");
     debug!(uri = %uri, "oracle sidecar is reachable");
     Ok(oracle_client)
 }
