@@ -136,3 +136,4 @@ NOTE: Be sure to merge the latest from upstream before making a pull request!
 If you encounter any issues while using this project or have any questions,
 please open an issue in this repository
 [here](https://github.com/astriaorg/astria/issues).
+
