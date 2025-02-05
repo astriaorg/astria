@@ -37,6 +37,11 @@ genesis:
     - address: astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr
       balance: "69000000"
 
+sequencer:
+  optimisticBlockApis:
+    # set to true to enable optimistic block APIs
+    enabled: false
+
 resources:
   cometbft:
     requests:
