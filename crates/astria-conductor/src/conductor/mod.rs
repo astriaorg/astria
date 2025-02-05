@@ -11,8 +11,7 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use inner::{
-    ConductorInner,
-    InnerHandle,
+    Inner,
     RestartOrShutdown,
 };
 use pin_project_lite::pin_project;
@@ -79,7 +78,7 @@ pub struct Conductor {
     shutdown_token: CancellationToken,
 
     /// Handle for the inner conductor task.
-    inner: InnerHandle,
+    inner: JoinHandle<eyre::Result<RestartOrShutdown>>,
 
     /// Configuration for the conductor, necessary upon a restart.
     cfg: Config,
@@ -95,11 +94,10 @@ impl Conductor {
     /// Returns an error if [`ConductorInner`] could not be created.
     pub fn new(cfg: Config, metrics: &'static Metrics) -> eyre::Result<Self> {
         let shutdown_token = CancellationToken::new();
-        let conductor_inner_handle =
-            ConductorInner::spawn(cfg.clone(), metrics, shutdown_token.child_token())?;
+        let inner = Inner::new(cfg.clone(), metrics, shutdown_token.child_token())?;
         Ok(Self {
             shutdown_token,
-            inner: conductor_inner_handle,
+            inner: tokio::spawn(inner.run_until_stopped()),
             cfg,
             metrics,
         })
@@ -120,13 +118,15 @@ impl Conductor {
     /// inner conductor task.
     #[instrument(skip_all, err)]
     fn restart(&mut self) -> eyre::Result<()> {
-        let new_handle = ConductorInner::spawn(
-            self.cfg.clone(),
-            self.metrics,
-            self.shutdown_token.child_token(),
-        )
-        .wrap_err("failed to instantiate Conductor for restart")?;
-        self.inner = new_handle;
+        self.inner = tokio::spawn(
+            Inner::new(
+                self.cfg.clone(),
+                self.metrics,
+                self.shutdown_token.child_token(),
+            )
+            .wrap_err("failed to instantiate Conductor for restart")?
+            .run_until_stopped(),
+        );
         Ok(())
     }
 
