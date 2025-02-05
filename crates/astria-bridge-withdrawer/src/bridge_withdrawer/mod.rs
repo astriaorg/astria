@@ -37,8 +37,6 @@ use tracing::{
     info,
     instrument,
 };
-use crate::bridge_withdrawer::submitter::frost_signer::initialize_frost_participant_clients;
-use crate::bridge_withdrawer::submitter::frost_signer::FrostSignerBuilder;
 
 pub(crate) use self::state::StateSnapshot;
 use self::{
@@ -48,6 +46,10 @@ use self::{
 };
 use crate::{
     api,
+    bridge_withdrawer::submitter::frost_signer::{
+        initialize_frost_participant_clients,
+        FrostSignerBuilder,
+    },
     config::Config,
     metrics::Metrics,
 };
@@ -74,7 +76,10 @@ impl BridgeWithdrawer {
     /// # Errors
     ///
     /// - If the provided `api_addr` string cannot be parsed as a socket address.
-    pub async fn new(cfg: Config, metrics: &'static Metrics) -> eyre::Result<(Self, ShutdownHandle)> {
+    pub async fn new(
+        cfg: Config,
+        metrics: &'static Metrics,
+    ) -> eyre::Result<(Self, ShutdownHandle)> {
         let shutdown_handle = ShutdownHandle::new();
         let Config {
             api_addr,
@@ -126,30 +131,16 @@ impl BridgeWithdrawer {
         let startup_handle = startup::InfoHandle::new(state.subscribe());
 
         // make submitter object
-        let signer: Box<dyn Signer> = if frost_threshold_signing_enabled {
-            let public_key_package_str= std::fs::read_to_string(frost_public_key_package_path)
-                .wrap_err("failed to read frost public key package")?;
-            let public_key_package =
-            serde_json::from_str::<frost_ed25519::keys::PublicKeyPackage>(&public_key_package_str)
-                .wrap_err("failed to deserialize public key package")?;
-
-            let participant_clients = initialize_frost_participant_clients(frost_participant_endpoints, &public_key_package)
-            .await
-                .wrap_err("failed to initialize frost participant clients")?;
-            Box::new(FrostSignerBuilder::new()
-            .min_signers(frost_min_signers)
-            .public_key_package(public_key_package)
-            .participant_clients(participant_clients)
-            .address_prefix(sequencer_address_prefix)
-            .try_build()
-            .wrap_err("failed to initialize frost signer")?)
-        } else {
-            Box::new(crate::bridge_withdrawer::submitter::signer::SequencerKey::builder()
-            .path(sequencer_key_path)
-            .prefix(sequencer_address_prefix)
-            .try_build()
-            .wrap_err("failed to load sequencer private key")?)
-        };
+        let signer = make_signer(
+            frost_threshold_signing_enabled,
+            frost_min_signers,
+            frost_public_key_package_path,
+            frost_participant_endpoints,
+            sequencer_key_path,
+            sequencer_address_prefix,
+        )
+        .await
+        .wrap_err("failed to create signer")?;
 
         let (submitter, submitter_handle) = submitter::Builder {
             shutdown_token: shutdown_handle.token(),
@@ -160,8 +151,7 @@ impl BridgeWithdrawer {
             state: state.clone(),
             metrics,
         }
-        .build()
-        .wrap_err("failed to initialize submitter")?;
+        .build();
 
         let ethereum_watcher = watcher::Builder {
             ethereum_contract_address,
@@ -289,6 +279,46 @@ impl BridgeWithdrawer {
         };
         shutdown.run().await;
     }
+}
+
+async fn make_signer(
+    frost_threshold_signing_enabled: bool,
+    frost_min_signers: usize,
+    frost_public_key_package_path: String,
+    frost_participant_endpoints: Vec<String>,
+    sequencer_key_path: String,
+    sequencer_address_prefix: String,
+) -> eyre::Result<Box<dyn Signer>> {
+    let signer: Box<dyn Signer> = if frost_threshold_signing_enabled {
+        let public_key_package_str = std::fs::read_to_string(frost_public_key_package_path)
+            .wrap_err("failed to read frost public key package")?;
+        let public_key_package =
+            serde_json::from_str::<frost_ed25519::keys::PublicKeyPackage>(&public_key_package_str)
+                .wrap_err("failed to deserialize public key package")?;
+
+        let participant_clients =
+            initialize_frost_participant_clients(frost_participant_endpoints, &public_key_package)
+                .await
+                .wrap_err("failed to initialize frost participant clients")?;
+        Box::new(
+            FrostSignerBuilder::new()
+                .min_signers(frost_min_signers)
+                .public_key_package(public_key_package)
+                .participant_clients(participant_clients)
+                .address_prefix(sequencer_address_prefix)
+                .try_build()
+                .wrap_err("failed to initialize frost signer")?,
+        )
+    } else {
+        Box::new(
+            crate::bridge_withdrawer::submitter::signer::SequencerKey::builder()
+                .path(sequencer_key_path)
+                .prefix(sequencer_address_prefix)
+                .try_build()
+                .wrap_err("failed to load sequencer private key")?,
+        )
+    };
+    Ok(signer)
 }
 
 #[expect(

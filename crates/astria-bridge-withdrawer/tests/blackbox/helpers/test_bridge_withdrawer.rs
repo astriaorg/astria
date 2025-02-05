@@ -301,7 +301,9 @@ impl TestBridgeWithdrawerConfig {
         let metrics = Box::leak(Box::new(metrics));
 
         let (bridge_withdrawer, bridge_withdrawer_shutdown_handle) =
-            BridgeWithdrawer::new(config.clone(), metrics).await.unwrap();
+            BridgeWithdrawer::new(config.clone(), metrics)
+                .await
+                .unwrap();
         let api_address = bridge_withdrawer.local_addr();
         let bridge_withdrawer = tokio::task::spawn(bridge_withdrawer.run());
 

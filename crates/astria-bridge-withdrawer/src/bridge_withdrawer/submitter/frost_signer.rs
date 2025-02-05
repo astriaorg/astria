@@ -33,6 +33,11 @@ use frost_ed25519::{
     round1,
     Identifier,
 };
+use futures::StreamExt as _;
+use prost::{
+    Message as _,
+    Name as _,
+};
 
 use super::Signer;
 
@@ -40,12 +45,6 @@ pub(crate) async fn initialize_frost_participant_clients(
     endpoints: Vec<String>,
     public_key_package: &PublicKeyPackage,
 ) -> eyre::Result<HashMap<Identifier, FrostParticipantServiceClient<tonic::transport::Channel>>> {
-    // TODO: maybe remove this check, and just check we have >= min_signers in build()
-    ensure!(
-        endpoints.len() == public_key_package.verifying_shares().len(),
-        "number of endpoints does not match number of participants"
-    );
-
     let mut participant_clients = HashMap::new();
     for endpoint in endpoints {
         let mut client = FrostParticipantServiceClient::connect(endpoint)
@@ -150,6 +149,11 @@ impl FrostSignerBuilder {
             .try_build()
             .wrap_err("failed to build address")?;
 
+        ensure!(
+            self.participant_clients.len() == min_signers,
+            "not enough participant clients; need at least {min_signers}"
+        );
+
         Ok(FrostSigner {
             min_signers,
             public_key_package,
@@ -170,98 +174,76 @@ pub(crate) struct FrostSigner {
 #[tonic::async_trait]
 impl Signer for FrostSigner {
     async fn sign(&self, tx: TransactionBody) -> eyre::Result<Transaction> {
-        use futures::StreamExt as _;
-        use prost::{
-            Message as _,
-            Name as _,
-        };
-
-        // part 1
-        let stream = futures::stream::FuturesUnordered::new();
-        for (id, client) in &self.participant_clients {
-            let mut client = client.clone();
-            stream.push(async move {
-                let resp = client.part1(Part1Request {}).await.wrap_err(format!(
-                    "failed to get part 1 commitment for participant with id {:?}",
-                    id
-                ))?;
-                Ok((id, resp.into_inner()))
-            });
-        }
-        let results: Vec<eyre::Result<_>> = stream.collect::<Vec<_>>().await;
-        let mut commitments = Vec::new();
-        let mut signing_package_commitments: BTreeMap<Identifier, round1::SigningCommitments> =
-            BTreeMap::new();
-
-        for res in results {
-            if let Ok((id, part1)) = res {
-                let signing_commitment = round1::SigningCommitments::deserialize(&part1.commitment)
-                    .wrap_err("failed to deserialize signing commitment")?;
-                signing_package_commitments.insert(*id, signing_commitment);
-                commitments.push((id, part1.commitment, part1.request_identifier));
-            };
-        }
+        // part 1: gather commitments from participants
+        let (commitments, signing_package_commitments) = self.frost_part_1().await;
         ensure!(
             commitments.len() >= self.min_signers,
-            "not enough part 1 commitments"
+            "not enough part 1 commitments received; want at least {}, got {}",
+            self.min_signers,
+            commitments.len()
         );
 
-        // part 2
-        let stream = futures::stream::FuturesUnordered::new();
-        let request_commitments: Vec<CommitmentWithIdentifier> = commitments
-            .iter()
-            .map(|(id, commitment, _)| CommitmentWithIdentifier {
-                commitment: commitment.clone(),
-                participant_identifier: id.serialize().to_vec().into(),
-            })
-            .collect();
+        // part 2: get signature shares from participants
+        // let stream = futures::stream::FuturesUnordered::new();
+        // let request_commitments: Vec<CommitmentWithIdentifier> = commitments
+        //     .iter()
+        //     .map(|(id, commitment, _)| CommitmentWithIdentifier {
+        //         commitment: commitment.clone(),
+        //         participant_identifier: id.serialize().into(),
+        //     })
+        //     .collect();
         let tx_bytes = tx.to_raw().encode_to_vec();
-        for (id, _, request_identifier) in commitments {
-            let mut client = self
-                .participant_clients
-                .get(&id)
-                .ok_or_else(|| eyre!("failed to find participant client"))?
-                .clone();
-            let request_commitments = request_commitments.clone();
-            let tx_bytes = tx_bytes.clone();
-            stream.push(async move {
-                let resp = client
-                    .part2(Part2Request {
-                        request_identifier,
-                        message: tx_bytes.into(),
-                        commitments: request_commitments,
-                    })
-                    .await
-                    .wrap_err(format!(
-                        "failed to get part 2 response for participant with id {:?}",
-                        id
-                    ))?;
-                Ok((id, resp.into_inner()))
-            });
-        }
-        let results: Vec<eyre::Result<_>> = stream.collect::<Vec<_>>().await;
-        let mut sig_shares: BTreeMap<Identifier, frost_ed25519::round2::SignatureShare> =
-            BTreeMap::new();
-        for res in results {
-            if let Ok((id, part2)) = res {
-                sig_shares.insert(
-                    *id,
-                    frost_ed25519::round2::SignatureShare::deserialize(&part2.signature_share)
-                        .wrap_err("failed to deserialize signature share")?,
-                );
-            };
-        }
+        let sig_shares = self.frost_part_2(commitments, tx_bytes.clone()).await;
+        // for (id, _, request_identifier) in commitments {
+        //     let mut client = self
+        //         .participant_clients
+        //         .get(&id)
+        //         .ok_or_else(|| eyre!("failed to find participant client"))?
+        //         .clone();
+        //     let request_commitments = request_commitments.clone();
+        //     let tx_bytes = tx_bytes.clone();
+        //     stream.push(async move {
+        //         let resp = client
+        //             .part2(Part2Request {
+        //                 request_identifier,
+        //                 message: tx_bytes.into(),
+        //                 commitments: request_commitments,
+        //             })
+        //             .await
+        //             .wrap_err(format!(
+        //                 "failed to get part 2 response for participant with id {id:?}"
+        //             ))?;
+        //         Ok((id, resp.into_inner()))
+        //     });
+        // }
+        // let results: Vec<eyre::Result<_>> = stream.collect::<Vec<_>>().await;
+        // let sig_shares: BTreeMap<Identifier, frost_ed25519::round2::SignatureShare> = results
+        //     .into_iter()
+        //     .filter_map(|res| match res {
+        //         Ok((id, part2)) => {
+        //             let sig_share =
+        //
+        // frost_ed25519::round2::SignatureShare::deserialize(&part2.signature_share)
+        //                     .ok()?;
+        //             Some((id, sig_share))
+        //         }
+        //         Err(_) => None,
+        //     })
+        //     .collect();
+
         ensure!(
             sig_shares.len() >= self.min_signers,
-            "not enough part 2 signature shares"
+            "not enough part 2 signature shares received; want at least {}, got {}",
+            self.min_signers,
+            sig_shares.len()
         );
 
-        // aggregate and create signature
+        // finally, aggregate and create signature
         let signing_package =
             frost_ed25519::SigningPackage::new(signing_package_commitments, &tx_bytes);
         let signature =
             frost_ed25519::aggregate(&signing_package, &sig_shares, &self.public_key_package)
-                .wrap_err("failed to aggregate")?;
+                .wrap_err("failed to aggregate signature shares")?;
 
         let raw_transaction = astria_core::generated::astria::protocol::transaction::v1::Transaction {
                 body: Some(pbjson_types::Any {
@@ -279,12 +261,104 @@ impl Signer for FrostSigner {
                     .into(),
             };
         let transaction = Transaction::try_from_raw(raw_transaction)
-            .wrap_err("failed to convert to transaction")?;
+            .wrap_err("failed to convert raw transaction to transaction")?;
 
         Ok(transaction)
     }
 
     fn address(&self) -> &Address {
         &self.address
+    }
+}
+
+impl FrostSigner {
+    async fn frost_part_1(
+        &self,
+    ) -> (
+        Vec<(Identifier, axum::body::Bytes, u32)>,
+        BTreeMap<Identifier, round1::SigningCommitments>,
+    ) {
+        let stream = futures::stream::FuturesUnordered::new();
+        for (id, client) in &self.participant_clients {
+            let mut client = client.clone();
+            stream.push(async move {
+                let resp = client.part1(Part1Request {}).await.wrap_err(format!(
+                    "failed to get part 1 response for participant with id {id:?}"
+                ))?;
+                Ok((id, resp.into_inner()))
+            });
+        }
+        let results: Vec<eyre::Result<_>> = stream.collect::<Vec<_>>().await;
+        let mut signing_package_commitments: BTreeMap<Identifier, round1::SigningCommitments> =
+            BTreeMap::new();
+
+        let commitments = results
+            .into_iter()
+            .filter_map(|res| match res {
+                Ok((id, part1)) => {
+                    let signing_commitment =
+                        round1::SigningCommitments::deserialize(&part1.commitment).ok()?;
+                    signing_package_commitments.insert(*id, signing_commitment);
+                    Some((*id, part1.commitment, part1.request_identifier))
+                }
+                Err(_) => None,
+            })
+            .collect::<Vec<_>>();
+        (commitments, signing_package_commitments)
+    }
+
+    async fn frost_part_2(
+        &self,
+        commitments: Vec<(Identifier, axum::body::Bytes, u32)>,
+        tx_bytes: Vec<u8>,
+    ) -> BTreeMap<Identifier, frost_ed25519::round2::SignatureShare> {
+        let stream = futures::stream::FuturesUnordered::new();
+        let request_commitments: Vec<CommitmentWithIdentifier> = commitments
+            .iter()
+            .map(|(id, commitment, _)| CommitmentWithIdentifier {
+                commitment: commitment.clone(),
+                participant_identifier: id.serialize().into(),
+            })
+            .collect();
+        for (id, _, request_identifier) in commitments {
+            let mut client = self
+                .participant_clients
+                .get(&id)
+                .expect(
+                    "participant client must exist in mapping, as we received a commitment from \
+                     them in part 1, meaning we already have their client",
+                )
+                .clone();
+            let request_commitments = request_commitments.clone();
+            let tx_bytes = tx_bytes.clone();
+            stream.push(async move {
+                let resp = client
+                    .part2(Part2Request {
+                        request_identifier,
+                        message: tx_bytes.into(),
+                        commitments: request_commitments,
+                    })
+                    .await
+                    .wrap_err(format!(
+                        "failed to get part 2 response for participant with id {id:?}"
+                    ))?;
+                Ok((id, resp.into_inner()))
+            });
+        }
+        let results: Vec<eyre::Result<_>> = stream.collect::<Vec<_>>().await;
+        let sig_shares: BTreeMap<Identifier, frost_ed25519::round2::SignatureShare> = results
+            .into_iter()
+            .filter_map(|res| match res {
+                Ok((id, part2)) => {
+                    let sig_share =
+                        frost_ed25519::round2::SignatureShare::deserialize(&part2.signature_share)
+                            .ok()?;
+                    Some((id, sig_share))
+                }
+                Err(_) => None,
+            })
+            .collect();
+
+        sig_shares
     }
 }

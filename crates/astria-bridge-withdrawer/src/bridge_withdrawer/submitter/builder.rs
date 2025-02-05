@@ -58,7 +58,7 @@ pub(crate) struct Builder {
 
 impl Builder {
     /// Instantiates an `Submitter`.
-    pub(crate) fn build(self) -> eyre::Result<(super::Submitter, Handle)> {
+    pub(crate) fn build(self) -> (super::Submitter, Handle) {
         let Self {
             shutdown_token,
             startup_handle,
@@ -74,7 +74,7 @@ impl Builder {
         let (batches_tx, batches_rx) = tokio::sync::mpsc::channel(BATCH_QUEUE_SIZE);
         let handle = Handle::new(batches_tx);
 
-        Ok((
+        (
             super::Submitter {
                 shutdown_token,
                 startup_handle,
@@ -86,6 +86,6 @@ impl Builder {
                 metrics,
             },
             handle,
-        ))
+        )
     }
 }
