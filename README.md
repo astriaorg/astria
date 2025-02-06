@@ -123,7 +123,6 @@ docker run -v $PWD:/workdir davidanson/markdownlint-cli2:v0.8.1
 Pull requests should be created against the `main` branch. In general, we follow
 the "fork-and-pull" Git workflow.
 
-
 1. Fork the repo on GitHub
 2. Clone the project to your own machine
 3. Commit changes to your own branch
