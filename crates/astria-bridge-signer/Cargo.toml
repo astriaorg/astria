@@ -1,0 +1,33 @@
+[package]
+name = "astria-bridge-signer"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.83.0"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/astriaorg/astria"
+homepage = "https://astria.org"
+
+[dependencies]
+frost-ed25519 = { version = "2.1.0", features = [] }
+
+futures = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true, features = ["macros", "signal"] }
+tonic = { workspace = true }
+
+astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
+astria-core = { path = "../astria-core", features = [
+  "serde",
+  "server",
+] }
+astria-eyre = { path = "../astria-eyre" }
+config = { package = "astria-config", path = "../astria-config" }
+telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
+  "display",
+] }
+
+[build-dependencies]
+astria-build-info = { path = "../astria-build-info", features = ["build"] }
