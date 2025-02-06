@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added transaction status ABCI query [#1955](https://github.com/astriaorg/astria/pull/1955).
+
 ### Changed
 
 - Bump MSRV to 1.83.0 [#1857](https://github.com/astriaorg/astria/pull/1857).
@@ -20,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Use bridge address to determine asset in bridge unlock cost estimation instead
 of signer [#1905](https://github.com/astriaorg/astria/pull/1905).
 - Add more thorough unit tests for all actions [#1916](https://github.com/astriaorg/astria/pull/1916).
+- Change sequencer client to poll transaction status ABCI query so that it doesn't
+loop indefinitely [#1955](https://github.com/astriaorg/astria/pull/1955).
 
 ## [1.0.0] - 2024-10-25
 

@@ -521,7 +521,7 @@ impl ::prost::Name for TransactionParams {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TransactionStatusResponse {
-    #[prost(enumeration = "TransactionStatus", tag = "2")]
+    #[prost(enumeration = "TransactionStatus", tag = "1")]
     pub status: i32,
 }
 impl ::prost::Name for TransactionStatusResponse {

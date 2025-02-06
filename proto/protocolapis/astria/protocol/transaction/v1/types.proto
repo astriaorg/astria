@@ -4,7 +4,7 @@ package astria.protocol.transaction.v1;
 
 // The response payload for a `transaction/status` ABCI query
 message TransactionStatusResponse {
-  TransactionStatus status = 2;
+  TransactionStatus status = 1;
 }
 
 enum TransactionStatus {
