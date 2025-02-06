@@ -11,7 +11,9 @@ homepage = "https://astria.org"
 [dependencies]
 frost-ed25519 = { version = "2.1.0", features = [] }
 
+ethers = { workspace = true }
 futures = { workspace = true }
+prost = { workspace = true }
 rand = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
