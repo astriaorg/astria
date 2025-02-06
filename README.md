@@ -52,10 +52,10 @@ just docker-build <CRATE> <TAG=local>
 # Replace CRATE with what the target binary is ie `astria-sequencer`
 # TAG defaults to `local` but can be changed.
 
-# this command will build a local image tagged as 'astria-sequencer:local' 
+# this command will build a local image tagged as 'astria-sequencer:local'
 just docker-build astria-sequencer
 
-# this command will build a local image tagged as 'astria-sequencer:debug' 
+# this command will build a local image tagged as 'astria-sequencer:debug'
 just docker-build astria-sequencer debug
 ```
 
@@ -123,6 +123,7 @@ docker run -v $PWD:/workdir davidanson/markdownlint-cli2:v0.8.1
 Pull requests should be created against the `main` branch. In general, we follow
 the "fork-and-pull" Git workflow.
 
+
 1. Fork the repo on GitHub
 2. Clone the project to your own machine
 3. Commit changes to your own branch
@@ -136,5 +137,3 @@ NOTE: Be sure to merge the latest from upstream before making a pull request!
 If you encounter any issues while using this project or have any questions,
 please open an issue in this repository
 [here](https://github.com/astriaorg/astria/issues).
-
-Test
