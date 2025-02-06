@@ -183,54 +183,8 @@ impl Signer for FrostSigner {
             commitments.len()
         );
 
-        // part 2: get signature shares from participants
-        // let stream = futures::stream::FuturesUnordered::new();
-        // let request_commitments: Vec<CommitmentWithIdentifier> = commitments
-        //     .iter()
-        //     .map(|(id, commitment, _)| CommitmentWithIdentifier {
-        //         commitment: commitment.clone(),
-        //         participant_identifier: id.serialize().into(),
-        //     })
-        //     .collect();
         let tx_bytes = tx.to_raw().encode_to_vec();
         let sig_shares = self.frost_part_2(commitments, tx_bytes.clone()).await;
-        // for (id, _, request_identifier) in commitments {
-        //     let mut client = self
-        //         .participant_clients
-        //         .get(&id)
-        //         .ok_or_else(|| eyre!("failed to find participant client"))?
-        //         .clone();
-        //     let request_commitments = request_commitments.clone();
-        //     let tx_bytes = tx_bytes.clone();
-        //     stream.push(async move {
-        //         let resp = client
-        //             .part2(Part2Request {
-        //                 request_identifier,
-        //                 message: tx_bytes.into(),
-        //                 commitments: request_commitments,
-        //             })
-        //             .await
-        //             .wrap_err(format!(
-        //                 "failed to get part 2 response for participant with id {id:?}"
-        //             ))?;
-        //         Ok((id, resp.into_inner()))
-        //     });
-        // }
-        // let results: Vec<eyre::Result<_>> = stream.collect::<Vec<_>>().await;
-        // let sig_shares: BTreeMap<Identifier, frost_ed25519::round2::SignatureShare> = results
-        //     .into_iter()
-        //     .filter_map(|res| match res {
-        //         Ok((id, part2)) => {
-        //             let sig_share =
-        //
-        // frost_ed25519::round2::SignatureShare::deserialize(&part2.signature_share)
-        //                     .ok()?;
-        //             Some((id, sig_share))
-        //         }
-        //         Err(_) => None,
-        //     })
-        //     .collect();
-
         ensure!(
             sig_shares.len() >= self.min_signers,
             "not enough part 2 signature shares received; want at least {}, got {}",

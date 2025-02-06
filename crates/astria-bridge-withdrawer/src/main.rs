@@ -41,7 +41,7 @@ async fn main() -> ExitCode {
         .wrap_err("failed to setup telemetry")
     {
         Err(e) => {
-            eprintln!("initializing conductor failed:\n{e:?}");
+            eprintln!("initializing bridge withdrawer failed:\n{e:?}");
             return ExitCode::FAILURE;
         }
         Ok(metrics_and_guard) => metrics_and_guard,
@@ -49,7 +49,7 @@ async fn main() -> ExitCode {
 
     info!(
         config = serde_json::to_string(&cfg).expect("serializing to a string cannot fail"),
-        "initializing conductor"
+        "initializing bridge withdrawer"
     );
 
     let mut sigterm = signal(SignalKind::terminate())
