@@ -3,6 +3,7 @@ use std::process::ExitCode;
 use astria_bridge_signer::{
     Config,
     Server,
+    Verifier,
     BUILD_INFO,
 };
 use astria_core::generated::astria::signer::v1::frost_participant_service_server::FrostParticipantServiceServer;
@@ -53,11 +54,15 @@ async fn main() -> ExitCode {
         "initializing bridge withdrawer"
     );
 
-    let server = match Server::new(
-        cfg.frost_public_key_package_path,
-        cfg.frost_secret_key_package_path,
-        metrics,
-    ) {
+    let verifier = match Verifier::new(cfg.rollup_rpc_endpoint) {
+        Err(error) => {
+            error!(%error, "failed initializing bridge signer verifier");
+            return ExitCode::FAILURE;
+        }
+        Ok(verifier) => verifier,
+    };
+
+    let server = match Server::new(cfg.frost_secret_key_package_path, verifier, metrics) {
         Err(error) => {
             error!(%error, "failed initializing bridge signer gRPC server");
             return ExitCode::FAILURE;

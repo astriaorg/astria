@@ -26,7 +26,10 @@ use tonic::{
     Status,
 };
 
-use crate::metrics::Metrics;
+use crate::{
+    metrics::Metrics,
+    Verifier,
+};
 
 struct State {
     next_request_id: u32,
@@ -42,16 +45,16 @@ impl State {
 }
 
 pub struct Server {
+    verifier: Verifier,
     metrics: &'static Metrics,
     secret_package: frost_ed25519::keys::KeyPackage,
-    public_package: frost_ed25519::keys::PublicKeyPackage,
     state: Mutex<State>,
 }
 
 impl Server {
     pub fn new(
-        public_key_package_path: String,
         secret_key_package_path: String,
+        verifier: Verifier,
         metrics: &'static Metrics,
     ) -> eyre::Result<Self> {
         let secret_package = serde_json::from_slice::<frost_ed25519::keys::KeyPackage>(
@@ -59,16 +62,11 @@ impl Server {
                 .wrap_err("failed to read secret key package file")?,
         )
         .wrap_err("failed to deserialize secret key package")?;
-        let public_package = serde_json::from_slice::<frost_ed25519::keys::PublicKeyPackage>(
-            &std::fs::read(public_key_package_path)
-                .wrap_err("failed to read public key package file")?,
-        )
-        .wrap_err("failed to deserialize public key package")?;
 
         Ok(Self {
+            verifier,
             metrics,
             secret_package,
-            public_package,
             state: Mutex::new(State {
                 next_request_id: 0,
                 request_id_to_nonces: HashMap::new(),
