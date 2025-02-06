@@ -2,7 +2,7 @@
 exclude = ["tools/protobuf-compiler", "tools/solidity-compiler"]
 
 members = [
-  "crates/astria-bridge-contracts",
+  "crates/astria-bridge-contracts", "crates/astria-bridge-signer",
   "crates/astria-bridge-withdrawer",
   "crates/astria-build-info",
   "crates/astria-cli",

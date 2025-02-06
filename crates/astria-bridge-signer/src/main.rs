@@ -1,20 +1,18 @@
 use std::process::ExitCode;
 
-use astria_bridge_withdrawer::{
-    BridgeWithdrawer,
+use astria_bridge_signer::{
     Config,
+    Server,
     BUILD_INFO,
 };
+use astria_core::generated::astria::signer::v1::frost_participant_service_server::FrostParticipantServiceServer;
 use astria_eyre::eyre::WrapErr as _;
+use futures::TryFutureExt as _;
 use tokio::signal::unix::{
     signal,
     SignalKind,
 };
-use tracing::{
-    error,
-    info,
-    warn,
-};
+use tracing::info;
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -41,7 +39,7 @@ async fn main() -> ExitCode {
         .wrap_err("failed to setup telemetry")
     {
         Err(e) => {
-            eprintln!("initializing bridge withdrawer failed:\n{e:?}");
+            eprintln!("initializing bridge signer failed:\n{e:?}");
             return ExitCode::FAILURE;
         }
         Ok(metrics_and_guard) => metrics_and_guard,
@@ -54,32 +52,26 @@ async fn main() -> ExitCode {
 
     let mut sigterm = signal(SignalKind::terminate())
         .expect("setting a SIGTERM listener should always work on Unix");
-    let (withdrawer, shutdown_handle) = match BridgeWithdrawer::new(cfg, metrics).await {
-        Err(error) => {
-            error!(%error, "failed initializing bridge withdrawer");
-            return ExitCode::FAILURE;
-        }
-        Ok(handles) => handles,
-    };
-    let withdrawer_handle = tokio::spawn(withdrawer.run());
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+    let grpc_server = tonic::transport::Server::builder()
+        .add_service(FrostParticipantServiceServer::new(Server::new(metrics)));
 
-    let shutdown_token = shutdown_handle.token();
+    let grpc_addr: std::net::SocketAddr = cfg
+        .grpc_endpoint
+        .parse()
+        .expect("should be able to parse grpc_endpoint");
+    info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
+    tokio::task::spawn(
+        grpc_server.serve_with_shutdown(grpc_addr, shutdown_rx.unwrap_or_else(|_| ())),
+    );
+
     tokio::select!(
         _ = sigterm.recv() => {
-            // We don't care about the result (i.e. whether there could be more SIGTERM signals
-            // incoming); we just want to shut down as soon as we receive the first `SIGTERM`.
             info!("received SIGTERM, issuing shutdown to all services");
-            shutdown_handle.shutdown();
-        }
-        () = shutdown_token.cancelled() => {
-            warn!("stopped waiting for SIGTERM");
+            let _  = shutdown_tx.send(());
         }
     );
 
-    if let Err(error) = withdrawer_handle.await {
-        error!(%error, "failed to join main withdrawer task");
-    }
-
-    info!("withdrawer stopped");
+    info!("bridge signer stopped");
     ExitCode::SUCCESS
 }
