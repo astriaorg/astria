@@ -52,6 +52,7 @@ pub(super) struct Auctioneer {
     block_commitments: BlockCommitmentStream,
     bids: BidStream,
     cancelled_auctions: FuturesUnordered<auction::Auction>,
+    metrics: &'static crate::Metrics,
     executed_blocks: ExecuteOptimisticBlockStream,
     running_auction: Option<auction::Auction>,
     optimistic_blocks: OptimisticBlockStream,
@@ -61,7 +62,11 @@ pub(super) struct Auctioneer {
 
 impl Auctioneer {
     /// Creates an [`Auctioneer`] service from a [`Config`].
-    pub(super) fn new(config: Config, shutdown_token: CancellationToken) -> eyre::Result<Self> {
+    pub(super) fn new(
+        config: Config,
+        metrics: &'static crate::Metrics,
+        shutdown_token: CancellationToken,
+    ) -> eyre::Result<Self> {
         let Config {
             sequencer_grpc_endpoint,
             sequencer_abci_endpoint,
@@ -100,6 +105,7 @@ impl Auctioneer {
             rollup_id,
             cancellation_token: shutdown_token.child_token(),
             last_successful_nonce: None,
+            metrics,
         };
 
         Ok(Self {
@@ -108,6 +114,7 @@ impl Auctioneer {
             bids: rollup_channel.open_bid_stream(),
             cancelled_auctions: FuturesUnordered::new(),
             executed_blocks: rollup_channel.open_execute_optimistic_block_stream(),
+            metrics,
             optimistic_blocks: sequencer_channel.open_get_optimistic_block_stream(rollup_id),
             rollup_id,
             running_auction: None,
@@ -187,9 +194,9 @@ impl Auctioneer {
             nonce_used, ..
         }) = &res
         {
+            self.metrics.increment_auctions_submitted_count();
             self.auction_factory.set_last_successful_nonce(*nonce_used);
         }
-
         let _ = self.running_auction.take();
         res
     }
@@ -215,14 +222,16 @@ impl Auctioneer {
     ) -> eyre::Result<()> {
         let optimistic_block =
             optimistic_block.wrap_err("encountered problem receiving optimistic block message")?;
-
         Span::current().record("block_hash", field::display(optimistic_block.block_hash()));
+
+        self.metrics.increment_optimistic_blocks_received_counter();
 
         let new_auction = self.auction_factory.start_new(&optimistic_block);
         info!(auction_id = %new_auction.id(), "started new auction");
 
         if let Some(old_auction) = self.running_auction.replace(new_auction) {
             old_auction.cancel();
+            self.metrics.increment_auctions_cancelled_count();
             info!(auction_id = %old_auction.id(), "cancelled running auction");
             self.cancelled_auctions.push(old_auction);
         }
@@ -246,6 +255,8 @@ impl Auctioneer {
     ) -> eyre::Result<()> {
         let block_commitment = commitment.wrap_err("failed to receive block commitment")?;
         Span::current().record("block_hash", field::display(block_commitment.block_hash()));
+
+        self.metrics.increment_block_commitments_received_counter();
 
         if let Some(running_auction) = &mut self.running_auction {
             running_auction
@@ -272,6 +283,9 @@ impl Auctioneer {
             "block_hash",
             field::display(executed_block.sequencer_block_hash()),
         );
+
+        self.metrics.increment_executed_blocks_received_counter();
+
         if let Some(running_auction) = &mut self.running_auction {
             running_auction
                 .start_bids(executed_block)
@@ -296,6 +310,9 @@ impl Auctioneer {
             "block_hash",
             field::display(bid.sequencer_parent_block_hash()),
         );
+
+        self.metrics.increment_auction_bids_received_counter();
+
         if let Some(running_auction) = &mut self.running_auction {
             running_auction
                 .forward_bid_to_auction(bid)

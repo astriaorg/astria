@@ -79,6 +79,7 @@ pub(super) struct Worker {
     /// submitted). Is usually only unset if no auction was yet submitted (for example
     /// at the beginning of the program).
     pub(super) last_successful_nonce: Option<u32>,
+    pub(super) metrics: &'static crate::Metrics,
 }
 
 impl Worker {
@@ -183,6 +184,8 @@ impl Worker {
         let mut auction_is_open = false;
 
         let mut nonce_fetch = None;
+
+        self.metrics.reset_auction_bids_admitted_gauge();
         #[expect(
             clippy::semicolon_if_nothing_returned,
             reason = "we want to pattern match on the latency timer's return value"
@@ -197,6 +200,9 @@ impl Worker {
                         .await
                 }, if latency_margin_timer.is_some() => {
                     info!("timer is up; bids left unprocessed: {}", self.bids.len());
+
+                    self.metrics.set_auction_bids_dropped_gauge(self.bids.len());
+
                     break Ok(AuctionItems {
                         winner: allocation_rule.winner(),
                         nonce_fetch,
@@ -245,9 +251,13 @@ impl Worker {
                 // TODO: this is an unbounded channel. Can we process multiple bids at a time?
                 Some(bid) = self.bids.recv(), if auction_is_open => {
                     allocation_rule.bid(&bid);
+                    self.metrics.increment_auction_bids_admitted_gauge();
                 }
 
-                else => break Err(Error::ChannelsClosed),
+                else => {
+                    self.metrics.set_auction_bids_dropped_gauge(self.bids.len());
+                    break Err(Error::ChannelsClosed);
+                }
             }
         }
     }

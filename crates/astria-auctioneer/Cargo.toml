@@ -12,11 +12,9 @@ homepage = "https://astria.org"
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 astria-core = { path = "../astria-core", features = ["serde", "client"] }
 astria-eyre = { path = "../astria-eyre" }
+astria-telemetry = { path = "../astria-telemetry", features = ["display"] }
 config = { package = "astria-config", path = "../astria-config" }
 sequencer_client = { package = "astria-sequencer-client", path = "../astria-sequencer-client" }
-telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
-  "display",
-] }
 
 base64 = { workspace = true }
 bytes = { workspace = true }

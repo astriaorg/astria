@@ -42,6 +42,7 @@ pub(in crate::auctioneer) struct Factory {
     /// nonce from Sequencer in time. Starts unset at the beginning of the program and
     /// is set externally via `Factory::set_last_succesful_nonce`.
     pub(in crate::auctioneer) last_successful_nonce: Option<u32>,
+    pub(in crate::auctioneer) metrics: &'static crate::Metrics,
 }
 
 impl Factory {
@@ -70,6 +71,7 @@ impl Factory {
             rollup_id: self.rollup_id,
             cancellation_token: cancellation_token.clone(),
             last_successful_nonce: self.last_successful_nonce,
+            metrics: self.metrics,
         };
 
         Auction {

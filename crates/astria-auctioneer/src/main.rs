@@ -28,7 +28,7 @@ use tracing::{
 async fn main() -> ExitCode {
     astria_eyre::install().expect("astria eyre hook must be the first hook installed");
 
-    eprintln!("{}", telemetry::display::json(&BUILD_INFO));
+    eprintln!("{}", astria_telemetry::display::json(&BUILD_INFO));
 
     let cfg: Config = match config::get() {
         Err(err) => {
@@ -39,23 +39,23 @@ async fn main() -> ExitCode {
     };
     eprintln!(
         "starting with configuration:\n{}",
-        telemetry::display::json(&cfg),
+        astria_telemetry::display::json(&cfg),
     );
 
-    let mut telemetry_conf = telemetry::configure()
+    let mut astria_telemetry_conf = astria_telemetry::configure()
         .set_no_otel(cfg.no_otel)
         .set_force_stdout(cfg.force_stdout)
         .set_pretty_print(cfg.pretty_print)
         .set_filter_directives(&cfg.log);
 
     if !cfg.no_metrics {
-        telemetry_conf =
-            telemetry_conf.set_metrics(&cfg.metrics_http_listener_addr, env!("CARGO_PKG_NAME"));
+        astria_telemetry_conf = astria_telemetry_conf
+            .set_metrics(&cfg.metrics_http_listener_addr, env!("CARGO_PKG_NAME"));
     }
 
-    let (metrics, _telemetry_guard) = match telemetry_conf
+    let (metrics, _astria_telemetry_guard) = match astria_telemetry_conf
         .try_init(&())
-        .wrap_err("failed to setup telemetry")
+        .wrap_err("failed to setup astria_telemetry")
     {
         Err(e) => {
             eprintln!("initializing auctioneer failed:\n{e:?}");
