@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    error::Error as _,
+    time::Duration,
+};
 
 use astria_core::{
     crypto::SigningKey,
@@ -6,11 +9,16 @@ use astria_core::{
         asset::v1::AllowedFeeAssetsResponse,
         fees::v1::TransactionFee,
     },
-    primitive::v1::Address,
+    primitive::v1::{
+        Address,
+        TransactionId,
+    },
     protocol::transaction::v1::{
         action::Transfer,
         Transaction,
         TransactionBody,
+        TransactionStatus,
+        TransactionStatusResponse,
     },
     Protobuf as _,
 };
@@ -23,8 +31,6 @@ use tendermint::{
         Code,
     },
     block::Height,
-    merkle,
-    tx::Proof,
     Hash,
 };
 use tendermint_rpc::{
@@ -87,11 +93,15 @@ impl MockSequencer {
 async fn register_abci_query_response(
     server: &MockServer,
     query_path: &str,
+    log: Option<&str>,
     raw: impl prost::Message,
+    expect: impl Into<wiremock::Times>,
+    up_to_n_times: u64,
 ) -> MockGuard {
     let response = tendermint_rpc::endpoint::abci_query::Response {
         response: tendermint_rpc::endpoint::abci_query::AbciQuery {
             value: raw.encode_to_vec(),
+            log: log.unwrap_or_default().into(),
             ..Default::default()
         },
     };
@@ -105,7 +115,8 @@ async fn register_abci_query_response(
             .set_body_json(&wrapper)
             .append_header("Content-Type", "application/json"),
     )
-    .expect(1)
+    .expect(expect)
+    .up_to_n_times(up_to_n_times)
     .mount_as_scoped(server)
     .await
 }
@@ -182,7 +193,10 @@ async fn get_latest_nonce() {
     let _guard = register_abci_query_response(
         &server,
         &format!("accounts/nonce/{}", alice_address()),
+        None,
         expected_response.clone(),
+        1,
+        1,
     )
     .await;
 
@@ -216,7 +230,10 @@ async fn get_latest_balance() {
     let _guard = register_abci_query_response(
         &server,
         &format!("accounts/balance/{}", alice_address()),
+        None,
         expected_response.clone(),
+        1,
+        1,
     )
     .await;
 
@@ -248,7 +265,10 @@ async fn get_allowed_fee_assets() {
     let _guard = register_abci_query_response(
         &server,
         "asset/allowed_fee_assets",
+        None,
         expected_response.clone(),
+        1,
+        1,
     )
     .await;
 
@@ -278,9 +298,15 @@ async fn get_bridge_account_info() {
         withdrawer_address: Some(alice_address().into_raw()),
     };
 
-    let _guard =
-        register_abci_query_response(&server, "bridge/account_info", expected_response.clone())
-            .await;
+    let _guard = register_abci_query_response(
+        &server,
+        "bridge/account_info",
+        None,
+        expected_response.clone(),
+        1,
+        1,
+    )
+    .await;
 
     let actual_response = client
         .get_bridge_account_info(alice_address())
@@ -308,7 +334,10 @@ async fn get_bridge_account_last_transaction_hash() {
     let _guard = register_abci_query_response(
         &server,
         "bridge/account_last_tx_hash",
+        None,
         expected_response.clone(),
+        1,
+        1,
     )
     .await;
 
@@ -338,8 +367,15 @@ async fn get_transaction_fee() {
         }],
     };
 
-    let _guard =
-        register_abci_query_response(&server, "transaction/fee", expected_response.clone()).await;
+    let _guard = register_abci_query_response(
+        &server,
+        "transaction/fee",
+        None,
+        expected_response.clone(),
+        1,
+        1,
+    )
+    .await;
 
     let actual_response = client
         .get_transaction_fee(create_signed_transaction().into_unsigned())
@@ -374,24 +410,15 @@ async fn submit_tx_sync() {
 }
 
 #[tokio::test]
-async fn wait_for_tx_inclusion() {
+async fn confirm_tx_inclusion_works_as_expected() {
     let MockSequencer {
         server,
         client,
     } = MockSequencer::start().await;
-    let proof = Proof {
-        root_hash: Hash::Sha256([0; 32]),
-        data: vec![1, 2, 3, 4],
-        proof: merkle::Proof {
-            total: 1,
-            index: 1,
-            leaf_hash: Hash::Sha256([0; 32]),
-            aunts: vec![],
-        },
-    };
+    let tx_id = TransactionId::new([0; 32]);
 
     let tx_server_response = tx::Response {
-        hash: Hash::Sha256([0; 32]),
+        hash: Hash::Sha256(tx_id.get()),
         height: Height::try_from(1u64).unwrap(),
         index: 1,
         tx_result: abci::types::ExecTxResult {
@@ -405,19 +432,251 @@ async fn wait_for_tx_inclusion() {
             codespace: String::new(),
         },
         tx: vec![],
-        proof: Some(proof),
+        proof: None,
     };
+
+    let tx_status_response = TransactionStatusResponse {
+        status: TransactionStatus::RemovalCache,
+    };
+
+    let _tx_status_guard = register_abci_query_response(
+        &server,
+        &format!("transaction/status/{tx_id}"),
+        None,
+        tx_status_response.to_raw().clone(),
+        1,
+        1,
+    )
+    .await;
 
     let _tx_response_guard = register_tx_response(&server, tx_server_response.clone()).await;
 
-    let response = client.wait_for_tx_inclusion(tx_server_response.hash);
+    let response = client.confirm_tx_inclusion(tx_server_response.hash);
 
     let response = timeout(Duration::from_millis(1000), response)
         .await
-        .expect("should have received a transaction response within 1000ms");
+        .expect("should have received a transaction response within 1000ms")
+        .unwrap();
 
     assert_eq!(response.tx_result.code, tx_server_response.tx_result.code);
     assert_eq!(response.tx_result.data, tx_server_response.tx_result.data);
     assert_eq!(response.tx_result.log, tx_server_response.tx_result.log);
     assert_eq!(response.hash, tx_server_response.hash);
+}
+
+/// Simulates a unknown -> parked -> pending -> confirmed transaction flow in the appside mempool.
+/// `confirm_tx_inclusion` should continue looping with a backoff until the transaction is
+/// confirmed.
+#[tokio::test]
+async fn confirm_tx_inclusion_loops_when_parked_or_pending() {
+    let MockSequencer {
+        server,
+        client,
+    } = MockSequencer::start().await;
+    let tx_id = TransactionId::new([0; 32]);
+
+    let tx_server_response = tx::Response {
+        hash: Hash::Sha256(tx_id.get()),
+        height: Height::try_from(1u64).unwrap(),
+        index: 1,
+        tx_result: abci::types::ExecTxResult {
+            code: Code::default(),
+            data: Bytes::from(vec![1, 2, 3, 4]),
+            log: "ethan was here".to_string(),
+            info: String::new(),
+            gas_wanted: 0,
+            gas_used: 0,
+            events: vec![],
+            codespace: String::new(),
+        },
+        tx: vec![],
+        proof: None,
+    };
+
+    // Spawn `confirm_tx_inclusion` task.
+    let response_handle =
+        tokio::spawn(async move { client.confirm_tx_inclusion(tx_server_response.hash).await });
+
+    // First mount responds with `UNKNOWN` once
+    let unknown_tx_status_response = TransactionStatusResponse {
+        status: TransactionStatus::Unknown,
+    };
+    let unknown_tx_status_guard = register_abci_query_response(
+        &server,
+        &format!("transaction/status/{tx_id}"),
+        None,
+        unknown_tx_status_response.to_raw().clone(),
+        1,
+        1,
+    )
+    .await;
+
+    // Await satisfaction of `UNKNOWN` mount before mounting `PARKED` response
+    timeout(
+        Duration::from_millis(500),
+        unknown_tx_status_guard.wait_until_satisfied(),
+    )
+    .await
+    .expect("should have received tx status request within 500ms");
+
+    // Responds with `PARKED` twice
+    let parked_tx_status_response = TransactionStatusResponse {
+        status: TransactionStatus::Parked,
+    };
+    let parked_tx_status_guard = register_abci_query_response(
+        &server,
+        &format!("transaction/status/{tx_id}"),
+        None,
+        parked_tx_status_response.to_raw().clone(),
+        2,
+        2,
+    )
+    .await;
+
+    // Await satisfaction of `PARKED` mount before mounting `PENDING` response
+    timeout(
+        Duration::from_millis(1000),
+        parked_tx_status_guard.wait_until_satisfied(),
+    )
+    .await
+    .expect("should have received 2 tx status requests within 1000ms");
+
+    // Responds with `PENDING` twice
+    let pending_tx_status_response = TransactionStatusResponse {
+        status: TransactionStatus::Pending,
+    };
+    let pending_tx_status_guard = register_abci_query_response(
+        &server,
+        &format!("transaction/status/{tx_id}"),
+        None,
+        pending_tx_status_response.to_raw().clone(),
+        2,
+        2,
+    )
+    .await;
+
+    // Await satisfaction of `PENDING` mount before mounting `REMOVAL_CACHE` response. Note the
+    // timeout increases here due to the backoff in `confirm_tx_inclusion`
+    timeout(
+        Duration::from_millis(2000),
+        pending_tx_status_guard.wait_until_satisfied(),
+    )
+    .await
+    .expect("should have received 2 tx status requests within 2000ms");
+
+    // Mount final response with status `REMOVAL_CACHE` to prompt `tx` call to CometBFT
+    let removal_cache_tx_status_response = TransactionStatusResponse {
+        status: TransactionStatus::RemovalCache,
+    };
+
+    let _removal_cache_tx_status_guard = register_abci_query_response(
+        &server,
+        &format!("transaction/status/{tx_id}"),
+        None,
+        removal_cache_tx_status_response.to_raw().clone(),
+        1,
+        1,
+    )
+    .await;
+
+    // Mount CometBFT `tx` response
+    let _tx_response_guard = register_tx_response(&server, tx_server_response.clone()).await;
+
+    let response = timeout(Duration::from_millis(2000), response_handle)
+        .await
+        .expect("should have received a transaction response within 2000ms")
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(response.tx_result.code, tx_server_response.tx_result.code);
+    assert_eq!(response.tx_result.data, tx_server_response.tx_result.data);
+    assert_eq!(response.tx_result.log, tx_server_response.tx_result.log);
+    assert_eq!(response.hash, tx_server_response.hash);
+}
+
+#[tokio::test]
+async fn confirm_tx_inclusion_fails_after_unknown_for_too_long() {
+    let MockSequencer {
+        server,
+        client,
+    } = MockSequencer::start().await;
+    let tx_id = TransactionId::new([0; 32]);
+
+    let tx_server_response = tx::Response {
+        hash: Hash::Sha256(tx_id.get()),
+        height: Height::try_from(1u64).unwrap(),
+        index: 1,
+        tx_result: abci::types::ExecTxResult {
+            code: Code::default(),
+            data: Bytes::from(vec![1, 2, 3, 4]),
+            log: "ethan was here".to_string(),
+            info: String::new(),
+            gas_wanted: 0,
+            gas_used: 0,
+            events: vec![],
+            codespace: String::new(),
+        },
+        tx: vec![],
+        proof: None,
+    };
+
+    let unknown_tx_status_response = TransactionStatusResponse {
+        status: TransactionStatus::Unknown,
+    };
+    let _unknown_tx_status_guard = register_abci_query_response(
+        &server,
+        &format!("transaction/status/{tx_id}"),
+        None,
+        unknown_tx_status_response.to_raw().clone(),
+        1..,
+        100,
+    )
+    .await;
+
+    let response = client.confirm_tx_inclusion(tx_server_response.hash);
+
+    let err = timeout(Duration::from_millis(5000), response)
+        .await
+        .expect("should have received a an error within 5000ms")
+        .unwrap_err();
+
+    assert_eq!(
+        err.source().unwrap().to_string(),
+        "transaction status has remained unknown for more than the maximum wait time: 3 seconds"
+    );
+}
+
+#[tokio::test]
+async fn confirm_tx_inclusion_fails_if_removed_but_not_in_cometbft() {
+    let MockSequencer {
+        server,
+        client,
+    } = MockSequencer::start().await;
+    let tx_id = TransactionId::new([0; 32]);
+
+    let removal_cache_tx_status_response = TransactionStatusResponse {
+        status: TransactionStatus::RemovalCache,
+    };
+    let _removal_cache_tx_status_guard = register_abci_query_response(
+        &server,
+        &format!("transaction/status/{tx_id}"),
+        Some("test reason"),
+        removal_cache_tx_status_response.to_raw().clone(),
+        1..,
+        100,
+    )
+    .await;
+
+    let response = client.confirm_tx_inclusion(Hash::Sha256(tx_id.get()));
+
+    let err = timeout(Duration::from_millis(4000), response)
+        .await
+        .expect("should have received a an error within 4000ms")
+        .unwrap_err();
+
+    assert_eq!(
+        err.source().unwrap().to_string(),
+        "the given transaction has been removed from the app mempool but has not been confirmed \
+         in CometBFT: test reason"
+    );
 }

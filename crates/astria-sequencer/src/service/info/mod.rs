@@ -37,11 +37,15 @@ use astria_eyre::{
     eyre::Result,
 };
 
-use crate::app::StateReadExt as _;
+use crate::{
+    app::StateReadExt as _,
+    mempool::Mempool,
+};
 
 #[derive(Clone)]
 pub(crate) struct Info {
     storage: Storage,
+    mempool: Mempool,
     query_router: abci_query_router::Router,
 }
 
@@ -54,11 +58,12 @@ const BRIDGE_ACCOUNT_LAST_TX_ID: &str = "bridge/account_last_tx_hash/:address";
 const BRIDGE_ACCOUNT_INFO: &str = "bridge/account_info/:address";
 
 const TRANSACTION_FEE: &str = "transaction/fee";
+const TRANSACTION_STATUS: &str = "transaction/status/:tx_id";
 
 const FEES_COMPONENTS: &str = "fees/components";
 
 impl Info {
-    pub(crate) fn new(storage: Storage) -> Result<Self> {
+    pub(crate) fn new(storage: Storage, mempool: Mempool) -> Result<Self> {
         let mut query_router = abci_query_router::Router::new();
 
         // NOTE: Skipping error context because `InsertError` contains all required information.
@@ -79,8 +84,13 @@ impl Info {
         )?;
         query_router.insert(TRANSACTION_FEE, crate::fees::query::transaction_fee_request)?;
         query_router.insert(FEES_COMPONENTS, crate::fees::query::components)?;
+        query_router.insert(
+            TRANSACTION_STATUS,
+            crate::mempool::query::transaction_status_request,
+        )?;
         Ok(Self {
             storage,
+            mempool,
             query_router,
         })
     }
@@ -145,7 +155,9 @@ impl Info {
                 (handler, params)
             }
         };
-        handler.call(self.storage.clone(), request, params).await
+        handler
+            .call(self.storage.clone(), self.mempool.clone(), request, params)
+            .await
     }
 }
 
@@ -171,7 +183,11 @@ impl Service<InfoRequest> for Info {
 #[cfg(test)]
 mod tests {
     use astria_core::{
-        primitive::v1::asset,
+        primitive::v1::{
+            asset,
+            TransactionId,
+            TRANSACTION_ID_LEN,
+        },
         protocol::{
             account::v1::BalanceResponse,
             asset::v1::DenomResponse,
@@ -192,6 +208,7 @@ mod tests {
                 ValidatorUpdate,
             },
         },
+        Protobuf as _,
     };
     use cnidarium::{
         StateDelta,
@@ -199,6 +216,7 @@ mod tests {
     };
     use penumbra_ibc::IbcRelay;
     use prost::Message as _;
+    use telemetry::Metrics as _;
 
     use super::*;
     use crate::{
@@ -214,6 +232,7 @@ mod tests {
             StateReadExt as _,
             StateWriteExt as _,
         },
+        Metrics,
     };
 
     #[tokio::test]
@@ -256,9 +275,10 @@ mod tests {
             prove: false,
         });
 
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let response = {
             let storage = (*storage).clone();
-            let info_service = Info::new(storage).unwrap();
+            let info_service = Info::new(storage, Mempool::new(metrics, 100)).unwrap();
             info_service
                 .handle_info_request(info_request)
                 .await
@@ -307,9 +327,10 @@ mod tests {
             prove: false,
         });
 
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let response = {
             let storage = (*storage).clone();
-            let info_service = Info::new(storage).unwrap();
+            let info_service = Info::new(storage, Mempool::new(metrics, 100)).unwrap();
             info_service
                 .handle_info_request(info_request)
                 .await
@@ -362,9 +383,10 @@ mod tests {
             prove: false,
         });
 
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let response = {
             let storage = (*storage).clone();
-            let info_service = Info::new(storage).unwrap();
+            let info_service = Info::new(storage, Mempool::new(metrics, 100)).unwrap();
             info_service
                 .handle_info_request(info_request)
                 .await
@@ -410,9 +432,10 @@ mod tests {
             prove: false,
         });
 
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let response = {
             let storage = (*storage).clone();
-            let info_service = Info::new(storage).unwrap();
+            let info_service = Info::new(storage, Mempool::new(metrics, 100)).unwrap();
             info_service
                 .handle_info_request(info_request)
                 .await
@@ -534,5 +557,51 @@ mod tests {
         state
             .put_fees(FeeComponents::<ValidatorUpdate>::new(14, 14))
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn handle_transaction_status_query() {
+        use astria_core::{
+            generated::astria::protocol::transaction::v1 as raw,
+            protocol::transaction::v1::{
+                TransactionStatus,
+                TransactionStatusResponse,
+            },
+        };
+
+        let storage = cnidarium::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let mut state = StateDelta::new(storage.latest_snapshot());
+        state.put_block_height(0).unwrap();
+        storage.commit(state).await.unwrap();
+
+        let tx_id = TransactionId::new([0u8; TRANSACTION_ID_LEN]);
+        let info_request = InfoRequest::Query(request::Query {
+            path: format!("transaction/status/{tx_id}"),
+            data: vec![].into(),
+            height: u32::try_from(0).unwrap().into(),
+            prove: false,
+        });
+
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let response = {
+            let storage = (*storage).clone();
+            let info_service = Info::new(storage, Mempool::new(metrics, 100)).unwrap();
+            info_service
+                .handle_info_request(info_request)
+                .await
+                .unwrap()
+        };
+        let query_response = match response {
+            InfoResponse::Query(query) => query,
+            other => panic!("expected InfoResponse::Query, got {other:?}"),
+        };
+        let transaction_status = TransactionStatusResponse::try_from_raw(
+            raw::TransactionStatusResponse::decode(query_response.value).unwrap(),
+        )
+        .unwrap();
+        assert!(query_response.code.is_ok());
+        assert_eq!(transaction_status.status, TransactionStatus::Unknown);
     }
 }

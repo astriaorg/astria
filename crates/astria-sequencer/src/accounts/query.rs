@@ -37,6 +37,7 @@ use crate::{
     accounts::StateReadExt as _,
     app::StateReadExt as _,
     assets::StateReadExt as _,
+    mempool::Mempool,
 };
 
 #[instrument(skip_all, fields(%asset), err(level = Level::DEBUG))]
@@ -77,6 +78,7 @@ async fn get_trace_prefixed_account_balances<S: StateRead>(
 #[instrument(skip_all)]
 pub(crate) async fn balance_request(
     storage: Storage,
+    _mempool: Mempool,
     request: request::Query,
     params: Vec<(String, String)>,
 ) -> response::Query {
@@ -120,6 +122,7 @@ pub(crate) async fn balance_request(
 #[instrument(skip_all)]
 pub(crate) async fn nonce_request(
     storage: Storage,
+    _mempool: Mempool,
     request: request::Query,
     params: Vec<(String, String)>,
 ) -> response::Query {

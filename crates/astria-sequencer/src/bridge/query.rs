@@ -24,6 +24,7 @@ use crate::{
     app::StateReadExt as _,
     assets::StateReadExt as _,
     bridge::StateReadExt as _,
+    mempool::Mempool,
 };
 
 fn error_query_response(
@@ -167,6 +168,7 @@ async fn get_bridge_account_info(
 #[instrument(skip_all)]
 pub(crate) async fn bridge_account_info_request(
     storage: Storage,
+    _mempool: Mempool,
     request: request::Query,
     params: Vec<(String, String)>,
 ) -> response::Query {
@@ -216,6 +218,7 @@ pub(crate) async fn bridge_account_info_request(
 #[instrument(skip_all)]
 pub(crate) async fn bridge_account_last_tx_hash_request(
     storage: Storage,
+    _mempool: Mempool,
     request: request::Query,
     params: Vec<(String, String)>,
 ) -> response::Query {
@@ -302,6 +305,7 @@ mod tests {
         protocol::bridge::v1::BridgeAccountInfoResponse,
     };
     use cnidarium::StateDelta;
+    use telemetry::Metrics as _;
 
     use super::*;
     use crate::{
@@ -313,6 +317,7 @@ mod tests {
             ASTRIA_PREFIX,
         },
         bridge::StateWriteExt as _,
+        Metrics,
     };
 
     #[tokio::test]
@@ -353,8 +358,11 @@ mod tests {
             prove: false,
         };
 
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let params = vec![("address".to_string(), bridge_address.to_string())];
-        let resp = bridge_account_info_request(storage.clone(), query, params).await;
+        let resp =
+            bridge_account_info_request(storage.clone(), Mempool::new(metrics, 100), query, params)
+                .await;
         assert_eq!(resp.code, 0.into(), "{}", resp.log);
 
         let proto = RawBridgeAccountInfoResponse::decode(resp.value).unwrap();

@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package astria.protocol.transaction.v1;
+
+// The response payload for a `transaction/status` ABCI query
+message TransactionStatusResponse {
+  TransactionStatus status = 2;
+}
+
+enum TransactionStatus {
+  TRANSACTION_STATUS_UNSPECIFIED = 0;
+  TRANSACTION_STATUS_PARKED = 1;
+  TRANSACTION_STATUS_PENDING = 2;
+  TRANSACTION_STATUS_REMOVAL_CACHE = 3;
+  TRANSACTION_STATUS_UNKNOWN = 4;
+}

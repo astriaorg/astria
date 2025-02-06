@@ -517,3 +517,52 @@ impl ::prost::Name for TransactionParams {
         ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
     }
 }
+/// The response payload for a `transaction/status` ABCI query
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TransactionStatusResponse {
+    #[prost(enumeration = "TransactionStatus", tag = "2")]
+    pub status: i32,
+}
+impl ::prost::Name for TransactionStatusResponse {
+    const NAME: &'static str = "TransactionStatusResponse";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum TransactionStatus {
+    Unspecified = 0,
+    Parked = 1,
+    Pending = 2,
+    RemovalCache = 3,
+    Unknown = 4,
+}
+impl TransactionStatus {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            TransactionStatus::Unspecified => "TRANSACTION_STATUS_UNSPECIFIED",
+            TransactionStatus::Parked => "TRANSACTION_STATUS_PARKED",
+            TransactionStatus::Pending => "TRANSACTION_STATUS_PENDING",
+            TransactionStatus::RemovalCache => "TRANSACTION_STATUS_REMOVAL_CACHE",
+            TransactionStatus::Unknown => "TRANSACTION_STATUS_UNKNOWN",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "TRANSACTION_STATUS_UNSPECIFIED" => Some(Self::Unspecified),
+            "TRANSACTION_STATUS_PARKED" => Some(Self::Parked),
+            "TRANSACTION_STATUS_PENDING" => Some(Self::Pending),
+            "TRANSACTION_STATUS_REMOVAL_CACHE" => Some(Self::RemovalCache),
+            "TRANSACTION_STATUS_UNKNOWN" => Some(Self::Unknown),
+            _ => None,
+        }
+    }
+}

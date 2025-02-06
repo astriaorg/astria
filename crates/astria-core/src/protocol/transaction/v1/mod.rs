@@ -566,6 +566,111 @@ impl TransactionParams {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct TransactionStatusError(TransactionStatusErrorKind);
+
+impl TransactionStatusError {
+    #[must_use]
+    pub fn invalid_status(val: i32) -> Self {
+        Self(TransactionStatusErrorKind::InvalidStatus(val))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum TransactionStatusErrorKind {
+    #[error("transaction status {0}i32 is invalid (valid values 1-4)")]
+    InvalidStatus(i32),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum TransactionStatus {
+    Parked,
+    Pending,
+    RemovalCache,
+    Unknown,
+}
+
+impl TryFrom<i32> for TransactionStatus {
+    type Error = TransactionStatusError;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(Self::Parked),
+            2 => Ok(Self::Pending),
+            3 => Ok(Self::RemovalCache),
+            4 => Ok(Self::Unknown),
+            _ => Err(TransactionStatusError::invalid_status(value)),
+        }
+    }
+}
+
+impl From<&TransactionStatus> for i32 {
+    fn from(status: &TransactionStatus) -> i32 {
+        match status {
+            TransactionStatus::Parked => 1,
+            TransactionStatus::Pending => 2,
+            TransactionStatus::RemovalCache => 3,
+            TransactionStatus::Unknown => 4,
+        }
+    }
+}
+
+impl std::fmt::Display for TransactionStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TransactionStatus::Parked => write!(f, "PARKED"),
+            TransactionStatus::Pending => write!(f, "PENDING"),
+            TransactionStatus::RemovalCache => write!(f, "REMOVAL_CACHE"),
+            TransactionStatus::Unknown => write!(f, "UNKNOWN"),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct TransactionStatusResponseError(TransactionStatusResponseErrorKind);
+
+impl TransactionStatusResponseError {
+    #[must_use]
+    pub fn invalid_status(source: TransactionStatusError) -> Self {
+        Self(TransactionStatusResponseErrorKind::InvalidStatus(source))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum TransactionStatusResponseErrorKind {
+    #[error("transaction status was invalid")]
+    InvalidStatus(TransactionStatusError),
+}
+
+#[derive(Debug)]
+pub struct TransactionStatusResponse {
+    pub status: TransactionStatus,
+}
+
+impl Protobuf for TransactionStatusResponse {
+    type Error = TransactionStatusResponseError;
+    type Raw = raw::TransactionStatusResponse;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let raw::TransactionStatusResponse {
+            status,
+        } = raw;
+        let status = TransactionStatus::try_from(*status)
+            .map_err(TransactionStatusResponseError::invalid_status)?;
+        Ok(Self {
+            status,
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        raw::TransactionStatusResponse {
+            status: (&self.status).into(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

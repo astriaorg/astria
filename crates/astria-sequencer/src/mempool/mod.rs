@@ -1,6 +1,7 @@
 #[cfg(feature = "benchmark")]
 mod benchmarks;
 mod mempool_state;
+pub(crate) mod query;
 mod transactions_container;
 
 use std::{
@@ -14,8 +15,14 @@ use std::{
 };
 
 use astria_core::{
-    primitive::v1::asset::IbcPrefixed,
-    protocol::transaction::v1::Transaction,
+    primitive::v1::{
+        asset::IbcPrefixed,
+        TransactionId,
+    },
+    protocol::transaction::v1::{
+        Transaction,
+        TransactionStatus,
+    },
 };
 use astria_eyre::eyre::Result;
 pub(crate) use mempool_state::get_account_balances;
@@ -50,6 +57,23 @@ pub(crate) enum RemovalReason {
     NonceStale,
     LowerNonceInvalidated,
     FailedPrepareProposal(String),
+}
+
+impl std::fmt::Display for RemovalReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RemovalReason::Expired => write!(f, "transaction expired after 240 seconds"),
+            RemovalReason::NonceStale => write!(f, "transaction nonce is lower than current nonce"),
+            RemovalReason::LowerNonceInvalidated => write!(
+                f,
+                "previous transaction was not executed, to this transaction's nonce has become \
+                 invalid"
+            ),
+            RemovalReason::FailedPrepareProposal(reason) => {
+                write!(f, "failed `prepare_proposal`: {reason}")
+            }
+        }
+    }
 }
 
 /// How long transactions are considered valid in the mempool.
@@ -105,6 +129,11 @@ impl RemovalCache {
         }
         self.remove_queue.push_back(tx_hash);
         self.cache.insert(tx_hash, reason);
+    }
+
+    /// Returns the removal reasaon for the transaction if it is present in the cache.
+    fn get(&self, tx_hash: [u8; 32]) -> Option<&RemovalReason> {
+        self.cache.get(&tx_hash)
     }
 }
 
@@ -495,6 +524,37 @@ impl Mempool {
         let pending = self.pending.write().await;
         let parked = self.parked.write().await;
         (pending, parked)
+    }
+
+    /// Returns a given transaction's status, as well as an optional reason for removal if the
+    /// transaction is in the CometBFT removal cache.
+    pub(in crate::mempool) async fn get_transaction_status(
+        &self,
+        tx_id: &TransactionId,
+    ) -> (TransactionStatus, Option<String>) {
+        // check pending
+        let pending = self.pending.read().await;
+        if pending.contains(tx_id) {
+            return (TransactionStatus::Pending, None);
+        }
+        // if not in pending, release the lock
+        drop(pending);
+
+        // check parked
+        let parked = self.parked.read().await;
+        if parked.contains(tx_id) {
+            return (TransactionStatus::Parked, None);
+        }
+        // if not in parked, release the lock
+        drop(parked);
+
+        // check removal cache
+        let removal_cache = self.comet_bft_removal_cache.read().await;
+        if let Some(reason) = removal_cache.get(tx_id.get()) {
+            return (TransactionStatus::RemovalCache, Some(reason.to_string()));
+        }
+
+        (TransactionStatus::Unknown, None)
     }
 }
 
@@ -1205,6 +1265,78 @@ mod tests {
                 .unwrap_err(),
             InsertionError::ParkedSizeLimit,
             "size limit should be enforced"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_transaction_status_pending_works_as_expected() {
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 10);
+
+        let account_balances = mock_balances(100, 100);
+        let tx_cost = mock_tx_cost(10, 10, 0);
+        let tx = MockTxBuilder::new().nonce(0).build();
+        mempool
+            .insert(tx.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+        assert_eq!(mempool.len().await, 1);
+        assert_eq!(
+            mempool.get_transaction_status(&tx.id()).await,
+            (TransactionStatus::Pending, None)
+        );
+    }
+
+    #[tokio::test]
+    async fn get_transaction_status_parked_works_as_expected() {
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 10);
+
+        let account_balances = mock_balances(100, 100);
+        let tx_cost = mock_tx_cost(10, 10, 0);
+        let tx = MockTxBuilder::new().nonce(1).build(); // The nonce gap (1 vs. 0) will park the transaction
+        mempool
+            .insert(tx.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+        assert_eq!(mempool.len().await, 1);
+        assert_eq!(
+            mempool.get_transaction_status(&tx.id()).await,
+            (TransactionStatus::Parked, None)
+        );
+    }
+
+    #[tokio::test]
+    async fn get_transaction_status_unknown_works_as_expected() {
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 10);
+
+        assert_eq!(mempool.len().await, 0);
+        assert_eq!(
+            mempool
+                .get_transaction_status(&TransactionId::new([0u8; 32]))
+                .await,
+            (TransactionStatus::Unknown, None)
+        );
+    }
+
+    #[tokio::test]
+    async fn get_transaction_status_removal_cache_works_as_expected() {
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 10);
+
+        let account_balances = mock_balances(100, 100);
+        let tx_cost = mock_tx_cost(10, 10, 0);
+        let tx = MockTxBuilder::new().nonce(0).build();
+        mempool
+            .insert(tx.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+        let reason = RemovalReason::FailedPrepareProposal("test".to_string());
+        mempool.remove_tx_invalid(tx.clone(), reason.clone()).await;
+        assert_eq!(
+            mempool.get_transaction_status(&tx.id()).await,
+            (TransactionStatus::RemovalCache, Some(reason.to_string()))
         );
     }
 }

@@ -16,6 +16,7 @@ use tracing::instrument;
 use crate::{
     app::StateReadExt as _,
     assets::StateReadExt as _,
+    mempool::Mempool,
 };
 
 // Retrieve the full asset denomination given the asset ID.
@@ -25,6 +26,7 @@ use crate::{
 #[instrument(skip_all)]
 pub(crate) async fn denom_request(
     storage: Storage,
+    _mempool: Mempool,
     request: request::Query,
     params: Vec<(String, String)>,
 ) -> response::Query {

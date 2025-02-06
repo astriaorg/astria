@@ -55,7 +55,11 @@ use astria_core::{
             BridgeAccountLastTxHashResponse,
         },
         fees::v1::TransactionFeeResponse,
-        transaction::v1::TransactionBody,
+        transaction::v1::{
+            TransactionBody,
+            TransactionStatus,
+            TransactionStatusResponse,
+        },
     },
     Protobuf as _,
 };
@@ -77,9 +81,14 @@ use tendermint_rpc::{
     SubscriptionClient,
 };
 use tracing::{
+    debug,
     instrument,
-    warn,
+    Level,
 };
+
+/// The maximum time to wait while receiving an `UNKNOWN` transaction status from thq sequencer
+/// before erroring.
+const MAX_TX_STATUS_UNKNOWN_WAIT_TIME_SECS: u64 = 3;
 
 #[cfg(feature = "http")]
 impl SequencerClientExt for HttpClient {}
@@ -114,6 +123,7 @@ impl std::error::Error for Error {
             ErrorKind::AbciQueryDeserialization(e) => Some(e),
             ErrorKind::TendermintRpc(e) => Some(e),
             ErrorKind::NativeConversion(e) => Some(e),
+            ErrorKind::TxStatus(e) => Some(e),
         }
     }
 }
@@ -129,7 +139,9 @@ impl Error {
     pub fn as_tendermint_rpc(&self) -> Option<&TendermintRpcError> {
         match self.kind() {
             ErrorKind::TendermintRpc(e) => Some(e),
-            ErrorKind::AbciQueryDeserialization(_) | ErrorKind::NativeConversion(_) => None,
+            ErrorKind::AbciQueryDeserialization(_)
+            | ErrorKind::NativeConversion(_)
+            | ErrorKind::TxStatus(_) => None,
         }
     }
 
@@ -158,6 +170,13 @@ impl Error {
     ) -> Self {
         Self {
             inner: ErrorKind::native_conversion(target, inner),
+        }
+    }
+
+    /// Convenience function to construct `Error` containing a `TxStatusError`.
+    fn tx_status(inner: TxStatusError) -> Self {
+        Self {
+            inner: ErrorKind::TxStatus(inner),
         }
     }
 }
@@ -280,6 +299,7 @@ pub enum ErrorKind {
     AbciQueryDeserialization(AbciQueryDeserializationError),
     TendermintRpc(TendermintRpcError),
     NativeConversion(DeserializationError),
+    TxStatus(TxStatusError),
 }
 
 impl ErrorKind {
@@ -314,6 +334,24 @@ impl ErrorKind {
             target,
         })
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct TxStatusError(TxStatusErrorKind);
+
+#[derive(Debug, thiserror::Error)]
+enum TxStatusErrorKind {
+    #[error(
+        "transaction status has remained unknown for more than the maximum wait time: \
+         {MAX_TX_STATUS_UNKNOWN_WAIT_TIME_SECS} seconds"
+    )]
+    StatusUnknown,
+    #[error(
+        "the given transaction has been removed from the app mempool but has not been confirmed \
+         in CometBFT: {0}"
+    )]
+    Removed(String),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -667,36 +705,48 @@ pub trait SequencerClientExt: Client {
     ///
     /// # Errors
     ///
-    /// - If the transaction is not found.
-    /// - If the transaction execution failed.
-    /// - If the transaction proof is missing.
-    #[instrument(skip_all)]
-    async fn wait_for_tx_inclusion(
+    /// - If calling the ABCI query for transaction status fails or returns a bad response.
+    /// - If the transaction is not found in the mempool within `MAX_WAIT_TIME_UNKNOWN`.
+    /// - If the transaction is removed from the mempool but not confirmed in CometBFT within
+    ///   `MAX_WAIT_TIME_AFTER_REMOVAL`.
+    #[instrument(skip_all, err(level = Level::INFO))]
+    async fn confirm_tx_inclusion(
         &self,
         tx_hash: tendermint::hash::Hash,
-    ) -> tendermint_rpc::endpoint::tx::Response {
+    ) -> Result<tendermint_rpc::endpoint::tx::Response, Error> {
         use std::time::Duration;
 
+        use astria_core::generated::astria::protocol::transaction::v1 as raw;
         use tokio::time::Instant;
 
-        // The min seconds to sleep after receiving a GetTx response and sending the next request.
+        // The milliseconds to sleep after receiving a TxStatus response and sending the next
+        // request.
         const MIN_POLL_INTERVAL_MILLIS: u64 = 100;
-        // The max seconds to sleep after receiving a GetTx response and sending the next request.
-        const MAX_POLL_INTERVAL_MILLIS: u64 = 2000;
-        // How long to wait after starting `confirm_submission` before starting to log errors.
-        const START_LOGGING_DELAY: Duration = Duration::from_millis(2000);
-        // The minimum duration between logging errors.
-        const LOG_ERROR_INTERVAL: Duration = Duration::from_millis(2000);
+        // The maximum millisecons delay between receiving a TxStatus response and sending the next
+        // request.
+        const MAX_POLL_INTERVAL_MILLIS: u64 = 1000;
+        // How long to wait after starting `confirm_tx_inclusion` before starting to log.
+        const START_LOGGING_DELAY: Duration = Duration::from_millis(1000);
+        // The duration between logging. This is more than the maximum wait time for an unknown
+        // transaction status, but this is okay since a persistent unknown status will be
+        // logged when the error is returned.
+        const LOG_INTERVAL: Duration = Duration::from_millis(5000);
+        // The maximum time to wait for a transaction to show in the app mempool.
+        const MAX_WAIT_TIME_UNKNOWN: Duration =
+            Duration::from_secs(MAX_TX_STATUS_UNKNOWN_WAIT_TIME_SECS);
+        // The maximum time to wait for a transaction to show as confirmed in CometBFT after being
+        // removed from the app mempool.
+        const MAX_WAIT_TIME_MILLIS_AFTER_REMOVAL: u32 = 2000;
 
         let start = Instant::now();
         let mut logged_at = start;
 
-        let mut log_if_due = |error: tendermint_rpc::Error| {
-            if start.elapsed() <= START_LOGGING_DELAY || logged_at.elapsed() <= LOG_ERROR_INTERVAL {
+        let mut log_if_due = |status: &str| {
+            if start.elapsed() <= START_LOGGING_DELAY || logged_at.elapsed() <= LOG_INTERVAL {
                 return;
             }
-            warn!(
-                %error,
+            debug!(
+                %status,
                 %tx_hash,
                 elapsed_seconds = start.elapsed().as_secs_f32(),
                 "waiting to confirm transaction inclusion"
@@ -705,16 +755,75 @@ pub trait SequencerClientExt: Client {
         };
 
         let mut sleep_millis = MIN_POLL_INTERVAL_MILLIS;
-        loop {
+
+        // Polls sequencer for transaction status with a backoff. If the transaction is parked or
+        // pending, this will continue polling until the transaction is removed from the mempool. If
+        // the transaction status is unknown, this means it has not yet made it to the mempool. We
+        // give it `MAX_WAIT_TIME_UNKNOWN` to change to a different status before erroring.
+        let removal_reason = loop {
             tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
-            match self.tx(tx_hash, false).await {
-                Ok(tx) => return tx,
-                Err(error) => {
-                    sleep_millis =
-                        std::cmp::min(sleep_millis.saturating_mul(2), MAX_POLL_INTERVAL_MILLIS);
-                    log_if_due(error);
+            let rsp = self
+                .abci_query(
+                    Some(format!("transaction/status/{tx_hash}")),
+                    vec![],
+                    None,
+                    false,
+                )
+                .await
+                .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
+            let log = rsp.log.clone();
+            let proto_response =
+                raw::TransactionStatusResponse::decode(&*rsp.value).map_err(|e| {
+                    Error::abci_query_deserialization(
+                        "astria.protocol.transaction.v1.TransactionStatusResponse",
+                        rsp,
+                        e,
+                    )
+                })?;
+            match TransactionStatusResponse::try_from_raw(proto_response)
+                .map_err(|e| Error::native_conversion("TransactionStatusResponse", Arc::new(e)))?
+                .status
+            {
+                TransactionStatus::Unknown => {
+                    if start.elapsed() > MAX_WAIT_TIME_UNKNOWN {
+                        return Err(Error::tx_status(TxStatusError(
+                            TxStatusErrorKind::StatusUnknown,
+                        )));
+                    }
+                    log_if_due("UNKNOWN");
                 }
-            }
-        }
+                TransactionStatus::Parked => {
+                    log_if_due("PARKED");
+                }
+                TransactionStatus::Pending => {
+                    log_if_due("PENDING");
+                }
+                TransactionStatus::RemovalCache => break log,
+            };
+            sleep_millis = (sleep_millis.saturating_mul(2)).min(MAX_POLL_INTERVAL_MILLIS);
+        };
+
+        // Note: using fixed backoff here. We expect the transaction to be confirmed quickly, this
+        // is just to account for short delays or network issues.
+        let retry_config =
+            tryhard::RetryFutureConfig::new(MAX_WAIT_TIME_MILLIS_AFTER_REMOVAL / 200)
+                .fixed_backoff(Duration::from_millis(100));
+        tryhard::retry_fn(|| async {
+            self.tx(tx_hash, false)
+                .await
+                .map_err(|err| {
+                    debug!(%err, "error fetching transaction from CometBFT");
+                })
+                .and_then(|rsp| {
+                    if rsp.tx_result.code.is_ok() {
+                        Ok(rsp)
+                    } else {
+                        Err(())
+                    }
+                })
+        })
+        .with_config(retry_config)
+        .await
+        .map_err(|()| Error::tx_status(TxStatusError(TxStatusErrorKind::Removed(removal_reason))))
     }
 }
