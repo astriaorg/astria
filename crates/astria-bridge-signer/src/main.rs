@@ -12,7 +12,10 @@ use tokio::signal::unix::{
     signal,
     SignalKind,
 };
-use tracing::info;
+use tracing::{
+    error,
+    info,
+};
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -50,16 +53,31 @@ async fn main() -> ExitCode {
         "initializing bridge withdrawer"
     );
 
+    let server = match Server::new(
+        cfg.frost_public_key_package_path,
+        cfg.frost_secret_key_package_path,
+        metrics,
+    ) {
+        Err(error) => {
+            error!(%error, "failed initializing bridge signer gRPC server");
+            return ExitCode::FAILURE;
+        }
+        Ok(server) => server,
+    };
+
     let mut sigterm = signal(SignalKind::terminate())
         .expect("setting a SIGTERM listener should always work on Unix");
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
-    let grpc_server = tonic::transport::Server::builder()
-        .add_service(FrostParticipantServiceServer::new(Server::new(metrics)));
+    let grpc_server =
+        tonic::transport::Server::builder().add_service(FrostParticipantServiceServer::new(server));
 
-    let grpc_addr: std::net::SocketAddr = cfg
-        .grpc_endpoint
-        .parse()
-        .expect("should be able to parse grpc_endpoint");
+    let grpc_addr: std::net::SocketAddr = match cfg.grpc_endpoint.parse() {
+        Err(error) => {
+            error!(%error, "failed to parse grpc endpoint");
+            return ExitCode::FAILURE;
+        }
+        Ok(addr) => addr,
+    };
     info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
     tokio::task::spawn(
         grpc_server.serve_with_shutdown(grpc_addr, shutdown_rx.unwrap_or_else(|_| ())),
