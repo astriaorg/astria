@@ -560,6 +560,7 @@ dependencies = [
  "astria-telemetry",
  "frost-ed25519",
  "futures",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "tokio",
