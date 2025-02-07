@@ -3,7 +3,7 @@ use astria_telemetry::{
     metrics::{
         self,
         Counter,
-        Gauge,
+        Histogram,
         IntoF64,
         RegisteringBuilder,
     },
@@ -14,8 +14,8 @@ const AUCTION_BIDS_PROCESSED_ADMITTED: &str = "admitted";
 const AUCTION_BIDS_PROCESSED_DROPPED: &str = "dropped";
 
 pub struct Metrics {
-    auction_bids_admitted_gauge: Gauge,
-    auction_bids_dropped_gauge: Gauge,
+    auction_bids_admitted_histogram: Histogram,
+    auction_bids_dropped_histogram: Histogram,
     auction_bids_received_count: Counter,
     auctions_cancelled_count: Counter,
     auctions_submitted_count: Counter,
@@ -25,10 +25,6 @@ pub struct Metrics {
 }
 
 impl Metrics {
-    pub(crate) fn increment_auction_bids_admitted_gauge(&self) {
-        self.auction_bids_admitted_gauge.increment(1);
-    }
-
     pub(crate) fn increment_auction_bids_received_counter(&self) {
         self.auction_bids_received_count.increment(1);
     }
@@ -53,12 +49,12 @@ impl Metrics {
         self.optimistic_blocks_received_count.increment(1);
     }
 
-    pub(crate) fn reset_auction_bids_admitted_gauge(&self) {
-        self.auction_bids_admitted_gauge.set(0);
+    pub(crate) fn record_auction_bids_admitted_histogram(&self, val: impl IntoF64) {
+        self.auction_bids_admitted_histogram.record(val);
     }
 
-    pub(crate) fn set_auction_bids_dropped_gauge(&self, val: impl IntoF64) {
-        self.auction_bids_dropped_gauge.set(val);
+    pub(crate) fn record_auction_bids_dropped_histogram(&self, val: impl IntoF64) {
+        self.auction_bids_dropped_histogram.record(val);
     }
 }
 
@@ -98,17 +94,17 @@ impl astria_telemetry::metrics::Metrics for Metrics {
             )?
             .register()?;
 
-        let mut auction_bids_processed_factory = builder.new_gauge_factory(
+        let mut auction_bids_processed_factory = builder.new_histogram_factory(
             AUCTION_BIDS_PROCESSED,
             "the number of auction bids processed during an auction (either admitted or dropped \
              because the time was up or due to some other issue)",
         )?;
-        let auction_bids_admitted_gauge =
+        let auction_bids_admitted_histogram =
             auction_bids_processed_factory.register_with_labels(&[(
                 AUCTION_BIDS_PROCESSED_LABEL,
                 AUCTION_BIDS_PROCESSED_ADMITTED.to_string(),
             )])?;
-        let auction_bids_dropped_gauge =
+        let auction_bids_dropped_histogram =
             auction_bids_processed_factory.register_with_labels(&[(
                 AUCTION_BIDS_PROCESSED_LABEL,
                 AUCTION_BIDS_PROCESSED_DROPPED.to_string(),
@@ -130,8 +126,8 @@ impl astria_telemetry::metrics::Metrics for Metrics {
             .register()?;
 
         Ok(Self {
-            auction_bids_admitted_gauge,
-            auction_bids_dropped_gauge,
+            auction_bids_admitted_histogram,
+            auction_bids_dropped_histogram,
             auction_bids_received_count,
             auctions_cancelled_count,
             auctions_submitted_count,
