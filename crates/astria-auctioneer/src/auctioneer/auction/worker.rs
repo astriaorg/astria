@@ -155,6 +155,8 @@ impl Worker {
         let submission_fut =
             submit_winner_with_timeout(self.sequencer_abci_client.clone(), transaction);
         tokio::pin!(submission_fut);
+
+        let submission_start = std::time::Instant::now();
         loop {
             select!(
                 () = self.cancellation_token.clone().cancelled_owned(),
@@ -169,8 +171,14 @@ impl Worker {
                 res = &mut submission_fut => {
                     break match res
                     {
-                        Ok(response) => Ok(Summary::Submitted { nonce_used: pending_nonce, response, }),
-                        Err(err) => Err(err),
+                        Ok(response) => {
+                            self.metrics.record_auction_winner_submission_success_latency(submission_start.elapsed());
+                            Ok(Summary::Submitted { nonce_used: pending_nonce, response, })
+                        }
+                        Err(err) => {
+                            self.metrics.record_auction_winner_submission_error_latency(submission_start.elapsed());
+                            Err(err)
+                        }
                     }
                 }
             );

@@ -13,11 +13,17 @@ const AUCTION_BIDS_LABEL: &str = "auction_bids";
 const AUCTION_BIDS_PROCESSED: &str = "processed";
 const AUCTION_BIDS_DROPPED: &str = "dropped";
 
+const AUCTION_WINNER_SUBMISSION_LATENCY_LABEL: &str = "auction_winner_submission_latency";
+const AUCTION_WINNER_ERROR: &str = "error";
+const AUCTION_WINNER_SUCCESS: &str = "success";
+
 pub struct Metrics {
     auction_bid_delay_since_start: Histogram,
     auction_bids_dropped_histogram: Histogram,
     auction_bids_processed_histogram: Histogram,
     auction_bids_received_count: Counter,
+    auction_winner_submission_error_latency: Histogram,
+    auction_winner_submission_success_latency: Histogram,
     auction_winning_bid_histogram: Histogram,
     auctions_cancelled_count: Counter,
     auctions_submitted_count: Counter,
@@ -65,6 +71,14 @@ impl Metrics {
 
     pub(crate) fn record_auction_winning_bid_histogram(&self, val: impl IntoF64) {
         self.auction_winning_bid_histogram.record(val);
+    }
+
+    pub(crate) fn record_auction_winner_submission_error_latency(&self, val: impl IntoF64) {
+        self.auction_winner_submission_error_latency.record(val);
+    }
+
+    pub(crate) fn record_auction_winner_submission_success_latency(&self, val: impl IntoF64) {
+        self.auction_winner_submission_success_latency.record(val);
     }
 }
 
@@ -141,12 +155,31 @@ impl astria_telemetry::metrics::Metrics for Metrics {
             )?
             .register()?;
 
+        let mut auction_winner_submission_latency_factory = builder.new_histogram_factory(
+            AUCTION_WINNER_SUBMISSION_LATENCY,
+            "the duration for Sequencer to respond to a auction submission",
+        )?;
+
+        let auction_winner_submission_error_latency = auction_winner_submission_latency_factory
+            .register_with_labels(&[(
+                AUCTION_WINNER_SUBMISSION_LATENCY_LABEL,
+                AUCTION_WINNER_ERROR.to_string(),
+            )])?;
+
+        let auction_winner_submission_success_latency = auction_winner_submission_latency_factory
+            .register_with_labels(&[(
+            AUCTION_WINNER_SUBMISSION_LATENCY_LABEL,
+            AUCTION_WINNER_SUCCESS.to_string(),
+        )])?;
+
         Ok(Self {
             auction_bid_delay_since_start,
             auction_bids_dropped_histogram,
             auction_bids_processed_histogram,
             auction_bids_received_count,
             auction_winning_bid_histogram,
+            auction_winner_submission_success_latency,
+            auction_winner_submission_error_latency,
             auctions_cancelled_count,
             auctions_submitted_count,
             block_commitments_received_count,
@@ -166,4 +199,5 @@ metric_names!(const METRICS_NAMES:
     AUCTION_BIDS,
     AUCTION_BIDS_RECEIVED,
     AUCTION_WINNING_BID,
+    AUCTION_WINNER_SUBMISSION_LATENCY,
 );
