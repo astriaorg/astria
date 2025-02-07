@@ -200,8 +200,8 @@ impl Worker {
                 }, if latency_margin_timer.is_some() => {
                     info!("timer is up; bids left unprocessed: {}", self.bids.len());
 
-                    self.metrics.record_auction_bids_admitted_histogram(allocation_rule.bids_seen());
                     self.metrics.record_auction_bids_dropped_histogram(self.bids.len());
+                    self.metrics.record_auction_bids_processed_histogram(allocation_rule.bids_seen());
 
                     let winner = allocation_rule.take_winner();
                     if let Some(winner) = &winner {
