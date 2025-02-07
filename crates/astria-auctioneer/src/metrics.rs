@@ -17,6 +17,7 @@ pub struct Metrics {
     auction_bids_admitted_histogram: Histogram,
     auction_bids_dropped_histogram: Histogram,
     auction_bids_received_count: Counter,
+    auction_winning_bid_histogram: Histogram,
     auctions_cancelled_count: Counter,
     auctions_submitted_count: Counter,
     block_commitments_received_count: Counter,
@@ -55,6 +56,10 @@ impl Metrics {
 
     pub(crate) fn record_auction_bids_dropped_histogram(&self, val: impl IntoF64) {
         self.auction_bids_dropped_histogram.record(val);
+    }
+
+    pub(crate) fn record_auction_winning_bid_histogram(&self, val: impl IntoF64) {
+        self.auction_winning_bid_histogram.record(val);
     }
 }
 
@@ -125,10 +130,15 @@ impl astria_telemetry::metrics::Metrics for Metrics {
             )?
             .register()?;
 
+        let auction_winning_bid_histogram = builder
+            .new_histogram_factory(AUCTION_WINNING_BID, "the amount bid by the auction winner")?
+            .register()?;
+
         Ok(Self {
             auction_bids_admitted_histogram,
             auction_bids_dropped_histogram,
             auction_bids_received_count,
+            auction_winning_bid_histogram,
             auctions_cancelled_count,
             auctions_submitted_count,
             block_commitments_received_count,
@@ -146,4 +156,5 @@ metric_names!(const METRICS_NAMES:
     AUCTIONS_SUBMITTED,
     AUCTION_BIDS_PROCESSED,
     AUCTION_BIDS_RECEIVED,
+    AUCTION_WINNING_BID,
 );

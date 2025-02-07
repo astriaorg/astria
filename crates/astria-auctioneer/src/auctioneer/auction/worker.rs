@@ -203,8 +203,13 @@ impl Worker {
                     self.metrics.record_auction_bids_admitted_histogram(allocation_rule.bids_seen());
                     self.metrics.record_auction_bids_dropped_histogram(self.bids.len());
 
+                    let winner = allocation_rule.take_winner();
+                    if let Some(winner) = &winner {
+                        self.metrics.record_auction_winning_bid_histogram(winner.bid());
+                    }
+
                     break Ok(AuctionItems {
-                        winner: allocation_rule.take_winner(),
+                        winner,
                         nonce_fetch,
                     })
                 }
