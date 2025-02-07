@@ -87,6 +87,8 @@ pub(super) struct Auction {
     /// The actual event loop running in the background that receives bids, times the
     /// auction, and submits the winner to Sequencer.
     worker: JoinHandle<Result<Summary, worker::Error>>,
+    metrics: &'static crate::Metrics,
+    started_at: std::time::Instant,
 }
 
 impl Auction {
@@ -163,7 +165,6 @@ impl Auction {
         id = %self.id,
         bid.sequencer_block_hash = %bid.sequencer_parent_block_hash(),
         bid.parent_roll_block_hash = %bid.rollup_parent_block_hash(),
-
     ), err)]
     pub(in crate::auctioneer) fn forward_bid_to_auction(
         &mut self,
@@ -188,6 +189,10 @@ impl Auction {
             bid.sequencer_parent_block_hash(),
             bid.rollup_parent_block_hash(),
         );
+
+        self.metrics
+            .record_auction_bid_delay_since_start(self.started_at.elapsed());
+
         self.bids
             .send(bid)
             .wrap_err("failed to submit bid to auction; the bid is lost")

@@ -84,6 +84,8 @@ impl Factory {
             bids: bids_tx,
             cancellation_token,
             worker: tokio::task::spawn(auction.run()),
+            metrics: self.metrics,
+            started_at: std::time::Instant::now(),
         }
     }
 

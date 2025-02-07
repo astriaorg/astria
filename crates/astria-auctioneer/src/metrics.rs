@@ -14,6 +14,7 @@ const AUCTION_BIDS_PROCESSED: &str = "processed";
 const AUCTION_BIDS_DROPPED: &str = "dropped";
 
 pub struct Metrics {
+    auction_bid_delay_since_start: Histogram,
     auction_bids_dropped_histogram: Histogram,
     auction_bids_processed_histogram: Histogram,
     auction_bids_received_count: Counter,
@@ -56,6 +57,10 @@ impl Metrics {
 
     pub(crate) fn record_auction_bids_dropped_histogram(&self, val: impl IntoF64) {
         self.auction_bids_dropped_histogram.record(val);
+    }
+
+    pub(crate) fn record_auction_bid_delay_since_start(&self, val: impl IntoF64) {
+        self.auction_bid_delay_since_start.record(val);
     }
 
     pub(crate) fn record_auction_winning_bid_histogram(&self, val: impl IntoF64) {
@@ -128,7 +133,16 @@ impl astria_telemetry::metrics::Metrics for Metrics {
             .new_histogram_factory(AUCTION_WINNING_BID, "the amount bid by the auction winner")?
             .register()?;
 
+        let auction_bid_delay_since_start = builder
+            .new_histogram_factory(
+                AUCTION_BID_DELAY_SINCE_START,
+                "the duration from the start of an auction to when a bid for that auction was \
+                 received",
+            )?
+            .register()?;
+
         Ok(Self {
+            auction_bid_delay_since_start,
             auction_bids_dropped_histogram,
             auction_bids_processed_histogram,
             auction_bids_received_count,
@@ -148,6 +162,7 @@ metric_names!(const METRICS_NAMES:
     OPTIMISTIC_BLOCKS_RECEIVED,
     AUCTIONS_CANCELLED,
     AUCTIONS_SUBMITTED,
+    AUCTION_BID_DELAY_SINCE_START,
     AUCTION_BIDS,
     AUCTION_BIDS_RECEIVED,
     AUCTION_WINNING_BID,
