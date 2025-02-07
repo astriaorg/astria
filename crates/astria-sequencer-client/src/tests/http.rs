@@ -93,7 +93,7 @@ impl MockSequencer {
 async fn register_abci_query_response(
     server: &MockServer,
     query_path: &str,
-    log: Option<&str>,
+    info: Option<&str>,
     raw: impl prost::Message,
     expect: impl Into<wiremock::Times>,
     up_to_n_times: u64,
@@ -101,7 +101,7 @@ async fn register_abci_query_response(
     let response = tendermint_rpc::endpoint::abci_query::Response {
         response: tendermint_rpc::endpoint::abci_query::AbciQuery {
             value: raw.encode_to_vec(),
-            log: log.unwrap_or_default().into(),
+            info: info.unwrap_or_default().into(),
             ..Default::default()
         },
     };
@@ -443,7 +443,7 @@ async fn confirm_tx_inclusion_works_as_expected() {
         &server,
         &format!("transaction/status/{tx_id}"),
         None,
-        tx_status_response.to_raw().clone(),
+        tx_status_response.to_raw(),
         1,
         1,
     )
@@ -505,7 +505,7 @@ async fn confirm_tx_inclusion_loops_when_parked_or_pending() {
         &server,
         &format!("transaction/status/{tx_id}"),
         None,
-        unknown_tx_status_response.to_raw().clone(),
+        unknown_tx_status_response.to_raw(),
         1,
         1,
     )
@@ -527,7 +527,7 @@ async fn confirm_tx_inclusion_loops_when_parked_or_pending() {
         &server,
         &format!("transaction/status/{tx_id}"),
         None,
-        parked_tx_status_response.to_raw().clone(),
+        parked_tx_status_response.to_raw(),
         2,
         2,
     )
@@ -549,7 +549,7 @@ async fn confirm_tx_inclusion_loops_when_parked_or_pending() {
         &server,
         &format!("transaction/status/{tx_id}"),
         None,
-        pending_tx_status_response.to_raw().clone(),
+        pending_tx_status_response.to_raw(),
         2,
         2,
     )
@@ -573,7 +573,7 @@ async fn confirm_tx_inclusion_loops_when_parked_or_pending() {
         &server,
         &format!("transaction/status/{tx_id}"),
         None,
-        removal_cache_tx_status_response.to_raw().clone(),
+        removal_cache_tx_status_response.to_raw(),
         1,
         1,
     )
@@ -627,7 +627,7 @@ async fn confirm_tx_inclusion_fails_after_unknown_for_too_long() {
         &server,
         &format!("transaction/status/{tx_id}"),
         None,
-        unknown_tx_status_response.to_raw().clone(),
+        unknown_tx_status_response.to_raw(),
         1..,
         100,
     )
@@ -635,9 +635,9 @@ async fn confirm_tx_inclusion_fails_after_unknown_for_too_long() {
 
     let response = client.confirm_tx_inclusion(tx_server_response.hash);
 
-    let err = timeout(Duration::from_millis(5000), response)
+    let err = timeout(Duration::from_millis(4000), response)
         .await
-        .expect("should have received a an error within 5000ms")
+        .expect("should have received a an error within 4000ms")
         .unwrap_err();
 
     assert_eq!(
@@ -661,7 +661,7 @@ async fn confirm_tx_inclusion_fails_if_removed_but_not_in_cometbft() {
         &server,
         &format!("transaction/status/{tx_id}"),
         Some("test reason"),
-        removal_cache_tx_status_response.to_raw().clone(),
+        removal_cache_tx_status_response.to_raw(),
         1..,
         100,
     )

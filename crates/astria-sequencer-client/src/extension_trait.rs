@@ -86,7 +86,7 @@ use tracing::{
     Level,
 };
 
-/// The maximum time to wait while receiving an `UNKNOWN` transaction status from thq sequencer
+/// The maximum time to wait while receiving an `UNKNOWN` transaction status from the sequencer
 /// before erroring.
 const MAX_TX_STATUS_UNKNOWN_WAIT_TIME_SECS: u64 = 3;
 
@@ -719,17 +719,17 @@ pub trait SequencerClientExt: Client {
         use astria_core::generated::astria::protocol::transaction::v1 as raw;
         use tokio::time::Instant;
 
-        // The milliseconds to sleep after receiving a TxStatus response and sending the next
-        // request.
+        // The minimum milliseconds delay between receiving a transaction status response and
+        // sending the next request.
         const MIN_POLL_INTERVAL_MILLIS: u64 = 100;
-        // The maximum millisecons delay between receiving a TxStatus response and sending the next
-        // request.
+        // The maximum milliseconds delay between receiving a transaction status response and
+        // sending the next request.
         const MAX_POLL_INTERVAL_MILLIS: u64 = 1000;
-        // How long to wait after starting `confirm_tx_inclusion` before starting to log.
+        // How long to wait after `confirm_tx_inclusion` is called before starting to log.
         const START_LOGGING_DELAY: Duration = Duration::from_millis(1000);
-        // The duration between logging. This is more than the maximum wait time for an unknown
-        // transaction status, but this is okay since a persistent unknown status will be
-        // logged when the error is returned.
+        // The duration between logging events. This is more than the maximum wait time for an
+        // unknown transaction status, but that is okay since a persistent unknown status
+        // will be logged when the error is returned.
         const LOG_INTERVAL: Duration = Duration::from_millis(5000);
         // The maximum time to wait for a transaction to show in the app mempool.
         const MAX_WAIT_TIME_UNKNOWN: Duration =
@@ -771,7 +771,7 @@ pub trait SequencerClientExt: Client {
                 )
                 .await
                 .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
-            let log = rsp.log.clone();
+            let info = rsp.info.clone();
             let proto_response =
                 raw::TransactionStatusResponse::decode(&*rsp.value).map_err(|e| {
                     Error::abci_query_deserialization(
@@ -798,29 +798,25 @@ pub trait SequencerClientExt: Client {
                 TransactionStatus::Pending => {
                     log_if_due("PENDING");
                 }
-                TransactionStatus::RemovalCache => break log,
+                TransactionStatus::RemovalCache => break info,
             };
             sleep_millis = (sleep_millis.saturating_mul(2)).min(MAX_POLL_INTERVAL_MILLIS);
         };
 
         // Note: using fixed backoff here. We expect the transaction to be confirmed quickly, this
-        // is just to account for short delays or network issues.
+        // is just to account for short delays or network issues. Logic for num retries is as
+        // follows: retries = MAX_WAIT_TIME_MILLIS_AFTER_REMOVAL / fixed_backoff(100ms)
         let retry_config =
-            tryhard::RetryFutureConfig::new(MAX_WAIT_TIME_MILLIS_AFTER_REMOVAL / 200)
+            tryhard::RetryFutureConfig::new(MAX_WAIT_TIME_MILLIS_AFTER_REMOVAL / 100)
                 .fixed_backoff(Duration::from_millis(100));
         tryhard::retry_fn(|| async {
             self.tx(tx_hash, false)
                 .await
                 .map_err(|err| {
-                    debug!(%err, "error fetching transaction from CometBFT");
+                    debug!(%err, "failed to fetch transaction from CometBFT");
                 })
-                .and_then(|rsp| {
-                    if rsp.tx_result.code.is_ok() {
-                        Ok(rsp)
-                    } else {
-                        Err(())
-                    }
-                })
+                // check to ensure the result code is OK
+                .and_then(|rsp| rsp.tx_result.code.is_ok().then_some(rsp).ok_or(()))
         })
         .with_config(retry_config)
         .await

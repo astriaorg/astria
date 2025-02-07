@@ -131,7 +131,7 @@ impl RemovalCache {
         self.cache.insert(tx_hash, reason);
     }
 
-    /// Returns the removal reasaon for the transaction if it is present in the cache.
+    /// Returns the removal reason for the transaction if it is present in the cache.
     fn get(&self, tx_hash: [u8; 32]) -> Option<&RemovalReason> {
         self.cache.get(&tx_hash)
     }

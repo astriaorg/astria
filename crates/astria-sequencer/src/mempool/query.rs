@@ -10,7 +10,7 @@ use astria_core::{
     Protobuf as _,
 };
 use cnidarium::Storage;
-use prost::Message;
+use prost::Message as _;
 use tendermint::{
     abci::Code,
     v0_38::abci::{
@@ -62,7 +62,7 @@ pub(crate) async fn transaction_status_request(
 
     let (status, reason) = mempool.get_transaction_status(&tx_id).await;
 
-    let log = reason.map_or(String::new(), |r| format!("removal reason: {r}"));
+    let info = reason.map_or(String::new(), |r| format!("removal reason: {r}"));
 
     let payload = TransactionStatusResponse {
         status,
@@ -73,7 +73,7 @@ pub(crate) async fn transaction_status_request(
 
     response::Query {
         code: Code::Ok,
-        log,
+        info,
         key: request.path.clone().into_bytes().into(),
         value: payload,
         height,
@@ -94,7 +94,7 @@ fn preprocess_request(params: &[(String, String)]) -> Result<TransactionId, resp
         });
     };
 
-    // Transaction hashes may or may not be prefixed with "0x", so it's good UX to support both
+    // Support both "0x" prefixed and unprefixed transaction hashes
     let tx_id = tx_id.trim_start_matches("0x");
 
     let tx_id: [u8; TRANSACTION_ID_LEN] =
@@ -343,7 +343,7 @@ mod tests {
         .unwrap();
         assert_eq!(response_1.code, Code::Ok);
         assert_eq!(transaction_status.status, TransactionStatus::RemovalCache);
-        assert_eq!(response_1.log, format!("removal reason: {reason}"));
+        assert_eq!(response_1.info, format!("removal reason: {reason}"));
 
         // Check that the transaction hash can be formatted with or without the "0x" prefix
         let response_2 = transaction_status_request(
@@ -359,6 +359,6 @@ mod tests {
         .unwrap();
         assert_eq!(response_2.code, Code::Ok);
         assert_eq!(transaction_status.status, TransactionStatus::RemovalCache);
-        assert_eq!(response_2.log, format!("removal reason: {reason}"));
+        assert_eq!(response_2.info, format!("removal reason: {reason}"));
     }
 }

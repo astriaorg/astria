@@ -616,17 +616,6 @@ impl From<&TransactionStatus> for i32 {
     }
 }
 
-impl std::fmt::Display for TransactionStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TransactionStatus::Parked => write!(f, "PARKED"),
-            TransactionStatus::Pending => write!(f, "PENDING"),
-            TransactionStatus::RemovalCache => write!(f, "REMOVAL_CACHE"),
-            TransactionStatus::Unknown => write!(f, "UNKNOWN"),
-        }
-    }
-}
-
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct TransactionStatusResponseError(TransactionStatusResponseErrorKind);
