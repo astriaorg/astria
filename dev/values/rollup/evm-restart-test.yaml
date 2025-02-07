@@ -59,14 +59,14 @@ evm-rollup:
             assetDenom: "nria"
             assetPrecision: 9
       restart:
-        height: 18
+        height: 19
         halt: true
         sequencer:
           addressPrefix: "astria"
-          startHeight: 20
+          startHeight: 21
           stopHeight: 1000
         celestia:
-          startHeight: 20
+          startHeight: 21
 
     ## These are general configuration values with some recommended defaults
 
