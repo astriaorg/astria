@@ -170,25 +170,11 @@ impl Auction {
         &mut self,
         bid: Arc<Bid>,
     ) -> eyre::Result<()> {
-        // TODO: emit some more information about auctoin ID, expected vs actual parent block hash,
-        // tacked block hash, provided block hash, etc.
-        let Some(block_hash_of_executed) = &self.hash_of_executed_block_on_rollup else {
-            eyre::bail!(
-                "received a new bid but the current auction has not yet
-                    received an execute block from the rollup; dropping the bid"
-            );
-        };
-        ensure!(
-            &self.block_hash == bid.sequencer_parent_block_hash()
-                && block_hash_of_executed == bid.rollup_parent_block_hash(),
-            "bid does not match auction; auction.sequencer_parent_block_hash = `{}`, \
-             auction.rollup_parent_block_hash = `{}`, bid.sequencer_parent_block_hash = `{}`, \
-             bid.rollup_parent_block_hash = `{}`",
-            self.block_hash,
-            block_hash_of_executed,
-            bid.sequencer_parent_block_hash(),
-            bid.rollup_parent_block_hash(),
-        );
+        if let err @ Err(_) = self.does_bid_match_auction(&bid) {
+            self.metrics
+                .increment_auction_bids_without_matching_auction();
+            return err;
+        }
 
         self.metrics
             .record_auction_bid_delay_since_start(self.started_at.elapsed());
@@ -196,6 +182,54 @@ impl Auction {
         self.bids
             .send(bid)
             .wrap_err("failed to submit bid to auction; the bid is lost")
+    }
+
+    fn does_bid_match_auction(&self, bid: &Bid) -> eyre::Result<()> {
+        ensure!(
+            &self.block_hash == bid.sequencer_parent_block_hash()
+                && self.hash_of_executed_block_on_rollup.as_ref()
+                    == Some(bid.rollup_parent_block_hash()),
+            "bid does not match auction; auction.sequencer_parent_block_hash = `{}`, \
+             auction.rollup_parent_block_hash = `{}`, bid.sequencer_parent_block_hash = `{}`, \
+             bid.rollup_parent_block_hash = `{}`",
+            self.block_hash,
+            fmt_none_as_msg(
+                self.hash_of_executed_block_on_rollup.as_ref(),
+                "<not yet received>"
+            ),
+            bid.sequencer_parent_block_hash(),
+            bid.rollup_parent_block_hash(),
+        );
+        Ok(())
+    }
+}
+
+fn fmt_none_as_msg<'a, T: Display>(
+    val: Option<&'a T>,
+    default: &'static str,
+) -> FmtNoneAsMsg<'a, T> {
+    FmtNoneAsMsg {
+        val,
+        default,
+    }
+}
+
+/// Utilty to implement the [`Display`] trait on a type `Option<T>`.
+///
+/// Writes `default` if `val` is `None`, or the set value if `Some`.
+struct FmtNoneAsMsg<'a, T> {
+    val: Option<&'a T>,
+    default: &'static str,
+}
+impl<T> Display for FmtNoneAsMsg<'_, T>
+where
+    T: Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.val {
+            Some(val) => val.fmt(f),
+            None => f.write_str(self.default),
+        }
     }
 }
 

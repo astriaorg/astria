@@ -22,6 +22,7 @@ pub struct Metrics {
     auction_bids_dropped_histogram: Histogram,
     auction_bids_processed_histogram: Histogram,
     auction_bids_received_count: Counter,
+    auction_bids_without_matching_auction: Counter,
     auction_winner_submission_error_latency: Histogram,
     auction_winner_submission_success_latency: Histogram,
     auction_winning_bid_histogram: Histogram,
@@ -43,6 +44,10 @@ impl Metrics {
 
     pub(crate) fn increment_auctions_submitted_count(&self) {
         self.auctions_submitted_count.increment(1);
+    }
+
+    pub(crate) fn increment_auction_bids_without_matching_auction(&self) {
+        self.auction_bids_without_matching_auction.increment(1);
     }
 
     pub(crate) fn increment_block_commitments_received_counter(&self) {
@@ -172,14 +177,25 @@ impl astria_telemetry::metrics::Metrics for Metrics {
             AUCTION_WINNER_SUCCESS.to_string(),
         )])?;
 
+        let auction_bids_without_matching_auction = builder
+            .new_counter_factory(
+                AUCTION_BIDS_WITHOUT_MATCHING_AUCTION,
+                "auction bids that were received by auctioneer but that contained a sequencer or
+                rollup parent block hash that did not match a currently running auction (this \
+                 includes
+                bids that arrived after an auction completed and bids that arrived before the
+                optimistically executed block was received by auctioneer from the rollup)",
+            )?
+            .register()?;
         Ok(Self {
             auction_bid_delay_since_start,
             auction_bids_dropped_histogram,
             auction_bids_processed_histogram,
             auction_bids_received_count,
-            auction_winning_bid_histogram,
-            auction_winner_submission_success_latency,
+            auction_bids_without_matching_auction,
             auction_winner_submission_error_latency,
+            auction_winner_submission_success_latency,
+            auction_winning_bid_histogram,
             auctions_cancelled_count,
             auctions_submitted_count,
             block_commitments_received_count,
@@ -198,6 +214,7 @@ metric_names!(const METRICS_NAMES:
     AUCTION_BID_DELAY_SINCE_START,
     AUCTION_BIDS,
     AUCTION_BIDS_RECEIVED,
+    AUCTION_BIDS_WITHOUT_MATCHING_AUCTION,
     AUCTION_WINNING_BID,
     AUCTION_WINNER_SUBMISSION_LATENCY,
 );
