@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add validator update action with name [#1679](https://github.com/astriaorg/astria/pull/1679)
+
 ### Changed
 
 - Bump MSRV to 1.83.0 [#1857](https://github.com/astriaorg/astria/pull/1857).
