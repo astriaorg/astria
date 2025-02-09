@@ -18,6 +18,6 @@ impl metrics::Metrics for Metrics {
         builder: &mut RegisteringBuilder,
         _config: &Self::Config,
     ) -> Result<Self, metrics::Error> {
-        todo!()
+        Ok(Self {})
     }
 }
