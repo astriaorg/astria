@@ -329,7 +329,7 @@ pub(crate) async fn get_pending_nonce(
     state: Arc<State>,
     metrics: &'static Metrics,
 ) -> eyre::Result<u32> {
-    debug!("fetching pending nonce from sequencing");
+    debug!("fetching pending nonce from sequencer");
     let start = std::time::Instant::now();
     let span = Span::current();
     let retry_config = tryhard::RetryFutureConfig::new(1024)
@@ -348,7 +348,7 @@ pub(crate) async fn get_pending_nonce(
                     error = err as &dyn std::error::Error,
                     attempt,
                     wait_duration,
-                    "failed getting pending nonce from sequencing; retrying after backoff",
+                    "failed getting pending nonce from sequencer; retrying after backoff",
                 );
                 futures::future::ready(())
             },
@@ -369,7 +369,7 @@ pub(crate) async fn get_pending_nonce(
     })
     .with_config(retry_config)
     .await
-    .wrap_err("failed getting pending nonce from sequencing after 1024 attempts");
+    .wrap_err("failed getting pending nonce from sequencer after 1024 attempts");
 
     state.set_sequencer_connected(res.is_ok());
     metrics.increment_nonce_fetch_count();
