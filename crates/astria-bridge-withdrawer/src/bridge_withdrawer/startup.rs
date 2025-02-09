@@ -406,7 +406,7 @@ async fn wait_for_empty_mempool(
                     error = error.as_ref() as &dyn std::error::Error,
                     attempt,
                     wait_duration,
-                    "failed getting pending nonce from sequencing; retrying after backoff",
+                    "failed getting pending nonce from sequencer; retrying after backoff",
                 );
 
                 // TODO(https://github.com/astriaorg/astria/issues/1272): update metrics here?
