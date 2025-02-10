@@ -13,7 +13,7 @@ use astria_conductor::{
 use astria_core::{
     brotli::compress_bytes,
     generated::astria::{
-        execution::v1::{
+        execution::v2::{
             Block,
             CommitmentState,
             GenesisInfo,
@@ -179,7 +179,7 @@ impl TestConductor {
     pub async fn mount_get_block<S: serde::Serialize>(
         &self,
         expected_pbjson: S,
-        block: astria_core::generated::astria::execution::v1::Block,
+        block: astria_core::generated::astria::execution::v2::Block,
     ) {
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
@@ -311,7 +311,7 @@ impl TestConductor {
         up_to_n_times: u64,
         expected_calls: u64,
     ) {
-        use astria_core::generated::astria::execution::v1::GetGenesisInfoRequest;
+        use astria_core::generated::astria::execution::v2::GetGenesisInfoRequest;
         astria_grpc_mock::Mock::for_rpc_given(
             "get_genesis_info",
             astria_grpc_mock::matcher::message_type::<GetGenesisInfoRequest>(),
@@ -328,7 +328,7 @@ impl TestConductor {
         commitment_state: CommitmentState,
         up_to_n_times: u64,
     ) {
-        use astria_core::generated::astria::execution::v1::GetCommitmentStateRequest;
+        use astria_core::generated::astria::execution::v2::GetCommitmentStateRequest;
 
         astria_grpc_mock::Mock::for_rpc_given(
             "get_commitment_state",
@@ -393,7 +393,7 @@ impl TestConductor {
         commitment_state: CommitmentState,
         expected_calls: impl Into<astria_grpc_mock::Times>,
     ) -> astria_grpc_mock::MockGuard {
-        use astria_core::generated::astria::execution::v1::UpdateCommitmentStateRequest;
+        use astria_core::generated::astria::execution::v2::UpdateCommitmentStateRequest;
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
             response::constant_response,

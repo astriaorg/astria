@@ -1,8 +1,10 @@
+use std::num::NonZeroU64;
+
 use bytes::Bytes;
 use pbjson_types::Timestamp;
 
 use crate::{
-    generated::astria::execution::v1 as raw,
+    generated::astria::execution::v2 as raw,
     primitive::v1::{
         IncorrectRollupIdLength,
         RollupId,
@@ -23,6 +25,14 @@ impl GenesisInfoError {
     fn no_rollup_id() -> Self {
         Self(GenesisInfoErrorKind::NoRollupId)
     }
+
+    fn invalid_sequencer_id(source: tendermint::Error) -> Self {
+        Self(GenesisInfoErrorKind::InvalidSequencerId(source))
+    }
+
+    fn invalid_celestia_id(source: celestia_tendermint::Error) -> Self {
+        Self(GenesisInfoErrorKind::InvalidCelestiaId(source))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -31,6 +41,10 @@ enum GenesisInfoErrorKind {
     IncorrectRollupIdLength(IncorrectRollupIdLength),
     #[error("`rollup_id` was not set")]
     NoRollupId,
+    #[error("field `sequencer_chain_id` was invalid")]
+    InvalidSequencerId(#[source] tendermint::Error),
+    #[error("field `celestia_chain_id` was invalid")]
+    InvalidCelestiaId(#[source] celestia_tendermint::Error),
 }
 
 /// Genesis Info required from a rollup to start an execution client.
@@ -39,19 +53,29 @@ enum GenesisInfoErrorKind {
 ///
 /// Usually constructed its [`Protobuf`] implementation from a
 /// [`raw::GenesisInfo`].
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(
     feature = "serde",
-    serde(into = "crate::generated::astria::execution::v1::GenesisInfo")
+    serde(into = "crate::generated::astria::execution::v2::GenesisInfo")
 )]
 pub struct GenesisInfo {
     /// The rollup id which is used to identify the rollup txs.
     rollup_id: RollupId,
     /// The Sequencer block height which contains the first block of the rollup.
-    sequencer_genesis_block_height: tendermint::block::Height,
+    sequencer_start_height: tendermint::block::Height,
     /// The allowed variance in the block height of celestia when looking for sequencer blocks.
     celestia_block_variance: u64,
+    /// The rollup block number to map to the sequencer start block height.
+    rollup_start_block_number: u64,
+    /// The rollup block number to restart/halt at after executing.
+    rollup_stop_block_number: Option<NonZeroU64>,
+    /// The chain ID of the sequencer network.
+    sequencer_chain_id: tendermint::chain::Id,
+    /// The chain ID of the celestia network.
+    celestia_chain_id: celestia_tendermint::chain::Id,
+    /// Whether the conductor should halt at the stop height instead of restarting.
+    halt_at_rollup_stop_number: bool,
 }
 
 impl GenesisInfo {
@@ -61,13 +85,38 @@ impl GenesisInfo {
     }
 
     #[must_use]
-    pub fn sequencer_genesis_block_height(&self) -> tendermint::block::Height {
-        self.sequencer_genesis_block_height
+    pub fn sequencer_start_height(&self) -> u64 {
+        self.sequencer_start_height.into()
     }
 
     #[must_use]
     pub fn celestia_block_variance(&self) -> u64 {
         self.celestia_block_variance
+    }
+
+    #[must_use]
+    pub fn sequencer_chain_id(&self) -> &str {
+        self.sequencer_chain_id.as_str()
+    }
+
+    #[must_use]
+    pub fn celestia_chain_id(&self) -> &str {
+        self.celestia_chain_id.as_str()
+    }
+
+    #[must_use]
+    pub fn rollup_start_block_number(&self) -> u64 {
+        self.rollup_start_block_number
+    }
+
+    #[must_use]
+    pub fn rollup_stop_block_number(&self) -> Option<NonZeroU64> {
+        self.rollup_stop_block_number
+    }
+
+    #[must_use]
+    pub fn halt_at_rollup_stop_number(&self) -> bool {
+        self.halt_at_rollup_stop_number
     }
 }
 
@@ -84,38 +133,66 @@ impl Protobuf for GenesisInfo {
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let raw::GenesisInfo {
             rollup_id,
-            sequencer_genesis_block_height,
+            sequencer_start_height,
             celestia_block_variance,
+            rollup_start_block_number,
+            rollup_stop_block_number,
+            sequencer_chain_id,
+            celestia_chain_id,
+            halt_at_rollup_stop_number,
         } = raw;
         let Some(rollup_id) = rollup_id else {
             return Err(Self::Error::no_rollup_id());
         };
         let rollup_id = RollupId::try_from_raw_ref(rollup_id)
             .map_err(Self::Error::incorrect_rollup_id_length)?;
+        let sequencer_chain_id = sequencer_chain_id
+            .clone()
+            .try_into()
+            .map_err(Self::Error::invalid_sequencer_id)?;
+        let celestia_chain_id = celestia_chain_id
+            .clone()
+            .try_into()
+            .map_err(Self::Error::invalid_celestia_id)?;
 
         Ok(Self {
             rollup_id,
-            sequencer_genesis_block_height: (*sequencer_genesis_block_height).into(),
+            sequencer_start_height: (*sequencer_start_height).into(),
             celestia_block_variance: *celestia_block_variance,
+            rollup_start_block_number: *rollup_start_block_number,
+            rollup_stop_block_number: NonZeroU64::new(*rollup_stop_block_number),
+            sequencer_chain_id,
+            celestia_chain_id,
+            halt_at_rollup_stop_number: *halt_at_rollup_stop_number,
         })
     }
 
     fn to_raw(&self) -> Self::Raw {
         let Self {
             rollup_id,
-            sequencer_genesis_block_height,
+            sequencer_start_height,
             celestia_block_variance,
+            rollup_start_block_number,
+            rollup_stop_block_number,
+            sequencer_chain_id,
+            celestia_chain_id,
+            halt_at_rollup_stop_number,
         } = self;
 
-        let sequencer_genesis_block_height: u32 =
-            (*sequencer_genesis_block_height).value().try_into().expect(
-                "block height overflow, this should not happen since tendermint heights are i64 \
-                 under the hood",
-            );
+        let sequencer_start_height: u32 = (*sequencer_start_height).value().try_into().expect(
+            "block height overflow, this should not happen since tendermint heights are i64 under \
+             the hood",
+        );
+
         Self::Raw {
             rollup_id: Some(rollup_id.to_raw()),
-            sequencer_genesis_block_height,
+            sequencer_start_height,
             celestia_block_variance: *celestia_block_variance,
+            rollup_start_block_number: *rollup_start_block_number,
+            rollup_stop_block_number: rollup_stop_block_number.map(NonZeroU64::get).unwrap_or(0),
+            sequencer_chain_id: sequencer_chain_id.to_string(),
+            celestia_chain_id: celestia_chain_id.to_string(),
+            halt_at_rollup_stop_number: *halt_at_rollup_stop_number,
         }
     }
 }
@@ -148,7 +225,7 @@ enum BlockErrorKind {
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(
     feature = "serde",
-    serde(into = "crate::generated::astria::execution::v1::Block")
+    serde(into = "crate::generated::astria::execution::v2::Block")
 )]
 pub struct Block {
     /// The block number
@@ -380,7 +457,7 @@ impl CommitmentStateBuilder<WithFirm, WithSoft, WithCelestiaBaseHeight> {
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(
     feature = "serde",
-    serde(into = "crate::generated::astria::execution::v1::CommitmentState")
+    serde(into = "crate::generated::astria::execution::v2::CommitmentState")
 )]
 pub struct CommitmentState {
     /// Soft commitment is the rollup block matching latest sequencer block.

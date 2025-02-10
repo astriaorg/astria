@@ -1,11 +1,11 @@
 use astria_core::{
     self,
-    execution::v1::{
+    execution::v2::{
         Block,
         CommitmentState,
         GenesisInfo,
     },
-    generated::astria::execution::v1 as raw,
+    generated::astria::execution::v2 as raw,
     Protobuf as _,
 };
 use bytes::Bytes;

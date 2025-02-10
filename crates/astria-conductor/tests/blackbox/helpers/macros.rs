@@ -1,7 +1,7 @@
 #[macro_export]
 macro_rules! block {
     (number: $number:expr,hash: $hash:expr,parent: $parent:expr $(,)?) => {
-        ::astria_core::generated::astria::execution::v1::Block {
+        ::astria_core::generated::astria::execution::v2::Block {
             number: $number,
             hash: ::bytes::Bytes::from(Vec::from($hash)),
             parent_block_hash: ::bytes::Bytes::from(Vec::from($parent)),
@@ -59,7 +59,7 @@ macro_rules! commitment_state {
         soft: (number: $soft_number:expr,hash: $soft_hash:expr,parent: $soft_parent:expr $(,)?),
         base_celestia_height: $base_celestia_height:expr $(,)?
     ) => {
-       ::astria_core::generated::astria::execution::v1::CommitmentState {
+       ::astria_core::generated::astria::execution::v2::CommitmentState {
             firm: Some($crate::block!(
                 number: $firm_number,
                 hash: $firm_hash,
@@ -116,7 +116,7 @@ macro_rules! genesis_info {
         rollup_stop_block_number: $rollup_stop_block_number:expr,
         halt_at_rollup_stop_number: $halt_at_rollup_stop_number:expr $(,)?
     ) => {
-        ::astria_core::generated::astria::execution::v1::GenesisInfo {
+        ::astria_core::generated::astria::execution::v2::GenesisInfo {
             rollup_id: Some($crate::ROLLUP_ID.to_raw()),
             sequencer_start_height: $start_height,
             celestia_block_variance: $variance,
@@ -489,12 +489,12 @@ macro_rules! mount_get_block {
             hash: $hash,
             parent: $parent,
         );
-        let identifier = ::astria_core::generated::astria::execution::v1::BlockIdentifier {
+        let identifier = ::astria_core::generated::astria::execution::v2::BlockIdentifier {
             identifier: Some(
-                ::astria_core::generated::astria::execution::v1::block_identifier::Identifier::BlockNumber(block.number)
+                ::astria_core::generated::astria::execution::v2::block_identifier::Identifier::BlockNumber(block.number)
         )};
         $test_env.mount_get_block(
-            ::astria_core::generated::astria::execution::v1::GetBlockRequest {
+            ::astria_core::generated::astria::execution::v2::GetBlockRequest {
                 identifier: Some(identifier),
             },
             block,

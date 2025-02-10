@@ -236,7 +236,7 @@ fn should_restart_or_shutdown(
 
 #[cfg(test)]
 mod tests {
-    use astria_core::generated::astria::execution::v1::{
+    use astria_core::generated::astria::execution::v2::{
         Block,
         CommitmentState,
         GenesisInfo,

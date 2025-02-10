@@ -4,7 +4,7 @@ use std::{
 };
 
 use astria_core::{
-    execution::v1::{
+    execution::v2::{
         Block,
         CommitmentState,
     },

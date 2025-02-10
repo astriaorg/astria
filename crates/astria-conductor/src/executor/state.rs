@@ -5,7 +5,7 @@
 use std::num::NonZeroU64;
 
 use astria_core::{
-    execution::v1::{
+    execution::v2::{
         Block,
         CommitmentState,
         GenesisInfo,

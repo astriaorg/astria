@@ -10,16 +10,37 @@ pub struct GenesisInfo {
     pub rollup_id: ::core::option::Option<super::super::primitive::v1::RollupId>,
     /// The first block height of sequencer chain to use for rollup transactions.
     #[prost(uint32, tag = "2")]
-    pub sequencer_genesis_block_height: u32,
+    pub sequencer_start_height: u32,
     /// The allowed variance in celestia for sequencer blocks to have been posted.
     #[prost(uint64, tag = "4")]
     pub celestia_block_variance: u64,
+    /// The rollup block number to map to the sequencer start block height.
+    #[prost(uint64, tag = "5")]
+    pub rollup_start_block_number: u64,
+    /// The rollup block number to re-fetch the genesis info and continue executing with new data.
+    #[prost(uint64, tag = "6")]
+    pub rollup_stop_block_number: u64,
+    /// The ID of the Astria Sequencer network to retrieve Sequencer blocks from.
+    /// Conductor implementations should verify that the Sequencer network they are connected to
+    /// have this chain ID (if fetching soft Sequencer blocks), and verify that the Sequencer metadata
+    /// blobs retrieved from Celestia contain this chain ID (if extracting firm Sequencer blocks from
+    /// Celestia blobs).
+    #[prost(string, tag = "7")]
+    pub sequencer_chain_id: ::prost::alloc::string::String,
+    /// The ID of the Celestia network to retrieve blobs from.
+    /// Conductor implementations should verify that the Celestia network they are connected to have
+    /// this chain ID (if extracting firm Sequencer blocks from Celestia blobs).
+    #[prost(string, tag = "8")]
+    pub celestia_chain_id: ::prost::alloc::string::String,
+    /// Requests Conductor to halt at the stop number instead of re-fetching the genesis and continuing execution.
+    #[prost(bool, tag = "9")]
+    pub halt_at_rollup_stop_number: bool,
 }
 impl ::prost::Name for GenesisInfo {
     const NAME: &'static str = "GenesisInfo";
-    const PACKAGE: &'static str = "astria.execution.v1";
+    const PACKAGE: &'static str = "astria.execution.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.execution.v1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
     }
 }
 /// The set of information which deterministic driver of block production
@@ -42,9 +63,9 @@ pub struct Block {
 }
 impl ::prost::Name for Block {
     const NAME: &'static str = "Block";
-    const PACKAGE: &'static str = "astria.execution.v1";
+    const PACKAGE: &'static str = "astria.execution.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.execution.v1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
     }
 }
 /// Fields which are indexed for finding blocks on a blockchain.
@@ -67,9 +88,9 @@ pub mod block_identifier {
 }
 impl ::prost::Name for BlockIdentifier {
     const NAME: &'static str = "BlockIdentifier";
-    const PACKAGE: &'static str = "astria.execution.v1";
+    const PACKAGE: &'static str = "astria.execution.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.execution.v1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -77,9 +98,9 @@ impl ::prost::Name for BlockIdentifier {
 pub struct GetGenesisInfoRequest {}
 impl ::prost::Name for GetGenesisInfoRequest {
     const NAME: &'static str = "GetGenesisInfoRequest";
-    const PACKAGE: &'static str = "astria.execution.v1";
+    const PACKAGE: &'static str = "astria.execution.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.execution.v1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
     }
 }
 /// Used in GetBlock to find a single block.
@@ -91,9 +112,9 @@ pub struct GetBlockRequest {
 }
 impl ::prost::Name for GetBlockRequest {
     const NAME: &'static str = "GetBlockRequest";
-    const PACKAGE: &'static str = "astria.execution.v1";
+    const PACKAGE: &'static str = "astria.execution.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.execution.v1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
     }
 }
 /// Used in BatchGetBlocks, will find all or none based on the list of
@@ -106,9 +127,9 @@ pub struct BatchGetBlocksRequest {
 }
 impl ::prost::Name for BatchGetBlocksRequest {
     const NAME: &'static str = "BatchGetBlocksRequest";
-    const PACKAGE: &'static str = "astria.execution.v1";
+    const PACKAGE: &'static str = "astria.execution.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.execution.v1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
     }
 }
 /// The list of blocks in response to BatchGetBlocks.
@@ -120,9 +141,9 @@ pub struct BatchGetBlocksResponse {
 }
 impl ::prost::Name for BatchGetBlocksResponse {
     const NAME: &'static str = "BatchGetBlocksResponse";
-    const PACKAGE: &'static str = "astria.execution.v1";
+    const PACKAGE: &'static str = "astria.execution.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.execution.v1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
     }
 }
 /// ExecuteBlockRequest contains all the information needed to create a new rollup
@@ -147,9 +168,9 @@ pub struct ExecuteBlockRequest {
 }
 impl ::prost::Name for ExecuteBlockRequest {
     const NAME: &'static str = "ExecuteBlockRequest";
-    const PACKAGE: &'static str = "astria.execution.v1";
+    const PACKAGE: &'static str = "astria.execution.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.execution.v1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
     }
 }
 /// The CommitmentState holds the block at each stage of sequencer commitment
@@ -175,9 +196,9 @@ pub struct CommitmentState {
 }
 impl ::prost::Name for CommitmentState {
     const NAME: &'static str = "CommitmentState";
-    const PACKAGE: &'static str = "astria.execution.v1";
+    const PACKAGE: &'static str = "astria.execution.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.execution.v1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
     }
 }
 /// There is only one CommitmentState object, so the request is empty.
@@ -186,9 +207,9 @@ impl ::prost::Name for CommitmentState {
 pub struct GetCommitmentStateRequest {}
 impl ::prost::Name for GetCommitmentStateRequest {
     const NAME: &'static str = "GetCommitmentStateRequest";
-    const PACKAGE: &'static str = "astria.execution.v1";
+    const PACKAGE: &'static str = "astria.execution.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.execution.v1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
     }
 }
 /// The CommitmentState to set, must include complete state.
@@ -200,9 +221,9 @@ pub struct UpdateCommitmentStateRequest {
 }
 impl ::prost::Name for UpdateCommitmentStateRequest {
     const NAME: &'static str = "UpdateCommitmentStateRequest";
-    const PACKAGE: &'static str = "astria.execution.v1";
+    const PACKAGE: &'static str = "astria.execution.v2";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.execution.v1.{}", Self::NAME)
+        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
     }
 }
 /// Generated client implementations.
@@ -312,13 +333,13 @@ pub mod execution_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.execution.v1.ExecutionService/GetGenesisInfo",
+                "/astria.execution.v2.ExecutionService/GetGenesisInfo",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
-                        "astria.execution.v1.ExecutionService",
+                        "astria.execution.v2.ExecutionService",
                         "GetGenesisInfo",
                     ),
                 );
@@ -340,12 +361,12 @@ pub mod execution_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.execution.v1.ExecutionService/GetBlock",
+                "/astria.execution.v2.ExecutionService/GetBlock",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
-                    GrpcMethod::new("astria.execution.v1.ExecutionService", "GetBlock"),
+                    GrpcMethod::new("astria.execution.v2.ExecutionService", "GetBlock"),
                 );
             self.inner.unary(req, path, codec).await
         }
@@ -369,13 +390,13 @@ pub mod execution_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.execution.v1.ExecutionService/BatchGetBlocks",
+                "/astria.execution.v2.ExecutionService/BatchGetBlocks",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
-                        "astria.execution.v1.ExecutionService",
+                        "astria.execution.v2.ExecutionService",
                         "BatchGetBlocks",
                     ),
                 );
@@ -398,13 +419,13 @@ pub mod execution_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.execution.v1.ExecutionService/ExecuteBlock",
+                "/astria.execution.v2.ExecutionService/ExecuteBlock",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
-                        "astria.execution.v1.ExecutionService",
+                        "astria.execution.v2.ExecutionService",
                         "ExecuteBlock",
                     ),
                 );
@@ -429,13 +450,13 @@ pub mod execution_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.execution.v1.ExecutionService/GetCommitmentState",
+                "/astria.execution.v2.ExecutionService/GetCommitmentState",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
-                        "astria.execution.v1.ExecutionService",
+                        "astria.execution.v2.ExecutionService",
                         "GetCommitmentState",
                     ),
                 );
@@ -461,13 +482,13 @@ pub mod execution_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.execution.v1.ExecutionService/UpdateCommitmentState",
+                "/astria.execution.v2.ExecutionService/UpdateCommitmentState",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
-                        "astria.execution.v1.ExecutionService",
+                        "astria.execution.v2.ExecutionService",
                         "UpdateCommitmentState",
                     ),
                 );
@@ -604,7 +625,7 @@ pub mod execution_service_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/astria.execution.v1.ExecutionService/GetGenesisInfo" => {
+                "/astria.execution.v2.ExecutionService/GetGenesisInfo" => {
                     #[allow(non_camel_case_types)]
                     struct GetGenesisInfoSvc<T: ExecutionService>(pub Arc<T>);
                     impl<
@@ -651,7 +672,7 @@ pub mod execution_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria.execution.v1.ExecutionService/GetBlock" => {
+                "/astria.execution.v2.ExecutionService/GetBlock" => {
                     #[allow(non_camel_case_types)]
                     struct GetBlockSvc<T: ExecutionService>(pub Arc<T>);
                     impl<
@@ -697,7 +718,7 @@ pub mod execution_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria.execution.v1.ExecutionService/BatchGetBlocks" => {
+                "/astria.execution.v2.ExecutionService/BatchGetBlocks" => {
                     #[allow(non_camel_case_types)]
                     struct BatchGetBlocksSvc<T: ExecutionService>(pub Arc<T>);
                     impl<
@@ -744,7 +765,7 @@ pub mod execution_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria.execution.v1.ExecutionService/ExecuteBlock" => {
+                "/astria.execution.v2.ExecutionService/ExecuteBlock" => {
                     #[allow(non_camel_case_types)]
                     struct ExecuteBlockSvc<T: ExecutionService>(pub Arc<T>);
                     impl<
@@ -790,7 +811,7 @@ pub mod execution_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria.execution.v1.ExecutionService/GetCommitmentState" => {
+                "/astria.execution.v2.ExecutionService/GetCommitmentState" => {
                     #[allow(non_camel_case_types)]
                     struct GetCommitmentStateSvc<T: ExecutionService>(pub Arc<T>);
                     impl<
@@ -840,7 +861,7 @@ pub mod execution_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria.execution.v1.ExecutionService/UpdateCommitmentState" => {
+                "/astria.execution.v2.ExecutionService/UpdateCommitmentState" => {
                     #[allow(non_camel_case_types)]
                     struct UpdateCommitmentStateSvc<T: ExecutionService>(pub Arc<T>);
                     impl<
@@ -928,6 +949,6 @@ pub mod execution_service_server {
         }
     }
     impl<T: ExecutionService> tonic::server::NamedService for ExecutionServiceServer<T> {
-        const NAME: &'static str = "astria.execution.v1.ExecutionService";
+        const NAME: &'static str = "astria.execution.v2.ExecutionService";
     }
 }
