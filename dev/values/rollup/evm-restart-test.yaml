@@ -16,24 +16,15 @@ evm-rollup:
     # The "forks" for upgrading the chain. Contains necessary information for starting
     # and, if desired, restarting the chain at a given height. The necessary fields
     # for the genesis fork are provided, and additional forks can be added as needed.
-    launch:
+    forks:
       ## These values are used to configure the genesis block of the rollup chain
       ## no defaults as they are unique to each chain
-      genesis:
+      launch:
         # The block height to start the chain at, 0 for genesis
-        height: 0
-        # Whether to halt the rollup chain at the given height. False for genesis
-        halt: false
-        # Checksum of the snapshot to use upon restart
-        snapshotChecksum: ""
-        # Will fill the extra data in each block, can be left empty
-        # can also fill with something unique for your chain.
-        extraDataOverride: ""
+        height: "0"
         # Configure the fee collector for the evm tx fees, activated at block heights.
         # If not configured, all tx fees will be burned.
         feeCollector: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
-        # Configure EIP-1559 params, activated at block heights.
-        eip1559Params: {}
         sequencer:
           # The chain id of the sequencer chain
           chainId: "sequencer-test-chain-0"
@@ -59,7 +50,7 @@ evm-rollup:
             assetDenom: "nria"
             assetPrecision: 9
       restart:
-        height: 19
+        height: "19"
         halt: true
         sequencer:
           addressPrefix: "astria"
