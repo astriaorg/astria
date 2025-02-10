@@ -20,8 +20,8 @@ evm-rollup:
       ## These values are used to configure the genesis block of the rollup chain
       ## no defaults as they are unique to each chain
       launch:
-        # The block height to start the chain at, 0 for genesis
-        height: "0"
+        # The rollup number to start executing blocks at, lowest possible is 1
+        height: 1
         # Configure the fee collector for the evm tx fees, activated at block heights.
         # If not configured, all tx fees will be burned.
         feeCollector: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
@@ -30,7 +30,7 @@ evm-rollup:
           chainId: "sequencer-test-chain-0"
           # The hrp for bech32m addresses, unlikely to be changed
           addressPrefix: "astria"
-          # Block height to start syncing rollup from, lowest possible is 2
+          # Block height to start syncing rollup from (inclusive), lowest possible is 2
           startHeight: 2
         celestia:
           # The chain id of the celestia chain
@@ -48,15 +48,7 @@ evm-rollup:
             assetDenom: "nria"
             assetPrecision: 9
       restart:
-        height: "19"
-        sequencer:
-          chainId: "sequencer-test-chain-0"
-          addressPrefix: "astria"
-          startHeight: 21
-        celestia:
-          chainId: "celestia-local-0"
-          startHeight: 21
-          heightVariance: 10
+        height: 19
 
     ## These are general configuration values with some recommended defaults
 

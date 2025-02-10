@@ -215,11 +215,14 @@ impl Executor {
         let (genesis_info, commitment_state) = tokio::try_join!(genesis_info, commitment_state)?;
 
         let (state, _) = state::channel(
-            State::try_from_genesis_info_and_commitment_state(genesis_info, commitment_state)
-                .wrap_err(
-                    "failed to construct initial state gensis and commitment info received from \
-                     rollup",
-                )?,
+            State::try_from_genesis_info_and_commitment_state(
+                genesis_info,
+                commitment_state,
+                self.config.execution_commit_level,
+            )
+            .wrap_err(
+                "failed to construct initial state gensis and commitment info received from rollup",
+            )?,
         );
 
         self.metrics
@@ -544,14 +547,27 @@ impl Initialized {
             OnlySoft,
             ToSame,
         };
-        let (firm, soft, celestia_height) = match update {
-            OnlyFirm(firm, celestia_height) => (firm, self.state.soft(), celestia_height),
+
+        use crate::config::CommitLevel;
+        let (firm, soft, celestia_height, commit_level) = match update {
+            OnlyFirm(firm, celestia_height) => (
+                firm,
+                self.state.soft(),
+                celestia_height,
+                CommitLevel::FirmOnly,
+            ),
             OnlySoft(soft) => (
                 self.state.firm(),
                 soft,
                 self.state.celestia_base_block_height(),
+                CommitLevel::SoftOnly,
             ),
-            ToSame(block, celestia_height) => (block.clone(), block, celestia_height),
+            ToSame(block, celestia_height) => (
+                block.clone(),
+                block,
+                celestia_height,
+                CommitLevel::SoftAndFirm,
+            ),
         };
         let commitment_state = CommitmentState::builder()
             .firm(firm)
@@ -572,7 +588,7 @@ impl Initialized {
             "updated commitment state",
         );
         self.state
-            .try_update_commitment_state(new_state)
+            .try_update_commitment_state(new_state, commit_level)
             .wrap_err("failed updating internal state tracking rollup state; invalid?")?;
         Ok(())
     }

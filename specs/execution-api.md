@@ -109,10 +109,8 @@ upon a restart.
 If the `GenesisInfo` provided by this RPC contains a `rollup_stop_block_number`,
 the rollup should be prepared to provide an updated response when the conductor
 restarts, including, at minimum, a new `rollup_start_block_number` and `sequencer_start_height`.
-Note that execution will begin with the block *following* the start number, so
-any restarts must provide the same start number as the previous `GenesisInfo`'s
-stop number. The updated response can also contain an updated `rollup_stop_block_number`
-(if another restart is desired), `celestia_chain_id`, and/or `sequencer_chain_id`
+The updated response can also contain an updated `rollup_stop_block_number` (if
+another restart is desired), `celestia_chain_id`, and/or `sequencer_chain_id`
 (to facilitate network migration).
 
 ### ExecuteBlock

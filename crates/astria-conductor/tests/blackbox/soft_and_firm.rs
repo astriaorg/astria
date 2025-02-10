@@ -40,9 +40,9 @@ async fn executes_soft_first_then_updates_firm() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_start_height: 1,
+        sequencer_start_height: 3,
         celestia_block_variance: 10,
-        rollup_start_block_number: 0,
+        rollup_start_block_number: 2,
         rollup_stop_block_number: 9,
     );
 
@@ -176,9 +176,9 @@ async fn executes_firm_then_soft_at_next_height() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_start_height: 1,
+        sequencer_start_height: 3,
         celestia_block_variance: 10,
-        rollup_start_block_number: 0,
+        rollup_start_block_number: 2,
         rollup_stop_block_number: 9,
     );
 
@@ -337,9 +337,9 @@ async fn missing_block_is_fetched_for_updating_firm_commitment() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_start_height: 1,
+        sequencer_start_height: 3,
         celestia_block_variance: 10,
-        rollup_start_block_number: 0,
+        rollup_start_block_number: 2,
         rollup_stop_block_number: 9,
     );
 
@@ -468,9 +468,9 @@ async fn restarts_on_permission_denied() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_start_height: 1,
+        sequencer_start_height: 3,
         celestia_block_variance: 10,
-        rollup_start_block_number: 0,
+        rollup_start_block_number: 2,
         rollup_stop_block_number: 9,
         up_to_n_times: 2,
         halt_at_rollup_stop_number: false,
@@ -620,9 +620,9 @@ async fn restarts_after_reaching_soft_stop_height_first() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_start_height: 1,
+        sequencer_start_height: 3,
         celestia_block_variance: 10,
-        rollup_start_block_number: 0,
+        rollup_start_block_number: 2,
         rollup_stop_block_number: 2,
         up_to_n_times: 1, // We only respond once since this needs to be updated after restart
     );
@@ -737,9 +737,9 @@ async fn restarts_after_reaching_soft_stop_height_first() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_start_height: 2,
+        sequencer_start_height: 4,
         celestia_block_variance: 10,
-        rollup_start_block_number: 1,
+        rollup_start_block_number: 3,
         rollup_stop_block_number: 9,
     );
 
@@ -846,9 +846,9 @@ async fn restarts_after_reaching_firm_stop_height_first() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_start_height: 1,
+        sequencer_start_height: 3,
         celestia_block_variance: 10,
-        rollup_start_block_number: 0,
+        rollup_start_block_number: 2,
         rollup_stop_block_number: 2,
         up_to_n_times: 1, // We only respond once since this needs to be updated after restart
     );
@@ -963,9 +963,9 @@ async fn restarts_after_reaching_firm_stop_height_first() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_start_height: 2,
+        sequencer_start_height: 4,
         celestia_block_variance: 10,
-        rollup_start_block_number: 1,
+        rollup_start_block_number: 3,
         rollup_stop_block_number: 9,
     );
 
@@ -1061,9 +1061,9 @@ async fn stops_at_stop_height() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_start_height: 1,
+        sequencer_start_height: 3,
         celestia_block_variance: 10,
-        rollup_start_block_number: 0,
+        rollup_start_block_number: 2,
         rollup_stop_block_number: 2,
         up_to_n_times: 2, // allow for calls after an potential erroneous restart
         halt_at_rollup_stop_number: true,

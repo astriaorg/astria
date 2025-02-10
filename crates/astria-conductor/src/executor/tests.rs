@@ -53,8 +53,12 @@ fn make_state(
         base_celestia_height: 1,
     })
     .unwrap();
-    let state =
-        State::try_from_genesis_info_and_commitment_state(genesis_info, commitment_state).unwrap();
+    let state = State::try_from_genesis_info_and_commitment_state(
+        genesis_info,
+        commitment_state,
+        crate::config::CommitLevel::SoftAndFirm,
+    )
+    .unwrap();
     super::state::channel(state)
 }
 

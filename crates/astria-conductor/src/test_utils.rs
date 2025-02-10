@@ -42,7 +42,7 @@ pub(crate) fn make_genesis_info() -> GenesisInfo {
         rollup_id: Some(rollup_id.to_raw()),
         sequencer_start_height: 10,
         celestia_block_variance: 0,
-        rollup_start_block_number: 0,
+        rollup_start_block_number: 1,
         rollup_stop_block_number: 90,
         sequencer_chain_id: "test-sequencer-0".to_string(),
         celestia_chain_id: "test-celestia-0".to_string(),
@@ -57,5 +57,10 @@ pub(crate) fn make_rollup_state(
     let genesis_info = astria_core::execution::v2::GenesisInfo::try_from_raw(genesis_info).unwrap();
     let commitment_state =
         astria_core::execution::v2::CommitmentState::try_from_raw(commitment_state).unwrap();
-    State::try_from_genesis_info_and_commitment_state(genesis_info, commitment_state).unwrap()
+    State::try_from_genesis_info_and_commitment_state(
+        genesis_info,
+        commitment_state,
+        crate::config::CommitLevel::SoftAndFirm,
+    )
+    .unwrap()
 }

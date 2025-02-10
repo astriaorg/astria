@@ -191,10 +191,15 @@ impl StateSender {
     pub(super) fn try_update_commitment_state(
         &mut self,
         commitment_state: CommitmentState,
+        commit_level: crate::config::CommitLevel,
     ) -> Result<(), InvalidState> {
         let genesis_info = self.genesis_info();
-        let _ = map_firm_to_sequencer_height(&genesis_info, &commitment_state)?;
-        let _ = map_soft_to_sequencer_height(&genesis_info, &commitment_state)?;
+        if commit_level.is_with_firm() {
+            let _ = map_firm_to_sequencer_height(&genesis_info, &commitment_state)?;
+        }
+        if commit_level.is_with_soft() {
+            let _ = map_soft_to_sequencer_height(&genesis_info, &commitment_state)?;
+        }
         self.inner.send_modify(move |state| {
             state.set_commitment_state(commitment_state);
         });
@@ -280,9 +285,14 @@ impl State {
     pub(crate) fn try_from_genesis_info_and_commitment_state(
         genesis_info: GenesisInfo,
         commitment_state: CommitmentState,
+        commit_level: crate::config::CommitLevel,
     ) -> Result<Self, InvalidState> {
-        let _ = map_firm_to_sequencer_height(&genesis_info, &commitment_state)?;
-        let _ = map_soft_to_sequencer_height(&genesis_info, &commitment_state)?;
+        if commit_level.is_with_firm() {
+            let _ = map_firm_to_sequencer_height(&genesis_info, &commitment_state)?;
+        }
+        if commit_level.is_with_soft() {
+            let _ = map_soft_to_sequencer_height(&genesis_info, &commitment_state)?;
+        }
         Ok(State {
             commitment_state,
             genesis_info,
@@ -402,18 +412,22 @@ impl State {
 /// Maps a rollup height to a sequencer height.
 ///
 /// Returns error if `sequencer_start_height + (rollup_number - rollup_start_block_number)`
-/// overflows `u32::MAX`.
+/// is out of range of `u32` or if `rollup_start_block_number` is more than 1 greater than
+/// `rollup_number`.
 fn map_rollup_number_to_sequencer_height(
     sequencer_start_height: u64,
     rollup_start_block_number: u64,
     rollup_number: u32,
 ) -> Result<SequencerHeight, &'static str> {
-    let delta = u64::from(rollup_number)
-        .checked_sub(rollup_start_block_number)
-        .ok_or("rollup start height exceeds rollup number")?;
+    let rollup_number = u64::from(rollup_number);
+    if rollup_start_block_number > (rollup_number.checked_add(1).ok_or("overflows u64::MAX")?) {
+        return Err("rollup start height exceeds rollup number + 1");
+    }
     let sequencer_height = sequencer_start_height
-        .checked_add(delta)
-        .ok_or("overflows u64::MAX")?;
+        .checked_add(rollup_number)
+        .ok_or("overflows u64::MAX")?
+        .checked_sub(rollup_start_block_number)
+        .ok_or("(sequencer height + rollup number - rollup start height) is negative")?;
     sequencer_height
         .try_into()
         .map_err(|_| "overflows u32::MAX, the maximum cometbft height")
@@ -456,7 +470,7 @@ mod tests {
     fn next_firm_sequencer_height_is_correct() {
         let (_, rx) = make_channel();
         assert_eq!(
-            SequencerHeight::from(12u32),
+            SequencerHeight::from(11u32),
             rx.next_expected_firm_sequencer_height(),
         );
     }
@@ -465,7 +479,7 @@ mod tests {
     fn next_soft_sequencer_height_is_correct() {
         let (_, rx) = make_channel();
         assert_eq!(
-            SequencerHeight::from(13u32),
+            SequencerHeight::from(12u32),
             rx.next_expected_soft_sequencer_height(),
         );
     }
@@ -490,8 +504,8 @@ mod tests {
 
     #[should_panic = "rollup start height exceeds rollup number"]
     #[test]
-    fn is_error_if_rollup_start_exceeds_current_number() {
-        map_rollup_number_to_sequencer_height(10, 10, 9).unwrap();
+    fn is_error_if_rollup_start_exceeds_current_number_plus_one() {
+        map_rollup_number_to_sequencer_height(10, 11, 9).unwrap();
     }
 
     #[test]
