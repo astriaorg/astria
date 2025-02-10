@@ -190,7 +190,7 @@ jobs:
           just deploy cluster
           kubectl create secret generic regcred --from-file=.dockerconfigjson=$HOME/.docker/config.json --type=kubernetes.io/dockerconfigjson
           echo -e "\n\nDeploying with astria images tagged $TAG"
-          just --set defaultValues "dev/values/rollup/evm-restart-test.yaml" deploy smoke-test $TAG
+          just deploy evm-rollup-restart-test $TAG
       - name: Run Smoke test
         timeout-minutes: 3
         run: |

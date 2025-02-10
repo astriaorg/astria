@@ -170,9 +170,8 @@ clean-persisted-data:
 deploy-local-metrics:
   kubectl apply -f kubernetes/metrics-server-local.yml
 
-defaultValues := "dev/values/rollup/dev.yaml"
 defaultTag := ""
-deploy-smoke-test tag=defaultTag values=defaultValues:
+deploy-smoke-test tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
   @just wait-for-ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
@@ -185,7 +184,27 @@ deploy-smoke-test tag=defaultTag values=defaultValues:
     {{ if tag != '' { replace('--set images.sequencer.devTag=# --set sequencer-relayer.images.sequencerRelayer.devTag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
   @just wait-for-sequencer > /dev/null
-  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-stack -f {{ values }} \
+  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-stack -f dev/values/rollup/dev.yaml \
+    {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
+    --set blockscout-stack.enabled=false \
+    --set postgresql.enabled=false \
+    --set evm-faucet.enabled=false > /dev/null
+  @just wait-for-rollup > /dev/null
+
+deploy-evm-rollup-restart-test tag=defaultTag:
+  @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
+  @just wait-for-ingress-controller > /dev/null
+  @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
+  @helm dependency update charts/sequencer > /dev/null
+  @helm dependency update charts/evm-stack > /dev/null
+  @echo "Setting up single astria sequencer..." && helm install \
+    -n astria-validator-single single-sequencer-chart ./charts/sequencer \
+    -f dev/values/validators/all.yml \
+    -f dev/values/validators/single.yml \
+    {{ if tag != '' { replace('--set images.sequencer.devTag=# --set sequencer-relayer.images.sequencerRelayer.devTag=#', '#', tag) } else { '' } }} \
+    --create-namespace > /dev/null
+  @just wait-for-sequencer > /dev/null
+  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-stack -f dev/values/rollup/evm-restart-test.yaml \
     {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
     --set blockscout-stack.enabled=false \
     --set postgresql.enabled=false \
