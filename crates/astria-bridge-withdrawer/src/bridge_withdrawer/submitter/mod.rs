@@ -253,7 +253,7 @@ async fn sign_tx(signer: Arc<dyn Signer>, body: TransactionBody) -> eyre::Result
                     parent: span.clone(),
                     attempt,
                     wait_duration,
-                    error = ?err,
+                    error = err.as_ref() as &dyn std::error::Error,
                     "failed signingstart transaction body; retrying after backoff",
                 );
                 async move {}
