@@ -29,10 +29,10 @@ config:
   evmContractAddress: "0x"
   evmRpcEndpoint: ""
   frostThresholdSigningEnabled: "false"
-  frostMinSigners: "0",
+  frostMinSigners: "0"
   frostPublicKeyPackagePath: ""
   frostParticipantEndpoints: "[]"
-  sequencerPrivateKey:  
+  sequencerPrivateKey:
     devContent: ""
     secret:
       filename: "key.hex"

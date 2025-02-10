@@ -28,6 +28,7 @@ pub(crate) trait Signer: Send + Sync {
     async fn sign(&self, tx: TransactionBody) -> eyre::Result<Transaction>;
 }
 
+#[derive(Debug, Clone)]
 pub(crate) struct SequencerKey {
     address: Address,
     signing_key: SigningKey,
