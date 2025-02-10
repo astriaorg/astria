@@ -25,6 +25,10 @@ use tonic::{
     Response,
     Status,
 };
+use tracing::{
+    debug,
+    instrument,
+};
 
 use crate::{
     metrics::Metrics,
@@ -77,6 +81,7 @@ impl Server {
 
 #[async_trait]
 impl FrostParticipantService for Server {
+    #[instrument(skip_all)]
     async fn get_verifying_share(
         self: Arc<Self>,
         _request: Request<GetVerifyingShareRequest>,
@@ -93,6 +98,7 @@ impl FrostParticipantService for Server {
         }))
     }
 
+    #[instrument(skip_all)]
     async fn part1(
         self: Arc<Self>,
         _request: Request<Part1Request>,
@@ -110,12 +116,14 @@ impl FrostParticipantService for Server {
         state
             .request_id_to_nonces
             .insert(request_identifier, nonces);
+        debug!(request_identifier, "generated part 1 response");
         Ok(Response::new(Part1Response {
             request_identifier,
             commitment,
         }))
     }
 
+    #[instrument(skip_all)]
     async fn part2(
         self: Arc<Self>,
         request: Request<Part2Request>,
@@ -148,6 +156,7 @@ impl FrostParticipantService for Server {
                 .map_err(|e| Status::internal(format!("failed to sign: {e}")))?
                 .serialize()
                 .into();
+        debug!(request.request_identifier, "generated part 1 response");
 
         Ok(Response::new(Part2Response {
             signature_share,
