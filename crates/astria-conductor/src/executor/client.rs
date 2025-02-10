@@ -1,15 +1,15 @@
 use std::time::Duration;
 
 use astria_core::{
-    execution::v1::{
+    execution::v2::{
         Block,
         CommitmentState,
         GenesisInfo,
     },
     generated::astria::{
         execution::{
-            v1 as raw,
-            v1::execution_service_client::ExecutionServiceClient,
+            v2 as raw,
+            v2::execution_service_client::ExecutionServiceClient,
         },
         sequencerblock::v1::RollupData,
     },

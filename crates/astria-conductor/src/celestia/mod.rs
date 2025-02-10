@@ -144,12 +144,6 @@ pub(crate) struct Reader {
     /// (usually to verify block data retrieved from Celestia blobs).
     sequencer_requests_per_second: u32,
 
-    /// The chain ID of the Celestia network the reader should be communicating with.
-    expected_celestia_chain_id: String,
-
-    /// The chain ID of the Sequencer the reader should be communicating with.
-    expected_sequencer_chain_id: String,
-
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
 
@@ -179,13 +173,13 @@ impl Reader {
 
     #[instrument(skip_all, err)]
     async fn initialize(&mut self) -> eyre::Result<tendermint::chain::Id> {
+        let expected_celestia_chain_id = self.rollup_state.celestia_chain_id();
         let validate_celestia_chain_id = async {
             let actual_celestia_chain_id = get_celestia_chain_id(&self.celestia_client)
                 .await
                 .wrap_err("failed to fetch Celestia chain ID")?;
-            let expected_celestia_chain_id = &self.expected_celestia_chain_id;
             ensure!(
-                self.expected_celestia_chain_id == actual_celestia_chain_id.as_str(),
+                expected_celestia_chain_id == actual_celestia_chain_id.as_str(),
                 "expected Celestia chain id `{expected_celestia_chain_id}` does not match actual: \
                  `{actual_celestia_chain_id}`"
             );
@@ -193,14 +187,14 @@ impl Reader {
         }
         .in_current_span();
 
+        let expected_sequencer_chain_id = self.rollup_state.sequencer_chain_id();
         let get_and_validate_sequencer_chain_id = async {
             let actual_sequencer_chain_id =
                 get_sequencer_chain_id(self.sequencer_cometbft_client.clone())
                     .await
                     .wrap_err("failed to get sequencer chain ID")?;
-            let expected_sequencer_chain_id = &self.expected_sequencer_chain_id;
             ensure!(
-                self.expected_sequencer_chain_id == actual_sequencer_chain_id.to_string(),
+                expected_sequencer_chain_id == actual_sequencer_chain_id.as_str(),
                 "expected Celestia chain id `{expected_sequencer_chain_id}` does not match \
                  actual: `{actual_sequencer_chain_id}`"
             );
@@ -384,6 +378,10 @@ impl RunningReader {
         });
 
         let reason = loop {
+            if self.has_reached_stop_height()? {
+                break Ok("stop height reached");
+            }
+
             self.schedule_new_blobs();
 
             select!(
@@ -447,6 +445,19 @@ impl RunningReader {
                 );
             }
         }
+    }
+
+    /// The stop height is reached if a) the next height to be forwarded would be greater
+    /// than the stop height, and b) there is no block currently in flight.
+    fn has_reached_stop_height(&self) -> eyre::Result<bool> {
+        Ok(self
+            .rollup_state
+            .sequencer_stop_height()
+            .wrap_err("failed to obtain sequencer stop height")?
+            .map_or(false, |height| {
+                self.block_cache.next_height_to_pop() > height.get()
+                    && self.enqueued_block.is_terminated()
+            }))
     }
 
     #[instrument(skip_all)]

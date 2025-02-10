@@ -1,7 +1,7 @@
 #[macro_export]
 macro_rules! block {
     (number: $number:expr,hash: $hash:expr,parent: $parent:expr $(,)?) => {
-        ::astria_core::generated::astria::execution::v1::Block {
+        ::astria_core::generated::astria::execution::v2::Block {
             number: $number,
             hash: ::bytes::Bytes::from(Vec::from($hash)),
             parent_block_hash: ::bytes::Bytes::from(Vec::from($parent)),
@@ -59,7 +59,7 @@ macro_rules! commitment_state {
         soft: (number: $soft_number:expr,hash: $soft_hash:expr,parent: $soft_parent:expr $(,)?),
         base_celestia_height: $base_celestia_height:expr $(,)?
     ) => {
-       ::astria_core::generated::astria::execution::v1::CommitmentState {
+       ::astria_core::generated::astria::execution::v2::CommitmentState {
             firm: Some($crate::block!(
                 number: $firm_number,
                 hash: $firm_hash,
@@ -94,14 +94,37 @@ macro_rules! filtered_sequencer_block {
 #[macro_export]
 macro_rules! genesis_info {
     (
-        sequencer_genesis_block_height:
-        $sequencer_height:expr,celestia_block_variance:
-        $variance:expr $(,)?
+        sequencer_start_height:
+        $start_height:expr,celestia_block_variance:
+        $variance:expr,rollup_start_block_number:
+        $rollup_start_block_number:expr, rollup_stop_block_number:
+        $rollup_stop_block_number:expr $(,)?
     ) => {
-        ::astria_core::generated::astria::execution::v1::GenesisInfo {
-            rollup_id: Some($crate::ROLLUP_ID.to_raw()),
-            sequencer_genesis_block_height: $sequencer_height,
+        genesis_info!(
+            sequencer_start_height: $start_height,
             celestia_block_variance: $variance,
+            rollup_start_block_number: $rollup_start_block_number,
+            rollup_stop_block_number: $rollup_stop_block_number,
+            halt_at_rollup_stop_number: false,
+        )
+    };
+    (
+        sequencer_start_height:
+        $start_height:expr,celestia_block_variance:
+        $variance:expr,rollup_start_block_number:
+        $rollup_start_block_number:expr,
+        rollup_stop_block_number: $rollup_stop_block_number:expr,
+        halt_at_rollup_stop_number: $halt_at_rollup_stop_number:expr $(,)?
+    ) => {
+        ::astria_core::generated::astria::execution::v2::GenesisInfo {
+            rollup_id: Some($crate::ROLLUP_ID.to_raw()),
+            sequencer_start_height: $start_height,
+            celestia_block_variance: $variance,
+            rollup_start_block_number: $rollup_start_block_number,
+            rollup_stop_block_number: $rollup_stop_block_number,
+            sequencer_chain_id: $crate::SEQUENCER_CHAIN_ID.to_string(),
+            celestia_chain_id: $crate::helpers::CELESTIA_CHAIN_ID.to_string(),
+            halt_at_rollup_stop_number: $halt_at_rollup_stop_number,
         }
     };
 }
@@ -176,6 +199,22 @@ macro_rules! mount_get_commitment_state {
         base_celestia_height: $base_celestia_height:expr
         $(,)?
     ) => {
+        mount_get_commitment_state!(
+            $test_env,
+            firm: ( number: $firm_number, hash: $firm_hash, parent: $firm_parent, ),
+            soft: ( number: $soft_number, hash: $soft_hash, parent: $soft_parent, ),
+            base_celestia_height: $base_celestia_height,
+            up_to_n_times: 1,
+        )
+    };
+    (
+        $test_env:ident,
+        firm: ( number: $firm_number:expr, hash: $firm_hash:expr, parent: $firm_parent:expr$(,)? ),
+        soft: ( number: $soft_number:expr, hash: $soft_hash:expr, parent: $soft_parent:expr$(,)? ),
+        base_celestia_height: $base_celestia_height:expr,
+        up_to_n_times: $up_to_n_times:expr
+        $(,)?
+    ) => {
         $test_env
             .mount_get_commitment_state($crate::commitment_state!(
                 firm: (
@@ -189,7 +228,7 @@ macro_rules! mount_get_commitment_state {
                     parent: $soft_parent,
                 ),
                 base_celestia_height: $base_celestia_height,
-            ))
+            ), $up_to_n_times)
         .await
     };
 }
@@ -274,7 +313,8 @@ macro_rules! mount_executed_block {
         mock_name: $mock_name:expr,
         number: $number:expr,
         hash: $hash:expr,
-        parent: $parent:expr $(,)?
+        parent: $parent:expr,
+        expected_calls: $expected_calls:expr $(,)?
     ) => {{
         use ::base64::prelude::*;
         $test_env.mount_execute_block(
@@ -287,10 +327,27 @@ macro_rules! mount_executed_block {
                 number: $number,
                 hash: $hash,
                 parent: $parent,
-            )
+            ),
+            $expected_calls,
         )
         .await
     }};
+    (
+        $test_env:ident,
+        mock_name: $mock_name:expr,
+        number: $number:expr,
+        hash: $hash:expr,
+        parent: $parent:expr,
+    ) => {
+        mount_executed_block!(
+            $test_env,
+            mock_name: None,
+            number: $number,
+            hash: $hash,
+            parent: $parent,
+            expected_calls: 1,
+        )
+    };
     (
         $test_env:ident,
         number: $number:expr,
@@ -334,15 +391,62 @@ macro_rules! mount_get_filtered_sequencer_block {
 macro_rules! mount_get_genesis_info {
     (
         $test_env:ident,
-        sequencer_genesis_block_height: $sequencer_height:expr,
-        celestia_block_variance: $variance:expr
+        sequencer_start_height: $start_height:expr,
+        celestia_block_variance: $variance:expr,
+        rollup_start_block_number: $rollup_start_block_number:expr,
+        rollup_stop_block_number: $rollup_stop_block_number:expr
+        $(,)?
+    ) => {
+        mount_get_genesis_info!(
+            $test_env,
+            sequencer_start_height: $start_height,
+            celestia_block_variance: $variance,
+            rollup_start_block_number: $rollup_start_block_number,
+            rollup_stop_block_number: $rollup_stop_block_number,
+            up_to_n_times: 1,
+        )
+    };
+    (
+        $test_env:ident,
+        sequencer_start_height: $start_height:expr,
+        celestia_block_variance: $variance:expr,
+        rollup_start_block_number: $rollup_start_block_number:expr,
+        rollup_stop_block_number: $rollup_stop_block_number:expr,
+        up_to_n_times: $up_to_n_times:expr
+        $(,)?
+    ) => {
+        mount_get_genesis_info!(
+            $test_env,
+            sequencer_start_height: $start_height,
+            celestia_block_variance: $variance,
+            rollup_start_block_number: $rollup_start_block_number,
+            rollup_stop_block_number: $rollup_stop_block_number,
+            up_to_n_times: $up_to_n_times,
+            halt_at_rollup_stop_number: false,
+            expected_calls: 1,
+        )
+    };
+    (
+        $test_env:ident,
+        sequencer_start_height: $start_height:expr,
+        celestia_block_variance: $variance:expr,
+        rollup_start_block_number: $rollup_start_block_number:expr,
+        rollup_stop_block_number: $rollup_stop_block_number:expr,
+        up_to_n_times: $up_to_n_times:expr,
+        halt_at_rollup_stop_number: $halt_at_rollup_stop_number:expr,
+        expected_calls: $expected_calls:expr
         $(,)?
     ) => {
         $test_env.mount_get_genesis_info(
             $crate::genesis_info!(
-                sequencer_genesis_block_height: $sequencer_height,
+                sequencer_start_height: $start_height,
                 celestia_block_variance: $variance,
-            )
+                rollup_start_block_number: $rollup_start_block_number,
+                rollup_stop_block_number: $rollup_stop_block_number,
+                halt_at_rollup_stop_number: $halt_at_rollup_stop_number,
+            ),
+            $up_to_n_times,
+            $expected_calls,
         ).await;
     };
 }
@@ -385,12 +489,12 @@ macro_rules! mount_get_block {
             hash: $hash,
             parent: $parent,
         );
-        let identifier = ::astria_core::generated::astria::execution::v1::BlockIdentifier {
+        let identifier = ::astria_core::generated::astria::execution::v2::BlockIdentifier {
             identifier: Some(
-                ::astria_core::generated::astria::execution::v1::block_identifier::Identifier::BlockNumber(block.number)
+                ::astria_core::generated::astria::execution::v2::block_identifier::Identifier::BlockNumber(block.number)
         )};
         $test_env.mount_get_block(
-            ::astria_core::generated::astria::execution::v1::GetBlockRequest {
+            ::astria_core::generated::astria::execution::v2::GetBlockRequest {
                 identifier: Some(identifier),
             },
             block,

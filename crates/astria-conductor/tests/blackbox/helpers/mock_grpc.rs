@@ -4,7 +4,7 @@ use std::{
 };
 
 use astria_core::generated::astria::{
-    execution::v1::{
+    execution::v2::{
         execution_service_server::{
             ExecutionService,
             ExecutionServiceServer,
