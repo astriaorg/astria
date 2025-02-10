@@ -153,17 +153,17 @@ config:
       - name: history.state
         value: "{{- if .Values.config.geth.archiveNode -}} 0 {{- else -}} 540000 {{- end }}"
       - name: metrics
-        condition: .Values.metrics.enabled
+        condition: "{{- if .Values.metrics.enabled -}} true {{- else -}} false {{- end }}"
       - name: metrics.addr
         value: 0.0.0.0
-        condition: .Values.metrics.enabled
+        condition: "{{- if .Values.metrics.enabled -}} true {{- else -}} false {{- end }}"
       - name: metrics.port
         value: "{{ .Values.ports.metrics }}"
-        condition: .Values.metrics.enabled
+        condition: "{{- if .Values.metrics.enabled -}} true {{- else -}} false {{- end }}"
       - name: txpool.nolocals
         value: "true"
       - name: auctioneer
-        condition: .Values.config.geth.auctioneer
+        condition: "{{- if .Values.config.geth.auctioneer -}} true {{- else -}} false {{- end }}"
 
   conductor:
     # Determines what will drive block execution, options are:
