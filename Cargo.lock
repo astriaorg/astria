@@ -518,6 +518,7 @@ dependencies = [
 name = "astria-bridge-signer"
 version = "0.1.0"
 dependencies = [
+ "astria-bridge-contracts",
  "astria-build-info",
  "astria-config",
  "astria-core",
@@ -528,6 +529,7 @@ dependencies = [
  "futures",
  "prost",
  "rand 0.8.5",
+ "regex",
  "serde",
  "serde_json",
  "tokio",
