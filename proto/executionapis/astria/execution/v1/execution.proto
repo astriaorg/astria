@@ -17,7 +17,7 @@ message GenesisInfo {
   uint32 sequencer_start_height = 2;
   // The allowed variance in celestia for sequencer blocks to have been posted.
   uint64 celestia_block_variance = 4;
-  // The rollup block number to map to the sequencer start block height.
+  // The rollup block number to map to the sequencer start block height. Execution will start with the following block number.
   uint64 rollup_start_block_number = 5;
   // The rollup block number to re-fetch the genesis info and continue executing with new data.
   uint64 rollup_stop_block_number = 6;

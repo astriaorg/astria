@@ -14,7 +14,7 @@ pub struct GenesisInfo {
     /// The allowed variance in celestia for sequencer blocks to have been posted.
     #[prost(uint64, tag = "4")]
     pub celestia_block_variance: u64,
-    /// The rollup block number to map to the sequencer start block height.
+    /// The rollup block number to map to the sequencer start block height. Execution will start with the following block number.
     #[prost(uint64, tag = "5")]
     pub rollup_start_block_number: u64,
     /// The rollup block number to re-fetch the genesis info and continue executing with new data.

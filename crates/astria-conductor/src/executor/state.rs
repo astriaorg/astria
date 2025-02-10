@@ -39,7 +39,7 @@ pub(super) fn channel(state: State) -> (StateSender, StateReceiver) {
 #[derive(Debug, thiserror::Error)]
 #[error(
     "could not map rollup number to sequencer height for commitment type `{commitment_type}`: the \
-     operation `{sequencer_start_height} + ({rollup_number} - {rollup_start_block_number}`) \
+     operation `{sequencer_start_height} + ({rollup_number} - {rollup_start_block_number})` \
      failed because `{issue}`"
 )]
 pub(crate) struct InvalidState {

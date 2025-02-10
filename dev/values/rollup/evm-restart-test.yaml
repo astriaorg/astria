@@ -32,8 +32,6 @@ evm-rollup:
           addressPrefix: "astria"
           # Block height to start syncing rollup from, lowest possible is 2
           startHeight: 2
-          # Block height (on sequencer) to stop syncing rollup at, continuing to next configuration fork
-          stopHeight: 20
         celestia:
           # The chain id of the celestia chain
           chainId: "celestia-local-0"
@@ -51,13 +49,14 @@ evm-rollup:
             assetPrecision: 9
       restart:
         height: "19"
-        halt: true
         sequencer:
+          chainId: "sequencer-test-chain-0"
           addressPrefix: "astria"
           startHeight: 21
-          stopHeight: 1000
         celestia:
+          chainId: "celestia-local-0"
           startHeight: 21
+          heightVariance: 10
 
     ## These are general configuration values with some recommended defaults
 

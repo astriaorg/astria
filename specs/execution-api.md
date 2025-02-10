@@ -39,9 +39,10 @@ behavior upon an unexpected restart. If `geth` receives a `ExecuteBlock` request
 before receving *both* `GetGenesisInfo` and `GetCommitmentState` (which will be
 the case if the execution layer has restarted), it responds with a `PremissionDenied`
 status, prompting the conductor to restart.
-2. `GenesisInfo` contains a `sequencer_stop_block_height`, indicating a planned
-restart at a given sequencer block height. If the conductor reaches the stop height,
-it will perform a restart in one of the following ways corresponding to its mode:
+2. `GenesisInfo` contains a `rollup_stop_block_number` and has a `halt_at_rollup_stop_number`
+value of `false`, indicating a planned restart after execution of the given block.
+Once the conductor reaches the stop height, it will perform a restart in one of the
+following ways corresponding to its mode:
 
     - **Firm Only Mode**: Once the stop height is reached for the firm block stream,
     the firm block at this height is executed (and commitment state updated) before
@@ -101,16 +102,18 @@ Note: For our EVM rollup, we map the `CommitmentState` to the `ForkchoiceRule`:
 `GetGenesisInfo` returns information which is definitional to the rollup with
 regards to how it serves data from the sequencer & celestia networks, along with
 optional block heights for initiating a [conductor restart](#restart). This RPC
-should **ALWAYS** succeed. The API is agnostic as to how the information is defined
+should ***always*** succeed. The API is agnostic as to how the information is defined
 in a rollup's genesis, and used by the conductor as configuration on startup *or*
 upon a restart.
 
-If the `GenesisInfo` provided by this RPC contains a `sequencer_stop_block_height`,
+If the `GenesisInfo` provided by this RPC contains a `rollup_stop_block_number`,
 the rollup should be prepared to provide an updated response when the conductor
-restarts, including, at minimum, a new `rollup_start_block_height` and `sequencer_start_block_height`.
-The updated response can also contain an updated `sequencer_stop_block_height` (if
-another restart is desired), `celestia_chain_id`, and/or `sequencer_chain_id` (to
-facilitate network migration).
+restarts, including, at minimum, a new `rollup_start_block_number` and `sequencer_start_height`.
+Note that execution will begin with the block *following* the start number, so
+any restarts must provide the same start number as the previous `GenesisInfo`'s
+stop number. The updated response can also contain an updated `rollup_stop_block_number`
+(if another restart is desired), `celestia_chain_id`, and/or `sequencer_chain_id`
+(to facilitate network migration).
 
 ### ExecuteBlock
 
