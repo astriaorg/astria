@@ -11,7 +11,7 @@ global:
 evm-rollup:
   genesis:
     # The name of the rollup chain, used to generate the Rollup ID
-    rollupName: "{{ Values.global.rollupName }}"
+    rollupName: "{{ .Values.global.rollupName }}"
 
     # The "forks" for upgrading the chain. Contains necessary information for starting
     # and, if desired, restarting the chain at a given height. The necessary fields
