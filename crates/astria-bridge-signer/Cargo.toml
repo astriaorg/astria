@@ -26,10 +26,7 @@ astria-bridge-contracts = { path = "../astria-bridge-contracts", features = [
   "tracing",
 ] }
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
-astria-core = { path = "../astria-core", features = [
-  "serde",
-  "server",
-] }
+astria-core = { path = "../astria-core", features = ["serde", "server"] }
 astria-eyre = { path = "../astria-eyre" }
 config = { package = "astria-config", path = "../astria-config" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
