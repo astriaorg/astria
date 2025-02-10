@@ -43,7 +43,7 @@ struct State {
 impl State {
     fn get_and_increment_next_request_id(&mut self) -> u32 {
         let request_id = self.next_request_id;
-        self.next_request_id += 1;
+        self.next_request_id = self.next_request_id.saturating_add(1);
         request_id
     }
 }
@@ -56,6 +56,12 @@ pub struct Server {
 }
 
 impl Server {
+    /// Creates a new `Server` instance.
+    ///
+    /// # Errors
+    ///
+    /// - If the secret key package file cannot be read.
+    /// - If the secret key package cannot be deserialized.
     pub fn new(
         secret_key_package_path: String,
         verifier: Verifier,
@@ -103,7 +109,8 @@ impl FrostParticipantService for Server {
         self: Arc<Self>,
         _request: Request<Part1Request>,
     ) -> Result<Response<Part1Response>, Status> {
-        let mut rng = OsRng::default();
+        self.metrics.increment_part_1_request_count();
+        let mut rng = OsRng;
         let (nonces, commitments) =
             frost_ed25519::round1::commit(self.secret_package.signing_share(), &mut rng);
         let commitment = commitments
@@ -128,6 +135,7 @@ impl FrostParticipantService for Server {
         self: Arc<Self>,
         request: Request<Part2Request>,
     ) -> Result<Response<Part2Response>, Status> {
+        self.metrics.increment_part_2_request_count();
         let request = request.into_inner();
         let mut state = self.state.lock().await;
         let Some(nonce) = state
@@ -138,10 +146,13 @@ impl FrostParticipantService for Server {
         };
 
         if let Err(e) = self.verifier.verify_message_to_sign(&request.message).await {
+            self.metrics.increment_invalid_message_count();
             return Err(Status::invalid_argument(format!(
                 "signing message is invalid: {e}"
             )));
         };
+
+        self.metrics.increment_valid_message_count();
 
         let signing_commitments = request
             .commitments
@@ -161,7 +172,7 @@ impl FrostParticipantService for Server {
                 .map_err(|e| Status::internal(format!("failed to sign: {e}")))?
                 .serialize()
                 .into();
-        debug!(request.request_identifier, "generated part 1 response");
+        debug!(request.request_identifier, "generated part 2 response");
 
         Ok(Response::new(Part2Response {
             signature_share,
