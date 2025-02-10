@@ -288,8 +288,8 @@ async fn make_signer(
     frost_participant_endpoints: Vec<String>,
     sequencer_key_path: String,
     sequencer_address_prefix: String,
-) -> eyre::Result<Box<dyn Signer>> {
-    let signer: Box<dyn Signer> = if frost_threshold_signing_enabled {
+) -> eyre::Result<Arc<dyn Signer>> {
+    let signer: Arc<dyn Signer> = if frost_threshold_signing_enabled {
         let public_key_package_str = std::fs::read_to_string(frost_public_key_package_path)
             .wrap_err("failed to read frost public key package")?;
         let public_key_package =
@@ -300,7 +300,7 @@ async fn make_signer(
             initialize_frost_participant_clients(frost_participant_endpoints, &public_key_package)
                 .await
                 .wrap_err("failed to initialize frost participant clients")?;
-        Box::new(
+        Arc::new(
             FrostSignerBuilder::new()
                 .min_signers(frost_min_signers)
                 .public_key_package(public_key_package)
@@ -310,7 +310,7 @@ async fn make_signer(
                 .wrap_err("failed to initialize frost signer")?,
         )
     } else {
-        Box::new(
+        Arc::new(
             crate::bridge_withdrawer::submitter::signer::SequencerKey::builder()
                 .path(sequencer_key_path)
                 .prefix(sequencer_address_prefix)

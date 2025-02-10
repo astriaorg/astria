@@ -163,6 +163,7 @@ impl FrostSignerBuilder {
     }
 }
 
+#[derive(Debug, Clone)]
 pub(crate) struct FrostSigner {
     min_signers: usize,
     public_key_package: PublicKeyPackage,
@@ -183,6 +184,7 @@ impl Signer for FrostSigner {
             commitments.len()
         );
 
+        // part 2: gather signature shares from participants
         let tx_bytes = tx.to_raw().encode_to_vec();
         let sig_shares = self.frost_part_2(commitments, tx_bytes.clone()).await;
         ensure!(
