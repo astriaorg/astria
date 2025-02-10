@@ -43,6 +43,11 @@ pub struct Verifier {
 }
 
 impl Verifier {
+    /// Creates a new `Verifier` with the given rollup RPC endpoint.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the provider cannot be created.
     pub fn new(rollup_rpc_endpoint: String) -> eyre::Result<Self> {
         let provider = Provider::<Http>::try_from(rollup_rpc_endpoint)
             .wrap_err("failed to create provider")?;
@@ -52,7 +57,7 @@ impl Verifier {
         })
     }
 
-    pub async fn verify_message_to_sign(&self, message: &[u8]) -> eyre::Result<()> {
+    pub(crate) async fn verify_message_to_sign(&self, message: &[u8]) -> eyre::Result<()> {
         let raw = RawTransactionBody::decode(message)
             .wrap_err("failed to decode bytes into raw proto transaction")?;
         let tx_body = TransactionBody::try_from_raw(raw)
@@ -191,7 +196,7 @@ async fn get_expected_actions_from_tx_info(
         .await
         .wrap_err("failed to get withdraw actions for block hash")?
         .into_iter()
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
         .collect();
     Ok(actions)
 }
