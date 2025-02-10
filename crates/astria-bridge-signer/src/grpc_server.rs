@@ -137,7 +137,12 @@ impl FrostParticipantService for Server {
             return Err(Status::invalid_argument("invalid request identifier"));
         };
 
-        // TODO: verify message
+        if let Err(e) = self.verifier.verify_message_to_sign(&request.message).await {
+            return Err(Status::invalid_argument(format!(
+                "signing message is invalid: {e}"
+            )));
+        };
+
         let signing_commitments = request
             .commitments
             .into_iter()
