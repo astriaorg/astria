@@ -14,11 +14,13 @@ pub struct SequencerInfo {
     /// This is mapped to `rollup_first_block_number`.
     #[prost(uint32, tag = "2")]
     pub sequencer_first_block_height: u32,
-    /// The first rollup block number to be executed. This is mapped to `sequencer_first_block_height`
+    /// The first rollup block number to be executed. This is mapped to `sequencer_first_block_height`.
+    /// The minimum first block number is 1.
     #[prost(uint64, tag = "3")]
     pub rollup_first_block_number: u64,
     /// The final rollup block number to execute before either re-fetching sequencer
     /// info (restarting) or shutting down (determined by `halt_at_rollup_stop_number`).
+    /// If 0, no stop block will be set.
     #[prost(uint64, tag = "4")]
     pub rollup_stop_block_number: u64,
     /// The allowed variance in celestia for sequencer blocks to have been posted.
@@ -37,7 +39,8 @@ pub struct SequencerInfo {
     #[prost(string, tag = "7")]
     pub celestia_chain_id: ::prost::alloc::string::String,
     /// Requests that Conductor halt at `rollup_stop_block_number` instead of re-fetching
-    /// the sequencer info and continuing execution.
+    /// the sequencer info and continuing execution. This is a no-op if `rollup_stop_block_number`
+    /// is set to 0.
     #[prost(bool, tag = "8")]
     pub halt_at_rollup_stop_number: bool,
 }

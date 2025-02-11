@@ -18,10 +18,12 @@ message SequencerInfo {
   // The first block height on the sequencer chain to use for rollup transactions.
   // This is mapped to `rollup_first_block_number`.
   uint32 sequencer_first_block_height = 2;
-  // The first rollup block number to be executed. This is mapped to `sequencer_first_block_height`
+  // The first rollup block number to be executed. This is mapped to `sequencer_first_block_height`.
+  // The minimum first block number is 1.
   uint64 rollup_first_block_number = 3;
   // The final rollup block number to execute before either re-fetching sequencer
   // info (restarting) or shutting down (determined by `halt_at_rollup_stop_number`).
+  // If 0, no stop block will be set.
   uint64 rollup_stop_block_number = 4;
   // The allowed variance in celestia for sequencer blocks to have been posted.
   uint64 celestia_block_variance = 5;
@@ -36,7 +38,8 @@ message SequencerInfo {
   // this chain ID (if extracting firm Sequencer blocks from Celestia blobs).
   string celestia_chain_id = 7;
   // Requests that Conductor halt at `rollup_stop_block_number` instead of re-fetching
-  // the sequencer info and continuing execution.
+  // the sequencer info and continuing execution. This is a no-op if `rollup_stop_block_number`
+  // is set to 0.
   bool halt_at_rollup_stop_number = 8;
 }
 
