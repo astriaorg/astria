@@ -33,7 +33,7 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
   "display",
 ] }
 
-borsh = { version = "1.5.1", features = ["bytes", "derive"] }
+borsh = { workspace = true, features = ["bytes", "derive"] }
 cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "ac7abacc9bb09503d6fd6a396bc0b6850079084e", features = [
   "metrics",
 ] }
@@ -53,6 +53,7 @@ hex = { workspace = true, features = ["serde"] }
 humantime = { workspace = true }
 ibc-types = { workspace = true, features = ["with_serde"] }
 indexmap = { workspace = true }
+isahc = { workspace = true, features = ["json"] }
 itertools = { workspace = true }
 penumbra-ibc = { workspace = true, features = ["component", "rpc"] }
 penumbra-proto = { workspace = true }
@@ -68,6 +69,7 @@ tendermint-proto = { workspace = true }
 tendermint = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt", "tracing"] }
+tokio-util = { workspace = true }
 tonic = { workspace = true }
 tracing = { workspace = true }
 tryhard = { workspace = true }

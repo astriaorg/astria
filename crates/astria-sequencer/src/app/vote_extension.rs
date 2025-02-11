@@ -576,7 +576,7 @@ fn validate_extended_commit_against_last_commit(
 
 pub(super) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
     state: &mut S,
-    extended_commit_info: ExtendedCommitInfoWithCurrencyPairMapping,
+    extended_commit_info: &ExtendedCommitInfoWithCurrencyPairMapping,
     timestamp: Timestamp,
     height: u64,
 ) -> Result<()> {
@@ -587,7 +587,7 @@ pub(super) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
 
     let prices = astria_core::connect::utils::calculate_prices_from_vote_extensions(
         extended_commit_info,
-        &id_to_currency_pair,
+        id_to_currency_pair,
     )
     .wrap_err("failed to calculate prices from vote extensions")?;
     for price in prices {

@@ -1,6 +1,13 @@
 pub mod v2 {
-    use std::str::FromStr;
+    use std::{
+        io::{
+            self,
+            Write,
+        },
+        str::FromStr,
+    };
 
+    use borsh::BorshSerialize;
     use indexmap::IndexMap;
 
     use crate::{
@@ -16,7 +23,7 @@ pub mod v2 {
         Protobuf,
     };
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize)]
     pub struct GenesisState {
         pub market_map: MarketMap,
         pub last_updated: u64,
@@ -150,6 +157,17 @@ pub mod v2 {
         }
     }
 
+    impl BorshSerialize for Params {
+        fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+            let market_authorities: Vec<_> = self
+                .market_authorities
+                .iter()
+                .map(Address::to_string)
+                .collect();
+            (market_authorities, self.admin.to_string()).serialize(writer)
+        }
+    }
+
     impl Params {
         /// Converts from a raw protobuf `Params` to a native `Params`.
         ///
@@ -223,7 +241,7 @@ pub mod v2 {
         AdminParseError(#[source] AddressError),
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize)]
     pub struct Market {
         pub ticker: Ticker,
         pub provider_configs: Vec<ProviderConfig>,
@@ -332,7 +350,7 @@ pub mod v2 {
         ProviderConfigParseError(#[from] ProviderConfigError),
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize)]
     pub struct Ticker {
         pub currency_pair: CurrencyPair,
         pub decimals: u64,
@@ -445,7 +463,7 @@ pub mod v2 {
         InvalidCurrencyPair { source: CurrencyPairError },
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize)]
     pub struct ProviderConfig {
         pub name: String,
         pub off_chain_ticker: String,
@@ -561,6 +579,19 @@ pub mod v2 {
     impl From<MarketMap> for raw::MarketMap {
         fn from(market_map: MarketMap) -> Self {
             market_map.into_raw()
+        }
+    }
+
+    impl BorshSerialize for MarketMap {
+        fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+            u32::try_from(self.markets.len())
+                .map_err(|_| io::ErrorKind::InvalidInput)?
+                .serialize(writer)?;
+            for (key, value) in &self.markets {
+                key.serialize(writer)?;
+                value.serialize(writer)?;
+            }
+            Ok(())
         }
     }
 

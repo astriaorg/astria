@@ -1,12 +1,15 @@
 use std::time::Duration;
 
-use astria_core::generated::{
-    astria::sequencerblock::v1::sequencer_service_server::SequencerServiceServer,
-    connect::{
-        marketmap::v2::query_server::QueryServer as MarketMapQueryServer,
-        oracle::v2::query_server::QueryServer as OracleQueryServer,
-        service::v2::oracle_client::OracleClient,
+use astria_core::{
+    generated::{
+        astria::sequencerblock::v1::sequencer_service_server::SequencerServiceServer,
+        connect::{
+            marketmap::v2::query_server::QueryServer as MarketMapQueryServer,
+            oracle::v2::query_server::QueryServer as OracleQueryServer,
+            service::v2::oracle_client::OracleClient,
+        },
     },
+    upgrades::v1::Upgrades,
 };
 use astria_eyre::{
     anyhow_to_eyre,
@@ -54,7 +57,10 @@ use tracing::{
 
 use crate::{
     address::StateReadExt as _,
-    app::App,
+    app::{
+        App,
+        ShouldShutDown,
+    },
     assets::StateReadExt as _,
     config::Config,
     grpc::sequencer::SequencerServer,
@@ -62,23 +68,32 @@ use crate::{
     mempool::Mempool,
     metrics::Metrics,
     service,
+    upgrades::UpgradesHandler,
 };
 
 const MAX_RETRIES_TO_CONNECT_TO_ORACLE_SIDECAR: u32 = 36;
 
 pub struct Sequencer;
 
-type GRPCServerHandle = JoinHandle<Result<(), tonic::transport::Error>>;
-type ABCIServerHandle = JoinHandle<()>;
+type GrpcServerHandle = JoinHandle<Result<(), tonic::transport::Error>>;
+type AbciServerHandle = JoinHandle<()>;
 
-struct RunningGRPCServer {
-    pub handle: GRPCServerHandle,
+struct RunningGrpcServer {
+    pub handle: GrpcServerHandle,
     pub shutdown_tx: oneshot::Sender<()>,
 }
 
-struct RunningABCIServer {
-    pub handle: ABCIServerHandle,
+struct RunningAbciServer {
+    pub handle: AbciServerHandle,
     pub shutdown_rx: oneshot::Receiver<()>,
+}
+
+enum InitializationOutcome {
+    Initialized {
+        grpc_server: RunningGrpcServer,
+        abci_server: RunningAbciServer,
+    },
+    ShutDownForUpgrade,
 }
 
 impl Sequencer {
@@ -102,15 +117,19 @@ impl Sequencer {
             }
 
             result = initialize_fut => {
-                let (grpc_server, abci_server) = result?;
-                Self::run_until_stopped(abci_server, grpc_server, &mut signals).await
+                match result? {
+                    InitializationOutcome::Initialized{grpc_server,abci_server  } => {
+                        Self::run_until_stopped(grpc_server, abci_server, &mut signals).await
+                    }
+                    InitializationOutcome::ShutDownForUpgrade => { Ok(()) }
+                }
             }
         }
     }
 
     async fn run_until_stopped(
-        abci_server: RunningABCIServer,
-        grpc_server: RunningGRPCServer,
+        grpc_server: RunningGrpcServer,
+        abci_server: RunningAbciServer,
         signals: &mut SignalReceiver,
     ) -> Result<()> {
         select! {
@@ -140,7 +159,7 @@ impl Sequencer {
     async fn initialize(
         config: Config,
         metrics: &'static Metrics,
-    ) -> Result<(RunningGRPCServer, RunningABCIServer)> {
+    ) -> Result<InitializationOutcome> {
         cnidarium::register_metrics();
         register_histogram_global("cnidarium_get_raw_duration_seconds");
         register_histogram_global("cnidarium_nonverifiable_get_raw_duration_seconds");
@@ -151,13 +170,38 @@ impl Sequencer {
             config.db_filepath.clone(),
             substore_prefixes
                 .into_iter()
-                .map(std::string::ToString::to_string)
+                .map(ToString::to_string)
                 .collect(),
         )
         .await
         .map_err(anyhow_to_eyre)
         .wrap_err("failed to load storage backing chain state")?;
         let snapshot = storage.latest_snapshot();
+
+        let upgrades_handler =
+            UpgradesHandler::new(&config.upgrades_filepath, config.cometbft_rpc_addr.clone())
+                .wrap_err("failed constructing upgrades handler")?;
+        upgrades_handler
+            .ensure_historical_upgrades_applied(&snapshot)
+            .await
+            .wrap_err("historical upgrades not applied")?;
+        if let ShouldShutDown::ShutDownForUpgrade {
+            upgrade_activation_height,
+            block_time,
+            hex_encoded_app_hash,
+        } = upgrades_handler
+            .should_shut_down(&snapshot)
+            .await
+            .wrap_err("failed to establish if sequencer should shut down for upgrade")?
+        {
+            info!(
+                upgrade_activation_height,
+                latest_app_hash = %hex_encoded_app_hash,
+                latest_block_time = %block_time,
+                "shutting down for upgrade"
+            );
+            return Ok(InitializationOutcome::ShutDownForUpgrade);
+        }
 
         // the native asset should be configurable only at genesis.
         // the genesis state must include the native asset's base
@@ -174,27 +218,34 @@ impl Sequencer {
                 .context("failed to query state for base prefix")?;
         }
 
+        let mempool = Mempool::new(metrics, config.mempool_parked_max_tx_count);
         let oracle_client = new_oracle_client(&config)
             .await
             .wrap_err("failed to create connected oracle client")?;
-
-        let mempool = Mempool::new(metrics, config.mempool_parked_max_tx_count);
+        let upgrades = upgrades_handler.upgrades().clone();
         let app = App::new(
             snapshot,
             mempool.clone(),
+            upgrades_handler,
             crate::app::vote_extension::Handler::new(oracle_client),
             metrics,
         )
         .await
         .wrap_err("failed to initialize app")?;
 
+        let consensus_token = tokio_util::sync::CancellationToken::new();
+        let cloned_token = consensus_token.clone();
         let consensus_service = tower::ServiceBuilder::new()
             .layer(request_span::layer(|req: &ConsensusRequest| {
                 req.create_span()
             }))
             .service(tower_actor::Actor::new(10, |queue: _| {
                 let storage = storage.clone();
-                async move { service::Consensus::new(storage, app, queue).run().await }
+                async move {
+                    service::Consensus::new(storage, app, queue, cloned_token)
+                        .run()
+                        .await
+                }
             }));
         let mempool_service = service::Mempool::new(storage.clone(), mempool.clone(), metrics);
         let info_service =
@@ -216,7 +267,8 @@ impl Sequencer {
             .grpc_addr
             .parse()
             .wrap_err("failed to parse grpc_addr address")?;
-        let grpc_server_handle = start_grpc_server(&storage, mempool, grpc_addr, grpc_shutdown_rx);
+        let grpc_server_handle =
+            start_grpc_server(&storage, mempool, upgrades, grpc_addr, grpc_shutdown_rx);
 
         debug!(config.listen_addr, "starting sequencer");
 
@@ -235,22 +287,26 @@ impl Sequencer {
             let _ = abci_shutdown_tx.send(());
         });
 
-        let grpc_server = RunningGRPCServer {
+        let grpc_server = RunningGrpcServer {
             handle: grpc_server_handle,
             shutdown_tx: grpc_shutdown_tx,
         };
-        let abci_server = RunningABCIServer {
+        let abci_server = RunningAbciServer {
             handle: abci_server_handle,
             shutdown_rx: abci_shutdown_rx,
         };
 
-        Ok((grpc_server, abci_server))
+        Ok(InitializationOutcome::Initialized {
+            grpc_server,
+            abci_server,
+        })
     }
 }
 
 fn start_grpc_server(
     storage: &cnidarium::Storage,
     mempool: Mempool,
+    upgrades: Upgrades,
     grpc_addr: std::net::SocketAddr,
     shutdown_rx: oneshot::Receiver<()>,
 ) -> JoinHandle<Result<(), tonic::transport::Error>> {
@@ -264,7 +320,7 @@ fn start_grpc_server(
     use tower_http::cors::CorsLayer;
 
     let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
-    let sequencer_api = SequencerServer::new(storage.clone(), mempool);
+    let sequencer_api = SequencerServer::new(storage.clone(), mempool, upgrades);
     let market_map_api = crate::grpc::connect::SequencerServer::new(storage.clone());
     let oracle_api = crate::grpc::connect::SequencerServer::new(storage.clone());
     let cors_layer: CorsLayer = CorsLayer::permissive();
@@ -394,6 +450,8 @@ async fn connect_to_oracle(endpoint: &Endpoint, uri: &Uri) -> Result<OracleClien
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
 
     #[tokio::test(start_paused = true)]
@@ -410,6 +468,8 @@ mod tests {
             no_metrics: true,
             metrics_http_listener_addr: String::new(),
             pretty_print: true,
+            upgrades_filepath: PathBuf::new(),
+            cometbft_rpc_addr: String::new(),
             no_oracle: false,
             oracle_grpc_addr: "http://127.0.0.1:8081".to_string(),
             oracle_client_timeout_milliseconds: 1,
