@@ -27,7 +27,6 @@ pub struct Metrics {
     auction_winner_submission_success_latency: Histogram,
     auction_winning_bid_histogram: Histogram,
     auctions_cancelled_count: Counter,
-    auctions_submitted_count: Counter,
     block_commitments_received_count: Counter,
     executed_blocks_received_count: Counter,
     proposed_blocks_received_count: Counter,
@@ -40,10 +39,6 @@ impl Metrics {
 
     pub(crate) fn increment_auctions_cancelled_count(&self) {
         self.auctions_cancelled_count.increment(1);
-    }
-
-    pub(crate) fn increment_auctions_submitted_count(&self) {
-        self.auctions_submitted_count.increment(1);
     }
 
     pub(crate) fn increment_auction_bids_without_matching_auction(&self) {
@@ -141,13 +136,6 @@ impl astria_telemetry::metrics::Metrics for Metrics {
             )?
             .register()?;
 
-        let auctions_submitted_count = builder
-            .new_counter_factory(
-                AUCTIONS_SUBMITTED,
-                "the number of successfully submitted auctions",
-            )?
-            .register()?;
-
         let auction_winning_bid_histogram = builder
             .new_histogram_factory(AUCTION_WINNING_BID, "the amount bid by the auction winner")?
             .register()?;
@@ -197,7 +185,6 @@ impl astria_telemetry::metrics::Metrics for Metrics {
             auction_winner_submission_success_latency,
             auction_winning_bid_histogram,
             auctions_cancelled_count,
-            auctions_submitted_count,
             block_commitments_received_count,
             executed_blocks_received_count,
             proposed_blocks_received_count,
@@ -210,7 +197,6 @@ metric_names!(const METRICS_NAMES:
     EXECUTED_BLOCKS_RECEIVED,
     PROPOSED_BLOCKS_RECEIVED,
     AUCTIONS_CANCELLED,
-    AUCTIONS_SUBMITTED,
     AUCTION_BID_DELAY_SINCE_START,
     AUCTION_BIDS,
     AUCTION_BIDS_RECEIVED,

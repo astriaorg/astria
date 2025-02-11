@@ -194,7 +194,6 @@ impl Auctioneer {
             nonce_used, ..
         }) = &res
         {
-            self.metrics.increment_auctions_submitted_count();
             self.auction_factory.set_last_successful_nonce(*nonce_used);
         }
         let _ = self.running_auction.take();
