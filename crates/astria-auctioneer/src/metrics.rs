@@ -9,7 +9,7 @@ use astria_telemetry::{
     },
 };
 
-const AUCTION_BIDS_LABEL: &str = "auction_bids";
+const BIDS_PER_AUCTIONLABEL: &str = "kind";
 const AUCTION_BIDS_PROCESSED: &str = "processed";
 const AUCTION_BIDS_DROPPED: &str = "dropped";
 
@@ -19,8 +19,8 @@ const AUCTION_WINNER_SUCCESS: &str = "success";
 
 pub struct Metrics {
     auction_bid_delay_since_start: Histogram,
-    auction_bids_dropped_histogram: Histogram,
-    auction_bids_processed_histogram: Histogram,
+    bids_per_auction_dropped_histogram: Histogram,
+    bids_per_auction_processed_histogram: Histogram,
     auction_bids_received_count: Counter,
     auction_bids_without_matching_auction: Counter,
     auction_winner_submission_error_latency: Histogram,
@@ -57,12 +57,12 @@ impl Metrics {
         self.proposed_blocks_received_count.increment(1);
     }
 
-    pub(crate) fn record_auction_bids_processed_histogram(&self, val: impl IntoF64) {
-        self.auction_bids_processed_histogram.record(val);
+    pub(crate) fn record_bids_per_auction_dropped_histogram(&self, val: impl IntoF64) {
+        self.bids_per_auction_dropped_histogram.record(val);
     }
 
-    pub(crate) fn record_auction_bids_dropped_histogram(&self, val: impl IntoF64) {
-        self.auction_bids_dropped_histogram.record(val);
+    pub(crate) fn record_bids_per_auction_processed_histogram(&self, val: impl IntoF64) {
+        self.bids_per_auction_processed_histogram.record(val);
     }
 
     pub(crate) fn record_auction_bid_delay_since_start(&self, val: impl IntoF64) {
@@ -123,10 +123,10 @@ impl astria_telemetry::metrics::Metrics for Metrics {
             "the number of auction bids received during an auction (either admitted or dropped \
              because the time was up or due to some other issue)",
         )?;
-        let auction_bids_processed_histogram = auction_bids_factory
-            .register_with_labels(&[(AUCTION_BIDS_LABEL, AUCTION_BIDS_PROCESSED.to_string())])?;
-        let auction_bids_dropped_histogram = auction_bids_factory
-            .register_with_labels(&[(AUCTION_BIDS_LABEL, AUCTION_BIDS_DROPPED.to_string())])?;
+        let bids_per_auction_processed_histogram = auction_bids_factory
+            .register_with_labels(&[(BIDS_PER_AUCTIONLABEL, AUCTION_BIDS_PROCESSED.to_string())])?;
+        let bids_per_auction_dropped_histogram = auction_bids_factory
+            .register_with_labels(&[(BIDS_PER_AUCTIONLABEL, AUCTION_BIDS_DROPPED.to_string())])?;
 
         let auctions_cancelled_count = builder
             .new_counter_factory(
@@ -177,8 +177,8 @@ impl astria_telemetry::metrics::Metrics for Metrics {
             .register()?;
         Ok(Self {
             auction_bid_delay_since_start,
-            auction_bids_dropped_histogram,
-            auction_bids_processed_histogram,
+            bids_per_auction_dropped_histogram,
+            bids_per_auction_processed_histogram,
             auction_bids_received_count,
             auction_bids_without_matching_auction,
             auction_winner_submission_error_latency,
@@ -198,7 +198,7 @@ metric_names!(const METRICS_NAMES:
     PROPOSED_BLOCKS_RECEIVED,
     AUCTIONS_CANCELLED,
     AUCTION_BID_DELAY_SINCE_START,
-    AUCTION_BIDS,
+    BIDS_PER_AUCTION,
     AUCTION_BIDS_RECEIVED,
     AUCTION_BIDS_WITHOUT_MATCHING_AUCTION,
     AUCTION_WINNING_BID,
