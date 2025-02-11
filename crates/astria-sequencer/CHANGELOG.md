@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Use bridge address to determine asset in bridge unlock cost estimation instead
 of signer [#1905](https://github.com/astriaorg/astria/pull/1905).
 - Add more thorough unit tests for all actions [#1916](https://github.com/astriaorg/astria/pull/1916).
+- Implement `BridgeTransfer` action [#1934](https://github.com/astriaorg/astria/pull/1934).
 
 ## [1.0.0] - 2024-10-25
 

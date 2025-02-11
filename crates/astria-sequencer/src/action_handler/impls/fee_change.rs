@@ -82,6 +82,9 @@ impl ActionHandler for FeeChange {
             Self::IbcSudoChange(fees) => state
                 .put_fees(*fees)
                 .wrap_err("failed to put ibc sudo change fees"),
+            Self::BridgeTransfer(fees) => state
+                .put_fees(*fees)
+                .wrap_err("failed to put bridge transfer fees"),
         }
     }
 }
@@ -209,6 +212,11 @@ mod tests {
     #[tokio::test]
     async fn ibc_sudo_change_fee_change_action_executes_as_expected() {
         test_fee_change_action::<IbcSudoChange>().await;
+    }
+
+    #[tokio::test]
+    async fn bridge_transfer_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<BridgeTransfer>().await;
     }
 
     async fn test_fee_change_action<'a, F>()

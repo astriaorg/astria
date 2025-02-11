@@ -120,6 +120,16 @@ async fn add_total_transfers_for_transaction<S: StateRead>(
                     .and_modify(|amt| *amt = amt.saturating_add(act.amount))
                     .or_insert(act.amount);
             }
+            Action::BridgeTransfer(act) => {
+                let asset = state
+                    .get_bridge_account_ibc_asset(&act.bridge_address)
+                    .await
+                    .wrap_err("failed to get bridge account asset id")?;
+                cost_by_asset
+                    .entry(asset)
+                    .and_modify(|amt| *amt = amt.saturating_add(act.amount))
+                    .or_insert(act.amount);
+            }
             Action::ValidatorUpdate(_)
             | Action::SudoAddressChange(_)
             | Action::IbcSudoChange(_)
