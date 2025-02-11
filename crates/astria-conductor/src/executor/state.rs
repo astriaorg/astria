@@ -10,10 +10,6 @@ use astria_core::{
     },
     primitive::v1::RollupId,
 };
-use astria_eyre::{
-    eyre,
-    eyre::WrapErr as _,
-};
 use bytes::Bytes;
 use sequencer_client::tendermint::block::Height as SequencerHeight;
 use tokio::sync::watch::{
@@ -22,8 +18,8 @@ use tokio::sync::watch::{
 };
 use tracing::instrument;
 
-pub(super) fn channel() -> (StateSender, StateReceiver) {
-    let (tx, rx) = watch::channel(None);
+pub(super) fn channel(state: State) -> (StateSender, StateReceiver) {
+    let (tx, rx) = watch::channel(state);
     let sender = StateSender {
         inner: tx,
     };
@@ -46,25 +42,14 @@ pub(super) struct InvalidState {
 }
 
 #[derive(Clone, Debug)]
-pub(super) struct StateReceiver {
-    inner: watch::Receiver<Option<State>>,
+pub(crate) struct StateReceiver {
+    inner: watch::Receiver<State>,
 }
 
 impl StateReceiver {
-    #[instrument(skip_all, err)]
-    pub(super) async fn wait_for_init(&mut self) -> eyre::Result<()> {
-        self.inner
-            .wait_for(Option::is_some)
-            .await
-            .wrap_err("channel failed while waiting for state to become initialized")?;
-        Ok(())
-    }
-
-    pub(super) fn next_expected_firm_sequencer_height(&self) -> SequencerHeight {
+    pub(crate) fn next_expected_firm_sequencer_height(&self) -> SequencerHeight {
         self.inner
             .borrow()
-            .as_ref()
-            .expect("the state is initialized")
             .next_expected_firm_sequencer_height()
             .expect(
                 "the tracked state must never be set to a genesis/commitment state that cannot be \
@@ -72,11 +57,9 @@ impl StateReceiver {
             )
     }
 
-    pub(super) fn next_expected_soft_sequencer_height(&self) -> SequencerHeight {
+    pub(crate) fn next_expected_soft_sequencer_height(&self) -> SequencerHeight {
         self.inner
             .borrow()
-            .as_ref()
-            .expect("the state is initialized")
             .next_expected_soft_sequencer_height()
             .expect(
                 "the tracked state must never be set to a genesis/commitment state that cannot be \
@@ -94,11 +77,11 @@ impl StateReceiver {
 }
 
 pub(super) struct StateSender {
-    inner: watch::Sender<Option<State>>,
+    inner: watch::Sender<State>,
 }
 
 fn can_map_firm_to_sequencer_height(
-    genesis_info: GenesisInfo,
+    genesis_info: &GenesisInfo,
     commitment_state: &CommitmentState,
 ) -> Result<(), InvalidState> {
     let sequencer_genesis_height = genesis_info.sequencer_genesis_block_height();
@@ -115,7 +98,7 @@ fn can_map_firm_to_sequencer_height(
 }
 
 fn can_map_soft_to_sequencer_height(
-    genesis_info: GenesisInfo,
+    genesis_info: &GenesisInfo,
     commitment_state: &CommitmentState,
 ) -> Result<(), InvalidState> {
     let sequencer_genesis_height = genesis_info.sequencer_genesis_block_height();
@@ -132,21 +115,29 @@ fn can_map_soft_to_sequencer_height(
 }
 
 impl StateSender {
-    pub(super) fn try_init(
-        &mut self,
-        genesis_info: GenesisInfo,
-        commitment_state: CommitmentState,
-    ) -> Result<(), InvalidState> {
-        can_map_firm_to_sequencer_height(genesis_info, &commitment_state)?;
-        can_map_soft_to_sequencer_height(genesis_info, &commitment_state)?;
-        self.inner.send_modify(move |state| {
-            let old_state = state.replace(State::new(genesis_info, commitment_state));
-            assert!(
-                old_state.is_none(),
-                "the state must be initialized only once",
-            );
-        });
-        Ok(())
+    pub(super) fn subscribe(&self) -> StateReceiver {
+        StateReceiver {
+            inner: self.inner.subscribe(),
+        }
+    }
+
+    /// Calculates the maximum allowed spread between firm and soft commitments heights.
+    ///
+    /// The maximum allowed spread is taken as `max_spread = variance * 6`, where `variance`
+    /// is the `celestia_block_variance` as defined in the rollup node's genesis that this
+    /// executor/conductor talks to.
+    ///
+    /// The heuristic 6 is the largest number of Sequencer heights that will be found at
+    /// one Celestia height.
+    ///
+    /// # Panics
+    /// Panics if the `u32` underlying the celestia block variance tracked in the state could
+    /// not be converted to a `usize`. This should never happen on any reasonable architecture
+    /// that Conductor will run on.
+    pub(super) fn calculate_max_spread(&self) -> usize {
+        usize::try_from(self.celestia_block_variance())
+            .expect("converting a u32 to usize should work on any architecture conductor runs on")
+            .saturating_mul(6)
     }
 
     pub(super) fn try_update_commitment_state(
@@ -154,26 +145,21 @@ impl StateSender {
         commitment_state: CommitmentState,
     ) -> Result<(), InvalidState> {
         let genesis_info = self.genesis_info();
-        can_map_firm_to_sequencer_height(genesis_info, &commitment_state)?;
-        can_map_soft_to_sequencer_height(genesis_info, &commitment_state)?;
+        can_map_firm_to_sequencer_height(&genesis_info, &commitment_state)?;
+        can_map_soft_to_sequencer_height(&genesis_info, &commitment_state)?;
         self.inner.send_modify(move |state| {
-            state
-                .as_mut()
-                .expect("the state must be initialized")
-                .set_commitment_state(commitment_state);
+            state.set_commitment_state(commitment_state);
         });
         Ok(())
     }
 
-    pub(super) fn get(&self) -> tokio::sync::watch::Ref<'_, Option<State>> {
+    pub(super) fn get(&self) -> tokio::sync::watch::Ref<'_, State> {
         self.inner.borrow()
     }
 
     pub(super) fn next_expected_firm_sequencer_height(&self) -> SequencerHeight {
         self.inner
             .borrow()
-            .as_ref()
-            .expect("the state is initialized")
             .next_expected_firm_sequencer_height()
             .expect(
                 "the tracked state must never be set to a genesis/commitment state that cannot be \
@@ -184,8 +170,6 @@ impl StateSender {
     pub(super) fn next_expected_soft_sequencer_height(&self) -> SequencerHeight {
         self.inner
             .borrow()
-            .as_ref()
-            .expect("the state is initialized")
             .next_expected_soft_sequencer_height()
             .expect(
                 "the tracked state must never be set to a genesis/commitment state that cannot be \
@@ -198,11 +182,9 @@ macro_rules! forward_impls {
     ($target:ident: $([$fn:ident -> $ret:ty]),*$(,)?) => {
         impl $target {
             $(
-            pub(super) fn $fn(&self) -> $ret {
+            pub(crate) fn $fn(&self) -> $ret {
                 self.inner
                     .borrow()
-                    .as_ref()
-                    .expect("the state is initialized")
                     .$fn()
                     .clone()
             }
@@ -241,11 +223,16 @@ pub(super) struct State {
 }
 
 impl State {
-    fn new(genesis_info: GenesisInfo, commitment_state: CommitmentState) -> Self {
-        Self {
+    pub(super) fn try_from_genesis_info_and_commitment_state(
+        genesis_info: GenesisInfo,
+        commitment_state: CommitmentState,
+    ) -> Result<Self, InvalidState> {
+        can_map_firm_to_sequencer_height(&genesis_info, &commitment_state)?;
+        can_map_soft_to_sequencer_height(&genesis_info, &commitment_state)?;
+        Ok(State {
             commitment_state,
             genesis_info,
-        }
+        })
     }
 
     /// Sets the inner commitment state.
@@ -390,16 +377,21 @@ mod tests {
         .unwrap()
     }
 
-    fn make_state() -> (StateSender, StateReceiver) {
-        let (mut tx, rx) = super::channel();
-        tx.try_init(make_genesis_info(), make_commitment_state())
-            .unwrap();
-        (tx, rx)
+    fn make_state() -> State {
+        State::try_from_genesis_info_and_commitment_state(
+            make_genesis_info(),
+            make_commitment_state(),
+        )
+        .unwrap()
+    }
+
+    fn make_channel() -> (StateSender, StateReceiver) {
+        super::channel(make_state())
     }
 
     #[test]
     fn next_firm_sequencer_height_is_correct() {
-        let (_, rx) = make_state();
+        let (_, rx) = make_channel();
         assert_eq!(
             SequencerHeight::from(12u32),
             rx.next_expected_firm_sequencer_height(),
@@ -408,7 +400,7 @@ mod tests {
 
     #[test]
     fn next_soft_sequencer_height_is_correct() {
-        let (_, rx) = make_state();
+        let (_, rx) = make_channel();
         assert_eq!(
             SequencerHeight::from(13u32),
             rx.next_expected_soft_sequencer_height(),
