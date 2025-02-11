@@ -101,9 +101,30 @@ impl MarketMapQueryService for SequencerServer {
     #[instrument(skip_all)]
     async fn market(
         self: Arc<Self>,
-        _request: Request<MarketRequest>,
+        request: Request<MarketRequest>,
     ) -> Result<Response<MarketResponse>, Status> {
-        Err(Status::unimplemented("market endpoint is not implemented"))
+        let snapshot = self.storage.latest_snapshot();
+        let market_map = snapshot
+            .get_market_map()
+            .await
+            .map_err(|e| Status::internal(format!("error getting market map from storage: {e:#}")))?
+            .ok_or_else(|| Status::not_found("market map not stored"))?;
+        let raw_currency_pair = request
+            .into_inner()
+            .currency_pair
+            .ok_or_else(|| Status::invalid_argument("`currency_pair` must be set"))?;
+        let currency_pair = CurrencyPair::try_from_raw(raw_currency_pair)
+            .map_err(|e| Status::invalid_argument(format!("invalid `currency_pair`: {e:#}")))?
+            .to_string();
+        let market = market_map
+            .markets
+            .get(&currency_pair)
+            .cloned()
+            .ok_or_else(|| Status::not_found(format!("`{currency_pair}` not in market map")))?;
+
+        Ok(Response::new(MarketResponse {
+            market: Some(market.into_raw()),
+        }))
     }
 
     #[instrument(skip_all)]

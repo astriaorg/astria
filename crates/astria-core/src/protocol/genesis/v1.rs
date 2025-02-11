@@ -1066,6 +1066,28 @@ mod tests {
         }
     }
 
+    fn genesis_fees() -> raw::GenesisFees {
+        raw::GenesisFees {
+            transfer: Some(FeeComponents::<Transfer>::new(12, 0).to_raw()),
+            rollup_data_submission: Some(
+                FeeComponents::<RollupDataSubmission>::new(32, 1).to_raw(),
+            ),
+            init_bridge_account: Some(FeeComponents::<InitBridgeAccount>::new(48, 0).to_raw()),
+            bridge_lock: Some(FeeComponents::<BridgeLock>::new(12, 1).to_raw()),
+            bridge_unlock: Some(FeeComponents::<BridgeUnlock>::new(12, 0).to_raw()),
+            bridge_sudo_change: Some(FeeComponents::<BridgeSudoChange>::new(24, 0).to_raw()),
+            ics20_withdrawal: Some(FeeComponents::<Ics20Withdrawal>::new(24, 0).to_raw()),
+            ibc_relay: Some(FeeComponents::<IbcRelay>::new(0, 0).to_raw()),
+            validator_update: Some(FeeComponents::<ValidatorUpdate>::new(0, 0).to_raw()),
+            fee_asset_change: Some(FeeComponents::<FeeAssetChange>::new(0, 0).to_raw()),
+            fee_change: Some(FeeComponents::<FeeChange>::new(0, 0).to_raw()),
+            ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0).to_raw()),
+            sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0).to_raw()),
+            ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0).to_raw()),
+            price_feed: Some(FeeComponents::<PriceFeed>::new(0, 0).to_raw()),
+        }
+    }
+
     fn proto_genesis_state() -> raw::GenesisAppState {
         use crate::connect::{
             oracle::v2::{
@@ -1109,25 +1131,7 @@ mod tests {
                 outbound_ics20_transfers_enabled: true,
             }),
             allowed_fee_assets: vec!["nria".into()],
-            fees: Some(raw::GenesisFees {
-                transfer: Some(FeeComponents::<Transfer>::new(12, 0).to_raw()),
-                rollup_data_submission: Some(
-                    FeeComponents::<RollupDataSubmission>::new(32, 1).to_raw(),
-                ),
-                init_bridge_account: Some(FeeComponents::<InitBridgeAccount>::new(48, 0).to_raw()),
-                bridge_lock: Some(FeeComponents::<BridgeLock>::new(12, 1).to_raw()),
-                bridge_unlock: Some(FeeComponents::<BridgeUnlock>::new(12, 0).to_raw()),
-                bridge_sudo_change: Some(FeeComponents::<BridgeSudoChange>::new(24, 0).to_raw()),
-                ics20_withdrawal: Some(FeeComponents::<Ics20Withdrawal>::new(24, 0).to_raw()),
-                ibc_relay: Some(FeeComponents::<IbcRelay>::new(0, 0).to_raw()),
-                validator_update: Some(FeeComponents::<ValidatorUpdate>::new(0, 0).to_raw()),
-                fee_asset_change: Some(FeeComponents::<FeeAssetChange>::new(0, 0).to_raw()),
-                fee_change: Some(FeeComponents::<FeeChange>::new(0, 0).to_raw()),
-                ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0).to_raw()),
-                sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0).to_raw()),
-                ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0).to_raw()),
-                price_feed: Some(FeeComponents::<PriceFeed>::new(0, 0).to_raw()),
-            }),
+            fees: Some(genesis_fees()),
             connect: Some(
                 ConnectGenesis {
                     market_map: market_map::v2::GenesisState {
