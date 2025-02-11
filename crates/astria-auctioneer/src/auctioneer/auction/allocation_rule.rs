@@ -11,12 +11,14 @@ use super::Bid;
 
 pub(super) struct FirstPrice {
     highest_bid: Option<Arc<Bid>>,
+    bids_seen: usize,
 }
 
 impl FirstPrice {
     pub(super) fn new() -> Self {
         Self {
             highest_bid: None,
+            bids_seen: 0,
         }
     }
 
@@ -29,6 +31,7 @@ impl FirstPrice {
         candidate.bid = candidate.bid(),
     ))]
     pub(super) fn bid(&mut self, candidate: &Arc<Bid>) {
+        self.bids_seen = self.bids_seen.saturating_add(1);
         let winner = if let Some(current) = self.highest_bid.as_mut() {
             if candidate.bid() > current.bid() {
                 *current = candidate.clone();
@@ -43,8 +46,12 @@ impl FirstPrice {
         info!("highest bidder is {winner}");
     }
 
+    pub(super) fn bids_seen(&self) -> usize {
+        self.bids_seen
+    }
+
     /// Returns the winner of the auction, if one exists.
-    pub(super) fn winner(self) -> Option<Arc<Bid>> {
-        self.highest_bid
+    pub(super) fn take_winner(&mut self) -> Option<Arc<Bid>> {
+        self.highest_bid.take()
     }
 }

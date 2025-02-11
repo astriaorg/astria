@@ -11,4 +11,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Initial release [#1839](https://github.com/astriaorg/astria/pull/1839)
+- Added initial set of metrics [#1953](https://github.com/astriaorg/astria/pull/1953).
+- Initial release [#1839](https://github.com/astriaorg/astria/pull/1839).
