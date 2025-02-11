@@ -2,21 +2,30 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: auctioneer-metrics
+  name: {{include "rollup.name" . }}-geth-metrics
   labels:
+    {{- include "rollup.labels" . | nindent 4 }}
     {{- with .Values.serviceMonitor.additionalLabels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
-  jobLabel: auctioneer-metrics
+  jobLabel: geth-metrics
   namespaceSelector:
     matchNames:
-      - {{ include "auctioneer.namespace" . }}
+      - {{ include "rollup.namespace" . }}
   selector:
     matchLabels:
-      app: auctioneer
+      app: {{ include "rollup.appName" . }}
   endpoints:
-    - port: auct-metrics
+    - port: geth-metr
+      path: /debug/metrics/prometheus
+      {{- with .Values.serviceMonitor.interval }}
+      interval: {{ . }}
+      {{- end }}
+      {{- with .Values.serviceMonitor.scrapeTimeout  }}
+      scrapeTimeout: {{ . }}
+      {{- end }}
+    - port: conductor-metr
       path: /
       {{- with .Values.serviceMonitor.interval }}
       interval: {{ . }}

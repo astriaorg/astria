@@ -9,6 +9,10 @@ global:
   celestiaChainId: celestia-local-0
 
 evm-rollup:
+  enabled: false
+
+flame-rollup:
+  enabled: true
   genesis:
     ## These values are used to configure the genesis block of the rollup chain
     ## no defaults as they are unique to each chain
@@ -56,8 +60,9 @@ evm-rollup:
       # 1:
       #   minBaseFee: 0
       #   elasticityMultiplier: 2
-      #   baseFeeChangeDenominator: 8
-
+    #   baseFeeChangeDenominator: 8
+    auctioneerAddresses:
+      1: "astria1ferdmm38w7zr4ankmntst0g0qg8e7ygeu3vxcy"
     ## Standard Eth Genesis config values
     # Configuration of Eth forks, setting to 0 will enable from height,
     # left as is these forks will not activate.
@@ -85,6 +90,9 @@ evm-rollup:
     # Options are: error, warn, info, and debug
     logLevel: "debug"
 
+    geth:
+      auctioneer: false
+
     conductor:
       # Determines what will drive block execution, options are:
       # - "SoftOnly" -> blocks are only pulled from the sequencer
@@ -92,7 +100,8 @@ evm-rollup:
       # - "SoftAndFirm" -> blocks are pulled from both the sequencer and DA
       executionCommitLevel: 'SoftAndFirm'
       # The expected fastest block time possible from sequencer, determines polling
-      # rate.
+      # rate. When running with the auctioneer side car, decrease this value in
+      # order to avoid race condition between executions (100ms recommended).
       sequencerBlockTimeMs: 2000
       # The maximum number of requests to make to the sequencer per second
       sequencerRequestsPerSecond: 500
@@ -127,6 +136,19 @@ evm-rollup:
         enabled: true
       ws:
         enabled: true
+
+auctioneer:
+  enabled: false
+  config:
+    sequencerPrivateKey:
+      devContent: "b8da3289343cb92a235af079d74bae435f16272df38b9ab3ab468e62c632e2f8"
+    feeAssetDenomination: "nria"
+    sequencerAddressPrefix: astria
+    rollupGrpcEndpoint: "http://astria-evm-service.astria-dev-cluster.svc.cluster.local:50051"
+    rollupId: "astria"
+    latencyMarginMs: 1000
+    logLevel: "debug"
+
 
 celestia-node:
   enabled: false

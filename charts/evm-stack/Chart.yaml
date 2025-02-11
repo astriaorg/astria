@@ -15,7 +15,7 @@ type: application
 # This is the chart version. This version number should be incremented each time you make changes
 # to the chart and its templates, including the app version.
 # Versions are expected to follow Semantic Versioning (https://semver.org/)
-version: 1.0.8
+version: 1.0.9
 
 dependencies:
   - name: celestia-node
@@ -23,12 +23,21 @@ dependencies:
     repository: "file://../celestia-node"
     condition: celestia-node.enabled
   - name: evm-rollup
-    version: 1.0.2
+    version: 1.0.1
     repository: "file://../evm-rollup"
+    condition: evm-rollup.enabled
+  - name: flame-rollup
+    version: 0.0.1
+    repository: "file://../flame-rollup"
+    condition: flame-rollup.enabled
   - name: composer
     version: 1.0.0
     repository: "file://../composer"
     condition: composer.enabled
+  - name: auctioneer
+    version: 0.0.1
+    repository: "file://../auctioneer"
+    condition: auctioneer.enabled
   - name: evm-faucet
     version: 0.1.4
     repository: "file://../evm-faucet"
@@ -50,7 +59,7 @@ dependencies:
 # incremented each time you make changes to the application. Versions are not expected to
 # follow Semantic Versioning. They should reflect the version the application is using.
 # It is recommended to use it with quotes.
-appVersion: "1.0.1"
+appVersion: "1.0.0"
 
 maintainers:
   - name: wafflesvonmaple

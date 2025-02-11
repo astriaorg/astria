@@ -131,6 +131,7 @@ sequencer:
     otlpHeaders:
     traceHeaders:
   optimisticBlockApis:
+    # set to true to enable optimistic block APIs
     enabled: false
 
 cometbft:

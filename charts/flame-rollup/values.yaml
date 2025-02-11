@@ -8,11 +8,10 @@ global:
 
 images:
   geth:
-    repo: ghcr.io/astriaorg/astria-geth
+    repo: ghcr.io/astriaorg/flame
     pullPolicy: IfNotPresent
-    tag: 1.0.0
-    devTag: latest
-    overrideTag: ""
+    tag: pr-30
+    devTag: pr-30
   conductor:
     repo: ghcr.io/astriaorg/conductor
     pullPolicy: IfNotPresent
@@ -70,6 +69,8 @@ genesis:
     #   minBaseFee: 0
     #   elasticityMultiplier: 2
     #   baseFeeChangeDenominator: 8
+  auctioneerAddresses: {}
+    # 1: "astria1ferdmm38w7zr4ankmntst0g0qg8e7ygeu3vxcy"
 
   ## Standard Eth Genesis config values
   # An EVM chain number id, different from the astria rollup name
@@ -103,6 +104,8 @@ config:
   geth:
     # Set to true to keep history of all blocks
     archiveNode: false
+    # Set to true to enable auctioneer functionality
+    auctioneer: false
     # Set to true to clear the mempool on startup/restart
     purgeMempool: false
     flags:
@@ -150,16 +153,17 @@ config:
       - name: history.state
         value: "{{- if .Values.config.geth.archiveNode -}} 0 {{- else -}} 540000 {{- end }}"
       - name: metrics
-        condition: .Values.metrics.enabled
+        condition: "{{- if .Values.metrics.enabled -}} true {{- else -}} false {{- end }}"
       - name: metrics.addr
         value: 0.0.0.0
-        condition: .Values.metrics.enabled
+        condition: "{{- if .Values.metrics.enabled -}} true {{- else -}} false {{- end }}"
       - name: metrics.port
         value: "{{ .Values.ports.metrics }}"
-        condition: .Values.metrics.enabled
+        condition: "{{- if .Values.metrics.enabled -}} true {{- else -}} false {{- end }}"
       - name: txpool.nolocals
         value: "true"
-
+      - name: auctioneer
+        condition: "{{- if .Values.config.geth.auctioneer -}} true {{- else -}} false {{- end }}"
 
   conductor:
     # Determines what will drive block execution, options are:

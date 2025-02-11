@@ -31,7 +31,7 @@ spec:
           {{- if .Values.metrics.enabled }}
           ports:
             - containerPort: {{ .Values.ports.metrics }}
-              name: auctioneer-metrics
+              name: auct-metrics
           {{- end }}
           resources:
             {{- toYaml .Values.resources | trim | nindent 12 }}

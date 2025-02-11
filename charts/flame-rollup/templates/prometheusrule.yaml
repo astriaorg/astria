@@ -1,0 +1,20 @@
+{{- if .Values.alerting.enabled -}}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ template "rollup.appName" . }}
+{{- if .Values.alerting.prometheusRule.namespace }}
+  namespace: {{ .Values.alerting.prometheusRule.namespace | quote }}
+{{- end }}
+  labels:
+    {{- include "rollup.labels" . | nindent 4 }}
+  {{- if .Values.alerting.prometheusRule.additionalLabels }}
+    {{- toYaml .Values.alerting.prometheusRule.additionalLabels | nindent 4 }}
+  {{- end }}
+spec:
+{{- if .Values.alerting.prometheusRule.rules }}
+  groups:
+  - name: {{ template "rollup.name" . }}
+    rules: {{- toYaml .Values.alerting.prometheusRule.rules | nindent 4 }}
+{{- end }}
+{{- end }}
