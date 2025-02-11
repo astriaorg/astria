@@ -1967,6 +1967,7 @@ impl Protobuf for BridgeTransfer {
     /// - if the `amount` field is invalid
     /// - if the `fee_asset` field is invalid
     /// - if the `from` field is invalid
+    /// - if `destination_chain_address` is not set
     fn try_from_raw(proto: raw::BridgeTransfer) -> Result<Self, BridgeTransferError> {
         let raw::BridgeTransfer {
             to,
@@ -1982,6 +1983,11 @@ impl Protobuf for BridgeTransfer {
             .and_then(|to| Address::try_from_raw(to).map_err(BridgeTransferError::address))?;
         let amount = amount.ok_or_else(|| BridgeTransferError::field_not_set("amount"))?;
         let fee_asset = fee_asset.parse().map_err(BridgeTransferError::fee_asset)?;
+        if destination_chain_address.is_empty() {
+            return Err(BridgeTransferError::field_not_set(
+                "destination_chain_address",
+            ));
+        }
 
         let bridge_address = bridge_address
             .ok_or_else(|| BridgeTransferError::field_not_set("bridge_address"))
