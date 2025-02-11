@@ -34,6 +34,7 @@ use tracing_subscriber::{
         LevelFilter,
         ParseError,
     },
+    fmt::format::FmtSpan,
     layer::SubscriberExt as _,
     util::{
         SubscriberInitExt as _,
@@ -229,7 +230,11 @@ impl Config {
         let mut pretty_printer = None;
         if force_stdout || std::io::stdout().is_terminal() {
             if pretty_print {
-                pretty_printer = Some(tracing_subscriber::fmt::layer().compact());
+                pretty_printer = Some(
+                    tracing_subscriber::fmt::layer()
+                        .compact()
+                        .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE),
+                );
             } else {
                 tracer_provider = tracer_provider.with_simple_exporter(
                     SpanExporter::builder()
