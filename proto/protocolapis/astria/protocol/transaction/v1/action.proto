@@ -18,6 +18,7 @@ message Action {
     BridgeLock bridge_lock = 12;
     BridgeUnlock bridge_unlock = 13;
     BridgeSudoChange bridge_sudo_change = 14;
+    BridgeTransfer bridge_transfer = 15;
 
     // IBC user actions are defined on 21-30
     astria_vendored.penumbra.core.component.ibc.v1.IbcRelay ibc = 21;
@@ -211,6 +212,30 @@ message BridgeSudoChange {
   string fee_asset = 4;
 }
 
+message BridgeTransfer {
+  // the address of the bridge account to transfer to
+  astria.primitive.v1.Address to = 1;
+  // the amount to transfer
+  astria.primitive.v1.Uint128 amount = 2;
+  // the asset used to pay the transaction fee
+  string fee_asset = 3;
+  // the address on the destination chain which
+  // will receive the bridged funds
+  string destination_chain_address = 4;
+  // the address of the bridge account to transfer from
+  astria.primitive.v1.Address bridge_address = 5;
+  // The block number on the rollup that triggered this transfer.
+  uint64 rollup_block_number = 6;
+  // An identifier of the original rollup event, such as a transaction hash which
+  // triggered a bridge unlock and is underlying event that led to this bridge
+  // unlock. This can be utilized for tracing from the bridge back to
+  // distinct rollup events.
+  //
+  // This field is of type `string` so that it can be formatted in the preferred
+  // format of the rollup when targeting plain text encoding.
+  string rollup_withdrawal_event_id = 7;
+}
+
 message FeeChange {
   // the new fee components values
   oneof fee_components {
@@ -228,6 +253,7 @@ message FeeChange {
     astria.protocol.fees.v1.SudoAddressChangeFeeComponents sudo_address_change = 12;
     astria.protocol.fees.v1.TransferFeeComponents transfer = 13;
     astria.protocol.fees.v1.ValidatorUpdateFeeComponents validator_update = 14;
+    astria.protocol.fees.v1.BridgeTransferFeeComponents bridge_transfer = 15;
   }
 }
 

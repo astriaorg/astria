@@ -1,4 +1,5 @@
 use astria_core::{
+    primitive::v1::asset::Denom,
     protocol::transaction::v1::action::{
         BridgeLock,
         Transfer,
@@ -41,75 +42,85 @@ impl ActionHandler for BridgeLock {
     }
 
     #[instrument(skip_all, err(level = Level::DEBUG))]
-    async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
+    async fn check_and_execute<S: StateWrite>(&self, state: S) -> Result<()> {
         state
             .ensure_base_prefix(&self.to)
             .await
             .wrap_err("failed check for base prefix of destination address")?;
-        // ensure the recipient is a bridge account.
-        let rollup_id = state
-            .get_bridge_account_rollup_id(&self.to)
-            .await
-            .wrap_err("failed to get bridge account rollup id")?
-            .ok_or_eyre("bridge lock must be sent to a bridge account")?;
 
+        // check that the asset to be transferred matches the bridge account asset.
+        // this also implicitly ensures the recipient is a bridge account.
         let allowed_asset = state
             .get_bridge_account_ibc_asset(&self.to)
             .await
-            .wrap_err("failed to get bridge account asset ID")?;
+            .wrap_err("failed to get bridge account asset ID; account is not a bridge account")?;
         ensure!(
             allowed_asset == self.asset.to_ibc_prefixed(),
             "asset ID is not authorized for transfer to bridge account",
         );
 
-        let source_transaction_id = state
-            .get_transaction_context()
-            .expect("current source should be set before executing action")
-            .transaction_id;
-        let source_action_index = state
-            .get_transaction_context()
-            .expect("current source should be set before executing action")
-            .position_in_transaction;
-
-        // map asset to trace prefixed asset for deposit, if it is not already
-        let deposit_asset = match self.asset.as_trace_prefixed() {
-            Some(asset) => asset.clone(),
-            None => state
-                .map_ibc_to_trace_prefixed_asset(&allowed_asset)
-                .await
-                .wrap_err("failed to map IBC asset to trace prefixed asset")?
-                .ok_or_eyre("mapping from IBC prefixed bridge asset to trace prefixed not found")?,
-        };
-
-        let deposit = Deposit {
-            bridge_address: self.to,
-            rollup_id,
-            amount: self.amount,
-            asset: deposit_asset.into(),
-            destination_chain_address: self.destination_chain_address.clone(),
-            source_transaction_id,
-            source_action_index,
-        };
-        let deposit_abci_event = create_deposit_event(&deposit);
-
-        let transfer_action = Transfer {
-            to: self.to,
-            asset: self.asset.clone(),
-            amount: self.amount,
-            fee_asset: self.fee_asset.clone(),
-        };
-
-        check_transfer(&transfer_action, &from, &state).await?;
-        execute_transfer(&transfer_action, &from, &mut state).await?;
-
-        state.cache_deposit_event(deposit);
-        state.record(deposit_abci_event);
+        execute_bridge_lock(self, state).await?;
         Ok(())
     }
+}
+
+pub(super) async fn execute_bridge_lock<S: StateWrite>(
+    bridge_lock: &BridgeLock,
+    mut state: S,
+) -> Result<()> {
+    let from = state
+        .get_transaction_context()
+        .expect("transaction source must be present in state when executing an action")
+        .address_bytes();
+    let rollup_id = state
+        .get_bridge_account_rollup_id(&bridge_lock.to)
+        .await
+        .wrap_err("failed to get bridge account rollup id")?
+        .ok_or_eyre("bridge lock must be sent to a bridge account")?;
+
+    let source_transaction_id = state
+        .get_transaction_context()
+        .expect("current source should be set before executing action")
+        .transaction_id;
+    let source_action_index = state
+        .get_transaction_context()
+        .expect("current source should be set before executing action")
+        .position_in_transaction;
+
+    // map asset to trace prefixed asset for deposit, if it is not already
+    let deposit_asset = match &bridge_lock.asset {
+        Denom::TracePrefixed(asset) => asset.clone(),
+        Denom::IbcPrefixed(asset) => state
+            .map_ibc_to_trace_prefixed_asset(asset)
+            .await
+            .wrap_err("failed to map IBC asset to trace prefixed asset")?
+            .ok_or_eyre("mapping from IBC prefixed bridge asset to trace prefixed not found")?,
+    };
+
+    let deposit = Deposit {
+        bridge_address: bridge_lock.to,
+        rollup_id,
+        amount: bridge_lock.amount,
+        asset: deposit_asset.into(),
+        destination_chain_address: bridge_lock.destination_chain_address.clone(),
+        source_transaction_id,
+        source_action_index,
+    };
+    let deposit_abci_event = create_deposit_event(&deposit);
+
+    let transfer_action = Transfer {
+        to: bridge_lock.to,
+        asset: bridge_lock.asset.clone(),
+        amount: bridge_lock.amount,
+        fee_asset: bridge_lock.fee_asset.clone(),
+    };
+
+    check_transfer(&transfer_action, &from, &state).await?;
+    execute_transfer(&transfer_action, &from, &mut state).await?;
+
+    state.cache_deposit_event(deposit);
+    state.record(deposit_abci_event);
+    Ok(())
 }
 
 #[cfg(test)]
@@ -227,7 +238,7 @@ mod tests {
                 .check_and_execute(&mut state)
                 .await
                 .unwrap_err(),
-            "bridge lock must be sent to a bridge account",
+            "failed to get bridge account asset ID; account is not a bridge account",
         );
     }
 
