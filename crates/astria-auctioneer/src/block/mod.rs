@@ -40,24 +40,24 @@ fn convert_tendermint_time_to_protobuf_timestamp(
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Optimistic {
-    /// The optimistic block data, filtered for a rollup id.
+pub(crate) struct Proposed {
+    /// The proposed block data, filtered for a rollup id.
     filtered_sequencer_block: FilteredSequencerBlock,
 }
 
-impl Optimistic {
+impl Proposed {
     pub(crate) fn new(filtered_sequencer_block: FilteredSequencerBlock) -> Self {
         Self {
             filtered_sequencer_block,
         }
     }
 
-    /// Converts this [`Optimistic`] into a [`BaseBlock`] for the given `rollup_id`.
+    /// Converts this [`Proposed`] into a [`BaseBlock`] for the given `rollup_id`.
     /// If there are no transactions for the given `rollup_id`, this will return a `BaseBlock`
     /// with no transactions.
     ///
     /// # Errors
-    /// Invalid `RollupData` included in the optimistic block data will result in an error.
+    /// Invalid `RollupData` included in the proposed block data will result in an error.
     // TODO: add typed errors here?
     pub(crate) fn try_into_base_block(
         self,
@@ -96,7 +96,7 @@ impl Optimistic {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Executed {
-    /// The rollup block metadata that resulted from executing the optimistic block.
+    /// The rollup block metadata that resulted from executing a proposed Sequencer block.
     block: execution::v1::Block,
     /// The hash of the sequencer block that was executed optimistically.
     sequencer_block_hash: block::Hash,

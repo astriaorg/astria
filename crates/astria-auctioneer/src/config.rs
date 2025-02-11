@@ -13,7 +13,7 @@ use serde::{
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 /// The single config for creating an astria-auctioneer service.
 pub struct Config {
-    /// The endpoint for the sequencer gRPC service used for the optimistic block stream
+    /// The endpoint for the sequencer gRPC service used for the proposed block stream
     pub sequencer_grpc_endpoint: String,
     /// The endpoint for the sequencer ABCI service used for submitting the auction winner
     /// transaction
@@ -30,7 +30,7 @@ pub struct Config {
     /// The endpoint for the rollup gRPC service used for the optimistic execution and bundle
     /// streams
     pub rollup_grpc_endpoint: String,
-    /// The rollup ID used to filter the optimistic blocks stream
+    /// The rollup ID used to filter the proposed blocks stream
     pub rollup_id: String,
     /// The amount of time in miliseconds to wait after a commit before closing the auction for
     /// bids and submitting the result to the sequencer.

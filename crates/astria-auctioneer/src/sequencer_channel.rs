@@ -112,10 +112,10 @@ impl SequencerChannel {
         }
     }
 
-    pub(crate) fn open_get_optimistic_block_stream(
+    pub(crate) fn open_get_proposed_block_stream(
         &self,
         rollup_id: RollupId,
-    ) -> OptimisticBlockStream {
+    ) -> ProposedBlockStream {
         use astria_core::generated::astria::sequencerblock::optimistic::v1alpha1::{
             optimistic_block_service_client::OptimisticBlockServiceClient,
             GetOptimisticBlockStreamRequest,
@@ -141,7 +141,7 @@ impl SequencerChannel {
             .instrument(info_span!("request optimistic block stream"))
         })
         .boxed();
-        OptimisticBlockStream {
+        ProposedBlockStream {
             inner,
         }
     }
@@ -195,11 +195,11 @@ impl Stream for InnerBlockCommitmentStream {
     }
 }
 
-pub(crate) struct OptimisticBlockStream {
+pub(crate) struct ProposedBlockStream {
     inner: BoxStream<'static, eyre::Result<FilteredSequencerBlock>>,
 }
 
-impl Stream for OptimisticBlockStream {
+impl Stream for ProposedBlockStream {
     type Item = eyre::Result<FilteredSequencerBlock>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {

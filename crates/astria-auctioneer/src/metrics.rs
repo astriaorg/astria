@@ -30,7 +30,7 @@ pub struct Metrics {
     auctions_submitted_count: Counter,
     block_commitments_received_count: Counter,
     executed_blocks_received_count: Counter,
-    optimistic_blocks_received_count: Counter,
+    proposed_blocks_received_count: Counter,
 }
 
 impl Metrics {
@@ -58,8 +58,8 @@ impl Metrics {
         self.executed_blocks_received_count.increment(1);
     }
 
-    pub(crate) fn increment_optimistic_blocks_received_counter(&self) {
-        self.optimistic_blocks_received_count.increment(1);
+    pub(crate) fn increment_proposed_blocks_received_counter(&self) {
+        self.proposed_blocks_received_count.increment(1);
     }
 
     pub(crate) fn record_auction_bids_processed_histogram(&self, val: impl IntoF64) {
@@ -108,10 +108,10 @@ impl astria_telemetry::metrics::Metrics for Metrics {
             )?
             .register()?;
 
-        let optimistic_blocks_received_count = builder
+        let proposed_blocks_received_count = builder
             .new_counter_factory(
-                OPTIMISTIC_BLOCKS_RECEIVED,
-                "the number of optimistic blocks received from the Sequencer node",
+                PROPOSED_BLOCKS_RECEIVED,
+                "the number of proposed blocks received from the Sequencer node",
             )?
             .register()?;
 
@@ -200,7 +200,7 @@ impl astria_telemetry::metrics::Metrics for Metrics {
             auctions_submitted_count,
             block_commitments_received_count,
             executed_blocks_received_count,
-            optimistic_blocks_received_count,
+            proposed_blocks_received_count,
         })
     }
 }
@@ -208,7 +208,7 @@ impl astria_telemetry::metrics::Metrics for Metrics {
 metric_names!(const METRICS_NAMES:
     BLOCK_COMMITMENTS_RECEIVED,
     EXECUTED_BLOCKS_RECEIVED,
-    OPTIMISTIC_BLOCKS_RECEIVED,
+    PROPOSED_BLOCKS_RECEIVED,
     AUCTIONS_CANCELLED,
     AUCTIONS_SUBMITTED,
     AUCTION_BID_DELAY_SINCE_START,

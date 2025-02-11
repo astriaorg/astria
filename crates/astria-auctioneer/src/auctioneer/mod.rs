@@ -38,7 +38,7 @@ use crate::{
     },
     sequencer_channel::{
         BlockCommitmentStream,
-        OptimisticBlockStream,
+        ProposedBlockStream,
     },
     sequencer_key::SequencerKey,
     Config,
@@ -55,7 +55,7 @@ pub(super) struct Auctioneer {
     metrics: &'static crate::Metrics,
     executed_blocks: ExecuteOptimisticBlockStream,
     running_auction: Option<auction::Auction>,
-    optimistic_blocks: OptimisticBlockStream,
+    proposed_blocks: ProposedBlockStream,
     rollup_id: RollupId,
     shutdown_token: CancellationToken,
 }
@@ -115,7 +115,7 @@ impl Auctioneer {
             cancelled_auctions: FuturesUnordered::new(),
             executed_blocks: rollup_channel.open_execute_optimistic_block_stream(),
             metrics,
-            optimistic_blocks: sequencer_channel.open_get_optimistic_block_stream(rollup_id),
+            proposed_blocks: sequencer_channel.open_get_proposed_block_stream(rollup_id),
             rollup_id,
             running_auction: None,
             shutdown_token,
@@ -149,9 +149,9 @@ impl Auctioneer {
 
     async fn handle_event(&mut self) -> eyre::Result<()> {
         select!(
-            res = self.optimistic_blocks.next() => {
-                let res = res.ok_or_eyre("optimistic block stream closed")?;
-                let _ = self.handle_optimistic_block(res);
+            res = self.proposed_blocks.next() => {
+                let res = res.ok_or_eyre("proposed block stream closed")?;
+                let _ = self.handle_proposed_block(res);
             },
 
             res = self.block_commitments.next() => {
@@ -216,17 +216,17 @@ impl Auctioneer {
     }
 
     #[instrument(skip_all, fields(block_hash = field::Empty), err)]
-    fn handle_optimistic_block(
+    fn handle_proposed_block(
         &mut self,
-        optimistic_block: eyre::Result<FilteredSequencerBlock>,
+        proposed_block: eyre::Result<FilteredSequencerBlock>,
     ) -> eyre::Result<()> {
-        let optimistic_block =
-            optimistic_block.wrap_err("encountered problem receiving optimistic block message")?;
-        Span::current().record("block_hash", field::display(optimistic_block.block_hash()));
+        let proposed_block =
+            proposed_block.wrap_err("encountered problem receiving proposed block message")?;
+        Span::current().record("block_hash", field::display(proposed_block.block_hash()));
 
-        self.metrics.increment_optimistic_blocks_received_counter();
+        self.metrics.increment_proposed_blocks_received_counter();
 
-        let new_auction = self.auction_factory.start_new(&optimistic_block);
+        let new_auction = self.auction_factory.start_new(&proposed_block);
         info!(auction_id = %new_auction.id(), "started new auction");
 
         if let Some(old_auction) = self.running_auction.replace(new_auction) {
@@ -237,7 +237,7 @@ impl Auctioneer {
         }
 
         // TODO: do conversion && sending in one operation
-        let base_block = crate::block::Optimistic::new(optimistic_block)
+        let base_block = crate::block::Proposed::new(proposed_block)
             .try_into_base_block(self.rollup_id)
             // FIXME: give this their proper wire names
             .wrap_err("failed to create BaseBlock from FilteredSequencerBlock")?;
