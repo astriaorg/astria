@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     io::Write as _,
     mem,
     net::SocketAddr,
@@ -33,6 +34,15 @@ use ethers::{
     abi::AbiEncode,
     types::TransactionReceipt,
 };
+use frost_ed25519::{
+    keys::{
+        IdentifierList,
+        KeyPackage,
+        PublicKeyPackage,
+        SecretShare,
+    },
+    Identifier,
+};
 use futures::Future;
 use ibc_types::core::{
     channel::ChannelId,
@@ -54,6 +64,7 @@ use tracing::{
 use super::{
     ethereum::AstriaBridgeableERC20DeployerConfig,
     make_tx_sync_success_response,
+    mock_bridge_signer::MockBridgeSignerServer,
     mock_cometbft::{
         mount_default_chain_id,
         mount_get_nonce_response,
@@ -102,6 +113,9 @@ pub struct TestBridgeWithdrawer {
 
     /// The mock sequencer server.
     pub sequencer_mock: MockSequencerServer,
+
+    /// The mock bridge signer servers.
+    pub bridge_signer_mocks: Vec<MockBridgeSignerServer>,
 
     /// The rollup-side ethereum smart contract
     pub ethereum: TestEthereum,
@@ -235,6 +249,57 @@ impl TestBridgeWithdrawer {
         )
         .await
     }
+
+    pub async fn mount_get_verifying_share_responses(&self) {
+        for server in &self.bridge_signer_mocks {
+            server
+                .mount_get_verifying_share_response("get_verifying_share")
+                .await;
+        }
+    }
+
+    // pub async fn mount_part1_responses(&self, message: Vec<u8>) -> Vec<Part2Response> {
+    //     let mut part1_outputs = Vec::with_capacity(self.bridge_signer_mocks.len());
+    //     for server in &self.bridge_signer_mocks {
+    //         let output = server.mount_part1_response("part1").await;
+    //         part1_outputs.push(output);
+    //     }
+
+    //     let commitments = part1_outputs
+    //         .iter()
+    //         .map(|output| (output.0.clone(), output.1.clone()))
+    //         // .map(|output| CommitmentWithIdentifier {
+    //         //     commitment: output
+    //         //         .1
+    //         //         .serialize()
+    //         //         .expect("can serialize commitment")
+    //         //         .into(),
+    //         //     participant_identifier: output.0.serialize().into(),
+    //         // })
+    //         .collect::<Vec<_>>();
+
+    //     let mut part2_responses = Vec::with_capacity(self.bridge_signer_mocks.len());
+    //     for (server, output) in self.bridge_signer_mocks.iter().zip(part1_outputs) {
+    //         let response =
+    //             server.get_frost_part2_response(commitments.clone(), message.clone(), output.2);
+    //         part2_responses.push(response);
+    //     }
+    //     // requests_and_nonces
+
+    //     // let mut part2_responses = Vec::with_capacity(self.bridge_signer_mocks.len());
+    //     // for (server, (request, nonce)) in
+    //     // self.bridge_signer_mocks.iter().zip(requests_and_nonces) {     let response =
+    //     // server.get_frost_part2_response(commitments.clone(), message.clone(), nonce);
+    //     //     part2_responses.push(response);
+    //     // }
+    //     part2_responses
+    // }
+
+    // pub async fn mount_part2_responses(&self, resps: Vec<Part2Response>) {
+    //     for (server, resp) in self.bridge_signer_mocks.iter().zip(resps) {
+    //         server.mount_part2_response("part2", resp).await;
+    //     }
+    // }
 }
 
 #[expect(clippy::module_name_repetitions, reason = "naming is for clarity here")]
@@ -243,6 +308,8 @@ pub struct TestBridgeWithdrawerConfig {
     pub ethereum_config: TestEthereumConfig,
     /// The denomination of the asset
     pub asset_denom: Denom,
+    /// Threshold signer count, if threshold signing is to be enabled
+    pub threshold_signer_count: u16,
 }
 
 impl TestBridgeWithdrawerConfig {
@@ -250,6 +317,7 @@ impl TestBridgeWithdrawerConfig {
         let Self {
             ethereum_config,
             asset_denom,
+            threshold_signer_count,
         } = self;
         LazyLock::force(&TELEMETRY);
 
@@ -267,15 +335,40 @@ impl TestBridgeWithdrawerConfig {
         let cometbft_mock = wiremock::MockServer::start().await;
         let sequencer_mock = MockSequencerServer::spawn().await;
 
+        let (secret_shares, public_key_package) = get_frost_secret_shares(threshold_signer_count);
+        let mut frost_participant_endpoints = Vec::with_capacity(threshold_signer_count as usize);
+        let mut bridge_signer_mocks = Vec::with_capacity(threshold_signer_count as usize);
+        for secret_share in secret_shares.into_values() {
+            let secret_package = KeyPackage::try_from(secret_share)
+                .expect("can convert secret share to secret package");
+            let server = MockBridgeSignerServer::spawn(secret_package).await;
+            server
+                .mount_get_verifying_share_response("get_verifying_share")
+                .await;
+            frost_participant_endpoints.push(format!("http://{}", server.local_addr));
+            bridge_signer_mocks.push(server);
+        }
+
+        let public_key_string =
+            serde_json::to_string(&public_key_package).expect("can serialize public key package");
+        let mut public_key_package_file = NamedTempFile::new().unwrap();
+        public_key_package_file
+            .write_all(public_key_string.as_bytes())
+            .expect("can write public key package to file");
+
         let config = Config {
             sequencer_cometbft_endpoint: cometbft_mock.uri(),
             sequencer_grpc_endpoint: format!("http://{}", sequencer_mock.local_addr),
             sequencer_chain_id: SEQUENCER_CHAIN_ID.into(),
             sequencer_key_path,
-            frost_threshold_signing_enabled: false,
-            frost_min_signers: 0,
-            frost_public_key_package_path: String::new(),
-            frost_participant_endpoints: Vec::new(),
+            frost_threshold_signing_enabled: threshold_signer_count != 0,
+            frost_min_signers: threshold_signer_count as usize,
+            frost_public_key_package_path: public_key_package_file
+                .path()
+                .to_str()
+                .expect("can get public key package path")
+                .to_string(),
+            frost_participant_endpoints,
             fee_asset_denomination: asset_denom.clone(),
             rollup_asset_denomination: asset_denom.as_trace_prefixed().unwrap().clone(),
             sequencer_bridge_address: default_bridge_address().to_string(),
@@ -312,6 +405,7 @@ impl TestBridgeWithdrawerConfig {
             ethereum,
             cometbft_mock,
             sequencer_mock,
+            bridge_signer_mocks,
             bridge_withdrawer_shutdown_handle: Some(bridge_withdrawer_shutdown_handle),
             bridge_withdrawer,
             config,
@@ -331,6 +425,7 @@ impl TestBridgeWithdrawerConfig {
                 ..Default::default()
             }),
             asset_denom: DEFAULT_IBC_DENOM.parse().unwrap(),
+            threshold_signer_count: 0,
         }
     }
 
@@ -344,6 +439,7 @@ impl TestBridgeWithdrawerConfig {
                 },
             ),
             asset_denom: default_native_asset(),
+            threshold_signer_count: 0,
         }
     }
 
@@ -357,6 +453,7 @@ impl TestBridgeWithdrawerConfig {
                 },
             ),
             asset_denom: DEFAULT_IBC_DENOM.parse().unwrap(),
+            threshold_signer_count: 0,
         }
     }
 }
@@ -368,6 +465,7 @@ impl Default for TestBridgeWithdrawerConfig {
                 AstriaWithdrawerDeployerConfig::default(),
             ),
             asset_denom: default_native_asset(),
+            threshold_signer_count: 0,
         }
     }
 }
@@ -579,4 +677,17 @@ pub(crate) fn astria_address(
         .prefix(ASTRIA_ADDRESS_PREFIX)
         .try_build()
         .unwrap()
+}
+
+fn get_frost_secret_shares(
+    num_signers: u16,
+) -> (BTreeMap<Identifier, SecretShare>, PublicKeyPackage) {
+    use rand::rngs::OsRng;
+    frost_ed25519::keys::generate_with_dealer(
+        num_signers,
+        num_signers,
+        IdentifierList::Default,
+        OsRng,
+    )
+    .expect("can generate keys")
 }

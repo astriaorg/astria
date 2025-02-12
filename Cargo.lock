@@ -538,6 +538,7 @@ dependencies = [
  "pbjson-types",
  "pin-project-lite",
  "prost",
+ "rand 0.8.5",
  "reqwest",
  "serde",
  "serde_json",

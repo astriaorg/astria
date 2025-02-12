@@ -191,9 +191,16 @@ pub mod astria {
 
     #[path = ""]
     pub mod signer {
-        #[path = "astria.signer.v1.rs"]
-        pub mod v1;
-    }   
+        pub mod v1 {
+            include!("astria.signer.v1.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impl {
+                use super::*;
+                include!("astria.signer.v1.serde.rs");
+            }
+        }
+    }
 }
 
 #[path = ""]
