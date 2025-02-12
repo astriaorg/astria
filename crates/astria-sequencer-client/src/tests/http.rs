@@ -464,7 +464,7 @@ async fn confirm_tx_inclusion_works_as_expected() {
     assert_eq!(response.hash, tx_server_response.hash);
 }
 
-/// Simulates a unknown -> parked -> pending -> confirmed transaction flow in the appside mempool.
+/// Simulates a not found -> parked -> pending -> confirmed transaction flow in the appside mempool.
 /// `confirm_tx_inclusion` should continue looping with a backoff until the transaction is
 /// confirmed.
 #[tokio::test]
@@ -497,24 +497,24 @@ async fn confirm_tx_inclusion_loops_when_parked_or_pending() {
     let response_handle =
         tokio::spawn(async move { client.confirm_tx_inclusion(tx_server_response.hash).await });
 
-    // First mount responds with `UNKNOWN` once
-    let unknown_tx_status_response = TransactionStatusResponse {
-        status: TransactionStatus::Unknown,
+    // First mount responds with `NOT_FOUND` once
+    let not_found_tx_status_response = TransactionStatusResponse {
+        status: TransactionStatus::NotFound,
     };
-    let unknown_tx_status_guard = register_abci_query_response(
+    let not_found_tx_status_guard = register_abci_query_response(
         &server,
         &format!("transaction/status/{tx_id}"),
         None,
-        unknown_tx_status_response.to_raw(),
+        not_found_tx_status_response.to_raw(),
         1,
         1,
     )
     .await;
 
-    // Await satisfaction of `UNKNOWN` mount before mounting `PARKED` response
+    // Await satisfaction of `NOT_FOUND` mount before mounting `PARKED` response
     timeout(
         Duration::from_millis(500),
-        unknown_tx_status_guard.wait_until_satisfied(),
+        not_found_tx_status_guard.wait_until_satisfied(),
     )
     .await
     .expect("should have received tx status request within 500ms");
@@ -595,7 +595,7 @@ async fn confirm_tx_inclusion_loops_when_parked_or_pending() {
 }
 
 #[tokio::test]
-async fn confirm_tx_inclusion_fails_after_unknown_for_too_long() {
+async fn confirm_tx_inclusion_fails_after_not_found_for_too_long() {
     let MockSequencer {
         server,
         client,
@@ -620,14 +620,14 @@ async fn confirm_tx_inclusion_fails_after_unknown_for_too_long() {
         proof: None,
     };
 
-    let unknown_tx_status_response = TransactionStatusResponse {
-        status: TransactionStatus::Unknown,
+    let not_found_tx_status_response = TransactionStatusResponse {
+        status: TransactionStatus::NotFound,
     };
-    let _unknown_tx_status_guard = register_abci_query_response(
+    let _not_found_tx_status_guard = register_abci_query_response(
         &server,
         &format!("transaction/status/{tx_id}"),
         None,
-        unknown_tx_status_response.to_raw(),
+        not_found_tx_status_response.to_raw(),
         1..,
         100,
     )
@@ -642,7 +642,7 @@ async fn confirm_tx_inclusion_fails_after_unknown_for_too_long() {
 
     assert_eq!(
         err.source().unwrap().to_string(),
-        "transaction status has remained unknown for more than the maximum wait time: 3 seconds"
+        "transaction status has remained not found for more than the maximum wait time: 3 seconds"
     );
 }
 

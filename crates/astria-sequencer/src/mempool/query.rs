@@ -249,7 +249,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn transaction_status_request_unknown_works_as_expected() {
+    async fn transaction_status_request_not_found_works_as_expected() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = cnidarium::StateDelta::new(snapshot);
@@ -282,7 +282,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(response_1.code, Code::Ok);
-        assert_eq!(transaction_status.status, TransactionStatus::Unknown);
+        assert_eq!(transaction_status.status, TransactionStatus::NotFound);
 
         // Check that the transaction hash can be formatted with or without the "0x" prefix
         let response_2 = transaction_status_request(
@@ -297,7 +297,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(response_2.code, Code::Ok);
-        assert_eq!(transaction_status.status, TransactionStatus::Unknown);
+        assert_eq!(transaction_status.status, TransactionStatus::NotFound);
     }
 
     #[tokio::test]

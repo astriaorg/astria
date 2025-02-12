@@ -2503,7 +2503,7 @@ impl serde::Serialize for TransactionStatus {
             Self::Parked => "TRANSACTION_STATUS_PARKED",
             Self::Pending => "TRANSACTION_STATUS_PENDING",
             Self::RemovalCache => "TRANSACTION_STATUS_REMOVAL_CACHE",
-            Self::Unknown => "TRANSACTION_STATUS_UNKNOWN",
+            Self::NotFound => "TRANSACTION_STATUS_NOT_FOUND",
         };
         serializer.serialize_str(variant)
     }
@@ -2519,7 +2519,7 @@ impl<'de> serde::Deserialize<'de> for TransactionStatus {
             "TRANSACTION_STATUS_PARKED",
             "TRANSACTION_STATUS_PENDING",
             "TRANSACTION_STATUS_REMOVAL_CACHE",
-            "TRANSACTION_STATUS_UNKNOWN",
+            "TRANSACTION_STATUS_NOT_FOUND",
         ];
 
         struct GeneratedVisitor;
@@ -2564,7 +2564,7 @@ impl<'de> serde::Deserialize<'de> for TransactionStatus {
                     "TRANSACTION_STATUS_PARKED" => Ok(TransactionStatus::Parked),
                     "TRANSACTION_STATUS_PENDING" => Ok(TransactionStatus::Pending),
                     "TRANSACTION_STATUS_REMOVAL_CACHE" => Ok(TransactionStatus::RemovalCache),
-                    "TRANSACTION_STATUS_UNKNOWN" => Ok(TransactionStatus::Unknown),
+                    "TRANSACTION_STATUS_NOT_FOUND" => Ok(TransactionStatus::NotFound),
                     _ => Err(serde::de::Error::unknown_variant(value, FIELDS)),
                 }
             }

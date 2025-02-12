@@ -588,7 +588,7 @@ pub enum TransactionStatus {
     Parked,
     Pending,
     RemovalCache,
-    Unknown,
+    NotFound,
 }
 
 impl TryFrom<i32> for TransactionStatus {
@@ -599,7 +599,7 @@ impl TryFrom<i32> for TransactionStatus {
             1 => Ok(Self::Parked),
             2 => Ok(Self::Pending),
             3 => Ok(Self::RemovalCache),
-            4 => Ok(Self::Unknown),
+            4 => Ok(Self::NotFound),
             _ => Err(TransactionStatusError::invalid_status(value)),
         }
     }
@@ -611,7 +611,7 @@ impl From<&TransactionStatus> for i32 {
             TransactionStatus::Parked => 1,
             TransactionStatus::Pending => 2,
             TransactionStatus::RemovalCache => 3,
-            TransactionStatus::Unknown => 4,
+            TransactionStatus::NotFound => 4,
         }
     }
 }

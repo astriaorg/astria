@@ -86,9 +86,9 @@ use tracing::{
     Level,
 };
 
-/// The maximum time to wait while receiving an `UNKNOWN` transaction status from the sequencer
+/// The maximum time to wait while receiving an `NOT_FOUND` transaction status from the sequencer
 /// before erroring.
-const MAX_TX_STATUS_UNKNOWN_WAIT_TIME_SECS: u64 = 3;
+const MAX_TX_STATUS_NOT_FOUND_WAIT_TIME_SECS: u64 = 3;
 
 #[cfg(feature = "http")]
 impl SequencerClientExt for HttpClient {}
@@ -343,10 +343,10 @@ pub struct TxStatusError(TxStatusErrorKind);
 #[derive(Debug, thiserror::Error)]
 enum TxStatusErrorKind {
     #[error(
-        "transaction status has remained unknown for more than the maximum wait time: \
-         {MAX_TX_STATUS_UNKNOWN_WAIT_TIME_SECS} seconds"
+        "transaction status has remained not found for more than the maximum wait time: \
+         {MAX_TX_STATUS_NOT_FOUND_WAIT_TIME_SECS} seconds"
     )]
-    StatusUnknown,
+    StatusNotFound,
     #[error(
         "the given transaction has been removed from the app mempool but has not been confirmed \
          in CometBFT: {0}"
@@ -706,7 +706,7 @@ pub trait SequencerClientExt: Client {
     /// # Errors
     ///
     /// - If calling the ABCI query for transaction status fails or returns a bad response.
-    /// - If the transaction is not found in the mempool within `MAX_WAIT_TIME_UNKNOWN`.
+    /// - If the transaction is not found in the mempool within `MAX_WAIT_TIME_NOT_FOUND`.
     /// - If the transaction is removed from the mempool but not confirmed in CometBFT within
     ///   `MAX_WAIT_TIME_AFTER_REMOVAL`.
     #[instrument(skip_all, err(level = Level::INFO))]
@@ -728,15 +728,15 @@ pub trait SequencerClientExt: Client {
         // How long to wait after `confirm_tx_inclusion` is called before starting to log.
         const START_LOGGING_DELAY: Duration = Duration::from_millis(1000);
         // The duration between logging events. This is more than the maximum wait time for an
-        // unknown transaction status, but that is okay since a persistent unknown status
+        // not found transaction status, but that is okay since a persistent not found status
         // will be logged when the error is returned.
         const LOG_INTERVAL: Duration = Duration::from_millis(5000);
         // The maximum time to wait for a transaction to show in the app mempool.
-        const MAX_WAIT_TIME_UNKNOWN: Duration =
-            Duration::from_secs(MAX_TX_STATUS_UNKNOWN_WAIT_TIME_SECS);
+        const MAX_WAIT_TIME_NOT_FOUND: Duration =
+            Duration::from_secs(MAX_TX_STATUS_NOT_FOUND_WAIT_TIME_SECS);
         // The maximum time to wait for a transaction to show as confirmed in CometBFT after being
         // removed from the app mempool.
-        const MAX_WAIT_TIME_MILLIS_AFTER_REMOVAL: u32 = 2000;
+        const MAX_RETRIES_AFTER_REMOVAL: u32 = 20;
 
         let start = Instant::now();
         let mut logged_at = start;
@@ -758,8 +758,8 @@ pub trait SequencerClientExt: Client {
 
         // Polls sequencer for transaction status with a backoff. If the transaction is parked or
         // pending, this will continue polling until the transaction is removed from the mempool. If
-        // the transaction status is unknown, this means it has not yet made it to the mempool. We
-        // give it `MAX_WAIT_TIME_UNKNOWN` to change to a different status before erroring.
+        // the transaction status is not found, this means it has not yet made it to the mempool. We
+        // give it `MAX_WAIT_TIME_NOT_FOUND` to change to a different status before erroring.
         let removal_reason = loop {
             tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
             let rsp = self
@@ -784,13 +784,13 @@ pub trait SequencerClientExt: Client {
                 .map_err(|e| Error::native_conversion("TransactionStatusResponse", Arc::new(e)))?
                 .status
             {
-                TransactionStatus::Unknown => {
-                    if start.elapsed() > MAX_WAIT_TIME_UNKNOWN {
+                TransactionStatus::NotFound => {
+                    if start.elapsed() > MAX_WAIT_TIME_NOT_FOUND {
                         return Err(Error::tx_status(TxStatusError(
-                            TxStatusErrorKind::StatusUnknown,
+                            TxStatusErrorKind::StatusNotFound,
                         )));
                     }
-                    log_if_due("UNKNOWN");
+                    log_if_due("NOT_FOUND");
                 }
                 TransactionStatus::Parked => {
                     log_if_due("PARKED");
@@ -804,11 +804,9 @@ pub trait SequencerClientExt: Client {
         };
 
         // Note: using fixed backoff here. We expect the transaction to be confirmed quickly, this
-        // is just to account for short delays or network issues. Logic for num retries is as
-        // follows: retries = MAX_WAIT_TIME_MILLIS_AFTER_REMOVAL / fixed_backoff(100ms)
-        let retry_config =
-            tryhard::RetryFutureConfig::new(MAX_WAIT_TIME_MILLIS_AFTER_REMOVAL / 100)
-                .fixed_backoff(Duration::from_millis(100));
+        // is just to account for short delays or network issues.
+        let retry_config = tryhard::RetryFutureConfig::new(MAX_RETRIES_AFTER_REMOVAL)
+            .fixed_backoff(Duration::from_millis(100));
         tryhard::retry_fn(|| async {
             self.tx(tx_hash, false)
                 .await

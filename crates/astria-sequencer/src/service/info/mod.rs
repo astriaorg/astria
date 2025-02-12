@@ -602,6 +602,6 @@ mod tests {
         )
         .unwrap();
         assert!(query_response.code.is_ok());
-        assert_eq!(transaction_status.status, TransactionStatus::Unknown);
+        assert_eq!(transaction_status.status, TransactionStatus::NotFound);
     }
 }

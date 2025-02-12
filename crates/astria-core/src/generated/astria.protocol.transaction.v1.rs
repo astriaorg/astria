@@ -538,7 +538,7 @@ pub enum TransactionStatus {
     Parked = 1,
     Pending = 2,
     RemovalCache = 3,
-    Unknown = 4,
+    NotFound = 4,
 }
 impl TransactionStatus {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -551,7 +551,7 @@ impl TransactionStatus {
             TransactionStatus::Parked => "TRANSACTION_STATUS_PARKED",
             TransactionStatus::Pending => "TRANSACTION_STATUS_PENDING",
             TransactionStatus::RemovalCache => "TRANSACTION_STATUS_REMOVAL_CACHE",
-            TransactionStatus::Unknown => "TRANSACTION_STATUS_UNKNOWN",
+            TransactionStatus::NotFound => "TRANSACTION_STATUS_NOT_FOUND",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -561,7 +561,7 @@ impl TransactionStatus {
             "TRANSACTION_STATUS_PARKED" => Some(Self::Parked),
             "TRANSACTION_STATUS_PENDING" => Some(Self::Pending),
             "TRANSACTION_STATUS_REMOVAL_CACHE" => Some(Self::RemovalCache),
-            "TRANSACTION_STATUS_UNKNOWN" => Some(Self::Unknown),
+            "TRANSACTION_STATUS_NOT_FOUND" => Some(Self::NotFound),
             _ => None,
         }
     }

@@ -554,7 +554,7 @@ impl Mempool {
             return (TransactionStatus::RemovalCache, Some(reason.to_string()));
         }
 
-        (TransactionStatus::Unknown, None)
+        (TransactionStatus::NotFound, None)
     }
 }
 
@@ -1307,7 +1307,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_transaction_status_unknown_works_as_expected() {
+    async fn get_transaction_status_not_found_works_as_expected() {
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mempool = Mempool::new(metrics, 10);
 
@@ -1316,7 +1316,7 @@ mod tests {
             mempool
                 .get_transaction_status(&TransactionId::new([0u8; 32]))
                 .await,
-            (TransactionStatus::Unknown, None)
+            (TransactionStatus::NotFound, None)
         );
     }
 
