@@ -24,6 +24,7 @@ use crate::{
         transaction::v1::action::{
             BridgeLock,
             BridgeSudoChange,
+            BridgeTransfer,
             BridgeUnlock,
             FeeAssetChange,
             FeeChange,
@@ -585,6 +586,7 @@ pub struct GenesisFees {
     pub init_bridge_account: Option<FeeComponents<InitBridgeAccount>>,
     pub bridge_lock: Option<FeeComponents<BridgeLock>>,
     pub bridge_unlock: Option<FeeComponents<BridgeUnlock>>,
+    pub bridge_transfer: Option<FeeComponents<BridgeTransfer>>,
     pub bridge_sudo_change: Option<FeeComponents<BridgeSudoChange>>,
     pub ibc_relay: Option<FeeComponents<IbcRelay>>,
     pub validator_update: Option<FeeComponents<ValidatorUpdate>>,
@@ -611,6 +613,7 @@ impl Protobuf for GenesisFees {
             init_bridge_account,
             bridge_lock,
             bridge_unlock,
+            bridge_transfer,
             bridge_sudo_change,
             ibc_relay,
             validator_update,
@@ -655,6 +658,12 @@ impl Protobuf for GenesisFees {
             .map(FeeComponents::<BridgeUnlock>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("bridge_unlock", e))?;
+
+        let bridge_transfer = bridge_transfer
+            .clone()
+            .map(FeeComponents::<BridgeTransfer>::try_from_raw)
+            .transpose()
+            .map_err(|e| FeesError::fee_components("bridge_transfer", e))?;
 
         let bridge_sudo_change = bridge_sudo_change
             .clone()
@@ -712,6 +721,7 @@ impl Protobuf for GenesisFees {
             init_bridge_account,
             bridge_lock,
             bridge_unlock,
+            bridge_transfer,
             bridge_sudo_change,
             ibc_relay,
             validator_update,
@@ -731,6 +741,7 @@ impl Protobuf for GenesisFees {
             init_bridge_account,
             bridge_lock,
             bridge_unlock,
+            bridge_transfer,
             bridge_sudo_change,
             ibc_relay,
             validator_update,
@@ -750,6 +761,8 @@ impl Protobuf for GenesisFees {
                 .map(|act| FeeComponents::<InitBridgeAccount>::to_raw(&act)),
             bridge_lock: bridge_lock.map(|act| FeeComponents::<BridgeLock>::to_raw(&act)),
             bridge_unlock: bridge_unlock.map(|act| FeeComponents::<BridgeUnlock>::to_raw(&act)),
+            bridge_transfer: bridge_transfer
+                .map(|act| FeeComponents::<BridgeTransfer>::to_raw(&act)),
             bridge_sudo_change: bridge_sudo_change
                 .map(|act| FeeComponents::<BridgeSudoChange>::to_raw(&act)),
             ibc_relay: ibc_relay.map(|act| FeeComponents::<IbcRelay>::to_raw(&act)),
@@ -877,6 +890,7 @@ mod tests {
                 init_bridge_account: Some(FeeComponents::<InitBridgeAccount>::new(48, 0).to_raw()),
                 bridge_lock: Some(FeeComponents::<BridgeLock>::new(12, 1).to_raw()),
                 bridge_unlock: Some(FeeComponents::<BridgeUnlock>::new(12, 0).to_raw()),
+                bridge_transfer: Some(FeeComponents::<BridgeTransfer>::new(24, 0).to_raw()),
                 bridge_sudo_change: Some(FeeComponents::<BridgeSudoChange>::new(24, 0).to_raw()),
                 ics20_withdrawal: Some(FeeComponents::<Ics20Withdrawal>::new(24, 0).to_raw()),
                 ibc_relay: Some(FeeComponents::<IbcRelay>::new(0, 0).to_raw()),

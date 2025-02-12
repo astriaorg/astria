@@ -20,6 +20,7 @@ use astria_core::{
         transaction::v1::action::{
             BridgeLock,
             BridgeSudoChange,
+            BridgeTransfer,
             BridgeUnlock,
             FeeAssetChange,
             FeeChange,
@@ -114,6 +115,7 @@ fn proto_genesis_state() -> astria_core::generated::astria::protocol::genesis::v
             init_bridge_account: Some(FeeComponents::<InitBridgeAccount>::new(48, 0).to_raw()),
             bridge_lock: Some(FeeComponents::<BridgeLock>::new(12, 1).to_raw()),
             bridge_unlock: Some(FeeComponents::<BridgeUnlock>::new(12, 0).to_raw()),
+            bridge_transfer: Some(FeeComponents::<BridgeTransfer>::new(24, 0).to_raw()),
             bridge_sudo_change: Some(FeeComponents::<BridgeSudoChange>::new(24, 0).to_raw()),
             ics20_withdrawal: Some(FeeComponents::<Ics20Withdrawal>::new(24, 0).to_raw()),
             ibc_relay: Some(FeeComponents::<IbcRelay>::new(0, 0).to_raw()),

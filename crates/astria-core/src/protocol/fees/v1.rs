@@ -16,6 +16,7 @@ use crate::{
     protocol::transaction::v1::action::{
         BridgeLock,
         BridgeSudoChange,
+        BridgeTransfer,
         BridgeUnlock,
         FeeAssetChange,
         FeeChange,
@@ -100,6 +101,7 @@ impl_protobuf_for_fee_components!(
     FeeComponents<InitBridgeAccount> => raw::InitBridgeAccountFeeComponents,
     FeeComponents<BridgeLock> => raw::BridgeLockFeeComponents,
     FeeComponents<BridgeUnlock> => raw::BridgeUnlockFeeComponents,
+    FeeComponents<BridgeTransfer> => raw::BridgeTransferFeeComponents,
     FeeComponents<BridgeSudoChange> => raw::BridgeSudoChangeFeeComponents,
     FeeComponents<ValidatorUpdate> => raw::ValidatorUpdateFeeComponents,
     FeeComponents<IbcRelayerChange> => raw::IbcRelayerChangeFeeComponents,
