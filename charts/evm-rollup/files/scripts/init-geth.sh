@@ -9,11 +9,8 @@ if [ ! -d "$data_dir/" ]; then
 
   exec geth \
     {{- range $arg := .Values.config.geth.flags -}}
-    {{- if hasKey $arg "condition" -}}
-    {{- if eq (tpl $arg.condition $) "true" -}}
-    --{{ $arg.name }}{{ if $arg.value }}={{ tpl $arg.value $ }}{{ end }} \
-    {{- end -}}
-    {{- else }}
+    {{- $noCondition := not (hasKey $arg "condition") }}
+    {{- if or ($noCondition) (eq (tpl $arg.condition $) "true") }}
     --{{ $arg.name }}{{ if $arg.value }}={{ tpl $arg.value $ }}{{ end }} \
     {{- end }}
     {{- end -}}
