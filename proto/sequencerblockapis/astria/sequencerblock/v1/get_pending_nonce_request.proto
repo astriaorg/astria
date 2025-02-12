@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package astria.sequencerblock.v1;
+
+import "astria/primitive/v1/address.proto";
+import "google/api/field_behavior.proto";
+
+message GetPendingNonceRequest {
+  // The account to retrieve the pending nonce for.
+  astria.primitive.v1.Address address = 1 [(google.api.field_behavior) = REQUIRED];
+}

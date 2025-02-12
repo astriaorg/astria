@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package astria.protocol.transaction.v1;
+
+// The `TransactionParams` of the transaction that define the
+// validity of the `Transaction`.
+message TransactionParams {
+  uint32 nonce = 1;
+  string chain_id = 2;
+}

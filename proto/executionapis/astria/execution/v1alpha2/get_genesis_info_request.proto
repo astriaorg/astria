@@ -1,0 +1,5 @@
+syntax = 'proto3';
+
+package astria.execution.v1alpha2;
+
+message GetGenesisInfoRequest {}

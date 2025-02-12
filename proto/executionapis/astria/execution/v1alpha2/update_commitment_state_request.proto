@@ -1,0 +1,10 @@
+syntax = 'proto3';
+
+package astria.execution.v1alpha2;
+
+import "astria/execution/v1alpha2/commitment_state.proto";
+
+// The CommitmentState to set, must include complete state.
+message UpdateCommitmentStateRequest {
+  CommitmentState commitment_state = 1;
+}

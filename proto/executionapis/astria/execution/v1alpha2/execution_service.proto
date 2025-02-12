@@ -1,0 +1,42 @@
+syntax = 'proto3';
+
+package astria.execution.v1alpha2;
+
+import "astria/execution/v1alpha2/batch_get_blocks_request.proto";
+import "astria/execution/v1alpha2/batch_get_blocks_response.proto";
+import "astria/execution/v1alpha2/block.proto";
+import "astria/execution/v1alpha2/commitment_state.proto";
+import "astria/execution/v1alpha2/execute_block_request.proto";
+import "astria/execution/v1alpha2/genesis_info.proto";
+import "astria/execution/v1alpha2/get_block_request.proto";
+import "astria/execution/v1alpha2/get_commitment_state_request.proto";
+import "astria/execution/v1alpha2/get_genesis_info_request.proto";
+import "astria/execution/v1alpha2/update_commitment_state_request.proto";
+
+// ExecutionService is used to drive deterministic production of blocks.
+//
+// The service can be implemented by any blockchain which wants to utilize the
+// Astria Shared Sequencer, and will have block production driven via the Astria
+// "Conductor".
+service ExecutionService {
+  // GetGenesisInfo returns the necessary genesis information for rollup chain.
+  rpc GetGenesisInfo(GetGenesisInfoRequest) returns (GenesisInfo);
+
+  // GetBlock will return a block given an identifier.
+  rpc GetBlock(GetBlockRequest) returns (Block);
+
+  // BatchGetBlocks will return an array of Blocks given an array of block
+  // identifiers.
+  rpc BatchGetBlocks(BatchGetBlocksRequest) returns (BatchGetBlocksResponse);
+
+  // ExecuteBlock is called to deterministically derive a rollup block from
+  // filtered sequencer block information.
+  rpc ExecuteBlock(ExecuteBlockRequest) returns (Block);
+
+  // GetCommitmentState fetches the current CommitmentState of the chain.
+  rpc GetCommitmentState(GetCommitmentStateRequest) returns (CommitmentState);
+
+  // UpdateCommitmentState replaces the whole CommitmentState with a new
+  // CommitmentState.
+  rpc UpdateCommitmentState(UpdateCommitmentStateRequest) returns (CommitmentState);
+}

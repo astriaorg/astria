@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package astria.protocol.accounts.v1alpha1;
+
+// A response containing the current nonce for an account.
+message NonceResponse {
+  uint64 height = 2;
+  uint32 nonce = 3;
+}

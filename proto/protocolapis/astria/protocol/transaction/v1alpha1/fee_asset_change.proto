@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package astria.protocol.transaction.v1alpha1;
+
+// `FeeAssetChange` represents a transaction that adds
+// or removes an asset for fee payments.
+message FeeAssetChange {
+  oneof value {
+    string addition = 1;
+    string removal = 2;
+  }
+}

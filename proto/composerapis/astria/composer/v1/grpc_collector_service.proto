@@ -1,0 +1,13 @@
+syntax = 'proto3';
+
+package astria.composer.v1;
+
+import "astria/composer/v1/submit_rollup_transaction_request.proto";
+import "astria/composer/v1/submit_rollup_transaction_response.proto";
+
+// GrpcCollectorService is a service that defines the gRPC collector of the Composer
+service GrpcCollectorService {
+  // SubmitRollupTransaction submits a rollup transactions to the Composer.
+  // The transaction sent is bundled up with other transactions and submitted to the Shared Sequencer Network.
+  rpc SubmitRollupTransaction(SubmitRollupTransactionRequest) returns (SubmitRollupTransactionResponse) {}
+}

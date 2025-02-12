@@ -1,0 +1,11 @@
+syntax = 'proto3';
+
+package astria.execution.v1alpha2;
+
+// Fields which are indexed for finding blocks on a blockchain.
+message BlockIdentifier {
+  oneof identifier {
+    uint32 block_number = 1;
+    bytes block_hash = 2;
+  }
+}

@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package astria.sequencerblock.v1alpha1;
+
+import "astria/sequencerblock/v1alpha1/filtered_sequencer_block.proto";
+import "astria/sequencerblock/v1alpha1/get_filtered_sequencer_block_request.proto";
+import "astria/sequencerblock/v1alpha1/get_pending_nonce_request.proto";
+import "astria/sequencerblock/v1alpha1/get_pending_nonce_response.proto";
+import "astria/sequencerblock/v1alpha1/get_sequencer_block_request.proto";
+import "astria/sequencerblock/v1alpha1/sequencer_block.proto";
+import "google/api/annotations.proto";
+
+service SequencerService {
+  // Given a block height, returns the sequencer block at that height.
+  rpc GetSequencerBlock(GetSequencerBlockRequest) returns (SequencerBlock) {
+    option (google.api.http) = {get: "/v1/sequencer/{height}"};
+  }
+
+  // Given a block height and set of rollup ids, returns a SequencerBlock which
+  // is filtered to contain only the transactions that are relevant to the given rollup.
+  rpc GetFilteredSequencerBlock(GetFilteredSequencerBlockRequest) returns (FilteredSequencerBlock) {
+    option (google.api.http) = {
+      post: "/v1/sequencer/{height}:filtered"
+      body: "*"
+    };
+  }
+
+  // Returns the pending nonce for the given account.
+  rpc GetPendingNonce(GetPendingNonceRequest) returns (GetPendingNonceResponse) {
+    option (google.api.http) = {get: "/v1/sequencer/pendingnonce/{account}"};
+  }
+}

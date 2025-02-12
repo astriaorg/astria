@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package astria.primitive.v1;
+
+// An Astria `Address`.
+//
+// Astria addresses are bech32m encoded strings, with the data part being the
+// first 20 entries of a sha256-hashed ed25519 public key.
+message Address {
+  // A bech32m encoded string. The data are the first 20 bytes of a sha256-hashed ed25519
+  // public key. Implementors must not accept both the `bytes` and `bech32m` being set.
+  string bech32m = 2;
+
+  // deprecated `bytes inner = 1;`
+  reserved 1;
+  reserved "inner";
+}

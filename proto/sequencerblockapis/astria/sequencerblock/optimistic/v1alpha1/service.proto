@@ -2,8 +2,8 @@ syntax = "proto3";
 
 package astria.sequencerblock.optimistic.v1alpha1;
 
-import "astria/primitive/v1/types.proto";
-import "astria/sequencerblock/v1/block.proto";
+import "astria/primitive/v1/rollup_id.proto";
+import "astria/sequencerblock/v1/filtered_sequencer_block.proto";
 
 message GetBlockCommitmentStreamRequest {}
 

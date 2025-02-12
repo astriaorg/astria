@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package astria.protocol.transaction.v1alpha1;
+
+import "astria/primitive/v1/address.proto";
+import "astria/primitive/v1/uint128.proto";
+
+message IbcHeight {
+  uint64 revision_number = 1;
+  uint64 revision_height = 2;
+}
+
+message Ics20Withdrawal {
+  // first two fields are a transparent value consisting of an amount and a denom.
+  astria.primitive.v1.Uint128 amount = 1;
+  string denom = 2;
+  // the address on the destination chain to send the transfer to.
+  // this is not validated by Astria; it is up to the destination chain
+  // to interpret it.
+  string destination_chain_address = 3;
+  // an Astria address to use to return funds from this withdrawal
+  // in the case it fails.
+  astria.primitive.v1.Address return_address = 4;
+  // the height (on the counterparty chain) at which this transfer expires.
+  IbcHeight timeout_height = 5;
+  // the unix timestamp (in nanoseconds) at which this transfer expires.
+  uint64 timeout_time = 6;
+  // the source channel used for the withdrawal.
+  string source_channel = 7;
+  // the asset used to pay the transaction fee
+  string fee_asset = 8;
+  // a memo to include with the transfer
+  string memo = 9;
+  // the address of the bridge account to transfer from, if this is a withdrawal
+  // from a bridge account and the sender of the tx is the bridge's withdrawer,
+  // which differs from the bridge account's address.
+  //
+  // if unset, and the transaction sender is not a bridge account, the withdrawal
+  // is treated as a user (non-bridge) withdrawal.
+  //
+  // if unset, and the transaction sender is a bridge account, the withdrawal is
+  // treated as a bridge withdrawal (ie. the bridge account's withdrawer address is checked).
+  astria.primitive.v1.Address bridge_address = 10;
+
+  // whether to use a bech32-compatible format of the `.return_address` when generating
+  // fungible token packets (as opposed to Astria-native bech32m addresses). This is
+  // necessary for chains like noble which enforce a strict bech32 format.
+  bool use_compat_address = 11;
+}

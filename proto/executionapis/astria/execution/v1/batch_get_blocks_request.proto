@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package astria.execution.v1;
+
+import "astria/execution/v1/block_identifier.proto";
+
+// Used in BatchGetBlocks, will find all or none based on the list of
+// identifiers.
+message BatchGetBlocksRequest {
+  repeated BlockIdentifier identifiers = 1;
+}

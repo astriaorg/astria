@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package astria.sequencerblock.v1;
+
+import "astria/sequencerblock/v1/submitted_metadata.proto";
+
+// A sequence of `astria.sequencerblock.v1.SubmittedMetadata` submitted to Celestia.
+message SubmittedMetadataList {
+  repeated SubmittedMetadata entries = 1;
+}

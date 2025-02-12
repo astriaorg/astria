@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package astria.sequencerblock.v1;
+
+import "google/protobuf/timestamp.proto";
+
+message SequencerBlockHeader {
+  // the cometbft chain ID of the sequencer chain
+  string chain_id = 1;
+  // the height of this sequencer block
+  uint64 height = 2;
+  // the timestamp of this sequencer block
+  google.protobuf.Timestamp time = 3;
+  // the data_hash of the sequencer block (merkle root of all transaction hashes)
+  bytes data_hash = 4;
+  // the cometbft proposer address of the sequencer block
+  bytes proposer_address = 5;
+  // The 32-byte merkle root of all the rollup transactions in the block,
+  // Corresponds to `MHT(astria.SequencerBlock.rollup_transactions)`,
+  bytes rollup_transactions_root = 6;
+}

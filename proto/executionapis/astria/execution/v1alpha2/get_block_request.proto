@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package astria.execution.v1alpha2;
+
+import "astria/execution/v1alpha2/block_identifier.proto";
+
+// Used in GetBlock to find a single block.
+message GetBlockRequest {
+  BlockIdentifier identifier = 1;
+}

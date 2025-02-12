@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package astria.protocol.transaction.v1;
+
+import "astria/primitive/v1/address.proto";
+
+// `IbcRelayerChange` represents a transaction that adds
+// or removes an IBC relayer address.
+// The bytes contained in each variant are the address to add or remove.
+message IbcRelayerChange {
+  oneof value {
+    astria.primitive.v1.Address addition = 1;
+    astria.primitive.v1.Address removal = 2;
+  }
+}

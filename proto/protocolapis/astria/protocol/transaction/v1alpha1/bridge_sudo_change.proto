@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package astria.protocol.transaction.v1alpha1;
+
+import "astria/primitive/v1/address.proto";
+
+message BridgeSudoChange {
+  // the address of the bridge account to change the sudo or withdrawer addresses for
+  astria.primitive.v1.Address bridge_address = 1;
+  // the new sudo address; unchanged if unset
+  astria.primitive.v1.Address new_sudo_address = 2;
+  // the new withdrawer address; unchanged if unset
+  astria.primitive.v1.Address new_withdrawer_address = 3;
+  // the asset used to pay the transaction fee
+  string fee_asset = 4;
+}

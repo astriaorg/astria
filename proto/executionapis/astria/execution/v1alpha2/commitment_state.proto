@@ -1,0 +1,22 @@
+syntax = 'proto3';
+
+package astria.execution.v1alpha2;
+
+import "astria/execution/v1alpha2/block.proto";
+
+// The CommitmentState holds the block at each stage of sequencer commitment
+// level
+//
+// A Valid CommitmentState:
+// - Block numbers are such that soft >= firm.
+// - No blocks ever decrease in block number.
+// - The chain defined by soft is the head of the canonical chain the firm block
+//   must belong to.
+message CommitmentState {
+  // Soft commitment is the rollup block matching latest sequencer block.
+  Block soft = 1;
+  // Firm commitment is achieved when data has been seen in DA.
+  Block firm = 2;
+  // The lowest block number of celestia chain to be searched for rollup blocks given current state
+  uint64 base_celestia_height = 3;
+}

@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package astria.protocol.accounts.v1alpha1;
+
+import "astria/protocol/accounts/v1alpha1/asset_balance.proto";
+
+// A response containing the balance of an account.
+message BalanceResponse {
+  uint64 height = 2;
+  repeated AssetBalance balances = 3;
+}

@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package astria.protocol.genesis.v1;
+
+import "astria/primitive/v1/address.proto";
+import "astria/protocol/genesis/v1/account.proto";
+import "astria/protocol/genesis/v1/address_prefixes.proto";
+import "astria/protocol/genesis/v1/genesis_fees.proto";
+import "astria/protocol/genesis/v1/ibc_parameters.proto";
+
+message GenesisAppState {
+  string chain_id = 1;
+  AddressPrefixes address_prefixes = 2;
+  repeated Account accounts = 3;
+  astria.primitive.v1.Address authority_sudo_address = 4;
+  astria.primitive.v1.Address ibc_sudo_address = 5;
+  repeated astria.primitive.v1.Address ibc_relayer_addresses = 6;
+  string native_asset_base_denomination = 7;
+  IbcParameters ibc_parameters = 8;
+  repeated string allowed_fee_assets = 9;
+  GenesisFees fees = 10;
+}

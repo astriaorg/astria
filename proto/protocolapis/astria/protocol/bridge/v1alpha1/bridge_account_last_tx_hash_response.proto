@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package astria.protocol.bridge.v1alpha1;
+
+// A response to the `bridge/account_last_tx_hash` ABCI query
+// containing the last tx hash given some bridge address,
+// if it exists.
+message BridgeAccountLastTxHashResponse {
+  uint64 height = 2;
+  optional bytes tx_hash = 3;
+}
