@@ -4,6 +4,12 @@
 
 {{- range $name, $ingress := .Values.ingress }}
 {{- $serviceName := $ingress.service -}}
+{{- $_ := hasKey $.Values.services $serviceName | required "ingress.service must be one of the chart services" -}}
+{{- $servicePort := $ingress.port -}}
+{{- $ingressPath := default "/" $ingress.path -}}
+{{- $ingressPathType := default "Prefix" $ingress.pathType -}}
+{{- $extraPaths := $ingress.extraPaths -}}
+{{- $ingressClassName := default "nginx" $ingress.className }}
 {{- $servicePort := $ingress.port -}}
 {{- $ingressPath := default "/" $ingress.path -}}
 {{- $ingressPathType := default "Prefix" $ingress.pathType -}}
