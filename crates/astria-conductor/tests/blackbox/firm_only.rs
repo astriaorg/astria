@@ -35,52 +35,47 @@ use crate::{
         MockGrpc,
         CELESTIA_BEARER_TOKEN,
         CELESTIA_CHAIN_ID,
-        SEQUENCER_CHAIN_ID,
     },
     mount_celestia_blobs,
-    mount_celestia_header_network_head,
-    mount_executed_block,
-    mount_get_commitment_state,
-    mount_get_genesis_info,
-    mount_sequencer_commit,
-    mount_sequencer_genesis,
-    mount_sequencer_validator_set,
-    mount_update_commitment_state,
 };
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn simple() {
     let test_conductor = spawn_conductor(CommitLevel::FirmOnly).await;
 
-    mount_get_genesis_info!(
-        test_conductor,
-        sequencer_start_height: 3,
-        celestia_block_variance: 10,
-        rollup_start_block_number: 2,
-        rollup_stop_block_number: 9,
-    );
+    test_conductor
+        .mock_get_genesis_info(genesis_info!(
+            sequencer_start_height: 3,
+            celestia_block_variance: 10,
+            rollup_start_block_number: 2,
+            rollup_stop_block_number: 9
+        ))
+        .mount()
+        .await;
 
-    mount_get_commitment_state!(
-        test_conductor,
-        firm: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
-        soft: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
-        base_celestia_height: 1,
-    );
+    test_conductor
+        .mock_get_commitment_state(commitment_state!(
+            firm: (
+                number: 1,
+                hash: [1; 64],
+                parent: [0; 64],
+            ),
+            soft: (
+                number: 1,
+                hash: [1; 64],
+                parent: [0; 64],
+            ),
+            base_celestia_height: 1,
+        ))
+        .mount()
+        .await;
 
-    mount_sequencer_genesis!(test_conductor);
+    test_conductor.mock_sequencer_genesis().mount().await;
 
-    mount_celestia_header_network_head!(
-        test_conductor,
-        height: 1u32,
-    );
+    test_conductor
+        .mock_celestia_header_network_head(celestia_network_head!(height: 1u32))
+        .mount()
+        .await;
 
     mount_celestia_blobs!(
         test_conductor,
@@ -88,34 +83,31 @@ async fn simple() {
         sequencer_heights: [3],
     );
 
-    mount_sequencer_commit!(
-        test_conductor,
-        height: 3u32,
-    );
+    test_conductor.mock_sequencer_commit(3).mount().await;
 
-    mount_sequencer_validator_set!(test_conductor, height: 2u32);
+    test_conductor.mock_validator_set(2).mount().await;
 
-    let execute_block = mount_executed_block!(
-        test_conductor,
-        number: 2,
-        hash: [2; 64],
-        parent: [1; 64],
-    );
+    let execute_block = test_conductor
+        .mock_execute_block(2, [2; 64], [1; 64])
+        .mount_as_scoped()
+        .await;
 
-    let update_commitment_state = mount_update_commitment_state!(
-        test_conductor,
-        firm: (
-            number: 2,
-            hash: [2; 64],
-            parent: [1; 64],
-        ),
-        soft: (
-            number: 2,
-            hash: [2; 64],
-            parent: [1; 64],
-        ),
-        base_celestia_height: 1,
-    );
+    let update_commitment_state = test_conductor
+        .mock_update_commitment_state(commitment_state!(
+            firm: (
+                number: 2,
+                hash: [2; 64],
+                parent: [1; 64],
+            ),
+            soft: (
+                number: 2,
+                hash: [2; 64],
+                parent: [1; 64],
+            ),
+            base_celestia_height: 1,
+        ))
+        .mount_as_scoped()
+        .await;
 
     timeout(
         Duration::from_millis(2000),
@@ -135,35 +127,39 @@ async fn simple() {
 async fn submits_two_heights_in_succession() {
     let test_conductor = spawn_conductor(CommitLevel::FirmOnly).await;
 
-    mount_get_genesis_info!(
-        test_conductor,
-        sequencer_start_height: 3,
-        celestia_block_variance: 10,
-        rollup_start_block_number: 2,
-        rollup_stop_block_number: 9,
-    );
+    test_conductor
+        .mock_get_genesis_info(genesis_info!(
+            sequencer_start_height: 3,
+            celestia_block_variance: 10,
+            rollup_start_block_number: 2,
+            rollup_stop_block_number: 9
+        ))
+        .mount()
+        .await;
 
-    mount_get_commitment_state!(
-        test_conductor,
-        firm: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
-        soft: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
-        base_celestia_height: 1,
-    );
+    test_conductor
+        .mock_get_commitment_state(commitment_state!(
+            firm: (
+                number: 1,
+                hash: [1; 64],
+                parent: [0; 64],
+            ),
+            soft: (
+                number: 1,
+                hash: [1; 64],
+                parent: [0; 64],
+            ),
+            base_celestia_height: 1,
+        ))
+        .mount()
+        .await;
 
-    mount_sequencer_genesis!(test_conductor);
+    test_conductor.mock_sequencer_genesis().mount().await;
 
-    mount_celestia_header_network_head!(
-        test_conductor,
-        height: 2u32,
-    );
+    test_conductor
+        .mock_celestia_header_network_head(celestia_network_head!(height: 2u32))
+        .mount()
+        .await;
 
     mount_celestia_blobs!(
         test_conductor,
@@ -171,63 +167,59 @@ async fn submits_two_heights_in_succession() {
         sequencer_heights: [3, 4],
     );
 
-    mount_sequencer_commit!(
-        test_conductor,
-        height: 3u32,
-    );
+    test_conductor.mock_sequencer_commit(3).mount().await;
+    test_conductor.mock_sequencer_commit(4).mount().await;
 
-    mount_sequencer_validator_set!(test_conductor, height: 2u32);
+    test_conductor.mock_validator_set(2).mount().await;
+    test_conductor.mock_validator_set(3).mount().await;
 
-    mount_sequencer_commit!(
-        test_conductor,
-        height: 4u32,
-    );
+    let execute_block_number_2 = test_conductor
+        .mock_execute_block(2, [2; 64], [1; 64])
+        .named("execute_block_number_2")
+        .mount_as_scoped()
+        .await;
 
-    mount_sequencer_validator_set!(test_conductor, height: 3u32);
+    let update_commitment_state_number_2 = test_conductor
+        .mock_update_commitment_state(commitment_state!(
+            firm: (
+                number: 2,
+                hash: [2; 64],
+                parent: [1; 64],
+            ),
+            soft: (
+                number: 2,
+                hash: [2; 64],
+                parent: [1; 64],
+            ),
+            base_celestia_height: 1,
+        ))
+        .named("update_commitment_state_number_2")
+        .mount_as_scoped()
+        .await;
 
-    let execute_block_number_2 = mount_executed_block!(
-        test_conductor,
-        number: 2,
-        hash: [2; 64],
-        parent: [1; 64],
-    );
+    let execute_block_number_3 = test_conductor
+        .mock_execute_block(3, [3; 64], [2; 64])
+        .named("execute_block_number_3")
+        .mount_as_scoped()
+        .await;
 
-    let update_commitment_state_number_2 = mount_update_commitment_state!(
-        test_conductor,
-        firm: (
-            number: 2,
-            hash: [2; 64],
-            parent: [1; 64],
-        ),
-        soft: (
-            number: 2,
-            hash: [2; 64],
-            parent: [1; 64],
-        ),
-        base_celestia_height: 1,
-    );
-
-    let execute_block_number_3 = mount_executed_block!(
-        test_conductor,
-        number: 3,
-        hash: [3; 64],
-        parent: [2; 64],
-    );
-
-    let update_commitment_state_number_3 = mount_update_commitment_state!(
-        test_conductor,
-        firm: (
-            number: 3,
-            hash: [3; 64],
-            parent: [2; 64],
-        ),
-        soft: (
-            number: 3,
-            hash: [3; 64],
-            parent: [2; 64],
-        ),
-        base_celestia_height: 1,
-    );
+    let update_commitment_state_number_3 = test_conductor
+        .mock_update_commitment_state(commitment_state!(
+            firm: (
+                number: 3,
+                hash: [3; 64],
+                parent: [2; 64],
+            ),
+            soft: (
+                number: 3,
+                hash: [3; 64],
+                parent: [2; 64],
+            ),
+            base_celestia_height: 1,
+        ))
+        .named("update_commitment_state_number_3")
+        .mount_as_scoped()
+        .await;
 
     timeout(
         Duration::from_millis(2000),
@@ -249,34 +241,39 @@ async fn submits_two_heights_in_succession() {
 async fn skips_already_executed_heights() {
     let test_conductor = spawn_conductor(CommitLevel::FirmOnly).await;
 
-    mount_get_genesis_info!(
-        test_conductor,
-        sequencer_start_height: 3,
-        celestia_block_variance: 10,
-        rollup_start_block_number: 2,
-        rollup_stop_block_number: 9,
-    );
+    test_conductor
+        .mock_get_genesis_info(genesis_info!(
+            sequencer_start_height: 3,
+            celestia_block_variance: 10,
+            rollup_start_block_number: 2,
+            rollup_stop_block_number: 9
+        ))
+        .mount()
+        .await;
 
-    mount_get_commitment_state!(
-        test_conductor,
-        firm: (
-            number: 5,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
-        soft: (
-            number: 5,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
-        base_celestia_height: 1,
-    );
-    mount_sequencer_genesis!(test_conductor);
+    test_conductor
+        .mock_get_commitment_state(commitment_state!(
+            firm: (
+                number: 5,
+                hash: [1; 64],
+                parent: [0; 64],
+            ),
+            soft: (
+                number: 5,
+                hash: [1; 64],
+                parent: [0; 64],
+            ),
+            base_celestia_height: 1,
+        ))
+        .mount()
+        .await;
 
-    mount_celestia_header_network_head!(
-        test_conductor,
-        height: 2u32,
-    );
+    test_conductor.mock_sequencer_genesis().mount().await;
+
+    test_conductor
+        .mock_celestia_header_network_head(celestia_network_head!(height: 2u32))
+        .mount()
+        .await;
 
     // The blob contains sequencer heights 6 and 7, but no commits or validator sets are mounted.
     // XXX: A non-fetch cannot be tested for programmatically right now. Running the test with
@@ -288,34 +285,31 @@ async fn skips_already_executed_heights() {
         sequencer_heights: [6, 7],
     );
 
-    mount_sequencer_commit!(
-        test_conductor,
-        height: 7u32,
-    );
+    test_conductor.mock_sequencer_commit(7).mount().await;
 
-    mount_sequencer_validator_set!(test_conductor, height: 6u32);
+    test_conductor.mock_validator_set(6).mount().await;
 
-    let execute_block = mount_executed_block!(
-        test_conductor,
-        number: 6,
-        hash: [2; 64],
-        parent: [1; 64],
-    );
+    let execute_block = test_conductor
+        .mock_execute_block(6, [2; 64], [1; 64])
+        .mount_as_scoped()
+        .await;
 
-    let update_commitment_state = mount_update_commitment_state!(
-        test_conductor,
-        firm: (
-            number: 6,
-            hash: [2; 64],
-            parent: [1; 64],
-        ),
-        soft: (
-            number: 6,
-            hash: [2; 64],
-            parent: [1; 64],
-        ),
-        base_celestia_height: 1,
-    );
+    let update_commitment_state = test_conductor
+        .mock_update_commitment_state(commitment_state!(
+            firm: (
+                number: 6,
+                hash: [2; 64],
+                parent: [1; 64],
+            ),
+            soft: (
+                number: 6,
+                hash: [2; 64],
+                parent: [1; 64],
+            ),
+            base_celestia_height: 1,
+        ))
+        .mount_as_scoped()
+        .await;
 
     timeout(
         Duration::from_millis(1000),
@@ -335,35 +329,39 @@ async fn skips_already_executed_heights() {
 async fn fetch_from_later_celestia_height() {
     let test_conductor = spawn_conductor(CommitLevel::FirmOnly).await;
 
-    mount_get_genesis_info!(
-        test_conductor,
-        sequencer_start_height: 3,
-        celestia_block_variance: 10,
-        rollup_start_block_number: 2,
-        rollup_stop_block_number: 9,
-    );
+    test_conductor
+        .mock_get_genesis_info(genesis_info!(
+            sequencer_start_height: 3,
+            celestia_block_variance: 10,
+            rollup_start_block_number: 2,
+            rollup_stop_block_number: 9
+        ))
+        .mount()
+        .await;
 
-    mount_get_commitment_state!(
-        test_conductor,
-        firm: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
-        soft: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
-        base_celestia_height: 4,
-    );
+    test_conductor
+        .mock_get_commitment_state(commitment_state!(
+            firm: (
+                number: 1,
+                hash: [1; 64],
+                parent: [0; 64],
+            ),
+            soft: (
+                number: 1,
+                hash: [1; 64],
+                parent: [0; 64],
+            ),
+            base_celestia_height: 4,
+        ))
+        .mount()
+        .await;
 
-    mount_sequencer_genesis!(test_conductor);
+    test_conductor.mock_sequencer_genesis().mount().await;
 
-    mount_celestia_header_network_head!(
-        test_conductor,
-        height: 5u32,
-    );
+    test_conductor
+        .mock_celestia_header_network_head(celestia_network_head!(height: 5u32))
+        .mount()
+        .await;
 
     mount_celestia_blobs!(
         test_conductor,
@@ -371,34 +369,31 @@ async fn fetch_from_later_celestia_height() {
         sequencer_heights: [3],
     );
 
-    mount_sequencer_commit!(
-        test_conductor,
-        height: 3u32,
-    );
+    test_conductor.mock_sequencer_commit(3).mount().await;
 
-    mount_sequencer_validator_set!(test_conductor, height: 2u32);
+    test_conductor.mock_validator_set(2).mount().await;
 
-    let execute_block = mount_executed_block!(
-        test_conductor,
-        number: 2,
-        hash: [2; 64],
-        parent: [1; 64],
-    );
+    let execute_block = test_conductor
+        .mock_execute_block(2, [2; 64], [1; 64])
+        .mount_as_scoped()
+        .await;
 
-    let update_commitment_state = mount_update_commitment_state!(
-        test_conductor,
-        firm: (
-            number: 2,
-            hash: [2; 64],
-            parent: [1; 64],
-        ),
-        soft: (
-            number: 2,
-            hash: [2; 64],
-            parent: [1; 64],
-        ),
-        base_celestia_height: 4,
-    );
+    let update_commitment_state = test_conductor
+        .mock_update_commitment_state(commitment_state!(
+            firm: (
+                number: 2,
+                hash: [2; 64],
+                parent: [1; 64],
+            ),
+            soft: (
+                number: 2,
+                hash: [2; 64],
+                parent: [1; 64],
+            ),
+            base_celestia_height: 4,
+        ))
+        .mount_as_scoped()
+        .await;
 
     timeout(
         Duration::from_millis(2000),
@@ -546,78 +541,78 @@ async fn exits_on_celestia_chain_id_mismatch() {
 async fn restarts_after_reaching_stop_block_height() {
     let test_conductor = spawn_conductor(CommitLevel::FirmOnly).await;
 
-    mount_get_genesis_info!(
-        test_conductor,
-        sequencer_start_height: 3,
-        celestia_block_variance: 10,
-        rollup_start_block_number: 2,
-        rollup_stop_block_number: 2,
-        up_to_n_times: 1, // Only respond once, since updated information is needed after restart.
-    );
+    test_conductor
+        .mock_get_genesis_info(genesis_info!(
+            sequencer_start_height: 3,
+            celestia_block_variance: 10,
+            rollup_start_block_number: 2,
+            rollup_stop_block_number: 2
+        ))
+        .named("get_genesis_info_1")
+        .up_to_n_times(1) // Only respond once, since updated information is needed after restart.
+        .mount()
+        .await;
 
-    mount_get_commitment_state!(
-        test_conductor,
-        firm: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
-        soft: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
-        base_celestia_height: 1,
-        up_to_n_times: 1,
-    );
+    test_conductor
+        .mock_get_commitment_state(commitment_state!(
+            firm: (
+                number: 1,
+                hash: [1; 64],
+                parent: [0; 64],
+            ),
+            soft: (
+                number: 1,
+                hash: [1; 64],
+                parent: [0; 64],
+            ),
+            base_celestia_height: 1,
+        ))
+        .up_to_n_times(1)
+        .named("get_commitment_state_1")
+        .mount()
+        .await;
 
-    mount_sequencer_genesis!(test_conductor);
-    mount_celestia_header_network_head!(
-        test_conductor,
-        height: 2u32,
-    );
+    test_conductor.mock_sequencer_genesis().mount().await;
+    test_conductor
+        .mock_celestia_header_network_head(celestia_network_head!(height: 2u32))
+        .mount()
+        .await;
 
     mount_celestia_blobs!(
         test_conductor,
         celestia_height: 1,
         sequencer_heights: [3, 4],
     );
-    mount_sequencer_commit!(
-        test_conductor,
-        height: 3u32,
-    );
-    mount_sequencer_commit!(
-        test_conductor,
-        height: 4u32,
-    );
-    mount_sequencer_validator_set!(test_conductor, height: 2u32);
-    mount_sequencer_validator_set!(test_conductor, height: 3u32);
+    test_conductor.mock_sequencer_commit(3).mount().await;
+    test_conductor.mock_sequencer_commit(4).mount().await;
+    test_conductor.mock_validator_set(2).mount().await;
+    test_conductor.mock_validator_set(3).mount().await;
 
-    let execute_block_1 = mount_executed_block!(
-        test_conductor,
-        mock_name: "execute_block_1",
-        number: 2,
-        hash: [2; 64],
-        parent: [1; 64],
-        expected_calls: 1, // should not be called again upon restart
-    );
+    let execute_block_1 = test_conductor
+        .mock_execute_block(2, [2; 64], [1; 64])
+        .named("execute_block_1")
+        .expect(1) // should not be called again upon restart
+        .mount_as_scoped()
+        .await;
 
-    let update_commitment_state_1 = mount_update_commitment_state!(
-        test_conductor,
-        mock_name: "update_commitment_state_1",
-        firm: (
-            number: 2,
-            hash: [2; 64],
-            parent: [1; 64],
-        ),
-        soft: (
-            number: 2,
-            hash: [2; 64],
-            parent: [1; 64],
-        ),
-        base_celestia_height: 1,
-        expected_calls: 1, // should not be called again upon restart
-    );
+    let update_commitment_state_1 = test_conductor
+        .mock_update_commitment_state(commitment_state!(
+            firm: (
+                number: 2,
+                hash: [2; 64],
+                parent: [1; 64],
+            ),
+            soft: (
+                number: 2,
+                hash: [2; 64],
+                parent: [1; 64],
+            ),
+            base_celestia_height: 1,
+        ))
+        .named("update_commitment_state_1")
+        .expect(1) // should not be called again upon restart
+        .mount_as_scoped()
+        .await;
 
     timeout(
         Duration::from_millis(1000),
@@ -633,54 +628,60 @@ async fn restarts_after_reaching_stop_block_height() {
     );
 
     // Mount new genesis info and commitment state with updated heights
-    mount_get_genesis_info!(
-        test_conductor,
-        sequencer_start_height: 4,
-        celestia_block_variance: 10,
-        rollup_start_block_number: 3,
-        rollup_stop_block_number: 9,
-    );
+    test_conductor
+        .mock_get_genesis_info(genesis_info! (
+            sequencer_start_height: 4,
+            celestia_block_variance: 10,
+            rollup_start_block_number: 3,
+            rollup_stop_block_number: 9,
+        ))
+        .named("get_genesis_info_2")
+        .mount()
+        .await;
 
-    mount_get_commitment_state!(
-        test_conductor,
-        firm: (
-            number: 2,
-            hash: [2; 64],
-            parent: [1; 64],
-        ),
-        soft: (
-            number: 2,
-            hash: [2; 64],
-            parent: [1; 64],
-        ),
-        base_celestia_height: 1,
-    );
+    test_conductor
+        .mock_get_commitment_state(commitment_state!(
+            firm: (
+                number: 2,
+                hash: [2; 64],
+                parent: [1; 64],
+            ),
+            soft: (
+                number: 2,
+                hash: [2; 64],
+                parent: [1; 64],
+            ),
+            base_celestia_height: 1,
+        ))
+        .named("get_commitment_state_2")
+        .mount()
+        .await;
 
-    let execute_block_2 = mount_executed_block!(
-        test_conductor,
-        mock_name: "execute_block_2",
-        number: 3,
-        hash: [3; 64],
-        parent: [2; 64],
-        expected_calls: 1,
-    );
+    let execute_block_2 = test_conductor
+        .mock_execute_block(3, [3; 64], [2; 64])
+        .named("execute_block_2")
+        .expect(1)
+        .mount_as_scoped()
+        .await;
 
-    let update_commitment_state_2 = mount_update_commitment_state!(
-        test_conductor,
-        mock_name: "update_commitment_state_2",
-        firm: (
-            number: 3,
-            hash: [3; 64],
-            parent: [2; 64],
-        ),
-        soft: (
-            number: 3,
-            hash: [3; 64],
-            parent: [2; 64],
-        ),
-        base_celestia_height: 1,
-        expected_calls: 1,
-    );
+    let update_commitment_state_2 = test_conductor
+        .mock_update_commitment_state(commitment_state!(
+            firm: (
+                number: 3,
+                hash: [3; 64],
+                parent: [2; 64],
+            ),
+            soft: (
+                number: 3,
+                hash: [3; 64],
+                parent: [2; 64],
+            ),
+            base_celestia_height: 1,
+        ))
+        .named("update_commitment_state_2")
+        .expect(1)
+        .mount_as_scoped()
+        .await;
 
     timeout(
         Duration::from_millis(2000),

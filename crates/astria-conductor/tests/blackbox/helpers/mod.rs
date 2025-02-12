@@ -22,7 +22,14 @@ use astria_core::{
     },
     primitive::v1::RollupId,
 };
-use astria_grpc_mock::response::error_response;
+use astria_grpc_mock::{
+    response::error_response,
+    MockGuard as GrpcMockGuard,
+};
+use base64::{
+    prelude::BASE64_STANDARD,
+    Engine as _,
+};
 use bytes::Bytes;
 use celestia_types::{
     nmt::Namespace,
@@ -43,7 +50,6 @@ use astria_eyre;
 pub use mock_grpc::MockGrpc;
 use serde_json::json;
 use tracing::debug;
-use wiremock::MockServer;
 
 pub const CELESTIA_BEARER_TOKEN: &str = "ABCDEFGH";
 
@@ -150,47 +156,69 @@ impl Drop for TestConductor {
 }
 
 impl TestConductor {
-    pub async fn mount_abci_info(&self, latest_block_height: u32) {
+    #[must_use]
+    pub fn mock_abci_info(
+        &self,
+        latest_block_height: u32,
+    ) -> JsonRpcMockBuilder<'_, wiremock::ResponseTemplate> {
         use wiremock::{
             matchers::body_partial_json,
             Mock,
             ResponseTemplate,
         };
-        Mock::given(body_partial_json(
-            json!({"jsonrpc": "2.0", "method": "abci_info", "params": null}),
-        ))
-        .respond_with(ResponseTemplate::new(200).set_body_json(
-            tendermint_rpc::response::Wrapper::new_with_id(
-                tendermint_rpc::Id::uuid_v4(),
-                Some(tendermint_rpc::endpoint::abci_info::Response {
-                    response: tendermint::abci::response::Info {
-                        last_block_height: latest_block_height.into(),
-                        ..Default::default()
-                    },
-                }),
-                None,
+        JsonRpcMockBuilder {
+            mock_name: "abci_info",
+            mock_builder: Mock::given(body_partial_json(
+                json!({"jsonrpc": "2.0", "method": "abci_info", "params": null}),
+            )),
+            responder: ResponseTemplate::new(200).set_body_json(
+                tendermint_rpc::response::Wrapper::new_with_id(
+                    tendermint_rpc::Id::uuid_v4(),
+                    Some(tendermint_rpc::endpoint::abci_info::Response {
+                        response: tendermint::abci::response::Info {
+                            last_block_height: latest_block_height.into(),
+                            ..Default::default()
+                        },
+                    }),
+                    None,
+                ),
             ),
-        ))
-        .expect(1..)
-        .mount(&self.mock_http)
-        .await;
+            expect: Some((1..).into()),
+            up_to_n_times: None,
+            server: &self.mock_http,
+        }
     }
 
-    pub async fn mount_get_block<S: serde::Serialize>(
+    #[must_use]
+    pub fn mock_get_block(
         &self,
-        expected_pbjson: S,
-        block: astria_core::generated::astria::execution::v2::Block,
-    ) {
+        number: u32,
+        hash: [u8; 64],
+        parent: [u8; 64],
+    ) -> GrpcMockBuilder<'_, astria_grpc_mock::matcher::MessagePartialJsonMatcher> {
+        use astria_core::generated::astria::execution::v1::{
+            block_identifier::Identifier,
+            BlockIdentifier,
+            GetBlockRequest,
+        };
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
             response::constant_response,
-            Mock,
         };
-        Mock::for_rpc_given("get_block", message_partial_pbjson(&expected_pbjson))
-            .respond_with(constant_response(block))
-            .expect(1..)
-            .mount(&self.mock_grpc.mock_server)
-            .await;
+        let identifier = BlockIdentifier {
+            identifier: Some(Identifier::BlockNumber(number)),
+        };
+        GrpcMockBuilder {
+            mock_name: "get_block",
+            rpc_name: "get_block",
+            matcher: message_partial_pbjson(&GetBlockRequest {
+                identifier: Some(identifier),
+            }),
+            responder: constant_response(make_block(number, hash, parent)),
+            expect: Some((1..).into()),
+            up_to_n_times: None,
+            server: &self.mock_grpc.mock_server,
+        }
     }
 
     pub async fn mount_celestia_blob_get_all(
@@ -237,10 +265,11 @@ impl TestConductor {
         .await;
     }
 
-    pub async fn mount_celestia_header_network_head(
+    #[must_use]
+    pub fn mock_celestia_header_network_head(
         &self,
         extended_header: celestia_types::ExtendedHeader,
-    ) {
+    ) -> JsonRpcMockBuilder<'_, impl Fn(&wiremock::Request) -> wiremock::ResponseTemplate> {
         use wiremock::{
             matchers::{
                 body_partial_json,
@@ -250,219 +279,353 @@ impl TestConductor {
             Request,
             ResponseTemplate,
         };
-        Mock::given(body_partial_json(
-            json!({"jsonrpc": "2.0", "method": "header.NetworkHead"}),
-        ))
-        .and(header(
-            "authorization",
-            &*format!("Bearer {CELESTIA_BEARER_TOKEN}"),
-        ))
-        .respond_with(move |request: &Request| {
-            let body: serde_json::Value = serde_json::from_slice(&request.body).unwrap();
-            let id = body.get("id");
-            ResponseTemplate::new(200).set_body_json(json!({
+        JsonRpcMockBuilder {
+            mock_name: "celestia_header_network_head",
+            mock_builder: Mock::given(body_partial_json(json!({
                 "jsonrpc": "2.0",
-                "id": id,
-                "result": extended_header
-            }))
-        })
-        .expect(1..)
-        .mount(&self.mock_http)
-        .await;
+                "method": "header.NetworkHead",
+            })))
+            .and(header(
+                "authorization",
+                &*format!("Bearer {CELESTIA_BEARER_TOKEN}"),
+            )),
+            responder: move |request: &Request| {
+                let body: serde_json::Value = serde_json::from_slice(&request.body).unwrap();
+                let id = body.get("id");
+                ResponseTemplate::new(200).set_body_json(json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "result": extended_header
+                }))
+            },
+            expect: Some((1..).into()),
+            up_to_n_times: None,
+            server: &self.mock_http,
+        }
     }
 
-    pub async fn mount_commit(
+    #[must_use]
+    pub fn mock_sequencer_commit(
         &self,
-        signed_header: tendermint::block::signed_header::SignedHeader,
-    ) {
+        height: u32,
+    ) -> JsonRpcMockBuilder<'_, wiremock::ResponseTemplate> {
         use wiremock::{
             matchers::body_partial_json,
             Mock,
             ResponseTemplate,
         };
-        Mock::given(body_partial_json(json!({
-            "jsonrpc": "2.0",
-            "method": "commit",
-            "params": {
-                "height": signed_header.header.height.to_string(),
-            }
-        })))
-        .respond_with(ResponseTemplate::new(200).set_body_json(
-            tendermint_rpc::response::Wrapper::new_with_id(
-                tendermint_rpc::Id::uuid_v4(),
-                Some(tendermint_rpc::endpoint::commit::Response {
-                    signed_header,
-                    canonical: true,
-                }),
-                None,
+        let signed_header = make_signed_header(height);
+        JsonRpcMockBuilder {
+            mock_name: "commit",
+            mock_builder: Mock::given(body_partial_json(json!({
+                "jsonrpc": "2.0",
+                "method": "commit",
+                "params": {
+                    "height": signed_header.header.height.to_string(),
+                }
+            }))),
+            responder: ResponseTemplate::new(200).set_body_json(
+                tendermint_rpc::response::Wrapper::new_with_id(
+                    tendermint_rpc::Id::uuid_v4(),
+                    Some(tendermint_rpc::endpoint::commit::Response {
+                        signed_header,
+                        canonical: true,
+                    }),
+                    None,
+                ),
             ),
-        ))
-        .mount(&self.mock_http)
-        .await;
+            expect: None,
+            up_to_n_times: None,
+            server: &self.mock_http,
+        }
     }
 
-    pub async fn mount_genesis(&self, chain_id: &str) {
-        mount_genesis(&self.mock_http, chain_id).await;
+    #[must_use]
+    pub fn mock_sequencer_genesis(&self) -> JsonRpcMockBuilder<'_, wiremock::ResponseTemplate> {
+        use wiremock::{
+            matchers::body_partial_json,
+            Mock,
+        };
+
+        JsonRpcMockBuilder {
+            mock_name: "genesis",
+            mock_builder: Mock::given(body_partial_json(
+                json!({"jsonrpc": "2.0", "method": "genesis", "params": null}),
+            )),
+            responder: genesis_responder(SEQUENCER_CHAIN_ID),
+            expect: Some((1..).into()),
+            up_to_n_times: None,
+            server: &self.mock_http,
+        }
     }
 
-    pub async fn mount_get_genesis_info(
+    #[must_use]
+    pub fn mock_get_genesis_info(
         &self,
         genesis_info: GenesisInfo,
-        up_to_n_times: u64,
-        expected_calls: u64,
-    ) {
+    ) -> GrpcMockBuilder<'_, astria_grpc_mock::matcher::MessageTypeMatcher> {
         use astria_core::generated::astria::execution::v2::GetGenesisInfoRequest;
-        astria_grpc_mock::Mock::for_rpc_given(
-            "get_genesis_info",
-            astria_grpc_mock::matcher::message_type::<GetGenesisInfoRequest>(),
-        )
-        .respond_with(astria_grpc_mock::response::constant_response(genesis_info))
-        .up_to_n_times(up_to_n_times)
-        .expect(expected_calls)
-        .mount(&self.mock_grpc.mock_server)
-        .await;
-    }
-
-    pub async fn mount_get_commitment_state(
-        &self,
-        commitment_state: CommitmentState,
-        up_to_n_times: u64,
-    ) {
-        use astria_core::generated::astria::execution::v2::GetCommitmentStateRequest;
-
-        astria_grpc_mock::Mock::for_rpc_given(
-            "get_commitment_state",
-            astria_grpc_mock::matcher::message_type::<GetCommitmentStateRequest>(),
-        )
-        .respond_with(astria_grpc_mock::response::constant_response(
-            commitment_state,
-        ))
-        .up_to_n_times(up_to_n_times)
-        .expect(1..)
-        .mount(&self.mock_grpc.mock_server)
-        .await;
-    }
-
-    pub async fn mount_execute_block<S: serde::Serialize>(
-        &self,
-        mock_name: Option<&str>,
-        expected_pbjson: S,
-        response: Block,
-        expected_calls: u64,
-    ) -> astria_grpc_mock::MockGuard {
-        use astria_grpc_mock::{
-            matcher::message_partial_pbjson,
-            response::constant_response,
-            Mock,
-        };
-        let mut mock =
-            Mock::for_rpc_given("execute_block", message_partial_pbjson(&expected_pbjson))
-                .respond_with(constant_response(response));
-        if let Some(name) = mock_name {
-            mock = mock.with_name(name);
+        GrpcMockBuilder {
+            mock_name: "get_genesis_info",
+            rpc_name: "get_genesis_info",
+            matcher: astria_grpc_mock::matcher::message_type::<GetGenesisInfoRequest>(),
+            responder: astria_grpc_mock::response::constant_response(genesis_info),
+            expect: Some((1..).into()),
+            up_to_n_times: None,
+            server: &self.mock_grpc.mock_server,
         }
-        mock.expect(expected_calls)
-            .mount_as_scoped(&self.mock_grpc.mock_server)
-            .await
     }
 
-    pub async fn mount_get_filtered_sequencer_block<S: serde::Serialize>(
+    #[must_use]
+    pub fn mock_get_commitment_state(
         &self,
-        expected_pbjson: S,
-        response: FilteredSequencerBlock,
-        delay: Duration,
-    ) {
+        commitment_state: CommitmentState,
+    ) -> GrpcMockBuilder<'_, astria_grpc_mock::matcher::MessageTypeMatcher> {
+        use astria_core::generated::astria::execution::v2::GetCommitmentStateRequest;
+        GrpcMockBuilder {
+            mock_name: "get_commitment_state",
+            rpc_name: "get_commitment_state",
+            matcher: astria_grpc_mock::matcher::message_type::<GetCommitmentStateRequest>(),
+            responder: astria_grpc_mock::response::constant_response(commitment_state),
+            expect: Some((1..).into()),
+            up_to_n_times: None,
+            server: &self.mock_grpc.mock_server,
+        }
+    }
+
+    #[must_use]
+    pub fn mock_execute_block(
+        &self,
+        number: u32,
+        hash: [u8; 64],
+        parent: [u8; 64],
+    ) -> GrpcMockBuilder<'_, astria_grpc_mock::matcher::MessagePartialJsonMatcher> {
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
             response::constant_response,
-            Mock,
         };
-        Mock::for_rpc_given(
-            "get_filtered_sequencer_block",
-            message_partial_pbjson(&expected_pbjson),
-        )
-        .respond_with(constant_response(response).set_delay(delay))
-        .expect(1..)
-        .mount(&self.mock_grpc.mock_server)
-        .await;
+        GrpcMockBuilder {
+            mock_name: "execute_block",
+            rpc_name: "execute_block",
+            matcher: message_partial_pbjson(&json!({
+                "prevBlockHash": BASE64_STANDARD.encode(parent),
+                "transactions": [{"sequencedData": BASE64_STANDARD.encode(data())}],
+            })),
+            responder: constant_response(make_block(number, hash, parent)),
+            expect: None,
+            up_to_n_times: None,
+            server: &self.mock_grpc.mock_server,
+        }
     }
 
-    pub async fn mount_update_commitment_state(
+    #[must_use]
+    pub fn mock_get_filtered_sequencer_block(
         &self,
-        mock_name: Option<&str>,
+        height: u32,
+    ) -> GrpcMockBuilder<'_, astria_grpc_mock::matcher::MessagePartialJsonMatcher> {
+        use astria_core::generated::astria::sequencerblock::v1::GetFilteredSequencerBlockRequest;
+        use astria_grpc_mock::{
+            matcher::message_partial_pbjson,
+            response::constant_response,
+        };
+        GrpcMockBuilder {
+            mock_name: "get_filtered_sequencer_block",
+            rpc_name: "get_filtered_sequencer_block",
+            matcher: message_partial_pbjson(&GetFilteredSequencerBlockRequest {
+                height: height.into(),
+                rollup_ids: vec![ROLLUP_ID.to_raw()],
+            }),
+            responder: constant_response(make_filtered_sequencer_block(height)),
+            expect: Some((1..).into()),
+            up_to_n_times: None,
+            server: &self.mock_grpc.mock_server,
+        }
+    }
+
+    #[must_use]
+    pub fn mock_update_commitment_state(
+        &self,
         commitment_state: CommitmentState,
-        expected_calls: impl Into<astria_grpc_mock::Times>,
-    ) -> astria_grpc_mock::MockGuard {
+    ) -> GrpcMockBuilder<'_, astria_grpc_mock::matcher::MessagePartialJsonMatcher> {
         use astria_core::generated::astria::execution::v2::UpdateCommitmentStateRequest;
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
             response::constant_response,
-            Mock,
         };
-        let mut mock = Mock::for_rpc_given(
-            "update_commitment_state",
-            message_partial_pbjson(&UpdateCommitmentStateRequest {
+        GrpcMockBuilder {
+            mock_name: "update_commitment_state",
+            rpc_name: "update_commitment_state",
+            matcher: message_partial_pbjson(&UpdateCommitmentStateRequest {
                 commitment_state: Some(commitment_state.clone()),
             }),
-        )
-        .respond_with(constant_response(commitment_state.clone()));
-        if let Some(name) = mock_name {
-            mock = mock.with_name(name);
+            responder: constant_response(commitment_state),
+            expect: None,
+            up_to_n_times: None,
+            server: &self.mock_grpc.mock_server,
         }
-        mock.expect(expected_calls)
-            .mount_as_scoped(&self.mock_grpc.mock_server)
-            .await
     }
 
-    pub async fn mount_validator_set(
+    #[must_use]
+    pub fn mock_validator_set(
         &self,
-        validator_set: tendermint_rpc::endpoint::validators::Response,
-    ) {
+        height: u32,
+    ) -> JsonRpcMockBuilder<'_, wiremock::ResponseTemplate> {
         use wiremock::{
             matchers::body_partial_json,
             Mock,
             ResponseTemplate,
         };
-        Mock::given(body_partial_json(json!({
-            "jsonrpc": "2.0",
-            "method": "validators",
-            "params": {
-                "height": validator_set.block_height.to_string(),
-                "page": null,
-                "per_page": null
-            }
-        })))
-        .respond_with(ResponseTemplate::new(200).set_body_json(
-            tendermint_rpc::response::Wrapper::new_with_id(
-                tendermint_rpc::Id::uuid_v4(),
-                Some(validator_set),
-                None,
+        let validator_set = make_validator_set(height);
+        JsonRpcMockBuilder {
+            mock_name: "validators",
+            mock_builder: Mock::given(body_partial_json(json!({
+                "jsonrpc": "2.0",
+                "method": "validators",
+                "params": {
+                    "height": validator_set.block_height.to_string(),
+                    "page": null,
+                    "per_page": null
+                }
+            }))),
+            responder: ResponseTemplate::new(200).set_body_json(
+                tendermint_rpc::response::Wrapper::new_with_id(
+                    tendermint_rpc::Id::uuid_v4(),
+                    Some(validator_set),
+                    None,
+                ),
             ),
-        ))
-        .mount(&self.mock_http)
-        .await;
+            expect: None,
+            up_to_n_times: None,
+            server: &self.mock_http,
+        }
     }
 
-    pub async fn mount_tonic_status_code<S: serde::Serialize>(
+    #[must_use]
+    pub fn mock_execute_block_status_code(
         &self,
-        expected_pbjson: S,
+        parent: [u8; 64],
         code: tonic::Code,
-    ) -> astria_grpc_mock::MockGuard {
-        use astria_grpc_mock::{
-            matcher::message_partial_pbjson,
-            Mock,
-        };
-
-        let mock = Mock::for_rpc_given("execute_block", message_partial_pbjson(&expected_pbjson))
-            .respond_with(error_response(code))
-            .up_to_n_times(1);
-        mock.expect(1)
-            .mount_as_scoped(&self.mock_grpc.mock_server)
-            .await
+    ) -> GrpcMockBuilder<'_, astria_grpc_mock::matcher::MessagePartialJsonMatcher> {
+        use astria_grpc_mock::matcher::message_partial_pbjson;
+        GrpcMockBuilder {
+            mock_name: "execute_block_status_code",
+            rpc_name: "execute_block",
+            matcher: message_partial_pbjson(&json!({
+                "prevBlockHash": BASE64_STANDARD.encode(parent),
+                "transactions": [{"sequencedData": BASE64_STANDARD.encode(data())}],
+            })),
+            responder: error_response(code),
+            expect: Some(1.into()),
+            up_to_n_times: None,
+            server: &self.mock_grpc.mock_server,
+        }
     }
 }
 
-pub async fn mount_genesis(mock_http: &MockServer, chain_id: &str) {
+pub struct GrpcMockBuilder<'a, M: astria_grpc_mock::Match + 'static> {
+    mock_name: &'static str,
+    rpc_name: &'static str,
+    matcher: M,
+    responder: astria_grpc_mock::response::ResponseTemplate,
+    expect: Option<astria_grpc_mock::Times>,
+    up_to_n_times: Option<u64>,
+    server: &'a astria_grpc_mock::MockServer,
+}
+
+impl<M: astria_grpc_mock::Match + 'static> GrpcMockBuilder<'_, M> {
+    #[must_use]
+    pub fn delay(mut self, delay: Duration) -> Self {
+        self.responder = self.responder.set_delay(delay);
+        self
+    }
+
+    #[must_use]
+    pub fn expect(mut self, times: impl Into<astria_grpc_mock::Times>) -> Self {
+        self.expect = Some(times.into());
+        self
+    }
+
+    #[must_use]
+    pub fn up_to_n_times(mut self, n: u64) -> Self {
+        self.up_to_n_times = Some(n);
+        self
+    }
+
+    #[must_use]
+    pub fn named(mut self, mock_name: &'static str) -> Self {
+        self.mock_name = mock_name;
+        self
+    }
+
+    pub async fn mount(self) {
+        let server = self.server;
+        self.build().mount(server).await;
+    }
+
+    pub async fn mount_as_scoped(self) -> GrpcMockGuard {
+        let server = self.server;
+        self.build().mount_as_scoped(server).await
+    }
+
+    fn build(self) -> astria_grpc_mock::Mock {
+        let mut mock = astria_grpc_mock::Mock::for_rpc_given(self.rpc_name, self.matcher)
+            .respond_with(self.responder);
+        if let Some(expect) = self.expect {
+            mock = mock.expect(expect);
+        }
+        if let Some(up_to_n_times) = self.up_to_n_times {
+            mock = mock.up_to_n_times(up_to_n_times);
+        }
+        mock.with_name(self.mock_name)
+    }
+}
+
+pub struct JsonRpcMockBuilder<'a, R: wiremock::Respond + 'static> {
+    mock_name: &'static str,
+    mock_builder: wiremock::MockBuilder,
+    responder: R,
+    expect: Option<wiremock::Times>,
+    up_to_n_times: Option<u64>,
+    server: &'a wiremock::MockServer,
+}
+
+impl<R: wiremock::Respond + 'static> JsonRpcMockBuilder<'_, R> {
+    #[must_use]
+    pub fn expect(mut self, times: impl Into<wiremock::Times>) -> Self {
+        self.expect = Some(times.into());
+        self
+    }
+
+    #[must_use]
+    pub fn up_to_n_times(mut self, n: u64) -> Self {
+        self.up_to_n_times = Some(n);
+        self
+    }
+
+    pub async fn mount(self) {
+        let server = self.server;
+        self.build().mount(server).await;
+    }
+
+    pub async fn mount_as_scoped(self) -> wiremock::MockGuard {
+        let server = self.server;
+        self.build().mount_as_scoped(server).await
+    }
+
+    fn build(self) -> wiremock::Mock {
+        let mut mock = self.mock_builder.respond_with(self.responder);
+        if let Some(expect) = self.expect {
+            mock = mock.expect(expect);
+        }
+        if let Some(up_to_n_times) = self.up_to_n_times {
+            mock = mock.up_to_n_times(up_to_n_times);
+        }
+        mock.named(self.mock_name)
+    }
+}
+
+#[must_use]
+pub fn genesis_responder(chain_id: &str) -> wiremock::ResponseTemplate {
     use tendermint::{
         consensus::{
             params::{
@@ -474,15 +637,7 @@ pub async fn mount_genesis(mock_http: &MockServer, chain_id: &str) {
         genesis::Genesis,
         time::Time,
     };
-    use wiremock::{
-        matchers::body_partial_json,
-        Mock,
-        ResponseTemplate,
-    };
-    Mock::given(body_partial_json(
-        json!({"jsonrpc": "2.0", "method": "genesis", "params": null}),
-    ))
-    .respond_with(ResponseTemplate::new(200).set_body_json(
+    wiremock::ResponseTemplate::new(200).set_body_json(
         tendermint_rpc::response::Wrapper::new_with_id(
             tendermint_rpc::Id::uuid_v4(),
             Some(
@@ -518,10 +673,7 @@ pub async fn mount_genesis(mock_http: &MockServer, chain_id: &str) {
             ),
             None,
         ),
-    ))
-    .expect(1..)
-    .mount(mock_http)
-    .await;
+    )
 }
 
 pub(crate) fn make_config() -> Config {
@@ -568,6 +720,30 @@ pub fn make_sequencer_block(height: u32) -> astria_core::sequencerblock::v1::Seq
         ..Default::default()
     }
     .make()
+}
+
+#[must_use]
+fn make_filtered_sequencer_block(height: u32) -> FilteredSequencerBlock {
+    let block = ::astria_core::protocol::test_utils::ConfigureSequencerBlock {
+        height,
+        sequence_data: vec![(ROLLUP_ID, data())],
+        ..Default::default()
+    }
+    .make();
+    block.into_filtered_block([ROLLUP_ID]).into_raw()
+}
+
+#[must_use]
+pub fn make_block(height: u32, hash: [u8; 64], parent: [u8; 64]) -> Block {
+    Block {
+        number: height,
+        hash: Bytes::from(Vec::from(hash)),
+        parent_block_hash: Bytes::from(Vec::from(parent)),
+        timestamp: Some(::pbjson_types::Timestamp {
+            seconds: 1,
+            nanos: 1,
+        }),
+    }
 }
 
 pub struct Blobs {
