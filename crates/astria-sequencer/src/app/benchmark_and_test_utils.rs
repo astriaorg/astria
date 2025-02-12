@@ -15,6 +15,7 @@ use astria_core::{
         transaction::v1::action::{
             BridgeLock,
             BridgeSudoChange,
+            BridgeTransfer,
             BridgeUnlock,
             FeeAssetChange,
             FeeChange,
@@ -77,6 +78,7 @@ pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1::GenesisFees 
         bridge_lock: Some(FeeComponents::<BridgeLock>::new(12, 1)),
         bridge_sudo_change: Some(FeeComponents::<BridgeSudoChange>::new(24, 0)),
         ics20_withdrawal: Some(FeeComponents::<Ics20Withdrawal>::new(24, 0)),
+        bridge_transfer: Some(FeeComponents::<BridgeTransfer>::new(24, 0)),
         // should reflect transfer fee
         bridge_unlock: Some(FeeComponents::<BridgeUnlock>::new(12, 0)),
         ibc_relay: Some(FeeComponents::<IbcRelay>::new(0, 0)),

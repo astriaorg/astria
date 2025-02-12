@@ -3,6 +3,7 @@ use astria_core::protocol::{
     transaction::v1::action::{
         BridgeLock,
         BridgeSudoChange,
+        BridgeTransfer,
         BridgeUnlock,
         FeeAssetChange,
         FeeChange,
@@ -38,6 +39,7 @@ enum ValueImpl {
     InitBridgeAccountFees(FeeComponents),
     BridgeLockFees(FeeComponents),
     BridgeUnlockFees(FeeComponents),
+    BridgeTransferFees(FeeComponents),
     BridgeSudoChangeFees(FeeComponents),
     IbcRelayFees(FeeComponents),
     ValidatorUpdateFees(FeeComponents),
@@ -101,6 +103,7 @@ impl_from_for_fee_storage!(
     DomainFeeComponents<InitBridgeAccount> => InitBridgeAccountFees,
     DomainFeeComponents<BridgeLock> => BridgeLockFees,
     DomainFeeComponents<BridgeUnlock> => BridgeUnlockFees,
+    DomainFeeComponents<BridgeTransfer> => BridgeTransferFees,
     DomainFeeComponents<BridgeSudoChange> => BridgeSudoChangeFees,
     DomainFeeComponents<IbcRelay> => IbcRelayFees,
     DomainFeeComponents<ValidatorUpdate> => ValidatorUpdateFees,
