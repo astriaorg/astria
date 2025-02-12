@@ -10,39 +10,40 @@ pub struct SequencerInfo {
     /// The rollup_id is the unique identifier for the rollup chain.
     #[prost(message, optional, tag = "1")]
     pub rollup_id: ::core::option::Option<super::super::primitive::v1::RollupId>,
-    /// The first block height on the sequencer chain to use for rollup transactions.
-    /// This is mapped to `rollup_first_block_number`.
-    #[prost(uint32, tag = "2")]
-    pub sequencer_first_block_height: u32,
     /// The first rollup block number to be executed. This is mapped to `sequencer_first_block_height`.
     /// The minimum first block number is 1.
-    #[prost(uint64, tag = "3")]
+    #[prost(uint64, tag = "2")]
     pub rollup_first_block_number: u64,
     /// The final rollup block number to execute before either re-fetching sequencer
     /// info (restarting) or shutting down (determined by `halt_at_rollup_stop_number`).
     /// If 0, no stop block will be set.
-    #[prost(uint64, tag = "4")]
+    #[prost(uint64, tag = "3")]
     pub rollup_stop_block_number: u64,
-    /// The allowed variance in celestia for sequencer blocks to have been posted.
-    #[prost(uint64, tag = "5")]
-    pub celestia_block_variance: u64,
-    /// The ID of the Astria Sequencer network to retrieve Sequencer blocks from.
-    /// Conductor implementations should verify that the Sequencer network they are connected to
-    /// have this chain ID (if fetching soft Sequencer blocks), and verify that the Sequencer metadata
-    /// blobs retrieved from Celestia contain this chain ID (if extracting firm Sequencer blocks from
-    /// Celestia blobs).
-    #[prost(string, tag = "6")]
-    pub sequencer_chain_id: ::prost::alloc::string::String,
-    /// The ID of the Celestia network to retrieve blobs from.
-    /// Conductor implementations should verify that the Celestia network they are connected to have
-    /// this chain ID (if extracting firm Sequencer blocks from Celestia blobs).
-    #[prost(string, tag = "7")]
-    pub celestia_chain_id: ::prost::alloc::string::String,
     /// Requests that Conductor halt at `rollup_stop_block_number` instead of re-fetching
     /// the sequencer info and continuing execution. This is a no-op if `rollup_stop_block_number`
     /// is set to 0.
-    #[prost(bool, tag = "8")]
-    pub halt_at_rollup_stop_number: bool,
+    #[prost(bool, tag = "4")]
+    pub rollup_halt_at_stop_number: bool,
+    /// The ID of the Astria Sequencer network to retrieve Sequencer blocks from.
+    /// Conductor implementations should verify that the Sequencer network they are
+    /// connected to have this chain ID (if fetching soft Sequencer blocks), and verify
+    /// that the Sequencer metadata blobs retrieved from Celestia contain this chain
+    /// ID (if extracting firm Sequencer blocks from Celestia blobs).
+    #[prost(string, tag = "5")]
+    pub sequencer_chain_id: ::prost::alloc::string::String,
+    /// The first block height on the sequencer chain to use for rollup transactions.
+    /// This is mapped to `rollup_first_block_number`.
+    #[prost(uint64, tag = "6")]
+    pub sequencer_first_block_height: u64,
+    /// The ID of the Celestia network to retrieve blobs from.
+    /// Conductor implementations should verify that the Celestia network they are
+    /// connected to have this chain ID (if extracting firm Sequencer blocks from
+    /// Celestia blobs).
+    #[prost(string, tag = "7")]
+    pub celestia_chain_id: ::prost::alloc::string::String,
+    /// The allowed variance in celestia for sequencer blocks to have been posted.
+    #[prost(uint64, tag = "8")]
+    pub celestia_block_variance: u64,
 }
 impl ::prost::Name for SequencerInfo {
     const NAME: &'static str = "SequencerInfo";
@@ -57,8 +58,8 @@ impl ::prost::Name for SequencerInfo {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Block {
     /// The block number
-    #[prost(uint32, tag = "1")]
-    pub number: u32,
+    #[prost(uint64, tag = "1")]
+    pub number: u64,
     /// The hash of the block
     #[prost(bytes = "bytes", tag = "2")]
     pub hash: ::prost::bytes::Bytes,
@@ -88,10 +89,10 @@ pub mod block_identifier {
     #[allow(clippy::derive_partial_eq_without_eq)]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Identifier {
-        #[prost(uint32, tag = "1")]
-        BlockNumber(u32),
+        #[prost(uint64, tag = "1")]
+        Number(u64),
         #[prost(bytes, tag = "2")]
-        BlockHash(::prost::bytes::Bytes),
+        Hash(::prost::bytes::Bytes),
     }
 }
 impl ::prost::Name for BlockIdentifier {
@@ -106,9 +107,9 @@ impl ::prost::Name for BlockIdentifier {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetSequencerInfoRequest {
     /// The commitment type that the sequencer info is being fetched for. If the commitment
-    /// type is soft, the returned sequencer info should be based on the rollup's soft
-    /// commitment height. If the commitment type is firm, the returned sequencer info
-    /// should be based on the rollup's firm commitment height.
+    /// type is soft, the returned sequencer info should be based on the rollup's
+    /// soft commitment height. If the commitment type is firm, the returned sequencer
+    /// info should be based on the rollup's firm commitment height.
     #[prost(enumeration = "CommitmentType", tag = "1")]
     pub commitment_type: i32,
 }

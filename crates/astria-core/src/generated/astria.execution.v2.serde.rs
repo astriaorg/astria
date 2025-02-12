@@ -202,7 +202,8 @@ impl serde::Serialize for Block {
         }
         let mut struct_ser = serializer.serialize_struct("astria.execution.v2.Block", len)?;
         if self.number != 0 {
-            struct_ser.serialize_field("number", &self.number)?;
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("number", ToString::to_string(&self.number).as_str())?;
         }
         if !self.hash.is_empty() {
             #[allow(clippy::needless_borrow)]
@@ -345,12 +346,13 @@ impl serde::Serialize for BlockIdentifier {
         let mut struct_ser = serializer.serialize_struct("astria.execution.v2.BlockIdentifier", len)?;
         if let Some(v) = self.identifier.as_ref() {
             match v {
-                block_identifier::Identifier::BlockNumber(v) => {
-                    struct_ser.serialize_field("blockNumber", v)?;
-                }
-                block_identifier::Identifier::BlockHash(v) => {
+                block_identifier::Identifier::Number(v) => {
                     #[allow(clippy::needless_borrow)]
-                    struct_ser.serialize_field("blockHash", pbjson::private::base64::encode(&v).as_str())?;
+                    struct_ser.serialize_field("number", ToString::to_string(&v).as_str())?;
+                }
+                block_identifier::Identifier::Hash(v) => {
+                    #[allow(clippy::needless_borrow)]
+                    struct_ser.serialize_field("hash", pbjson::private::base64::encode(&v).as_str())?;
                 }
             }
         }
@@ -364,16 +366,14 @@ impl<'de> serde::Deserialize<'de> for BlockIdentifier {
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "block_number",
-            "blockNumber",
-            "block_hash",
-            "blockHash",
+            "number",
+            "hash",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            BlockNumber,
-            BlockHash,
+            Number,
+            Hash,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -395,8 +395,8 @@ impl<'de> serde::Deserialize<'de> for BlockIdentifier {
                         E: serde::de::Error,
                     {
                         match value {
-                            "blockNumber" | "block_number" => Ok(GeneratedField::BlockNumber),
-                            "blockHash" | "block_hash" => Ok(GeneratedField::BlockHash),
+                            "number" => Ok(GeneratedField::Number),
+                            "hash" => Ok(GeneratedField::Hash),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -419,17 +419,17 @@ impl<'de> serde::Deserialize<'de> for BlockIdentifier {
                 let mut identifier__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::BlockNumber => {
+                        GeneratedField::Number => {
                             if identifier__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("blockNumber"));
+                                return Err(serde::de::Error::duplicate_field("number"));
                             }
-                            identifier__ = map_.next_value::<::std::option::Option<::pbjson::private::NumberDeserialize<_>>>()?.map(|x| block_identifier::Identifier::BlockNumber(x.0));
+                            identifier__ = map_.next_value::<::std::option::Option<::pbjson::private::NumberDeserialize<_>>>()?.map(|x| block_identifier::Identifier::Number(x.0));
                         }
-                        GeneratedField::BlockHash => {
+                        GeneratedField::Hash => {
                             if identifier__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("blockHash"));
+                                return Err(serde::de::Error::duplicate_field("hash"));
                             }
-                            identifier__ = map_.next_value::<::std::option::Option<::pbjson::private::BytesDeserialize<_>>>()?.map(|x| block_identifier::Identifier::BlockHash(x.0));
+                            identifier__ = map_.next_value::<::std::option::Option<::pbjson::private::BytesDeserialize<_>>>()?.map(|x| block_identifier::Identifier::Hash(x.0));
                         }
                     }
                 }
@@ -1040,33 +1040,30 @@ impl serde::Serialize for SequencerInfo {
         if self.rollup_id.is_some() {
             len += 1;
         }
-        if self.sequencer_first_block_height != 0 {
-            len += 1;
-        }
         if self.rollup_first_block_number != 0 {
             len += 1;
         }
         if self.rollup_stop_block_number != 0 {
             len += 1;
         }
-        if self.celestia_block_variance != 0 {
+        if self.rollup_halt_at_stop_number {
             len += 1;
         }
         if !self.sequencer_chain_id.is_empty() {
             len += 1;
         }
+        if self.sequencer_first_block_height != 0 {
+            len += 1;
+        }
         if !self.celestia_chain_id.is_empty() {
             len += 1;
         }
-        if self.halt_at_rollup_stop_number {
+        if self.celestia_block_variance != 0 {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.execution.v2.SequencerInfo", len)?;
         if let Some(v) = self.rollup_id.as_ref() {
             struct_ser.serialize_field("rollupId", v)?;
-        }
-        if self.sequencer_first_block_height != 0 {
-            struct_ser.serialize_field("sequencerFirstBlockHeight", &self.sequencer_first_block_height)?;
         }
         if self.rollup_first_block_number != 0 {
             #[allow(clippy::needless_borrow)]
@@ -1076,18 +1073,22 @@ impl serde::Serialize for SequencerInfo {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("rollupStopBlockNumber", ToString::to_string(&self.rollup_stop_block_number).as_str())?;
         }
-        if self.celestia_block_variance != 0 {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("celestiaBlockVariance", ToString::to_string(&self.celestia_block_variance).as_str())?;
+        if self.rollup_halt_at_stop_number {
+            struct_ser.serialize_field("rollupHaltAtStopNumber", &self.rollup_halt_at_stop_number)?;
         }
         if !self.sequencer_chain_id.is_empty() {
             struct_ser.serialize_field("sequencerChainId", &self.sequencer_chain_id)?;
         }
+        if self.sequencer_first_block_height != 0 {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("sequencerFirstBlockHeight", ToString::to_string(&self.sequencer_first_block_height).as_str())?;
+        }
         if !self.celestia_chain_id.is_empty() {
             struct_ser.serialize_field("celestiaChainId", &self.celestia_chain_id)?;
         }
-        if self.halt_at_rollup_stop_number {
-            struct_ser.serialize_field("haltAtRollupStopNumber", &self.halt_at_rollup_stop_number)?;
+        if self.celestia_block_variance != 0 {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("celestiaBlockVariance", ToString::to_string(&self.celestia_block_variance).as_str())?;
         }
         struct_ser.end()
     }
@@ -1101,32 +1102,32 @@ impl<'de> serde::Deserialize<'de> for SequencerInfo {
         const FIELDS: &[&str] = &[
             "rollup_id",
             "rollupId",
-            "sequencer_first_block_height",
-            "sequencerFirstBlockHeight",
             "rollup_first_block_number",
             "rollupFirstBlockNumber",
             "rollup_stop_block_number",
             "rollupStopBlockNumber",
-            "celestia_block_variance",
-            "celestiaBlockVariance",
+            "rollup_halt_at_stop_number",
+            "rollupHaltAtStopNumber",
             "sequencer_chain_id",
             "sequencerChainId",
+            "sequencer_first_block_height",
+            "sequencerFirstBlockHeight",
             "celestia_chain_id",
             "celestiaChainId",
-            "halt_at_rollup_stop_number",
-            "haltAtRollupStopNumber",
+            "celestia_block_variance",
+            "celestiaBlockVariance",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             RollupId,
-            SequencerFirstBlockHeight,
             RollupFirstBlockNumber,
             RollupStopBlockNumber,
-            CelestiaBlockVariance,
+            RollupHaltAtStopNumber,
             SequencerChainId,
+            SequencerFirstBlockHeight,
             CelestiaChainId,
-            HaltAtRollupStopNumber,
+            CelestiaBlockVariance,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -1149,13 +1150,13 @@ impl<'de> serde::Deserialize<'de> for SequencerInfo {
                     {
                         match value {
                             "rollupId" | "rollup_id" => Ok(GeneratedField::RollupId),
-                            "sequencerFirstBlockHeight" | "sequencer_first_block_height" => Ok(GeneratedField::SequencerFirstBlockHeight),
                             "rollupFirstBlockNumber" | "rollup_first_block_number" => Ok(GeneratedField::RollupFirstBlockNumber),
                             "rollupStopBlockNumber" | "rollup_stop_block_number" => Ok(GeneratedField::RollupStopBlockNumber),
-                            "celestiaBlockVariance" | "celestia_block_variance" => Ok(GeneratedField::CelestiaBlockVariance),
+                            "rollupHaltAtStopNumber" | "rollup_halt_at_stop_number" => Ok(GeneratedField::RollupHaltAtStopNumber),
                             "sequencerChainId" | "sequencer_chain_id" => Ok(GeneratedField::SequencerChainId),
+                            "sequencerFirstBlockHeight" | "sequencer_first_block_height" => Ok(GeneratedField::SequencerFirstBlockHeight),
                             "celestiaChainId" | "celestia_chain_id" => Ok(GeneratedField::CelestiaChainId),
-                            "haltAtRollupStopNumber" | "halt_at_rollup_stop_number" => Ok(GeneratedField::HaltAtRollupStopNumber),
+                            "celestiaBlockVariance" | "celestia_block_variance" => Ok(GeneratedField::CelestiaBlockVariance),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -1176,13 +1177,13 @@ impl<'de> serde::Deserialize<'de> for SequencerInfo {
                     V: serde::de::MapAccess<'de>,
             {
                 let mut rollup_id__ = None;
-                let mut sequencer_first_block_height__ = None;
                 let mut rollup_first_block_number__ = None;
                 let mut rollup_stop_block_number__ = None;
-                let mut celestia_block_variance__ = None;
+                let mut rollup_halt_at_stop_number__ = None;
                 let mut sequencer_chain_id__ = None;
+                let mut sequencer_first_block_height__ = None;
                 let mut celestia_chain_id__ = None;
-                let mut halt_at_rollup_stop_number__ = None;
+                let mut celestia_block_variance__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::RollupId => {
@@ -1190,14 +1191,6 @@ impl<'de> serde::Deserialize<'de> for SequencerInfo {
                                 return Err(serde::de::Error::duplicate_field("rollupId"));
                             }
                             rollup_id__ = map_.next_value()?;
-                        }
-                        GeneratedField::SequencerFirstBlockHeight => {
-                            if sequencer_first_block_height__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("sequencerFirstBlockHeight"));
-                            }
-                            sequencer_first_block_height__ = 
-                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
-                            ;
                         }
                         GeneratedField::RollupFirstBlockNumber => {
                             if rollup_first_block_number__.is_some() {
@@ -1215,6 +1208,32 @@ impl<'de> serde::Deserialize<'de> for SequencerInfo {
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
+                        GeneratedField::RollupHaltAtStopNumber => {
+                            if rollup_halt_at_stop_number__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("rollupHaltAtStopNumber"));
+                            }
+                            rollup_halt_at_stop_number__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::SequencerChainId => {
+                            if sequencer_chain_id__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sequencerChainId"));
+                            }
+                            sequencer_chain_id__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::SequencerFirstBlockHeight => {
+                            if sequencer_first_block_height__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sequencerFirstBlockHeight"));
+                            }
+                            sequencer_first_block_height__ = 
+                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
+                            ;
+                        }
+                        GeneratedField::CelestiaChainId => {
+                            if celestia_chain_id__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("celestiaChainId"));
+                            }
+                            celestia_chain_id__ = Some(map_.next_value()?);
+                        }
                         GeneratedField::CelestiaBlockVariance => {
                             if celestia_block_variance__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("celestiaBlockVariance"));
@@ -1223,35 +1242,17 @@ impl<'de> serde::Deserialize<'de> for SequencerInfo {
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
-                        GeneratedField::SequencerChainId => {
-                            if sequencer_chain_id__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("sequencerChainId"));
-                            }
-                            sequencer_chain_id__ = Some(map_.next_value()?);
-                        }
-                        GeneratedField::CelestiaChainId => {
-                            if celestia_chain_id__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("celestiaChainId"));
-                            }
-                            celestia_chain_id__ = Some(map_.next_value()?);
-                        }
-                        GeneratedField::HaltAtRollupStopNumber => {
-                            if halt_at_rollup_stop_number__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("haltAtRollupStopNumber"));
-                            }
-                            halt_at_rollup_stop_number__ = Some(map_.next_value()?);
-                        }
                     }
                 }
                 Ok(SequencerInfo {
                     rollup_id: rollup_id__,
-                    sequencer_first_block_height: sequencer_first_block_height__.unwrap_or_default(),
                     rollup_first_block_number: rollup_first_block_number__.unwrap_or_default(),
                     rollup_stop_block_number: rollup_stop_block_number__.unwrap_or_default(),
-                    celestia_block_variance: celestia_block_variance__.unwrap_or_default(),
+                    rollup_halt_at_stop_number: rollup_halt_at_stop_number__.unwrap_or_default(),
                     sequencer_chain_id: sequencer_chain_id__.unwrap_or_default(),
+                    sequencer_first_block_height: sequencer_first_block_height__.unwrap_or_default(),
                     celestia_chain_id: celestia_chain_id__.unwrap_or_default(),
-                    halt_at_rollup_stop_number: halt_at_rollup_stop_number__.unwrap_or_default(),
+                    celestia_block_variance: celestia_block_variance__.unwrap_or_default(),
                 })
             }
         }
