@@ -20,13 +20,15 @@ use astria_core::{
 use astria_eyre::eyre::{
     eyre,
     Result,
-    WrapErr as _,
 };
 use tokio::time::{
     Duration,
     Instant,
 };
-use tracing::error;
+use tracing::{
+    error,
+    instrument,
+};
 
 use super::RemovalReason;
 use crate::{
@@ -208,6 +210,10 @@ pub(super) struct PendingTransactionsForAccount {
 impl PendingTransactionsForAccount {
     fn highest_nonce(&self) -> Option<u32> {
         self.txs.last_key_value().map(|(nonce, _)| *nonce)
+    }
+
+    fn current_account_nonce(&self) -> Option<u32> {
+        self.txs.first_key_value().map(|(nonce, _)| *nonce)
     }
 
     /// Removes and returns transactions that exceed the balances in `available_balances`.
@@ -569,6 +575,7 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
     /// Recosts transactions for an account.
     ///
     /// Logs an error if fails to recost a transaction.
+    #[instrument(skip_all, fields(address = %telemetry::display::base64(address)))]
     async fn recost_transactions<S: accounts::StateReadExt>(
         &mut self,
         address: &[u8; 20],
@@ -770,10 +777,7 @@ impl PendingTransactions {
 
     /// Returns a copy of transactions and their hashes sorted by nonce difference and then time
     /// first seen.
-    pub(super) async fn builder_queue<S: accounts::StateReadExt>(
-        &self,
-        state: &S,
-    ) -> Result<Vec<([u8; 32], Arc<Transaction>)>> {
+    pub(super) fn builder_queue(&self) -> Vec<([u8; 32], Arc<Transaction>)> {
         // Used to hold the values in Vec for sorting.
         struct QueueEntry {
             tx: Arc<Transaction>,
@@ -784,10 +788,14 @@ impl PendingTransactions {
         let mut queue = Vec::with_capacity(self.len());
         // Add all transactions to the queue.
         for (address, account_txs) in &self.txs {
-            let current_account_nonce = state
-                .get_account_nonce(address)
-                .await
-                .wrap_err("failed to fetch account nonce for builder queue")?;
+            let Some(current_account_nonce) = account_txs.current_account_nonce() else {
+                error!(
+                    address = %telemetry::display::base64(address),
+                    "pending queue is empty during builder queue step"
+                );
+                continue;
+            };
+
             for ttx in account_txs.txs.values() {
                 let priority = match ttx.priority(current_account_nonce) {
                     Ok(priority) => priority,
@@ -811,11 +819,11 @@ impl PendingTransactions {
         // Sort the queue and return the relevant data. Note that the sorted queue will be ordered
         // from lowest to highest priority, so we need to reverse the order before returning.
         queue.sort_unstable_by_key(|entry| entry.priority);
-        Ok(queue
+        queue
             .into_iter()
             .rev()
             .map(|entry| (entry.tx_hash, entry.tx))
-            .collect())
+            .collect()
     }
 }
 
@@ -866,7 +874,6 @@ mod tests {
                 denom_3,
                 mock_balances,
                 mock_state_getter,
-                mock_state_put_account_nonce,
                 mock_tx_cost,
                 ALICE_ADDRESS,
                 BOB_ADDRESS,
@@ -958,12 +965,10 @@ mod tests {
         let ttx = MockTTXBuilder::new().nonce(0).build();
         let priority = ttx.priority(1);
 
-        assert!(
-            priority
-                .unwrap_err()
-                .to_string()
-                .contains("less than current account nonce")
-        );
+        assert!(priority
+            .unwrap_err()
+            .to_string()
+            .contains("less than current account nonce"));
     }
 
     // From https://doc.rust-lang.org/std/cmp/trait.PartialOrd.html
@@ -1745,9 +1750,9 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[test]
     #[expect(clippy::too_many_lines, reason = "it's a test")]
-    async fn transactions_container_clean_account_stale_expired() {
+    fn transactions_container_clean_account_stale_expired() {
         let mut pending_txs = PendingTransactions::new(TX_TTL);
 
         // transactions to add to accounts
@@ -1963,8 +1968,8 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn pending_transactions_builder_queue() {
+    #[test]
+    fn pending_transactions_builder_queue() {
         let mut pending_txs = PendingTransactions::new(TX_TTL);
 
         // transactions to add to accounts
@@ -1997,28 +2002,12 @@ mod tests {
             .add(ttx_s1_3.clone(), 1, &account_balances)
             .unwrap();
 
-        // should return all transactions from Alice and last two from Bob
-        let mut mock_state = mock_state_getter().await;
-        mock_state_put_account_nonce(
-            &mut mock_state,
-            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
-            1,
-        );
-        mock_state_put_account_nonce(
-            &mut mock_state,
-            astria_address_from_hex_string(BOB_ADDRESS).as_bytes(),
-            2,
-        );
-
-        // get builder queue
-        let builder_queue = pending_txs
-            .builder_queue(&mock_state)
-            .await
-            .expect("building builders queue should work");
+        // get builder queue - should return all transactions from Alice and Bob
+        let builder_queue = pending_txs.builder_queue();
         assert_eq!(
             builder_queue.len(),
-            3,
-            "three transactions should've been popped"
+            4,
+            "four transactions should've been popped"
         );
 
         // check that the transactions are in the expected order
@@ -2029,13 +2018,18 @@ mod tests {
         );
         let (second_tx_hash, _) = builder_queue[1];
         assert_eq!(
-            second_tx_hash, ttx_s1_2.tx_hash,
+            second_tx_hash, ttx_s1_1.tx_hash,
             "expected other low nonce diff (0) to be second"
         );
         let (third_tx_hash, _) = builder_queue[2];
         assert_eq!(
-            third_tx_hash, ttx_s1_3.tx_hash,
-            "expected highest nonce diff to be last"
+            third_tx_hash, ttx_s1_2.tx_hash,
+            "expected middle nonce diff (1) to be third"
+        );
+        let (fourth_tx_hash, _) = builder_queue[3];
+        assert_eq!(
+            fourth_tx_hash, ttx_s1_3.tx_hash,
+            "expected highest nonce diff (2) to be last"
         );
 
         // ensure transactions not removed
@@ -2046,8 +2040,8 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn parked_transactions_find_promotables() {
+    #[test]
+    fn parked_transactions_find_promotables() {
         let mut parked_txs = ParkedTransactions::<MAX_PARKED_TXS_PER_ACCOUNT>::new(TX_TTL, 100);
 
         // transactions to add to accounts
@@ -2113,8 +2107,8 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn pending_transactions_find_demotables() {
+    #[test]
+    fn pending_transactions_find_demotables() {
         let mut pending_txs = PendingTransactions::new(TX_TTL);
 
         // transactions to add to account
@@ -2192,8 +2186,8 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn pending_transactions_remaining_account_balances() {
+    #[test]
+    fn pending_transactions_remaining_account_balances() {
         let mut pending_txs = PendingTransactions::new(TX_TTL);
 
         // transactions to add to account
@@ -2248,10 +2242,9 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn builder_queue_should_be_sorted_by_action_group_type() {
+    #[test]
+    fn builder_queue_should_be_sorted_by_action_group_type() {
         let mut pending_txs = PendingTransactions::new(TX_TTL);
-        let mock_state = mock_state_getter().await;
 
         // create transactions in reverse order
         let ttx_unbundleable_sudo = MockTTXBuilder::new()
@@ -2291,10 +2284,7 @@ mod tests {
 
         // get the builder queue
         // note: the account nonces are set to zero when not initialized in the mock state
-        let builder_queue = pending_txs
-            .builder_queue(&mock_state)
-            .await
-            .expect("building builders queue should work");
+        let builder_queue = pending_txs.builder_queue();
 
         // check that the transactions are in the expected order
         let (first_tx_hash, _) = builder_queue[0];
@@ -2322,8 +2312,8 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn parked_transactions_size_limit_works() {
+    #[test]
+    fn parked_transactions_size_limit_works() {
         let mut parked_txs = ParkedTransactions::<MAX_PARKED_TXS_PER_ACCOUNT>::new(TX_TTL, 1);
 
         // transactions to add to account

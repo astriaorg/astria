@@ -131,6 +131,12 @@ expression: genesis_state()
     "validatorUpdate": {
       "base": {},
       "multiplier": {}
+    },
+    "bridgeTransfer": {
+      "base": {
+        "lo": "24"
+      },
+      "multiplier": {}
     }
   }
 }

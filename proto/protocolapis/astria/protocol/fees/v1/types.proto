@@ -39,6 +39,11 @@ message BridgeSudoChangeFeeComponents {
   astria.primitive.v1.Uint128 multiplier = 2;
 }
 
+message BridgeTransferFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
 message Ics20WithdrawalFeeComponents {
   astria.primitive.v1.Uint128 base = 1;
   astria.primitive.v1.Uint128 multiplier = 2;

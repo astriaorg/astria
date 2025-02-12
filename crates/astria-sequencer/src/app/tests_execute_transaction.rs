@@ -8,10 +8,7 @@ use astria_core::{
         RollupId,
     },
     protocol::{
-        fees::v1::{
-            InitBridgeAccountFeeComponents,
-            RollupDataSubmissionFeeComponents,
-        },
+        fees::v1::FeeComponents,
         genesis::v1::GenesisAppState,
         transaction::v1::{
             action::{
@@ -116,15 +113,13 @@ async fn app_execute_transaction_transfer() {
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let value = 333_333;
     let tx = TransactionBody::builder()
-        .actions(vec![
-            Transfer {
-                to: bob_address,
-                amount: value,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![Transfer {
+            to: bob_address,
+            amount: value,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -141,11 +136,11 @@ async fn app_execute_transaction_transfer() {
     );
     let transfer_base = app
         .state
-        .get_transfer_fees()
+        .get_fees::<Transfer>()
         .await
         .expect("should not error fetching transfer fees")
         .expect("transfer fees should be stored")
-        .base;
+        .base();
     assert_eq!(
         app.state
             .get_account_balance(&alice_address, &nria())
@@ -180,15 +175,13 @@ async fn app_execute_transaction_transfer_not_native_token() {
     // transfer funds from Alice to Bob; use native token for fee payment
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let tx = TransactionBody::builder()
-        .actions(vec![
-            Transfer {
-                to: bob_address,
-                amount: value,
-                asset: test_asset(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![Transfer {
+            to: bob_address,
+            amount: value,
+            asset: test_asset(),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -213,11 +206,11 @@ async fn app_execute_transaction_transfer_not_native_token() {
 
     let transfer_base = app
         .state
-        .get_transfer_fees()
+        .get_fees::<Transfer>()
         .await
         .expect("should not error fetching transfer fees")
         .expect("transfer fees should be stored")
-        .base;
+        .base();
     assert_eq!(
         app.state
             .get_account_balance(&alice_address, &nria())
@@ -252,15 +245,13 @@ async fn app_execute_transaction_transfer_balance_too_low_for_fee() {
 
     // 0-value transfer; only fee is deducted from sender
     let tx = TransactionBody::builder()
-        .actions(vec![
-            Transfer {
-                to: bob,
-                amount: 0,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![Transfer {
+            to: bob,
+            amount: 0,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -280,10 +271,7 @@ async fn app_execute_transaction_sequence() {
     let mut app = initialize_app(None, vec![]).await;
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx
-        .put_rollup_data_submission_fees(RollupDataSubmissionFeeComponents {
-            base: 0,
-            multiplier: 1,
-        })
+        .put_fees(FeeComponents::<RollupDataSubmission>::new(0, 1))
         .unwrap();
     app.apply(state_tx);
 
@@ -293,14 +281,12 @@ async fn app_execute_transaction_sequence() {
     let fee = calculate_rollup_data_submission_fee_from_state(&data, &app.state).await;
 
     let tx = TransactionBody::builder()
-        .actions(vec![
-            RollupDataSubmission {
-                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                data,
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![RollupDataSubmission {
+            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+            data,
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -329,14 +315,12 @@ async fn app_execute_transaction_invalid_fee_asset() {
     let data = Bytes::from_static(b"hello world");
 
     let tx = TransactionBody::builder()
-        .actions(vec![
-            RollupDataSubmission {
-                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                data,
-                fee_asset: test_asset(),
-            }
-            .into(),
-        ])
+        .actions(vec![RollupDataSubmission {
+            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+            data,
+            fee_asset: test_asset(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -618,10 +602,7 @@ async fn app_execute_transaction_init_bridge_account_ok() {
     let mut state_tx = StateDelta::new(app.state.clone());
     let fee = 12; // arbitrary
     state_tx
-        .put_init_bridge_account_fees(InitBridgeAccountFeeComponents {
-            base: fee,
-            multiplier: 0,
-        })
+        .put_fees(FeeComponents::<InitBridgeAccount>::new(fee, 0))
         .unwrap();
     app.apply(state_tx);
 
@@ -827,14 +808,12 @@ async fn app_execute_transaction_invalid_nonce() {
     let data = Bytes::from_static(b"hello world");
 
     let tx = TransactionBody::builder()
-        .actions(vec![
-            RollupDataSubmission {
-                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                data,
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![RollupDataSubmission {
+            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+            data,
+            fee_asset: nria().into(),
+        }
+        .into()])
         .nonce(1)
         .chain_id("test")
         .try_build()
@@ -876,14 +855,12 @@ async fn app_execute_transaction_invalid_chain_id() {
     // create tx with invalid nonce 1
     let data = Bytes::from_static(b"hello world");
     let tx = TransactionBody::builder()
-        .actions(vec![
-            RollupDataSubmission {
-                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                data,
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![RollupDataSubmission {
+            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+            data,
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("wrong-chain")
         .try_build()
         .unwrap();
@@ -931,15 +908,13 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
 
     // transfer just enough to cover single sequence fee with data
     let signed_tx = TransactionBody::builder()
-        .actions(vec![
-            Transfer {
-                to: keypair_address,
-                amount: fee,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![Transfer {
+            to: keypair_address,
+            amount: fee,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()
@@ -977,14 +952,12 @@ async fn app_stateful_check_fails_insufficient_total_balance() {
 
     // build single transfer to see passes
     let signed_tx_pass = TransactionBody::builder()
-        .actions(vec![
-            RollupDataSubmission {
-                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                data,
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![RollupDataSubmission {
+            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+            data,
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()
@@ -1014,11 +987,11 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
     // unlock transfer action
     let transfer_base = app
         .state
-        .get_transfer_fees()
+        .get_fees::<Transfer>()
         .await
         .expect("should not error fetching transfer fees")
         .expect("transfer fees should be stored")
-        .base;
+        .base();
     state_tx
         .put_account_balance(&bridge_address, &nria(), transfer_base)
         .unwrap();
@@ -1261,15 +1234,13 @@ async fn transaction_execution_records_fee_event() {
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let value = 333_333;
     let tx = TransactionBody::builder()
-        .actions(vec![
-            Transfer {
-                to: bob_address,
-                amount: value,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![Transfer {
+            to: bob_address,
+            amount: value,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap();

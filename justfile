@@ -73,6 +73,8 @@ fmt lang=default_lang:
   @just _fmt-{{lang}}
 
 # Can lint 'rust', 'toml', 'proto', 'md' or 'all'. Defaults to all.
+# Can also run the following sub-lints for rust: 'rust-fmt', 'rust-clippy',
+# 'rust-clippy-custom', 'rust-clippy-tools', 'rust-dylint'
 lint lang=default_lang:
   @just _lint-{{lang}}
 
@@ -89,13 +91,43 @@ _fmt-all:
 
 [no-exit-message]
 _fmt-rust:
-  cargo +nightly-2024-09-15 fmt --all
+  cargo +nightly-2024-10-03 fmt --all
 
 [no-exit-message]
 _lint-rust:
-  cargo +nightly-2024-09-15 fmt --all -- --check
-  cargo clippy -- --warn clippy::pedantic
-  cargo dylint --all
+  just _lint-rust-fmt
+  just _lint-rust-clippy
+  just _lint-rust-clippy-custom
+  just _lint-rust-clippy-tools
+  just _lint-rust-dylint
+
+[no-exit-message]
+_lint-rust-fmt:
+  cargo +nightly-2024-10-03 fmt --all -- --check
+
+[no-exit-message]
+_lint-rust-clippy:
+  cargo clippy --version
+  cargo clippy --all-targets --all-features \
+          -- --warn clippy::pedantic --warn clippy::arithmetic-side-effects \
+          --warn clippy::allow_attributes --warn clippy::allow_attributes_without_reason \
+          --deny warnings
+
+[no-exit-message]
+_lint-rust-clippy-custom:
+  cargo +nightly-2024-10-03 clippy --all-targets --all-features \
+          -p tracing_debug_field \
+          -- --warn clippy::pedantic --deny warnings
+
+[no-exit-message]
+_lint-rust-clippy-tools:
+  cargo clippy --manifest-path tools/protobuf-compiler/Cargo.toml \
+          --all-targets --all-features \
+          -- --warn clippy::pedantic --deny warnings
+
+[no-exit-message]
+_lint-rust-dylint:
+  cargo dylint --all --workspace
 
 [no-exit-message]
 _fmt-toml:

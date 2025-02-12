@@ -151,15 +151,13 @@ fn create_signed_transaction() -> Transaction {
             .unwrap();
     let alice_key = SigningKey::from(alice_secret_bytes);
 
-    let actions = vec![
-        Transfer {
-            to: bob_address(),
-            amount: 333_333,
-            asset: "nria".parse().unwrap(),
-            fee_asset: "nria".parse().unwrap(),
-        }
-        .into(),
-    ];
+    let actions = vec![Transfer {
+        to: bob_address(),
+        amount: 333_333,
+        asset: "nria".parse().unwrap(),
+        fee_asset: "nria".parse().unwrap(),
+    }
+    .into()];
     TransactionBody::builder()
         .actions(actions)
         .chain_id("test")
