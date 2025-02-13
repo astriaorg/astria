@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add more thorough unit tests for all actions [#1916](https://github.com/astriaorg/astria/pull/1916).
+- Implement `BridgeTransfer` action [#1934](https://github.com/astriaorg/astria/pull/1934).
+
 ### Changed
 
 - Bump MSRV to 1.83.0 [#1857](https://github.com/astriaorg/astria/pull/1857).
@@ -19,8 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove events reporting on state storage creation [#1892](https://github.com/astriaorg/astria/pull/1892).
 - Use bridge address to determine asset in bridge unlock cost estimation instead
 of signer [#1905](https://github.com/astriaorg/astria/pull/1905).
-- Add more thorough unit tests for all actions [#1916](https://github.com/astriaorg/astria/pull/1916).
-- Implement `BridgeTransfer` action [#1934](https://github.com/astriaorg/astria/pull/1934).
+
+### Fixed
+
+- Increase mempool removal cache size to be greater than default CometBFT
+mempool size [#1969](https://github.com/astriaorg/astria/pull/1969).
 
 ## [1.0.0] - 2024-10-25
 
