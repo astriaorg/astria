@@ -257,49 +257,6 @@ impl TestBridgeWithdrawer {
                 .await;
         }
     }
-
-    // pub async fn mount_part1_responses(&self, message: Vec<u8>) -> Vec<Part2Response> {
-    //     let mut part1_outputs = Vec::with_capacity(self.bridge_signer_mocks.len());
-    //     for server in &self.bridge_signer_mocks {
-    //         let output = server.mount_part1_response("part1").await;
-    //         part1_outputs.push(output);
-    //     }
-
-    //     let commitments = part1_outputs
-    //         .iter()
-    //         .map(|output| (output.0.clone(), output.1.clone()))
-    //         // .map(|output| CommitmentWithIdentifier {
-    //         //     commitment: output
-    //         //         .1
-    //         //         .serialize()
-    //         //         .expect("can serialize commitment")
-    //         //         .into(),
-    //         //     participant_identifier: output.0.serialize().into(),
-    //         // })
-    //         .collect::<Vec<_>>();
-
-    //     let mut part2_responses = Vec::with_capacity(self.bridge_signer_mocks.len());
-    //     for (server, output) in self.bridge_signer_mocks.iter().zip(part1_outputs) {
-    //         let response =
-    //             server.get_frost_part2_response(commitments.clone(), message.clone(), output.2);
-    //         part2_responses.push(response);
-    //     }
-    //     // requests_and_nonces
-
-    //     // let mut part2_responses = Vec::with_capacity(self.bridge_signer_mocks.len());
-    //     // for (server, (request, nonce)) in
-    //     // self.bridge_signer_mocks.iter().zip(requests_and_nonces) {     let response =
-    //     // server.get_frost_part2_response(commitments.clone(), message.clone(), nonce);
-    //     //     part2_responses.push(response);
-    //     // }
-    //     part2_responses
-    // }
-
-    // pub async fn mount_part2_responses(&self, resps: Vec<Part2Response>) {
-    //     for (server, resp) in self.bridge_signer_mocks.iter().zip(resps) {
-    //         server.mount_part2_response("part2", resp).await;
-    //     }
-    // }
 }
 
 #[expect(clippy::module_name_repetitions, reason = "naming is for clarity here")]
@@ -313,6 +270,7 @@ pub struct TestBridgeWithdrawerConfig {
 }
 
 impl TestBridgeWithdrawerConfig {
+    #[expect(clippy::too_many_lines, reason = "this is a test setup function")]
     pub async fn spawn(self) -> TestBridgeWithdrawer {
         let Self {
             ethereum_config,
@@ -335,26 +293,48 @@ impl TestBridgeWithdrawerConfig {
         let cometbft_mock = wiremock::MockServer::start().await;
         let sequencer_mock = MockSequencerServer::spawn().await;
 
-        let (secret_shares, public_key_package) = get_frost_secret_shares(threshold_signer_count);
-        let mut frost_participant_endpoints = Vec::with_capacity(threshold_signer_count as usize);
-        let mut bridge_signer_mocks = Vec::with_capacity(threshold_signer_count as usize);
-        for secret_share in secret_shares.into_values() {
-            let secret_package = KeyPackage::try_from(secret_share)
-                .expect("can convert secret share to secret package");
-            let server = MockBridgeSignerServer::spawn(secret_package).await;
-            server
-                .mount_get_verifying_share_response("get_verifying_share")
-                .await;
-            frost_participant_endpoints.push(format!("http://{}", server.local_addr));
-            bridge_signer_mocks.push(server);
-        }
+        let (
+            frost_public_key_package_path,
+            frost_participant_endpoints,
+            bridge_signer_mocks,
+            _public_key_package_file,
+        ) = if threshold_signer_count != 0 {
+            let (secret_shares, public_key_package) =
+                get_frost_secret_shares(threshold_signer_count);
+            let mut frost_participant_endpoints =
+                Vec::with_capacity(threshold_signer_count as usize);
+            let mut bridge_signer_mocks = Vec::with_capacity(threshold_signer_count as usize);
+            for secret_share in secret_shares.into_values() {
+                let secret_package = KeyPackage::try_from(secret_share)
+                    .expect("can convert secret share to secret package");
+                let server = MockBridgeSignerServer::spawn(secret_package).await;
+                server
+                    .mount_get_verifying_share_response("get_verifying_share")
+                    .await;
+                frost_participant_endpoints.push(format!("http://{}", server.local_addr));
+                bridge_signer_mocks.push(server);
+            }
 
-        let public_key_string =
-            serde_json::to_string(&public_key_package).expect("can serialize public key package");
-        let mut public_key_package_file = NamedTempFile::new().unwrap();
-        public_key_package_file
-            .write_all(public_key_string.as_bytes())
-            .expect("can write public key package to file");
+            let public_key_string = serde_json::to_string(&public_key_package)
+                .expect("can serialize public key package");
+            let mut public_key_package_file: NamedTempFile = NamedTempFile::new().unwrap();
+            public_key_package_file
+                .write_all(public_key_string.as_bytes())
+                .expect("can write public key package to file");
+            let public_key_package_path = public_key_package_file
+                .path()
+                .to_str()
+                .expect("can get public key package path")
+                .to_string();
+            (
+                public_key_package_path,
+                frost_participant_endpoints,
+                bridge_signer_mocks,
+                Some(public_key_package_file),
+            )
+        } else {
+            (String::new(), Vec::new(), Vec::new(), None)
+        };
 
         let config = Config {
             sequencer_cometbft_endpoint: cometbft_mock.uri(),
@@ -363,11 +343,7 @@ impl TestBridgeWithdrawerConfig {
             sequencer_key_path,
             frost_threshold_signing_enabled: threshold_signer_count != 0,
             frost_min_signers: threshold_signer_count as usize,
-            frost_public_key_package_path: public_key_package_file
-                .path()
-                .to_str()
-                .expect("can get public key package path")
-                .to_string(),
+            frost_public_key_package_path,
             frost_participant_endpoints,
             fee_asset_denomination: asset_denom.clone(),
             rollup_asset_denomination: asset_denom.as_trace_prefixed().unwrap().clone(),
