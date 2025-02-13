@@ -5,6 +5,7 @@ use astria_core::{
         transaction::v1::action::{
             BridgeLock,
             BridgeSudoChange,
+            BridgeTransfer,
             BridgeUnlock,
             FeeAssetChange,
             FeeChange,
@@ -226,6 +227,28 @@ impl FeeHandler for BridgeUnlock {
 
     fn snake_case_name() -> &'static str {
         "bridge_unlock"
+    }
+
+    fn variable_component(&self) -> u128 {
+        0
+    }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        Some(&self.fee_asset)
+    }
+}
+
+impl FeeHandler for BridgeTransfer {
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "bridge_transfer"
     }
 
     fn variable_component(&self) -> u128 {

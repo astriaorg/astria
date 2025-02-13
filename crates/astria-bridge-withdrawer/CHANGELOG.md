@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.1] - 2024-11-01
 
+### Changed
+
+- Bump MSRV to 1.83.0 [#1857](https://github.com/astriaorg/astria/pull/1857).
+
 ### Fixed
 
 - Set `batch_total_settled_value` metric to 0 when no withdrawals are settled [#1778](https://github.com/astriaorg/astria/pull/1768)

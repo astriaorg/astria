@@ -70,3 +70,192 @@ impl ActionHandler for ValidatorUpdate {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use astria_core::{
+        crypto::VerificationKey,
+        primitive::v1::TransactionId,
+    };
+
+    use super::*;
+    use crate::{
+        accounts::AddressBytes as _,
+        authority::ValidatorSet,
+        benchmark_and_test_utils::{
+            assert_eyre_error,
+            astria_address,
+        },
+        transaction::{
+            StateWriteExt as _,
+            TransactionContext,
+        },
+    };
+
+    #[tokio::test]
+    async fn validator_update_add_executes_as_expected() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = cnidarium::StateDelta::new(snapshot);
+
+        let sudo_address = astria_address(&[0; 20]);
+        state.put_sudo_address(sudo_address).unwrap();
+        state.put_transaction_context(TransactionContext {
+            address_bytes: *sudo_address.address_bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+
+        assert_eq!(state.get_validator_updates().await.unwrap().len(), 0);
+
+        let action = ValidatorUpdate {
+            verification_key: VerificationKey::try_from([0; 32]).unwrap(),
+            power: 100,
+        };
+
+        action.check_and_execute(&mut state).await.unwrap();
+
+        let validator_updates = state.get_validator_updates().await.unwrap();
+        assert_eq!(validator_updates.len(), 1);
+        assert_eq!(
+            validator_updates.get(action.verification_key.address_bytes()),
+            Some(&action)
+        );
+    }
+
+    #[tokio::test]
+    async fn validator_update_remove_works_as_expected() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = cnidarium::StateDelta::new(snapshot);
+
+        let sudo_address = astria_address(&[0; 20]);
+        state.put_sudo_address(sudo_address).unwrap();
+        state.put_transaction_context(TransactionContext {
+            address_bytes: *sudo_address.address_bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+
+        let validator_update_1 = ValidatorUpdate {
+            verification_key: VerificationKey::try_from([0; 32]).unwrap(),
+            power: 100,
+        };
+
+        let validator_update_2 = ValidatorUpdate {
+            verification_key: VerificationKey::try_from([1; 32]).unwrap(),
+            power: 100,
+        };
+
+        state
+            .put_validator_set(ValidatorSet::new_from_updates(vec![
+                validator_update_1.clone(),
+                validator_update_2.clone(),
+            ]))
+            .unwrap();
+
+        assert_eq!(state.get_validator_set().await.unwrap().len(), 2);
+
+        let action = ValidatorUpdate {
+            verification_key: validator_update_1.verification_key,
+            power: 0,
+        };
+
+        action.check_and_execute(&mut state).await.unwrap();
+
+        let validator_updates = state.get_validator_updates().await.unwrap();
+        assert_eq!(validator_updates.len(), 1);
+        assert_eq!(
+            validator_updates.get(action.verification_key.address_bytes()),
+            Some(&action)
+        );
+    }
+
+    #[tokio::test]
+    async fn validator_update_fails_if_signer_is_not_sudo_address() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = cnidarium::StateDelta::new(snapshot);
+
+        state.put_sudo_address(astria_address(&[1; 20])).unwrap();
+        state.put_transaction_context(TransactionContext {
+            address_bytes: [0; 20],
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+
+        let action = ValidatorUpdate {
+            verification_key: VerificationKey::try_from([0; 32]).unwrap(),
+            power: 100,
+        };
+
+        assert_eyre_error(
+            &action.check_and_execute(&mut state).await.unwrap_err(),
+            "signer is not the sudo key",
+        );
+    }
+    #[tokio::test]
+    async fn validator_update_remove_fails_if_validator_is_not_in_set() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = cnidarium::StateDelta::new(snapshot);
+
+        let sudo_address = astria_address(&[0; 20]);
+        state.put_sudo_address(sudo_address).unwrap();
+        state.put_transaction_context(TransactionContext {
+            address_bytes: *sudo_address.address_bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+
+        state
+            .put_validator_set(ValidatorSet::new_from_updates(vec![]))
+            .unwrap();
+
+        let action = ValidatorUpdate {
+            verification_key: VerificationKey::try_from([0; 32]).unwrap(),
+            power: 0,
+        };
+
+        assert_eyre_error(
+            &action.check_and_execute(&mut state).await.unwrap_err(),
+            "cannot remove a non-existing validator",
+        );
+    }
+
+    #[tokio::test]
+    async fn validator_update_remove_fails_if_attempting_to_remove_only_validator() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = cnidarium::StateDelta::new(snapshot);
+
+        let sudo_address = astria_address(&[0; 20]);
+        state.put_sudo_address(sudo_address).unwrap();
+        state.put_transaction_context(TransactionContext {
+            address_bytes: *sudo_address.address_bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+
+        let validator_update_1 = ValidatorUpdate {
+            verification_key: VerificationKey::try_from([1; 32]).unwrap(),
+            power: 100,
+        };
+
+        state
+            .put_validator_set(ValidatorSet::new_from_updates(vec![
+                validator_update_1.clone()
+            ]))
+            .unwrap();
+
+        let action = ValidatorUpdate {
+            verification_key: validator_update_1.verification_key,
+            power: 0,
+        };
+
+        assert_eyre_error(
+            &action.check_and_execute(&mut state).await.unwrap_err(),
+            "cannot remove the last validator",
+        );
+    }
+}

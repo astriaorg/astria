@@ -20,4 +20,8 @@ elif ! cmp -s "/scripts/geth-genesis.json" "$home_dir/genesis.json"; then
   cp /scripts/geth-genesis.json $home_dir/genesis.json
 
   exec geth --datadir "$data_dir/" init $home_dir/genesis.json
+elif [ "{{ .Values.config.geth.snapshot.restore.enabled }}" = "true" ]; then
+  echo "Snapshot restore enabled, running geth init..."
+
+  exec geth --datadir "$data_dir/" init $home_dir/genesis.json
 fi
