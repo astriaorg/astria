@@ -15,7 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add method `TracePrefixed::leading_channel` to read the left-most channel of
   a trace prefixed ICS20 asset [#1768](https://github.com/astriaorg/astria/pull/1768).
 - Add `impl Protobuf for Address<Bech32m>` [#1802](https://github.com/astriaorg/astria/pull/1802).
-- Add `BridgeTransfer` action and `BridgeTransfer` variant to `FeeChange`.
+- Add `BridgeTransfer` action and `BridgeTransfer` variant to `FeeChange`
+  [#1934](https://github.com/astriaorg/astria/pull/1934).
 
 ### Changed
 
