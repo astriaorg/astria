@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package astria.auction.v1alpha1;
+package astria.optimistic_execution.v1alpha1;
 
 import "astria/execution/v1/execution.proto";
 import "astria/sequencerblock/v1/block.proto";

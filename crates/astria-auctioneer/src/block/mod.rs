@@ -1,7 +1,7 @@
 use astria_core::{
     execution,
     generated::astria::{
-        auction::v1alpha1 as auction,
+        optimistic_execution::v1alpha1 as optimistic_execution,
         sequencerblock::v1 as raw_sequencer_block,
     },
     primitive::v1::RollupId,
@@ -62,7 +62,7 @@ impl Proposed {
     pub(crate) fn try_into_base_block(
         self,
         rollup_id: RollupId,
-    ) -> eyre::Result<auction::BaseBlock> {
+    ) -> eyre::Result<optimistic_execution::BaseBlock> {
         let FilteredSequencerBlockParts {
             block_hash,
             header,
@@ -86,7 +86,7 @@ impl Proposed {
 
         let timestamp = Some(convert_tendermint_time_to_protobuf_timestamp(header.time()));
 
-        Ok(auction::BaseBlock {
+        Ok(optimistic_execution::BaseBlock {
             sequencer_block_hash: Bytes::copy_from_slice(block_hash.as_bytes()),
             transactions,
             timestamp,
@@ -104,7 +104,7 @@ pub(crate) struct Executed {
 
 impl Executed {
     pub(crate) fn try_from_raw(
-        raw: auction::ExecuteOptimisticBlockStreamResponse,
+        raw: optimistic_execution::ExecuteOptimisticBlockStreamResponse,
     ) -> eyre::Result<Self> {
         let block = if let Some(raw_block) = raw.block {
             execution::v1::Block::try_from_raw(raw_block).wrap_err("invalid rollup block")?

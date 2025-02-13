@@ -7,10 +7,12 @@ use std::{
     },
 };
 
-use astria_core::generated::astria::auction::v1alpha1::{
-    BaseBlock,
-    ExecuteOptimisticBlockStreamResponse,
-    GetBidStreamResponse,
+use astria_core::generated::astria::{
+    auction::v1alpha1::GetBidStreamResponse,
+    optimistic_execution::v1alpha1::{
+        BaseBlock,
+        ExecuteOptimisticBlockStreamResponse,
+    },
 };
 use astria_eyre::eyre::{
     self,
@@ -85,7 +87,7 @@ impl RollupChannel {
     }
 
     pub(crate) fn open_execute_optimistic_block_stream(&self) -> ExecuteOptimisticBlockStream {
-        use astria_core::generated::astria::auction::v1alpha1::{
+        use astria_core::generated::astria::optimistic_execution::v1alpha1::{
             optimistic_execution_service_client::OptimisticExecutionServiceClient,
             ExecuteOptimisticBlockStreamRequest,
         };
@@ -217,7 +219,7 @@ impl Stream for InnerExecuteOptimisticBlockStream {
         let executed_block = crate::block::Executed::try_from_raw(message).wrap_err_with(|| {
             format!(
                 "failed to validate `{}`",
-                astria_core::generated::astria::auction::v1alpha1::ExecuteOptimisticBlockStreamResponse::full_name(),
+                astria_core::generated::astria::optimistic_execution::v1alpha1::ExecuteOptimisticBlockStreamResponse::full_name(),
             )
         })?;
         Poll::Ready(Some(Ok(executed_block)))
