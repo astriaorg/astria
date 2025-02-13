@@ -20,4 +20,3 @@ message Bid {
   // The list of serialized rollup transactions from the bundle.
   repeated bytes transactions = 4;
 }
-

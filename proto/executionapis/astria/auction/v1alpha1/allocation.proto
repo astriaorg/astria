@@ -22,4 +22,3 @@ message Allocation {
   // Implementors are expected to read and write an encoded Bid into this field.
   google.protobuf.Any bid = 3;
 }
-

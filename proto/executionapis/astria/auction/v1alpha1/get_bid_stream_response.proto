@@ -7,4 +7,3 @@ import "astria/auction/v1alpha1/bid.proto";
 message GetBidStreamResponse {
   Bid bid = 1;
 }
-

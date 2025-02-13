@@ -13,4 +13,3 @@ message ExecuteOptimisticBlockStreamResponse {
   // received once a sequencer block is committed.
   bytes base_sequencer_block_hash = 2;
 }
-
