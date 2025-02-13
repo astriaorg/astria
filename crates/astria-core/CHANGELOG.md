@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `impl Protobuf for Address<Bech32m>` [#1802](https://github.com/astriaorg/astria/pull/1802).
 - Add module `sequencerblock::optimistic::v1alpha1`
   and `impl Protobuf for FilteredSequencerBlock` [#1839](https://github.com/astriaorg/astria/pull/1839).
+- Add `BridgeTransfer` action and `BridgeTransfer` variant to `FeeChange`
+  [#1934](https://github.com/astriaorg/astria/pull/1934).
 
 ### Changed
 
