@@ -138,10 +138,10 @@ impl serde::Serialize for Bid {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if !self.sequencer_parent_block_hash.is_empty() {
+        if !self.rollup_parent_block_hash.is_empty() {
             len += 1;
         }
-        if !self.rollup_parent_block_hash.is_empty() {
+        if !self.sequencer_parent_block_hash.is_empty() {
             len += 1;
         }
         if self.fee != 0 {
@@ -151,13 +151,13 @@ impl serde::Serialize for Bid {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.auction.v1alpha1.Bid", len)?;
-        if !self.sequencer_parent_block_hash.is_empty() {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("sequencerParentBlockHash", pbjson::private::base64::encode(&self.sequencer_parent_block_hash).as_str())?;
-        }
         if !self.rollup_parent_block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("rollupParentBlockHash", pbjson::private::base64::encode(&self.rollup_parent_block_hash).as_str())?;
+        }
+        if !self.sequencer_parent_block_hash.is_empty() {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("sequencerParentBlockHash", pbjson::private::base64::encode(&self.sequencer_parent_block_hash).as_str())?;
         }
         if self.fee != 0 {
             #[allow(clippy::needless_borrow)]
@@ -176,18 +176,18 @@ impl<'de> serde::Deserialize<'de> for Bid {
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "sequencer_parent_block_hash",
-            "sequencerParentBlockHash",
             "rollup_parent_block_hash",
             "rollupParentBlockHash",
+            "sequencer_parent_block_hash",
+            "sequencerParentBlockHash",
             "fee",
             "transactions",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            SequencerParentBlockHash,
             RollupParentBlockHash,
+            SequencerParentBlockHash,
             Fee,
             Transactions,
         }
@@ -211,8 +211,8 @@ impl<'de> serde::Deserialize<'de> for Bid {
                         E: serde::de::Error,
                     {
                         match value {
-                            "sequencerParentBlockHash" | "sequencer_parent_block_hash" => Ok(GeneratedField::SequencerParentBlockHash),
                             "rollupParentBlockHash" | "rollup_parent_block_hash" => Ok(GeneratedField::RollupParentBlockHash),
+                            "sequencerParentBlockHash" | "sequencer_parent_block_hash" => Ok(GeneratedField::SequencerParentBlockHash),
                             "fee" => Ok(GeneratedField::Fee),
                             "transactions" => Ok(GeneratedField::Transactions),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
@@ -234,25 +234,25 @@ impl<'de> serde::Deserialize<'de> for Bid {
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut sequencer_parent_block_hash__ = None;
                 let mut rollup_parent_block_hash__ = None;
+                let mut sequencer_parent_block_hash__ = None;
                 let mut fee__ = None;
                 let mut transactions__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::SequencerParentBlockHash => {
-                            if sequencer_parent_block_hash__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("sequencerParentBlockHash"));
-                            }
-                            sequencer_parent_block_hash__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
-                        }
                         GeneratedField::RollupParentBlockHash => {
                             if rollup_parent_block_hash__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("rollupParentBlockHash"));
                             }
                             rollup_parent_block_hash__ = 
+                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
+                            ;
+                        }
+                        GeneratedField::SequencerParentBlockHash => {
+                            if sequencer_parent_block_hash__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sequencerParentBlockHash"));
+                            }
+                            sequencer_parent_block_hash__ = 
                                 Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
                             ;
                         }
@@ -276,8 +276,8 @@ impl<'de> serde::Deserialize<'de> for Bid {
                     }
                 }
                 Ok(Bid {
-                    sequencer_parent_block_hash: sequencer_parent_block_hash__.unwrap_or_default(),
                     rollup_parent_block_hash: rollup_parent_block_hash__.unwrap_or_default(),
+                    sequencer_parent_block_hash: sequencer_parent_block_hash__.unwrap_or_default(),
                     fee: fee__.unwrap_or_default(),
                     transactions: transactions__.unwrap_or_default(),
                 })

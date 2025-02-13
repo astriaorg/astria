@@ -1,34 +1,3 @@
-/// A bid is a bundle of transactions that was submitted to the auctioneer's rollup node.
-/// The rollup node will verify that the bundle is valid and pays the fee, and will stream
-/// it to the auctioneer for participation in the auction for a given block.
-/// The sequencer block hash and the rollup parent block hash are used by the auctioneer
-/// to identify the block for which the bundle is intended (i.e. which auction the bid is for).
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Bid {
-    /// The hash of the previous sequencer block, identifying the auction for which the bid is intended.
-    /// This is the hash of the sequencer block on top of which the bundle will be executed as ToB.
-    #[prost(bytes = "bytes", tag = "1")]
-    pub sequencer_parent_block_hash: ::prost::bytes::Bytes,
-    /// The hash of previous rollup block, on top of which the bundle will be executed as ToB.
-    #[prost(bytes = "bytes", tag = "2")]
-    pub rollup_parent_block_hash: ::prost::bytes::Bytes,
-    /// The fee paid by the bundle submitter. The auctioneer's rollup node calculates this based
-    /// on the bundles submitted by users. For example, this can be the sum of the coinbase transfers
-    /// in the bundle's transactions.
-    #[prost(uint64, tag = "3")]
-    pub fee: u64,
-    /// The list of serialized rollup transactions from the bundle.
-    #[prost(bytes = "bytes", repeated, tag = "4")]
-    pub transactions: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
-}
-impl ::prost::Name for Bid {
-    const NAME: &'static str = "Bid";
-    const PACKAGE: &'static str = "astria.auction.v1alpha1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.auction.v1alpha1.{}", Self::NAME)
-    }
-}
 /// The Allocation message is submitted by the Auctioneer to the rollup as a
 /// `RollupDataSubmission` on the sequencer.
 /// The rollup will verify the signature and public key against its configuration,
@@ -64,6 +33,37 @@ impl ::prost::Name for Allocation {
 pub struct GetBidStreamRequest {}
 impl ::prost::Name for GetBidStreamRequest {
     const NAME: &'static str = "GetBidStreamRequest";
+    const PACKAGE: &'static str = "astria.auction.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.auction.v1alpha1.{}", Self::NAME)
+    }
+}
+/// A bid is a bundle of transactions that was submitted to the auctioneer's rollup node.
+/// The rollup node will verify that the bundle is valid and pays the fee, and will stream
+/// it to the auctioneer for participation in the auction for a given block.
+/// The sequencer block hash and the rollup parent block hash are used by the auctioneer
+/// to identify the block for which the bundle is intended (i.e. which auction the bid is for).
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Bid {
+    /// The hash of previous rollup block, on top of which the bundle will be executed as ToB.
+    #[prost(bytes = "bytes", tag = "1")]
+    pub rollup_parent_block_hash: ::prost::bytes::Bytes,
+    /// The hash of the previous sequencer block, identifying the auction for which the bid is intended.
+    /// This is the hash of the sequencer block on top of which the bundle will be executed as ToB.
+    #[prost(bytes = "bytes", tag = "2")]
+    pub sequencer_parent_block_hash: ::prost::bytes::Bytes,
+    /// The fee paid by the bundle submitter. The auctioneer's rollup node calculates this based
+    /// on the bundles submitted by users. For example, this can be the sum of the coinbase transfers
+    /// in the bundle's transactions.
+    #[prost(uint64, tag = "3")]
+    pub fee: u64,
+    /// The list of serialized rollup transactions from the bundle.
+    #[prost(bytes = "bytes", repeated, tag = "4")]
+    pub transactions: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
+}
+impl ::prost::Name for Bid {
+    const NAME: &'static str = "Bid";
     const PACKAGE: &'static str = "astria.auction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.auction.v1alpha1.{}", Self::NAME)
