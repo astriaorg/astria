@@ -121,8 +121,9 @@ the following block, `process_proposal` of the following block, and `finalize_bl
 #### Vote extension process
 
 During a consensus round, cometbft will call into the application via ABCI to get
-the vote extension data via `extend_vote`, and to verify vote extensions of peers
-via `verify_vote_extension`.
+the vote extension data via [`extend_vote`](https://github.com/astriaorg/astria/blob/b2083b4a82195dc9be1e85f31cea14c724b8b4ec/crates/astria-sequencer/src/app/vote_extension.rs#L85),
+and to verify vote extensions of peers
+via [`verify_vote_extension`](https://github.com/astriaorg/astria/blob/b2083b4a82195dc9be1e85f31cea14c724b8b4ec/crates/astria-sequencer/src/app/vote_extension.rs#L117).
 
 In `extend_vote`, the node will call the oracle sidecar and fetch the latest prices
 for all the pairs in the current state market map. It will then encode these prices
@@ -138,7 +139,8 @@ node's local VE view for that round.
 #### `prepare_proposal`
 
 The proposer of a block receives all the vote extensions in its local view from
-the previous round inside `prepare_proposal`, specifically the `local_last_commit`
+the previous round inside [`prepare_proposal`](https://github.com/astriaorg/astria/blob/b2083b4a82195dc9be1e85f31cea14c724b8b4ec/crates/astria-sequencer/src/app/vote_extension.rs#L210),
+specifically the `local_last_commit`
 field which contains the previous round's commit (>2/3 voting power set of votes
 from validators) as well as their vote extensions. The proposer then checks if >2/3
 voting power submitted valid oracle data vote extensions. If not, the proposer
@@ -151,7 +153,8 @@ prices are not updated.
 
 #### `process_proposal`
 
-Other validators receive the proposed block in `process_proposal`. If it contains
+Other validators receive the proposed block in [`process_proposal`](https://github.com/astriaorg/astria/blob/b2083b4a82195dc9be1e85f31cea14c724b8b4ec/crates/astria-sequencer/src/app/vote_extension.rs#L271).
+If it contains
 non-empty extended commit info, it validates it by checking that the signature
 for each vote extension is valid, and corresponds to an actual validator. It checks
 that each VE is itself a valid `OracleVoteExtension`. It also checks that >2/3
@@ -163,8 +166,10 @@ valid VE set, and skip oracle validation to ensure liveness.
 
 #### `finalize_block`
 
-When a block with an extended commit info set is finalized, the node uses the price
-data inside the vote extensions to calculate updated prices for each currency pair.
+When a block with an extended commit info set is [finalized](https://github.com/astriaorg/astria/blob/b2083b4a82195dc9be1e85f31cea14c724b8b4ec/crates/astria-sequencer/src/app/mod.rs#L1093),
+the node uses the price
+data inside the vote extensions to [calculate updated prices](https://github.com/astriaorg/astria/blob/b2083b4a82195dc9be1e85f31cea14c724b8b4ec/crates/astria-sequencer/src/app/vote_extension.rs#L577)
+for each currency pair.
 For each currency pair, the node takes the validator-power-weighted median of
 the prices to calculate the new price, which is then stored in the app state.
 
