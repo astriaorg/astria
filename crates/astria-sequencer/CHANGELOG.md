@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Implement `astria.sequencerblock.optimistic.v1alpha1.OptimisticBlockService` [#1839](https://github.com/astriaorg/astria/pull/1839).
+
 ### Changed
 
 - Bump MSRV to 1.83.0 [#1857](https://github.com/astriaorg/astria/pull/1857).

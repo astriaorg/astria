@@ -56,7 +56,7 @@ evm-rollup:
       # 1:
       #   minBaseFee: 0
       #   elasticityMultiplier: 2
-    #   baseFeeChangeDenominator: 8
+      #   baseFeeChangeDenominator: 8
 
     ## Standard Eth Genesis config values
     # Configuration of Eth forks, setting to 0 will enable from height,

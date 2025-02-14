@@ -12,6 +12,7 @@ on:
         required: false
         type: choice
         options:
+          - auctioneer
           - composer
           - conductor
           - sequencer
@@ -38,6 +39,22 @@ on:
 jobs:
   run_checker:
     uses: ./.github/workflows/reusable-run-checker.yml
+
+  auctioneer:
+    needs: run_checker
+    if: needs.run_checker.outputs.run_docker == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'auctioneer')
+    uses: "./.github/workflows/reusable-docker-build.yml"
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    with:
+      depot-project-id: 1kp2p2bvbr
+      package-name: auctioneer
+      binary-name: auctioneer
+      tag: ${{ inputs.tag }}
+      force: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'auctioneer' }}
+    secrets: inherit
 
   composer:
     needs: run_checker
@@ -296,7 +313,7 @@ jobs:
 
   docker:
     if: ${{ always() && !cancelled() }}
-    needs: [composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli, smoke-test, smoke-cli, ibc-bridge-test, ibc-no-native-asset-test, ibc-timeout-refund]
+    needs: [auctioneer, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli, smoke-test, smoke-cli, ibc-bridge-test, ibc-no-native-asset-test, ibc-timeout-refund]
     uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}

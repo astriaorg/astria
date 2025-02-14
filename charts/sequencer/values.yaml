@@ -130,6 +130,9 @@ sequencer:
     tracesTimeout: 10
     otlpHeaders:
     traceHeaders:
+  optimisticBlockApis:
+    # set to true to enable optimistic block APIs
+    enabled: false
 
 cometbft:
   config:
