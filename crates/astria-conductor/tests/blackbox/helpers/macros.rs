@@ -367,28 +367,8 @@ macro_rules! mount_sequencer_genesis {
 
 #[macro_export]
 macro_rules! mount_get_block {
-    (
-        $test_env:ident,
-        number: $number:expr,
-        hash: $hash:expr,
-        parent: $parent:expr $(,)?
-    ) => {{
-        let block = $crate::block!(
-            number: $number,
-            hash: $hash,
-            parent: $parent,
-        );
-        let identifier = ::astria_core::generated::astria::execution::v1::BlockIdentifier {
-            identifier: Some(
-                ::astria_core::generated::astria::execution::v1::block_identifier::Identifier::BlockNumber(block.number)
-        )};
-        $test_env.mount_get_block(
-            ::astria_core::generated::astria::execution::v1::GetBlockRequest {
-                identifier: Some(identifier),
-            },
-            block,
-        )
-        .await
+    ($test_env:ident,number: $number:expr,) => {{
+        $test_env.mount_get_block($number).await
     }};
 }
 

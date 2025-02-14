@@ -284,8 +284,6 @@ async fn missing_block_is_fetched_for_updating_firm_commitment() {
     mount_get_block!(
         test_conductor,
         number: 2,
-        hash: [2; 64],
-        parent: [1; 64],
     );
 
     mount_celestia_header_network_head!(

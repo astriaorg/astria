@@ -196,18 +196,40 @@ impl TestConductor {
         .await;
     }
 
-    pub async fn mount_get_block<S: serde::Serialize>(
-        &self,
-        expected_pbjson: S,
-        block: astria_core::generated::astria::execution::v1::Block,
-    ) {
+    pub async fn mount_get_block(&self, number: u32) {
+        use astria_core::generated::astria::execution::v1::{
+            block_identifier::Identifier,
+            BlockIdentifier,
+            GetBlockRequest,
+        };
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
             response::constant_response,
             Mock,
         };
+
+        let expected_pbjson = GetBlockRequest {
+            identifier: Some(BlockIdentifier {
+                identifier: Some(Identifier::BlockNumber(number)),
+            }),
+        };
+
+        // Calculate difference between firm block number and firm initializer, applying to given
+        // number to obtain its hash initializer. This accomodates potential use cases where the
+        // hash initializer does not match the block number.
+        let delta = i64::from(self.state.firm_number)
+            .saturating_sub(i64::from(self.state.firm_initializer));
+        let hash_initializer = u8::try_from(i64::from(number).saturating_sub(delta)).expect(
+            "should be able to derive `u8` hash initializer from `number + (firm_number - \
+             firm_initializer)`",
+        );
+
         Mock::for_rpc_given("get_block", message_partial_pbjson(&expected_pbjson))
-            .respond_with(constant_response(block))
+            .respond_with(constant_response(block!(
+                number: number,
+                hash: [hash_initializer; 64],
+                parent: [hash_initializer.saturating_sub(1); 64],
+            )))
             .expect(1..)
             .mount(&self.mock_grpc.mock_server)
             .await;
