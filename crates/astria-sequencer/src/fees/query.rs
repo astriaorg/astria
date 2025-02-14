@@ -17,6 +17,7 @@ use astria_core::{
             action::{
                 BridgeLock,
                 BridgeSudoChange,
+                BridgeTransfer,
                 BridgeUnlock,
                 FeeAssetChange,
                 FeeChange,
@@ -291,6 +292,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
         OnceCell::new();
     let bridge_lock_fees: OnceCell<Option<FeeComponents<BridgeLock>>> = OnceCell::new();
     let bridge_unlock_fees: OnceCell<Option<FeeComponents<BridgeUnlock>>> = OnceCell::new();
+    let bridge_transfer_fees: OnceCell<Option<FeeComponents<BridgeTransfer>>> = OnceCell::new();
     let bridge_sudo_change_fees: OnceCell<Option<FeeComponents<BridgeSudoChange>>> =
         OnceCell::new();
     let validator_update_fees: OnceCell<Option<FeeComponents<ValidatorUpdate>>> = OnceCell::new();
@@ -328,6 +330,10 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
             }
             Action::BridgeUnlock(act) => {
                 let fees = get_or_init_fees(state, &bridge_unlock_fees).await?;
+                calculate_and_add_fees(act, &mut fees_by_asset, fees);
+            }
+            Action::BridgeTransfer(act) => {
+                let fees = get_or_init_fees(state, &bridge_transfer_fees).await?;
                 calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
             Action::BridgeSudoChange(act) => {
@@ -450,6 +456,7 @@ struct AllFeeComponents {
     init_bridge_account: FetchResult,
     bridge_lock: FetchResult,
     bridge_unlock: FetchResult,
+    bridge_transfer: FetchResult,
     bridge_sudo_change: FetchResult,
     ibc_relay: FetchResult,
     validator_update: FetchResult,
@@ -489,6 +496,7 @@ async fn get_all_fee_components<S: StateRead>(state: &S) -> AllFeeComponents {
         init_bridge_account,
         bridge_lock,
         bridge_unlock,
+        bridge_transfer,
         bridge_sudo_change,
         validator_update,
         sudo_address_change,
@@ -506,6 +514,7 @@ async fn get_all_fee_components<S: StateRead>(state: &S) -> AllFeeComponents {
         state.get_fees::<InitBridgeAccount>().map(FetchResult::from),
         state.get_fees::<BridgeLock>().map(FetchResult::from),
         state.get_fees::<BridgeUnlock>().map(FetchResult::from),
+        state.get_fees::<BridgeTransfer>().map(FetchResult::from),
         state.get_fees::<BridgeSudoChange>().map(FetchResult::from),
         state.get_fees::<ValidatorUpdate>().map(FetchResult::from),
         state.get_fees::<SudoAddressChange>().map(FetchResult::from),
@@ -522,6 +531,7 @@ async fn get_all_fee_components<S: StateRead>(state: &S) -> AllFeeComponents {
         init_bridge_account,
         bridge_lock,
         bridge_unlock,
+        bridge_transfer,
         bridge_sudo_change,
         ibc_relay,
         validator_update,

@@ -18,7 +18,10 @@ images:
     pullPolicy: IfNotPresent
     tag: 1.0.0
     devTag: latest
-
+  snapshot:
+    repo: rclone/rclone
+    pullPolicy: IfNotPresent
+    tag: 1.69.0
 
 genesis:
   ## These values are used to configure the genesis block of the rollup chain
@@ -105,6 +108,27 @@ config:
     archiveNode: false
     # Set to true to clear the mempool on startup/restart
     purgeMempool: false
+    snapshot:
+      # Load from snapshot
+      restore:
+        enabled: false
+        # rclone source to download the snapshot from (in the form of remote:path)
+        source: ""
+        # Optional sha256 checksum to verify the snapshot
+        checksum: ""
+      # Create snapshots on a schedule
+      create:
+        enabled: false
+        # Cron format (default: daily at midnight)
+        schedule: "@daily"
+        # Number of snapshots to keep on disk
+        retentionCount: 7
+        storage:
+          path: '{{ include "rollup.gethDataDir" . }}/snapshots'
+          upload:
+            enabled: false
+            # rclone destination to upload the snapshot to (in the form of remote:path)
+            destination: ""
     flags:
       - name: datadir
         value: '{{ include "rollup.gethDataDir" . }}'
@@ -188,6 +212,30 @@ config:
     # the rpc, ws, and token fields must be set to access celestia network.
     rpc: ""
     token: ""
+
+rclone:
+  config:
+    # Content to be written to rclone.conf file
+    # Can be used to configure remote storage providers like S3, GCS, etc
+    # Example:
+    # [snapshots]
+    # type = s3
+    # provider = AWS
+    # region = us-east-2
+    # access_key_id = key
+    # secret_access_key = secret
+    # no_check_bucket = true
+    devContent:
+      snapshots:
+        type: s3
+        provider: AWS
+        region: us-east-2
+        accessKeyId: ""
+        secretAccessKey: ""
+        noCheckBucket: true
+    # The secret resource name for the rclone config
+    secret:
+      resourceName: "projects/$PROJECT_ID/secrets/rclone-config/versions/latest"
 
 metrics:
   # set to enable prometheus metrics
@@ -299,6 +347,17 @@ storage:
       size: "5Gi"
       persistentVolumeName: "rollup-shared-storage"
       path: "/data/rollup-data"
+
+# When deploying in a production environment should use a secret provider
+# This is configured for use with GCP, need to set own resource names
+# and keys
+secretProvider:
+  enabled: false
+  provider: gcp
+  parametersTemplate: |-
+    secrets: |
+      - resourceName: {{ .key.resourceName }}
+        fileName: "{{ .key.filename }}"
 
 # Default service ports
 ports:

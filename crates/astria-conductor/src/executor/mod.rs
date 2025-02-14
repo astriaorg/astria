@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    time::Duration,
+};
 
 use astria_core::{
     execution::v1::{
@@ -16,27 +19,33 @@ use astria_eyre::eyre::{
     self,
     bail,
     ensure,
+    eyre,
     WrapErr as _,
 };
 use bytes::Bytes;
-use sequencer_client::tendermint::{
-    block::Height as SequencerHeight,
-    Time as TendermintTime,
+use sequencer_client::{
+    tendermint::{
+        block::Height as SequencerHeight,
+        Time as TendermintTime,
+    },
+    HttpClient,
 };
 use tokio::{
     select,
-    sync::{
-        mpsc,
-        watch::error::RecvError,
-    },
+    sync::mpsc,
+    task::JoinError,
 };
-use tokio_util::sync::CancellationToken;
+use tokio_util::{
+    sync::CancellationToken,
+    task::JoinMap,
+};
 use tracing::{
     debug,
     debug_span,
     error,
     info,
     instrument,
+    warn,
 };
 
 use crate::{
@@ -46,10 +55,8 @@ use crate::{
 };
 
 mod builder;
-pub(crate) mod channel;
 
 pub(crate) use builder::Builder;
-use channel::soft_block_channel;
 
 mod client;
 mod state;
@@ -57,180 +64,176 @@ mod state;
 mod tests;
 
 pub(super) use client::Client;
-use state::StateReceiver;
+use state::State;
+pub(crate) use state::StateReceiver;
 
 use self::state::StateSender;
 
 type CelestiaHeight = u64;
 
-#[derive(Clone, Debug)]
-pub(crate) struct StateNotInit;
-#[derive(Clone, Debug)]
-pub(crate) struct StateIsInit;
-
-#[derive(Debug, thiserror::Error)]
-pub(crate) enum FirmSendError {
-    #[error("executor was configured without firm commitments")]
-    NotSet,
-    #[error("failed sending blocks to executor")]
-    Channel {
-        #[from]
-        source: mpsc::error::SendError<Box<ReconstructedBlock>>,
-    },
-}
-
-#[derive(Debug, thiserror::Error)]
-pub(crate) enum FirmTrySendError {
-    #[error("executor was configured without firm commitments")]
-    NotSet,
-    #[error("failed sending blocks to executor")]
-    Channel {
-        #[from]
-        source: mpsc::error::TrySendError<Box<ReconstructedBlock>>,
-    },
-}
-
-#[derive(Debug, thiserror::Error)]
-pub(crate) enum SoftSendError {
-    #[error("executor was configured without soft commitments")]
-    NotSet,
-    #[error("failed sending blocks to executor")]
-    Channel { source: Box<channel::SendError> },
-}
-
-#[derive(Debug, thiserror::Error)]
-pub(crate) enum SoftTrySendError {
-    #[error("executor was configured without firm commitments")]
-    NotSet,
-    #[error("failed sending blocks to executor")]
-    Channel {
-        source: Box<channel::TrySendError<FilteredSequencerBlock>>,
-    },
-}
-
-/// A handle to the executor.
-///
-/// To be useful, [`Handle<StateNotInit>::wait_for_init`] must be called in
-/// order to obtain a [`Handle<StateInit>`]. This is to ensure that the executor
-/// state was primed before using its other methods. See [`State`] for more
-/// information.
-#[derive(Debug, Clone)]
-pub(crate) struct Handle<TStateInit = StateNotInit> {
-    firm_blocks: Option<mpsc::Sender<Box<ReconstructedBlock>>>,
-    soft_blocks: Option<channel::Sender<FilteredSequencerBlock>>,
-    state: StateReceiver,
-    _state_init: TStateInit,
-}
-
-impl<T: Clone> Handle<T> {
-    #[instrument(skip_all, err)]
-    pub(crate) async fn wait_for_init(&mut self) -> eyre::Result<Handle<StateIsInit>> {
-        self.state.wait_for_init().await.wrap_err(
-            "executor state channel terminated while waiting for the state to initialize",
-        )?;
-        let Self {
-            firm_blocks,
-            soft_blocks,
-            state,
-            ..
-        } = self.clone();
-        Ok(Handle {
-            firm_blocks,
-            soft_blocks,
-            state,
-            _state_init: StateIsInit,
-        })
-    }
-}
-
-impl Handle<StateIsInit> {
-    #[instrument(skip_all, err)]
-    pub(crate) async fn send_firm_block(
-        self,
-        block: impl Into<Box<ReconstructedBlock>>,
-    ) -> Result<(), FirmSendError> {
-        let sender = self.firm_blocks.as_ref().ok_or(FirmSendError::NotSet)?;
-        Ok(sender.send(block.into()).await?)
-    }
-
-    pub(crate) fn try_send_firm_block(
-        &self,
-        block: impl Into<Box<ReconstructedBlock>>,
-    ) -> Result<(), FirmTrySendError> {
-        let sender = self.firm_blocks.as_ref().ok_or(FirmTrySendError::NotSet)?;
-        Ok(sender.try_send(block.into())?)
-    }
-
-    #[instrument(skip_all, err)]
-    pub(crate) async fn send_soft_block_owned(
-        self,
-        block: FilteredSequencerBlock,
-    ) -> Result<(), SoftSendError> {
-        let chan = self.soft_blocks.as_ref().ok_or(SoftSendError::NotSet)?;
-        chan.send(block)
-            .await
-            .map_err(|source| SoftSendError::Channel {
-                source: Box::new(source),
-            })?;
-        Ok(())
-    }
-
-    pub(crate) fn try_send_soft_block(
-        &self,
-        block: FilteredSequencerBlock,
-    ) -> Result<(), SoftTrySendError> {
-        let chan = self.soft_blocks.as_ref().ok_or(SoftTrySendError::NotSet)?;
-        chan.try_send(block)
-            .map_err(|source| SoftTrySendError::Channel {
-                source: Box::new(source),
-            })?;
-        Ok(())
-    }
-
-    pub(crate) fn next_expected_firm_sequencer_height(&mut self) -> SequencerHeight {
-        self.state.next_expected_firm_sequencer_height()
-    }
-
-    pub(crate) fn next_expected_soft_sequencer_height(&mut self) -> SequencerHeight {
-        self.state.next_expected_soft_sequencer_height()
-    }
-
-    #[instrument(skip_all)]
-    pub(crate) async fn next_expected_soft_height_if_changed(
-        &mut self,
-    ) -> Result<SequencerHeight, RecvError> {
-        self.state.next_expected_soft_height_if_changed().await
-    }
-
-    pub(crate) fn rollup_id(&mut self) -> RollupId {
-        self.state.rollup_id()
-    }
-
-    pub(crate) fn celestia_base_block_height(&mut self) -> CelestiaHeight {
-        self.state.celestia_base_block_height()
-    }
-
-    pub(crate) fn celestia_block_variance(&mut self) -> u64 {
-        self.state.celestia_block_variance()
-    }
-}
-
 pub(crate) struct Executor {
+    config: crate::Config,
+
     /// The execution client driving the rollup.
     client: Client,
 
-    /// The mode under which this executor (and hence conductor) runs.
-    mode: CommitLevel,
+    /// Token to listen for Conductor being shut down.
+    shutdown: CancellationToken,
+
+    metrics: &'static Metrics,
+}
+
+impl Executor {
+    const CELESTIA: &'static str = "celestia";
+    const SEQUENCER: &'static str = "sequencer";
+
+    pub(crate) async fn run_until_stopped(self) -> eyre::Result<()> {
+        let initialized = select!(
+            () = self.shutdown.clone().cancelled_owned() => {
+                return report_exit(Ok(
+                    "received shutdown signal while initializing task; \
+                    aborting intialization and exiting"
+                ), "");
+            }
+            res = self.init() => {
+                res.wrap_err("initialization failed")?
+            }
+        );
+
+        initialized.run().await
+    }
+
+    /// Runs the init logic that needs to happen before [`Executor`] can enter its main loop.
+    #[instrument(skip_all, err)]
+    async fn init(self) -> eyre::Result<Initialized> {
+        let state = self
+            .create_initial_node_state()
+            .await
+            .wrap_err("failed setting initial rollup node state")?;
+
+        let sequencer_cometbft_client = HttpClient::new(&*self.config.sequencer_cometbft_url)
+            .wrap_err("failed constructing sequencer cometbft RPC client")?;
+
+        let reader_cancellation_token = self.shutdown.child_token();
+
+        let (firm_blocks_tx, firm_blocks_rx) = tokio::sync::mpsc::channel(16);
+        let (soft_blocks_tx, soft_blocks_rx) =
+            tokio::sync::mpsc::channel(state.calculate_max_spread());
+
+        let mut reader_tasks = JoinMap::new();
+        if self.config.is_with_firm() {
+            let celestia_token = if self.config.no_celestia_auth {
+                None
+            } else {
+                Some(self.config.celestia_bearer_token.clone())
+            };
+
+            let reader = crate::celestia::Builder {
+                celestia_http_endpoint: self.config.celestia_node_http_url.clone(),
+                celestia_token,
+                celestia_block_time: Duration::from_millis(self.config.celestia_block_time_ms),
+                firm_blocks: firm_blocks_tx,
+                rollup_state: state.subscribe(),
+                sequencer_cometbft_client: sequencer_cometbft_client.clone(),
+                sequencer_requests_per_second: self.config.sequencer_requests_per_second,
+                expected_celestia_chain_id: self.config.expected_celestia_chain_id.clone(),
+                expected_sequencer_chain_id: self.config.expected_sequencer_chain_id.clone(),
+                shutdown: reader_cancellation_token.child_token(),
+                metrics: self.metrics,
+            }
+            .build()
+            .wrap_err("failed to build Celestia Reader")?;
+            reader_tasks.spawn(Self::CELESTIA, reader.run_until_stopped());
+        }
+
+        if self.config.is_with_soft() {
+            let sequencer_grpc_client =
+                crate::sequencer::SequencerGrpcClient::new(&self.config.sequencer_grpc_url)
+                    .wrap_err("failed constructing grpc client for Sequencer")?;
+
+            let sequencer_reader = crate::sequencer::Builder {
+                sequencer_grpc_client,
+                sequencer_cometbft_client: sequencer_cometbft_client.clone(),
+                sequencer_block_time: Duration::from_millis(self.config.sequencer_block_time_ms),
+                expected_sequencer_chain_id: self.config.expected_sequencer_chain_id.clone(),
+                shutdown: reader_cancellation_token.child_token(),
+                soft_blocks: soft_blocks_tx,
+                rollup_state: state.subscribe(),
+            }
+            .build();
+            reader_tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
+        };
+
+        Ok(Initialized {
+            config: self.config,
+            client: self.client,
+            firm_blocks: firm_blocks_rx,
+            soft_blocks: soft_blocks_rx,
+            shutdown: self.shutdown,
+            state,
+            blocks_pending_finalization: HashMap::new(),
+            metrics: self.metrics,
+            reader_tasks,
+            reader_cancellation_token,
+        })
+    }
+
+    #[instrument(skip_all, err)]
+    async fn create_initial_node_state(&self) -> eyre::Result<StateSender> {
+        let genesis_info = {
+            async {
+                self.client
+                    .clone()
+                    .get_genesis_info_with_retry()
+                    .await
+                    .wrap_err("failed getting genesis info")
+            }
+        };
+        let commitment_state = {
+            async {
+                self.client
+                    .clone()
+                    .get_commitment_state_with_retry()
+                    .await
+                    .wrap_err("failed getting commitment state")
+            }
+        };
+        let (genesis_info, commitment_state) = tokio::try_join!(genesis_info, commitment_state)?;
+
+        let (state, _) = state::channel(
+            State::try_from_genesis_info_and_commitment_state(genesis_info, commitment_state)
+                .wrap_err(
+                    "failed to construct initial state gensis and commitment info received from \
+                     rollup",
+                )?,
+        );
+
+        self.metrics
+            .absolute_set_executed_firm_block_number(state.firm_number());
+        self.metrics
+            .absolute_set_executed_soft_block_number(state.soft_number());
+        info!(
+            initial_state = serde_json::to_string(&*state.get())
+                .expect("writing json to a string should not fail"),
+            "received genesis info from rollup",
+        );
+        Ok(state)
+    }
+}
+
+struct Initialized {
+    config: crate::Config,
+
+    /// The execution client driving the rollup.
+    client: Client,
 
     /// The channel of which this executor receives blocks for executing
     /// firm commitments.
-    /// Only set if `mode` is `FirmOnly` or `SoftAndFirm`.
-    firm_blocks: Option<mpsc::Receiver<Box<ReconstructedBlock>>>,
+    firm_blocks: mpsc::Receiver<Box<ReconstructedBlock>>,
 
     /// The channel of which this executor receives blocks for executing
     /// soft commitments.
-    /// Only set if `mode` is `SoftOnly` or `SoftAndFirm`.
-    soft_blocks: Option<channel::Receiver<FilteredSequencerBlock>>,
+    soft_blocks: mpsc::Receiver<FilteredSequencerBlock>,
 
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
@@ -244,43 +247,38 @@ pub(crate) struct Executor {
     /// without re-executing on top of the rollup node.
     blocks_pending_finalization: HashMap<u32, Block>,
 
-    /// The maximum permitted spread between firm and soft blocks.
-    max_spread: Option<usize>,
-
     metrics: &'static Metrics,
+
+    /// The tasks reading block data off Celestia or Sequencer.
+    reader_tasks: JoinMap<&'static str, eyre::Result<()>>,
+
+    /// The cancellation token specifically for signaling the `reader_tasks` to shut down.
+    reader_cancellation_token: CancellationToken,
 }
 
-impl Executor {
-    pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        select!(
+impl Initialized {
+    async fn run(mut self) -> eyre::Result<()> {
+        let reason = select!(
+            biased;
+
             () = self.shutdown.clone().cancelled_owned() => {
-                return report_exit(Ok(
-                    "received shutdown signal while initializing task; \
-                    aborting intialization and exiting"
-                ), "");
+                Ok("received shutdown signal")
             }
-            res = self.init() => {
-                res.wrap_err("initialization failed")?;
+
+            res = self.run_event_loop() => {
+                res
             }
         );
 
-        let reason = loop {
-            let spread_not_too_large = !self.is_spread_too_large();
-            if spread_not_too_large {
-                if let Some(channel) = self.soft_blocks.as_mut() {
-                    channel.fill_permits();
-                }
-            }
+        self.shutdown(reason).await
+    }
 
+    async fn run_event_loop(&mut self) -> eyre::Result<&'static str> {
+        loop {
             select!(
                 biased;
 
-                () = self.shutdown.cancelled() => {
-                    break Ok("received shutdown signal");
-                }
-
-                Some(block) = async { self.firm_blocks.as_mut().unwrap().recv().await },
-                              if self.firm_blocks.is_some() =>
+                Some(block) = self.firm_blocks.recv() =>
                 {
                     debug_span!("conductor::Executor::run_until_stopped").in_scope(||debug!(
                         block.height = %block.sequencer_height(),
@@ -292,8 +290,7 @@ impl Executor {
                     }
                 }
 
-                Some(block) = async { self.soft_blocks.as_mut().unwrap().recv().await },
-                              if self.soft_blocks.is_some() && spread_not_too_large =>
+                Some(block) = self.soft_blocks.recv(), if !self.is_spread_too_large() =>
                 {
                     debug_span!("conductor::Executor::run_until_stopped").in_scope(||debug!(
                         block.height = %block.height(),
@@ -304,53 +301,14 @@ impl Executor {
                         break Err(error).wrap_err("failed executing soft block");
                     }
                 }
-            );
-        };
 
-        // XXX: explicitly setting the message (usually implicitly set by tracing)
-        let message = "shutting down";
-        report_exit(reason, message)
-    }
+                Some((task, res)) = self.reader_tasks.join_next() => {
+                    break handle_task_exit(task, res);
+                }
 
-    /// Runs the init logic that needs to happen before [`Executor`] can enter its main loop.
-    #[instrument(skip_all, err)]
-    async fn init(&mut self) -> eyre::Result<()> {
-        self.set_initial_node_state()
-            .await
-            .wrap_err("failed setting initial rollup node state")?;
-
-        let max_spread: usize = self.calculate_max_spread();
-        self.max_spread.replace(max_spread);
-        if let Some(channel) = self.soft_blocks.as_mut() {
-            channel.set_capacity(max_spread);
-            info!(
-                max_spread,
-                "setting capacity of soft blocks channel to maximum permitted firm<>soft \
-                 commitment spread (this has no effect if conductor is set to perform soft-sync \
-                 only)"
+                else => break Ok("all channels are closed")
             );
         }
-
-        Ok(())
-    }
-
-    /// Calculates the maximum allowed spread between firm and soft commitments heights.
-    ///
-    /// The maximum allowed spread is taken as `max_spread = variance * 6`, where `variance`
-    /// is the `celestia_block_variance` as defined in the rollup node's genesis that this
-    /// executor/conductor talks to.
-    ///
-    /// The heuristic 6 is the largest number of Sequencer heights that will be found at
-    /// one Celestia height.
-    ///
-    /// # Panics
-    /// Panics if the `u32` underlying the celestia block variance tracked in the state could
-    /// not be converted to a `usize`. This should never happen on any reasonable architecture
-    /// that Conductor will run on.
-    fn calculate_max_spread(&self) -> usize {
-        usize::try_from(self.state.celestia_block_variance())
-            .expect("converting a u32 to usize should work on any architecture conductor runs on")
-            .saturating_mul(6)
     }
 
     /// Returns if the spread between firm and soft commitment heights in the tracked state is too
@@ -362,7 +320,7 @@ impl Executor {
     ///
     /// Panics if called before [`Executor::init`] because `max_spread` must be set.
     fn is_spread_too_large(&self) -> bool {
-        if self.firm_blocks.is_none() {
+        if !self.config.is_with_firm() {
             return false;
         }
         let (next_firm, next_soft) = {
@@ -372,12 +330,7 @@ impl Executor {
         };
 
         let is_too_far_ahead = usize::try_from(next_soft.saturating_sub(next_firm))
-            .map(|spread| {
-                spread
-                    >= self
-                        .max_spread
-                        .expect("executor must be initalized and this field set")
-            })
+            .map(|spread| spread >= self.state.calculate_max_spread())
             .unwrap_or(false);
 
         if is_too_far_ahead {
@@ -569,43 +522,6 @@ impl Executor {
     }
 
     #[instrument(skip_all, err)]
-    async fn set_initial_node_state(&mut self) -> eyre::Result<()> {
-        let genesis_info = {
-            async {
-                self.client
-                    .clone()
-                    .get_genesis_info_with_retry()
-                    .await
-                    .wrap_err("failed getting genesis info")
-            }
-        };
-        let commitment_state = {
-            async {
-                self.client
-                    .clone()
-                    .get_commitment_state_with_retry()
-                    .await
-                    .wrap_err("failed getting commitment state")
-            }
-        };
-        let (genesis_info, commitment_state) = tokio::try_join!(genesis_info, commitment_state)?;
-        self.state
-            .try_init(genesis_info, commitment_state)
-            .wrap_err("failed initializing state tracking")?;
-
-        self.metrics
-            .absolute_set_executed_firm_block_number(self.state.firm_number());
-        self.metrics
-            .absolute_set_executed_soft_block_number(self.state.soft_number());
-        info!(
-            initial_state = serde_json::to_string(&*self.state.get())
-                .expect("writing json to a string should not fail"),
-            "received genesis info from rollup",
-        );
-        Ok(())
-    }
-
-    #[instrument(skip_all, err)]
     async fn update_commitment_state(&mut self, update: Update) -> eyre::Result<()> {
         use Update::{
             OnlyFirm,
@@ -662,13 +578,46 @@ impl Executor {
         should_execute_firm_block(
             self.state.next_expected_firm_sequencer_height().value(),
             self.state.next_expected_soft_sequencer_height().value(),
-            self.mode,
+            self.config.execution_commit_level,
         )
+    }
+
+    #[instrument(skip_all, err)]
+    async fn shutdown(mut self, reason: eyre::Result<&'static str>) -> eyre::Result<()> {
+        info!("signaling all reader tasks to exit");
+        self.reader_cancellation_token.cancel();
+        while let Some((task, exit_status)) = self.reader_tasks.join_next().await {
+            match crate::utils::flatten(exit_status) {
+                Ok(()) => info!(task, "task exited"),
+                Err(error) => warn!(task, %error, "task exited with error"),
+            }
+        }
+        report_exit(reason, "shutting down")
+    }
+}
+
+/// Wraps a task result to explain why it exited.
+///
+/// Right now only the err-branch is populated because tasks should
+/// never exit. Still returns an `eyre::Result` to line up with the
+/// return type of [`Executor::run_until_stopped`].
+///
+/// Executor should `break handle_task_exit` immediately after calling
+/// this method.
+fn handle_task_exit(
+    task: &'static str,
+    res: Result<eyre::Result<()>, JoinError>,
+) -> eyre::Result<&'static str> {
+    match res {
+        Ok(Ok(())) => Err(eyre!("task `{task}` finished unexpectedly")),
+        Ok(Err(err)) => Err(err).wrap_err_with(|| format!("task `{task}` exited with error")),
+        Err(err) => Err(err).wrap_err_with(|| format!("task `{task}` panicked")),
     }
 }
 
 #[instrument(skip_all)]
 fn report_exit(reason: eyre::Result<&str>, message: &str) -> eyre::Result<()> {
+    // XXX: explicitly setting the message (usually implicitly set by tracing)
     match reason {
         Ok(reason) => {
             info!(%reason, message);

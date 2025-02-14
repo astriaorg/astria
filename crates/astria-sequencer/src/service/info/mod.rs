@@ -179,6 +179,7 @@ mod tests {
             transaction::v1::action::{
                 BridgeLock,
                 BridgeSudoChange,
+                BridgeTransfer,
                 BridgeUnlock,
                 FeeAssetChange,
                 FeeChange,
@@ -444,6 +445,10 @@ mod tests {
                 "base": 2,
                 "multiplier": 2
               },
+              "bridge_transfer": {
+                "base": 13,
+                "multiplier": 13
+              },
               "fee_asset_change": {
                 "base": 4,
                 "multiplier": 4
@@ -497,6 +502,9 @@ mod tests {
             .unwrap();
         state
             .put_fees(FeeComponents::<BridgeUnlock>::new(2, 2))
+            .unwrap();
+        state
+            .put_fees(FeeComponents::<BridgeTransfer>::new(13, 13))
             .unwrap();
         state
             .put_fees(FeeComponents::<BridgeSudoChange>::new(3, 3))

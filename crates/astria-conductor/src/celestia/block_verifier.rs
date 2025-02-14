@@ -531,11 +531,9 @@ mod tests {
             &tendermint::chain::Id::try_from("test-chain-g3ejvw").unwrap(),
         );
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("commit voting power is less than 2/3 of total voting power")
-        );
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("commit voting power is less than 2/3 of total voting power"));
     }
 }

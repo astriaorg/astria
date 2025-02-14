@@ -29,10 +29,12 @@ use tokio::{
 };
 use tower_abci::v038::Server;
 use tracing::{
+    debug,
     error,
     error_span,
     info,
     info_span,
+    instrument,
 };
 
 use crate::{
@@ -50,35 +52,79 @@ use crate::{
 
 pub struct Sequencer;
 
+struct RunningGrpcServer {
+    pub handle: JoinHandle<Result<(), tonic::transport::Error>>,
+    pub shutdown_tx: oneshot::Sender<()>,
+}
+
+struct RunningAbciServer {
+    pub handle: JoinHandle<()>,
+    pub shutdown_rx: oneshot::Receiver<()>,
+}
+
 impl Sequencer {
-    #[expect(clippy::missing_errors_doc, reason = "not a public function")]
-    pub async fn run_until_stopped(config: Config, metrics: &'static Metrics) -> Result<()> {
+    /// Builds and runs the sequencer until it is either stopped by a signal or an error occurs.
+    ///
+    /// # Errors
+    /// Returns an error in the following cases:
+    /// - Database file does not exist, or cannot be loaded into storage
+    /// - The app fails to initialize
+    /// - Info service fails to initialize
+    /// - The server builder fails to return a server
+    /// - The gRPC address cannot be parsed
+    /// - The gRPC server fails to exit properly
+    pub async fn spawn(config: Config, metrics: &'static Metrics) -> Result<()> {
+        let mut signals = spawn_signal_handler();
+        let initialize_fut = Self::initialize(config, metrics);
+        select! {
+            _ = signals.stop_rx.changed() => {
+                info_span!("initialize").in_scope(|| info!("shutting down sequencer"));
+                Ok(())
+            }
+
+            result = initialize_fut => {
+                let (grpc_server, abci_server) = result?;
+                Self::run_until_stopped(abci_server, grpc_server, &mut signals).await
+            }
+        }
+    }
+
+    async fn run_until_stopped(
+        abci_server: RunningAbciServer,
+        grpc_server: RunningGrpcServer,
+        signals: &mut SignalReceiver,
+    ) -> Result<()> {
+        select! {
+            _ = signals.stop_rx.changed() => {
+                info_span!("run_until_stopped").in_scope(|| info!("shutting down sequencer"));
+            }
+
+            _ = abci_server.shutdown_rx => {
+                info_span!("run_until_stopped").in_scope(|| error!("ABCI server task exited, this shouldn't happen"));
+            }
+        }
+
+        grpc_server
+            .shutdown_tx
+            .send(())
+            .map_err(|()| eyre!("failed to send shutdown signal to grpc server"))?;
+        grpc_server
+            .handle
+            .await
+            .wrap_err("grpc server task failed")?
+            .wrap_err("grpc server failed")?;
+        abci_server.handle.abort();
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    async fn initialize(
+        config: Config,
+        metrics: &'static Metrics,
+    ) -> Result<(RunningGrpcServer, RunningAbciServer)> {
         cnidarium::register_metrics();
         register_histogram_global("cnidarium_get_raw_duration_seconds");
         register_histogram_global("cnidarium_nonverifiable_get_raw_duration_seconds");
-        let span = info_span!("Sequencer::run_until_stopped");
-
-        if config
-            .db_filepath
-            .try_exists()
-            .context("failed checking for existence of db storage file")?
-        {
-            span.in_scope(|| {
-                info!(
-                    path = %config.db_filepath.display(),
-                    "opening storage db"
-                );
-            });
-        } else {
-            span.in_scope(|| {
-                info!(
-                    path = %config.db_filepath.display(),
-                    "creating storage db"
-                );
-            });
-        }
-
-        let mut signals = spawn_signal_handler();
 
         let substore_prefixes = vec![penumbra_ibc::IBC_SUBSTORE_PREFIX];
 
@@ -101,44 +147,35 @@ impl Sequencer {
 
         let mempool_service = service::Mempool::new(storage.clone(), mempool.clone(), metrics);
 
-        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
-        let (server_exit_tx, server_exit_rx) = tokio::sync::oneshot::channel();
+        let (grpc_shutdown_tx, grpc_shutdown_rx) = tokio::sync::oneshot::channel();
+        let (abci_shutdown_tx, abci_shutdown_rx) = tokio::sync::oneshot::channel();
 
         let grpc_addr = config
             .grpc_addr
             .parse()
             .wrap_err("failed to parse grpc_addr address")?;
-        let grpc_server_handle = start_grpc_server(&storage, mempool, grpc_addr, shutdown_rx);
+        let grpc_server_handle = start_grpc_server(&storage, mempool, grpc_addr, grpc_shutdown_rx);
 
-        span.in_scope(|| info!(%config.abci_listen_url, "starting abci sequencer"));
+        debug!(config.abci_listen_url, "starting sequencer");
         let abci_server_handle = start_abci_server(
             &storage,
             app,
             mempool_service,
             config.abci_listen_url,
-            server_exit_tx,
+            abci_shutdown_tx,
         )
-        .wrap_err("failed to start ABCI server")?;
+            .wrap_err("failed to start ABCI server")?;
 
-        select! {
-            _ = signals.stop_rx.changed() => {
-                span.in_scope(|| info!("shutting down sequencer"));
-            }
+        let grpc_server = RunningGrpcServer {
+            handle: grpc_server_handle,
+            shutdown_tx: grpc_shutdown_tx,
+        };
+        let abci_server = RunningAbciServer {
+            handle: abci_server_handle,
+            shutdown_rx: abci_shutdown_rx,
+        };
 
-            _ = server_exit_rx => {
-                span.in_scope(|| error!("ABCI server task exited, this shouldn't happen"));
-            }
-        }
-
-        shutdown_tx
-            .send(())
-            .map_err(|()| eyre!("failed to send shutdown signal to grpc server"))?;
-        grpc_server_handle
-            .await
-            .wrap_err("grpc server task failed")?
-            .wrap_err("grpc server failed")?;
-        abci_server_handle.abort();
-        Ok(())
+        Ok((grpc_server, abci_server))
     }
 }
 
@@ -195,7 +232,7 @@ fn start_abci_server(
     app: App,
     mempool_service: service::Mempool,
     listen_url: AbciListenUrl,
-    server_exit_tx: oneshot::Sender<()>,
+    abci_shutdown_tx: oneshot::Sender<()>,
 ) -> eyre::Result<JoinHandle<()>> {
     let consensus_service = tower::ServiceBuilder::new()
         .layer(request_span::layer(|req: &ConsensusRequest| {
@@ -232,7 +269,7 @@ fn start_abci_server(
                     .in_scope(|| error!(err = e.as_ref(), "ABCI server exited with error"));
             }
         }
-        let _ = server_exit_tx.send(());
+        let _ = abci_shutdown_tx.send(());
     });
 
     Ok(server_handle)
