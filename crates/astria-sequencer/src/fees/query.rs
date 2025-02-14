@@ -79,6 +79,7 @@ use crate::{
         FeeHandler,
         StateReadExt as _,
     },
+    mempool::Mempool,
     storage::StoredValue,
 };
 
@@ -116,6 +117,7 @@ async fn get_allowed_fee_assets<S: StateRead>(state: &S) -> Vec<Denom> {
 #[instrument(skip_all)]
 pub(crate) async fn allowed_fee_assets_request(
     storage: Storage,
+    _mempool: Mempool,
     request: request::Query,
     _params: Vec<(String, String)>,
 ) -> response::Query {
@@ -161,6 +163,7 @@ pub(crate) async fn allowed_fee_assets_request(
 
 pub(crate) async fn components(
     storage: Storage,
+    _mempool: Mempool,
     request: request::Query,
     _params: Vec<(String, String)>,
 ) -> response::Query {
@@ -199,6 +202,7 @@ pub(crate) async fn components(
 
 pub(crate) async fn transaction_fee_request(
     storage: Storage,
+    _mempool: Mempool,
     request: request::Query,
     _params: Vec<(String, String)>,
 ) -> response::Query {

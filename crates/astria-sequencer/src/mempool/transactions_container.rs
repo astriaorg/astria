@@ -11,7 +11,10 @@ use std::{
 };
 
 use astria_core::{
-    primitive::v1::asset::IbcPrefixed,
+    primitive::v1::{
+        asset::IbcPrefixed,
+        TransactionId,
+    },
     protocol::transaction::v1::{
         action::group::Group,
         Transaction,
@@ -489,7 +492,6 @@ pub(super) trait TransactionsForAccount: Default {
             .collect()
     }
 
-    #[cfg(test)]
     fn contains_tx(&self, tx_hash: &[u8; 32]) -> bool {
         self.txs().values().any(|ttx| ttx.tx_hash == *tx_hash)
     }
@@ -570,6 +572,13 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
         T: 'a,
     {
         self.txs().keys()
+    }
+
+    /// Returns true if the given transaction ID is contained within this transaction container.
+    fn contains(&self, tx_id: &TransactionId) -> bool {
+        self.txs()
+            .values()
+            .any(|account_txs| account_txs.contains_tx(&tx_id.get()))
     }
 
     /// Recosts transactions for an account.

@@ -144,13 +144,11 @@ async fn submit_transaction(
         .await
         .wrap_err("failed to submit transaction")?;
 
-    let tx_response = client.wait_for_tx_inclusion(res.hash).await;
-
     ensure!(res.code.is_ok(), "failed to check tx: {}", res.log);
-    ensure!(
-        tx_response.tx_result.code.is_ok(),
-        "failed to execute tx: {}",
-        tx_response.tx_result.log
-    );
+
+    let tx_response = client
+        .confirm_tx_inclusion(res.hash)
+        .await
+        .wrap_err("failed to confirm transaction inclusion")?;
     Ok(tx_response)
 }

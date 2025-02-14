@@ -48,6 +48,8 @@ use tendermint::abci::{
     response,
 };
 
+use crate::mempool::Mempool;
+
 #[derive(Debug, thiserror::Error)]
 #[error("`{route}` is an invalid route")]
 pub(crate) struct InsertError {
@@ -106,10 +108,11 @@ impl BoxedAbciQueryHandler {
     pub(super) async fn call(
         self,
         storage: Storage,
+        mempool: Mempool,
         request: request::Query,
         params: Vec<(String, String)>,
     ) -> response::Query {
-        self.0.call(storage, request, params).await
+        self.0.call(storage, mempool, request, params).await
     }
 }
 
@@ -125,6 +128,7 @@ pub(super) trait ErasedAbciQueryHandler: Send {
     fn call(
         self: Box<Self>,
         storage: Storage,
+        mempool: Mempool,
         request: request::Query,
         params: Vec<(String, String)>,
     ) -> Pin<Box<dyn Future<Output = response::Query> + Send>>;
@@ -156,10 +160,11 @@ where
     fn call(
         self: Box<Self>,
         storage: Storage,
+        mempool: Mempool,
         request: request::Query,
         params: Vec<(String, String)>,
     ) -> Pin<Box<dyn Future<Output = response::Query> + Send>> {
-        self.handler.call(storage, request, params)
+        self.handler.call(storage, mempool, request, params)
     }
 }
 
@@ -167,6 +172,7 @@ pub(super) trait AbciQueryHandler: Clone + Send + Sized + 'static {
     fn call(
         self,
         storage: Storage,
+        mempool: Mempool,
         request: request::Query,
         params: Vec<(String, String)>,
     ) -> Pin<Box<dyn Future<Output = response::Query> + Send>>;
@@ -174,15 +180,19 @@ pub(super) trait AbciQueryHandler: Clone + Send + Sized + 'static {
 
 impl<F, Fut> AbciQueryHandler for F
 where
-    F: FnOnce(Storage, request::Query, Vec<(String, String)>) -> Fut + Clone + Send + 'static,
+    F: FnOnce(Storage, Mempool, request::Query, Vec<(String, String)>) -> Fut
+        + Clone
+        + Send
+        + 'static,
     Fut: Future<Output = response::Query> + Send,
 {
     fn call(
         self,
         storage: Storage,
+        mempool: Mempool,
         request: request::Query,
         params: Vec<(String, String)>,
     ) -> Pin<Box<dyn Future<Output = response::Query> + Send>> {
-        Box::pin(async move { self(storage, request, params).await })
+        Box::pin(async move { self(storage, mempool, request, params).await })
     }
 }

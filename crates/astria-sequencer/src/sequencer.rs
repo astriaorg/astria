@@ -150,8 +150,8 @@ impl Sequencer {
                 async move { service::Consensus::new(storage, app, queue).run().await }
             }));
         let mempool_service = service::Mempool::new(storage.clone(), mempool.clone(), metrics);
-        let info_service =
-            service::Info::new(storage.clone()).wrap_err("failed initializing info service")?;
+        let info_service = service::Info::new(storage.clone(), mempool.clone())
+            .wrap_err("failed initializing info service")?;
         let snapshot_service = service::Snapshot;
 
         let abci_server = Server::builder()
