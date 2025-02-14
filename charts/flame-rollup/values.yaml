@@ -11,7 +11,7 @@ images:
     repo: ghcr.io/astriaorg/flame
     pullPolicy: IfNotPresent
     tag: sha-457e1f9
-    devTag: sha-457e1f9
+    devTag: latest
   conductor:
     repo: ghcr.io/astriaorg/conductor
     pullPolicy: IfNotPresent
