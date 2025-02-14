@@ -1,4 +1,5 @@
 use std::{
+    cmp::max,
     sync::LazyLock,
     time::Duration,
 };
@@ -13,16 +14,16 @@ use astria_conductor::{
 use astria_core::{
     brotli::compress_bytes,
     generated::astria::{
-        execution::v1::{
-            Block,
-            CommitmentState,
-            GenesisInfo,
-        },
+        execution::v1::GenesisInfo,
         sequencerblock::v1::FilteredSequencerBlock,
     },
     primitive::v1::RollupId,
 };
 use astria_grpc_mock::response::error_response;
+use base64::{
+    prelude::BASE64_STANDARD,
+    Engine as _,
+};
 use bytes::Bytes;
 use celestia_types::{
     nmt::Namespace,
@@ -111,12 +112,25 @@ pub async fn spawn_conductor(execution_commit_level: CommitLevel) -> TestConduct
         conductor.spawn()
     };
 
+    let state = TestRollupState {
+        soft_initializer: 1,
+        firm_initializer: 1,
+        firm_number: 0,
+    };
+
     TestConductor {
         conductor,
         mock_grpc,
         mock_http,
         metrics_handle,
+        state,
     }
+}
+
+struct TestRollupState {
+    soft_initializer: u8,
+    firm_initializer: u8,
+    firm_number: u32,
 }
 
 pub struct TestConductor {
@@ -124,6 +138,7 @@ pub struct TestConductor {
     pub mock_grpc: MockGrpc,
     pub mock_http: wiremock::MockServer,
     pub metrics_handle: metrics::Handle,
+    state: TestRollupState,
 }
 
 impl Drop for TestConductor {
@@ -150,6 +165,11 @@ impl Drop for TestConductor {
 }
 
 impl TestConductor {
+    pub fn put_rollup_state_hash_initializers(&mut self, firm: u8, soft: u8) {
+        self.state.firm_initializer = firm;
+        self.state.soft_initializer = soft;
+    }
+
     pub async fn mount_abci_info(&self, latest_block_height: u32) {
         use wiremock::{
             matchers::body_partial_json,
@@ -317,8 +337,28 @@ impl TestConductor {
         .await;
     }
 
-    pub async fn mount_get_commitment_state(&self, commitment_state: CommitmentState) {
+    pub async fn mount_get_commitment_state(
+        &mut self,
+        firm_number: u32,
+        soft_number: u32,
+        base_celestia_height: u64,
+    ) {
         use astria_core::generated::astria::execution::v1::GetCommitmentStateRequest;
+
+        self.state.firm_number = firm_number;
+        let commitment_state = commitment_state!(
+            firm: (
+                number: firm_number,
+                hash: [self.state.firm_initializer; 64],
+                parent: [self.state.firm_initializer.saturating_sub(1); 64],
+            ),
+            soft: (
+                number: soft_number,
+                hash: [self.state.soft_initializer; 64],
+                parent: [self.state.soft_initializer.saturating_sub(1); 64],
+            ),
+            base_celestia_height: base_celestia_height,
+        );
 
         astria_grpc_mock::Mock::for_rpc_given(
             "get_commitment_state",
@@ -332,20 +372,32 @@ impl TestConductor {
         .await;
     }
 
-    pub async fn mount_execute_block<S: serde::Serialize>(
+    pub async fn mount_execute_block(
         &self,
         mock_name: Option<&str>,
-        expected_pbjson: S,
-        response: Block,
+        number: u32,
     ) -> astria_grpc_mock::MockGuard {
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
             response::constant_response,
             Mock,
         };
-        let mut mock =
-            Mock::for_rpc_given("execute_block", message_partial_pbjson(&expected_pbjson))
-                .respond_with(constant_response(response));
+
+        let parent_initializer = max(self.state.soft_initializer, self.state.firm_initializer);
+        let response = block!(
+            number: number,
+            hash: [parent_initializer.saturating_add(1); 64],
+            parent: [parent_initializer; 64],
+        );
+
+        let mut mock = Mock::for_rpc_given(
+            "execute_block",
+            message_partial_pbjson(&json!({
+                "prevBlockHash": BASE64_STANDARD.encode([parent_initializer; 64]),
+                "transactions": [{"sequencedData": BASE64_STANDARD.encode(data())}],
+            })),
+        )
+        .respond_with(constant_response(response));
         if let Some(name) = mock_name {
             mock = mock.with_name(name);
         }
@@ -376,9 +428,11 @@ impl TestConductor {
     }
 
     pub async fn mount_update_commitment_state(
-        &self,
+        &mut self,
         mock_name: Option<&str>,
-        commitment_state: CommitmentState,
+        number: u32,
+        is_with_firm: bool,
+        base_celestia_height: u64,
         expected_calls: u64,
     ) -> astria_grpc_mock::MockGuard {
         use astria_core::generated::astria::execution::v1::UpdateCommitmentStateRequest;
@@ -387,6 +441,32 @@ impl TestConductor {
             response::constant_response,
             Mock,
         };
+
+        // If this is a firm commitment update, we want to match the soft info to firm. If not,
+        // we leave the firm info as is.
+        let (firm_number, soft_initializer) = if is_with_firm {
+            self.state.firm_number = number;
+            self.state.firm_initializer = self.state.firm_initializer.saturating_add(1);
+            (number, self.state.firm_initializer) // Set soft initializer to firm initializer
+        } else {
+            self.state.soft_initializer = self.state.soft_initializer.saturating_add(1);
+            (self.state.firm_number, self.state.soft_initializer)
+        };
+
+        let commitment_state = commitment_state!(
+            firm: (
+                number: firm_number,
+                hash: [self.state.firm_initializer; 64],
+                parent: [self.state.firm_initializer.saturating_sub(1); 64],
+            ),
+            soft: (
+                number: number,
+                hash: [soft_initializer; 64],
+                parent: [soft_initializer.saturating_sub(1); 64],
+            ),
+            base_celestia_height: base_celestia_height,
+        );
+
         let mut mock = Mock::for_rpc_given(
             "update_commitment_state",
             message_partial_pbjson(&UpdateCommitmentStateRequest {

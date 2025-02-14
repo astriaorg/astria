@@ -31,13 +31,13 @@ use crate::{
     mount_get_filtered_sequencer_block,
     mount_get_genesis_info,
     mount_sequencer_genesis,
-    mount_update_commitment_state,
+    mount_soft_update_commitment_state,
     SEQUENCER_CHAIN_ID,
 };
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn simple() {
-    let test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
+    let mut test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
 
     mount_get_genesis_info!(
         test_conductor,
@@ -47,16 +47,8 @@ async fn simple() {
 
     mount_get_commitment_state!(
         test_conductor,
-        firm: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
-        soft: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
+        firm_number: 1,
+        soft_number: 1,
         base_celestia_height: 1,
     );
 
@@ -75,22 +67,11 @@ async fn simple() {
     let execute_block = mount_executed_block!(
         test_conductor,
         number: 2,
-        hash: [2; 64],
-        parent: [1; 64],
     );
 
-    let update_commitment_state = mount_update_commitment_state!(
+    let update_commitment_state = mount_soft_update_commitment_state!(
         test_conductor,
-        firm: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
-        soft: (
-            number: 2,
-            hash: [2; 64],
-            parent: [1; 64],
-        ),
+        number: 2,
         base_celestia_height: 1,
     );
 
@@ -110,7 +91,7 @@ async fn simple() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn submits_two_heights_in_succession() {
-    let test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
+    let mut test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
 
     mount_get_genesis_info!(
         test_conductor,
@@ -120,16 +101,8 @@ async fn submits_two_heights_in_succession() {
 
     mount_get_commitment_state!(
         test_conductor,
-        firm: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
-        soft: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
+        firm_number: 1,
+        soft_number: 1,
         base_celestia_height: 1,
     );
 
@@ -154,23 +127,12 @@ async fn submits_two_heights_in_succession() {
         test_conductor,
         mock_name: "first_execute",
         number: 2,
-        hash: [2; 64],
-        parent: [1; 64],
     );
 
-    let update_commitment_state_number_2 = mount_update_commitment_state!(
+    let update_commitment_state_number_2 = mount_soft_update_commitment_state!(
         test_conductor,
         mock_name: "first_update",
-        firm: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
-        soft: (
-            number: 2,
-            hash: [2; 64],
-            parent: [1; 64],
-        ),
+        number: 2,
         base_celestia_height: 1,
     );
 
@@ -178,23 +140,12 @@ async fn submits_two_heights_in_succession() {
         test_conductor,
         mock_name: "second_execute",
         number: 3,
-        hash: [3; 64],
-        parent: [2; 64],
     );
 
-    let update_commitment_state_number_3 = mount_update_commitment_state!(
+    let update_commitment_state_number_3 = mount_soft_update_commitment_state!(
         test_conductor,
         mock_name: "second_update",
-        firm: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
-        soft: (
-            number: 3,
-            hash: [3; 64],
-            parent: [2; 64],
-        ),
+        number: 3,
         base_celestia_height: 1,
     );
 
@@ -216,7 +167,7 @@ async fn submits_two_heights_in_succession() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn skips_already_executed_heights() {
-    let test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
+    let mut test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
 
     mount_get_genesis_info!(
         test_conductor,
@@ -226,16 +177,8 @@ async fn skips_already_executed_heights() {
 
     mount_get_commitment_state!(
         test_conductor,
-        firm: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
-        soft: (
-            number: 5,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
+        firm_number: 1,
+        soft_number: 5,
         base_celestia_height: 1,
     );
 
@@ -254,22 +197,11 @@ async fn skips_already_executed_heights() {
     let execute_block = mount_executed_block!(
         test_conductor,
         number: 6,
-        hash: [2; 64],
-        parent: [1; 64],
     );
 
-    let update_commitment_state = mount_update_commitment_state!(
+    let update_commitment_state = mount_soft_update_commitment_state!(
         test_conductor,
-        firm: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
-        soft: (
-            number: 6,
-            hash: [2; 64],
-            parent: [1; 64],
-        ),
+        number: 6,
         base_celestia_height: 1,
     );
 
@@ -289,7 +221,7 @@ async fn skips_already_executed_heights() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn requests_from_later_genesis_height() {
-    let test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
+    let mut test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
 
     mount_get_genesis_info!(
         test_conductor,
@@ -299,16 +231,8 @@ async fn requests_from_later_genesis_height() {
 
     mount_get_commitment_state!(
         test_conductor,
-        firm: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
-        soft: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
+        firm_number: 1,
+        soft_number: 1,
         base_celestia_height: 1,
     );
 
@@ -327,23 +251,12 @@ async fn requests_from_later_genesis_height() {
     let execute_block = mount_executed_block!(
         test_conductor,
         number: 2,
-        hash: [2; 64],
-        parent: [1; 64],
     );
 
-    let update_commitment_state = mount_update_commitment_state!(
+    let update_commitment_state = mount_soft_update_commitment_state!(
         test_conductor,
-        firm: (
-            number: 1,
-            hash: [1; 64],
-            parent: [0; 64],
-        ),
-        soft: (
-            number: 2,
-            hash: [2; 64],
-            parent: [1; 64],
-        ),
-        base_celestia_height: 1
+        number: 2,
+        base_celestia_height: 1,
     );
 
     timeout(
