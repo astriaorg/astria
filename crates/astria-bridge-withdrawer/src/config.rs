@@ -18,8 +18,17 @@ pub struct Config {
     pub sequencer_cometbft_endpoint: String,
     // The chain id of the sequencer chain.
     pub sequencer_chain_id: String,
+    // Set to true to enable frost threshold signing.
+    pub frost_threshold_signing_enabled: bool,
     // The path to the private key used to sign transactions submitted to the sequencer.
+    // Only used if `frost_threshold_signing_enabled` is false.
     pub sequencer_key_path: String,
+    // The minimum number of frost participants required to sign a transaction.
+    pub frost_min_signers: usize,
+    // The path to the json-encoded frost public key package.
+    pub frost_public_key_package_path: String,
+    // The frost participant gRPC endpoints.
+    pub frost_participant_endpoints: Vec<String>,
     // The fee asset denomination to use for the bridge account's transactions.
     pub fee_asset_denomination: asset::Denom,
     // The asset denomination being withdrawn from the rollup.

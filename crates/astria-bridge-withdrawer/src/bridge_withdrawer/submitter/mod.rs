@@ -34,7 +34,6 @@ use sequencer_client::{
     SequencerClientExt,
     Transaction,
 };
-use signer::SequencerKey;
 use state::State;
 use tokio::{
     select,
@@ -61,7 +60,10 @@ use super::{
 use crate::metrics::Metrics;
 
 mod builder;
+pub(crate) mod frost_signer;
 pub(crate) mod signer;
+
+use crate::bridge_withdrawer::submitter::signer::Signer;
 
 pub(super) struct Submitter {
     shutdown_token: CancellationToken,
@@ -70,7 +72,7 @@ pub(super) struct Submitter {
     batches_rx: mpsc::Receiver<Batch>,
     sequencer_cometbft_client: sequencer_client::HttpClient,
     sequencer_grpc_client: SequencerServiceClient<Channel>,
-    signer: SequencerKey,
+    signer: Arc<dyn Signer>,
     metrics: &'static Metrics,
 }
 
@@ -178,7 +180,11 @@ impl Submitter {
             .wrap_err("failed to build unsigned transaction")?;
 
         // sign transaction
-        let signed = unsigned.sign(signer.signing_key());
+        // TODO: how to handle failure?
+        let signed = signer
+            .sign(unsigned)
+            .await
+            .wrap_err("failed to sign transaction")?;
         debug!(transaction_id = %&signed.id(), "signed transaction");
 
         // submit transaction and handle response
@@ -230,6 +236,39 @@ fn report_exit(reason: eyre::Result<&str>) {
             error!(%reason, "submitter shutting down");
         }
     }
+}
+
+#[instrument(name = "sign_tx", skip_all, err)]
+async fn sign_tx(signer: Arc<dyn Signer>, body: TransactionBody) -> eyre::Result<Transaction> {
+    let span = Span::current();
+    let retry_config = tryhard::RetryFutureConfig::new(1024)
+        .exponential_backoff(Duration::from_millis(200))
+        .max_delay(Duration::from_secs(60))
+        .on_retry(
+            |attempt, next_delay: Option<Duration>, err: &eyre::Report| {
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    parent: span.clone(),
+                    attempt,
+                    wait_duration,
+                    error = err.as_ref() as &dyn std::error::Error,
+                    "failed signingstart transaction body; retrying after backoff",
+                );
+                async move {}
+            },
+        );
+    let signed = tryhard::retry_fn(|| {
+        let body = body.clone();
+        let signer = signer.clone();
+        let span = info_span!(parent: span.clone(), "attempt sign");
+        async move { signer.sign(body).await }.instrument(span)
+    })
+    .with_config(retry_config)
+    .await
+    .wrap_err("failed to sign transaction after 1024 attempts")?;
+    Ok(signed)
 }
 
 /// Submits a transaction to the sequencer with exponential backoff.
