@@ -29,6 +29,7 @@ use tokio::{
 use tracing::{
     error,
     instrument,
+    warn,
     Level,
 };
 pub(crate) use transactions_container::InsertionError;
@@ -58,7 +59,7 @@ const TX_TTL: Duration = Duration::from_secs(240);
 const MAX_PARKED_TXS_PER_ACCOUNT: usize = 15;
 /// Max number of transactions to keep in the removal cache. Should be larger than the max number of
 /// transactions allowed in the cometBFT mempool.
-const REMOVAL_CACHE_SIZE: usize = 4096;
+const REMOVAL_CACHE_SIZE: usize = 50_000;
 
 /// `RemovalCache` is used to signal to `CometBFT` that a
 /// transaction can be removed from the `CometBFT` mempool.
@@ -95,12 +96,21 @@ impl RemovalCache {
         };
 
         if self.remove_queue.len() == usize::from(self.max_size) {
-            // make space for the new transaction by removing the oldest transaction
+            // This should not happen if `REMOVAL_CACHE_SIZE` is >= CometBFT's configured mempool
+            // size.
+            //
+            // Make space for the new transaction by removing the oldest transaction.
             let removed_tx = self
                 .remove_queue
                 .pop_front()
                 .expect("cache should contain elements");
-            // remove transaction from cache if it is present
+            warn!(
+                tx_hash = %telemetry::display::hex(&removed_tx),
+                removal_cache_size = REMOVAL_CACHE_SIZE,
+                "popped transaction from appside mempool removal cache, CometBFT will not remove \
+                this transaction from its mempool - removal cache size possibly too low"
+            );
+            // Remove transaction from cache if it is present.
             self.cache.remove(&removed_tx);
         }
         self.remove_queue.push_back(tx_hash);
