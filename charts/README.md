@@ -196,6 +196,22 @@ working both up and down the stack.
 > just ibc-test delete
 ```
 
+## Running an Auctioneer smoke test
+
+You can run a smoke test which tests the full auctioneer functionality end to end. 
+
+1. The bid is streamed from the flame node to the auctioneer node
+2. The auctioneer node wraps the winning bid in an allocation and sends it to the sequencer.
+3. The sequencer node includes the allocation in a block
+4. The flame node reads the allocation and places the winning tx at the top of the block
+
+```
+> just deploy cluster
+> just auctioneer-test deploy
+> just auctioneer-test run
+> just auctioneer-test delete
+```
+
 ## Examining Deployments
 
 [k9s](https://k9scli.io/) is a useful utility for inspecting deployed
