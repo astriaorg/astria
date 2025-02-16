@@ -1,4 +1,5 @@
 mod ibc-test
+mod auctioneer-test
 
 ##############################################
 ## Deploying and Running using Helm and K8s ##
