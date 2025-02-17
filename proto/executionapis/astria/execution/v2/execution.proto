@@ -6,13 +6,21 @@ import "astria/primitive/v1/types.proto";
 import "astria/sequencerblock/v1/block.proto";
 import "google/protobuf/timestamp.proto";
 
-// SequencerInfo contains the information needed to map sequencer block height
+// Used in `GetSequencerInfoRequest` to obtain the corresponding sequencer info
+// for the rollup block number with the given commitment type.
+enum CommitmentType {
+  COMMITMENT_TYPE_UNSPECIFIED = 0;
+  COMMITMENT_TYPE_SOFT = 1;
+  COMMITMENT_TYPE_FIRM = 2;
+}
+
+// ExecutionConfig contains the information needed to map sequencer block height
 // to rollup block number for driving execution.
 //
 // This information is used to determine which sequencer & celestia data to
 // use from the Astria & Celestia networks, as well as define shutdown/restart
 // behavior of the Conductor.
-message SequencerInfo {
+message ExecutionConfig {
   // The rollup_id is the unique identifier for the rollup chain.
   astria.primitive.v1.RollupId rollup_id = 1;
   // The first rollup block number to be executed. This is mapped to `sequencer_first_block_height`.
@@ -22,26 +30,44 @@ message SequencerInfo {
   // info (restarting) or shutting down (determined by `halt_at_rollup_stop_number`).
   // If 0, no stop block will be set.
   uint64 rollup_stop_block_number = 3;
-  // Requests that Conductor halt at `rollup_stop_block_number` instead of re-fetching
-  // the sequencer info and continuing execution. This is a no-op if `rollup_stop_block_number`
-  // is set to 0.
-  bool rollup_halt_at_stop_number = 4;
   // The ID of the Astria Sequencer network to retrieve Sequencer blocks from.
   // Conductor implementations should verify that the Sequencer network they are
   // connected to have this chain ID (if fetching soft Sequencer blocks), and verify
   // that the Sequencer metadata blobs retrieved from Celestia contain this chain
   // ID (if extracting firm Sequencer blocks from Celestia blobs).
-  string sequencer_chain_id = 5;
+  string sequencer_chain_id = 4;
   // The first block height on the sequencer chain to use for rollup transactions.
   // This is mapped to `rollup_first_block_number`.
-  uint64 sequencer_first_block_height = 6;
+  uint64 sequencer_first_block_height = 5;
   // The ID of the Celestia network to retrieve blobs from.
   // Conductor implementations should verify that the Celestia network they are
   // connected to have this chain ID (if extracting firm Sequencer blocks from
   // Celestia blobs).
-  string celestia_chain_id = 7;
+  string celestia_chain_id = 6;
   // The allowed variance in celestia for sequencer blocks to have been posted.
-  uint64 celestia_block_variance = 8;
+  uint64 celestia_block_variance = 7;
+}
+
+// NewExecutionSessionRequest is used to create a new execution session on the
+// rollup.
+message NewExecutionSessionRequest {
+  CommitmentType execution_level = 1;
+}
+
+// ExecutionSession contains the information needed to drive the full execution
+// of a rollup chain in the rollup.
+//
+// The execution session is only valid for the execution config params with
+// which it was created. Once all blocks within the session have been executed,
+// the execution client must request a new session. The session_id is used to
+// to track which session is being used.
+message ExecutionSession {
+  // A UUID for the session.
+  string session_id = 1;
+  // The commitment state for executing client to start from.
+  CommitmentState commitment_state = 2;
+  // The configuration for the execution session.
+  ExecutionConfig execution_config = 3;
 }
 
 // The set of information which deterministic driver of block production
@@ -65,37 +91,9 @@ message BlockIdentifier {
   }
 }
 
-// Used to fetch the current `SequencerInfo` from the rollup.
-message GetSequencerInfoRequest {
-  // The commitment type that the sequencer info is being fetched for. If the commitment
-  // type is soft, the returned sequencer info should be based on the rollup's
-  // soft commitment height. If the commitment type is firm, the returned sequencer
-  // info should be based on the rollup's firm commitment height.
-  CommitmentType commitment_type = 1;
-}
-
-// Used in `GetSequencerInfoRequest` to obtain the corresponding sequencer info
-// for the rollup block number with the given commitment type.
-enum CommitmentType {
-  COMMITMENT_TYPE_UNSPECIFIED = 0;
-  COMMITMENT_TYPE_SOFT = 1;
-  COMMITMENT_TYPE_FIRM = 2;
-}
-
 // Used in GetBlock to find a single block.
 message GetBlockRequest {
   BlockIdentifier identifier = 1;
-}
-
-// Used in BatchGetBlocks, will find all or none based on the list of
-// identifiers.
-message BatchGetBlocksRequest {
-  repeated BlockIdentifier identifiers = 1;
-}
-
-// The list of blocks in response to BatchGetBlocks.
-message BatchGetBlocksResponse {
-  repeated Block blocks = 1;
 }
 
 // ExecuteBlockRequest contains all the information needed to create a new rollup
@@ -104,12 +102,14 @@ message BatchGetBlocksResponse {
 // This information comes from previous rollup blocks, as well as from sequencer
 // blocks.
 message ExecuteBlockRequest {
+  // The session within which the block is intended to be executed.
+  string session_id = 1;
   // The hash of previous block, which new block will be created on top of.
-  bytes prev_block_hash = 1;
+  bytes prev_block_hash = 2;
   // List of transactions to include in the new block.
-  repeated astria.sequencerblock.v1.RollupData transactions = 2;
+  repeated astria.sequencerblock.v1.RollupData transactions = 3;
   // Timestamp to be used for new block.
-  google.protobuf.Timestamp timestamp = 3;
+  google.protobuf.Timestamp timestamp = 4;
 }
 
 // The CommitmentState holds the block at each stage of sequencer commitment
@@ -135,7 +135,10 @@ message GetCommitmentStateRequest {}
 
 // The CommitmentState to set, must include complete state.
 message UpdateCommitmentStateRequest {
-  CommitmentState commitment_state = 1;
+  // The session which the commitment state is being updated within.
+  string session_id = 1;
+  // The new commitment state to set.
+  CommitmentState commitment_state = 2;
 }
 
 // ExecutionService is used to drive deterministic production of blocks.
@@ -146,14 +149,10 @@ message UpdateCommitmentStateRequest {
 service ExecutionService {
   // GetSequencerInfo returns the necessary information for mapping sequencer block
   // height to rollup block number.
-  rpc GetSequencerInfo(GetSequencerInfoRequest) returns (SequencerInfo);
+  rpc NewExecutionSession(NewExecutionSessionRequest) returns (ExecutionSession);
 
   // GetBlock will return a block given an identifier.
   rpc GetBlock(GetBlockRequest) returns (Block);
-
-  // BatchGetBlocks will return an array of Blocks given an array of block
-  // identifiers.
-  rpc BatchGetBlocks(BatchGetBlocksRequest) returns (BatchGetBlocksResponse);
 
   // ExecuteBlock is called to deterministically derive a rollup block from
   // filtered sequencer block information.
