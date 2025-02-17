@@ -76,8 +76,6 @@ modules:
         - ENUM_ZERO_VALUE_SUFFIX
         - FILE_LOWER_SNAKE_CASE
         - PACKAGE_VERSION_SUFFIX
-        - PACKAGE_NO_IMPORT_CYCLE
-        - STABLE_PACKAGE_NO_IMPORT_UNSTABLE
         - RPC_REQUEST_STANDARD_NAME
         - SERVICE_SUFFIX
       disallow_comment_ignores: true
