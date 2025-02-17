@@ -1,28 +1,3 @@
-/// The set of information which deterministic driver of block production
-/// must know about a given rollup Block
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Block {
-    /// The block number
-    #[prost(uint32, tag = "1")]
-    pub number: u32,
-    /// The hash of the block
-    #[prost(bytes = "bytes", tag = "2")]
-    pub hash: ::prost::bytes::Bytes,
-    /// The hash from the parent block
-    #[prost(bytes = "bytes", tag = "3")]
-    pub parent_block_hash: ::prost::bytes::Bytes,
-    /// Timestamp on the block, standardized to google protobuf standard.
-    #[prost(message, optional, tag = "4")]
-    pub timestamp: ::core::option::Option<::pbjson_types::Timestamp>,
-}
-impl ::prost::Name for Block {
-    const NAME: &'static str = "Block";
-    const PACKAGE: &'static str = "astria.execution.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.execution.v1.{}", Self::NAME)
-    }
-}
 /// Fields which are indexed for finding blocks on a blockchain.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -58,6 +33,31 @@ pub struct BatchGetBlocksRequest {
 }
 impl ::prost::Name for BatchGetBlocksRequest {
     const NAME: &'static str = "BatchGetBlocksRequest";
+    const PACKAGE: &'static str = "astria.execution.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v1.{}", Self::NAME)
+    }
+}
+/// The set of information which deterministic driver of block production
+/// must know about a given rollup Block
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Block {
+    /// The block number
+    #[prost(uint32, tag = "1")]
+    pub number: u32,
+    /// The hash of the block
+    #[prost(bytes = "bytes", tag = "2")]
+    pub hash: ::prost::bytes::Bytes,
+    /// The hash from the parent block
+    #[prost(bytes = "bytes", tag = "3")]
+    pub parent_block_hash: ::prost::bytes::Bytes,
+    /// Timestamp on the block, standardized to google protobuf standard.
+    #[prost(message, optional, tag = "4")]
+    pub timestamp: ::core::option::Option<::pbjson_types::Timestamp>,
+}
+impl ::prost::Name for Block {
+    const NAME: &'static str = "Block";
     const PACKAGE: &'static str = "astria.execution.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.execution.v1.{}", Self::NAME)

@@ -74,6 +74,33 @@ impl ::prost::Name for RollupData {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
     }
 }
+/// `RollupTransactions` are a sequence of opaque bytes together with a 32 byte
+/// identifier of that rollup.
+///
+/// The binary encoding is understood as an implementation detail of the
+/// services sending and receiving the transactions.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RollupTransactions {
+    /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
+    #[prost(message, optional, tag = "1")]
+    pub rollup_id: ::core::option::Option<super::super::primitive::v1::RollupId>,
+    /// The serialized bytes of the rollup data.
+    /// Each entry is a protobuf-encoded `RollupData` message.
+    #[prost(bytes = "bytes", repeated, tag = "2")]
+    pub transactions: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
+    /// The proof that these rollup transactions are included in sequencer block.
+    /// `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+    #[prost(message, optional, tag = "3")]
+    pub proof: ::core::option::Option<super::super::primitive::v1::Proof>,
+}
+impl ::prost::Name for RollupTransactions {
+    const NAME: &'static str = "RollupTransactions";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
+    }
+}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SequencerBlockHeader {
@@ -99,33 +126,6 @@ pub struct SequencerBlockHeader {
 }
 impl ::prost::Name for SequencerBlockHeader {
     const NAME: &'static str = "SequencerBlockHeader";
-    const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)
-    }
-}
-/// `RollupTransactions` are a sequence of opaque bytes together with a 32 byte
-/// identifier of that rollup.
-///
-/// The binary encoding is understood as an implementation detail of the
-/// services sending and receiving the transactions.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RollupTransactions {
-    /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
-    #[prost(message, optional, tag = "1")]
-    pub rollup_id: ::core::option::Option<super::super::primitive::v1::RollupId>,
-    /// The serialized bytes of the rollup data.
-    /// Each entry is a protobuf-encoded `RollupData` message.
-    #[prost(bytes = "bytes", repeated, tag = "2")]
-    pub transactions: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
-    /// The proof that these rollup transactions are included in sequencer block.
-    /// `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
-    #[prost(message, optional, tag = "3")]
-    pub proof: ::core::option::Option<super::super::primitive::v1::Proof>,
-}
-impl ::prost::Name for RollupTransactions {
-    const NAME: &'static str = "RollupTransactions";
     const PACKAGE: &'static str = "astria.sequencerblock.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1alpha1.{}", Self::NAME)

@@ -1,3 +1,35 @@
+/// `BridgeLock` represents a transaction that transfers
+/// funds from a sequencer account to a bridge account.
+///
+/// It's the same as a `Transfer` but with the added
+/// `destination_chain_address` field.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BridgeLock {
+    /// the address of the bridge account to transfer to
+    #[prost(message, optional, tag = "1")]
+    pub to: ::core::option::Option<super::super::super::primitive::v1::Address>,
+    /// the amount to transfer
+    #[prost(message, optional, tag = "2")]
+    pub amount: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    /// the asset to be transferred
+    #[prost(string, tag = "3")]
+    pub asset: ::prost::alloc::string::String,
+    /// the asset used to pay the transaction fee
+    #[prost(string, tag = "4")]
+    pub fee_asset: ::prost::alloc::string::String,
+    /// the address on the destination chain which
+    /// will receive the bridged funds
+    #[prost(string, tag = "5")]
+    pub destination_chain_address: ::prost::alloc::string::String,
+}
+impl ::prost::Name for BridgeLock {
+    const NAME: &'static str = "BridgeLock";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
+    }
+}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BridgeSudoChange {
@@ -69,38 +101,6 @@ pub struct BridgeUnlock {
 }
 impl ::prost::Name for BridgeUnlock {
     const NAME: &'static str = "BridgeUnlock";
-    const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
-    }
-}
-/// `BridgeLock` represents a transaction that transfers
-/// funds from a sequencer account to a bridge account.
-///
-/// It's the same as a `Transfer` but with the added
-/// `destination_chain_address` field.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct BridgeLock {
-    /// the address of the bridge account to transfer to
-    #[prost(message, optional, tag = "1")]
-    pub to: ::core::option::Option<super::super::super::primitive::v1::Address>,
-    /// the amount to transfer
-    #[prost(message, optional, tag = "2")]
-    pub amount: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
-    /// the asset to be transferred
-    #[prost(string, tag = "3")]
-    pub asset: ::prost::alloc::string::String,
-    /// the asset used to pay the transaction fee
-    #[prost(string, tag = "4")]
-    pub fee_asset: ::prost::alloc::string::String,
-    /// the address on the destination chain which
-    /// will receive the bridged funds
-    #[prost(string, tag = "5")]
-    pub destination_chain_address: ::prost::alloc::string::String,
-}
-impl ::prost::Name for BridgeLock {
-    const NAME: &'static str = "BridgeLock";
     const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
@@ -199,19 +199,6 @@ impl ::prost::Name for FeeChange {
         ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
     }
 }
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct IbcSudoChange {
-    #[prost(message, optional, tag = "1")]
-    pub new_address: ::core::option::Option<super::super::super::primitive::v1::Address>,
-}
-impl ::prost::Name for IbcSudoChange {
-    const NAME: &'static str = "IbcSudoChange";
-    const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
-    }
-}
 /// `IbcRelayerChange` represents a transaction that adds
 /// or removes an IBC relayer address.
 /// The bytes contained in each variant are the address to add or remove.
@@ -234,6 +221,19 @@ pub mod ibc_relayer_change {
 }
 impl ::prost::Name for IbcRelayerChange {
     const NAME: &'static str = "IbcRelayerChange";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct IbcSudoChange {
+    #[prost(message, optional, tag = "1")]
+    pub new_address: ::core::option::Option<super::super::super::primitive::v1::Address>,
+}
+impl ::prost::Name for IbcSudoChange {
+    const NAME: &'static str = "IbcSudoChange";
     const PACKAGE: &'static str = "astria.protocol.transaction.v1alpha1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transaction.v1alpha1.{}", Self::NAME)

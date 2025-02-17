@@ -1,3 +1,19 @@
+/// A `RollupId` is a unique identifier for a rollup chain.
+/// It must be 32 bytes long. It can be derived from a string
+/// using a sha256 hash.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RollupId {
+    #[prost(bytes = "bytes", tag = "1")]
+    pub inner: ::prost::bytes::Bytes,
+}
+impl ::prost::Name for RollupId {
+    const NAME: &'static str = "RollupId";
+    const PACKAGE: &'static str = "astria.primitive.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.primitive.v1.{}", Self::NAME)
+    }
+}
 /// An Astria `Address`.
 ///
 /// Astria addresses are bech32m encoded strings, with the data part being the
@@ -12,22 +28,6 @@ pub struct Address {
 }
 impl ::prost::Name for Address {
     const NAME: &'static str = "Address";
-    const PACKAGE: &'static str = "astria.primitive.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.primitive.v1.{}", Self::NAME)
-    }
-}
-/// A `RollupId` is a unique identifier for a rollup chain.
-/// It must be 32 bytes long. It can be derived from a string
-/// using a sha256 hash.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RollupId {
-    #[prost(bytes = "bytes", tag = "1")]
-    pub inner: ::prost::bytes::Bytes,
-}
-impl ::prost::Name for RollupId {
-    const NAME: &'static str = "RollupId";
     const PACKAGE: &'static str = "astria.primitive.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.primitive.v1.{}", Self::NAME)

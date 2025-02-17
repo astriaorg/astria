@@ -31,28 +31,6 @@ impl ::prost::Name for AddressPrefixes {
         ::prost::alloc::format!("astria.protocol.genesis.v1.{}", Self::NAME)
     }
 }
-/// IBC configuration data.
-#[derive(Copy)]
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct IbcParameters {
-    /// Whether IBC (forming connections, processing IBC packets) is enabled.
-    #[prost(bool, tag = "1")]
-    pub ibc_enabled: bool,
-    /// Whether inbound ICS-20 transfers are enabled
-    #[prost(bool, tag = "2")]
-    pub inbound_ics20_transfers_enabled: bool,
-    /// Whether outbound ICS-20 transfers are enabled
-    #[prost(bool, tag = "3")]
-    pub outbound_ics20_transfers_enabled: bool,
-}
-impl ::prost::Name for IbcParameters {
-    const NAME: &'static str = "IbcParameters";
-    const PACKAGE: &'static str = "astria.protocol.genesis.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.genesis.v1.{}", Self::NAME)
-    }
-}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GenesisFees {
@@ -115,6 +93,28 @@ pub struct GenesisFees {
 }
 impl ::prost::Name for GenesisFees {
     const NAME: &'static str = "GenesisFees";
+    const PACKAGE: &'static str = "astria.protocol.genesis.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.genesis.v1.{}", Self::NAME)
+    }
+}
+/// IBC configuration data.
+#[derive(Copy)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct IbcParameters {
+    /// Whether IBC (forming connections, processing IBC packets) is enabled.
+    #[prost(bool, tag = "1")]
+    pub ibc_enabled: bool,
+    /// Whether inbound ICS-20 transfers are enabled
+    #[prost(bool, tag = "2")]
+    pub inbound_ics20_transfers_enabled: bool,
+    /// Whether outbound ICS-20 transfers are enabled
+    #[prost(bool, tag = "3")]
+    pub outbound_ics20_transfers_enabled: bool,
+}
+impl ::prost::Name for IbcParameters {
+    const NAME: &'static str = "IbcParameters";
     const PACKAGE: &'static str = "astria.protocol.genesis.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.genesis.v1.{}", Self::NAME)
