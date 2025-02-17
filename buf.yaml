@@ -9,15 +9,12 @@ modules:
         - ENUM_ZERO_VALUE_SUFFIX
         - FILE_LOWER_SNAKE_CASE
         - PACKAGE_VERSION_SUFFIX
-        - PACKAGE_NO_IMPORT_CYCLE
-        - STABLE_PACKAGE_NO_IMPORT_UNSTABLE
         - RPC_REQUEST_STANDARD_NAME
         - SERVICE_SUFFIX
       disallow_comment_ignores: true
     breaking:
       use:
-        - WIRE_JSON
-        - RPC_NO_DELETE
+        - PACKAGE
       ignore_unstable_packages: true
   - path: proto/executionapis
     name: buf.build/astria/execution-apis
@@ -28,15 +25,12 @@ modules:
         - ENUM_ZERO_VALUE_SUFFIX
         - FILE_LOWER_SNAKE_CASE
         - PACKAGE_VERSION_SUFFIX
-        - PACKAGE_NO_IMPORT_CYCLE
-        - STABLE_PACKAGE_NO_IMPORT_UNSTABLE
         - RPC_REQUEST_STANDARD_NAME
         - SERVICE_SUFFIX
       disallow_comment_ignores: true
     breaking:
       use:
-        - WIRE_JSON
-        - RPC_NO_DELETE
+        - PACKAGE
       ignore_unstable_packages: true
   - path: proto/primitives
     name: buf.build/astria/primitives
@@ -47,8 +41,6 @@ modules:
         - ENUM_ZERO_VALUE_SUFFIX
         - FILE_LOWER_SNAKE_CASE
         - PACKAGE_VERSION_SUFFIX
-        - PACKAGE_NO_IMPORT_CYCLE
-        - STABLE_PACKAGE_NO_IMPORT_UNSTABLE
         - RPC_REQUEST_STANDARD_NAME
         - SERVICE_SUFFIX
       disallow_comment_ignores: true
@@ -65,8 +57,6 @@ modules:
         - ENUM_ZERO_VALUE_SUFFIX
         - FILE_LOWER_SNAKE_CASE
         - PACKAGE_VERSION_SUFFIX
-        - PACKAGE_NO_IMPORT_CYCLE
-        - STABLE_PACKAGE_NO_IMPORT_UNSTABLE
         - RPC_REQUEST_STANDARD_NAME
         - SERVICE_SUFFIX
       ignore_only:
@@ -75,8 +65,7 @@ modules:
       disallow_comment_ignores: true
     breaking:
       use:
-        - WIRE_JSON
-        - RPC_NO_DELETE
+        - PACKAGE
       ignore_unstable_packages: true
   - path: proto/sequencerblockapis
     name: buf.build/astria/sequencerblock-apis
@@ -94,7 +83,7 @@ modules:
       disallow_comment_ignores: true
     breaking:
       use:
-        - WIRE_JSON
+        - PACKAGE
       ignore_unstable_packages: true
   - path: proto/vendored
     name: buf.build/astria/vendored
