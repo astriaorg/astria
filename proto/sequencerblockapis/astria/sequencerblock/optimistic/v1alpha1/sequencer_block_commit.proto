@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package astria.sequencerblock.optimistic.v1alpha1;
+
+// Identifying metadata for blocks that have been successfully committed in the Sequencer.
+message SequencerBlockCommit {
+  // Height of the sequencer block that was committed.
+  uint64 height = 1;
+  // Hash of the sequencer block that was committed.
+  bytes block_hash = 2;
+}

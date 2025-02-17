@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package astria.sequencerblock.optimistic.v1alpha1;
+
+import "astria/sequencerblock/optimistic/v1alpha1/get_optimistic_block_stream_request.proto";
+import "astria/sequencerblock/optimistic/v1alpha1/get_optimistic_block_stream_response.proto";
+import "astria/sequencerblock/optimistic/v1alpha1/get_block_commitment_stream_request.proto";
+import "astria/sequencerblock/optimistic/v1alpha1/get_block_commitment_stream_response.proto";
+
+
+// The Sequencer will serve this to the aucitoneer
+service OptimisticBlockService {
+  // The Sequencer will stream the optimistic Sequencer block (filtered for the provided
+  // rollup id) to the Auctioneer.
+  rpc GetOptimisticBlockStream(GetOptimisticBlockStreamRequest) returns (stream GetOptimisticBlockStreamResponse);
+  // The Sequencer will stream the block commits to the Auctioneer.
+  rpc GetBlockCommitmentStream(GetBlockCommitmentStreamRequest) returns (stream GetBlockCommitmentStreamResponse);
+}
