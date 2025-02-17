@@ -2,11 +2,10 @@ syntax = "proto3";
 
 package astria.sequencerblock.optimistic.v1alpha1;
 
-import "astria/sequencerblock/optimistic/v1alpha1/get_optimistic_block_stream_request.proto";
-import "astria/sequencerblock/optimistic/v1alpha1/get_optimistic_block_stream_response.proto";
 import "astria/sequencerblock/optimistic/v1alpha1/get_block_commitment_stream_request.proto";
 import "astria/sequencerblock/optimistic/v1alpha1/get_block_commitment_stream_response.proto";
-
+import "astria/sequencerblock/optimistic/v1alpha1/get_optimistic_block_stream_request.proto";
+import "astria/sequencerblock/optimistic/v1alpha1/get_optimistic_block_stream_response.proto";
 
 // The Sequencer will serve this to the aucitoneer
 service OptimisticBlockService {
