@@ -34,7 +34,7 @@ images:
     repo: ghcr.io/astriaorg/sequencer
     pullPolicy: IfNotPresent
     tag: 1.0.0
-    devTag: local
+    devTag: latest
 
 moniker: ""
 genesis:

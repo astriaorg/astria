@@ -156,7 +156,7 @@ impl Sequencer {
             .wrap_err("failed to parse grpc_addr address")?;
         let grpc_server_handle = start_grpc_server(&storage, mempool, grpc_addr, grpc_shutdown_rx);
 
-        debug!(config.abci_listen_url, "starting sequencer");
+        debug!(%config.abci_listen_url, "starting sequencer");
         let abci_server_handle = start_abci_server(
             &storage,
             app,
