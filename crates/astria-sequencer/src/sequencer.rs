@@ -175,7 +175,7 @@ impl Sequencer {
             config.abci_listen_url,
             abci_shutdown_tx,
         )
-            .wrap_err("failed to start ABCI server")?;
+        .wrap_err("failed to start ABCI server")?;
 
         let grpc_server = RunningGrpcServer {
             handle: grpc_server_handle,
