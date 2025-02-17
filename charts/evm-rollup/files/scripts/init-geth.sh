@@ -9,9 +9,10 @@ if [ ! -d "$data_dir/" ]; then
 
   exec geth \
     {{- range $arg := .Values.config.geth.flags -}}
-    {{- if $arg.condition | default true -}}
+    {{- $noCondition := not (hasKey $arg "condition") }}
+    {{- if or ($noCondition) (eq (tpl $arg.condition $) "true") }}
     --{{ $arg.name }}{{ if $arg.value }}={{ tpl $arg.value $ }}{{ end }} \
-    {{ end }}
+    {{- end }}
     {{- end -}}
     init $home_dir/genesis.json
 elif ! cmp -s "/scripts/geth-genesis.json" "$home_dir/genesis.json"; then

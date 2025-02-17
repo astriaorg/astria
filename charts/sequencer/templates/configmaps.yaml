@@ -76,5 +76,6 @@ data:
   ASTRIA_SEQUENCER_LISTEN_ADDR: "127.0.0.1:{{ .Values.ports.sequencerABCI }}"
   {{- else }}
   ASTRIA_SEQUENCER_ABCI_LISTEN_URL: "{{ include "sequencer.abci_url" . }}"
+  ASTRIA_SEQUENCER_NO_OPTIMISTIC_BLOCKS: "{{ not .Values.sequencer.optimisticBlockApis.enabled }}"
   {{- end }}
 ---
