@@ -11,7 +11,7 @@ pub struct Block {
     pub hash: ::prost::bytes::Bytes,
     /// The hash from the parent block
     #[prost(bytes = "bytes", tag = "3")]
-    pub parent_block_hash: ::prost::bytes::Bytes,
+    pub parent_hash: ::prost::bytes::Bytes,
     /// Timestamp on the block, standardized to google protobuf standard.
     #[prost(message, optional, tag = "4")]
     pub timestamp: ::core::option::Option<::pbjson_types::Timestamp>,
@@ -120,7 +120,7 @@ pub struct ExecutionConfig {
     #[prost(message, optional, tag = "1")]
     pub rollup_id: ::core::option::Option<super::super::primitive::v1::RollupId>,
     /// The first rollup block number to be executed. This is mapped to `sequencer_first_block_height`.
-    /// The minimum first block number is 1.
+    /// The minimum first block number is 1, since 0 represents the genesis block.
     #[prost(uint64, tag = "2")]
     pub rollup_first_block_number: u64,
     /// The final rollup block number to execute before either re-fetching sequencer

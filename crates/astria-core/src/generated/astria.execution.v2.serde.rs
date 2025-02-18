@@ -12,7 +12,7 @@ impl serde::Serialize for Block {
         if !self.hash.is_empty() {
             len += 1;
         }
-        if !self.parent_block_hash.is_empty() {
+        if !self.parent_hash.is_empty() {
             len += 1;
         }
         if self.timestamp.is_some() {
@@ -27,9 +27,9 @@ impl serde::Serialize for Block {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("hash", pbjson::private::base64::encode(&self.hash).as_str())?;
         }
-        if !self.parent_block_hash.is_empty() {
+        if !self.parent_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("parentBlockHash", pbjson::private::base64::encode(&self.parent_block_hash).as_str())?;
+            struct_ser.serialize_field("parentHash", pbjson::private::base64::encode(&self.parent_hash).as_str())?;
         }
         if let Some(v) = self.timestamp.as_ref() {
             struct_ser.serialize_field("timestamp", v)?;
@@ -46,8 +46,8 @@ impl<'de> serde::Deserialize<'de> for Block {
         const FIELDS: &[&str] = &[
             "number",
             "hash",
-            "parent_block_hash",
-            "parentBlockHash",
+            "parent_hash",
+            "parentHash",
             "timestamp",
         ];
 
@@ -55,7 +55,7 @@ impl<'de> serde::Deserialize<'de> for Block {
         enum GeneratedField {
             Number,
             Hash,
-            ParentBlockHash,
+            ParentHash,
             Timestamp,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
@@ -80,7 +80,7 @@ impl<'de> serde::Deserialize<'de> for Block {
                         match value {
                             "number" => Ok(GeneratedField::Number),
                             "hash" => Ok(GeneratedField::Hash),
-                            "parentBlockHash" | "parent_block_hash" => Ok(GeneratedField::ParentBlockHash),
+                            "parentHash" | "parent_hash" => Ok(GeneratedField::ParentHash),
                             "timestamp" => Ok(GeneratedField::Timestamp),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
@@ -103,7 +103,7 @@ impl<'de> serde::Deserialize<'de> for Block {
             {
                 let mut number__ = None;
                 let mut hash__ = None;
-                let mut parent_block_hash__ = None;
+                let mut parent_hash__ = None;
                 let mut timestamp__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
@@ -123,11 +123,11 @@ impl<'de> serde::Deserialize<'de> for Block {
                                 Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
                             ;
                         }
-                        GeneratedField::ParentBlockHash => {
-                            if parent_block_hash__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("parentBlockHash"));
+                        GeneratedField::ParentHash => {
+                            if parent_hash__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("parentHash"));
                             }
-                            parent_block_hash__ = 
+                            parent_hash__ = 
                                 Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
                             ;
                         }
@@ -142,7 +142,7 @@ impl<'de> serde::Deserialize<'de> for Block {
                 Ok(Block {
                     number: number__.unwrap_or_default(),
                     hash: hash__.unwrap_or_default(),
-                    parent_block_hash: parent_block_hash__.unwrap_or_default(),
+                    parent_hash: parent_hash__.unwrap_or_default(),
                     timestamp: timestamp__,
                 })
             }

@@ -14,7 +14,7 @@ message ExecutionConfig {
   // The rollup_id is the unique identifier for the rollup chain.
   astria.primitive.v1.RollupId rollup_id = 1;
   // The first rollup block number to be executed. This is mapped to `sequencer_first_block_height`.
-  // The minimum first block number is 1.
+  // The minimum first block number is 1, since 0 represents the genesis block.
   uint64 rollup_first_block_number = 2;
   // The final rollup block number to execute before either re-fetching sequencer
   // info (restarting) or shutting down (determined by `halt_at_rollup_stop_number`).
