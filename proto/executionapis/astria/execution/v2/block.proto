@@ -1,0 +1,18 @@
+syntax = 'proto3';
+
+package astria.execution.v2;
+
+import "google/protobuf/timestamp.proto";
+
+// The set of information which deterministic driver of block production
+// must know about a given rollup Block
+message Block {
+  // The block number
+  uint64 number = 1;
+  // The hash of the block
+  bytes hash = 2;
+  // The hash from the parent block
+  bytes parent_block_hash = 3;
+  // Timestamp on the block, standardized to google protobuf standard.
+  google.protobuf.Timestamp timestamp = 4;
+}

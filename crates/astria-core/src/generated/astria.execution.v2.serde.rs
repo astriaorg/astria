@@ -1,185 +1,3 @@
-impl serde::Serialize for BatchGetBlocksRequest {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if !self.identifiers.is_empty() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.execution.v2.BatchGetBlocksRequest", len)?;
-        if !self.identifiers.is_empty() {
-            struct_ser.serialize_field("identifiers", &self.identifiers)?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for BatchGetBlocksRequest {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "identifiers",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            Identifiers,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "identifiers" => Ok(GeneratedField::Identifiers),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = BatchGetBlocksRequest;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.execution.v2.BatchGetBlocksRequest")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<BatchGetBlocksRequest, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut identifiers__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::Identifiers => {
-                            if identifiers__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("identifiers"));
-                            }
-                            identifiers__ = Some(map_.next_value()?);
-                        }
-                    }
-                }
-                Ok(BatchGetBlocksRequest {
-                    identifiers: identifiers__.unwrap_or_default(),
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.execution.v2.BatchGetBlocksRequest", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for BatchGetBlocksResponse {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if !self.blocks.is_empty() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.execution.v2.BatchGetBlocksResponse", len)?;
-        if !self.blocks.is_empty() {
-            struct_ser.serialize_field("blocks", &self.blocks)?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for BatchGetBlocksResponse {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "blocks",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            Blocks,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "blocks" => Ok(GeneratedField::Blocks),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = BatchGetBlocksResponse;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.execution.v2.BatchGetBlocksResponse")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<BatchGetBlocksResponse, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut blocks__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::Blocks => {
-                            if blocks__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("blocks"));
-                            }
-                            blocks__ = Some(map_.next_value()?);
-                        }
-                    }
-                }
-                Ok(BatchGetBlocksResponse {
-                    blocks: blocks__.unwrap_or_default(),
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.execution.v2.BatchGetBlocksResponse", FIELDS, GeneratedVisitor)
-    }
-}
 impl serde::Serialize for Block {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -570,80 +388,6 @@ impl<'de> serde::Deserialize<'de> for CommitmentState {
         deserializer.deserialize_struct("astria.execution.v2.CommitmentState", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for CommitmentType {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let variant = match self {
-            Self::Unspecified => "COMMITMENT_TYPE_UNSPECIFIED",
-            Self::Soft => "COMMITMENT_TYPE_SOFT",
-            Self::Firm => "COMMITMENT_TYPE_FIRM",
-        };
-        serializer.serialize_str(variant)
-    }
-}
-impl<'de> serde::Deserialize<'de> for CommitmentType {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "COMMITMENT_TYPE_UNSPECIFIED",
-            "COMMITMENT_TYPE_SOFT",
-            "COMMITMENT_TYPE_FIRM",
-        ];
-
-        struct GeneratedVisitor;
-
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = CommitmentType;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(formatter, "expected one of: {:?}", &FIELDS)
-            }
-
-            fn visit_i64<E>(self, v: i64) -> std::result::Result<Self::Value, E>
-            where
-                E: serde::de::Error,
-            {
-                i32::try_from(v)
-                    .ok()
-                    .and_then(|x| x.try_into().ok())
-                    .ok_or_else(|| {
-                        serde::de::Error::invalid_value(serde::de::Unexpected::Signed(v), &self)
-                    })
-            }
-
-            fn visit_u64<E>(self, v: u64) -> std::result::Result<Self::Value, E>
-            where
-                E: serde::de::Error,
-            {
-                i32::try_from(v)
-                    .ok()
-                    .and_then(|x| x.try_into().ok())
-                    .ok_or_else(|| {
-                        serde::de::Error::invalid_value(serde::de::Unexpected::Unsigned(v), &self)
-                    })
-            }
-
-            fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
-            where
-                E: serde::de::Error,
-            {
-                match value {
-                    "COMMITMENT_TYPE_UNSPECIFIED" => Ok(CommitmentType::Unspecified),
-                    "COMMITMENT_TYPE_SOFT" => Ok(CommitmentType::Soft),
-                    "COMMITMENT_TYPE_FIRM" => Ok(CommitmentType::Firm),
-                    _ => Err(serde::de::Error::unknown_variant(value, FIELDS)),
-                }
-            }
-        }
-        deserializer.deserialize_any(GeneratedVisitor)
-    }
-}
 impl serde::Serialize for ExecuteBlockRequest {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -652,6 +396,9 @@ impl serde::Serialize for ExecuteBlockRequest {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
+        if !self.session_id.is_empty() {
+            len += 1;
+        }
         if !self.prev_block_hash.is_empty() {
             len += 1;
         }
@@ -662,6 +409,9 @@ impl serde::Serialize for ExecuteBlockRequest {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.execution.v2.ExecuteBlockRequest", len)?;
+        if !self.session_id.is_empty() {
+            struct_ser.serialize_field("sessionId", &self.session_id)?;
+        }
         if !self.prev_block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("prevBlockHash", pbjson::private::base64::encode(&self.prev_block_hash).as_str())?;
@@ -682,6 +432,8 @@ impl<'de> serde::Deserialize<'de> for ExecuteBlockRequest {
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
+            "session_id",
+            "sessionId",
             "prev_block_hash",
             "prevBlockHash",
             "transactions",
@@ -690,6 +442,7 @@ impl<'de> serde::Deserialize<'de> for ExecuteBlockRequest {
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
+            SessionId,
             PrevBlockHash,
             Transactions,
             Timestamp,
@@ -714,6 +467,7 @@ impl<'de> serde::Deserialize<'de> for ExecuteBlockRequest {
                         E: serde::de::Error,
                     {
                         match value {
+                            "sessionId" | "session_id" => Ok(GeneratedField::SessionId),
                             "prevBlockHash" | "prev_block_hash" => Ok(GeneratedField::PrevBlockHash),
                             "transactions" => Ok(GeneratedField::Transactions),
                             "timestamp" => Ok(GeneratedField::Timestamp),
@@ -736,11 +490,18 @@ impl<'de> serde::Deserialize<'de> for ExecuteBlockRequest {
                 where
                     V: serde::de::MapAccess<'de>,
             {
+                let mut session_id__ = None;
                 let mut prev_block_hash__ = None;
                 let mut transactions__ = None;
                 let mut timestamp__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
+                        GeneratedField::SessionId => {
+                            if session_id__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sessionId"));
+                            }
+                            session_id__ = Some(map_.next_value()?);
+                        }
                         GeneratedField::PrevBlockHash => {
                             if prev_block_hash__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("prevBlockHash"));
@@ -764,6 +525,7 @@ impl<'de> serde::Deserialize<'de> for ExecuteBlockRequest {
                     }
                 }
                 Ok(ExecuteBlockRequest {
+                    session_id: session_id__.unwrap_or_default(),
                     prev_block_hash: prev_block_hash__.unwrap_or_default(),
                     transactions: transactions__.unwrap_or_default(),
                     timestamp: timestamp__,
@@ -771,6 +533,346 @@ impl<'de> serde::Deserialize<'de> for ExecuteBlockRequest {
             }
         }
         deserializer.deserialize_struct("astria.execution.v2.ExecuteBlockRequest", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for ExecutionConfig {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.rollup_id.is_some() {
+            len += 1;
+        }
+        if self.rollup_first_block_number != 0 {
+            len += 1;
+        }
+        if self.rollup_stop_block_number != 0 {
+            len += 1;
+        }
+        if !self.sequencer_chain_id.is_empty() {
+            len += 1;
+        }
+        if self.sequencer_first_block_height != 0 {
+            len += 1;
+        }
+        if !self.celestia_chain_id.is_empty() {
+            len += 1;
+        }
+        if self.celestia_block_variance != 0 {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.execution.v2.ExecutionConfig", len)?;
+        if let Some(v) = self.rollup_id.as_ref() {
+            struct_ser.serialize_field("rollupId", v)?;
+        }
+        if self.rollup_first_block_number != 0 {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("rollupFirstBlockNumber", ToString::to_string(&self.rollup_first_block_number).as_str())?;
+        }
+        if self.rollup_stop_block_number != 0 {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("rollupStopBlockNumber", ToString::to_string(&self.rollup_stop_block_number).as_str())?;
+        }
+        if !self.sequencer_chain_id.is_empty() {
+            struct_ser.serialize_field("sequencerChainId", &self.sequencer_chain_id)?;
+        }
+        if self.sequencer_first_block_height != 0 {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("sequencerFirstBlockHeight", ToString::to_string(&self.sequencer_first_block_height).as_str())?;
+        }
+        if !self.celestia_chain_id.is_empty() {
+            struct_ser.serialize_field("celestiaChainId", &self.celestia_chain_id)?;
+        }
+        if self.celestia_block_variance != 0 {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("celestiaBlockVariance", ToString::to_string(&self.celestia_block_variance).as_str())?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for ExecutionConfig {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "rollup_id",
+            "rollupId",
+            "rollup_first_block_number",
+            "rollupFirstBlockNumber",
+            "rollup_stop_block_number",
+            "rollupStopBlockNumber",
+            "sequencer_chain_id",
+            "sequencerChainId",
+            "sequencer_first_block_height",
+            "sequencerFirstBlockHeight",
+            "celestia_chain_id",
+            "celestiaChainId",
+            "celestia_block_variance",
+            "celestiaBlockVariance",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            RollupId,
+            RollupFirstBlockNumber,
+            RollupStopBlockNumber,
+            SequencerChainId,
+            SequencerFirstBlockHeight,
+            CelestiaChainId,
+            CelestiaBlockVariance,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "rollupId" | "rollup_id" => Ok(GeneratedField::RollupId),
+                            "rollupFirstBlockNumber" | "rollup_first_block_number" => Ok(GeneratedField::RollupFirstBlockNumber),
+                            "rollupStopBlockNumber" | "rollup_stop_block_number" => Ok(GeneratedField::RollupStopBlockNumber),
+                            "sequencerChainId" | "sequencer_chain_id" => Ok(GeneratedField::SequencerChainId),
+                            "sequencerFirstBlockHeight" | "sequencer_first_block_height" => Ok(GeneratedField::SequencerFirstBlockHeight),
+                            "celestiaChainId" | "celestia_chain_id" => Ok(GeneratedField::CelestiaChainId),
+                            "celestiaBlockVariance" | "celestia_block_variance" => Ok(GeneratedField::CelestiaBlockVariance),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = ExecutionConfig;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.execution.v2.ExecutionConfig")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<ExecutionConfig, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut rollup_id__ = None;
+                let mut rollup_first_block_number__ = None;
+                let mut rollup_stop_block_number__ = None;
+                let mut sequencer_chain_id__ = None;
+                let mut sequencer_first_block_height__ = None;
+                let mut celestia_chain_id__ = None;
+                let mut celestia_block_variance__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::RollupId => {
+                            if rollup_id__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("rollupId"));
+                            }
+                            rollup_id__ = map_.next_value()?;
+                        }
+                        GeneratedField::RollupFirstBlockNumber => {
+                            if rollup_first_block_number__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("rollupFirstBlockNumber"));
+                            }
+                            rollup_first_block_number__ = 
+                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
+                            ;
+                        }
+                        GeneratedField::RollupStopBlockNumber => {
+                            if rollup_stop_block_number__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("rollupStopBlockNumber"));
+                            }
+                            rollup_stop_block_number__ = 
+                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
+                            ;
+                        }
+                        GeneratedField::SequencerChainId => {
+                            if sequencer_chain_id__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sequencerChainId"));
+                            }
+                            sequencer_chain_id__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::SequencerFirstBlockHeight => {
+                            if sequencer_first_block_height__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sequencerFirstBlockHeight"));
+                            }
+                            sequencer_first_block_height__ = 
+                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
+                            ;
+                        }
+                        GeneratedField::CelestiaChainId => {
+                            if celestia_chain_id__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("celestiaChainId"));
+                            }
+                            celestia_chain_id__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::CelestiaBlockVariance => {
+                            if celestia_block_variance__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("celestiaBlockVariance"));
+                            }
+                            celestia_block_variance__ = 
+                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
+                            ;
+                        }
+                    }
+                }
+                Ok(ExecutionConfig {
+                    rollup_id: rollup_id__,
+                    rollup_first_block_number: rollup_first_block_number__.unwrap_or_default(),
+                    rollup_stop_block_number: rollup_stop_block_number__.unwrap_or_default(),
+                    sequencer_chain_id: sequencer_chain_id__.unwrap_or_default(),
+                    sequencer_first_block_height: sequencer_first_block_height__.unwrap_or_default(),
+                    celestia_chain_id: celestia_chain_id__.unwrap_or_default(),
+                    celestia_block_variance: celestia_block_variance__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.execution.v2.ExecutionConfig", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for ExecutionSession {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.session_id.is_empty() {
+            len += 1;
+        }
+        if self.commitment_state.is_some() {
+            len += 1;
+        }
+        if self.execution_config.is_some() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.execution.v2.ExecutionSession", len)?;
+        if !self.session_id.is_empty() {
+            struct_ser.serialize_field("sessionId", &self.session_id)?;
+        }
+        if let Some(v) = self.commitment_state.as_ref() {
+            struct_ser.serialize_field("commitmentState", v)?;
+        }
+        if let Some(v) = self.execution_config.as_ref() {
+            struct_ser.serialize_field("executionConfig", v)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for ExecutionSession {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "session_id",
+            "sessionId",
+            "commitment_state",
+            "commitmentState",
+            "execution_config",
+            "executionConfig",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            SessionId,
+            CommitmentState,
+            ExecutionConfig,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "sessionId" | "session_id" => Ok(GeneratedField::SessionId),
+                            "commitmentState" | "commitment_state" => Ok(GeneratedField::CommitmentState),
+                            "executionConfig" | "execution_config" => Ok(GeneratedField::ExecutionConfig),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = ExecutionSession;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.execution.v2.ExecutionSession")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<ExecutionSession, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut session_id__ = None;
+                let mut commitment_state__ = None;
+                let mut execution_config__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::SessionId => {
+                            if session_id__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sessionId"));
+                            }
+                            session_id__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::CommitmentState => {
+                            if commitment_state__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("commitmentState"));
+                            }
+                            commitment_state__ = map_.next_value()?;
+                        }
+                        GeneratedField::ExecutionConfig => {
+                            if execution_config__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("executionConfig"));
+                            }
+                            execution_config__ = map_.next_value()?;
+                        }
+                    }
+                }
+                Ok(ExecutionSession {
+                    session_id: session_id__.unwrap_or_default(),
+                    commitment_state: commitment_state__,
+                    execution_config: execution_config__,
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.execution.v2.ExecutionSession", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for GetBlockRequest {
@@ -935,40 +1037,29 @@ impl<'de> serde::Deserialize<'de> for GetCommitmentStateRequest {
         deserializer.deserialize_struct("astria.execution.v2.GetCommitmentStateRequest", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for GetSequencerInfoRequest {
+impl serde::Serialize for NewExecutionSessionRequest {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
         use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if self.commitment_type != 0 {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.execution.v2.GetSequencerInfoRequest", len)?;
-        if self.commitment_type != 0 {
-            let v = CommitmentType::try_from(self.commitment_type)
-                .map_err(|_| serde::ser::Error::custom(format!("Invalid variant {}", self.commitment_type)))?;
-            struct_ser.serialize_field("commitmentType", &v)?;
-        }
+        let len = 0;
+        let struct_ser = serializer.serialize_struct("astria.execution.v2.NewExecutionSessionRequest", len)?;
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for GetSequencerInfoRequest {
+impl<'de> serde::Deserialize<'de> for NewExecutionSessionRequest {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "commitment_type",
-            "commitmentType",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            CommitmentType,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -989,10 +1080,7 @@ impl<'de> serde::Deserialize<'de> for GetSequencerInfoRequest {
                     where
                         E: serde::de::Error,
                     {
-                        match value {
-                            "commitmentType" | "commitment_type" => Ok(GeneratedField::CommitmentType),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
+                            Err(serde::de::Error::unknown_field(value, FIELDS))
                     }
                 }
                 deserializer.deserialize_identifier(GeneratedVisitor)
@@ -1000,263 +1088,24 @@ impl<'de> serde::Deserialize<'de> for GetSequencerInfoRequest {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = GetSequencerInfoRequest;
+            type Value = NewExecutionSessionRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.execution.v2.GetSequencerInfoRequest")
+                formatter.write_str("struct astria.execution.v2.NewExecutionSessionRequest")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<GetSequencerInfoRequest, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<NewExecutionSessionRequest, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut commitment_type__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::CommitmentType => {
-                            if commitment_type__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("commitmentType"));
-                            }
-                            commitment_type__ = Some(map_.next_value::<CommitmentType>()? as i32);
-                        }
-                    }
+                while map_.next_key::<GeneratedField>()?.is_some() {
+                    let _ = map_.next_value::<serde::de::IgnoredAny>()?;
                 }
-                Ok(GetSequencerInfoRequest {
-                    commitment_type: commitment_type__.unwrap_or_default(),
+                Ok(NewExecutionSessionRequest {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.execution.v2.GetSequencerInfoRequest", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for SequencerInfo {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if self.rollup_id.is_some() {
-            len += 1;
-        }
-        if self.rollup_first_block_number != 0 {
-            len += 1;
-        }
-        if self.rollup_stop_block_number != 0 {
-            len += 1;
-        }
-        if self.rollup_halt_at_stop_number {
-            len += 1;
-        }
-        if !self.sequencer_chain_id.is_empty() {
-            len += 1;
-        }
-        if self.sequencer_first_block_height != 0 {
-            len += 1;
-        }
-        if !self.celestia_chain_id.is_empty() {
-            len += 1;
-        }
-        if self.celestia_block_variance != 0 {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.execution.v2.SequencerInfo", len)?;
-        if let Some(v) = self.rollup_id.as_ref() {
-            struct_ser.serialize_field("rollupId", v)?;
-        }
-        if self.rollup_first_block_number != 0 {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("rollupFirstBlockNumber", ToString::to_string(&self.rollup_first_block_number).as_str())?;
-        }
-        if self.rollup_stop_block_number != 0 {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("rollupStopBlockNumber", ToString::to_string(&self.rollup_stop_block_number).as_str())?;
-        }
-        if self.rollup_halt_at_stop_number {
-            struct_ser.serialize_field("rollupHaltAtStopNumber", &self.rollup_halt_at_stop_number)?;
-        }
-        if !self.sequencer_chain_id.is_empty() {
-            struct_ser.serialize_field("sequencerChainId", &self.sequencer_chain_id)?;
-        }
-        if self.sequencer_first_block_height != 0 {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("sequencerFirstBlockHeight", ToString::to_string(&self.sequencer_first_block_height).as_str())?;
-        }
-        if !self.celestia_chain_id.is_empty() {
-            struct_ser.serialize_field("celestiaChainId", &self.celestia_chain_id)?;
-        }
-        if self.celestia_block_variance != 0 {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("celestiaBlockVariance", ToString::to_string(&self.celestia_block_variance).as_str())?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for SequencerInfo {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "rollup_id",
-            "rollupId",
-            "rollup_first_block_number",
-            "rollupFirstBlockNumber",
-            "rollup_stop_block_number",
-            "rollupStopBlockNumber",
-            "rollup_halt_at_stop_number",
-            "rollupHaltAtStopNumber",
-            "sequencer_chain_id",
-            "sequencerChainId",
-            "sequencer_first_block_height",
-            "sequencerFirstBlockHeight",
-            "celestia_chain_id",
-            "celestiaChainId",
-            "celestia_block_variance",
-            "celestiaBlockVariance",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            RollupId,
-            RollupFirstBlockNumber,
-            RollupStopBlockNumber,
-            RollupHaltAtStopNumber,
-            SequencerChainId,
-            SequencerFirstBlockHeight,
-            CelestiaChainId,
-            CelestiaBlockVariance,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "rollupId" | "rollup_id" => Ok(GeneratedField::RollupId),
-                            "rollupFirstBlockNumber" | "rollup_first_block_number" => Ok(GeneratedField::RollupFirstBlockNumber),
-                            "rollupStopBlockNumber" | "rollup_stop_block_number" => Ok(GeneratedField::RollupStopBlockNumber),
-                            "rollupHaltAtStopNumber" | "rollup_halt_at_stop_number" => Ok(GeneratedField::RollupHaltAtStopNumber),
-                            "sequencerChainId" | "sequencer_chain_id" => Ok(GeneratedField::SequencerChainId),
-                            "sequencerFirstBlockHeight" | "sequencer_first_block_height" => Ok(GeneratedField::SequencerFirstBlockHeight),
-                            "celestiaChainId" | "celestia_chain_id" => Ok(GeneratedField::CelestiaChainId),
-                            "celestiaBlockVariance" | "celestia_block_variance" => Ok(GeneratedField::CelestiaBlockVariance),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = SequencerInfo;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.execution.v2.SequencerInfo")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<SequencerInfo, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut rollup_id__ = None;
-                let mut rollup_first_block_number__ = None;
-                let mut rollup_stop_block_number__ = None;
-                let mut rollup_halt_at_stop_number__ = None;
-                let mut sequencer_chain_id__ = None;
-                let mut sequencer_first_block_height__ = None;
-                let mut celestia_chain_id__ = None;
-                let mut celestia_block_variance__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::RollupId => {
-                            if rollup_id__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("rollupId"));
-                            }
-                            rollup_id__ = map_.next_value()?;
-                        }
-                        GeneratedField::RollupFirstBlockNumber => {
-                            if rollup_first_block_number__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("rollupFirstBlockNumber"));
-                            }
-                            rollup_first_block_number__ = 
-                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
-                            ;
-                        }
-                        GeneratedField::RollupStopBlockNumber => {
-                            if rollup_stop_block_number__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("rollupStopBlockNumber"));
-                            }
-                            rollup_stop_block_number__ = 
-                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
-                            ;
-                        }
-                        GeneratedField::RollupHaltAtStopNumber => {
-                            if rollup_halt_at_stop_number__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("rollupHaltAtStopNumber"));
-                            }
-                            rollup_halt_at_stop_number__ = Some(map_.next_value()?);
-                        }
-                        GeneratedField::SequencerChainId => {
-                            if sequencer_chain_id__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("sequencerChainId"));
-                            }
-                            sequencer_chain_id__ = Some(map_.next_value()?);
-                        }
-                        GeneratedField::SequencerFirstBlockHeight => {
-                            if sequencer_first_block_height__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("sequencerFirstBlockHeight"));
-                            }
-                            sequencer_first_block_height__ = 
-                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
-                            ;
-                        }
-                        GeneratedField::CelestiaChainId => {
-                            if celestia_chain_id__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("celestiaChainId"));
-                            }
-                            celestia_chain_id__ = Some(map_.next_value()?);
-                        }
-                        GeneratedField::CelestiaBlockVariance => {
-                            if celestia_block_variance__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("celestiaBlockVariance"));
-                            }
-                            celestia_block_variance__ = 
-                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
-                            ;
-                        }
-                    }
-                }
-                Ok(SequencerInfo {
-                    rollup_id: rollup_id__,
-                    rollup_first_block_number: rollup_first_block_number__.unwrap_or_default(),
-                    rollup_stop_block_number: rollup_stop_block_number__.unwrap_or_default(),
-                    rollup_halt_at_stop_number: rollup_halt_at_stop_number__.unwrap_or_default(),
-                    sequencer_chain_id: sequencer_chain_id__.unwrap_or_default(),
-                    sequencer_first_block_height: sequencer_first_block_height__.unwrap_or_default(),
-                    celestia_chain_id: celestia_chain_id__.unwrap_or_default(),
-                    celestia_block_variance: celestia_block_variance__.unwrap_or_default(),
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.execution.v2.SequencerInfo", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.execution.v2.NewExecutionSessionRequest", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for UpdateCommitmentStateRequest {
@@ -1267,10 +1116,16 @@ impl serde::Serialize for UpdateCommitmentStateRequest {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
+        if !self.session_id.is_empty() {
+            len += 1;
+        }
         if self.commitment_state.is_some() {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.execution.v2.UpdateCommitmentStateRequest", len)?;
+        if !self.session_id.is_empty() {
+            struct_ser.serialize_field("sessionId", &self.session_id)?;
+        }
         if let Some(v) = self.commitment_state.as_ref() {
             struct_ser.serialize_field("commitmentState", v)?;
         }
@@ -1284,12 +1139,15 @@ impl<'de> serde::Deserialize<'de> for UpdateCommitmentStateRequest {
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
+            "session_id",
+            "sessionId",
             "commitment_state",
             "commitmentState",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
+            SessionId,
             CommitmentState,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
@@ -1312,6 +1170,7 @@ impl<'de> serde::Deserialize<'de> for UpdateCommitmentStateRequest {
                         E: serde::de::Error,
                     {
                         match value {
+                            "sessionId" | "session_id" => Ok(GeneratedField::SessionId),
                             "commitmentState" | "commitment_state" => Ok(GeneratedField::CommitmentState),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
@@ -1332,9 +1191,16 @@ impl<'de> serde::Deserialize<'de> for UpdateCommitmentStateRequest {
                 where
                     V: serde::de::MapAccess<'de>,
             {
+                let mut session_id__ = None;
                 let mut commitment_state__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
+                        GeneratedField::SessionId => {
+                            if session_id__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sessionId"));
+                            }
+                            session_id__ = Some(map_.next_value()?);
+                        }
                         GeneratedField::CommitmentState => {
                             if commitment_state__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("commitmentState"));
@@ -1344,6 +1210,7 @@ impl<'de> serde::Deserialize<'de> for UpdateCommitmentStateRequest {
                     }
                 }
                 Ok(UpdateCommitmentStateRequest {
+                    session_id: session_id__.unwrap_or_default(),
                     commitment_state: commitment_state__,
                 })
             }
