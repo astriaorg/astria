@@ -122,24 +122,23 @@ impl std::error::Error for GrpcResponseError {
 pub(in crate::relayer) struct ProtobufDecodeError(#[from] DecodeError);
 
 /// An error in getting the status of a transaction via RPC `TxStatus`.
-#[derive(Debug, Clone, thiserror::Error)]
+#[derive(Debug, Clone, Error)]
 pub(in crate::relayer) enum TxStatusError {
-    #[error("received unfamilair response for tx `{hash}` from `TxStatus`: {status}")]
-    UnfamiliarStatus { status: String, hash: String },
-    #[error("request for `TxStatus` failed: {error}")]
-    // Using `String` here because jsonrpsee::core::Error does not implement `Clone`.
-    FailedToGetTxStatus { error: String },
+    #[error("received unfamiliar response for tx `{hash}` from `TxStatus`: {status}")]
+    UnfamiliarStatus { status: String, tx_hash: String },
+    #[error("failed to get transaction status")]
+    FailedToGetTxStatus(#[source] GrpcResponseError),
 }
 
 /// An error in confirming the submission of a transaction.
-#[derive(Debug, Clone, thiserror::Error)]
+#[derive(Debug, Clone, Error)]
 pub(in crate::relayer) enum ConfirmSubmissionError {
     #[error("tx `{hash}` evicted from mempool")]
     Evicted { hash: String },
     #[error("received `UNKNOWN` status from `TxStatus` for tx: {hash}")]
     StatusUnknown { hash: String },
-    #[error("failed to get tx status")]
-    TxStatus(#[from] TxStatusError),
+    #[error(transparent)]
+    TxStatus(TxStatusError),
     #[error("received negative block height from Celestia: {height}")]
     NegativeHeight { height: i64 },
 }

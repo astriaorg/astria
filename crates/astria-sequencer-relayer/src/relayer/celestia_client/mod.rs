@@ -152,7 +152,7 @@ enum TxStatus {
 pub(super) struct CelestiaClient {
     /// The inner `tonic` gRPC channel shared by the various generated gRPC clients.
     grpc_channel: Channel,
-    /// A gRPC client to broadcast and get transactions.
+    /// A gRPC client to broadcast transactions.
     tx_client: TxClient<Channel>,
     /// A gRPC client for querying transaction status.
     tx_status_client: TxStatusClient<Channel>,
@@ -348,7 +348,7 @@ impl CelestiaClient {
         lowercase_hex_encoded_tx_hash_from_response(response)
     }
 
-    /// Returns the reponse of `TxStatus` RPC call given a transaction's hash. If the transaction
+    /// Returns the response of `TxStatus` RPC call given a transaction's hash. If the transaction
     /// is committed, the height of the block in which it was committed will be returned with
     /// `TxStatusResponse::Committed`.
     ///
