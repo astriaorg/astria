@@ -132,6 +132,7 @@ use crate::Metrics;
 // From https://github.com/celestiaorg/cosmos-sdk/blob/v1.18.3-sdk-v0.46.14/types/errors/errors.go#L75
 const INSUFFICIENT_FEE_CODE: u32 = 13;
 
+// From https://github.com/celestiaorg/celestia-core/blob/d2ca0a2870973e17eadb62a763788bba1f04a1fb/rpc/core/tx.go#L20-L25
 const TX_STATUS_UNKNOWN: &str = "UNKNOWN";
 const TX_STATUS_PENDING: &str = "PENDING";
 const TX_STATUS_EVICTED: &str = "EVICTED";
@@ -364,9 +365,7 @@ impl CelestiaClient {
                 tx_id: hex_encoded_tx_hash.clone(),
             })
             .await
-            .map_err(|e| TxStatusError::FailedToGetTxStatus {
-                error: e.to_string(),
-            })?;
+            .map_err(|e| TxStatusError::FailedToGetTxStatus(e.into()))?;
         match response.get_ref().status.as_str() {
             TX_STATUS_UNKNOWN => Ok(TxStatus::Unknown),
             TX_STATUS_PENDING => Ok(TxStatus::Pending),
@@ -374,7 +373,7 @@ impl CelestiaClient {
             TX_STATUS_COMMITTED => Ok(TxStatus::Committed(response.get_ref().height)),
             _ => Err(TxStatusError::UnfamiliarStatus {
                 status: response.get_ref().status.to_string(),
-                hash: hex_encoded_tx_hash,
+                tx_hash: hex_encoded_tx_hash,
             }),
         }
     }
@@ -396,10 +395,10 @@ impl CelestiaClient {
         // request.
         const POLL_INTERVAL_SECS: u64 = 1;
         // The minimum duration between logs.
-        const LOG_INTERVAL: Duration = Duration::from_secs(5);
+        const LOG_INTERVAL: Duration = Duration::from_secs(3);
         // The maximum amount of time to wait for a transaction to be committed if its status is
         // `UNKNOWN`.
-        const MAX_WAIT_FOR_UNKNOWN: Duration = Duration::from_secs(10);
+        const MAX_WAIT_FOR_UNKNOWN: Duration = Duration::from_secs(6);
 
         let start = Instant::now();
         let mut logged_at = start;
@@ -424,8 +423,8 @@ impl CelestiaClient {
                     if start.elapsed() > MAX_WAIT_FOR_UNKNOWN {
                         self.metrics
                             .increment_celestia_unknown_status_transaction_count();
-                        break Err(ConfirmSubmissionError::StatusUnknown {
-                            hash: hex_encoded_tx_hash,
+                        return Err(ConfirmSubmissionError::StatusUnknown {
+                            tx_hash: hex_encoded_tx_hash,
                         });
                     }
                     log_if_due("UNKNOWN");
@@ -435,19 +434,19 @@ impl CelestiaClient {
                 }
                 Ok(TxStatus::Evicted) => {
                     self.metrics.increment_celestia_evicted_transaction_count();
-                    break Err(ConfirmSubmissionError::Evicted {
-                        hash: hex_encoded_tx_hash,
+                    return Err(ConfirmSubmissionError::Evicted {
+                        tx_hash: hex_encoded_tx_hash,
                     });
                 }
                 Ok(TxStatus::Committed(height)) => {
-                    break Ok(height.try_into().map_err(|_| {
-                        ConfirmSubmissionError::NegativeHeight {
+                    return height
+                        .try_into()
+                        .map_err(|_| ConfirmSubmissionError::NegativeHeight {
                             height,
-                        }
-                    })?)
+                        })
                 }
                 Err(error) => {
-                    break Err(ConfirmSubmissionError::TxStatus(error));
+                    return Err(ConfirmSubmissionError::TxStatus(error));
                 }
             }
         }

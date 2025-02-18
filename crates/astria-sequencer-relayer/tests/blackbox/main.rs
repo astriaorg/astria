@@ -32,13 +32,7 @@ async fn one_block_is_relayed_to_celestia() {
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
         .await;
     let tx_status_guard = sequencer_relayer
-        .mount_celestia_app_tx_status_response_as_scoped(
-            "tx status 1",
-            53,
-            "COMMITTED",
-            Some(1),
-            None,
-        )
+        .mount_celestia_app_tx_status_response_as_scoped("tx status 1", 53, "COMMITTED", 1)
         .await;
     // The `MIN_POLL_INTERVAL_SECS` is 1, meaning the relayer waits for 1 second before attempting
     // the first `TxStatus`, so we wait for 2 seconds.
@@ -88,13 +82,7 @@ async fn report_degraded_if_block_fetch_fails() {
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
         .await;
     let tx_status_guard = sequencer_relayer
-        .mount_celestia_app_tx_status_response_as_scoped(
-            "tx status 1",
-            53,
-            "COMMITTED",
-            Some(1),
-            None,
-        )
+        .mount_celestia_app_tx_status_response_as_scoped("tx status 1", 53, "COMMITTED", 1)
         .await;
     let healthz_status = sequencer_relayer
         .wait_for_healthz(StatusCode::OK, 2_000, "waiting for first healthz")
@@ -153,13 +141,7 @@ async fn later_height_in_state_leads_to_expected_relay() {
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
         .await;
     let tx_status_guard = sequencer_relayer
-        .mount_celestia_app_tx_status_response_as_scoped(
-            "tx status 1",
-            53,
-            "COMMITTED",
-            Some(1),
-            None,
-        )
+        .mount_celestia_app_tx_status_response_as_scoped("tx status 1", 53, "COMMITTED", 1)
         .await;
     sequencer_relayer
         .timeout_ms(
@@ -219,13 +201,7 @@ async fn three_blocks_are_relayed() {
         .mount_celestia_app_broadcast_tx_response("broadcast tx 3")
         .await;
     let tx_status_guard = sequencer_relayer
-        .mount_celestia_app_tx_status_response_as_scoped(
-            "tx status 1",
-            53,
-            "COMMITTED",
-            Some(3),
-            None,
-        )
+        .mount_celestia_app_tx_status_response_as_scoped("tx status 1", 53, "COMMITTED", 3)
         .await;
     // Each block will have taken ~1 second due to the delay before each `tx_status`, so use 4.5
     // seconds.
@@ -292,13 +268,7 @@ async fn should_filter_rollup() {
         .mount_celestia_app_broadcast_tx_response("broadcast tx 1")
         .await;
     let tx_status_guard = sequencer_relayer
-        .mount_celestia_app_tx_status_response_as_scoped(
-            "tx status 1",
-            53,
-            "COMMITTED",
-            Some(1),
-            None,
-        )
+        .mount_celestia_app_tx_status_response_as_scoped("tx status 1", 53, "COMMITTED", 1)
         .await;
     sequencer_relayer
         .timeout_ms(
@@ -336,7 +306,7 @@ async fn should_shut_down() {
         .mount_sequencer_block_response(block_to_mount, "good block 1")
         .await;
     let broadcast_guard = sequencer_relayer
-        .mount_celestia_app_broadcast_tx_response_as_scoped("broadcast tx 1", None, None)
+        .mount_celestia_app_broadcast_tx_response_as_scoped("broadcast tx 1")
         .await;
     sequencer_relayer
         .timeout_ms(
@@ -351,13 +321,7 @@ async fn should_shut_down() {
     sequencer_relayer.relayer_shutdown_handle.take();
 
     let tx_status_guard = sequencer_relayer
-        .mount_celestia_app_tx_status_response_as_scoped(
-            "tx status 1",
-            53,
-            "COMMITTED",
-            Some(1),
-            None,
-        )
+        .mount_celestia_app_tx_status_response_as_scoped("tx status 1", 53, "COMMITTED", 1)
         .await;
     sequencer_relayer
         .timeout_ms(
@@ -410,13 +374,7 @@ async fn confirm_submission_loops_on_pending_status() {
     // Expect relayer to loop when it receives a PENDING status. Only respond up to the number of
     // expected times, since a committed response will be mounted after.
     let tx_pending_guard = sequencer_relayer
-        .mount_celestia_app_tx_status_response_as_scoped(
-            "tx status 1",
-            53,
-            "PENDING",
-            Some(2),
-            Some(2),
-        )
+        .mount_celestia_app_tx_status_response_as_scoped("tx status 1", 53, "PENDING", 2)
         .await;
     // Allow 3 seconds for two `TxStatus` calls. MIN_POLL_INTERVAL_SECS is 1, so with two calls
     // we're allowing 1 extra second for this mount to be satisfied.
@@ -431,13 +389,7 @@ async fn confirm_submission_loops_on_pending_status() {
     // Mount committed tx status response after sending two pending responses. Relayer should
     // continue normal execution after this.
     let tx_confirmed_guard = sequencer_relayer
-        .mount_celestia_app_tx_status_response_as_scoped(
-            "tx status 2",
-            53,
-            "COMMITTED",
-            Some(1),
-            Some(1),
-        )
+        .mount_celestia_app_tx_status_response_as_scoped("tx status 2", 53, "COMMITTED", 1)
         .await;
     sequencer_relayer
         .timeout_ms(
@@ -481,13 +433,7 @@ async fn confirm_submission_loops_on_unknown_status_up_to_time_limit() {
     // Expect relayer to loop when it receives a UNKNOWN status. Only respond up to the number of
     // expected times, since a committed response will be mounted after.
     let tx_unknown_guard = sequencer_relayer
-        .mount_celestia_app_tx_status_response_as_scoped(
-            "tx status 1",
-            53,
-            "UNKNOWN",
-            Some(2),
-            Some(2),
-        )
+        .mount_celestia_app_tx_status_response_as_scoped("tx status 1", 53, "UNKNOWN", 2)
         .await;
     // Allow 3 seconds for two `TxStatus` calls. MIN_POLL_INTERVAL_SECS is 1, so with two calls
     // we're allowing 1 extra second for this mount to be satisfied.
@@ -502,13 +448,7 @@ async fn confirm_submission_loops_on_unknown_status_up_to_time_limit() {
     // Mount committed tx status response after sending two unknown responses. Relayer should
     // continue normal execution after this.
     let tx_confirmed_guard = sequencer_relayer
-        .mount_celestia_app_tx_status_response_as_scoped(
-            "tx status 2",
-            53,
-            "COMMITTED",
-            Some(1),
-            Some(1),
-        )
+        .mount_celestia_app_tx_status_response_as_scoped("tx status 2", 53, "COMMITTED", 1)
         .await;
     sequencer_relayer
         .timeout_ms(
@@ -546,16 +486,10 @@ async fn retries_submission_after_receiving_evicted_tx_status() {
         .mount_sequencer_block_response(block_to_mount, "good block 1")
         .await;
     let broadcast_tx_guard_1 = sequencer_relayer
-        .mount_celestia_app_broadcast_tx_response_as_scoped("broadcast tx 1", Some(1), Some(1))
+        .mount_celestia_app_broadcast_tx_response_as_scoped("broadcast tx 1")
         .await;
     let tx_evicted_guard = sequencer_relayer
-        .mount_celestia_app_tx_status_response_as_scoped(
-            "tx status 1",
-            53,
-            "EVICTED",
-            Some(1),
-            Some(1),
-        )
+        .mount_celestia_app_tx_status_response_as_scoped("tx status 1", 53, "EVICTED", 1)
         .await;
 
     sequencer_relayer
@@ -572,16 +506,10 @@ async fn retries_submission_after_receiving_evicted_tx_status() {
     // Relayer should retry submission after receiving an EVICTED status.
 
     let broadcast_tx_guard_2 = sequencer_relayer
-        .mount_celestia_app_broadcast_tx_response_as_scoped("broadcast tx 2", Some(1), Some(1))
+        .mount_celestia_app_broadcast_tx_response_as_scoped("broadcast tx 2")
         .await;
     let tx_confirmed_guard = sequencer_relayer
-        .mount_celestia_app_tx_status_response_as_scoped(
-            "tx status 2",
-            53,
-            "COMMITTED",
-            Some(1),
-            Some(1),
-        )
+        .mount_celestia_app_tx_status_response_as_scoped("tx status 2", 53, "COMMITTED", 1)
         .await;
     sequencer_relayer
         .timeout_ms(
@@ -627,22 +555,16 @@ async fn confirm_submission_exits_for_unknown_status_after_time_limit() {
         .await;
 
     let broadcast_tx_guard_1 = sequencer_relayer
-        .mount_celestia_app_broadcast_tx_response_as_scoped("broadcast tx 1", Some(1), Some(1))
+        .mount_celestia_app_broadcast_tx_response_as_scoped("broadcast tx 1")
         .await;
 
     let tx_unknown_guard = sequencer_relayer
-        .mount_celestia_app_tx_status_response_as_scoped(
-            "tx status 1",
-            53,
-            "UNKNOWN",
-            Some(10),
-            Some(10),
-        )
+        .mount_celestia_app_tx_status_response_as_scoped("tx status 1", 53, "UNKNOWN", 6)
         .await;
 
     sequencer_relayer
         .timeout_ms(
-            11_000,
+            7_000,
             "waiting for first broadcast tx guard and tx status evicted guard",
             join(
                 broadcast_tx_guard_1.wait_until_satisfied(),
@@ -655,16 +577,10 @@ async fn confirm_submission_exits_for_unknown_status_after_time_limit() {
     // beginning to poll.
 
     let broadcast_tx_guard_2 = sequencer_relayer
-        .mount_celestia_app_broadcast_tx_response_as_scoped("broadcast tx 2", Some(1), Some(1))
+        .mount_celestia_app_broadcast_tx_response_as_scoped("broadcast tx 2")
         .await;
     let tx_confirmed_guard = sequencer_relayer
-        .mount_celestia_app_tx_status_response_as_scoped(
-            "tx status 2",
-            53,
-            "COMMITTED",
-            Some(1),
-            Some(1),
-        )
+        .mount_celestia_app_tx_status_response_as_scoped("tx status 2", 53, "COMMITTED", 1)
         .await;
     sequencer_relayer
         .timeout_ms(

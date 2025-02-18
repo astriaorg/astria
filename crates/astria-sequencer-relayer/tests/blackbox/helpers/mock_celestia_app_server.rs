@@ -162,12 +162,10 @@ impl MockCelestiaAppServer {
     pub async fn mount_broadcast_tx_response_as_scoped(
         &self,
         debug_name: impl Into<String>,
-        expected: Option<u64>,
-        up_to_n_times: Option<u64>,
     ) -> MockGuard {
         self.prepare_broadcast_tx_response(debug_name)
-            .expect(expected.unwrap_or(1))
-            .up_to_n_times(up_to_n_times.unwrap_or(1000))
+            .expect(1)
+            .up_to_n_times(1)
             .mount_as_scoped(&self.mock_server)
             .await
     }
@@ -201,29 +199,16 @@ impl MockCelestiaAppServer {
             .with_name(debug_name)
     }
 
-    pub async fn mount_tx_status_response(
-        &self,
-        debug_name: impl Into<String>,
-        status: String,
-        height: i64,
-    ) {
-        prepare_tx_status_response(status, height)
-            .with_name(debug_name)
-            .mount(&self.mock_server)
-            .await;
-    }
-
     pub async fn mount_tx_status_response_as_scoped(
         &self,
         debug_name: impl Into<String>,
         status: String,
         height: i64,
-        expected: Option<u64>,
-        up_to_n_times: Option<u64>,
+        number_of_times: u64,
     ) -> MockGuard {
         prepare_tx_status_response(status, height)
-            .expect(expected.unwrap_or(1))
-            .up_to_n_times(up_to_n_times.unwrap_or(1000))
+            .expect(number_of_times)
+            .up_to_n_times(number_of_times)
             .with_name(debug_name)
             .mount_as_scoped(&self.mock_server)
             .await

@@ -269,23 +269,10 @@ impl TestSequencerRelayer {
     pub async fn mount_celestia_app_broadcast_tx_response_as_scoped(
         &self,
         debug_name: impl Into<String>,
-        expected: Option<u64>,
-        up_to_n_times: Option<u64>,
     ) -> GrpcMockGuard {
         self.celestia_app
-            .mount_broadcast_tx_response_as_scoped(debug_name, expected, up_to_n_times)
+            .mount_broadcast_tx_response_as_scoped(debug_name)
             .await
-    }
-
-    pub async fn mount_celestia_app_tx_status_response(
-        &self,
-        debug_name: impl Into<String>,
-        celestia_height: i64,
-        status: &str,
-    ) {
-        self.celestia_app
-            .mount_tx_status_response(debug_name, status.to_string(), celestia_height)
-            .await;
     }
 
     /// Mounts a Celestia `TxStatus` response and returns a `wiremock::MockGuard` to allow for
@@ -295,16 +282,14 @@ impl TestSequencerRelayer {
         debug_name: impl Into<String>,
         celestia_height: i64,
         status: &str,
-        expected: Option<u64>,
-        up_to_n_times: Option<u64>,
+        number_of_times: u64,
     ) -> GrpcMockGuard {
         self.celestia_app
             .mount_tx_status_response_as_scoped(
                 debug_name,
                 status.to_string(),
                 celestia_height,
-                expected,
-                up_to_n_times,
+                number_of_times,
             )
             .await
     }
