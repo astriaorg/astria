@@ -19,7 +19,6 @@ images:
     tag: 1.0.0
     devTag: pr-1866
 
-
 genesis:
   ## These values are used to configure the genesis block of the rollup chain
   ## no defaults as they are unique to each chain
