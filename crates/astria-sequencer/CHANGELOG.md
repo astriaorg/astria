@@ -26,6 +26,14 @@ of signer [#1905](https://github.com/astriaorg/astria/pull/1905).
 - Add more thorough unit tests for all actions [#1916](https://github.com/astriaorg/astria/pull/1916).
 - Implement `BridgeTransfer` action [#1934](https://github.com/astriaorg/astria/pull/1934).
 
+### Removed
+
+- Remove ASTRIA_SEQUENCER_LISTEN_ADDR config variable [#1877](https://github.com/astriaorg/astria/pull/1877)
+
+### Added
+
+- Add ASTRIA_SEQUENCER_ABCI_LISTEN_URL config variable [#1877](https://github.com/astriaorg/astria/pull/1877)
+
 ## [1.0.0] - 2024-10-25
 
 ### Changed
