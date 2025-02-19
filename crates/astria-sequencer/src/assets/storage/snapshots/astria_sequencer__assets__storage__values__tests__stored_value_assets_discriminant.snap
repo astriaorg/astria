@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/assets/storage/values.rs
+expression: "format!(\"{:?}\",\ndiscriminant(&StoredValue::Assets(Value(ValueImpl::TracePrefixedDenom((&\"test_denom\".to_string().parse::<DomainTracePrefixed>().unwrap()).into())))))"
+---
+Discriminant(2)

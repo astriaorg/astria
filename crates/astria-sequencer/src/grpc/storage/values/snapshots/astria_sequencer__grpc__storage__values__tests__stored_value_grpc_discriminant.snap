@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/grpc/storage/values/mod.rs
+expression: "format!(\"{:?}\",\ndiscriminant(&StoredValue::Grpc(Value(ValueImpl::BlockHash((&Hash::new([0;\n32])).into())))))"
+---
+Discriminant(9)

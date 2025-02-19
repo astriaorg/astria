@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/fees/storage/values.rs
+expression: "format!(\"{:?}\",\ndiscriminant(&StoredValue::Fees(Value(ValueImpl::TransferFees(FeeComponents\n{ base: 1, multiplier: 2, })))))"
+---
+Discriminant(5)

@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/ibc/storage/values.rs
+expression: "format!(\"{:?}\", discriminant(&ValueImpl::Balance(Balance(0))))"
+---
+Discriminant(0)
