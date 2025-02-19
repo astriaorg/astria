@@ -10,7 +10,7 @@ protocol. Astria uses Skip's oracle sidecar to fetch price data.
 ## High level overview
 
 Astria uses CometBFT for consensus, which communicates with the application
-logic using [ABCI++](https://docs.cometbft.com/v0.37/spec/abci/abci++_basic_concepts#consensusblock-execution-methods).
+logic using [ABCI++](https://docs.cometbft.com/v0.38/spec/abci/abci++_basic_concepts#consensusblock-execution-methods).
 During each consensus round, validators gossip "vote extensions" (VEs), which can
 be any arbitrary data. In our case, validators put price data in vote extensions.
 Nodes get the price data from Skip's oracle sidecar process, which fetches and
@@ -29,7 +29,7 @@ prices to this set, prices are updated in the application's state for that block
 
 The overall price for a currency pair is calculated by using the voting-power-weighted
 median of the prices posted by each validator. This way, one malfunctioning validator
-should not be able to affect the resulting aggregated price.
+should not be able to significantly affect the resulting aggregated price.
 
 Since the sequencer network (along with Celestia, for DA) is used by rollups for
 transaction data and ordering, rollups are also able to access the price data
@@ -82,9 +82,9 @@ where `ExtendedCommitInfoWithCurrencyPairMapping` is the following:
 
 ```rust
 pub struct ExtendedCommitInfoWithCurrencyPairMapping {
-    // the entire set of vote extensions finalized in the sequencer block.
+    // The entire set of vote extensions finalized in the sequencer block.
     pub extended_commit_info: ExtendedCommitInfo,
-    // mapping of currency pair ID (since vote extensions contain only ID->price)
+    // Mapping of currency pair ID (since vote extensions contain only ID->price)
     // to the currency pair and its price decimals.
     pub id_to_currency_pair: IndexMap<CurrencyPairId, CurrencyPairInfo>,
 }
@@ -109,7 +109,7 @@ pub enum RollupData {
 }
 ```
 
-The price data is set to the rollup as a `RollupData::OracleData` variant, which
+The price data is sent to the rollup as a `RollupData::OracleData` variant, which
 the rollup can then decode and handle how it wishes.
 
 ### Sequencer application
@@ -153,7 +153,8 @@ prices are not updated.
 
 #### `process_proposal`
 
-Other validators receive the proposed block in [`process_proposal`](https://github.com/astriaorg/astria/blob/b2083b4a82195dc9be1e85f31cea14c724b8b4ec/crates/astria-sequencer/src/app/vote_extension.rs#L271).
+Other validators receive the proposed block in `process_proposal`, which calls
+[`validate_proposal`](https://github.com/astriaorg/astria/blob/b2083b4a82195dc9be1e85f31cea14c724b8b4ec/crates/astria-sequencer/src/app/vote_extension.rs#L271).
 If it contains
 non-empty extended commit info, it validates it by checking that the signature
 for each vote extension is valid, and corresponds to an actual validator. It checks
