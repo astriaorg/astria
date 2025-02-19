@@ -790,14 +790,3 @@ pub mod execution_service_server {
         const NAME: &'static str = "astria.execution.v2.ExecutionService";
     }
 }
-/// There is only one CommitmentState object, so the request is empty.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetCommitmentStateRequest {}
-impl ::prost::Name for GetCommitmentStateRequest {
-    const NAME: &'static str = "GetCommitmentStateRequest";
-    const PACKAGE: &'static str = "astria.execution.v2";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
-    }
-}
