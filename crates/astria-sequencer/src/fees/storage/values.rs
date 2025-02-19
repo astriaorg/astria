@@ -39,7 +39,6 @@ enum ValueImpl {
     InitBridgeAccountFees(FeeComponents),
     BridgeLockFees(FeeComponents),
     BridgeUnlockFees(FeeComponents),
-    BridgeTransferFees(FeeComponents),
     BridgeSudoChangeFees(FeeComponents),
     IbcRelayFees(FeeComponents),
     ValidatorUpdateFees(FeeComponents),
@@ -48,6 +47,7 @@ enum ValueImpl {
     IbcRelayerChangeFees(FeeComponents),
     IbcSudoChangeFees(FeeComponents),
     SudoAddressChangeFees(FeeComponents),
+    BridgeTransferFees(FeeComponents),
 }
 
 macro_rules! impl_from_for_fee_storage {
