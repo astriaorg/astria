@@ -96,3 +96,45 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for AddressBytes<'a> {
         Ok(address)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::mem::discriminant;
+
+    use insta::assert_snapshot;
+
+    use super::*;
+
+    #[test]
+    fn value_impl_balance_discriminant_unchanged() {
+        assert_snapshot!(
+            "value_impl_balance_discriminant",
+            format!("{:?}", discriminant(&ValueImpl::Balance(Balance(0))))
+        );
+    }
+
+    #[test]
+    fn value_impl_address_bytes_discriminant_unchanged() {
+        assert_snapshot!(
+            "value_impl_address_bytes_discriminant",
+            format!(
+                "{:?}",
+                discriminant(&ValueImpl::AddressBytes((&[0; ADDRESS_LEN]).into()))
+            )
+        );
+    }
+
+    // Note: This test must be here instead of in `crate::storage` since `ValueImpl` is not
+    // re-exported.
+    #[test]
+    fn stored_value_ibc_discriminant_unchanged() {
+        use crate::storage::StoredValue;
+        assert_snapshot!(
+            "stored_value_ibc_discriminant",
+            format!(
+                "{:?}",
+                discriminant(&StoredValue::Ibc(Value(ValueImpl::Balance(Balance(0)))))
+            )
+        );
+    }
+}

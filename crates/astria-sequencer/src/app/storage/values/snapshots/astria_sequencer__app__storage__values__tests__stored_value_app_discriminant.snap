@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/app/storage/values/mod.rs
+expression: "format!(\"{:?}\",\ndiscriminant(&StoredValue::App(Value(ValueImpl::BlockHeight(1.into())))))"
+---
+Discriminant(8)

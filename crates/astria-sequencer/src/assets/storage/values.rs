@@ -65,3 +65,49 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for TracePrefixedDenom<'a> {
         Ok(denom)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::mem::discriminant;
+
+    use insta::assert_snapshot;
+
+    use super::*;
+
+    #[test]
+    fn value_impl_trace_prefixed_denom_discriminant_unchanged() {
+        assert_snapshot!(
+            "value_impl_trace_prefixed_denom_discriminant",
+            format!(
+                "{:?}",
+                discriminant(&ValueImpl::TracePrefixedDenom(
+                    (&"test_denom"
+                        .to_string()
+                        .parse::<DomainTracePrefixed>()
+                        .unwrap())
+                        .into()
+                ))
+            )
+        );
+    }
+
+    // Note: This test must be here instead of in `crate::storage` since `ValueImpl` is not
+    // re-exported.
+    #[test]
+    fn stored_value_assets_discriminant_unchanged() {
+        use crate::storage::StoredValue;
+        assert_snapshot!(
+            "stored_value_assets_discriminant",
+            format!(
+                "{:?}",
+                discriminant(&StoredValue::Assets(Value(ValueImpl::TracePrefixedDenom(
+                    (&"test_denom"
+                        .to_string()
+                        .parse::<DomainTracePrefixed>()
+                        .unwrap())
+                        .into()
+                ))))
+            )
+        );
+    }
+}

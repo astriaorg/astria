@@ -30,3 +30,17 @@ impl StoredValue<'_> {
         borsh::from_slice(bytes).wrap_err("failed to deserialize stored value")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::mem::discriminant;
+
+    use insta::assert_snapshot;
+
+    use super::*;
+
+    #[test]
+    fn stored_value_unit_discriminant_unchanged() {
+        assert_snapshot!(format!("{:?}", discriminant(&StoredValue::Unit)));
+    }
+}

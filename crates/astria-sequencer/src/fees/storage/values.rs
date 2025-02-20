@@ -113,3 +113,163 @@ impl_from_for_fee_storage!(
     DomainFeeComponents<IbcSudoChange> => IbcSudoChangeFees,
     DomainFeeComponents<SudoAddressChange> => SudoAddressChangeFees,
 );
+
+#[cfg(test)]
+mod tests {
+    use std::mem::discriminant;
+
+    use insta::assert_snapshot;
+
+    use super::*;
+
+    macro_rules! value_impl_discriminant {
+        ($value_impl:ident) => {{
+            format!(
+                "{:?}",
+                discriminant(&ValueImpl::$value_impl(FeeComponents {
+                    base: 1,
+                    multiplier: 2,
+                }))
+            )
+        }};
+    }
+
+    #[test]
+    fn value_impl_transfer_fees_discriminant_unchanged() {
+        assert_snapshot!(
+            "value_impl_transfer_fees_discriminant",
+            value_impl_discriminant!(TransferFees),
+        );
+    }
+
+    #[test]
+    fn value_impl_rollup_data_submission_fees_discriminant_unchanged() {
+        assert_snapshot!(
+            "value_impl_rollup_data_submission_fees_discriminant",
+            value_impl_discriminant!(RollupDataSubmissionFees),
+        );
+    }
+
+    #[test]
+    fn value_impl_ics20_withdrawal_fees_discriminant_unchanged() {
+        assert_snapshot!(
+            "value_impl_ics20_withdrawal_fees_discriminant",
+            value_impl_discriminant!(Ics20WithdrawalFees),
+        );
+    }
+
+    #[test]
+    fn value_impl_init_bridge_account_fees_discriminant_unchanged() {
+        assert_snapshot!(
+            "value_impl_init_bridge_account_fees_discriminant",
+            value_impl_discriminant!(InitBridgeAccountFees),
+        );
+    }
+
+    #[test]
+    fn value_impl_bridge_lock_fees_discriminant_unchanged() {
+        assert_snapshot!(
+            "value_impl_bridge_lock_fees_discriminant",
+            value_impl_discriminant!(BridgeLockFees),
+        );
+    }
+
+    #[test]
+    fn value_impl_bridge_unlock_fees_discriminant_unchanged() {
+        assert_snapshot!(
+            "value_impl_bridge_unlock_fees_discriminant",
+            value_impl_discriminant!(BridgeUnlockFees),
+        );
+    }
+
+    #[test]
+    fn value_impl_bridge_sudo_change_fees_discriminant_unchanged() {
+        assert_snapshot!(
+            "value_impl_bridge_sudo_change_fees_discriminant",
+            value_impl_discriminant!(BridgeSudoChangeFees),
+        );
+    }
+
+    #[test]
+    fn value_impl_ibc_relay_fees_discriminant_unchanged() {
+        assert_snapshot!(
+            "value_impl_ibc_relay_fees_discriminant",
+            value_impl_discriminant!(IbcRelayFees),
+        );
+    }
+
+    #[test]
+    fn value_impl_validator_update_fees_discriminant_unchanged() {
+        assert_snapshot!(
+            "value_impl_validator_update_fees_discriminant",
+            value_impl_discriminant!(ValidatorUpdateFees),
+        );
+    }
+
+    #[test]
+    fn value_impl_fee_asset_change_fees_discriminant_unchanged() {
+        assert_snapshot!(
+            "value_impl_fee_asset_change_fees_discriminant",
+            value_impl_discriminant!(FeeAssetChangeFees),
+        );
+    }
+
+    #[test]
+    fn value_impl_fee_change_fees_discriminant_unchanged() {
+        assert_snapshot!(
+            "value_impl_fee_change_fees_discriminant",
+            value_impl_discriminant!(FeeChangeFees),
+        );
+    }
+
+    #[test]
+    fn value_impl_ibc_relayer_change_fees_discriminant_unchanged() {
+        assert_snapshot!(
+            "value_impl_ibc_relayer_change_fees_discriminant",
+            value_impl_discriminant!(IbcRelayerChangeFees),
+        );
+    }
+
+    #[test]
+    fn value_impl_ibc_sudo_change_fees_discriminant_unchanged() {
+        assert_snapshot!(
+            "value_impl_ibc_sudo_change_fees_discriminant",
+            value_impl_discriminant!(IbcSudoChangeFees),
+        );
+    }
+
+    #[test]
+    fn value_impl_sudo_address_change_fees_discriminant_unchanged() {
+        assert_snapshot!(
+            "value_impl_sudo_address_change_fees_discriminant",
+            value_impl_discriminant!(SudoAddressChangeFees),
+        );
+    }
+
+    #[test]
+    fn value_impl_bridge_transfer_fees_discriminant_unchanged() {
+        assert_snapshot!(
+            "value_impl_bridge_transfer_fees_discriminant",
+            value_impl_discriminant!(BridgeTransferFees),
+        );
+    }
+
+    // Note: This test must be here instead of in `crate::storage` since `ValueImpl` is not
+    // re-exported.
+    #[test]
+    fn stored_value_fees_discriminant_unchanged() {
+        use crate::storage::StoredValue;
+        assert_snapshot!(
+            "stored_value_fees_discriminant",
+            format!(
+                "{:?}",
+                discriminant(&StoredValue::Fees(Value(ValueImpl::TransferFees(
+                    FeeComponents {
+                        base: 1,
+                        multiplier: 2,
+                    }
+                ))))
+            )
+        );
+    }
+}

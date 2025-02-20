@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/app/storage/values/mod.rs
+expression: "format!(\"{:?}\", discriminant(&ValueImpl::StorageVersion(1.into())))"
+---
+Discriminant(4)
