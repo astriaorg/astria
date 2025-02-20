@@ -448,5 +448,11 @@ pub mod v2 {
             "ETH /USD".parse::<CurrencyPair>().unwrap_err();
             "ETH/ USD".parse::<CurrencyPair>().unwrap_err();
         }
+
+        #[test]
+        fn can_parse_negative_price() {
+            let price = "-1".parse::<Price>().unwrap();
+            assert_eq!(price.get(), -1);
+        }
     }
 }
