@@ -19,7 +19,13 @@ message CommitmentState {
   // A firm committed rollup block is derived from a Sequencer block that has been
   // written to the data availability layer (Celestia).
   RollupBlock firm = 2;
-  // The lowest block number of celestia chain to be searched for rollup blocks
-  // given current state
-  uint64 base_celestia_height = 3;
+  // The Celestia height at which the last firm block was written. This is used
+  // as the starting point to search for the next firm block. If no firm blocks
+  // have been fetched from Celestia yet, this is the first Celestia height that
+  // will be fetched.
+  //
+  // This information is stored as part of the commitment state so that it will
+  // be routinely updated as new firm blocks are received, and so that the execution
+  // client will not need to search from Celestia genesis when it starts up.
+  uint64 celestia_height = 3;
 }

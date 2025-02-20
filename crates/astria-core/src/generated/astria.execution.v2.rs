@@ -43,10 +43,16 @@ pub struct CommitmentState {
     /// written to the data availability layer (Celestia).
     #[prost(message, optional, tag = "2")]
     pub firm: ::core::option::Option<RollupBlock>,
-    /// The lowest block number of celestia chain to be searched for rollup blocks
-    /// given current state
+    /// The Celestia height at which the last firm block was written. This is used
+    /// as the starting point to search for the next firm block. If no firm blocks
+    /// have been fetched from Celestia yet, this is the first Celestia height that
+    /// will be fetched.
+    ///
+    /// This information is stored as part of the commitment state so that it will
+    /// be routinely updated as new firm blocks are received, and so that the execution
+    /// client will not need to search from Celestia genesis when it starts up.
     #[prost(uint64, tag = "3")]
-    pub base_celestia_height: u64,
+    pub celestia_height: u64,
 }
 impl ::prost::Name for CommitmentState {
     const NAME: &'static str = "CommitmentState";

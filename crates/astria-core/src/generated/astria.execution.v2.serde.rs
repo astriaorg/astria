@@ -12,7 +12,7 @@ impl serde::Serialize for CommitmentState {
         if self.firm.is_some() {
             len += 1;
         }
-        if self.base_celestia_height != 0 {
+        if self.celestia_height != 0 {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.execution.v2.CommitmentState", len)?;
@@ -22,9 +22,9 @@ impl serde::Serialize for CommitmentState {
         if let Some(v) = self.firm.as_ref() {
             struct_ser.serialize_field("firm", v)?;
         }
-        if self.base_celestia_height != 0 {
+        if self.celestia_height != 0 {
             #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("baseCelestiaHeight", ToString::to_string(&self.base_celestia_height).as_str())?;
+            struct_ser.serialize_field("celestiaHeight", ToString::to_string(&self.celestia_height).as_str())?;
         }
         struct_ser.end()
     }
@@ -38,15 +38,15 @@ impl<'de> serde::Deserialize<'de> for CommitmentState {
         const FIELDS: &[&str] = &[
             "soft",
             "firm",
-            "base_celestia_height",
-            "baseCelestiaHeight",
+            "celestia_height",
+            "celestiaHeight",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             Soft,
             Firm,
-            BaseCelestiaHeight,
+            CelestiaHeight,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -70,7 +70,7 @@ impl<'de> serde::Deserialize<'de> for CommitmentState {
                         match value {
                             "soft" => Ok(GeneratedField::Soft),
                             "firm" => Ok(GeneratedField::Firm),
-                            "baseCelestiaHeight" | "base_celestia_height" => Ok(GeneratedField::BaseCelestiaHeight),
+                            "celestiaHeight" | "celestia_height" => Ok(GeneratedField::CelestiaHeight),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -92,7 +92,7 @@ impl<'de> serde::Deserialize<'de> for CommitmentState {
             {
                 let mut soft__ = None;
                 let mut firm__ = None;
-                let mut base_celestia_height__ = None;
+                let mut celestia_height__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::Soft => {
@@ -107,11 +107,11 @@ impl<'de> serde::Deserialize<'de> for CommitmentState {
                             }
                             firm__ = map_.next_value()?;
                         }
-                        GeneratedField::BaseCelestiaHeight => {
-                            if base_celestia_height__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("baseCelestiaHeight"));
+                        GeneratedField::CelestiaHeight => {
+                            if celestia_height__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("celestiaHeight"));
                             }
-                            base_celestia_height__ = 
+                            celestia_height__ = 
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
@@ -120,7 +120,7 @@ impl<'de> serde::Deserialize<'de> for CommitmentState {
                 Ok(CommitmentState {
                     soft: soft__,
                     firm: firm__,
-                    base_celestia_height: base_celestia_height__.unwrap_or_default(),
+                    celestia_height: celestia_height__.unwrap_or_default(),
                 })
             }
         }
