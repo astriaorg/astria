@@ -6,7 +6,7 @@ metadata:
 data:
   ASTRIA_SEQUENCER_RELAYER_LOG: "astria_sequencer_relayer=debug"
   ASTRIA_SEQUENCER_RELAYER_SUBMISSION_STATE_PATH: "{{ include "sequencer-relayer.storage.submissionStatePath" . }}"
-  ASTRIA_SEQUENCER_RELAYER_BLOCK_TIME: "{{ .Values.config.relayer.blockTimeMs }}"
+  ASTRIA_SEQUENCER_RELAYER_BLOCK_TIME: "{{ include "sequencer-relayer.blockTimeMs" . }}"
   ASTRIA_SEQUENCER_RELAYER_COMETBFT_ENDPOINT: "{{ .Values.config.relayer.cometbftRpc }}"
   ASTRIA_SEQUENCER_RELAYER_SEQUENCER_GRPC_ENDPOINT: "{{ .Values.config.relayer.sequencerGrpc }}"
   ASTRIA_SEQUENCER_RELAYER_CELESTIA_APP_GRPC_ENDPOINT: "{{ .Values.config.relayer.celestiaAppGrpc }}"
@@ -26,8 +26,8 @@ data:
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ tpl .Values.otel.traceHeaders . }}"
   OTEL_SERVICE_NAME: "{{ tpl .Values.otel.serviceName . }}"
   ASTRIA_SEQUENCER_RELAYER_ONLY_INCLUDE_ROLLUPS: "{{ .Values.config.relayer.onlyIncludeRollups }}"
-  ASTRIA_SEQUENCER_RELAYER_SEQUENCER_CHAIN_ID: "{{ .Values.config.relayer.sequencerChainId }}"
-  ASTRIA_SEQUENCER_RELAYER_CELESTIA_CHAIN_ID: "{{ .Values.config.relayer.celestiaChainId }}"
+  ASTRIA_SEQUENCER_RELAYER_SEQUENCER_CHAIN_ID: "{{ include "sequencer-relayer.sequencerChainId" . }}"
+  ASTRIA_SEQUENCER_RELAYER_CELESTIA_CHAIN_ID: "{{ include "sequencer-relayer.celestiaChainId" . }}"
   {{- if not .Values.global.dev }}
   {{- else }}
   {{- end }}
