@@ -64,6 +64,15 @@ pub mod astria {
                 include!("astria.execution.v1.serde.rs");
             }
         }
+        pub mod v2 {
+            include!("astria.execution.v2.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impl {
+                use super::*;
+                include!("astria.execution.v2.serde.rs");
+            }
+        }
     }
 
     pub mod optimistic_execution {
