@@ -5,12 +5,85 @@ Namepsace to deploy elements into.
 {{- default .Release.Namespace .Values.global.namespaceOverride | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
+{{- define "sequencer.imageTag" -}}
+{{- if or (eq .Values.global.network "custom") (eq .Values.global.dev true) }}{{ .Values.images.sequencer.tag }}
+{{- else if eq .Values.global.network "mainnet" }}1.0.0
+{{- else if eq .Values.global.network "dawn-1" }}1.0.0
+{{- else if eq .Values.global.network "dusk-11" }}1.0.0
+{{- end }}
+{{- end }}
+
+{{- define "cometBFT.imageTag" -}}
+{{- if or (eq .Values.global.network "custom") (eq .Values.global.dev true) }}{{ .Values.images.cometBFT.tag }}
+{{- else if eq .Values.global.network "mainnet" }}1.0.0
+{{- else if eq .Values.global.network "dawn-1" }}1.0.0
+{{- else if eq .Values.global.network "dusk-11" }}1.0.0
+{{- end }}
+{{- end }}
+
 {{- define "sequencer.image" -}}
-{{ .Values.images.sequencer.repo }}:{{ if .Values.global.dev }}{{ .Values.images.sequencer.devTag }}{{ else }}{{ .Values.images.sequencer.tag }}{{ end }}
+{{ .Values.images.sequencer.repo }}:{{ include "sequencer.imageTag" . }}
 {{- end }}
 {{- define "cometBFT.image" -}}
-{{ .Values.images.cometBFT.repo }}:{{ if .Values.global.dev }}{{ .Values.images.cometBFT.devTag }}{{ else }}{{ .Values.images.cometBFT.tag }}{{ end }}
+{{ .Values.images.cometBFT.repo }}:{{ include "cometBFT.imageTag" . }}
 {{- end }}
+
+{{- define "cometBFT.timeouts.propose" -}}
+{{- if eq .Values.global.network "custom" }}{{ .Values.cometbft.config.consensus.timeoutPropose }}
+{{- else if eq .Values.global.network "mainnet" }}2s
+{{- else if eq .Values.global.network "dawn-1" }}2s
+{{- else if eq .Values.global.network "dusk-11" }}2s
+{{- end }}
+{{- end }}
+
+{{- define "cometBFT.timeouts.proposeDelta" -}}
+{{- if eq .Values.global.network "custom" }}{{ .Values.cometbft.config.consensus.timeoutProposeDelta }}
+{{- else if eq .Values.global.network "mainnet" }}500ms
+{{- else if eq .Values.global.network "dawn-1" }}500ms
+{{- else if eq .Values.global.network "dusk-11" }}500ms
+{{- end }}
+{{- end }}
+
+{{- define "cometBFT.timeouts.prevote" -}}
+{{- if eq .Values.global.network "custom" }}{{ .Values.cometbft.config.consensus.timeoutPrevote }}
+{{- else if eq .Values.global.network "mainnet" }}1s
+{{- else if eq .Values.global.network "dawn-1" }}1s
+{{- else if eq .Values.global.network "dusk-11" }}1s
+{{- end }}
+{{- end }}
+
+{{- define "cometBFT.timeouts.prevoteDelta" -}}
+{{- if eq .Values.global.network "custom" }}{{ .Values.cometbft.config.consensus.timeoutPrevoteDelta }}
+{{- else if eq .Values.global.network "mainnet" }}500ms
+{{- else if eq .Values.global.network "dawn-1" }}500ms
+{{- else if eq .Values.global.network "dusk-11" }}500ms
+{{- end }}
+{{- end }}
+
+{{- define "cometBFT.timeouts.precommit" -}}
+{{- if eq .Values.global.network "custom" }}{{ .Values.cometbft.config.consensus.timeoutPrecommit }}
+{{- else if eq .Values.global.network "mainnet" }}1s
+{{- else if eq .Values.global.network "dawn-1" }}1s
+{{- else if eq .Values.global.network "dusk-11" }}1s
+{{- end }}
+{{- end }}
+
+{{- define "cometBFT.timeouts.precommitDelta" -}}
+{{- if eq .Values.global.network "custom" }}{{ .Values.cometbft.config.consensus.timeoutPrecommitDelta }}
+{{- else if eq .Values.global.network "mainnet" }}500ms
+{{- else if eq .Values.global.network "dawn-1" }}500ms
+{{- else if eq .Values.global.network "dusk-11" }}500ms
+{{- end }}
+{{- end }}
+
+{{- define "cometBFT.timeouts.commit" -}}
+{{- if eq .Values.global.network "custom" }}{{ .Values.cometbft.config.consensus.timeoutCommit }}
+{{- else if eq .Values.global.network "mainnet" }}1500ms
+{{- else if eq .Values.global.network "dawn-1" }}1500ms
+{{- else if eq .Values.global.network "dusk-11" }}1500ms
+{{- end }}
+{{- end }}
+
 
 {{/*
 Return if ingress is stable.
