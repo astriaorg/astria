@@ -15,7 +15,7 @@ type: application
 # This is the chart version. This version number should be incremented each time you make changes
 # to the chart and its templates, including the app version.
 # Versions are expected to follow Semantic Versioning (https://semver.org/)
-version: 1.0.11
+version: 1.0.12
 dependencies:
   - name: celestia-node
     version: 0.4.0
@@ -34,7 +34,7 @@ dependencies:
     repository: "file://../composer"
     condition: composer.enabled
   - name: auctioneer
-    version: 0.0.1
+    version: 0.0.2
     repository: "file://../auctioneer"
     condition: auctioneer.enabled
   - name: evm-faucet

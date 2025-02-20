@@ -13,7 +13,7 @@ dependencies:
   version: 1.0.0
 - name: auctioneer
   repository: file://../auctioneer
-  version: 0.0.1
+  version: 0.0.2
 - name: evm-faucet
   repository: file://../evm-faucet
   version: 0.1.4
@@ -26,5 +26,5 @@ dependencies:
 - name: blockscout-stack
   repository: https://blockscout.github.io/helm-charts
   version: 1.6.8
-digest: sha256:feffdb4dbba53d3261e49eeb082718be4e3673ae7bc7c6118dddff2f19218273
-generated: "2025-02-19T10:43:16.548953+02:00"
+digest: sha256:ec55e7e1427dd7af6b3764d7cedc7b5b168ec2443fa140cb3000c8ed68d711ac
+generated: "2025-02-20T10:44:04.460576+02:00"
