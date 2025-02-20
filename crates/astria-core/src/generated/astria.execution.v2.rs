@@ -2,47 +2,23 @@
 /// must know about a given rollup Block
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Block {
+pub struct RollupBlock {
     /// The block number
     #[prost(uint64, tag = "1")]
     pub number: u64,
     /// The hash of the block
     #[prost(bytes = "bytes", tag = "2")]
     pub hash: ::prost::bytes::Bytes,
-    /// The hash from the parent block
+    /// The hash of this block's parent block
     #[prost(bytes = "bytes", tag = "3")]
     pub parent_hash: ::prost::bytes::Bytes,
-    /// Timestamp on the block, standardized to google protobuf standard.
+    /// Timestamp of the block, taken from the sequencer block that this rollup block
+    /// was constructed from.
     #[prost(message, optional, tag = "4")]
     pub timestamp: ::core::option::Option<::pbjson_types::Timestamp>,
 }
-impl ::prost::Name for Block {
-    const NAME: &'static str = "Block";
-    const PACKAGE: &'static str = "astria.execution.v2";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
-    }
-}
-/// Fields which are indexed for finding blocks on a blockchain.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct BlockIdentifier {
-    #[prost(oneof = "block_identifier::Identifier", tags = "1, 2")]
-    pub identifier: ::core::option::Option<block_identifier::Identifier>,
-}
-/// Nested message and enum types in `BlockIdentifier`.
-pub mod block_identifier {
-    #[allow(clippy::derive_partial_eq_without_eq)]
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum Identifier {
-        #[prost(uint64, tag = "1")]
-        Number(u64),
-        #[prost(bytes, tag = "2")]
-        Hash(::prost::bytes::Bytes),
-    }
-}
-impl ::prost::Name for BlockIdentifier {
-    const NAME: &'static str = "BlockIdentifier";
+impl ::prost::Name for RollupBlock {
+    const NAME: &'static str = "RollupBlock";
     const PACKAGE: &'static str = "astria.execution.v2";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
@@ -59,12 +35,14 @@ impl ::prost::Name for BlockIdentifier {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CommitmentState {
-    /// Soft commitment is the rollup block matching latest sequencer block.
+    /// A soft committed rollup block is derived directly from an Astria sequencer
+    /// block.
     #[prost(message, optional, tag = "1")]
-    pub soft: ::core::option::Option<Block>,
-    /// Firm commitment is achieved when data has been seen in DA.
+    pub soft: ::core::option::Option<RollupBlock>,
+    /// A firm committed rollup block is derived from a Sequencer block that has been
+    /// written to the data availability layer (Celestia).
     #[prost(message, optional, tag = "2")]
-    pub firm: ::core::option::Option<Block>,
+    pub firm: ::core::option::Option<RollupBlock>,
     /// The lowest block number of celestia chain to be searched for rollup blocks
     /// given current state
     #[prost(uint64, tag = "3")]
@@ -107,27 +85,34 @@ impl ::prost::Name for ExecuteBlockRequest {
         ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
     }
 }
-/// ExecutionConfig contains the information needed to map sequencer block height
+/// ExecutionSessionParameters contains the information needed to map sequencer block height
 /// to rollup block number for driving execution.
 ///
-/// This information is used to determine which sequencer & celestia data to
-/// use from the Astria & Celestia networks, as well as define shutdown/restart
-/// behavior of the Conductor.
+/// This information is used to determine which Astria sequencer and Celestia data
+/// to use from the Astria & Celestia networks, as well as define the bounds of
+/// block numbers to execute in the given session.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ExecutionConfig {
+pub struct ExecutionSessionParameters {
     /// The rollup_id is the unique identifier for the rollup chain.
     #[prost(message, optional, tag = "1")]
     pub rollup_id: ::core::option::Option<super::super::primitive::v1::RollupId>,
     /// The first rollup block number to be executed. This is mapped to `sequencer_first_block_height`.
     /// The minimum first block number is 1, since 0 represents the genesis block.
+    /// Implementors should reject a value of 0.
+    ///
+    /// Servers implementing this API should reject execution of blocks below this
+    /// value with an OUT_OF_RANGE error code.
     #[prost(uint64, tag = "2")]
-    pub rollup_first_block_number: u64,
-    /// The final rollup block number to execute before either re-fetching sequencer
-    /// info (restarting) or shutting down (determined by `halt_at_rollup_stop_number`).
-    /// If 0, no stop block will be set.
+    pub rollup_start_block_number: u64,
+    /// The final rollup block number to execute as part of a session.
+    ///
+    /// If not set or set to 0, the execution session does not have an upper bound.
+    ///
+    /// Servers implementing this API should reject execution of blocks past this
+    /// value with an OUT_OF_RANGE error code.
     #[prost(uint64, tag = "3")]
-    pub rollup_stop_block_number: u64,
+    pub rollup_end_block_number: u64,
     /// The ID of the Astria Sequencer network to retrieve Sequencer blocks from.
     /// Conductor implementations should verify that the Sequencer network they are
     /// connected to have this chain ID (if fetching soft Sequencer blocks), and verify
@@ -136,9 +121,9 @@ pub struct ExecutionConfig {
     #[prost(string, tag = "4")]
     pub sequencer_chain_id: ::prost::alloc::string::String,
     /// The first block height on the sequencer chain to use for rollup transactions.
-    /// This is mapped to `rollup_first_block_number`.
+    /// This is mapped to `rollup_start_block_number`.
     #[prost(uint64, tag = "5")]
-    pub sequencer_first_block_height: u64,
+    pub sequencer_start_block_height: u64,
     /// The ID of the Celestia network to retrieve blobs from.
     /// Conductor implementations should verify that the Celestia network they are
     /// connected to have this chain ID (if extracting firm Sequencer blocks from
@@ -149,8 +134,8 @@ pub struct ExecutionConfig {
     #[prost(uint64, tag = "7")]
     pub celestia_block_variance: u64,
 }
-impl ::prost::Name for ExecutionConfig {
-    const NAME: &'static str = "ExecutionConfig";
+impl ::prost::Name for ExecutionSessionParameters {
+    const NAME: &'static str = "ExecutionSessionParameters";
     const PACKAGE: &'static str = "astria.execution.v2";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
@@ -166,18 +151,45 @@ impl ::prost::Name for ExecutionConfig {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ExecutionSession {
-    /// A UUID for the session.
+    /// An ID for the session.
     #[prost(string, tag = "1")]
     pub session_id: ::prost::alloc::string::String,
-    /// The commitment state for executing client to start from.
-    #[prost(message, optional, tag = "2")]
-    pub commitment_state: ::core::option::Option<CommitmentState>,
     /// The configuration for the execution session.
+    #[prost(message, optional, tag = "2")]
+    pub execution_config: ::core::option::Option<ExecutionSessionParameters>,
+    /// The commitment state for executing client to start from.
     #[prost(message, optional, tag = "3")]
-    pub execution_config: ::core::option::Option<ExecutionConfig>,
+    pub commitment_state: ::core::option::Option<CommitmentState>,
 }
 impl ::prost::Name for ExecutionSession {
     const NAME: &'static str = "ExecutionSession";
+    const PACKAGE: &'static str = "astria.execution.v2";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
+    }
+}
+/// Identifiers to select a rollup block by.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RollupBlockIdentifier {
+    #[prost(oneof = "rollup_block_identifier::Identifier", tags = "1, 2")]
+    pub identifier: ::core::option::Option<rollup_block_identifier::Identifier>,
+}
+/// Nested message and enum types in `RollupBlockIdentifier`.
+pub mod rollup_block_identifier {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Identifier {
+        /// Identifier by block number, corresponding to `RollupBlock.number`.
+        #[prost(uint64, tag = "1")]
+        Number(u64),
+        /// Identifier by block hash, corresponding to `RollupBlock.hash`.
+        #[prost(bytes, tag = "2")]
+        Hash(::prost::bytes::Bytes),
+    }
+}
+impl ::prost::Name for RollupBlockIdentifier {
+    const NAME: &'static str = "RollupBlockIdentifier";
     const PACKAGE: &'static str = "astria.execution.v2";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
@@ -188,7 +200,7 @@ impl ::prost::Name for ExecutionSession {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetBlockRequest {
     #[prost(message, optional, tag = "1")]
-    pub identifier: ::core::option::Option<BlockIdentifier>,
+    pub identifier: ::core::option::Option<RollupBlockIdentifier>,
 }
 impl ::prost::Name for GetBlockRequest {
     const NAME: &'static str = "GetBlockRequest";
@@ -354,7 +366,7 @@ pub mod execution_service_client {
         pub async fn get_block(
             &mut self,
             request: impl tonic::IntoRequest<super::GetBlockRequest>,
-        ) -> std::result::Result<tonic::Response<super::Block>, tonic::Status> {
+        ) -> std::result::Result<tonic::Response<super::RollupBlock>, tonic::Status> {
             self.inner
                 .ready()
                 .await
@@ -380,7 +392,7 @@ pub mod execution_service_client {
         pub async fn execute_block(
             &mut self,
             request: impl tonic::IntoRequest<super::ExecuteBlockRequest>,
-        ) -> std::result::Result<tonic::Response<super::Block>, tonic::Status> {
+        ) -> std::result::Result<tonic::Response<super::RollupBlock>, tonic::Status> {
             self.inner
                 .ready()
                 .await
@@ -459,13 +471,13 @@ pub mod execution_service_server {
         async fn get_block(
             self: std::sync::Arc<Self>,
             request: tonic::Request<super::GetBlockRequest>,
-        ) -> std::result::Result<tonic::Response<super::Block>, tonic::Status>;
+        ) -> std::result::Result<tonic::Response<super::RollupBlock>, tonic::Status>;
         /// ExecuteBlock is called to deterministically derive a rollup block from
         /// filtered sequencer block information.
         async fn execute_block(
             self: std::sync::Arc<Self>,
             request: tonic::Request<super::ExecuteBlockRequest>,
-        ) -> std::result::Result<tonic::Response<super::Block>, tonic::Status>;
+        ) -> std::result::Result<tonic::Response<super::RollupBlock>, tonic::Status>;
         /// UpdateCommitmentState replaces the whole CommitmentState with a new
         /// CommitmentState.
         async fn update_commitment_state(
@@ -614,7 +626,7 @@ pub mod execution_service_server {
                         T: ExecutionService,
                     > tonic::server::UnaryService<super::GetBlockRequest>
                     for GetBlockSvc<T> {
-                        type Response = super::Block;
+                        type Response = super::RollupBlock;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
@@ -660,7 +672,7 @@ pub mod execution_service_server {
                         T: ExecutionService,
                     > tonic::server::UnaryService<super::ExecuteBlockRequest>
                     for ExecuteBlockSvc<T> {
-                        type Response = super::Block;
+                        type Response = super::RollupBlock;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
