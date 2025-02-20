@@ -14,16 +14,16 @@ pub mod v2 {
     use crate::generated::connect::types::v2 as raw;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-    pub struct Price(u128);
+    pub struct Price(i128);
 
     impl Price {
         #[must_use]
-        pub const fn new(value: u128) -> Self {
+        pub const fn new(value: i128) -> Self {
             Self(value)
         }
 
         #[must_use]
-        pub fn get(self) -> u128 {
+        pub fn get(self) -> i128 {
             self.0
         }
     }
@@ -33,7 +33,7 @@ pub mod v2 {
             self.get().checked_add(rhs.get()).map(Self)
         }
 
-        pub fn checked_div(self, rhs: u128) -> Option<Self> {
+        pub fn checked_div(self, rhs: i128) -> Option<Self> {
             self.get().checked_div(rhs).map(Self)
         }
     }
@@ -73,7 +73,7 @@ pub mod v2 {
             let be_bytes = <[u8; 16]>::try_from(&*input).map_err(|_| Self::Error {
                 input,
             })?;
-            Ok(Price::new(u128::from_be_bytes(be_bytes)))
+            Ok(Price::new(i128::from_be_bytes(be_bytes)))
         }
     }
 
