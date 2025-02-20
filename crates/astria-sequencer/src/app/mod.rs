@@ -1070,7 +1070,7 @@ impl App {
             .get_vote_extensions_enable_height()
             .await
             .wrap_err("failed to get vote extensions enabled height")?;
-        let injected_transactions_count =
+        let (injected_transactions_count, mut events) =
             if vote_extensions_enable_height <= finalize_block.height.value() {
                 ensure!(
                     finalize_block.txs.len()
@@ -1098,8 +1098,11 @@ impl App {
                 )
                 .await
                 .wrap_err("failed to apply prices from vote extensions")?;
-                let _ = self.apply(state_tx);
-                INJECTED_TRANSACTIONS_COUNT_AFTER_VOTE_EXTENSIONS_ENABLED
+                let events = self.apply(state_tx);
+                (
+                    INJECTED_TRANSACTIONS_COUNT_AFTER_VOTE_EXTENSIONS_ENABLED,
+                    events,
+                )
             } else {
                 ensure!(
                     finalize_block.txs.len()
@@ -1107,7 +1110,10 @@ impl App {
                     "block must contain at least two transactions: the rollup transactions \
                      commitment and rollup IDs commitment"
                 );
-                INJECTED_TRANSACTIONS_COUNT_BEFORE_VOTE_EXTENSIONS_ENABLED
+                (
+                    INJECTED_TRANSACTIONS_COUNT_BEFORE_VOTE_EXTENSIONS_ENABLED,
+                    vec![],
+                )
             };
 
         // When the hash is not empty, we have already executed and cached the results
@@ -1196,8 +1202,9 @@ impl App {
             .prepare_commit(storage)
             .await
             .wrap_err("failed to prepare commit")?;
+        events.extend(post_transaction_execution_result.events);
         let finalize_block = abci::response::FinalizeBlock {
-            events: post_transaction_execution_result.events,
+            events,
             validator_updates: post_transaction_execution_result.validator_updates,
             consensus_param_updates: post_transaction_execution_result.consensus_param_updates,
             app_hash,
