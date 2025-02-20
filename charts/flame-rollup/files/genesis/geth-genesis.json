@@ -15,10 +15,10 @@
         {{- if .Values.genesis.cancunTime }}
         "cancunTime": {{ toString .Values.genesis.cancunTime | replace "\"" "" }},
         {{- end }}
-        {{- if .Values.genesis.cancunTime }}
+        {{- if .Values.genesis.pragueTime }}
         "pragueTime": {{ toString .Values.genesis.pragueTime | replace "\"" "" }},
         {{- end }}
-        {{- if .Values.genesis.cancunTime }}
+        {{- if .Values.genesis.verkleTime }}
         "verkleTime": {{ toString .Values.genesis.verkleTime | replace "\"" "" }},
         {{- end }}
         "terminalTotalDifficulty": 0,
