@@ -1,0 +1,6 @@
+syntax = 'proto3';
+
+package astria.execution.v1alpha2;
+
+// There is only one CommitmentState object, so the request is empty.
+message GetCommitmentStateRequest {}

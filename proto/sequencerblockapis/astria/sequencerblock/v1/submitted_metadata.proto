@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package astria.sequencerblock.v1;
+
+import "astria/primitive/v1/proof.proto";
+import "astria/primitive/v1/rollup_id.proto";
+import "astria/sequencerblock/v1/sequencer_block_header.proto";
+
+// The metadata of a sequencer block that is submitted to a Data Availability provider like
+// Celestia
+//
+// It is created by splitting an `astria.sequencerblock.v1.SequencerBlock` into a
+// `astria.sequencerblock.v1.SubmittedMetadata` (this object), and a sequence of
+// `astria.sequencerblock.v1alpha.SubmittedRollupData` (one object per rollup that had data
+// included in the sequencer block).
+//
+// The original sequencer block (and in turn CometBFT block) can be identified by the
+// `block_hash` field.
+message SubmittedMetadata {
+  // the 32-byte block hash of the sequencer block.
+  bytes block_hash = 1;
+  // the block header, which contains sequencer-specific commitments.
+  astria.sequencerblock.v1.SequencerBlockHeader header = 2;
+  // The rollup IDs that had transactions included in the `astria.sequencerblock.v1.SequencerBlock`
+  // that this object is derived from.
+  // Corresponds to `astria.sequencerblock.v1.RollupTransactions.rollup_id`
+  // extracted from `astria.sequencerblock.v1.SsequencerBlock.rollup_transactions`.
+  repeated astria.primitive.v1.RollupId rollup_ids = 3;
+  // The proof that the rollup transactions are included in sequencer block.
+  // Corresponds to `astria.sequencerblock.v1.SequencerBlock.rollup_transactions_proof`.
+  astria.primitive.v1.Proof rollup_transactions_proof = 4;
+  // The proof that the rollup IDs are included in sequencer block.
+  // Corresponds to `astria.sequencerblock.v1.SequencerBlock.rollup_ids_proof`.
+  astria.primitive.v1.Proof rollup_ids_proof = 5;
+}

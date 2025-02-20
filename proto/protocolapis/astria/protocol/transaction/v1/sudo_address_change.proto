@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package astria.protocol.transaction.v1;
+
+import "astria/primitive/v1/address.proto";
+
+/// `SudoAddressChange` represents a transaction that changes
+/// the sudo address of the chain, which is the address authorized to
+/// make validator update actions.
+///
+/// It contains the new sudo address.
+message SudoAddressChange {
+  astria.primitive.v1.Address new_address = 1;
+}
