@@ -5,11 +5,27 @@ Namepsace to deploy elements into.
 {{- default .Release.Namespace .Values.global.namespaceOverride | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
+{{- define "sequencer.imageTag" -}}
+{{- if or (eq .Values.global.network "custom") (eq .Values.global.dev "true") }}{{ .Values.images.sequencer.tag }}
+{{- else if eq .Values.global.network "mainnet" }}1.0.0
+{{- else if eq .Values.global.network "dawn-1" }}1.0.0
+{{- else if eq .Values.global.network "dusk-11" }}1.0.0
+{{- end }}
+{{- end }}
+
+{{- define "cometBFT.imageTag" -}}
+{{- if or (eq .Values.global.network "custom") (eq .Values.global.dev "true") }}{{ .Values.images.cometBFT.tag }}
+{{- else if eq .Values.global.network "mainnet" }}1.0.0
+{{- else if eq .Values.global.network "dawn-1" }}1.0.0
+{{- else if eq .Values.global.network "dusk-11" }}1.0.0
+{{- end }}
+{{- end }}
+
 {{- define "sequencer.image" -}}
-{{ .Values.images.sequencer.repo }}:{{ if .Values.global.dev }}{{ .Values.images.sequencer.devTag }}{{ else }}{{ .Values.images.sequencer.tag }}{{ end }}
+{{ .Values.images.sequencer.repo }}:{{ include "sequencer.imageTag" . }}
 {{- end }}
 {{- define "cometBFT.image" -}}
-{{ .Values.images.cometBFT.repo }}:{{ if .Values.global.dev }}{{ .Values.images.cometBFT.devTag }}{{ else }}{{ .Values.images.cometBFT.tag }}{{ end }}
+{{ .Values.images.cometBFT.repo }}:{{ include "cometBFT.imageTag" . }}
 {{- end }}
 
 {{/*

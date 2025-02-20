@@ -8,23 +8,30 @@ global:
   # Best to be false in production environments, true for clean logs on local dev.
   useTTY: true
   dev: false
+  # Supported options are `custom`, `mainnet`, `dawn-1`, or `dusk-11`.
+  # When set to a specific network, there are default values for some
+  # values which are used and cannot be changed.
+  network: "custom"
 
 # sequencer core images
 images:
   sequencerRelayer:
     repo: ghcr.io/astriaorg/sequencer-relayer
     pullPolicy: IfNotPresent
-    tag: 1.0.0
-    devTag: latest
+    # Only used when global.dev is true OR global.network is set to `custom`
+    tag: latest
 
 config:
   relayer:
+    # only configurable in custom network
     sequencerChainId: ""
+    # only configurable in custom network
     celestiaChainId: ""
     celestiaAppGrpc: ""
     cometbftRpc: ""
     sequencerGrpc: ""
     onlyIncludeRollups: ""
+    # Only used when global.network is set to `custom` or global.dev is true
     blockTimeMs: "1000"
 
     metrics:
