@@ -1556,7 +1556,9 @@ impl Protobuf for BridgeLock {
     /// - if the `to` field is not set
     /// - if the `to` field is invalid
     /// - if the `asset` field is invalid
-    /// - if the `fee_asset` field is invalid
+    /// - if the `fee_asset` field is invalid 
+    /// - if `destination_chain_address` is not set
+    /// - if the `destination_chain_address` is over 256 bytes long
     fn try_from_raw(proto: raw::BridgeLock) -> Result<Self, BridgeLockError> {
         let Some(to) = proto.to else {
             return Err(BridgeLockError::field_not_set("to"));
@@ -1571,6 +1573,13 @@ impl Protobuf for BridgeLock {
             .fee_asset
             .parse()
             .map_err(BridgeLockError::invalid_fee_asset)?;
+        if proto.destination_chain_address.is_empty() {
+            return Err(BridgeLockError::field_not_set("destination_chain_address"));
+        }
+        if proto.destination_chain_address.as_bytes().len() > 256 {
+            return Err(BridgeLockError::invalid_destination_chain_address());
+        }
+
         Ok(Self {
             to,
             amount: amount.into(),
@@ -1624,6 +1633,11 @@ impl BridgeLockError {
     fn invalid_fee_asset(err: asset::ParseDenomError) -> Self {
         Self(BridgeLockErrorKind::InvalidFeeAsset(err))
     }
+
+    #[must_use]
+    fn invalid_destination_chain_address() -> Self {
+        Self(BridgeLockErrorKind::InvalidDestinationChainAddressLength)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1638,6 +1652,8 @@ enum BridgeLockErrorKind {
     InvalidAsset(#[source] asset::ParseDenomError),
     #[error("the `fee_asset` field was invalid")]
     InvalidFeeAsset(#[source] asset::ParseDenomError),
+    #[error("the destination_chain_address length is 0 or greater than 256")]
+    InvalidDestinationChainAddressLength,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1968,6 +1984,7 @@ impl Protobuf for BridgeTransfer {
     /// - if the `fee_asset` field is invalid
     /// - if the `from` field is invalid
     /// - if `destination_chain_address` is not set
+    /// - if the `destination_chain_address` is over 256 bytes long
     fn try_from_raw(proto: raw::BridgeTransfer) -> Result<Self, BridgeTransferError> {
         let raw::BridgeTransfer {
             to,
@@ -1987,6 +2004,13 @@ impl Protobuf for BridgeTransfer {
             return Err(BridgeTransferError::field_not_set(
                 "destination_chain_address",
             ));
+        }
+        if destination_chain_address.as_bytes().is_empty()
+        {
+            return Err(BridgeTransferError::null_destination_chain_address());
+        }
+        if destination_chain_address.as_bytes().len() > 256{
+            return Err(BridgeTransferError::invalid_destination_chain_address());
         }
 
         let bridge_address = bridge_address
@@ -2035,6 +2059,16 @@ impl BridgeTransferError {
     }
 
     #[must_use]
+    fn invalid_destination_chain_address() -> Self {
+        Self(BridgeTransferErrorKind::InvalidDestinationChainAddressLength)
+    }
+
+    #[must_use]
+    fn null_destination_chain_address() -> Self {
+        Self(BridgeTransferErrorKind::NullDestinationChainAddressLength)
+    }
+
+    #[must_use]
     fn fee_asset(source: asset::ParseDenomError) -> Self {
         Self(BridgeTransferErrorKind::FeeAsset {
             source,
@@ -2059,6 +2093,10 @@ enum BridgeTransferErrorKind {
     FeeAsset { source: asset::ParseDenomError },
     #[error("the `bridge_address` field was invalid")]
     BridgeAddress { source: AddressError },
+    #[error("the `destination_chain_address` length is greater than 256")]
+    InvalidDestinationChainAddressLength,
+    #[error("the `destination_chain_address` length is 0")]
+    NullDestinationChainAddressLength,
 }
 
 #[derive(Debug, thiserror::Error)]
