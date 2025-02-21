@@ -1,0 +1,34 @@
+global:
+  namespaceOverride: ""
+
+services:
+#  evm-rpc:
+#    externalServiceName: astria-evm-service.astria-dev-cluster.svc.cluster.local
+#  evm-faucet:
+#    externalServiceName: astria-faucet-service.astria-dev-cluster.svc.cluster.local
+
+ingress:
+#  rpc:
+#    service: evm-rpc
+#    port: 8545
+#    hosts:
+#      - rpc.flame.localdev.me
+#    labels: {}
+#    annotations: {}
+#    tls: {}
+#  ws:
+#    service: evm-rpc
+#    port: 8546
+#    hosts:
+#      - ws.flame.localdev.me
+#    labels: {}
+#    annotations: {}
+#    tls: {}
+#  faucet:
+#    service: evm-faucet
+#    port: 8080
+#    hosts:
+#      - faucet.flame.localdev.me
+#    labels: { }
+#    annotations: {}
+#    tls: {}
