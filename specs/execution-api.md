@@ -1,17 +1,17 @@
-# Execution API Specification
+# Execution API Specification (v2)
 
 ## Overview
 
-The Execution API is the interface `Conductor` uses to drive deterministic
-derivation of rollup chain from sequencer blocks. Inspired by other APIs, such
-as the Engine API and ABCI Consensus API, it is a chain agnostic mechanism
-intended to be very simple to implement. It is a gRPC API which any state
-machine can implement and use conductor with to drive their block creation to
-integrate with the Astria Sequencer.
+The Execution API is the interface `Conductor` uses to drive deterministic derivation
+of a rollup chain from Sequencer and Celestia blocks. Inspired by other APIs, such
+as the Engine API and ABCI Consensus API, it is a chain-agnostic mechanism intended
+to be very simple to implement. It is a gRPC API which any state machine can implement
+and use Conductor with to drive their block creation to integrate with the Astria
+Sequencer.
 
 ## Basic Design Principles
 
-The Execution API is a resource based API with two resources: `Block` and
+The Execution API is a resource-based API with two resources: `RollupBlock` and
 `CommitmentState`. The API is designed to follow basic principles outlined by
 aip.dev as best practices for resource based APIs. gRPC has been chosen for the
 API due to the wide availability of language implementations which make it easy
@@ -19,110 +19,117 @@ to generate client libraries and server implementations.
 
 ## Conductor Usage
 
+### Execution Sessions
+
+Client driven execution of blocks occurs in execution "sessions", which represent
+a bound of block heights/numbers to be executed. Every session contains a lower
+bound (start block) and may also contain an upper bound (end block). Calls to RPCs
+within the current session can be verified by the server-side application via the
+`session_id` in `GetBlockRequest` and `ExecuteBlockRequest`.
+
+If an upper bound to the current execution session is specified in the `ExecutionSessionParameters`,
+the execution client will end the session after executing the end block and start
+a new session via `NewExecutionSession`. This allows for changes to client configuration
+(such as chain ID, height mapping, etc.) between sessions.
+
 ### Startup
 
-Upon startup, conductor first grabs the basic genesis information via
-`GetGenesisInfo`. After this succeeds, it  fetches the initial commitments in
-the state machine via `GetCommitmentState`. If started on a fresh rollup
-these will all be the same block. If running against a state machine with
-previous block data, Conductor must also track the block hash of any blocks
-between commitments, it will call `BatchGetBlocks` to get block information
-between commitments.
+Upon startup, conductor starts its first execution session by calling `NewExecutionSession`.
+This returns an `ExecutionSession`, containing the necessary information for the
+client to drive execution for the duration of the session.
 
 ### Execution & Commitments
 
-From the perspective of the sequencer:
+From the perspective of the Conductor:
 
-- `SOFT` commitments have been fully committed to by the sequencer consensus.
-- `FIRM` commitment indicates that the block has been written and has been
-  propagated across the DA network.
+- `Soft` commitments have been fully committed by the Sequencer consensus.
+- A `Firm` commitment indicates that the block has been written and propagated
+  across the DA network.
 
-When configuring conductor, you can configure the time at which blocks are
-executed in your rollup using the `execution_commitment_level` in the config
-file. If this is configured to a higher level of commitment, no action will be
-taken upon receiving lower commitments.
+When configuring Conductor, the threshold at which blocks are executed on the rollup
+can be set via the `execution_commitment_level` in the config file. `ExecuteBlock`
+is called to create a new rollup block when the `execution_commitment_level` has
+been reached for a given block. Upon receipt of a new block, Conductor calls
+`UpdateCommitmentState` to update the commitment at the level of the
+`execution_commitment_level` and any level above it.
 
-`ExecuteBlock` is called to create a new rollup block when the
-`execution_commitment_level` has been reached for a given block. Upon receipt of
-a new block, the conductor calls `UpdateCommitmentState` to update the
-commitment at the level of the `execution_commitment_level` and any level above
-it.
+`execution_commitment_level` options and changes to execution:
 
-`execution_commitment_level` options, and changes to execution:
-
-- `SOFT`
-  - upon receiving a new sequencer block N from sequencer:
+- `SoftOnly`
+  - upon receiving a new sequencer block N from the Sequencer:
     - `ExecuteBlock` will be called with data from the sequencer block N, then
-    - `UpdateCommitmentState` will be called again to update the `SAFE` to N
+    - `UpdateCommitmentState` will be called to update the `soft` block to N
+- `SoftAndFirm`
+  - upon receiving a new sequencer block N from the Sequencer:
+    - `ExecuteBlock` will be called with data from the sequencer block N, then
+    - `UpdateCommitmentState` will be called to update the `soft` block to N
   - upon reading new blocks from DA containing all of blocks K->N, where K is
     some arbitrary ancestor of N
-    - `UpdateCommitmentState` will be called to update `FIRM` to N
-- `FIRM`
+    - `UpdateCommitmentState` will be called to update the `firm` block to N
+- `FirmOnly`
   - conductor does not need to listen for new blocks from Sequencer
-  - upon reading new blocks from DA containing all of blocks K->N
+  - upon reading new blocks from DA containing all blocks K->N
     - For each block M from K->N:
       - `ExecuteBlock` will be called with data from the sequencer block M
-      - `UpdateCommitmentState` will be called to update `FIRM` and `SAFE` to M
+      - `UpdateCommitmentState` will be called to update `firm` and `soft` blocks
+        to M
 
 Note: For our EVM rollup, we map the `CommitmentState` to the `ForkchoiceRule`:
 
-- `SOFT` Commitment -> `HEAD` Forkchoice && `SAFE` Forkchoice
-- `FIRM` Commitment -> `FINAL` Forkchoice
+- `Soft` Commitment -> `HEAD` Forkchoice && `SAFE` Forkchoice
+- `Firm` Commitment -> `FINAL` Forkchoice
 
 ## Rollup Implementation Details
 
-### GetGenesisInfo
+### NewExecutionSession
 
-`GetGenesisInfo` returns information which is definitional to the rollup with
-regards to how it serves data from the sequencer & celestia networks. This RPC
-should ALWAYS succeed. The API is agnostic as to how the information is defined
-in a rollups genesis, and used by the conductor as configuration on startup.
+`NewExecutionSession` returns an `ExecutionSession`, defining all necessary information
+for the client to begin driving execution. This includes `ExecutionSessionParameters`,
+containing the necessary information for network connection and mapping rollup blocks
+to Astria Sequencer (soft) and Celestia (firm) blocks. Also returned is the current
+`CommitmentState` of the server and a `session_id` to be supplied in RPC requests
+for the current session.
+
+This RPC should **always** succeed. The API is agnostic as
+to how this information is defined in a rollup's genesis, and is only used by the
+Conductor as configuration at the beginning of each execution session.
 
 ### ExecuteBlock
 
 `ExecuteBlock` executes a set of given transactions on top of the chain
 indicated by `prev_block_hash`. The following should be respected:
 
-- `prev_block_hash` MUST match hash of the `SOFT` commitment state block, return
-  `FAILED_PRECONDITION` otherwise.
-- If block headers have timestamps, created block MUST have matching timestamp
-- The CommitmentState is NOT modified by the execution of the block.
+- `prev_block_hash` MUST match hash of the most recently committed block, whether
+  `soft` or `firm`. RPC should return `FAILED_PRECONDITION` status otherwise.
+- If block headers have timestamps, the created block MUST have matching timestamp
+- **NOTE:** The `CommitmentState` is NOT modified by the execution of the block.
 
 ### GetBlock
 
-`GetBlock` returns information about a block given either its `number` or
-`hash`. If the block cannot be found return a `NOT_FOUND` error.
-
-### BatchGetBlocks
-
-`BatchGetBlocks` returns an array of Blocks which match the array of passed in
-block identifiers.
-
-- The API endpoint MUST fail atomically, returning either all requested resources
-  or a `NOT_FOUND` error.
-- The returned objects MUST be in the same order as they were requested.
-
-### GetCommitmentState
-
-`GetCommitmentState` returns the commitment state with rollup `Block` information
-for each level of commitment.
+`GetBlock` returns information about a block given its `BlockIdentifier`, consisting
+of either a `hash` or `number` (as determined by the server, *not* by the Sequencer
+or the Celestia height). If the block cannot be found, return a `NOT_FOUND` error.
 
 ### UpdateCommitmentState
 
-`UpdateCommitmentState` replaces the `CommitmentState` in the sequencer.
+`UpdateCommitmentState` replaces the current `CommitmentState` on the rollup.
 
-- No commitment can ever decrease in block number on the blockchain, if this is
-  attempted return a `FAILED_PRECONDITION` error.
-- `SOFT` and `FIRM` block MUST either increase in block number OR match current
+- No `UpdateCommitmentStateRequest` can ever decrease in either `soft` or `firm`
+  block number.
+- `soft` blocks **must** increase in block number each time this is called.
+- `firm` blocks **must** either increase in block number ***or*** match the current
   commitment state block.
-- `FIRM` blocks MUST be members of the block chain defined by `SAFE`
-- Block numbers in state MUST be such that  `SOFT` >= `FIRM`, return a
-  `FAILED_PRECONDITION` error if this is not true
+- Block numbers in state **must** be such that  `soft` >= `firm`.
+- If any of these conditions fail, a `FAILED_PRECONDITION` status should be returned.
 
 ## Sequence Diagram
 
 The sequence diagram below shows the API used within the full context of Astria
-stack. Demonstrating what happens between a user submitting a transactions, and
-seeing it executed as well as before soft and firm commitments.
+stack, demonstrating what happens between when a user submits a transaction and
+when they see it executed, as well as the process of soft and firm commitments.
+Note that this diagram presumes the Conductor is running in `SoftAndFirm` mode,
+driving execution when it receives a soft block. If it were running in `FirmOnly`
+mode, `ExecuteBlock` would not be called until the block is received from the
+Data Availability layer.
 
 ![image](assets/execution_api_sequence.png)
