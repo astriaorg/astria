@@ -263,7 +263,7 @@ pub struct Price {
         super::super::super::connect::types::v2::CurrencyPair,
     >,
     #[prost(message, optional, tag = "2")]
-    pub price: ::core::option::Option<super::super::primitive::v1::Uint128>,
+    pub price: ::core::option::Option<super::super::primitive::v1::Int128>,
     #[prost(uint64, tag = "3")]
     pub decimals: u64,
 }

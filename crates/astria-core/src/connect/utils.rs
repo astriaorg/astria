@@ -177,7 +177,7 @@ mod test {
         }
     }
 
-    fn oracle_vote_extension<I: IntoIterator<Item = u128>>(prices: I) -> OracleVoteExtension {
+    fn oracle_vote_extension<I: IntoIterator<Item = i128>>(prices: I) -> OracleVoteExtension {
         OracleVoteExtension {
             prices: prices
                 .into_iter()
@@ -221,7 +221,7 @@ mod test {
 
     #[test]
     fn should_calculate_median() {
-        fn prices<I: IntoIterator<Item = u128>>(prices: I) -> Vec<Price> {
+        fn prices<I: IntoIterator<Item = i128>>(prices: I) -> Vec<Price> {
             prices.into_iter().map(Price::new).collect()
         }
 
@@ -245,14 +245,14 @@ mod test {
 
         // Should handle large values in a set with odd number of entries.
         assert_eq!(
-            u128::MAX,
-            median(prices([u128::MAX, u128::MAX, 1])).unwrap().get()
+            i128::MAX,
+            median(prices([i128::MAX, i128::MAX, 1])).unwrap().get()
         );
 
         // Should handle large values in a set with even number of entries.
         assert_eq!(
-            u128::MAX - 1,
-            median(prices([u128::MAX, u128::MAX, u128::MAX - 1, u128::MAX - 1]))
+            i128::MAX - 1,
+            median(prices([i128::MAX, i128::MAX, i128::MAX - 1, i128::MAX - 1]))
                 .unwrap()
                 .get()
         );

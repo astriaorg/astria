@@ -1147,7 +1147,7 @@ mod tests {
                             id: CurrencyPairId::new(1),
                             nonce: CurrencyPairNonce::new(0),
                             currency_pair_price: Some(QuotePrice {
-                                price: Price::new(3_138_872_234_u128),
+                                price: Price::new(3_138_872_234_i128),
                                 block_height: 0,
                                 block_timestamp: pbjson_types::Timestamp {
                                     seconds: 1_720_122_395,
