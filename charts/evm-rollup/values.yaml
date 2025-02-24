@@ -174,13 +174,13 @@ config:
       - name: history.state
         value: "{{- if .Values.config.geth.archiveNode -}} 0 {{- else -}} 540000 {{- end }}"
       - name: metrics
-        condition: .Values.metrics.enabled
+        condition: "{{ .Values.metrics.enabled }}"
       - name: metrics.addr
         value: 0.0.0.0
-        condition: .Values.metrics.enabled
+        condition: "{{ .Values.metrics.enabled }}"
       - name: metrics.port
         value: "{{ .Values.ports.metrics }}"
-        condition: .Values.metrics.enabled
+        condition: "{{ .Values.metrics.enabled }}"
       - name: txpool.nolocals
         value: "true"
 

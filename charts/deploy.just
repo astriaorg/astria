@@ -130,11 +130,31 @@ deploy-dev-rollup rollupName=defaultRollupName networkId=defaultNetworkId:
     -f dev/values/rollup/dev.yaml \
     {{rollupName}}-chain-chart ./charts/evm-stack --namespace astria-dev-cluster
 
+deploy-flame-dev-rollup rollupName=defaultRollupName networkId=defaultNetworkId:
+  helm dependency update charts/evm-stack > /dev/null
+  helm install \
+    {{ if rollupName          != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
+    {{ if networkId           != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
+    -f dev/values/rollup/flame-dev.yaml \
+    {{rollupName}}-chain-chart ./charts/evm-stack --namespace astria-dev-cluster
+
 delete-dev-rollup rollupName=defaultRollupName:
   @just delete chart {{rollupName}}-chain
 
+delete-flame-dev-rollup rollupName=defaultRollupName:
+  @just delete-dev-rollup
+
 wait-for-dev-rollup rollupName=defaultRollupName:
   kubectl rollout status --watch statefulset/{{rollupName}}-geth -n astria-dev-cluster --timeout=600s
+
+deploy-auctioneer:
+  helm dependency update charts/auctioneer > /dev/null
+  helm install auctioneer-chart ./charts/auctioneer \
+      --namespace astria-dev-cluster \
+      -f dev/values/auctioneer/values.yaml
+
+delete-auctioneer:
+  @just delete chart auctioneer astria-dev-cluster
 
 deploy-bridge-withdrawer:
   helm install evm-bridge-withdrawer-chart ./charts/evm-bridge-withdrawer \
