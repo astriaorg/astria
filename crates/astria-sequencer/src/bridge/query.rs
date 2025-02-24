@@ -297,9 +297,15 @@ fn preprocess_request(params: &[(String, String)]) -> Result<Address, response::
 #[cfg(test)]
 mod tests {
     use astria_core::{
-        generated::astria::protocol::bridge::v1::BridgeAccountInfoResponse as RawBridgeAccountInfoResponse,
+        generated::astria::protocol::bridge::v1::{
+            BridgeAccountInfoResponse as RawBridgeAccountInfoResponse,
+            BridgeAccountLastTxHashResponse as RawBridgeAccountLastTxHashResponse,
+        },
         primitive::v1::RollupId,
-        protocol::bridge::v1::BridgeAccountInfoResponse,
+        protocol::bridge::v1::{
+            BridgeAccountInfoResponse,
+            BridgeAccountLastTxHashResponse,
+        },
     };
     use cnidarium::StateDelta;
 
@@ -397,5 +403,13 @@ mod tests {
         let params = vec![("address".to_string(), bridge_address.to_string())];
         let resp = bridge_account_last_tx_hash_request(storage.clone(), query, params).await;
         assert_eq!(resp.code, 0.into(), "{}", resp.log);
+
+        let proto = RawBridgeAccountLastTxHashResponse::decode(resp.value).unwrap();
+        let native = BridgeAccountLastTxHashResponse::try_from_raw(proto).unwrap();
+        let expected = BridgeAccountLastTxHashResponse {
+            height: 1,
+            tx_hash: Some(tx_id.get()),
+        };
+        assert_eq!(native, expected);
     }
 }
