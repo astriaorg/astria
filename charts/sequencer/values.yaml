@@ -48,7 +48,7 @@ images:
 moniker: ""
 
 # Only used if the global.network is custom, otherwise utilize correct genesis for the
-# network. 
+# network.
 genesis:
   chainId: ""
   genesisTime: ""  # '2023-09-22T17:22:35.092832Z'
