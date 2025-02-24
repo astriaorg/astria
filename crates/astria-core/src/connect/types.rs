@@ -452,7 +452,7 @@ pub mod v2 {
         #[test]
         fn can_parse_negative_price() {
             let price = "-1".parse::<Price>().unwrap();
-            assert_eq!(price.get(), -1);
+            assert_eq!(price, Price::new(-1));
         }
     }
 }

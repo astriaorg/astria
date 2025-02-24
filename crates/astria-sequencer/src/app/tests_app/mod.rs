@@ -982,7 +982,7 @@ async fn app_oracle_price_update_events_in_finalize_block() {
     app.commit(storage.clone()).await;
 
     let mut prices = std::collections::BTreeMap::new();
-    let price = Price::new(10000u128);
+    let price = Price::new(10000i128);
     let price_bytes = price.get().to_be_bytes().to_vec();
     let id_to_currency_pair = indexmap::indexmap! {
         id => CurrencyPairInfo{

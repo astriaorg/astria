@@ -40,6 +40,7 @@ mod tests {
         let actual: i128 = pb.into();
         assert_eq!(expected, actual);
     }
+
     #[test]
     fn i128_roundtrips_work() {
         i128_roundtrip_check(0i128);
@@ -49,5 +50,9 @@ mod tests {
         i128_roundtrip_check(1i128 << 127);
         i128_roundtrip_check((1i128 << 127) + (1i128 << 63));
         i128_roundtrip_check(i128::MAX);
+        i128_roundtrip_check(i128::MIN);
+        i128_roundtrip_check(-1i128);
+        i128_roundtrip_check(-i128::from(u64::MAX));
+        i128_roundtrip_check(-i128::from(u64::MAX) - 1i128);
     }
 }
