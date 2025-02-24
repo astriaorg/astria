@@ -3,6 +3,7 @@
 mod generated;
 use std::{
     borrow::Cow,
+    str::FromStr,
     sync::Arc,
 };
 
@@ -22,6 +23,7 @@ use astria_core::{
 };
 use astria_withdrawer::{
     Ics20WithdrawalFilter,
+    RollupWithdrawalFilter,
     SequencerWithdrawalFilter,
 };
 use ethers::{
@@ -376,6 +378,10 @@ where
         self.ics20_asset_to_withdraw.is_some()
     }
 
+    fn configured_for_rollup_withdrawals(&self) -> bool {
+        self.sequencer_asset_to_withdraw.is_some() || self.ics20_asset_to_withdraw.is_some()
+    }
+
     /// Gets all withdrawal events for `block_hash` and converts them to astria sequencer actions.
     ///
     /// # Errors
@@ -403,8 +409,14 @@ where
         } else {
             futures::future::ready(Ok(vec![])).boxed()
         };
-        let (ics20_logs, sequencer_logs) =
-            futures::future::try_join(get_ics20_logs, get_sequencer_logs)
+        let get_rollup_logs = if self.configured_for_rollup_withdrawals() {
+            get_logs::<RollupWithdrawalFilter, _>(&self.provider, self.contract_address, block_hash)
+                .boxed()
+        } else {
+            futures::future::ready(Ok(vec![])).boxed()
+        };
+        let (ics20_logs, sequencer_logs, rollup_logs) =
+            futures::future::try_join3(get_ics20_logs, get_sequencer_logs, get_rollup_logs)
                 .await
                 .map_err(GetWithdrawalActionsError::get_logs)?;
 
@@ -418,6 +430,11 @@ where
                 sequencer_logs
                     .into_iter()
                     .map(|log| self.log_to_sequencer_withdrawal_action(log)),
+            )
+            .chain(
+                rollup_logs
+                    .into_iter()
+                    .map(|log| self.log_to_rollup_withdrawal_action(log)),
             )
             .collect())
     }
@@ -515,6 +532,51 @@ where
         };
 
         Ok(Action::BridgeUnlock(action))
+    }
+
+    fn log_to_rollup_withdrawal_action(
+        &self,
+        log: Log,
+    ) -> Result<Action, GetWithdrawalActionsError> {
+        let rollup_block_number = log
+            .block_number
+            .ok_or_else(|| GetWithdrawalActionsError::log_without_block_number(&log))?
+            .as_u64();
+
+        let transaction_hash = log
+            .transaction_hash
+            .ok_or_else(|| GetWithdrawalActionsError::log_without_transaction_hash(&log))?;
+        let event_index = log
+            .log_index
+            .ok_or_else(|| GetWithdrawalActionsError::log_without_log_index(&log))?;
+
+        let event = decode_log::<RollupWithdrawalFilter>(log)
+            .map_err(GetWithdrawalActionsError::decode_log)?;
+
+        let amount = calculate_amount(&event, self.asset_withdrawal_divisor)
+            .map_err(GetWithdrawalActionsError::calculate_withdrawal_amount)?;
+
+        let destination_rollup_bridge_address = Address::from_str(
+            &event.destination_rollup_bridge_address,
+        )
+        .map_err(|arg0: AddressError| {
+            GetWithdrawalActionsError::destination_chain_as_address(
+                DestinationChainAsAddressError {
+                    source: arg0,
+                },
+            )
+        })?;
+        let action = astria_core::protocol::transaction::v1::action::BridgeTransfer {
+            to: destination_rollup_bridge_address,
+            destination_chain_address: event.destination_chain_address,
+            amount,
+            rollup_block_number,
+            rollup_withdrawal_event_id: rollup_withdrawal_event_id(&transaction_hash, &event_index),
+            fee_asset: self.fee_asset.clone(),
+            bridge_address: self.bridge_address,
+        };
+
+        Ok(Action::BridgeTransfer(action))
     }
 }
 
@@ -637,6 +699,12 @@ trait GetAmount {
 }
 
 impl GetAmount for Ics20WithdrawalFilter {
+    fn get_amount(&self) -> u128 {
+        self.amount.as_u128()
+    }
+}
+
+impl GetAmount for RollupWithdrawalFilter {
     fn get_amount(&self) -> u128 {
         self.amount.as_u128()
     }

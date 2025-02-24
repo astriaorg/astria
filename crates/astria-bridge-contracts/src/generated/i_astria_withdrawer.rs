@@ -119,6 +119,43 @@ pub mod i_astria_withdrawer {
                     ],
                 ),
                 (
+                    ::std::borrow::ToOwned::to_owned("RollupWithdrawal"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::Event {
+                            name: ::std::borrow::ToOwned::to_owned("RollupWithdrawal"),
+                            inputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::EventParam {
+                                    name: ::std::borrow::ToOwned::to_owned("sender"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                    indexed: true,
+                                },
+                                ::ethers::core::abi::ethabi::EventParam {
+                                    name: ::std::borrow::ToOwned::to_owned("amount"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Uint(
+                                        256usize,
+                                    ),
+                                    indexed: true,
+                                },
+                                ::ethers::core::abi::ethabi::EventParam {
+                                    name: ::std::borrow::ToOwned::to_owned(
+                                        "destinationChainAddress",
+                                    ),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::String,
+                                    indexed: false,
+                                },
+                                ::ethers::core::abi::ethabi::EventParam {
+                                    name: ::std::borrow::ToOwned::to_owned(
+                                        "destinationRollupBridgeAddress",
+                                    ),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::String,
+                                    indexed: false,
+                                },
+                            ],
+                            anonymous: false,
+                        },
+                    ],
+                ),
+                (
                     ::std::borrow::ToOwned::to_owned("SequencerWithdrawal"),
                     ::std::vec![
                         ::ethers::core::abi::ethabi::Event {
@@ -233,6 +270,16 @@ pub mod i_astria_withdrawer {
         > {
             self.0.event()
         }
+        ///Gets the contract's `RollupWithdrawal` event
+        pub fn rollup_withdrawal_filter(
+            &self,
+        ) -> ::ethers::contract::builders::Event<
+            ::std::sync::Arc<M>,
+            M,
+            RollupWithdrawalFilter,
+        > {
+            self.0.event()
+        }
         ///Gets the contract's `SequencerWithdrawal` event
         pub fn sequencer_withdrawal_filter(
             &self,
@@ -293,6 +340,28 @@ pub mod i_astria_withdrawer {
         Hash
     )]
     #[ethevent(
+        name = "RollupWithdrawal",
+        abi = "RollupWithdrawal(address,uint256,string,string)"
+    )]
+    pub struct RollupWithdrawalFilter {
+        #[ethevent(indexed)]
+        pub sender: ::ethers::core::types::Address,
+        #[ethevent(indexed)]
+        pub amount: ::ethers::core::types::U256,
+        pub destination_chain_address: ::std::string::String,
+        pub destination_rollup_bridge_address: ::std::string::String,
+    }
+    #[derive(
+        Clone,
+        ::ethers::contract::EthEvent,
+        ::ethers::contract::EthDisplay,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    #[ethevent(
         name = "SequencerWithdrawal",
         abi = "SequencerWithdrawal(address,uint256,string)"
     )]
@@ -307,6 +376,7 @@ pub mod i_astria_withdrawer {
     #[derive(Clone, ::ethers::contract::EthAbiType, Debug, PartialEq, Eq, Hash)]
     pub enum IAstriaWithdrawerEvents {
         Ics20WithdrawalFilter(Ics20WithdrawalFilter),
+        RollupWithdrawalFilter(RollupWithdrawalFilter),
         SequencerWithdrawalFilter(SequencerWithdrawalFilter),
     }
     impl ::ethers::contract::EthLogDecode for IAstriaWithdrawerEvents {
@@ -315,6 +385,9 @@ pub mod i_astria_withdrawer {
         ) -> ::core::result::Result<Self, ::ethers::core::abi::Error> {
             if let Ok(decoded) = Ics20WithdrawalFilter::decode_log(log) {
                 return Ok(IAstriaWithdrawerEvents::Ics20WithdrawalFilter(decoded));
+            }
+            if let Ok(decoded) = RollupWithdrawalFilter::decode_log(log) {
+                return Ok(IAstriaWithdrawerEvents::RollupWithdrawalFilter(decoded));
             }
             if let Ok(decoded) = SequencerWithdrawalFilter::decode_log(log) {
                 return Ok(IAstriaWithdrawerEvents::SequencerWithdrawalFilter(decoded));
@@ -328,6 +401,9 @@ pub mod i_astria_withdrawer {
                 Self::Ics20WithdrawalFilter(element) => {
                     ::core::fmt::Display::fmt(element, f)
                 }
+                Self::RollupWithdrawalFilter(element) => {
+                    ::core::fmt::Display::fmt(element, f)
+                }
                 Self::SequencerWithdrawalFilter(element) => {
                     ::core::fmt::Display::fmt(element, f)
                 }
@@ -337,6 +413,11 @@ pub mod i_astria_withdrawer {
     impl ::core::convert::From<Ics20WithdrawalFilter> for IAstriaWithdrawerEvents {
         fn from(value: Ics20WithdrawalFilter) -> Self {
             Self::Ics20WithdrawalFilter(value)
+        }
+    }
+    impl ::core::convert::From<RollupWithdrawalFilter> for IAstriaWithdrawerEvents {
+        fn from(value: RollupWithdrawalFilter) -> Self {
+            Self::RollupWithdrawalFilter(value)
         }
     }
     impl ::core::convert::From<SequencerWithdrawalFilter> for IAstriaWithdrawerEvents {

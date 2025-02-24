@@ -166,6 +166,7 @@ impl Submitter {
             .map(|action| match action {
                 Action::BridgeUnlock(withdraw) => withdraw.amount,
                 Action::Ics20Withdrawal(withdraw) => withdraw.amount,
+                Action::BridgeTransfer(withdraw) => withdraw.amount,
                 _ => 0,
             })
             .sum();

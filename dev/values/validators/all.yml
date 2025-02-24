@@ -36,6 +36,10 @@ genesis:
     # address of the bridge account. needs funds to sign bridge init tx
     - address: astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr
       balance: "69000000"
+    # address of the second rollup bridge account. needs funds to sign bridge init tx
+    # priv_key 47d478734d0e4550c9ecc70b5851b9efc8749f2f1dc2cbd61d9c5a247abdc9bd
+    - address: astria1u729kqd0e3shtenmvgwrhdlzrya8t4p2z8z97d
+      balance: "69000000"
 
 sequencer:
   optimisticBlockApis:
