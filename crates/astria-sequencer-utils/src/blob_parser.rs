@@ -570,7 +570,7 @@ impl Display for PrintableDeposit {
 
 #[derive(Serialize, Debug)]
 struct PrintableOracleData {
-    prices: Vec<(String, u128, u64)>,
+    prices: Vec<(String, i128, u64)>,
 }
 
 impl TryFrom<&RawOracleData> for PrintableOracleData {
