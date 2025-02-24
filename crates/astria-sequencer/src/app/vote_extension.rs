@@ -608,6 +608,14 @@ pub(super) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
             price.currency_pair(),
             price.price()
         );
+        let event = abci::Event::new(
+            "price_update",
+            [
+                ("currency_pair", price.currency_pair().to_string()),
+                ("price", price.price().to_string()),
+            ],
+        );
+        state.record(event);
     }
 
     Ok(())
