@@ -89,7 +89,7 @@ deploy-sequencer name=validatorName:
     -f dev/values/validators/{{name}}.yml \
     -n astria-validator-{{name}} --create-namespace \
     {{name}}-sequencer-chart ./charts/sequencer
-deploy-sequencers: (deploy-sequencer "node0") (deploy-sequencer "node1") (deploy-sequencer "node2")
+deploy-sequencers: (deploy-sequencer "node0") (deploy-sequencer "node1") (deploy-sequencer "node2") (deploy-sequencer "node3") (deploy-sequencer "node4")
 
 deploy-astrotrek:
   helm dependency update charts/astrotrek > /dev/null
@@ -97,7 +97,7 @@ deploy-astrotrek:
     -n astria-dev-cluster \
 
 delete-astrotrek:
-  @just delete chart astrotrek 
+  @just delete chart astrotrek
 
 deploy-hermes-local:
   helm install hermes-local-chart ./charts/hermes \
@@ -108,7 +108,7 @@ delete-hermes-local:
 
 delete-sequencer name=validatorName:
   @just delete chart {{name}}-sequencer astria-validator-{{name}}
-delete-sequencers: (delete-sequencer "node0") (delete-sequencer "node1") (delete-sequencer "node2")
+delete-sequencers: (delete-sequencer "node0") (delete-sequencer "node1") (delete-sequencer "node2") (delete-sequencer "node3") (delete-sequencer "node4")
 
 wait-for-sequencer:
   kubectl rollout status --watch statefulset/celestia-local -n astria-dev-cluster --timeout=600s
@@ -233,6 +233,11 @@ deploy-smoke-cli tag=defaultTag:
   @just wait-for-dev-rollup > /dev/null
   @sleep 10
 
+deploy-upgrade-test:
+  @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
+  @just wait-for-ingress-controller > /dev/null
+  @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
+  @kubectl rollout status --watch statefulset/celestia-local -n astria-dev-cluster --timeout=600s
 
 evm_destination_address := "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
 # 1 RIA is 10^9 nRIA
@@ -395,6 +400,13 @@ delete-smoke-test:
   just delete celestia-local
   just delete sequencer
   just delete rollup
+
+# `tag` is the tag specifying the sequencer image to run to EXECUTE the upgrade, not the image to
+# run before the upgrade executes.
+run-upgrade-test tag:
+  python3 system-tests/sequencer_upgrade_test.py \
+  --image-tag {{ if tag != '' { tag } else { 'latest' } }} \
+  --upgrade-name "upgrade1"
 
 evm_contract_address := "0xA58639fB5458e65E4fA917FF951C390292C24A15"
 run-smoke-cli tag=defaultTag:

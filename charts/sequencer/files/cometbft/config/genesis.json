@@ -119,9 +119,8 @@
       {{- if $index }},{{- end }}
       {{ include "sequencer.address" $value }}
       {{- end }}
-    ],
-    {{- if not .Values.global.dev }}
-    {{- else }}
+    ]
+    {{- if and .Values.global.dev (not .Values.sequencer.upgrades.systemTest.enabled) }},
     "price_feed": {
       "marketMap": {
         "marketMap": {
@@ -189,8 +188,8 @@
         "nextId": "{{ .Values.sequencer.priceFeed.nextId }}"
       }
     }
+  {{- end }}
   },
-  {{- end}}
   "chain_id": "{{ .Values.genesis.chainId }}",
   "consensus_params": {
     "block": {
@@ -207,11 +206,13 @@
         "ed25519"
       ]
     },
-    "version": {
-      "app": "0"
-    },
+    {{- if and .Values.global.dev (not .Values.sequencer.upgrades.systemTest.enabled) }}
     "abci": {
       "vote_extensions_enable_height": "{{ .Values.genesis.consensusParams.voteExtensionsEnableHeight }}"
+    },
+    {{- end }}
+    "version": {
+      "app": "{{ .Values.genesis.consensusParams.appVersion }}"
     }
   },
   "genesis_time": "{{ .Values.genesis.genesisTime }}",

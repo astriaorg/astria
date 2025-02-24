@@ -1,1 +1,80 @@
-{}
+{
+{{- if and .Values.global.dev .Values.sequencer.upgrades.systemTest.enabled (not .Values.sequencer.upgrades.systemTest.bootstrapping) }}
+  "upgrade1": {
+    "baseInfo": {
+      "activationHeight": "{{ .Values.sequencer.upgrades.upgrade1.activationHeight }}",
+      "appVersion": "{{ .Values.sequencer.upgrades.upgrade1.appVersion }}"
+    },
+    "priceFeedChange": {
+      "genesis": {
+        "marketMap": {
+          "marketMap": {
+          "markets": {
+            {{- range $index, $market := .Values.sequencer.priceFeed.markets }}
+            {{- if $index }},{{- end }}
+            "{{ $market.name }}": {
+              "providerConfigs": [
+                {{- range $providerIndex, $provider := $market.providerConfigs }}
+                {{- if $providerIndex }},{{- end }}
+                {
+                  "name": "{{ $provider.name }}",
+                  {{- if $provider.normalizeByPair }}
+                  "normalizeByPair": {
+                    "Base": "{{ $provider.normalizeByPair.Base }}",
+                    "Quote": "{{ $provider.normalizeByPair.Quote }}"
+                  },
+                  {{- end }}
+                  "offChainTicker": "{{ $provider.offChainTicker }}"
+                }
+                {{- end }}
+              ],
+              "ticker": {
+                "currencyPair": {
+                  "Base": "{{ $market.ticker.currencyPair.Base }}",
+                  "Quote": "{{ $market.ticker.currencyPair.Quote }}"
+                },
+                "decimals": "{{ $market.ticker.decimals }}",
+                "enabled": {{ $market.ticker.enabled }},
+                "minProviderCount": "{{ $market.ticker.minProviderCount }}"
+              }
+            }
+            {{- end }}
+          }
+          },
+          "params": {
+            "admin": "{{ .Values.genesis.priceFeed.marketAdminAddress }}",
+            "marketAuthorities": [
+              {{- range $index, $authority := .Values.genesis.priceFeed.marketAuthorities }}
+              {{- if $index }},{{- end }}
+              "{{ $authority }}"
+              {{- end }}
+            ]
+          }
+        },
+        "oracle": {
+          "currencyPairGenesis": [
+            {{- range $index, $genesis := .Values.sequencer.priceFeed.currencyPairGenesis }}
+            {{- if $index }},{{- end }}
+            {
+              "currencyPair": {
+                "Base": "{{ $genesis.currencyPair.Base }}",
+                "Quote": "{{ $genesis.currencyPair.Quote }}"
+              },
+              "currencyPairPrice": {
+                "blockTimestamp": "{{ $genesis.currencyPairPrice.blockTimestamp }}",
+                "price": "{{ $genesis.currencyPairPrice.price }}"
+              }
+              {{- if $genesis.id }},
+              "id": "{{ $genesis.id }}"
+              {{- end }}
+            }
+            {{- end }}
+          ],
+          "nextId": "{{ .Values.sequencer.priceFeed.nextId }}"
+        }
+      }
+    },
+    "validatorUpdateActionChange": {}
+  }
+  {{- end }}
+}

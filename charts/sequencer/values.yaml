@@ -68,6 +68,7 @@ genesis:
     #   balance: "333333333333333333"
 
   consensusParams:
+    appVersion: "1"
     blockMaxBytes: "1048576"
     blockMaxGas: "-1"
     maxAgeDuration: "1209600000000000"
@@ -136,7 +137,6 @@ sequencer:
     clientTimeout: 1000
     markets: []
     currencyPairGenesis: []
-
   metrics:
     enabled: false
   otel:

@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package astria.sequencerblock.v1;
+
+import "google/protobuf/timestamp.proto";
+
+message GetSequencerBlockRequest {
+  uint64 height = 1;
+}
+
+message RollupId {
+  bytes inner = 1;
+}
+
+message Proof {
+  bytes audit_path = 1;
+  uint64 leaf_index = 2;
+  uint64 tree_size = 3;
+}
+
+message RollupTransactions {
+  RollupId rollup_id = 1;
+  repeated bytes transactions = 2;
+  Proof proof = 3;
+}
+
+message ExtendedCommitInfoWithProof {
+  bytes extended_commit_info = 1;
+  Proof proof = 2;
+}
+
+message SequencerBlock {
+  SequencerBlockHeader header = 1;
+  repeated RollupTransactions rollup_transactions = 2;
+  Proof rollup_transactions_proof = 3;
+  Proof rollup_ids_proof = 4;
+  bytes block_hash = 5;
+  repeated bytes upgrade_change_hashes = 6;
+  optional ExtendedCommitInfoWithProof extended_commit_info_with_proof = 7;
+}
+
+message SequencerBlockHeader {
+  string chain_id = 1;
+  uint64 height = 2;
+  google.protobuf.Timestamp time = 3;
+  bytes data_hash = 4;
+  bytes proposer_address = 5;
+  bytes rollup_transactions_root = 6;
+}
+
+message GetUpgradesInfoRequest {}
+
+message GetUpgradesInfoResponse {
+  message ChangeInfo {
+    uint64 activation_height = 1;
+    string change_name = 2;
+    uint64 app_version = 3;
+    string base64_hash = 4;
+  }
+
+  repeated ChangeInfo applied = 1;
+  repeated ChangeInfo scheduled = 2;
+}
+
+service SequencerService {
+  rpc GetSequencerBlock(GetSequencerBlockRequest) returns (SequencerBlock) {}
+  rpc GetUpgradesInfo(GetUpgradesInfoRequest) returns (GetUpgradesInfoResponse) {}
+}

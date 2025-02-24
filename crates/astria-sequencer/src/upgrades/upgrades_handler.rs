@@ -39,7 +39,7 @@ use super::{
 use crate::{
     app::{
         ShouldShutDown,
-        StateReadExt as _,
+        StateReadExt,
         StateWriteExt,
     },
     oracles::price_feed::{
@@ -221,17 +221,10 @@ impl UpgradesHandler {
             return Ok(None);
         };
 
-        let mut params = match state
-            .get_consensus_params()
+        let mut params = self
+            .get_consensus_params(&state, block_height.value())
             .await
-            .wrap_err("failed to get consensus params from storage")?
-        {
-            Some(value) => value,
-            None => self
-                .get_consensus_params_from_cometbft(block_height.value())
-                .await
-                .wrap_err("failed to get consensus params from cometbft")?,
-        };
+            .wrap_err("failed to get consensus params")?;
 
         let new_app_version = upgrade.app_version();
         if let Some(existing_app_version) = &params.version {
@@ -264,6 +257,58 @@ impl UpgradesHandler {
         Ok(Some(params))
     }
 
+    async fn get_consensus_params<S: StateReadExt>(
+        &self,
+        state: S,
+        block_height: u64,
+    ) -> Result<tendermint::consensus::Params> {
+        // First try in our own storage. Should succeed for all upgrades after `Upgrade1`.
+        if let Some(params) = state
+            .get_consensus_params()
+            .await
+            .wrap_err("failed to get consensus params from storage")?
+        {
+            return Ok(params);
+        }
+
+        // Fall back to fetching them from CometBFT. Should succeed if the sequencer binary was
+        // replaced before the upgrade was executed, i.e. if the sequencer is performing the upgrade
+        // at roughly the same time as the rest of the network.
+        if let Ok(params) = self.get_consensus_params_from_cometbft(block_height).await {
+            return Ok(params);
+        }
+
+        // As a last resort, fall back to hard-coded values as per Astria Mainnet and Testnet
+        // initial settings. This will be needed if the sequencer wasn't upgraded before the
+        // activation point for `Upgrade1`. In that case, `CometBFT` will not start until the
+        // sequencer handles `FinalizeBlock` for the block at the activation height. However, the
+        // sequencer can't handle that request as it calls through to here, resulting in a chicken-
+        // and-egg scenario. If these hard-coded values are invalid, then `FinalizeBlock` will fail.
+        let params = tendermint::consensus::Params {
+            block: tendermint::block::Size {
+                max_bytes: 1_048_576,
+                max_gas: -1,
+                time_iota_ms: 1000,
+            },
+            evidence: tendermint::evidence::Params {
+                max_age_num_blocks: 4_000_000,
+                max_age_duration: tendermint::evidence::Duration(Duration::from_nanos(
+                    1_209_600_000_000_000,
+                )),
+                max_bytes: 1_048_576,
+            },
+            validator: tendermint::consensus::params::ValidatorParams {
+                pub_key_types: vec![tendermint::public_key::Algorithm::Ed25519],
+            },
+            version: Some(VersionParams {
+                app: 0,
+            }),
+            abci: tendermint::consensus::params::AbciParams::default(),
+        };
+        warn!("falling back to using hard-coded consensus params");
+        Ok(params)
+    }
+
     /// Returns the CometBFT consensus params by querying the given CometBFT endpoint.
     ///
     /// We need to specify the current block height as a query arg since otherwise CometBFT tries to
@@ -285,7 +330,7 @@ impl UpgradesHandler {
             self.cometbft_rpc_addr
         );
 
-        let max_retries = 66;
+        let max_retries = 16;
         let retry_config = tryhard::RetryFutureConfig::new(max_retries)
             .exponential_backoff(Duration::from_millis(10))
             .max_delay(Duration::from_secs(1))
