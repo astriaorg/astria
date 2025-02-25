@@ -3,11 +3,12 @@ syntax = 'proto3';
 package astria.execution.v2;
 
 import "astria/execution/v2/commitment_state.proto";
+import "astria/execution/v2/create_execution_session_request.proto";
 import "astria/execution/v2/execute_block_request.proto";
+import "astria/execution/v2/execute_block_response.proto";
+import "astria/execution/v2/executed_block_metadata.proto";
 import "astria/execution/v2/execution_session.proto";
-import "astria/execution/v2/get_block_request.proto";
-import "astria/execution/v2/new_execution_session_request.proto";
-import "astria/execution/v2/rollup_block.proto";
+import "astria/execution/v2/get_executed_block_metadata_request.proto";
 import "astria/execution/v2/update_commitment_state_request.proto";
 
 // ExecutionService is used to drive deterministic production of blocks.
@@ -16,16 +17,16 @@ import "astria/execution/v2/update_commitment_state_request.proto";
 // Astria Shared Sequencer, and will have block production driven via the Astria
 // "Conductor".
 service ExecutionService {
-  // GetSequencerInfo returns the necessary information for mapping sequencer block
+  // CreateExecutionSession returns the necessary information for mapping sequencer block
   // height to rollup block number.
-  rpc NewExecutionSession(NewExecutionSessionRequest) returns (ExecutionSession);
+  rpc CreateExecutionSession(CreateExecutionSessionRequest) returns (ExecutionSession);
 
-  // GetBlock will return a block given an identifier.
-  rpc GetBlock(GetBlockRequest) returns (RollupBlock);
+  // GetExecutedBlockMetadata will return a block given an identifier.
+  rpc GetExecutedBlockMetadata(GetExecutedBlockMetadataRequest) returns (ExecutedBlockMetadata);
 
   // ExecuteBlock is called to deterministically derive a rollup block from
   // filtered sequencer block information.
-  rpc ExecuteBlock(ExecuteBlockRequest) returns (RollupBlock);
+  rpc ExecuteBlock(ExecuteBlockRequest) returns (ExecuteBlockResponse);
 
   // UpdateCommitmentState replaces the whole CommitmentState with a new
   // CommitmentState.

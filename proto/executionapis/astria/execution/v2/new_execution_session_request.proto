@@ -1,7 +1,0 @@
-syntax = 'proto3';
-
-package astria.execution.v2;
-
-// NewExecutionSessionRequest is used to create a new execution session on the
-// rollup.
-message NewExecutionSessionRequest {}

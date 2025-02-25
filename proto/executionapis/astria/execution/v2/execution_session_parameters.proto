@@ -41,6 +41,8 @@ message ExecutionSessionParameters {
   // connected to have this chain ID (if extracting firm Sequencer blocks from
   // Celestia blobs).
   string celestia_chain_id = 6;
-  // The allowed variance in celestia for sequencer blocks to have been posted.
-  uint64 celestia_block_variance = 7;
+  // The maximum number of Celestia blocks which can be read above
+  // `CommitmentState.lowest_celestia_search_height` in search of the next firm
+  // block.
+  uint64 celestia_search_height_max_look_ahead = 7;
 }

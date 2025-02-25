@@ -16,7 +16,7 @@ message ExecutionSession {
   // An ID for the session.
   string session_id = 1;
   // The configuration for the execution session.
-  ExecutionSessionParameters execution_config = 2;
+  ExecutionSessionParameters execution_session_parameters = 2;
   // The commitment state for executing client to start from.
   CommitmentState commitment_state = 3;
 }

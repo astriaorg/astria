@@ -2,23 +2,24 @@
 /// must know about a given rollup Block
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RollupBlock {
+pub struct ExecutedBlockMetadata {
     /// The block number
     #[prost(uint64, tag = "1")]
     pub number: u64,
-    /// The hash of the block
-    #[prost(bytes = "bytes", tag = "2")]
-    pub hash: ::prost::bytes::Bytes,
-    /// The hash of this block's parent block
-    #[prost(bytes = "bytes", tag = "3")]
-    pub parent_hash: ::prost::bytes::Bytes,
+    /// The hash of the block, formatted in the execution node's preferred encoding.
+    #[prost(string, tag = "2")]
+    pub hash: ::prost::alloc::string::String,
+    /// The hash of this block's parent block, formatted in the execution node's preferred
+    /// encoding.
+    #[prost(string, tag = "3")]
+    pub parent_hash: ::prost::alloc::string::String,
     /// Timestamp of the block, taken from the sequencer block that this rollup block
     /// was constructed from.
     #[prost(message, optional, tag = "4")]
     pub timestamp: ::core::option::Option<::pbjson_types::Timestamp>,
 }
-impl ::prost::Name for RollupBlock {
-    const NAME: &'static str = "RollupBlock";
+impl ::prost::Name for ExecutedBlockMetadata {
+    const NAME: &'static str = "ExecutedBlockMetadata";
     const PACKAGE: &'static str = "astria.execution.v2";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
@@ -35,27 +36,34 @@ impl ::prost::Name for RollupBlock {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CommitmentState {
-    /// A soft committed rollup block is derived directly from an Astria sequencer
-    /// block.
+    /// Soft committed block metadata derived directly from an Astria sequencer block.
     #[prost(message, optional, tag = "1")]
-    pub soft: ::core::option::Option<RollupBlock>,
-    /// A firm committed rollup block is derived from a Sequencer block that has been
+    pub soft_executed_block_metadata: ::core::option::Option<ExecutedBlockMetadata>,
+    /// Firm committed block metadata derived from a Sequencer block that has been
     /// written to the data availability layer (Celestia).
     #[prost(message, optional, tag = "2")]
-    pub firm: ::core::option::Option<RollupBlock>,
-    /// The Celestia height at which the last firm block was written. This is used
-    /// as the starting point to search for the next firm block. If no firm blocks
-    /// have been fetched from Celestia yet, this is the first Celestia height that
-    /// will be fetched.
-    ///
-    /// This information is stored as part of the commitment state so that it will
-    /// be routinely updated as new firm blocks are received, and so that the execution
-    /// client will not need to search from Celestia genesis when it starts up.
+    pub firm_executed_block_metadata: ::core::option::Option<ExecutedBlockMetadata>,
+    /// The lowest Celestia height that will be searched for the next firm block.
+    /// This information is stored as part of `CommitmentState` so that it will be
+    /// routinely updated as new firm blocks are received, and so that the execution
+    /// client will not need to search from Celestia genesis.
     #[prost(uint64, tag = "3")]
-    pub celestia_height: u64,
+    pub lowest_celestia_search_height: u64,
 }
 impl ::prost::Name for CommitmentState {
     const NAME: &'static str = "CommitmentState";
+    const PACKAGE: &'static str = "astria.execution.v2";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
+    }
+}
+/// CreateExecutionSessionRequest is used to create a new execution session on the
+/// rollup.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateExecutionSessionRequest {}
+impl ::prost::Name for CreateExecutionSessionRequest {
+    const NAME: &'static str = "CreateExecutionSessionRequest";
     const PACKAGE: &'static str = "astria.execution.v2";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
@@ -86,6 +94,48 @@ pub struct ExecuteBlockRequest {
 }
 impl ::prost::Name for ExecuteBlockRequest {
     const NAME: &'static str = "ExecuteBlockRequest";
+    const PACKAGE: &'static str = "astria.execution.v2";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
+    }
+}
+/// ExecuteBlockResponse is the response type for the ExecuteBlock RPC. It contains
+/// the metadata of the block which was executed against the rollup.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ExecuteBlockResponse {
+    #[prost(message, optional, tag = "1")]
+    pub executed_block_metadata: ::core::option::Option<ExecutedBlockMetadata>,
+}
+impl ::prost::Name for ExecuteBlockResponse {
+    const NAME: &'static str = "ExecuteBlockResponse";
+    const PACKAGE: &'static str = "astria.execution.v2";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
+    }
+}
+/// Identifiers to select a rollup block by.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ExecutedBlockIdentifier {
+    #[prost(oneof = "executed_block_identifier::Identifier", tags = "1, 2")]
+    pub identifier: ::core::option::Option<executed_block_identifier::Identifier>,
+}
+/// Nested message and enum types in `ExecutedBlockIdentifier`.
+pub mod executed_block_identifier {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Identifier {
+        /// Identifier by block number, corresponding to `ExecutedBlockMetadata.number`.
+        #[prost(uint64, tag = "1")]
+        Number(u64),
+        /// Identifier by block hash, corresponding to `ExecutedBlockMetadata.hash`.
+        #[prost(string, tag = "2")]
+        Hash(::prost::alloc::string::String),
+    }
+}
+impl ::prost::Name for ExecutedBlockIdentifier {
+    const NAME: &'static str = "ExecutedBlockIdentifier";
     const PACKAGE: &'static str = "astria.execution.v2";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
@@ -136,9 +186,11 @@ pub struct ExecutionSessionParameters {
     /// Celestia blobs).
     #[prost(string, tag = "6")]
     pub celestia_chain_id: ::prost::alloc::string::String,
-    /// The allowed variance in celestia for sequencer blocks to have been posted.
+    /// The maximum number of Celestia blocks which can be read above
+    /// `CommitmentState.lowest_celestia_search_height` in search of the next firm
+    /// block.
     #[prost(uint64, tag = "7")]
-    pub celestia_block_variance: u64,
+    pub celestia_search_height_max_look_ahead: u64,
 }
 impl ::prost::Name for ExecutionSessionParameters {
     const NAME: &'static str = "ExecutionSessionParameters";
@@ -162,7 +214,7 @@ pub struct ExecutionSession {
     pub session_id: ::prost::alloc::string::String,
     /// The configuration for the execution session.
     #[prost(message, optional, tag = "2")]
-    pub execution_config: ::core::option::Option<ExecutionSessionParameters>,
+    pub execution_session_parameters: ::core::option::Option<ExecutionSessionParameters>,
     /// The commitment state for executing client to start from.
     #[prost(message, optional, tag = "3")]
     pub commitment_state: ::core::option::Option<CommitmentState>,
@@ -174,54 +226,15 @@ impl ::prost::Name for ExecutionSession {
         ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
     }
 }
-/// Identifiers to select a rollup block by.
+/// Used in GetExecutedBlockMetadata to find a single block.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RollupBlockIdentifier {
-    #[prost(oneof = "rollup_block_identifier::Identifier", tags = "1, 2")]
-    pub identifier: ::core::option::Option<rollup_block_identifier::Identifier>,
-}
-/// Nested message and enum types in `RollupBlockIdentifier`.
-pub mod rollup_block_identifier {
-    #[allow(clippy::derive_partial_eq_without_eq)]
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum Identifier {
-        /// Identifier by block number, corresponding to `RollupBlock.number`.
-        #[prost(uint64, tag = "1")]
-        Number(u64),
-        /// Identifier by block hash, corresponding to `RollupBlock.hash`.
-        #[prost(bytes, tag = "2")]
-        Hash(::prost::bytes::Bytes),
-    }
-}
-impl ::prost::Name for RollupBlockIdentifier {
-    const NAME: &'static str = "RollupBlockIdentifier";
-    const PACKAGE: &'static str = "astria.execution.v2";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
-    }
-}
-/// Used in GetBlock to find a single block.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetBlockRequest {
+pub struct GetExecutedBlockMetadataRequest {
     #[prost(message, optional, tag = "1")]
-    pub identifier: ::core::option::Option<RollupBlockIdentifier>,
+    pub identifier: ::core::option::Option<ExecutedBlockIdentifier>,
 }
-impl ::prost::Name for GetBlockRequest {
-    const NAME: &'static str = "GetBlockRequest";
-    const PACKAGE: &'static str = "astria.execution.v2";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
-    }
-}
-/// NewExecutionSessionRequest is used to create a new execution session on the
-/// rollup.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct NewExecutionSessionRequest {}
-impl ::prost::Name for NewExecutionSessionRequest {
-    const NAME: &'static str = "NewExecutionSessionRequest";
+impl ::prost::Name for GetExecutedBlockMetadataRequest {
+    const NAME: &'static str = "GetExecutedBlockMetadataRequest";
     const PACKAGE: &'static str = "astria.execution.v2";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
@@ -336,11 +349,11 @@ pub mod execution_service_client {
             self.inner = self.inner.max_encoding_message_size(limit);
             self
         }
-        /// GetSequencerInfo returns the necessary information for mapping sequencer block
+        /// CreateExecutionSession returns the necessary information for mapping sequencer block
         /// height to rollup block number.
-        pub async fn new_execution_session(
+        pub async fn create_execution_session(
             &mut self,
-            request: impl tonic::IntoRequest<super::NewExecutionSessionRequest>,
+            request: impl tonic::IntoRequest<super::CreateExecutionSessionRequest>,
         ) -> std::result::Result<
             tonic::Response<super::ExecutionSession>,
             tonic::Status,
@@ -356,23 +369,26 @@ pub mod execution_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.execution.v2.ExecutionService/NewExecutionSession",
+                "/astria.execution.v2.ExecutionService/CreateExecutionSession",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
                         "astria.execution.v2.ExecutionService",
-                        "NewExecutionSession",
+                        "CreateExecutionSession",
                     ),
                 );
             self.inner.unary(req, path, codec).await
         }
-        /// GetBlock will return a block given an identifier.
-        pub async fn get_block(
+        /// GetExecutedBlockMetadata will return a block given an identifier.
+        pub async fn get_executed_block_metadata(
             &mut self,
-            request: impl tonic::IntoRequest<super::GetBlockRequest>,
-        ) -> std::result::Result<tonic::Response<super::RollupBlock>, tonic::Status> {
+            request: impl tonic::IntoRequest<super::GetExecutedBlockMetadataRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ExecutedBlockMetadata>,
+            tonic::Status,
+        > {
             self.inner
                 .ready()
                 .await
@@ -384,12 +400,15 @@ pub mod execution_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.execution.v2.ExecutionService/GetBlock",
+                "/astria.execution.v2.ExecutionService/GetExecutedBlockMetadata",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
-                    GrpcMethod::new("astria.execution.v2.ExecutionService", "GetBlock"),
+                    GrpcMethod::new(
+                        "astria.execution.v2.ExecutionService",
+                        "GetExecutedBlockMetadata",
+                    ),
                 );
             self.inner.unary(req, path, codec).await
         }
@@ -398,7 +417,10 @@ pub mod execution_service_client {
         pub async fn execute_block(
             &mut self,
             request: impl tonic::IntoRequest<super::ExecuteBlockRequest>,
-        ) -> std::result::Result<tonic::Response<super::RollupBlock>, tonic::Status> {
+        ) -> std::result::Result<
+            tonic::Response<super::ExecuteBlockResponse>,
+            tonic::Status,
+        > {
             self.inner
                 .ready()
                 .await
@@ -464,26 +486,32 @@ pub mod execution_service_server {
     /// Generated trait containing gRPC methods that should be implemented for use with ExecutionServiceServer.
     #[async_trait]
     pub trait ExecutionService: Send + Sync + 'static {
-        /// GetSequencerInfo returns the necessary information for mapping sequencer block
+        /// CreateExecutionSession returns the necessary information for mapping sequencer block
         /// height to rollup block number.
-        async fn new_execution_session(
+        async fn create_execution_session(
             self: std::sync::Arc<Self>,
-            request: tonic::Request<super::NewExecutionSessionRequest>,
+            request: tonic::Request<super::CreateExecutionSessionRequest>,
         ) -> std::result::Result<
             tonic::Response<super::ExecutionSession>,
             tonic::Status,
         >;
-        /// GetBlock will return a block given an identifier.
-        async fn get_block(
+        /// GetExecutedBlockMetadata will return a block given an identifier.
+        async fn get_executed_block_metadata(
             self: std::sync::Arc<Self>,
-            request: tonic::Request<super::GetBlockRequest>,
-        ) -> std::result::Result<tonic::Response<super::RollupBlock>, tonic::Status>;
+            request: tonic::Request<super::GetExecutedBlockMetadataRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::ExecutedBlockMetadata>,
+            tonic::Status,
+        >;
         /// ExecuteBlock is called to deterministically derive a rollup block from
         /// filtered sequencer block information.
         async fn execute_block(
             self: std::sync::Arc<Self>,
             request: tonic::Request<super::ExecuteBlockRequest>,
-        ) -> std::result::Result<tonic::Response<super::RollupBlock>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::ExecuteBlockResponse>,
+            tonic::Status,
+        >;
         /// UpdateCommitmentState replaces the whole CommitmentState with a new
         /// CommitmentState.
         async fn update_commitment_state(
@@ -575,13 +603,13 @@ pub mod execution_service_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/astria.execution.v2.ExecutionService/NewExecutionSession" => {
+                "/astria.execution.v2.ExecutionService/CreateExecutionSession" => {
                     #[allow(non_camel_case_types)]
-                    struct NewExecutionSessionSvc<T: ExecutionService>(pub Arc<T>);
+                    struct CreateExecutionSessionSvc<T: ExecutionService>(pub Arc<T>);
                     impl<
                         T: ExecutionService,
-                    > tonic::server::UnaryService<super::NewExecutionSessionRequest>
-                    for NewExecutionSessionSvc<T> {
+                    > tonic::server::UnaryService<super::CreateExecutionSessionRequest>
+                    for CreateExecutionSessionSvc<T> {
                         type Response = super::ExecutionSession;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
@@ -589,11 +617,11 @@ pub mod execution_service_server {
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::NewExecutionSessionRequest>,
+                            request: tonic::Request<super::CreateExecutionSessionRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ExecutionService>::new_execution_session(
+                                <T as ExecutionService>::create_execution_session(
                                         inner,
                                         request,
                                     )
@@ -609,7 +637,7 @@ pub mod execution_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = NewExecutionSessionSvc(inner);
+                        let method = CreateExecutionSessionSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -625,25 +653,31 @@ pub mod execution_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria.execution.v2.ExecutionService/GetBlock" => {
+                "/astria.execution.v2.ExecutionService/GetExecutedBlockMetadata" => {
                     #[allow(non_camel_case_types)]
-                    struct GetBlockSvc<T: ExecutionService>(pub Arc<T>);
+                    struct GetExecutedBlockMetadataSvc<T: ExecutionService>(pub Arc<T>);
                     impl<
                         T: ExecutionService,
-                    > tonic::server::UnaryService<super::GetBlockRequest>
-                    for GetBlockSvc<T> {
-                        type Response = super::RollupBlock;
+                    > tonic::server::UnaryService<super::GetExecutedBlockMetadataRequest>
+                    for GetExecutedBlockMetadataSvc<T> {
+                        type Response = super::ExecutedBlockMetadata;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::GetBlockRequest>,
+                            request: tonic::Request<
+                                super::GetExecutedBlockMetadataRequest,
+                            >,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ExecutionService>::get_block(inner, request).await
+                                <T as ExecutionService>::get_executed_block_metadata(
+                                        inner,
+                                        request,
+                                    )
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -655,7 +689,7 @@ pub mod execution_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = GetBlockSvc(inner);
+                        let method = GetExecutedBlockMetadataSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -678,7 +712,7 @@ pub mod execution_service_server {
                         T: ExecutionService,
                     > tonic::server::UnaryService<super::ExecuteBlockRequest>
                     for ExecuteBlockSvc<T> {
-                        type Response = super::RollupBlock;
+                        type Response = super::ExecuteBlockResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,

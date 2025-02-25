@@ -2,7 +2,7 @@ syntax = 'proto3';
 
 package astria.execution.v2;
 
-import "astria/execution/v2/rollup_block.proto";
+import "astria/execution/v2/executed_block_metadata.proto";
 
 // The CommitmentState holds the block at each stage of sequencer commitment
 // level
@@ -13,19 +13,14 @@ import "astria/execution/v2/rollup_block.proto";
 // - The chain defined by soft is the head of the canonical chain the firm block
 //   must belong to.
 message CommitmentState {
-  // A soft committed rollup block is derived directly from an Astria sequencer
-  // block.
-  RollupBlock soft = 1;
-  // A firm committed rollup block is derived from a Sequencer block that has been
+  // Soft committed block metadata derived directly from an Astria sequencer block.
+  ExecutedBlockMetadata soft_executed_block_metadata = 1;
+  // Firm committed block metadata derived from a Sequencer block that has been
   // written to the data availability layer (Celestia).
-  RollupBlock firm = 2;
-  // The Celestia height at which the last firm block was written. This is used
-  // as the starting point to search for the next firm block. If no firm blocks
-  // have been fetched from Celestia yet, this is the first Celestia height that
-  // will be fetched.
-  //
-  // This information is stored as part of the commitment state so that it will
-  // be routinely updated as new firm blocks are received, and so that the execution
-  // client will not need to search from Celestia genesis when it starts up.
-  uint64 celestia_height = 3;
+  ExecutedBlockMetadata firm_executed_block_metadata = 2;
+  // The lowest Celestia height that will be searched for the next firm block.
+  // This information is stored as part of `CommitmentState` so that it will be
+  // routinely updated as new firm blocks are received, and so that the execution
+  // client will not need to search from Celestia genesis.
+  uint64 lowest_celestia_search_height = 3;
 }
