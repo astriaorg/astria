@@ -379,7 +379,7 @@ where
     }
 
     fn configured_for_rollup_withdrawals(&self) -> bool {
-        self.sequencer_asset_to_withdraw.is_some() || self.ics20_asset_to_withdraw.is_some()
+        self.sequencer_asset_to_withdraw.is_some()
     }
 
     /// Gets all withdrawal events for `block_hash` and converts them to astria sequencer actions.
@@ -555,19 +555,15 @@ where
 
         let amount = calculate_amount(&event, self.asset_withdrawal_divisor)
             .map_err(GetWithdrawalActionsError::calculate_withdrawal_amount)?;
-
-        let destination_rollup_bridge_address = Address::from_str(
-            &event.destination_rollup_bridge_address,
-        )
-        .map_err(|arg0: AddressError| {
-            GetWithdrawalActionsError::destination_chain_as_address(
-                DestinationChainAsAddressError {
-                    source: arg0,
-                },
-            )
-        })?;
+        let destination_bridge_address =
+            event
+                .destination_rollup_bridge_address
+                .parse()
+                .map_err(|err: AddressError| {
+                    GetWithdrawalActionsError::destination_bridge_as_address(err.into())
+                })?;
         let action = astria_core::protocol::transaction::v1::action::BridgeTransfer {
-            to: destination_rollup_bridge_address,
+            to: destination_bridge_address,
             destination_chain_address: event.destination_chain_address,
             amount,
             rollup_block_number,
@@ -597,6 +593,12 @@ impl GetWithdrawalActionsError {
 
     fn destination_chain_as_address(source: DestinationChainAsAddressError) -> Self {
         Self(GetWithdrawalActionsErrorKind::DestinationChainAsAddress(
+            source,
+        ))
+    }
+
+    fn destination_bridge_as_address(source: DestinationBridgeAsAddressError) -> Self {
+        Self(GetWithdrawalActionsErrorKind::DestinationBridgeAsAddress(
             source,
         ))
     }
@@ -631,6 +633,8 @@ enum GetWithdrawalActionsErrorKind {
     DecodeLog(DecodeLogError),
     #[error(transparent)]
     DestinationChainAsAddress(DestinationChainAsAddressError),
+    #[error(transparent)]
+    DestinationBridgeAsAddress(DestinationBridgeAsAddressError),
     #[error(transparent)]
     EncodeMemo(EncodeMemoError),
     #[error(transparent)]
@@ -747,6 +751,13 @@ fn max_timeout_height() -> ibc_types::core::client::Height {
 #[derive(Debug, thiserror::Error)]
 #[error("failed to parse destination chain address as Astria address for a bridge unlock")]
 struct DestinationChainAsAddressError {
+    #[from]
+    source: AddressError,
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("failed to parse destination bridge address as Astria address for a bridge transfer")]
+struct DestinationBridgeAsAddressError {
     #[from]
     source: AddressError,
 }
