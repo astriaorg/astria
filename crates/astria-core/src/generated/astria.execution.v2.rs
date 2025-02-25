@@ -114,7 +114,7 @@ impl ::prost::Name for ExecuteBlockResponse {
         ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
     }
 }
-/// Identifiers to select a rollup block by.
+/// Identifiers to select an executed block by.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ExecutedBlockIdentifier {

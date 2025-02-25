@@ -2,7 +2,7 @@ syntax = 'proto3';
 
 package astria.execution.v2;
 
-// Identifiers to select a rollup block by.
+// Identifiers to select an executed block by.
 message ExecutedBlockIdentifier {
   oneof identifier {
     // Identifier by block number, corresponding to `ExecutedBlockMetadata.number`.
