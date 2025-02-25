@@ -11,11 +11,11 @@ Sequencer.
 
 ## Basic Design Principles
 
-The Execution API is a resource-based API with two resources: `RollupBlock` and
-`CommitmentState`. The API is designed to follow basic principles outlined by
-aip.dev as best practices for resource based APIs. gRPC has been chosen for the
-API due to the wide availability of language implementations which make it easy
-to generate client libraries and server implementations.  
+The Execution API is a resource-based API with three resources: `ExecutedBlockMetadata`,
+`CommitmentState`, and `ExecutionSession`. The API is designed to follow basic
+principles outlined by aip.dev as best practices for resource based APIs. gRPC
+has been chosen for the API due to the wide availability of language implementations
+which make it easy to generate client libraries and server implementations.  
 
 ## Conductor Usage
 
@@ -25,16 +25,16 @@ Client driven execution of blocks occurs in execution "sessions", which represen
 a bound of block heights/numbers to be executed. Every session contains a lower
 bound (start block) and may also contain an upper bound (end block). Calls to RPCs
 within the current session can be verified by the server-side application via the
-`session_id` in `GetBlockRequest` and `ExecuteBlockRequest`.
+`session_id` in `GetExecutedBlockMetadataRequest` and `ExecuteBlockRequest`.
 
 If an upper bound to the current execution session is specified in the `ExecutionSessionParameters`,
 the execution client will end the session after executing the end block and start
-a new session via `NewExecutionSession`. This allows for changes to client configuration
+a new session via `CreateExecutionSession`. This allows for changes to client configuration
 (such as chain ID, height mapping, etc.) between sessions.
 
 ### Startup
 
-Upon startup, conductor starts its first execution session by calling `NewExecutionSession`.
+Upon startup, conductor starts its first execution session by calling `CreateExecutionSession`.
 This returns an `ExecutionSession`, containing the necessary information for the
 client to drive execution for the duration of the session.
 
@@ -49,7 +49,7 @@ From the perspective of the Conductor:
 When configuring Conductor, the threshold at which blocks are executed on the rollup
 can be set via the `execution_commitment_level` in the config file. `ExecuteBlock`
 is called to create a new rollup block when the `execution_commitment_level` has
-been reached for a given block. Upon receipt of a new block, Conductor calls
+been reached for a given block. Upon receipt of the executed block, Conductor calls
 `UpdateCommitmentState` to update the commitment at the level of the
 `execution_commitment_level` and any level above it.
 
@@ -79,11 +79,25 @@ Note: For our EVM rollup, we map the `CommitmentState` to the `ForkchoiceRule`:
 - `Soft` Commitment -> `HEAD` Forkchoice && `SAFE` Forkchoice
 - `Firm` Commitment -> `FINAL` Forkchoice
 
+### Celestia Search Height
+
+`CommitmentState` contains the field `lowest_celestia_search_height`, representing
+the lowest Celestia height that will be searched for the next firm block. In the
+current implementation of Conductor, this is set to the Celestia height at which
+the most recent firm block was found.
+
+There are, however, many factors that can result in the same Sequencer blocks sharing
+or skipping Celestia heights. As such, the Celestia heights correlating to Sequencer
+commitments may not increase linearly, and a range of heights must be searched.
+Conductor begins fetching at `CommitmentState.lowest_celestia_search_height`, continuing
+searching for firm commitments until it reaches `lowest_celestia_search_height +
+ExecutionSessionParameters.celestia_search_height_max_look_ahead`.
+
 ## Rollup Implementation Details
 
-### NewExecutionSession
+### CreateExecutionSession
 
-`NewExecutionSession` returns an `ExecutionSession`, defining all necessary information
+`CreateExecutionSession` returns an `ExecutionSession`, defining all necessary information
 for the client to begin driving execution. This includes `ExecutionSessionParameters`,
 containing the necessary information for network connection and mapping rollup blocks
 to Astria Sequencer (soft) and Celestia (firm) blocks. Also returned is the current
@@ -104,11 +118,12 @@ indicated by `prev_block_hash`. The following should be respected:
 - If block headers have timestamps, the created block MUST have matching timestamp
 - **NOTE:** The `CommitmentState` is NOT modified by the execution of the block.
 
-### GetBlock
+### GetExecutedBlockMetadata
 
-`GetBlock` returns information about a block given its `BlockIdentifier`, consisting
-of either a `hash` or `number` (as determined by the server, *not* by the Sequencer
-or the Celestia height). If the block cannot be found, return a `NOT_FOUND` error.
+`GetExecutedBlockMetadata` returns information about a block given its `ExecutedBlockIdentifier`,
+consisting of either a `hash` or `number` (as determined by the server, *not* by
+the Sequencer or the Celestia height). If the block cannot be found, return a `NOT_FOUND`
+error.
 
 ### UpdateCommitmentState
 
