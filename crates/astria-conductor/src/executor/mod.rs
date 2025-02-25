@@ -496,16 +496,18 @@ impl Initialized {
         block: ExecutableBlock,
     ) -> eyre::Result<Block> {
         let ExecutableBlock {
+            hash,
             transactions,
             timestamp,
             ..
         } = block;
 
         let n_transactions = transactions.len();
+        let sequencer_block_hash = hash.as_bytes().to_vec().into();
 
         let executed_block = self
             .client
-            .execute_block_with_retry(parent_hash, transactions, timestamp)
+            .execute_block_with_retry(parent_hash, transactions, timestamp, sequencer_block_hash)
             .await
             .wrap_err("failed to run execute_block RPC")?;
 

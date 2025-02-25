@@ -347,6 +347,7 @@ mod tests {
                 seconds: 123_456,
                 nanos: 789,
             }),
+            sequencer_block_hash: vec![].into(),
         })
         .unwrap();
         let soft = Block::try_from_raw(raw::Block {
@@ -357,6 +358,7 @@ mod tests {
                 seconds: 123_456,
                 nanos: 789,
             }),
+            sequencer_block_hash: vec![].into(),
         })
         .unwrap();
         CommitmentState::builder()

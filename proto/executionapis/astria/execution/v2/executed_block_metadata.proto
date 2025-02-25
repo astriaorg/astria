@@ -17,4 +17,7 @@ message ExecutedBlockMetadata {
   // Timestamp of the block, taken from the sequencer block that this rollup block
   // was constructed from.
   google.protobuf.Timestamp timestamp = 4;
+  // The block hash of the sequencer block which this execution block is derived
+  // from. Utilizing this field is optional.
+  string sequencer_block_hash = 5;
 }
