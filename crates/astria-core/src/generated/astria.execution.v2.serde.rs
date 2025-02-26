@@ -211,7 +211,7 @@ impl serde::Serialize for ExecuteBlockRequest {
         if !self.session_id.is_empty() {
             len += 1;
         }
-        if !self.prev_block_hash.is_empty() {
+        if !self.parent_hash.is_empty() {
             len += 1;
         }
         if !self.transactions.is_empty() {
@@ -224,9 +224,8 @@ impl serde::Serialize for ExecuteBlockRequest {
         if !self.session_id.is_empty() {
             struct_ser.serialize_field("sessionId", &self.session_id)?;
         }
-        if !self.prev_block_hash.is_empty() {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("prevBlockHash", pbjson::private::base64::encode(&self.prev_block_hash).as_str())?;
+        if !self.parent_hash.is_empty() {
+            struct_ser.serialize_field("parentHash", &self.parent_hash)?;
         }
         if !self.transactions.is_empty() {
             struct_ser.serialize_field("transactions", &self.transactions)?;
@@ -246,8 +245,8 @@ impl<'de> serde::Deserialize<'de> for ExecuteBlockRequest {
         const FIELDS: &[&str] = &[
             "session_id",
             "sessionId",
-            "prev_block_hash",
-            "prevBlockHash",
+            "parent_hash",
+            "parentHash",
             "transactions",
             "timestamp",
         ];
@@ -255,7 +254,7 @@ impl<'de> serde::Deserialize<'de> for ExecuteBlockRequest {
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             SessionId,
-            PrevBlockHash,
+            ParentHash,
             Transactions,
             Timestamp,
         }
@@ -280,7 +279,7 @@ impl<'de> serde::Deserialize<'de> for ExecuteBlockRequest {
                     {
                         match value {
                             "sessionId" | "session_id" => Ok(GeneratedField::SessionId),
-                            "prevBlockHash" | "prev_block_hash" => Ok(GeneratedField::PrevBlockHash),
+                            "parentHash" | "parent_hash" => Ok(GeneratedField::ParentHash),
                             "transactions" => Ok(GeneratedField::Transactions),
                             "timestamp" => Ok(GeneratedField::Timestamp),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
@@ -303,7 +302,7 @@ impl<'de> serde::Deserialize<'de> for ExecuteBlockRequest {
                     V: serde::de::MapAccess<'de>,
             {
                 let mut session_id__ = None;
-                let mut prev_block_hash__ = None;
+                let mut parent_hash__ = None;
                 let mut transactions__ = None;
                 let mut timestamp__ = None;
                 while let Some(k) = map_.next_key()? {
@@ -314,13 +313,11 @@ impl<'de> serde::Deserialize<'de> for ExecuteBlockRequest {
                             }
                             session_id__ = Some(map_.next_value()?);
                         }
-                        GeneratedField::PrevBlockHash => {
-                            if prev_block_hash__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("prevBlockHash"));
+                        GeneratedField::ParentHash => {
+                            if parent_hash__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("parentHash"));
                             }
-                            prev_block_hash__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
+                            parent_hash__ = Some(map_.next_value()?);
                         }
                         GeneratedField::Transactions => {
                             if transactions__.is_some() {
@@ -338,7 +335,7 @@ impl<'de> serde::Deserialize<'de> for ExecuteBlockRequest {
                 }
                 Ok(ExecuteBlockRequest {
                     session_id: session_id__.unwrap_or_default(),
-                    prev_block_hash: prev_block_hash__.unwrap_or_default(),
+                    parent_hash: parent_hash__.unwrap_or_default(),
                     transactions: transactions__.unwrap_or_default(),
                     timestamp: timestamp__,
                 })

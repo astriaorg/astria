@@ -80,9 +80,10 @@ pub struct ExecuteBlockRequest {
     /// The session within which the block is intended to be executed.
     #[prost(string, tag = "1")]
     pub session_id: ::prost::alloc::string::String,
-    /// The hash of previous block, which new block will be created on top of.
-    #[prost(bytes = "bytes", tag = "2")]
-    pub prev_block_hash: ::prost::bytes::Bytes,
+    /// The hash of previous block, which this new block will be created on top of,
+    /// formatted in the execution node's preferred encoding.
+    #[prost(string, tag = "2")]
+    pub parent_hash: ::prost::alloc::string::String,
     /// List of transactions to include in the new block.
     #[prost(message, repeated, tag = "3")]
     pub transactions: ::prost::alloc::vec::Vec<
