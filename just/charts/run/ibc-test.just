@@ -16,7 +16,9 @@ import '../evm.just'
 [doc("
 Test IBC transfers between the Rollup and Celestia.
 Usage:
-    $just run ibc-test <TAG> (default: '')
+    $just run ibc-test default <TAG> (default: '')
+    OR
+    $just run ibc-test
 ")]
 default tag=defaultTag:
   #!/usr/bin/env bash

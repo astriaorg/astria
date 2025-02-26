@@ -76,7 +76,7 @@ If you deploy a custom faucet, it will be reachable at
 `http://faucet.<rollup_name>.localdev.me`.
 
 By default, no account is funded during geth genesis.
-Run `just init-rollup-bridge` to fund the faucet account. This account key is
+Run `just init rollup-bridge` to fund the faucet account. This account key is
 defined in `../dev/values/rollup/dev.yaml` and is identical to the key in
 `./evm-rollup/files/keys/private_key.txt`.
 
@@ -135,7 +135,7 @@ we have created a local image `astria-sequencer:local`
 
 ```sh
 # load image into cluster
-just load-image astria-sequencer:local
+just load-image astria-sequencer
 ```
 
 To update the chart to utilize the new image, go to `./sequencer/values.yaml`
@@ -172,7 +172,7 @@ To deploy and run this:
 # deploys all the components needed to run the test.
 > just deploy smoke-test
 # deploys all components needed to run the smoke test
-> just run-smoke-test
+> just run smoke-test
 # Runs the smoke test will return failure if fails
 > just delete smoke-test
 # Clean up deployed test
@@ -188,9 +188,9 @@ working both up and down the stack.
 
 ```sh
 > just deploy cluster
-> just ibc-test deploy
-> just ibc-test run
-> just ibc-test delete
+> just deploy ibc-test
+> just run ibc-test
+> just delete ibc-test
 ```
 
 ## Examining Deployments
@@ -224,9 +224,6 @@ kubectl get -n astria-dev-cluster pods
 
 # to log a container you need to first grab the pod name from above
 kubectl logs -n astria-dev-cluster -c <CONTAINER_NAME> <POD_NAME>
-
-# delete a single deployment
-just delete -n astria-dev-cluster deployment <DEPLOYMENT_NAME>
 
 # delete cluster and resources
 just clean
