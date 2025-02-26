@@ -9,10 +9,6 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
-use tendermint::abci::request::{
-    BeginBlock,
-    EndBlock,
-};
 use tracing::{
     instrument,
     Level,
@@ -23,7 +19,10 @@ use super::{
     StateWriteExt,
     ValidatorSet,
 };
-use crate::component::Component;
+use crate::component::{
+    Component,
+    PrepareStateInfo,
+};
 
 #[derive(Default)]
 pub(crate) struct AuthorityComponent;
@@ -51,17 +50,17 @@ impl Component for AuthorityComponent {
         Ok(())
     }
 
-    #[instrument(name = "AuthorityComponent::begin_block", skip_all, err(level = Level::WARN))]
-    async fn begin_block<S: StateWriteExt + 'static>(
+    #[instrument(name = "AuthorityComponent::prepare_state_for_tx_execution", skip_all, err(level = Level::WARN))]
+    async fn prepare_state_for_tx_execution<S: StateWriteExt + 'static>(
         state: &mut Arc<S>,
-        begin_block: &BeginBlock,
+        prepare_state_info: &PrepareStateInfo,
     ) -> Result<()> {
         let mut current_set = state
             .get_validator_set()
             .await
             .wrap_err("failed getting validator set")?;
 
-        for misbehaviour in &begin_block.byzantine_validators {
+        for misbehaviour in &prepare_state_info.byzantine_validators {
             current_set.remove(&misbehaviour.validator.address);
         }
 
@@ -73,10 +72,9 @@ impl Component for AuthorityComponent {
         Ok(())
     }
 
-    #[instrument(name = "AuthorityComponent::end_block", skip_all, err(level = Level::WARN))]
-    async fn end_block<S: StateWriteExt + StateReadExt + 'static>(
+    #[instrument(name = "AuthorityComponent::handle_post_tx_execution", skip_all, err(level = Level::WARN))]
+    async fn handle_post_tx_execution<S: StateWriteExt + StateReadExt + 'static>(
         state: &mut Arc<S>,
-        _end_block: &EndBlock,
     ) -> Result<()> {
         // update validator set
         let validator_updates = state
