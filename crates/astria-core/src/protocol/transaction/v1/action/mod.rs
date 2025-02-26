@@ -64,6 +64,7 @@ pub enum Action {
     BridgeUnlock(BridgeUnlock),
     BridgeSudoChange(BridgeSudoChange),
     FeeChange(FeeChange),
+    RecoverClient(RecoverClient),
 }
 
 impl Protobuf for Action {
@@ -88,6 +89,7 @@ impl Protobuf for Action {
             Action::BridgeUnlock(act) => Value::BridgeUnlock(act.to_raw()),
             Action::BridgeSudoChange(act) => Value::BridgeSudoChange(act.to_raw()),
             Action::FeeChange(act) => Value::FeeChange(act.to_raw()),
+            Action::RecoverClient(act) => Value::RecoverClient(act.to_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -161,6 +163,9 @@ impl Protobuf for Action {
             Value::FeeChange(act) => {
                 Self::FeeChange(FeeChange::try_from_raw_ref(&act).map_err(Error::fee_change)?)
             }
+            Value::RecoverClient(act) => Self::RecoverClient(
+                RecoverClient::try_from_raw(act).map_err(Error::recover_client)?,
+            ),
         };
         Ok(action)
     }
@@ -271,6 +276,12 @@ impl From<FeeChange> for Action {
     }
 }
 
+impl From<RecoverClient> for Action {
+    fn from(value: RecoverClient) -> Self {
+        Self::RecoverClient(value)
+    }
+}
+
 impl From<Action> for raw::Action {
     fn from(value: Action) -> Self {
         value.into_raw()
@@ -308,6 +319,7 @@ impl ActionName for Action {
             Action::BridgeUnlock(_) => "BridgeUnlock",
             Action::BridgeSudoChange(_) => "BridgeSudoChange",
             Action::FeeChange(_) => "FeeChange",
+            Action::RecoverClient(_) => "RecoverClient",
         }
     }
 }
@@ -376,6 +388,10 @@ impl Error {
     fn fee_change(inner: FeeChangeError) -> Self {
         Self(ActionErrorKind::FeeChange(inner))
     }
+
+    fn recover_client(inner: RecoverClientError) -> Self {
+        Self(ActionErrorKind::RecoverClient(inner))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -410,6 +426,8 @@ enum ActionErrorKind {
     BridgeSudoChange(#[source] BridgeSudoChangeError),
     #[error("fee change action was not valid")]
     FeeChange(#[source] FeeChangeError),
+    #[error("recover client action was not valid")]
+    RecoverClient(#[source] RecoverClientError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -2075,4 +2093,74 @@ impl Protobuf for FeeChange {
             None => return Err(FeeChangeError::field_unset("fee_components")),
         })
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct RecoverClient {
+    pub subject_client_id: ibc_types::core::client::ClientId,
+    pub substitute_client_id: ibc_types::core::client::ClientId,
+}
+
+impl Protobuf for RecoverClient {
+    type Error = RecoverClientError;
+    type Raw = raw::RecoverClient;
+
+    #[must_use]
+    fn into_raw(self) -> raw::RecoverClient {
+        raw::RecoverClient {
+            subject_client_id: self.subject_client_id.to_string(),
+            substitute_client_id: self.substitute_client_id.to_string(),
+        }
+    }
+
+    #[must_use]
+    fn to_raw(&self) -> raw::RecoverClient {
+        raw::RecoverClient {
+            subject_client_id: self.subject_client_id.clone().to_string(),
+            substitute_client_id: self.substitute_client_id.clone().to_string(),
+        }
+    }
+
+    /// Convert from a raw, unchecked protobuf [`raw::RecoverClientAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `subject_client_id` field is not set
+    /// - if the `substitute_client_id` field is not set
+    fn try_from_raw(proto: raw::RecoverClient) -> Result<Self, RecoverClientError> {
+        let subject_client_id = proto
+            .subject_client_id
+            .parse()
+            .map_err(|_| RecoverClientError(RecoverClientErrorKind::InvalidSubjectClientId))?;
+        let substitute_client_id = proto
+            .substitute_client_id
+            .parse()
+            .map_err(|_| RecoverClientError(RecoverClientErrorKind::InvalidSubstituteClientId))?;
+        Ok(Self {
+            subject_client_id,
+            substitute_client_id,
+        })
+    }
+
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::RecoverClientAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `subject_client_id` field is not set
+    /// - if the `substitute_client_id` field is not set
+    fn try_from_raw_ref(proto: &Self::Raw) -> Result<Self, RecoverClientError> {
+        Self::try_from_raw(proto.clone())
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct RecoverClientError(RecoverClientErrorKind);
+
+#[derive(Debug, thiserror::Error)]
+enum RecoverClientErrorKind {
+    #[error("the `subject_client_id` field was invalid")]
+    InvalidSubjectClientId,
+    #[error("the `substitute_client_id` field was invalid")]
+    InvalidSubstituteClientId,
 }

@@ -81,6 +81,7 @@ impl_protobuf_for_fee_components!(
     FeeChangeFeeComponents => raw::FeeChangeFeeComponents,
     SudoAddressChangeFeeComponents => raw::SudoAddressChangeFeeComponents,
     IbcSudoChangeFeeComponents => raw::IbcSudoChangeFeeComponents,
+    RecoverClientFeeComponents => raw::RecoverClientFeeComponents,
 );
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -163,6 +164,12 @@ pub struct SudoAddressChangeFeeComponents {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct IbcSudoChangeFeeComponents {
+    pub base: u128,
+    pub multiplier: u128,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RecoverClientFeeComponents {
     pub base: u128,
     pub multiplier: u128,
 }

@@ -21,6 +21,7 @@ use astria_core::{
         IbcSudoChangeFeeComponents,
         Ics20WithdrawalFeeComponents,
         InitBridgeAccountFeeComponents,
+        RecoverClientFeeComponents,
         RollupDataSubmissionFeeComponents,
         SudoAddressChangeFeeComponents,
         TransferFeeComponents,
@@ -354,6 +355,24 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
+    async fn get_recover_client_fees(&self) -> Result<Option<RecoverClientFeeComponents>> {
+        let bytes = self
+            .get_raw(keys::RECOVER_CLIENT)
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw recover client fee components from state")?;
+        let Some(bytes) = bytes else {
+            return Ok(None);
+        };
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| {
+                storage::RecoverClientFeeComponentsStorage::try_from(value)
+                    .map(|fees| Some(RecoverClientFeeComponents::from(fees)))
+            })
+            .wrap_err("invalid fees bytes")
+    }
+
+    #[instrument(skip_all)]
     async fn is_allowed_fee_asset<'a, TAsset>(&self, asset: &'a TAsset) -> Result<bool>
     where
         TAsset: Sync,
@@ -543,6 +562,15 @@ pub(crate) trait StateWriteExt: StateWrite {
             .serialize()
             .wrap_err("failed to serialize fees")?;
         self.put_raw(keys::IBC_SUDO_CHANGE.to_string(), bytes);
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    fn put_recover_client_fees(&mut self, fees: RecoverClientFeeComponents) -> Result<()> {
+        let bytes = StoredValue::from(storage::RecoverClientFeeComponentsStorage::from(fees))
+            .serialize()
+            .wrap_err("failed to serialize fees")?;
+        self.put_raw(keys::RECOVER_CLIENT.to_string(), bytes);
         Ok(())
     }
 

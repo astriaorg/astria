@@ -36,6 +36,9 @@ impl serde::Serialize for Action {
                 action::Value::Ics20Withdrawal(v) => {
                     struct_ser.serialize_field("ics20Withdrawal", v)?;
                 }
+                action::Value::RecoverClient(v) => {
+                    struct_ser.serialize_field("recoverClient", v)?;
+                }
                 action::Value::SudoAddressChange(v) => {
                     struct_ser.serialize_field("sudoAddressChange", v)?;
                 }
@@ -80,6 +83,8 @@ impl<'de> serde::Deserialize<'de> for Action {
             "ibc",
             "ics20_withdrawal",
             "ics20Withdrawal",
+            "recover_client",
+            "recoverClient",
             "sudo_address_change",
             "sudoAddressChange",
             "validator_update",
@@ -104,6 +109,7 @@ impl<'de> serde::Deserialize<'de> for Action {
             BridgeSudoChange,
             Ibc,
             Ics20Withdrawal,
+            RecoverClient,
             SudoAddressChange,
             ValidatorUpdate,
             IbcRelayerChange,
@@ -139,6 +145,7 @@ impl<'de> serde::Deserialize<'de> for Action {
                             "bridgeSudoChange" | "bridge_sudo_change" => Ok(GeneratedField::BridgeSudoChange),
                             "ibc" => Ok(GeneratedField::Ibc),
                             "ics20Withdrawal" | "ics20_withdrawal" => Ok(GeneratedField::Ics20Withdrawal),
+                            "recoverClient" | "recover_client" => Ok(GeneratedField::RecoverClient),
                             "sudoAddressChange" | "sudo_address_change" => Ok(GeneratedField::SudoAddressChange),
                             "validatorUpdate" | "validator_update" => Ok(GeneratedField::ValidatorUpdate),
                             "ibcRelayerChange" | "ibc_relayer_change" => Ok(GeneratedField::IbcRelayerChange),
@@ -221,6 +228,13 @@ impl<'de> serde::Deserialize<'de> for Action {
                                 return Err(serde::de::Error::duplicate_field("ics20Withdrawal"));
                             }
                             value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::Ics20Withdrawal)
+;
+                        }
+                        GeneratedField::RecoverClient => {
+                            if value__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("recoverClient"));
+                            }
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::RecoverClient)
 ;
                         }
                         GeneratedField::SudoAddressChange => {
@@ -1917,6 +1931,116 @@ impl<'de> serde::Deserialize<'de> for InitBridgeAccount {
             }
         }
         deserializer.deserialize_struct("astria.protocol.transaction.v1.InitBridgeAccount", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for RecoverClient {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.subject_client_id.is_empty() {
+            len += 1;
+        }
+        if !self.substitute_client_id.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.RecoverClient", len)?;
+        if !self.subject_client_id.is_empty() {
+            struct_ser.serialize_field("subjectClientId", &self.subject_client_id)?;
+        }
+        if !self.substitute_client_id.is_empty() {
+            struct_ser.serialize_field("substituteClientId", &self.substitute_client_id)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for RecoverClient {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "subject_client_id",
+            "subjectClientId",
+            "substitute_client_id",
+            "substituteClientId",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            SubjectClientId,
+            SubstituteClientId,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "subjectClientId" | "subject_client_id" => Ok(GeneratedField::SubjectClientId),
+                            "substituteClientId" | "substitute_client_id" => Ok(GeneratedField::SubstituteClientId),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = RecoverClient;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transaction.v1.RecoverClient")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<RecoverClient, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut subject_client_id__ = None;
+                let mut substitute_client_id__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::SubjectClientId => {
+                            if subject_client_id__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("subjectClientId"));
+                            }
+                            subject_client_id__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::SubstituteClientId => {
+                            if substitute_client_id__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("substituteClientId"));
+                            }
+                            substitute_client_id__ = Some(map_.next_value()?);
+                        }
+                    }
+                }
+                Ok(RecoverClient {
+                    subject_client_id: subject_client_id__.unwrap_or_default(),
+                    substitute_client_id: substitute_client_id__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transaction.v1.RecoverClient", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for RollupDataSubmission {

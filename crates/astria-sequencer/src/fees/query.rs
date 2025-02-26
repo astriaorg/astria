@@ -235,6 +235,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
     let ibc_relayer_change_fees = OnceCell::new();
     let fee_asset_change_fees = OnceCell::new();
     let fee_change_fees = OnceCell::new();
+    let recover_client_fees = OnceCell::new();
 
     let mut fees_by_asset = HashMap::new();
     for action in tx.actions() {
@@ -404,6 +405,15 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
                     .wrap_err("failed to get fee change fees")?
                     .ok_or_eyre(
                         "fees not found for `FeeChange` action, which cannot be disabled",
+                    )?;
+            }
+            Action::RecoverClient(_) => {
+                recover_client_fees
+                    .get_or_try_init(|| async { state.get_recover_client_fees().await })
+                    .await
+                    .wrap_err("failed to get recover client fees")?
+                    .ok_or_eyre(
+                        "fees not found for `RecoverClient` action, which cannot be disabled",
                     )?;
             }
         }

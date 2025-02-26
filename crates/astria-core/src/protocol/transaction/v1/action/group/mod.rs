@@ -20,6 +20,7 @@ use super::{
     IbcSudoChange,
     Ics20Withdrawal,
     InitBridgeAccount,
+    RecoverClient,
     RollupDataSubmission,
     SudoAddressChange,
     Transfer,
@@ -55,6 +56,7 @@ impl_belong_to_group!(
     (FeeAssetChange, Group::BundleableSudo),
     (IbcRelay, Group::BundleableGeneral),
     (IbcSudoChange, Group::UnbundleableSudo),
+    (RecoverClient, Group::BundleableSudo),
 );
 
 impl Action {
@@ -74,6 +76,7 @@ impl Action {
             Action::FeeAssetChange(_) => FeeAssetChange::GROUP,
             Action::Ibc(_) => IbcRelay::GROUP,
             Action::IbcSudoChange(_) => IbcSudoChange::GROUP,
+            Action::RecoverClient(_) => RecoverClient::GROUP,
         }
     }
 }

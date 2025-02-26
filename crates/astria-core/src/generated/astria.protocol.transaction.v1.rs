@@ -3,7 +3,7 @@
 pub struct Action {
     #[prost(
         oneof = "action::Value",
-        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55, 56"
+        tags = "1, 2, 11, 12, 13, 14, 21, 22, 23, 50, 51, 52, 53, 55, 56"
     )]
     pub value: ::core::option::Option<action::Value>,
 }
@@ -31,6 +31,8 @@ pub mod action {
         Ibc(::penumbra_proto::core::component::ibc::v1::IbcRelay),
         #[prost(message, tag = "22")]
         Ics20Withdrawal(super::Ics20Withdrawal),
+        #[prost(message, tag = "23")]
+        RecoverClient(super::RecoverClient),
         /// POA sudo actions are defined on 50-60
         #[prost(message, tag = "50")]
         SudoAddressChange(super::SudoAddressChange),
@@ -459,6 +461,24 @@ pub struct IbcSudoChange {
 }
 impl ::prost::Name for IbcSudoChange {
     const NAME: &'static str = "IbcSudoChange";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RecoverClient {
+    /// the client identifier for the client to be updated
+    #[prost(string, tag = "1")]
+    pub subject_client_id: ::prost::alloc::string::String,
+    /// the substitute client identifier for the client which will replace the subject
+    /// client
+    #[prost(string, tag = "2")]
+    pub substitute_client_id: ::prost::alloc::string::String,
+}
+impl ::prost::Name for RecoverClient {
+    const NAME: &'static str = "RecoverClient";
     const PACKAGE: &'static str = "astria.protocol.transaction.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)

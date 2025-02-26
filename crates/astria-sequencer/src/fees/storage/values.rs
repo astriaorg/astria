@@ -9,6 +9,7 @@ use astria_core::protocol::fees::v1::{
     IbcSudoChangeFeeComponents,
     Ics20WithdrawalFeeComponents,
     InitBridgeAccountFeeComponents,
+    RecoverClientFeeComponents,
     RollupDataSubmissionFeeComponents,
     SudoAddressChangeFeeComponents,
     TransferFeeComponents,
@@ -43,6 +44,7 @@ enum ValueImpl {
     IbcRelayerChangeFees(IbcRelayerChangeFeeComponentsStorage),
     IbcSudoChangeFees(IbcSudoChangeFeeComponentsStorage),
     SudoAddressChangeFees(SudoAddressChangeFeeComponentsStorage),
+    RecoverClientFeeComponents(RecoverClientFeeComponentsStorage),
 }
 
 macro_rules! impl_from_for_fee_component{
@@ -171,6 +173,12 @@ pub(in crate::fees) struct SudoAddressChangeFeeComponentsStorage {
     pub multiplier: u128,
 }
 
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+pub(in crate::fees) struct RecoverClientFeeComponentsStorage {
+    pub base: u128,
+    pub multiplier: u128,
+}
+
 impl_from_for_fee_component!(
     TransferFeeComponents => TransferFeeComponentsStorage,
     RollupDataSubmissionFeeComponents => RollupDataSubmissionFeeComponentsStorage,
@@ -186,6 +194,7 @@ impl_from_for_fee_component!(
     IbcRelayerChangeFeeComponents => IbcRelayerChangeFeeComponentsStorage,
     IbcSudoChangeFeeComponents => IbcSudoChangeFeeComponentsStorage,
     SudoAddressChangeFeeComponents => SudoAddressChangeFeeComponentsStorage,
+    RecoverClientFeeComponents => RecoverClientFeeComponentsStorage,
 );
 
 impl_from_for_fee_storage!(
@@ -203,4 +212,5 @@ impl_from_for_fee_storage!(
     IbcRelayerChangeFeeComponentsStorage => IbcRelayerChangeFees,
     IbcSudoChangeFeeComponentsStorage => IbcSudoChangeFees,
     SudoAddressChangeFeeComponentsStorage => SudoAddressChangeFees,
+    RecoverClientFeeComponentsStorage => RecoverClientFeeComponents,
 );

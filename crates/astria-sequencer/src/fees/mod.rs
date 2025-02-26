@@ -11,6 +11,7 @@ use astria_core::{
             IbcRelayerChange,
             IbcSudoChange,
             InitBridgeAccount,
+            RecoverClient,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
@@ -318,6 +319,23 @@ impl FeeHandler for IbcRelay {
             .await
             .wrap_err("error fetching ibc relay fees")?
             .ok_or_eyre("ibc relay fees not found, so this action is disabled")?;
+        Ok(())
+    }
+
+    fn variable_component(&self) -> u128 {
+        0
+    }
+}
+
+#[async_trait::async_trait]
+impl FeeHandler for RecoverClient {
+    #[instrument(skip_all, err)]
+    async fn check_and_pay_fees<S: StateWrite>(&self, state: S) -> eyre::Result<()> {
+        state
+            .get_recover_client_fees()
+            .await
+            .wrap_err("error fetching recover client fees")?
+            .ok_or_eyre("recover client fees not found, so this action is disabled")?;
         Ok(())
     }
 

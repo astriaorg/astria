@@ -23,6 +23,7 @@ pub(in crate::fees) const IBC_RELAYER_CHANGE: &str = "fees/ibc_relayer_change";
 pub(in crate::fees) const ROLLUP_DATA_SUBMISSION: &str = "fees/rollup_data_submission";
 pub(in crate::fees) const SUDO_ADDRESS_CHANGE: &str = "fees/sudo_address_change";
 pub(in crate::fees) const IBC_SUDO_CHANGE: &str = "fees/ibc_sudo_change";
+pub(in crate::fees) const RECOVER_CLIENT: &str = "fees/recover_client";
 pub(in crate::fees) const BLOCK: &str = "fees/block"; // NOTE: `BLOCK` is only used in the ephemeral store.
 pub(in crate::fees) const ALLOWED_ASSET_PREFIX: &str = "fees/allowed_asset/";
 
@@ -81,6 +82,7 @@ mod tests {
         assert_snapshot!("sudo_address_change_fees_key", SUDO_ADDRESS_CHANGE);
         assert_snapshot!("transer_fees_key", TRANSFER);
         assert_snapshot!("validator_update_fees_key", VALIDATOR_UPDATE);
+        assert_snapshot!("recover_client_fees_key", RECOVER_CLIENT);
         assert_snapshot!("allowed_asset_key", allowed_asset(&test_asset()));
     }
 
@@ -100,6 +102,7 @@ mod tests {
         assert!(IBC_RELAYER_CHANGE.starts_with(COMPONENT_PREFIX));
         assert!(SUDO_ADDRESS_CHANGE.starts_with(COMPONENT_PREFIX));
         assert!(IBC_SUDO_CHANGE.starts_with(COMPONENT_PREFIX));
+        assert!(RECOVER_CLIENT.starts_with(COMPONENT_PREFIX));
         assert!(ALLOWED_ASSET_PREFIX.starts_with(COMPONENT_PREFIX));
         assert!(allowed_asset(&test_asset()).starts_with(COMPONENT_PREFIX));
     }
