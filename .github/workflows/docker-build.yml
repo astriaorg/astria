@@ -245,7 +245,7 @@ jobs:
         timeout-minutes: 3
         run: |
           TAG=sha-$(git rev-parse --short HEAD)
-          just run ibc-test $TAG
+          just run ibc-test default $TAG
 
   ibc-no-native-asset-test:
     needs: [ run_checker, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli ]
