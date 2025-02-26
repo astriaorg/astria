@@ -75,15 +75,6 @@ prepulled so that they are available when deploying the pods.
 
 ```sh
 just deploy-ingress-controller
-just perform-prepull
-```
-
-Deploying the ingress controller and pulling all images can take some time, so
-you can wait for both steps to be completed before continuing on:
-
-```sh
-just wait-for-ingress-controller
-just wait-for-prepull
 ```
 
 ## Running tests

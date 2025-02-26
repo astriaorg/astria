@@ -1,20 +1,28 @@
-import 'charts/deploy.just'
+import 'just/charts/mod.just'
 
-# commands to simplify Kubetail usage
-mod kubetail 'dev/kubetail.just'
+# Kubetail usage. '$just --list kubetail' for more...
+mod kubetail 'just/dev/kubetail.just'
+# ArgoCD usage. '$just --list argo' for more...
+mod argo 'just/dev/argo.just'
+# Helm usage. '$just --list helm' for more...
+mod helm 'just/dev/helm.just'
 
-mod? argo 'dev/argo.just'
-mod? helm 'dev/helm.just'
-
-default:
-  @just --list
+_default:
+  @just --list --list-heading $'Astria Recipes: \n\n \
+    Usage: \"just <recipe>\"\n\n \
+    Modules can be found at bottom. Use \'$just --list <module>\' to list module recipes.\n\n'
 
 default_docker_tag := 'local'
 default_repo_name := 'ghcr.io/astriaorg'
 
-# Builds docker image for the crate. Defaults to 'local' tag.
-# NOTE: `_crate_short_name` is invoked as dependency of this command so that failure to pass a valid
-# binary will produce a meaningful error message.
+
+# Docker Build
+###############
+[doc("
+Builds docker image for the crate. Defaults to 'local' tag.
+NOTE: `_crate_short_name` is invoked as dependency of this command so that failure to pass a valid
+binary will produce a meaningful error message.
+")]
 docker-build crate tag=default_docker_tag repo_name=default_repo_name: (_crate_short_name crate "quiet")
   #!/usr/bin/env sh
   set -eu
@@ -22,9 +30,14 @@ docker-build crate tag=default_docker_tag repo_name=default_repo_name: (_crate_s
   set -x
   docker buildx build --load --build-arg TARGETBINARY={{crate}} -f containerfiles/Dockerfile -t {{repo_name}}/$short_name:{{tag}} .
 
-# Builds and loads docker image for the crate. Defaults to 'local' tag.
-# NOTE: `_crate_short_name` is invoked as dependency of this command so that failure to pass a valid
-# binary will produce a meaningful error message.
+
+# Docker Build and Load
+########################
+[doc("
+Builds and loads docker image for the crate. Defaults to 'local' tag.
+NOTE: `_crate_short_name` is invoked as dependency of this command so that failure to pass a valid
+binary will produce a meaningful error message.
+")]
 docker-build-and-load crate tag=default_docker_tag repo_name=default_repo_name: (_crate_short_name crate "quiet")
   #!/usr/bin/env sh
   set -eu
@@ -32,6 +45,7 @@ docker-build-and-load crate tag=default_docker_tag repo_name=default_repo_name: 
   set -x
   just docker-build {{crate}} {{tag}} {{repo_name}}
   just load-image $short_name {{tag}} {{repo_name}}
+
 
 # Maps a crate name to the shortened name used in the docker tag.
 # If `quiet` is an empty string the shortened name will be echoed. If `quiet` is a non-empty string,
@@ -51,17 +65,34 @@ _crate_short_name crate quiet="":
   esac
   [ -z {{quiet}} ] && echo $short_name || true
 
-# Installs the astria rust cli from local codebase
+
+# Install CLI
+##############
+[doc("
+Installs the Astria Rust CLI from local codebase.
+")]
 install-cli:
   cargo install --path ./crates/astria-cli --locked
 
-# Compiles the generated rust code from protos which are used in crates.
+
+# Compile Protos
+#################
+[doc("
+Generates rust code from protos into 'crates/astria-core/generated' to be used
+throughout the codebase.
+")]
 compile-protos:
   cargo run --manifest-path tools/protobuf-compiler/Cargo.toml
 
-# Compiles the generated rust code from protos which are used in crates.
+
+# Compile Solidity Contracts
+#############################
+[doc("
+Compiles Solidity contracts for bridging.
+")]
 compile-solidity-contracts:
   cargo run --manifest-path tools/solidity-compiler/Cargo.toml
+
 
 ####################################################
 ## Scripts related to formatting code and linting ##
@@ -69,15 +100,29 @@ compile-solidity-contracts:
 
 default_lang := 'all'
 
-# Can format 'rust', 'toml', 'proto', or 'all'. Defaults to all
+
+# Format
+#########
+[doc("
+Can format 'rust', 'toml', 'proto', or 'all'. Defaults to all.
+")]
 fmt lang=default_lang:
   @just _fmt-{{lang}}
 
-# Can lint 'rust', 'toml', 'proto', 'md' or 'all'. Defaults to all.
-# Can also run the following sub-lints for rust: 'rust-fmt', 'rust-clippy',
-# 'rust-clippy-custom', 'rust-clippy-tools', 'rust-dylint'
+
+# Lint
+#######
+[doc("
+Can lint 'rust', 'toml', 'proto', 'md' or 'all'. Defaults to all.
+Sub-lints for rust include: 'rust-fmt', 'rust-clippy', 'rust-clippy-custom', 'rust-clippy-tools', 'rust-dylint'
+")]
 lint lang=default_lang:
   @just _lint-{{lang}}
+
+
+#####################
+## Private Recipes ##
+#####################
 
 _fmt-all:
   @just _fmt-rust

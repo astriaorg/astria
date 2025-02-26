@@ -38,9 +38,6 @@ just deploy cluster
 # ingress controller
 just deploy ingress-controller
 
-# wait for ingress.
-just wait-for-ingress-controller
-
 # Deploys Sequencer + local DA
 just deploy astria-local
 
@@ -51,7 +48,7 @@ just deploy rollup
 
 # w/ custom name and id for further customization see the values file at
 # `../dev/values/rollup/dev.yml`
-just deploy dev-rollup <rollup_name> <network_id>
+just deploy rollup <rollup_name> <network_id>
 
 # Send funds into the rollup chain, by default transfers 10 RIA to the rollup
 # using prefunded default test sequencer accounts. 
