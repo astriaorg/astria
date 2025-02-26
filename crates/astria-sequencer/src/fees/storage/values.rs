@@ -25,10 +25,6 @@ use borsh::{
 pub(crate) struct Value(ValueImpl);
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
-#[expect(
-    clippy::enum_variant_names,
-    reason = "want to make it clear that these are fees and not actions"
-)]
 enum ValueImpl {
     TransferFees(TransferFeeComponentsStorage),
     SequenceFees(RollupDataSubmissionFeeComponentsStorage),
