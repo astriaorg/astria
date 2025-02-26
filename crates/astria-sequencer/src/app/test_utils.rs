@@ -24,6 +24,7 @@ use astria_core::{
             IbcSudoChangeFeeComponents,
             Ics20WithdrawalFeeComponents,
             InitBridgeAccountFeeComponents,
+            RecoverClientFeeComponents,
             RollupDataSubmissionFeeComponents,
             SudoAddressChangeFeeComponents,
             TransferFeeComponents,
@@ -235,6 +236,10 @@ pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1::GenesisFees 
             multiplier: 0,
         }),
         ibc_sudo_change: Some(IbcSudoChangeFeeComponents {
+            base: 0,
+            multiplier: 0,
+        }),
+        recover_client: Some(RecoverClientFeeComponents {
             base: 0,
             multiplier: 0,
         }),

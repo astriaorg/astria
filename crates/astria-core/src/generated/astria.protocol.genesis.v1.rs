@@ -145,6 +145,10 @@ pub struct GenesisFees {
     pub validator_update: ::core::option::Option<
         super::super::fees::v1::ValidatorUpdateFeeComponents,
     >,
+    #[prost(message, optional, tag = "15")]
+    pub recover_client: ::core::option::Option<
+        super::super::fees::v1::RecoverClientFeeComponents,
+    >,
 }
 impl ::prost::Name for GenesisFees {
     const NAME: &'static str = "GenesisFees";

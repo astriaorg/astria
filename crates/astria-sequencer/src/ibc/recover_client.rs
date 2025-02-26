@@ -15,9 +15,13 @@ use penumbra_ibc::component::{
     ConsensusStateWriteExt as _,
 };
 
-use crate::app::{
-    ActionHandler,
-    StateReadExt as _,
+use crate::{
+    app::{
+        ActionHandler,
+        StateReadExt as _,
+    },
+    authority::StateReadExt as _,
+    transaction::StateReadExt as _,
 };
 
 #[async_trait::async_trait]
@@ -27,6 +31,18 @@ impl ActionHandler for action::RecoverClient {
     }
 
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+        let from = state
+            .get_transaction_context()
+            .expect("transaction source must be present in state when executing an action")
+            .address_bytes();
+        ensure!(
+            from == state
+                .get_sudo_address()
+                .await
+                .wrap_err("failed to get sudo address")?,
+            "only the sudo address can recover a client",
+        );
+
         let timestamp = state
             .get_block_timestamp()
             .await
@@ -85,9 +101,9 @@ impl ActionHandler for action::RecoverClient {
             .map_err(anyhow_to_eyre)
             .wrap_err("substitute client consensus state not found")?;
         state
-            .put_verified_consensus_state(
-                &height,
-                &self.subject_client_id,
+            .put_verified_consensus_state::<crate::ibc::host_interface::AstriaHost>(
+                height,
+                self.subject_client_id.clone(),
                 substitute_consensus_state,
             )
             .await

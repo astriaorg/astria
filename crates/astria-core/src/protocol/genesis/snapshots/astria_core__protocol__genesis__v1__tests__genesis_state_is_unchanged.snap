@@ -1,5 +1,5 @@
 ---
-source: crates/astria-core/src/protocol/genesis/v1alpha1.rs
+source: crates/astria-core/src/protocol/genesis/v1.rs
 expression: genesis_state()
 ---
 {
@@ -129,6 +129,10 @@ expression: genesis_state()
       "multiplier": {}
     },
     "validatorUpdate": {
+      "base": {},
+      "multiplier": {}
+    },
+    "recoverClient": {
       "base": {},
       "multiplier": {}
     }
