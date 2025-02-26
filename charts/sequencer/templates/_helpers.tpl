@@ -6,7 +6,7 @@ Namepsace to deploy elements into.
 {{- end }}
 
 {{- define "sequencer.imageTag" -}}
-{{- if or (eq .Values.global.network "custom") (eq .Values.global.dev "true") }}{{ .Values.images.sequencer.tag }}
+{{- if or (eq .Values.global.network "custom") (eq .Values.global.dev true) }}{{ .Values.images.sequencer.tag }}
 {{- else if eq .Values.global.network "mainnet" }}1.0.0
 {{- else if eq .Values.global.network "dawn-1" }}1.0.0
 {{- else if eq .Values.global.network "dusk-11" }}1.0.0
@@ -14,7 +14,7 @@ Namepsace to deploy elements into.
 {{- end }}
 
 {{- define "cometBFT.imageTag" -}}
-{{- if or (eq .Values.global.network "custom") (eq .Values.global.dev "true") }}{{ .Values.images.cometBFT.tag }}
+{{- if or (eq .Values.global.network "custom") (eq .Values.global.dev true) }}{{ .Values.images.cometBFT.tag }}
 {{- else if eq .Values.global.network "mainnet" }}1.0.0
 {{- else if eq .Values.global.network "dawn-1" }}1.0.0
 {{- else if eq .Values.global.network "dusk-11" }}1.0.0
