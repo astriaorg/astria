@@ -40,8 +40,10 @@ async fn executes_soft_first_then_updates_firm() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_genesis_block_height: 1,
+        sequencer_start_height: 3,
         celestia_block_variance: 10,
+        rollup_start_block_number: 2,
+        rollup_stop_block_number: 9,
     );
 
     mount_get_commitment_state!(
@@ -99,7 +101,7 @@ async fn executes_soft_first_then_updates_firm() {
     );
 
     timeout(
-        Duration::from_millis(500),
+        Duration::from_millis(1000),
         join(
             execute_block.wait_until_satisfied(),
             update_commitment_state_soft.wait_until_satisfied(),
@@ -108,7 +110,7 @@ async fn executes_soft_first_then_updates_firm() {
     .await
     .expect(
         "Conductor should have executed the block and updated the soft commitment state within \
-         500ms",
+         1000ms",
     );
 
     mount_celestia_blobs!(
@@ -174,8 +176,10 @@ async fn executes_firm_then_soft_at_next_height() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_genesis_block_height: 1,
+        sequencer_start_height: 3,
         celestia_block_variance: 10,
+        rollup_start_block_number: 2,
+        rollup_stop_block_number: 9,
     );
 
     mount_get_commitment_state!(
@@ -333,8 +337,10 @@ async fn missing_block_is_fetched_for_updating_firm_commitment() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_genesis_block_height: 1,
+        sequencer_start_height: 3,
         celestia_block_variance: 10,
+        rollup_start_block_number: 2,
+        rollup_stop_block_number: 9,
     );
 
     mount_get_commitment_state!(
@@ -457,13 +463,18 @@ async fn missing_block_is_fetched_for_updating_firm_commitment() {
     reason = "all lines fairly necessary, and I don't think a test warrants a refactor"
 )]
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn conductor_restarts_on_permission_denied() {
+async fn restarts_on_permission_denied() {
     let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_genesis_block_height: 1,
+        sequencer_start_height: 3,
         celestia_block_variance: 10,
+        rollup_start_block_number: 2,
+        rollup_stop_block_number: 9,
+        up_to_n_times: 2,
+        halt_at_rollup_stop_number: false,
+        expected_calls: 2,
     );
 
     mount_get_commitment_state!(
@@ -479,6 +490,7 @@ async fn conductor_restarts_on_permission_denied() {
             parent: [0; 64],
         ),
         base_celestia_height: 1,
+        up_to_n_times: 2,
     );
 
     mount_sequencer_genesis!(test_conductor);
@@ -577,4 +589,578 @@ async fn conductor_restarts_on_permission_denied() {
         "conductor should have executed the block and updated the soft and firm commitment states \
          within 1000ms",
     );
+}
+
+/// Tests if the conductor correctly stops and procedes to restart after soft block height reaches
+/// sequencer stop height (from genesis info provided by rollup). In `SoftAndFirm` mode executor
+/// should execute both the soft and firm blocks at the stop height and then perform a restart.
+///
+/// This test consists of the following steps:
+/// 1. Mount commitment state and genesis info with a sequencer stop height of 3, only responding up
+///    to 1 time so that Conductor will not receive the same response after restart.
+/// 2. Mount Celestia network head and sequencer genesis.
+/// 3. Mount ABCI info and sequencer blocks (soft blocks) for heights 3 and 4.
+/// 4. Mount firm blocks at heights 3 and 4 with a slight delay to ensure that the soft blocks
+///    arrive first.
+/// 5. Mount `execute_block` and `update_commitment_state` for both soft and firm blocks at height 3
+/// 6. Await satisfaction of the `execute_block` and `update_commitment_state` for the soft and firm
+///    blocks at height 3 with a timeout of 1000ms.
+/// 7. Mount new genesis info with a sequencer stop height of 10 and a rollup start block height of
+///    2, along with corresponding commitment state, reflecting that block 1 has already been
+///    executed and the commitment state updated.
+/// 8. Mount `execute_block` and `update_commitment_state` for both soft and firm blocks at height 4
+///    and await their satisfaction.
+#[expect(
+    clippy::too_many_lines,
+    reason = "All lines reasonably necessary for the thoroughness of this test"
+)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn restarts_after_reaching_soft_stop_height_first() {
+    let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
+
+    mount_get_genesis_info!(
+        test_conductor,
+        sequencer_start_height: 3,
+        celestia_block_variance: 10,
+        rollup_start_block_number: 2,
+        rollup_stop_block_number: 2,
+        up_to_n_times: 1, // We only respond once since this needs to be updated after restart
+    );
+
+    mount_get_commitment_state!(
+        test_conductor,
+        firm: (
+            number: 1,
+            hash: [1; 64],
+            parent: [0; 64],
+        ),
+        soft: (
+            number: 1,
+            hash: [1; 64],
+            parent: [0; 64],
+        ),
+        base_celestia_height: 1,
+        up_to_n_times: 1, // We only respond once since this needs to be updated after restart
+    );
+
+    mount_sequencer_genesis!(test_conductor);
+    mount_celestia_header_network_head!(
+        test_conductor,
+        height: 1u32,
+    );
+    mount_abci_info!(
+        test_conductor,
+        latest_sequencer_height: 4,
+    );
+
+    // Mount soft blocks for heights 3 and 4
+    mount_get_filtered_sequencer_block!(
+        test_conductor,
+        sequencer_height: 3,
+    );
+    mount_get_filtered_sequencer_block!(
+        test_conductor,
+        sequencer_height: 4,
+    );
+
+    // Mount firm blocks for heights 3 and 4
+    mount_celestia_blobs!(
+        test_conductor,
+        celestia_height: 1,
+        sequencer_heights: [3, 4],
+        delay: Some(Duration::from_millis(200)) // short delay to ensure soft block at height 4 gets executed first after restart
+    );
+    mount_sequencer_commit!(
+        test_conductor,
+        height: 3u32,
+    );
+    mount_sequencer_commit!(
+        test_conductor,
+        height: 4u32,
+    );
+    mount_sequencer_validator_set!(test_conductor, height: 2u32);
+    mount_sequencer_validator_set!(test_conductor, height: 3u32);
+
+    let execute_block_1 = mount_executed_block!(
+        test_conductor,
+        mock_name: "execute_block_1",
+        number: 2,
+        hash: [2; 64],
+        parent: [1; 64],
+        expected_calls: 1, // This should not be called again after restart
+    );
+
+    let update_commitment_state_soft_1 = mount_update_commitment_state!(
+        test_conductor,
+        mock_name: "update_commitment_state_soft_1",
+        firm: (
+            number: 1,
+            hash: [1; 64],
+            parent: [0; 64],
+        ),
+        soft: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        base_celestia_height: 1,
+        expected_calls: 1,
+    );
+
+    let update_commitment_state_firm_1 = mount_update_commitment_state!(
+        test_conductor,
+        mock_name: "update_commitment_state_firm_1",
+        firm: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        soft: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        base_celestia_height: 1,
+        expected_calls: 1, // Should not be called again after restart
+    );
+
+    timeout(
+        Duration::from_millis(1000),
+        join3(
+            execute_block_1.wait_until_satisfied(),
+            update_commitment_state_firm_1.wait_until_satisfied(),
+            update_commitment_state_soft_1.wait_until_satisfied(),
+        ),
+    )
+    .await
+    .expect("conductor should have updated the firm commitment state within 1000ms");
+
+    mount_get_genesis_info!(
+        test_conductor,
+        sequencer_start_height: 4,
+        celestia_block_variance: 10,
+        rollup_start_block_number: 3,
+        rollup_stop_block_number: 9,
+    );
+
+    mount_get_commitment_state!(
+        test_conductor,
+        firm: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        soft: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        base_celestia_height: 1,
+    );
+
+    let execute_block_2 = mount_executed_block!(
+        test_conductor,
+        mock_name: "execute_block_2",
+        number: 3,
+        hash: [3; 64],
+        parent: [2; 64],
+        expected_calls: 1,
+    );
+
+    // This condition should be satisfied, since there is a delay on the firm block response
+    let update_commitment_state_soft_2 = mount_update_commitment_state!(
+        test_conductor,
+        mock_name: "update_commitment_state_soft_2",
+        firm: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        soft: (
+            number: 3,
+            hash: [3; 64],
+            parent: [2; 64],
+        ),
+        base_celestia_height: 1,
+        expected_calls: 1,
+    );
+
+    let update_commitment_state_firm_2 = mount_update_commitment_state!(
+        test_conductor,
+        mock_name: "update_commitment_state_firm_2",
+        firm: (
+            number: 3,
+            hash: [3; 64],
+            parent: [2; 64],
+        ),
+        soft: (
+            number: 3,
+            hash: [3; 64],
+            parent: [2; 64],
+        ),
+        base_celestia_height: 1,
+        expected_calls: 1,
+    );
+
+    timeout(
+        Duration::from_millis(1000),
+        join3(
+            execute_block_2.wait_until_satisfied(),
+            update_commitment_state_firm_2.wait_until_satisfied(),
+            update_commitment_state_soft_2.wait_until_satisfied(),
+        ),
+    )
+    .await
+    .expect("conductor should have updated the firm commitment state within 1000ms");
+}
+
+/// Tests if the conductor correctly stops and procedes to restart after firm height reaches
+/// sequencer stop height, *without* updating soft commitment state, since the firm was received
+/// first.
+///
+/// This test consists of the following steps:
+/// 1. Mount commitment state and genesis info with a sequencer stop height of 3, only responding up
+///    to 1 time so that Conductor will not receive the same response after restart.
+/// 2. Mount Celestia network head and sequencer genesis.
+/// 3. Mount ABCI info and sequencer blocks (soft blocks) for heights 3 and 4 with a slight delay,
+///    to ensure the firm blocks arrive first.
+/// 4. Mount firm blocks at heights 3 and 4.
+/// 5. Mount `update_commitment_state` for the soft block at height 3, expecting 0 calls since the
+///    firm block will be received first.
+/// 5. Mount `execute_block` and `update_commitment_state` for firm block at height 3.
+/// 6. Await satisfaction of the `execute_block` and `update_commitment_state` for the firm block at
+///    height 3 with a timeout of 1000ms.
+/// 7. Mount new genesis info with a sequencer stop height of 10 and a rollup start block height of
+///    2, along with corresponding commitment state, reflecting that block 1 has already been
+///    executed and the commitment state updated.
+/// 8. Mount `execute_block` and `update_commitment_state` for both soft and firm blocks at height 4
+///    and await their satisfaction (the soft mount need not be satisfied in the case that the firm
+///    block is received first; we are just looking to see that the conductor restarted properly).
+#[expect(
+    clippy::too_many_lines,
+    reason = "All lines reasonably necessary for the thoroughness of this test"
+)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn restarts_after_reaching_firm_stop_height_first() {
+    let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
+
+    mount_get_genesis_info!(
+        test_conductor,
+        sequencer_start_height: 3,
+        celestia_block_variance: 10,
+        rollup_start_block_number: 2,
+        rollup_stop_block_number: 2,
+        up_to_n_times: 1, // We only respond once since this needs to be updated after restart
+    );
+
+    mount_get_commitment_state!(
+        test_conductor,
+        firm: (
+            number: 1,
+            hash: [1; 64],
+            parent: [0; 64],
+        ),
+        soft: (
+            number: 1,
+            hash: [1; 64],
+            parent: [0; 64],
+        ),
+        base_celestia_height: 1,
+        up_to_n_times: 1, // We only respond once since this needs to be updated after restart
+    );
+
+    mount_sequencer_genesis!(test_conductor);
+    mount_celestia_header_network_head!(
+        test_conductor,
+        height: 1u32,
+    );
+    mount_abci_info!(
+        test_conductor,
+        latest_sequencer_height: 4,
+    );
+
+    // Mount soft blocks for heights 3 and 4
+    mount_get_filtered_sequencer_block!(
+        test_conductor,
+        sequencer_height: 3,
+        delay: Duration::from_millis(200),
+    );
+    mount_get_filtered_sequencer_block!(
+        test_conductor,
+        sequencer_height: 4,
+    );
+
+    // Mount firm blocks for heights 3 and 4
+    mount_celestia_blobs!(
+        test_conductor,
+        celestia_height: 1,
+        sequencer_heights: [3, 4],
+    );
+    mount_sequencer_commit!(
+        test_conductor,
+        height: 3u32,
+    );
+    mount_sequencer_commit!(
+        test_conductor,
+        height: 4u32,
+    );
+    mount_sequencer_validator_set!(test_conductor, height: 2u32);
+    mount_sequencer_validator_set!(test_conductor, height: 3u32);
+
+    let execute_block_1 = mount_executed_block!(
+        test_conductor,
+        mock_name: "execute_block_1",
+        number: 2,
+        hash: [2; 64],
+        parent: [1; 64],
+        expected_calls: 1, // This should not be called again after restart
+    );
+
+    // Should not be called since the firm block will be received first
+    let _update_commitment_state_soft_1 = mount_update_commitment_state!(
+        test_conductor,
+        mock_name: "update_commitment_state_soft_1",
+        firm: (
+            number: 1,
+            hash: [1; 64],
+            parent: [0; 64],
+        ),
+        soft: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        base_celestia_height: 1,
+        expected_calls: 0,
+    );
+
+    let update_commitment_state_firm_1 = mount_update_commitment_state!(
+        test_conductor,
+        mock_name: "update_commitment_state_firm_1",
+        firm: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        soft: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        base_celestia_height: 1,
+        expected_calls: 1, // Should not be called again after restart
+    );
+
+    timeout(
+        Duration::from_millis(1000),
+        join(
+            execute_block_1.wait_until_satisfied(),
+            update_commitment_state_firm_1.wait_until_satisfied(),
+        ),
+    )
+    .await
+    .expect("conductor should have updated the firm commitment state within 1000ms");
+
+    mount_get_genesis_info!(
+        test_conductor,
+        sequencer_start_height: 4,
+        celestia_block_variance: 10,
+        rollup_start_block_number: 3,
+        rollup_stop_block_number: 9,
+    );
+
+    mount_get_commitment_state!(
+        test_conductor,
+        firm: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        soft: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        base_celestia_height: 1,
+    );
+
+    let execute_block_2 = mount_executed_block!(
+        test_conductor,
+        mock_name: "execute_block_2",
+        number: 3,
+        hash: [3; 64],
+        parent: [2; 64],
+        expected_calls: 1,
+    );
+
+    // This condition does not need to be satisfied, since firm block may fire first after restart
+    let _update_commitment_state_soft_2 = mount_update_commitment_state!(
+        test_conductor,
+        mock_name: "update_commitment_state_soft_2",
+        firm: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        soft: (
+            number: 3,
+            hash: [3; 64],
+            parent: [2; 64],
+        ),
+        base_celestia_height: 1,
+        expected_calls: 0..=1,
+    );
+
+    let update_commitment_state_firm_2 = mount_update_commitment_state!(
+        test_conductor,
+        mock_name: "update_commitment_state_firm_2",
+        firm: (
+            number: 3,
+            hash: [3; 64],
+            parent: [2; 64],
+        ),
+        soft: (
+            number: 3,
+            hash: [3; 64],
+            parent: [2; 64],
+        ),
+        base_celestia_height: 1,
+        expected_calls: 1,
+    );
+
+    timeout(
+        Duration::from_millis(1000),
+        join(
+            execute_block_2.wait_until_satisfied(),
+            update_commitment_state_firm_2.wait_until_satisfied(),
+        ),
+    )
+    .await
+    .expect("conductor should have updated the firm commitment state within 1000ms");
+}
+
+/// Tests if the conductor correctly stops and does not restart after reaching the sequencer stop
+/// height if genesis info's `halt_at_rollup_stop_number` is `true`.
+///
+/// This test consists of the following steps:
+/// 1. Mount commitment state and genesis info with a sequencer stop height of 3, expecting only 1
+///    response.
+/// 2. Mount Celestia network head and sequencer genesis.
+/// 3. Mount ABCI info and sequencer blocks (soft blocks) for height 3.
+/// 4. Mount firm blocks at height 3.
+/// 5. Mount `execute_block` and `update_commitment_state` for soft and firm blocks at height 3.
+/// 6. Await satisfaction of the `execute_block` and `update_commitment_state` for the firm block
+///    height 3 with a timeout of 1000ms. The soft mount need not be satisfied in the case that the
+///    firm block is received first. The test case of ensuring the soft commitment state is updated
+///    correctly in the case of receiving a soft block first is covered in
+///    `conductor_restarts_after_reaching_soft_stop_height_first`.
+/// 7. Allow ample time for the conductor to potentially restart erroneously.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn stops_at_stop_height() {
+    let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
+
+    mount_get_genesis_info!(
+        test_conductor,
+        sequencer_start_height: 3,
+        celestia_block_variance: 10,
+        rollup_start_block_number: 2,
+        rollup_stop_block_number: 2,
+        up_to_n_times: 2, // allow for calls after an potential erroneous restart
+        halt_at_rollup_stop_number: true,
+        expected_calls: 1,
+    );
+
+    mount_get_commitment_state!(
+        test_conductor,
+        firm: (
+            number: 1,
+            hash: [1; 64],
+            parent: [0; 64],
+        ),
+        soft: (
+            number: 1,
+            hash: [1; 64],
+            parent: [0; 64],
+        ),
+        base_celestia_height: 1,
+    );
+
+    mount_sequencer_genesis!(test_conductor);
+    mount_celestia_header_network_head!(
+        test_conductor,
+        height: 1u32,
+    );
+    mount_abci_info!(
+        test_conductor,
+        latest_sequencer_height: 3,
+    );
+
+    // Mount soft blocks for height 3
+    mount_get_filtered_sequencer_block!(
+        test_conductor,
+        sequencer_height: 3,
+    );
+
+    // Mount firm blocks for height 3
+    mount_celestia_blobs!(
+        test_conductor,
+        celestia_height: 1,
+        sequencer_heights: [3],
+    );
+    mount_sequencer_commit!(
+        test_conductor,
+        height: 3u32,
+    );
+    mount_sequencer_validator_set!(test_conductor, height: 2u32);
+
+    let execute_block_1 = mount_executed_block!(
+        test_conductor,
+        mock_name: "execute_block_1",
+        number: 2,
+        hash: [2; 64],
+        parent: [1; 64],
+    );
+
+    let _update_commitment_state_soft_1 = mount_update_commitment_state!(
+        test_conductor,
+        mock_name: "update_commitment_state_soft_1",
+        firm: (
+            number: 1,
+            hash: [1; 64],
+            parent: [0; 64],
+        ),
+        soft: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        base_celestia_height: 1,
+        expected_calls: 0..=1,
+    );
+
+    let update_commitment_state_firm_1 = mount_update_commitment_state!(
+        test_conductor,
+        mock_name: "update_commitment_state_firm_1",
+        firm: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        soft: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        base_celestia_height: 1,
+    );
+
+    timeout(
+        Duration::from_millis(1000),
+        join(
+            execute_block_1.wait_until_satisfied(),
+            update_commitment_state_firm_1.wait_until_satisfied(),
+        ),
+    )
+    .await
+    .expect("conductor should have updated the firm commitment state within 1000ms");
 }

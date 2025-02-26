@@ -5,7 +5,7 @@ use astria_conductor::{
     Conductor,
     Config,
 };
-use astria_core::generated::astria::execution::v1::{
+use astria_core::generated::astria::execution::v2::{
     GetCommitmentStateRequest,
     GetGenesisInfoRequest,
 };
@@ -54,8 +54,10 @@ async fn simple() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_genesis_block_height: 1,
+        sequencer_start_height: 3,
         celestia_block_variance: 10,
+        rollup_start_block_number: 2,
+        rollup_stop_block_number: 9,
     );
 
     mount_get_commitment_state!(
@@ -125,7 +127,7 @@ async fn simple() {
     .await
     .expect(
         "conductor should have executed the firm block and updated the firm commitment state \
-         within 2000ms",
+         within 1000ms",
     );
 }
 
@@ -135,8 +137,10 @@ async fn submits_two_heights_in_succession() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_genesis_block_height: 1,
+        sequencer_start_height: 3,
         celestia_block_variance: 10,
+        rollup_start_block_number: 2,
+        rollup_stop_block_number: 9,
     );
 
     mount_get_commitment_state!(
@@ -236,7 +240,7 @@ async fn submits_two_heights_in_succession() {
     )
     .await
     .expect(
-        "conductor should have executed the soft block and updated the soft commitment state \
+        "conductor should have executed the firm block and updated the firm commitment state \
          within 2000ms",
     );
 }
@@ -247,8 +251,10 @@ async fn skips_already_executed_heights() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_genesis_block_height: 1,
+        sequencer_start_height: 3,
         celestia_block_variance: 10,
+        rollup_start_block_number: 2,
+        rollup_stop_block_number: 9,
     );
 
     mount_get_commitment_state!(
@@ -320,7 +326,7 @@ async fn skips_already_executed_heights() {
     )
     .await
     .expect(
-        "conductor should have executed the soft block and updated the soft commitment state \
+        "conductor should have executed the firm block and updated the firm commitment state \
          within 1000ms",
     );
 }
@@ -331,8 +337,10 @@ async fn fetch_from_later_celestia_height() {
 
     mount_get_genesis_info!(
         test_conductor,
-        sequencer_genesis_block_height: 1,
+        sequencer_start_height: 3,
         celestia_block_variance: 10,
+        rollup_start_block_number: 2,
+        rollup_stop_block_number: 9,
     );
 
     mount_get_commitment_state!(
@@ -447,8 +455,11 @@ async fn exits_on_celestia_chain_id_mismatch() {
         matcher::message_type::<GetGenesisInfoRequest>(),
     )
     .respond_with(GrpcResponse::constant_response(
-        genesis_info!(sequencer_genesis_block_height: 1,
-            celestia_block_variance: 10,),
+        genesis_info!(sequencer_start_height: 3,
+            celestia_block_variance: 10,
+            rollup_start_block_number: 2,
+            rollup_stop_block_number: 9
+        ),
     ))
     .expect(0..)
     .mount(&mock_grpc.mock_server)
@@ -512,4 +523,175 @@ async fn exits_on_celestia_chain_id_mismatch() {
             panic!("expected exit due to chain ID mismatch, but got a different error: {e:?}")
         }
     }
+}
+
+/// Tests that the conductor correctly stops at the stop block height and executes the firm block
+/// for that height before restarting and continuing after fetching new genesis info and commitment
+/// state.
+///
+/// It consists of the following steps:
+/// 1. Mount commitment state and genesis info with a stop height of 3 for the first height, only
+///    responding up to 1 time so that the same info is not provided after conductor restart.
+/// 2. Mount sequencer genesis and celestia header network head.
+/// 3. Mount firm blocks for heights 3 and 4.
+/// 4. Mount `execute_block` and `update_commitment_state` for firm block 3, expecting only one call
+///    since they should not be called after restarting.
+/// 5. Wait ample time for conductor to restart before performing the next set of mounts.
+/// 6. Mount new genesis info and updated commitment state with rollup start block height of 2 to
+///    reflect that the first block has already been executed.
+/// 7. Mount `execute_block` and `update_commitment_state` for firm block 4, awaiting their
+///    satisfaction.
+#[expect(clippy::too_many_lines, reason = "All lines reasonably necessary")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn restarts_after_reaching_stop_block_height() {
+    let test_conductor = spawn_conductor(CommitLevel::FirmOnly).await;
+
+    mount_get_genesis_info!(
+        test_conductor,
+        sequencer_start_height: 3,
+        celestia_block_variance: 10,
+        rollup_start_block_number: 2,
+        rollup_stop_block_number: 2,
+        up_to_n_times: 1, // Only respond once, since updated information is needed after restart.
+    );
+
+    mount_get_commitment_state!(
+        test_conductor,
+        firm: (
+            number: 1,
+            hash: [1; 64],
+            parent: [0; 64],
+        ),
+        soft: (
+            number: 1,
+            hash: [1; 64],
+            parent: [0; 64],
+        ),
+        base_celestia_height: 1,
+        up_to_n_times: 1,
+    );
+
+    mount_sequencer_genesis!(test_conductor);
+    mount_celestia_header_network_head!(
+        test_conductor,
+        height: 2u32,
+    );
+
+    mount_celestia_blobs!(
+        test_conductor,
+        celestia_height: 1,
+        sequencer_heights: [3, 4],
+    );
+    mount_sequencer_commit!(
+        test_conductor,
+        height: 3u32,
+    );
+    mount_sequencer_commit!(
+        test_conductor,
+        height: 4u32,
+    );
+    mount_sequencer_validator_set!(test_conductor, height: 2u32);
+    mount_sequencer_validator_set!(test_conductor, height: 3u32);
+
+    let execute_block_1 = mount_executed_block!(
+        test_conductor,
+        mock_name: "execute_block_1",
+        number: 2,
+        hash: [2; 64],
+        parent: [1; 64],
+        expected_calls: 1, // should not be called again upon restart
+    );
+
+    let update_commitment_state_1 = mount_update_commitment_state!(
+        test_conductor,
+        mock_name: "update_commitment_state_1",
+        firm: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        soft: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        base_celestia_height: 1,
+        expected_calls: 1, // should not be called again upon restart
+    );
+
+    timeout(
+        Duration::from_millis(1000),
+        join(
+            execute_block_1.wait_until_satisfied(),
+            update_commitment_state_1.wait_until_satisfied(),
+        ),
+    )
+    .await
+    .expect(
+        "conductor should have executed the first firm block and updated the first firm \
+         commitment state twice within 1000ms",
+    );
+
+    // Mount new genesis info and commitment state with updated heights
+    mount_get_genesis_info!(
+        test_conductor,
+        sequencer_start_height: 4,
+        celestia_block_variance: 10,
+        rollup_start_block_number: 3,
+        rollup_stop_block_number: 9,
+    );
+
+    mount_get_commitment_state!(
+        test_conductor,
+        firm: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        soft: (
+            number: 2,
+            hash: [2; 64],
+            parent: [1; 64],
+        ),
+        base_celestia_height: 1,
+    );
+
+    let execute_block_2 = mount_executed_block!(
+        test_conductor,
+        mock_name: "execute_block_2",
+        number: 3,
+        hash: [3; 64],
+        parent: [2; 64],
+        expected_calls: 1,
+    );
+
+    let update_commitment_state_2 = mount_update_commitment_state!(
+        test_conductor,
+        mock_name: "update_commitment_state_2",
+        firm: (
+            number: 3,
+            hash: [3; 64],
+            parent: [2; 64],
+        ),
+        soft: (
+            number: 3,
+            hash: [3; 64],
+            parent: [2; 64],
+        ),
+        base_celestia_height: 1,
+        expected_calls: 1,
+    );
+
+    timeout(
+        Duration::from_millis(2000),
+        join(
+            execute_block_2.wait_until_satisfied(),
+            update_commitment_state_2.wait_until_satisfied(),
+        ),
+    )
+    .await
+    .expect(
+        "conductor should have executed the second firm block and updated the second firm \
+         commitment state twice within 2000ms",
+    );
 }

@@ -1,7 +1,56 @@
+<<<<<<< HEAD
+=======
+/// GenesisInfo contains the information needed to start a rollup chain.
+///
+/// This information is used to determine which sequencer & celestia data to
+/// use from the Astria & Celestia networks.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GenesisInfo {
+    /// The rollup_id is the unique identifier for the rollup chain.
+    #[prost(message, optional, tag = "1")]
+    pub rollup_id: ::core::option::Option<super::super::primitive::v1::RollupId>,
+    /// The first block height of sequencer chain to use for rollup transactions.
+    #[prost(uint32, tag = "2")]
+    pub sequencer_start_height: u32,
+    /// The allowed variance in celestia for sequencer blocks to have been posted.
+    #[prost(uint64, tag = "4")]
+    pub celestia_block_variance: u64,
+    /// The rollup block number to map to the sequencer start block height.
+    #[prost(uint64, tag = "5")]
+    pub rollup_start_block_number: u64,
+    /// The rollup block number to re-fetch the genesis info and continue executing with new data.
+    #[prost(uint64, tag = "6")]
+    pub rollup_stop_block_number: u64,
+    /// The ID of the Astria Sequencer network to retrieve Sequencer blocks from.
+    /// Conductor implementations should verify that the Sequencer network they are connected to
+    /// have this chain ID (if fetching soft Sequencer blocks), and verify that the Sequencer metadata
+    /// blobs retrieved from Celestia contain this chain ID (if extracting firm Sequencer blocks from
+    /// Celestia blobs).
+    #[prost(string, tag = "7")]
+    pub sequencer_chain_id: ::prost::alloc::string::String,
+    /// The ID of the Celestia network to retrieve blobs from.
+    /// Conductor implementations should verify that the Celestia network they are connected to have
+    /// this chain ID (if extracting firm Sequencer blocks from Celestia blobs).
+    #[prost(string, tag = "8")]
+    pub celestia_chain_id: ::prost::alloc::string::String,
+    /// Requests Conductor to halt at the stop number instead of re-fetching the genesis and continuing execution.
+    #[prost(bool, tag = "9")]
+    pub halt_at_rollup_stop_number: bool,
+}
+impl ::prost::Name for GenesisInfo {
+    const NAME: &'static str = "GenesisInfo";
+    const PACKAGE: &'static str = "astria.execution.v2";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
+    }
+}
+>>>>>>> superfluffy/forma-restart-logic
 /// The set of information which deterministic driver of block production
 /// must know about a given rollup Block
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+<<<<<<< HEAD
 pub struct ExecutedBlockMetadata {
     /// The block number
     #[prost(uint64, tag = "1")]
@@ -20,6 +69,129 @@ pub struct ExecutedBlockMetadata {
 }
 impl ::prost::Name for ExecutedBlockMetadata {
     const NAME: &'static str = "ExecutedBlockMetadata";
+=======
+pub struct Block {
+    /// The block number
+    #[prost(uint32, tag = "1")]
+    pub number: u32,
+    /// The hash of the block
+    #[prost(bytes = "bytes", tag = "2")]
+    pub hash: ::prost::bytes::Bytes,
+    /// The hash from the parent block
+    #[prost(bytes = "bytes", tag = "3")]
+    pub parent_block_hash: ::prost::bytes::Bytes,
+    /// Timestamp on the block, standardized to google protobuf standard.
+    #[prost(message, optional, tag = "4")]
+    pub timestamp: ::core::option::Option<::pbjson_types::Timestamp>,
+}
+impl ::prost::Name for Block {
+    const NAME: &'static str = "Block";
+    const PACKAGE: &'static str = "astria.execution.v2";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
+    }
+}
+/// Fields which are indexed for finding blocks on a blockchain.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BlockIdentifier {
+    #[prost(oneof = "block_identifier::Identifier", tags = "1, 2")]
+    pub identifier: ::core::option::Option<block_identifier::Identifier>,
+}
+/// Nested message and enum types in `BlockIdentifier`.
+pub mod block_identifier {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Identifier {
+        #[prost(uint32, tag = "1")]
+        BlockNumber(u32),
+        #[prost(bytes, tag = "2")]
+        BlockHash(::prost::bytes::Bytes),
+    }
+}
+impl ::prost::Name for BlockIdentifier {
+    const NAME: &'static str = "BlockIdentifier";
+    const PACKAGE: &'static str = "astria.execution.v2";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetGenesisInfoRequest {}
+impl ::prost::Name for GetGenesisInfoRequest {
+    const NAME: &'static str = "GetGenesisInfoRequest";
+    const PACKAGE: &'static str = "astria.execution.v2";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
+    }
+}
+/// Used in GetBlock to find a single block.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetBlockRequest {
+    #[prost(message, optional, tag = "1")]
+    pub identifier: ::core::option::Option<BlockIdentifier>,
+}
+impl ::prost::Name for GetBlockRequest {
+    const NAME: &'static str = "GetBlockRequest";
+    const PACKAGE: &'static str = "astria.execution.v2";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
+    }
+}
+/// Used in BatchGetBlocks, will find all or none based on the list of
+/// identifiers.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BatchGetBlocksRequest {
+    #[prost(message, repeated, tag = "1")]
+    pub identifiers: ::prost::alloc::vec::Vec<BlockIdentifier>,
+}
+impl ::prost::Name for BatchGetBlocksRequest {
+    const NAME: &'static str = "BatchGetBlocksRequest";
+    const PACKAGE: &'static str = "astria.execution.v2";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
+    }
+}
+/// The list of blocks in response to BatchGetBlocks.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BatchGetBlocksResponse {
+    #[prost(message, repeated, tag = "1")]
+    pub blocks: ::prost::alloc::vec::Vec<Block>,
+}
+impl ::prost::Name for BatchGetBlocksResponse {
+    const NAME: &'static str = "BatchGetBlocksResponse";
+    const PACKAGE: &'static str = "astria.execution.v2";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
+    }
+}
+/// ExecuteBlockRequest contains all the information needed to create a new rollup
+/// block.
+///
+/// This information comes from previous rollup blocks, as well as from sequencer
+/// blocks.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ExecuteBlockRequest {
+    /// The hash of previous block, which new block will be created on top of.
+    #[prost(bytes = "bytes", tag = "1")]
+    pub prev_block_hash: ::prost::bytes::Bytes,
+    /// List of transactions to include in the new block.
+    #[prost(message, repeated, tag = "2")]
+    pub transactions: ::prost::alloc::vec::Vec<
+        super::super::sequencerblock::v1::RollupData,
+    >,
+    /// Timestamp to be used for new block.
+    #[prost(message, optional, tag = "3")]
+    pub timestamp: ::core::option::Option<::pbjson_types::Timestamp>,
+}
+impl ::prost::Name for ExecuteBlockRequest {
+    const NAME: &'static str = "ExecuteBlockRequest";
+>>>>>>> superfluffy/forma-restart-logic
     const PACKAGE: &'static str = "astria.execution.v2";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
@@ -36,6 +208,7 @@ impl ::prost::Name for ExecutedBlockMetadata {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CommitmentState {
+<<<<<<< HEAD
     /// Soft committed block metadata derived directly from an Astria sequencer block.
     #[prost(message, optional, tag = "1")]
     pub soft_executed_block_metadata: ::core::option::Option<ExecutedBlockMetadata>,
@@ -49,6 +222,17 @@ pub struct CommitmentState {
     /// client will not need to search from Celestia genesis.
     #[prost(uint64, tag = "3")]
     pub lowest_celestia_search_height: u64,
+=======
+    /// Soft commitment is the rollup block matching latest sequencer block.
+    #[prost(message, optional, tag = "1")]
+    pub soft: ::core::option::Option<Block>,
+    /// Firm commitment is achieved when data has been seen in DA.
+    #[prost(message, optional, tag = "2")]
+    pub firm: ::core::option::Option<Block>,
+    /// The lowest block number of celestia chain to be searched for rollup blocks given current state
+    #[prost(uint64, tag = "3")]
+    pub base_celestia_height: u64,
+>>>>>>> superfluffy/forma-restart-logic
 }
 impl ::prost::Name for CommitmentState {
     const NAME: &'static str = "CommitmentState";
@@ -57,6 +241,7 @@ impl ::prost::Name for CommitmentState {
         ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
     }
 }
+<<<<<<< HEAD
 /// CreateExecutionSessionRequest is used to create a new execution session on the
 /// rollup.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -236,6 +421,14 @@ pub struct GetExecutedBlockMetadataRequest {
 }
 impl ::prost::Name for GetExecutedBlockMetadataRequest {
     const NAME: &'static str = "GetExecutedBlockMetadataRequest";
+=======
+/// There is only one CommitmentState object, so the request is empty.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetCommitmentStateRequest {}
+impl ::prost::Name for GetCommitmentStateRequest {
+    const NAME: &'static str = "GetCommitmentStateRequest";
+>>>>>>> superfluffy/forma-restart-logic
     const PACKAGE: &'static str = "astria.execution.v2";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.execution.v2.{}", Self::NAME)
@@ -245,11 +438,15 @@ impl ::prost::Name for GetExecutedBlockMetadataRequest {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct UpdateCommitmentStateRequest {
+<<<<<<< HEAD
     /// The session which the commitment state is being updated within.
     #[prost(string, tag = "1")]
     pub session_id: ::prost::alloc::string::String,
     /// The new commitment state to set.
     #[prost(message, optional, tag = "2")]
+=======
+    #[prost(message, optional, tag = "1")]
+>>>>>>> superfluffy/forma-restart-logic
     pub commitment_state: ::core::option::Option<CommitmentState>,
 }
 impl ::prost::Name for UpdateCommitmentStateRequest {
@@ -350,6 +547,7 @@ pub mod execution_service_client {
             self.inner = self.inner.max_encoding_message_size(limit);
             self
         }
+<<<<<<< HEAD
         /// CreateExecutionSession returns the necessary information for mapping sequencer block
         /// height to rollup block number.
         pub async fn create_execution_session(
@@ -359,6 +557,13 @@ pub mod execution_service_client {
             tonic::Response<super::ExecutionSession>,
             tonic::Status,
         > {
+=======
+        /// GetGenesisInfo returns the necessary genesis information for rollup chain.
+        pub async fn get_genesis_info(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetGenesisInfoRequest>,
+        ) -> std::result::Result<tonic::Response<super::GenesisInfo>, tonic::Status> {
+>>>>>>> superfluffy/forma-restart-logic
             self.inner
                 .ready()
                 .await
@@ -370,24 +575,67 @@ pub mod execution_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
+<<<<<<< HEAD
                 "/astria.execution.v2.ExecutionService/CreateExecutionSession",
+=======
+                "/astria.execution.v2.ExecutionService/GetGenesisInfo",
+>>>>>>> superfluffy/forma-restart-logic
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
                         "astria.execution.v2.ExecutionService",
+<<<<<<< HEAD
                         "CreateExecutionSession",
+=======
+                        "GetGenesisInfo",
+>>>>>>> superfluffy/forma-restart-logic
                     ),
                 );
             self.inner.unary(req, path, codec).await
         }
+<<<<<<< HEAD
         /// GetExecutedBlockMetadata will return a block given an identifier.
         pub async fn get_executed_block_metadata(
             &mut self,
             request: impl tonic::IntoRequest<super::GetExecutedBlockMetadataRequest>,
         ) -> std::result::Result<
             tonic::Response<super::ExecutedBlockMetadata>,
+=======
+        /// GetBlock will return a block given an identifier.
+        pub async fn get_block(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetBlockRequest>,
+        ) -> std::result::Result<tonic::Response<super::Block>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/astria.execution.v2.ExecutionService/GetBlock",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new("astria.execution.v2.ExecutionService", "GetBlock"),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+        /// BatchGetBlocks will return an array of Blocks given an array of block
+        /// identifiers.
+        pub async fn batch_get_blocks(
+            &mut self,
+            request: impl tonic::IntoRequest<super::BatchGetBlocksRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::BatchGetBlocksResponse>,
+>>>>>>> superfluffy/forma-restart-logic
             tonic::Status,
         > {
             self.inner
@@ -401,14 +649,22 @@ pub mod execution_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
+<<<<<<< HEAD
                 "/astria.execution.v2.ExecutionService/GetExecutedBlockMetadata",
+=======
+                "/astria.execution.v2.ExecutionService/BatchGetBlocks",
+>>>>>>> superfluffy/forma-restart-logic
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
                         "astria.execution.v2.ExecutionService",
+<<<<<<< HEAD
                         "GetExecutedBlockMetadata",
+=======
+                        "BatchGetBlocks",
+>>>>>>> superfluffy/forma-restart-logic
                     ),
                 );
             self.inner.unary(req, path, codec).await
@@ -418,10 +674,14 @@ pub mod execution_service_client {
         pub async fn execute_block(
             &mut self,
             request: impl tonic::IntoRequest<super::ExecuteBlockRequest>,
+<<<<<<< HEAD
         ) -> std::result::Result<
             tonic::Response<super::ExecuteBlockResponse>,
             tonic::Status,
         > {
+=======
+        ) -> std::result::Result<tonic::Response<super::Block>, tonic::Status> {
+>>>>>>> superfluffy/forma-restart-logic
             self.inner
                 .ready()
                 .await
@@ -445,6 +705,40 @@ pub mod execution_service_client {
                 );
             self.inner.unary(req, path, codec).await
         }
+<<<<<<< HEAD
+=======
+        /// GetCommitmentState fetches the current CommitmentState of the chain.
+        pub async fn get_commitment_state(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetCommitmentStateRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::CommitmentState>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/astria.execution.v2.ExecutionService/GetCommitmentState",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new(
+                        "astria.execution.v2.ExecutionService",
+                        "GetCommitmentState",
+                    ),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+>>>>>>> superfluffy/forma-restart-logic
         /// UpdateCommitmentState replaces the whole CommitmentState with a new
         /// CommitmentState.
         pub async fn update_commitment_state(
@@ -487,6 +781,7 @@ pub mod execution_service_server {
     /// Generated trait containing gRPC methods that should be implemented for use with ExecutionServiceServer.
     #[async_trait]
     pub trait ExecutionService: Send + Sync + 'static {
+<<<<<<< HEAD
         /// CreateExecutionSession returns the necessary information for mapping sequencer block
         /// height to rollup block number.
         async fn create_execution_session(
@@ -502,6 +797,25 @@ pub mod execution_service_server {
             request: tonic::Request<super::GetExecutedBlockMetadataRequest>,
         ) -> std::result::Result<
             tonic::Response<super::ExecutedBlockMetadata>,
+=======
+        /// GetGenesisInfo returns the necessary genesis information for rollup chain.
+        async fn get_genesis_info(
+            self: std::sync::Arc<Self>,
+            request: tonic::Request<super::GetGenesisInfoRequest>,
+        ) -> std::result::Result<tonic::Response<super::GenesisInfo>, tonic::Status>;
+        /// GetBlock will return a block given an identifier.
+        async fn get_block(
+            self: std::sync::Arc<Self>,
+            request: tonic::Request<super::GetBlockRequest>,
+        ) -> std::result::Result<tonic::Response<super::Block>, tonic::Status>;
+        /// BatchGetBlocks will return an array of Blocks given an array of block
+        /// identifiers.
+        async fn batch_get_blocks(
+            self: std::sync::Arc<Self>,
+            request: tonic::Request<super::BatchGetBlocksRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::BatchGetBlocksResponse>,
+>>>>>>> superfluffy/forma-restart-logic
             tonic::Status,
         >;
         /// ExecuteBlock is called to deterministically derive a rollup block from
@@ -509,10 +823,19 @@ pub mod execution_service_server {
         async fn execute_block(
             self: std::sync::Arc<Self>,
             request: tonic::Request<super::ExecuteBlockRequest>,
+<<<<<<< HEAD
         ) -> std::result::Result<
             tonic::Response<super::ExecuteBlockResponse>,
             tonic::Status,
         >;
+=======
+        ) -> std::result::Result<tonic::Response<super::Block>, tonic::Status>;
+        /// GetCommitmentState fetches the current CommitmentState of the chain.
+        async fn get_commitment_state(
+            self: std::sync::Arc<Self>,
+            request: tonic::Request<super::GetCommitmentStateRequest>,
+        ) -> std::result::Result<tonic::Response<super::CommitmentState>, tonic::Status>;
+>>>>>>> superfluffy/forma-restart-logic
         /// UpdateCommitmentState replaces the whole CommitmentState with a new
         /// CommitmentState.
         async fn update_commitment_state(
@@ -604,6 +927,7 @@ pub mod execution_service_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
+<<<<<<< HEAD
                 "/astria.execution.v2.ExecutionService/CreateExecutionSession" => {
                     #[allow(non_camel_case_types)]
                     struct CreateExecutionSessionSvc<T: ExecutionService>(pub Arc<T>);
@@ -612,12 +936,23 @@ pub mod execution_service_server {
                     > tonic::server::UnaryService<super::CreateExecutionSessionRequest>
                     for CreateExecutionSessionSvc<T> {
                         type Response = super::ExecutionSession;
+=======
+                "/astria.execution.v2.ExecutionService/GetGenesisInfo" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetGenesisInfoSvc<T: ExecutionService>(pub Arc<T>);
+                    impl<
+                        T: ExecutionService,
+                    > tonic::server::UnaryService<super::GetGenesisInfoRequest>
+                    for GetGenesisInfoSvc<T> {
+                        type Response = super::GenesisInfo;
+>>>>>>> superfluffy/forma-restart-logic
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
+<<<<<<< HEAD
                             request: tonic::Request<super::CreateExecutionSessionRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
@@ -626,6 +961,13 @@ pub mod execution_service_server {
                                         inner,
                                         request,
                                     )
+=======
+                            request: tonic::Request<super::GetGenesisInfoRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ExecutionService>::get_genesis_info(inner, request)
+>>>>>>> superfluffy/forma-restart-logic
                                     .await
                             };
                             Box::pin(fut)
@@ -638,7 +980,11 @@ pub mod execution_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
+<<<<<<< HEAD
                         let method = CreateExecutionSessionSvc(inner);
+=======
+                        let method = GetGenesisInfoSvc(inner);
+>>>>>>> superfluffy/forma-restart-logic
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -654,6 +1000,7 @@ pub mod execution_service_server {
                     };
                     Box::pin(fut)
                 }
+<<<<<<< HEAD
                 "/astria.execution.v2.ExecutionService/GetExecutedBlockMetadata" => {
                     #[allow(non_camel_case_types)]
                     struct GetExecutedBlockMetadataSvc<T: ExecutionService>(pub Arc<T>);
@@ -662,12 +1009,23 @@ pub mod execution_service_server {
                     > tonic::server::UnaryService<super::GetExecutedBlockMetadataRequest>
                     for GetExecutedBlockMetadataSvc<T> {
                         type Response = super::ExecutedBlockMetadata;
+=======
+                "/astria.execution.v2.ExecutionService/GetBlock" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetBlockSvc<T: ExecutionService>(pub Arc<T>);
+                    impl<
+                        T: ExecutionService,
+                    > tonic::server::UnaryService<super::GetBlockRequest>
+                    for GetBlockSvc<T> {
+                        type Response = super::Block;
+>>>>>>> superfluffy/forma-restart-logic
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
+<<<<<<< HEAD
                             request: tonic::Request<
                                 super::GetExecutedBlockMetadataRequest,
                             >,
@@ -678,6 +1036,59 @@ pub mod execution_service_server {
                                         inner,
                                         request,
                                     )
+=======
+                            request: tonic::Request<super::GetBlockRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ExecutionService>::get_block(inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = GetBlockSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/astria.execution.v2.ExecutionService/BatchGetBlocks" => {
+                    #[allow(non_camel_case_types)]
+                    struct BatchGetBlocksSvc<T: ExecutionService>(pub Arc<T>);
+                    impl<
+                        T: ExecutionService,
+                    > tonic::server::UnaryService<super::BatchGetBlocksRequest>
+                    for BatchGetBlocksSvc<T> {
+                        type Response = super::BatchGetBlocksResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::BatchGetBlocksRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ExecutionService>::batch_get_blocks(inner, request)
+>>>>>>> superfluffy/forma-restart-logic
                                     .await
                             };
                             Box::pin(fut)
@@ -690,7 +1101,11 @@ pub mod execution_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
+<<<<<<< HEAD
                         let method = GetExecutedBlockMetadataSvc(inner);
+=======
+                        let method = BatchGetBlocksSvc(inner);
+>>>>>>> superfluffy/forma-restart-logic
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -713,7 +1128,11 @@ pub mod execution_service_server {
                         T: ExecutionService,
                     > tonic::server::UnaryService<super::ExecuteBlockRequest>
                     for ExecuteBlockSvc<T> {
+<<<<<<< HEAD
                         type Response = super::ExecuteBlockResponse;
+=======
+                        type Response = super::Block;
+>>>>>>> superfluffy/forma-restart-logic
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
@@ -752,6 +1171,59 @@ pub mod execution_service_server {
                     };
                     Box::pin(fut)
                 }
+<<<<<<< HEAD
+=======
+                "/astria.execution.v2.ExecutionService/GetCommitmentState" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetCommitmentStateSvc<T: ExecutionService>(pub Arc<T>);
+                    impl<
+                        T: ExecutionService,
+                    > tonic::server::UnaryService<super::GetCommitmentStateRequest>
+                    for GetCommitmentStateSvc<T> {
+                        type Response = super::CommitmentState;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetCommitmentStateRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ExecutionService>::get_commitment_state(
+                                        inner,
+                                        request,
+                                    )
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = GetCommitmentStateSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+>>>>>>> superfluffy/forma-restart-logic
                 "/astria.execution.v2.ExecutionService/UpdateCommitmentState" => {
                     #[allow(non_camel_case_types)]
                     struct UpdateCommitmentStateSvc<T: ExecutionService>(pub Arc<T>);

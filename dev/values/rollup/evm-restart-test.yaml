@@ -39,14 +39,16 @@ evm-rollup:
           startHeight: 2
           # The variance in Celestia height to allow before halting the chain
           heightVariance: 10
-          # Configure the sequencer bridge addresses and allowed assets if using
-          # the astria canonical bridge. Recommend removing alloc values if so.
+        # Configure the sequencer bridge addresses and allowed assets if using
+        # the astria canonical bridge. Recommend removing alloc values if so.
         bridgeAddresses:
           - bridgeAddress: "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
             startHeight: 1
             senderAddress: "0x0000000000000000000000000000000000000000"
             assetDenom: "nria"
             assetPrecision: 9
+      restart:
+        height: 19
 
     ## These are general configuration values with some recommended defaults
 
