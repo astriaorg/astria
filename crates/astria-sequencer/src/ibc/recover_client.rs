@@ -11,7 +11,8 @@ use cnidarium::StateWrite;
 use penumbra_ibc::component::{
     ClientStateReadExt as _,
     ClientStateWriteExt as _,
-    // ConsensusStateWriteExt as _,
+    ClientStatus,
+    ConsensusStateWriteExt as _,
 };
 
 use crate::app::{
@@ -26,9 +27,6 @@ impl ActionHandler for action::RecoverClient {
     }
 
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        // TODO: ibc changes should be on ibc substore; other reads (height, timestamp)
-        // are on normal store
-
         let timestamp = state
             .get_block_timestamp()
             .await
@@ -37,10 +35,8 @@ impl ActionHandler for action::RecoverClient {
             .get_client_status(&self.subject_client_id, timestamp)
             .await;
 
-        // TODO: unfortunately need to string compare here as penumbra didn't export
-        // penumbra_ibc::component::client::ClientStatus :/ (enum is pub but module isn't)
         ensure!(
-            subject_client_status.to_string() != "Active",
+            subject_client_status != ClientStatus::Active,
             "cannot recover an active client",
         );
 
@@ -49,7 +45,7 @@ impl ActionHandler for action::RecoverClient {
             .await;
 
         ensure!(
-            substitute_client_status.to_string() == "Active",
+            substitute_client_status == ClientStatus::Active,
             "substitute client must be active: status is {}",
             substitute_client_status,
         );
@@ -88,9 +84,18 @@ impl ActionHandler for action::RecoverClient {
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("substitute client consensus state not found")?;
-        // state.put_verified_consensus_state(&height, &self.subject_client_id,
-        // substitute_consensus_state).await.map_err(anyhow_to_eyre).wrap_err("failed to put
-        // verified consensus state")?;
+        state
+            .put_verified_consensus_state(
+                &height,
+                &self.subject_client_id,
+                substitute_consensus_state,
+            )
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err(
+                "failed to put
+        verified consensus state",
+            )?;
 
         subject_client_state.latest_height = substitute_client_state.latest_height;
         subject_client_state.chain_id = substitute_client_state.chain_id;
