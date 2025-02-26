@@ -22,6 +22,10 @@ default_repo_name := 'ghcr.io/astriaorg'
 Builds docker image for the crate. Defaults to 'local' tag.
 NOTE: `_crate_short_name` is invoked as dependency of this command so that failure to pass a valid
 binary will produce a meaningful error message.
+Usage:
+  $just docker-build [crate] <tag> <repo_name> (defaults: 'local', 'ghcr.io/astriaorg')
+Example:
+  $just docker-build astria-sequencer
 ")]
 docker-build crate tag=default_docker_tag repo_name=default_repo_name: (_crate_short_name crate "quiet")
   #!/usr/bin/env sh
@@ -37,6 +41,10 @@ docker-build crate tag=default_docker_tag repo_name=default_repo_name: (_crate_s
 Builds and loads docker image for the crate. Defaults to 'local' tag.
 NOTE: `_crate_short_name` is invoked as dependency of this command so that failure to pass a valid
 binary will produce a meaningful error message.
+Usage:
+  $just docker-build-and-load [crate] <tag> <repo_name> (defaults: 'local', 'ghcr.io/astriaorg')
+Example:
+  $just docker-build-and-load astria-sequencer
 ")]
 docker-build-and-load crate tag=default_docker_tag repo_name=default_repo_name: (_crate_short_name crate "quiet")
   #!/usr/bin/env sh

@@ -140,7 +140,6 @@ Deletes local EVM bridge-withdrawer deployment.
 bridge-withdrawer: (delete-chart "evm-bridge-withdrawer")
 
 
-# FIXME: This deployment fails
 # Delete Hyperlane Agents
 ##########################
 [doc("
