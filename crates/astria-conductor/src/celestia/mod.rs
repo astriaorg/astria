@@ -275,18 +275,18 @@ struct RunningReader {
     /// The next Celestia height that will be fetched.
     celestia_next_height: u64,
 
-    /// The reference Celestia height. `celestia_reference_height` + `celestia_variance` = C is the
-    /// maximum Celestia height up to which Celestia's blobs will be fetched.
-    /// `celestia_reference_height` is initialized to the base Celestia height stored in the
-    /// rollup genesis. It is later advanced to that Celestia height from which the next block
-    /// is derived that will be executed against the rollup (only if greater than the current
-    /// value; it will never go down).
+    /// The reference Celestia height. `celestia_reference_height` +
+    /// `celestia_search_height_max_look_ahead` = C is the maximum Celestia height up to which
+    /// Celestia's blobs will be fetched. `celestia_reference_height` is initialized to the
+    /// base Celestia height stored in the rollup state. It is later advanced to that Celestia
+    /// height from which the next block is derived that will be executed against the rollup
+    /// (only if greater than the current value; it will never go down).
     celestia_reference_height: u64,
 
-    /// `celestia_variance` + `celestia_reference_height` define the maximum Celestia height from
-    /// Celestia blobs can be fetched. Set once during initialization to the value stored in
-    /// the rollup genesis.
-    celestia_variance: u64,
+    /// `celestia_search_height_max_look_ahead` + `celestia_reference_height` define the maximum
+    /// Celestia height from Celestia blobs that can be fetched. Set once during initialization
+    /// to the value stored in the rollup state.
+    celestia_search_height_max_look_ahead: u64,
 
     /// The rollup ID of the rollup that conductor is driving. Set once during initialization to
     /// the value stored in the
@@ -332,9 +332,10 @@ impl RunningReader {
         let sequencer_namespace =
             astria_core::celestia::namespace_v0_from_sha256_of_bytes(sequencer_chain_id.as_bytes());
 
-        let celestia_next_height = rollup_state.celestia_base_block_height();
-        let celestia_reference_height = rollup_state.celestia_base_block_height();
-        let celestia_variance = rollup_state.celestia_block_variance();
+        let celestia_next_height = rollup_state.lowest_celestia_search_height();
+        let celestia_reference_height = rollup_state.lowest_celestia_search_height();
+        let celestia_search_height_max_look_ahead =
+            rollup_state.celestia_search_height_max_look_ahead();
 
         Ok(Self {
             block_cache,
@@ -353,7 +354,7 @@ impl RunningReader {
             celestia_head_height: None,
             celestia_next_height,
             celestia_reference_height,
-            celestia_variance,
+            celestia_search_height_max_look_ahead,
 
             rollup_id,
             rollup_namespace,
@@ -368,7 +369,7 @@ impl RunningReader {
             info!(
                 initial_celestia_height = self.celestia_next_height,
                 initial_max_celestia_height = self.max_permitted_celestia_height(),
-                celestia_variance = self.celestia_variance,
+                celestia_search_height_max_look_ahead = self.celestia_search_height_max_look_ahead,
                 rollup_namespace = %base64(&self.rollup_namespace.as_bytes()),
                 rollup_id = %self.rollup_id,
                 sequencer_chain_id = %self.sequencer_chain_id,
@@ -544,14 +545,14 @@ impl RunningReader {
 
     /// Returns the maximum permitted Celestia height given the current state.
     ///
-    /// The maximum permitted Celestia height is calculated as `ref_height + 6 * variance`, with:
+    /// The maximum permitted Celestia height is calculated as `ref_height +
+    /// celestia_search_height_max_look_ahead`, with:
     ///
     /// - `ref_height` the height from which the last expected sequencer block was derived,
-    /// - `variance` the `celestia_block_variance` received from the connected rollup genesis info,
-    /// - and the factor 6 based on the assumption that there are up to 6 sequencer heights stored
-    ///   per Celestia height.
+    /// - `celestia_search_height_max_look_ahead` received from the current rollup state,
     fn max_permitted_celestia_height(&self) -> u64 {
-        max_permitted_celestia_height(self.celestia_reference_height, self.celestia_variance)
+        self.celestia_reference_height
+            .saturating_add(self.celestia_search_height_max_look_ahead)
     }
 
     fn record_latest_celestia_height(&mut self, height: u64) {
@@ -704,10 +705,6 @@ async fn get_sequencer_chain_id(client: SequencerClient) -> eyre::Result<tenderm
         .wrap_err("failed to get genesis info from Sequencer after a lot of attempts")?;
 
     Ok(genesis.chain_id)
-}
-
-fn max_permitted_celestia_height(reference: u64, variance: u64) -> u64 {
-    reference.saturating_add(variance.saturating_mul(6))
 }
 
 #[instrument(skip_all)]

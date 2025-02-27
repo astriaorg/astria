@@ -109,7 +109,7 @@ impl Inner {
         self.restart_or_shutdown(exit_status).await
     }
 
-    /// Shuts down all tasks.
+    /// Shuts down all tasks and returns a token indicating whether to restart or not.
     ///
     /// Waits 25 seconds for all tasks to shut down before aborting them. 25 seconds
     /// because kubernetes issues SIGKILL 30 seconds after SIGTERM, giving 5 seconds
@@ -164,7 +164,10 @@ fn should_restart_despite_error(err: &eyre::Report) -> bool {
     let mut current = Some(err.as_ref() as &dyn std::error::Error);
     while let Some(err) = current {
         if let Some(status) = err.downcast_ref::<tonic::Status>() {
-            if status.code() == tonic::Code::PermissionDenied {
+            if status.code() == tonic::Code::PermissionDenied
+                // Fallback in case execute block is called outside of execution session bounds
+                || status.code() == tonic::Code::OutOfRange
+            {
                 return true;
             }
         }
@@ -177,7 +180,7 @@ fn should_restart_or_shutdown(
     config: &Config,
     status: &crate::executor::State,
 ) -> eyre::Result<RestartOrShutdown> {
-    let Some(rollup_stop_block_number) = status.rollup_stop_block_number() else {
+    let Some(rollup_stop_block_number) = status.rollup_end_block_number() else {
         return Err(eyre!(
             "executor exited with a success value even though it was not configured to run with a \
              stop height and even though it received no shutdown signal; this should not happen"
@@ -187,12 +190,7 @@ fn should_restart_or_shutdown(
     match config.execution_commit_level {
         crate::config::CommitLevel::FirmOnly | crate::config::CommitLevel::SoftAndFirm => {
             if status.has_firm_number_reached_stop_height() {
-                let restart_or_shutdown = if status.halt_at_rollup_stop_number() {
-                    RestartOrShutdown::Shutdown
-                } else {
-                    RestartOrShutdown::Restart
-                };
-                Ok(restart_or_shutdown)
+                Ok(RestartOrShutdown::Restart)
             } else {
                 Err(eyre!(
                     "executor exited with a success value, but the stop height was not reached
@@ -203,19 +201,14 @@ fn should_restart_or_shutdown(
                     status.firm_number(),
                     status.firm_block_number_as_sequencer_height(),
                     status.rollup_start_block_number(),
-                    status.sequencer_start_height(),
+                    status.sequencer_start_block_height(),
                     rollup_stop_block_number,
                 ))
             }
         }
         crate::config::CommitLevel::SoftOnly => {
             if status.has_soft_number_reached_stop_height() {
-                let restart_or_shutdown = if status.halt_at_rollup_stop_number() {
-                    RestartOrShutdown::Shutdown
-                } else {
-                    RestartOrShutdown::Restart
-                };
-                Ok(restart_or_shutdown)
+                Ok(RestartOrShutdown::Restart)
             } else {
                 Err(eyre!(
                     "executor exited with a success value, but the stop height was not reached
@@ -226,7 +219,7 @@ fn should_restart_or_shutdown(
                     status.soft_number(),
                     status.soft_block_number_as_sequencer_height(),
                     status.rollup_start_block_number(),
-                    status.sequencer_start_height(),
+                    status.sequencer_start_block_height(),
                     rollup_stop_block_number,
                 ))
             }
@@ -237,9 +230,9 @@ fn should_restart_or_shutdown(
 #[cfg(test)]
 mod tests {
     use astria_core::generated::astria::execution::v2::{
-        Block,
         CommitmentState,
-        GenesisInfo,
+        ExecutedBlockMetadata,
+        ExecutionSessionParameters,
     };
     use astria_eyre::eyre::WrapErr as _;
     use pbjson_types::Timestamp;
@@ -252,7 +245,7 @@ mod tests {
         config::CommitLevel,
         test_utils::{
             make_commitment_state,
-            make_genesis_info,
+            make_execution_session_parameters,
             make_rollup_state,
         },
         Config,
@@ -279,14 +272,18 @@ mod tests {
         }
     }
 
-    #[test]
-    fn should_restart_despite_error() {
-        let tonic_error: Result<&str, tonic::Status> =
-            Err(tonic::Status::new(tonic::Code::PermissionDenied, "error"));
+    #[track_caller]
+    fn should_restart_despite_error_test(code: tonic::Code) {
+        let tonic_error: Result<&str, tonic::Status> = Err(tonic::Status::new(code, "error"));
         let err = tonic_error.wrap_err("wrapper_1");
         let err = err.wrap_err("wrapper_2");
         let err = err.wrap_err("wrapper_3");
         assert!(super::should_restart_despite_error(&err.unwrap_err()));
+    }
+    #[test]
+    fn should_restart_despite_error() {
+        should_restart_despite_error_test(tonic::Code::PermissionDenied);
+        should_restart_despite_error_test(tonic::Code::OutOfRange);
     }
 
     #[track_caller]
@@ -309,62 +306,30 @@ mod tests {
                 ..make_config()
             },
             &make_rollup_state(
-                GenesisInfo {
-                    sequencer_start_height: 10,
+                "test_execution_session".to_string(),
+                ExecutionSessionParameters {
+                    sequencer_start_block_height: 10,
                     rollup_start_block_number: 10,
-                    rollup_stop_block_number: 99,
-                    halt_at_rollup_stop_number: false,
-                    ..make_genesis_info()
+                    rollup_end_block_number: 99,
+                    ..make_execution_session_parameters()
                 },
                 CommitmentState {
-                    firm: Some(Block {
+                    firm_executed_block_metadata: Some(ExecutedBlockMetadata {
                         number: 99,
-                        hash: vec![0u8; 32].into(),
-                        parent_block_hash: vec![].into(),
+                        hash: hex::encode([0u8; 32]).to_string(),
+                        parent_hash: String::new(),
                         timestamp: Some(Timestamp::default()),
                     }),
-                    soft: Some(Block {
+                    soft_executed_block_metadata: Some(ExecutedBlockMetadata {
                         number: 99,
-                        hash: vec![0u8; 32].into(),
-                        parent_block_hash: vec![].into(),
+                        hash: hex::encode([0u8; 32]).to_string(),
+                        parent_hash: String::new(),
                         timestamp: Some(Timestamp::default()),
                     }),
                     ..make_commitment_state()
                 },
             ),
             &RestartOrShutdown::Restart,
-        );
-
-        assert_restart_or_shutdown(
-            &Config {
-                execution_commit_level: CommitLevel::SoftAndFirm,
-                ..make_config()
-            },
-            &make_rollup_state(
-                GenesisInfo {
-                    sequencer_start_height: 10,
-                    rollup_start_block_number: 10,
-                    rollup_stop_block_number: 99,
-                    halt_at_rollup_stop_number: true,
-                    ..make_genesis_info()
-                },
-                CommitmentState {
-                    firm: Some(Block {
-                        number: 99,
-                        hash: vec![0u8; 32].into(),
-                        parent_block_hash: vec![].into(),
-                        timestamp: Some(Timestamp::default()),
-                    }),
-                    soft: Some(Block {
-                        number: 99,
-                        hash: vec![0u8; 32].into(),
-                        parent_block_hash: vec![].into(),
-                        timestamp: Some(Timestamp::default()),
-                    }),
-                    ..make_commitment_state()
-                },
-            ),
-            &RestartOrShutdown::Shutdown,
         );
     }
 
@@ -376,62 +341,30 @@ mod tests {
                 ..make_config()
             },
             &make_rollup_state(
-                GenesisInfo {
-                    sequencer_start_height: 10,
+                "test_execution_session".to_string(),
+                ExecutionSessionParameters {
+                    sequencer_start_block_height: 10,
                     rollup_start_block_number: 10,
-                    rollup_stop_block_number: 99,
-                    halt_at_rollup_stop_number: false,
-                    ..make_genesis_info()
+                    rollup_end_block_number: 99,
+                    ..make_execution_session_parameters()
                 },
                 CommitmentState {
-                    firm: Some(Block {
+                    firm_executed_block_metadata: Some(ExecutedBlockMetadata {
                         number: 99,
-                        hash: vec![0u8; 32].into(),
-                        parent_block_hash: vec![].into(),
+                        hash: hex::encode([0u8; 32]).to_string(),
+                        parent_hash: String::new(),
                         timestamp: Some(Timestamp::default()),
                     }),
-                    soft: Some(Block {
+                    soft_executed_block_metadata: Some(ExecutedBlockMetadata {
                         number: 99,
-                        hash: vec![0u8; 32].into(),
-                        parent_block_hash: vec![].into(),
+                        hash: hex::encode([0u8; 32]).to_string(),
+                        parent_hash: String::new(),
                         timestamp: Some(Timestamp::default()),
                     }),
                     ..make_commitment_state()
                 },
             ),
             &RestartOrShutdown::Restart,
-        );
-
-        assert_restart_or_shutdown(
-            &Config {
-                execution_commit_level: CommitLevel::SoftOnly,
-                ..make_config()
-            },
-            &make_rollup_state(
-                GenesisInfo {
-                    sequencer_start_height: 10,
-                    rollup_start_block_number: 10,
-                    rollup_stop_block_number: 99,
-                    halt_at_rollup_stop_number: true,
-                    ..make_genesis_info()
-                },
-                CommitmentState {
-                    firm: Some(Block {
-                        number: 99,
-                        hash: vec![0u8; 32].into(),
-                        parent_block_hash: vec![].into(),
-                        timestamp: Some(Timestamp::default()),
-                    }),
-                    soft: Some(Block {
-                        number: 99,
-                        hash: vec![0u8; 32].into(),
-                        parent_block_hash: vec![].into(),
-                        timestamp: Some(Timestamp::default()),
-                    }),
-                    ..make_commitment_state()
-                },
-            ),
-            &RestartOrShutdown::Shutdown,
         );
     }
 }

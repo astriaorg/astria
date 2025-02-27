@@ -1,6 +1,5 @@
 use std::num::NonZeroU64;
 
-use bytes::Bytes;
 use pbjson_types::Timestamp;
 
 use crate::{
@@ -12,39 +11,148 @@ use crate::{
     Protobuf,
 };
 
-// An error when transforming a [`raw::GenesisInfo`] into a [`GenesisInfo`].
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct GenesisInfoError(GenesisInfoErrorKind);
+pub struct ExecutionSessionError(ExecutionSessionErrorKind);
 
-impl GenesisInfoError {
-    fn incorrect_rollup_id_length(inner: IncorrectRollupIdLength) -> Self {
-        Self(GenesisInfoErrorKind::IncorrectRollupIdLength(inner))
+impl ExecutionSessionError {
+    fn execution_session_parameters(inner: ExecutionSessionParametersError) -> Self {
+        Self(ExecutionSessionErrorKind::InvalidExecutionSessionParameters(inner))
     }
 
-    fn no_rollup_id() -> Self {
-        Self(GenesisInfoErrorKind::NoRollupId)
+    fn commitment_state(inner: CommitmentStateError) -> Self {
+        Self(ExecutionSessionErrorKind::InvalidCommitmentState(inner))
     }
 
-    fn invalid_sequencer_id(source: tendermint::Error) -> Self {
-        Self(GenesisInfoErrorKind::InvalidSequencerId(source))
+    fn missing_execution_session_parameters() -> Self {
+        Self(ExecutionSessionErrorKind::MissingExecutionSessionParameters)
     }
 
-    fn invalid_celestia_id(source: celestia_tendermint::Error) -> Self {
-        Self(GenesisInfoErrorKind::InvalidCelestiaId(source))
+    fn missing_commitment_state() -> Self {
+        Self(ExecutionSessionErrorKind::MissingCommitmentState)
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum GenesisInfoErrorKind {
+enum ExecutionSessionErrorKind {
+    #[error("invalid execution session parameters")]
+    InvalidExecutionSessionParameters(#[from] ExecutionSessionParametersError),
+    #[error("invalid commitment state")]
+    InvalidCommitmentState(#[from] CommitmentStateError),
+    #[error("execution session parameters missing")]
+    MissingExecutionSessionParameters,
+    #[error("commitment state missing")]
+    MissingCommitmentState,
+}
+
+/// `ExecutionSession` contains the information needed to drive the full execution
+/// of a rollup chain in the rollup.
+///
+/// The execution session is only valid for the execution config params with
+/// which it was created. Once all blocks within the session have been executed,
+/// the execution client must request a new session. The `session_id` is used to
+/// to track which session is being used.
+#[derive(Debug)]
+pub struct ExecutionSession {
+    /// An ID for the session.
+    session_id: String,
+    /// The configuration for the execution session.
+    execution_session_parameters: ExecutionSessionParameters,
+    /// The commitment state for executing client to start from.
+    commitment_state: CommitmentState,
+}
+
+impl ExecutionSession {
+    #[must_use]
+    pub fn session_id(&self) -> &String {
+        &self.session_id
+    }
+
+    #[must_use]
+    pub fn execution_session_parameters(&self) -> &ExecutionSessionParameters {
+        &self.execution_session_parameters
+    }
+
+    #[must_use]
+    pub fn commitment_state(&self) -> &CommitmentState {
+        &self.commitment_state
+    }
+}
+
+impl Protobuf for ExecutionSession {
+    type Error = ExecutionSessionError;
+    type Raw = raw::ExecutionSession;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let raw::ExecutionSession {
+            session_id,
+            execution_session_parameters,
+            commitment_state,
+        } = raw;
+        let execution_session_parameters = execution_session_parameters
+            .as_ref()
+            .ok_or_else(Self::Error::missing_execution_session_parameters)?;
+        let execution_session_parameters =
+            ExecutionSessionParameters::try_from_raw_ref(execution_session_parameters)
+                .map_err(Self::Error::execution_session_parameters)?;
+        let commitment_state = commitment_state
+            .as_ref()
+            .ok_or_else(Self::Error::missing_commitment_state)?;
+        let commitment_state = CommitmentState::try_from_raw_ref(commitment_state)
+            .map_err(Self::Error::commitment_state)?;
+        Ok(Self {
+            session_id: session_id.clone(),
+            execution_session_parameters,
+            commitment_state,
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let Self {
+            session_id,
+            execution_session_parameters,
+            commitment_state,
+        } = self;
+        let execution_session_parameters = execution_session_parameters.to_raw();
+        let commitment_state = commitment_state.to_raw();
+        Self::Raw {
+            session_id: session_id.clone(),
+            execution_session_parameters: Some(execution_session_parameters),
+            commitment_state: Some(commitment_state),
+        }
+    }
+}
+
+// An error when transforming a [`raw::ExecutionSessionParameters`] into a
+// [`ExecutionSessionParameters`].
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct ExecutionSessionParametersError(ExecutionSessionParametersErrorKind);
+
+impl ExecutionSessionParametersError {
+    fn incorrect_rollup_id_length(inner: IncorrectRollupIdLength) -> Self {
+        Self(ExecutionSessionParametersErrorKind::IncorrectRollupIdLength(inner))
+    }
+
+    fn no_rollup_id() -> Self {
+        Self(ExecutionSessionParametersErrorKind::NoRollupId)
+    }
+
+    fn invalid_sequencer_start_block_height(inner: tendermint::Error) -> Self {
+        Self(ExecutionSessionParametersErrorKind::InvalidSequencerStartBlockHeight(inner))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum ExecutionSessionParametersErrorKind {
     #[error("`rollup_id` field contained an invalid rollup ID")]
     IncorrectRollupIdLength(IncorrectRollupIdLength),
     #[error("`rollup_id` was not set")]
     NoRollupId,
-    #[error("field `sequencer_chain_id` was invalid")]
-    InvalidSequencerId(#[source] tendermint::Error),
-    #[error("field `celestia_chain_id` was invalid")]
-    InvalidCelestiaId(#[source] celestia_tendermint::Error),
+    #[error(
+        "`tendermint::block::Height` could not be constructed from `sequencer_start_block_height`"
+    )]
+    InvalidSequencerStartBlockHeight(#[from] tendermint::Error),
 }
 
 /// Genesis Info required from a rollup to start an execution client.
@@ -52,56 +160,75 @@ enum GenesisInfoErrorKind {
 /// Contains information about the rollup id, and base heights for both sequencer & celestia.
 ///
 /// Usually constructed its [`Protobuf`] implementation from a
-/// [`raw::GenesisInfo`].
+/// [`raw::ExecutionSessionParameters`].
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(
     feature = "serde",
-    serde(into = "crate::generated::astria::execution::v2::GenesisInfo")
+    serde(into = "crate::generated::astria::execution::v2::ExecutionSessionParameters")
 )]
-pub struct GenesisInfo {
-    /// The rollup id which is used to identify the rollup txs.
+pub struct ExecutionSessionParameters {
+    // The rollup_id is the unique identifier for the rollup chain.
     rollup_id: RollupId,
-    /// The Sequencer block height which contains the first block of the rollup.
-    sequencer_start_height: tendermint::block::Height,
-    /// The allowed variance in the block height of celestia when looking for sequencer blocks.
-    celestia_block_variance: u64,
-    /// The rollup block number to map to the sequencer start block height.
+    // The first rollup block number to be executed. This is mapped to
+    // `sequencer_first_block_height`. The minimum first block number is 1, since 0 represents
+    // the genesis block. Implementors should reject a value of 0.
+    //
+    // Servers implementing this API should reject execution of blocks below this
+    // value with an OUT_OF_RANGE error code.
     rollup_start_block_number: u64,
-    /// The rollup block number to restart/halt at after executing.
-    rollup_stop_block_number: Option<NonZeroU64>,
-    /// The chain ID of the sequencer network.
-    sequencer_chain_id: tendermint::chain::Id,
-    /// The chain ID of the celestia network.
-    celestia_chain_id: celestia_tendermint::chain::Id,
-    /// Whether the conductor should halt at the stop height instead of restarting.
-    halt_at_rollup_stop_number: bool,
+    // The final rollup block number to execute as part of a session.
+    //
+    // If not set or set to 0, the execution session does not have an upper bound.
+    //
+    // Servers implementing this API should reject execution of blocks past this
+    // value with an OUT_OF_RANGE error code.
+    rollup_end_block_number: Option<NonZeroU64>,
+    // The ID of the Astria Sequencer network to retrieve Sequencer blocks from.
+    // Conductor implementations should verify that the Sequencer network they are
+    // connected to have this chain ID (if fetching soft Sequencer blocks), and verify
+    // that the Sequencer metadata blobs retrieved from Celestia contain this chain
+    // ID (if extracting firm Sequencer blocks from Celestia blobs).
+    sequencer_chain_id: String,
+    // The first block height on the sequencer chain to use for rollup transactions.
+    // This is mapped to `rollup_start_block_number`.
+    sequencer_start_block_height: tendermint::block::Height,
+    // The ID of the Celestia network to retrieve blobs from.
+    // Conductor implementations should verify that the Celestia network they are
+    // connected to have this chain ID (if extracting firm Sequencer blocks from
+    // Celestia blobs).
+    celestia_chain_id: String,
+    // The maximum number of Celestia blocks which can be read above
+    // `CommitmentState.lowest_celestia_search_height` in search of the next firm
+    // block.
+    celestia_search_height_max_look_ahead: u64,
 }
 
-impl GenesisInfo {
+impl ExecutionSessionParameters {
+    #[must_use]
+    pub fn new(
+        rollup_id: RollupId,
+        rollup_start_block_number: u64,
+        rollup_end_block_number: u64,
+        sequencer_chain_id: String,
+        sequencer_start_block_height: tendermint::block::Height,
+        celestia_chain_id: String,
+        celestia_search_height_max_look_ahead: u64,
+    ) -> Self {
+        Self {
+            rollup_id,
+            rollup_start_block_number,
+            rollup_end_block_number: NonZeroU64::new(rollup_end_block_number),
+            sequencer_chain_id,
+            sequencer_start_block_height,
+            celestia_chain_id,
+            celestia_search_height_max_look_ahead,
+        }
+    }
+
     #[must_use]
     pub fn rollup_id(&self) -> RollupId {
         self.rollup_id
-    }
-
-    #[must_use]
-    pub fn sequencer_start_height(&self) -> u64 {
-        self.sequencer_start_height.into()
-    }
-
-    #[must_use]
-    pub fn celestia_block_variance(&self) -> u64 {
-        self.celestia_block_variance
-    }
-
-    #[must_use]
-    pub fn sequencer_chain_id(&self) -> &str {
-        self.sequencer_chain_id.as_str()
-    }
-
-    #[must_use]
-    pub fn celestia_chain_id(&self) -> &str {
-        self.celestia_chain_id.as_str()
     }
 
     #[must_use]
@@ -110,106 +237,107 @@ impl GenesisInfo {
     }
 
     #[must_use]
-    pub fn rollup_stop_block_number(&self) -> Option<NonZeroU64> {
-        self.rollup_stop_block_number
+    pub fn rollup_end_block_number(&self) -> Option<NonZeroU64> {
+        self.rollup_end_block_number
     }
 
     #[must_use]
-    pub fn halt_at_rollup_stop_number(&self) -> bool {
-        self.halt_at_rollup_stop_number
+    pub fn sequencer_start_block_height(&self) -> u64 {
+        self.sequencer_start_block_height.into()
+    }
+
+    #[must_use]
+    pub fn sequencer_chain_id(&self) -> &String {
+        &self.sequencer_chain_id
+    }
+
+    #[must_use]
+    pub fn celestia_chain_id(&self) -> &String {
+        &self.celestia_chain_id
+    }
+
+    #[must_use]
+    pub fn celestia_search_height_max_look_ahead(&self) -> u64 {
+        self.celestia_search_height_max_look_ahead
     }
 }
 
-impl From<GenesisInfo> for raw::GenesisInfo {
-    fn from(value: GenesisInfo) -> Self {
+impl From<ExecutionSessionParameters> for raw::ExecutionSessionParameters {
+    fn from(value: ExecutionSessionParameters) -> Self {
         value.to_raw()
     }
 }
 
-impl Protobuf for GenesisInfo {
-    type Error = GenesisInfoError;
-    type Raw = raw::GenesisInfo;
+impl Protobuf for ExecutionSessionParameters {
+    type Error = ExecutionSessionParametersError;
+    type Raw = raw::ExecutionSessionParameters;
 
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
-        let raw::GenesisInfo {
+        let raw::ExecutionSessionParameters {
             rollup_id,
-            sequencer_start_height,
-            celestia_block_variance,
             rollup_start_block_number,
-            rollup_stop_block_number,
+            rollup_end_block_number,
             sequencer_chain_id,
+            sequencer_start_block_height,
             celestia_chain_id,
-            halt_at_rollup_stop_number,
+            celestia_search_height_max_look_ahead,
         } = raw;
         let Some(rollup_id) = rollup_id else {
             return Err(Self::Error::no_rollup_id());
         };
         let rollup_id = RollupId::try_from_raw_ref(rollup_id)
             .map_err(Self::Error::incorrect_rollup_id_length)?;
-        let sequencer_chain_id = sequencer_chain_id
-            .clone()
-            .try_into()
-            .map_err(Self::Error::invalid_sequencer_id)?;
-        let celestia_chain_id = celestia_chain_id
-            .clone()
-            .try_into()
-            .map_err(Self::Error::invalid_celestia_id)?;
+        let sequencer_start_block_height =
+            tendermint::block::Height::try_from(*sequencer_start_block_height)
+                .map_err(Self::Error::invalid_sequencer_start_block_height)?;
 
         Ok(Self {
             rollup_id,
-            sequencer_start_height: (*sequencer_start_height).into(),
-            celestia_block_variance: *celestia_block_variance,
             rollup_start_block_number: *rollup_start_block_number,
-            rollup_stop_block_number: NonZeroU64::new(*rollup_stop_block_number),
-            sequencer_chain_id,
-            celestia_chain_id,
-            halt_at_rollup_stop_number: *halt_at_rollup_stop_number,
+            rollup_end_block_number: NonZeroU64::new(*rollup_end_block_number),
+            sequencer_chain_id: sequencer_chain_id.clone(),
+            sequencer_start_block_height,
+            celestia_chain_id: celestia_chain_id.clone(),
+            celestia_search_height_max_look_ahead: *celestia_search_height_max_look_ahead,
         })
     }
 
     fn to_raw(&self) -> Self::Raw {
         let Self {
             rollup_id,
-            sequencer_start_height,
-            celestia_block_variance,
             rollup_start_block_number,
-            rollup_stop_block_number,
+            rollup_end_block_number,
             sequencer_chain_id,
+            sequencer_start_block_height,
             celestia_chain_id,
-            halt_at_rollup_stop_number,
+            celestia_search_height_max_look_ahead,
         } = self;
-
-        let sequencer_start_height: u32 = (*sequencer_start_height).value().try_into().expect(
-            "block height overflow, this should not happen since tendermint heights are i64 under \
-             the hood",
-        );
 
         Self::Raw {
             rollup_id: Some(rollup_id.to_raw()),
-            sequencer_start_height,
-            celestia_block_variance: *celestia_block_variance,
             rollup_start_block_number: *rollup_start_block_number,
-            rollup_stop_block_number: rollup_stop_block_number.map(NonZeroU64::get).unwrap_or(0),
-            sequencer_chain_id: sequencer_chain_id.to_string(),
-            celestia_chain_id: celestia_chain_id.to_string(),
-            halt_at_rollup_stop_number: *halt_at_rollup_stop_number,
+            rollup_end_block_number: rollup_end_block_number.map(NonZeroU64::get).unwrap_or(0),
+            sequencer_chain_id: sequencer_chain_id.clone(),
+            sequencer_start_block_height: sequencer_start_block_height.value(),
+            celestia_chain_id: celestia_chain_id.clone(),
+            celestia_search_height_max_look_ahead: *celestia_search_height_max_look_ahead,
         }
     }
 }
 
-/// An error when transforming a [`raw::Block`] into a [`Block`].
+/// An error when transforming a [`raw::ExecutedBlockMetadata`] into a [`ExecutedBlockMetadata`].
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct BlockError(BlockErrorKind);
+pub struct ExecutedBlockMetadataError(ExecutedBlockMetadataErrorKind);
 
-impl BlockError {
+impl ExecutedBlockMetadataError {
     fn field_not_set(field: &'static str) -> Self {
-        Self(BlockErrorKind::FieldNotSet(field))
+        Self(ExecutedBlockMetadataErrorKind::FieldNotSet(field))
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum BlockErrorKind {
+enum ExecutedBlockMetadataErrorKind {
     #[error("{0} field not set")]
     FieldNotSet(&'static str),
 }
@@ -220,38 +348,39 @@ enum BlockErrorKind {
 /// its parent block's hash, and timestamp.
 ///
 /// Usually constructed its [`Protobuf`] implementation from a
-/// [`raw::Block`].
+/// [`raw::ExecutedBlockMetadata`].
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(
     feature = "serde",
-    serde(into = "crate::generated::astria::execution::v2::Block")
+    serde(into = "crate::generated::astria::execution::v2::ExecutedBlockMetadata")
 )]
-pub struct Block {
+pub struct ExecutedBlockMetadata {
     /// The block number
-    number: u32,
+    number: u64,
     /// The hash of the block
-    hash: Bytes,
+    hash: String,
     /// The hash of the parent block
-    parent_block_hash: Bytes,
-    /// Timestamp on the block, standardized to google protobuf standard.
+    parent_hash: String,
+    /// Timestamp of the block, taken from the sequencer block that this rollup block
+    /// was constructed from.
     timestamp: Timestamp,
 }
 
-impl Block {
+impl ExecutedBlockMetadata {
     #[must_use]
-    pub fn number(&self) -> u32 {
+    pub fn number(&self) -> u64 {
         self.number
     }
 
     #[must_use]
-    pub fn hash(&self) -> &Bytes {
+    pub fn hash(&self) -> &str {
         &self.hash
     }
 
     #[must_use]
-    pub fn parent_block_hash(&self) -> &Bytes {
-        &self.parent_block_hash
+    pub fn parent_hash(&self) -> &str {
+        &self.parent_hash
     }
 
     #[must_use]
@@ -262,21 +391,21 @@ impl Block {
     }
 }
 
-impl From<Block> for raw::Block {
-    fn from(value: Block) -> Self {
+impl From<ExecutedBlockMetadata> for raw::ExecutedBlockMetadata {
+    fn from(value: ExecutedBlockMetadata) -> Self {
         value.to_raw()
     }
 }
 
-impl Protobuf for Block {
-    type Error = BlockError;
-    type Raw = raw::Block;
+impl Protobuf for ExecutedBlockMetadata {
+    type Error = ExecutedBlockMetadataError;
+    type Raw = raw::ExecutedBlockMetadata;
 
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
-        let raw::Block {
+        let raw::ExecutedBlockMetadata {
             number,
             hash,
-            parent_block_hash,
+            parent_hash,
             timestamp,
         } = raw;
         // Cloning timestamp is effectively a copy because timestamp is just a (i32, i64) tuple
@@ -287,7 +416,7 @@ impl Protobuf for Block {
         Ok(Self {
             number: *number,
             hash: hash.clone(),
-            parent_block_hash: parent_block_hash.clone(),
+            parent_hash: parent_hash.clone(),
             timestamp,
         })
     }
@@ -296,13 +425,13 @@ impl Protobuf for Block {
         let Self {
             number,
             hash,
-            parent_block_hash,
+            parent_hash,
             timestamp,
         } = self;
         Self::Raw {
             number: *number,
             hash: hash.clone(),
-            parent_block_hash: parent_block_hash.clone(),
+            parent_hash: parent_hash.clone(),
             // Cloning timestamp is effectively a copy because timestamp is just a (i32, i64)
             // tuple
             timestamp: Some(timestamp.clone()),
@@ -319,11 +448,11 @@ impl CommitmentStateError {
         Self(CommitmentStateErrorKind::FieldNotSet(field))
     }
 
-    fn firm(source: BlockError) -> Self {
+    fn firm(source: ExecutedBlockMetadataError) -> Self {
         Self(CommitmentStateErrorKind::Firm(source))
     }
 
-    fn soft(source: BlockError) -> Self {
+    fn soft(source: ExecutedBlockMetadataError) -> Self {
         Self(CommitmentStateErrorKind::Soft(source))
     }
 
@@ -336,10 +465,10 @@ impl CommitmentStateError {
 enum CommitmentStateErrorKind {
     #[error("{0} field not set")]
     FieldNotSet(&'static str),
-    #[error(".firm field did not contain a valid block")]
-    Firm(#[source] BlockError),
-    #[error(".soft field did not contain a valid block")]
-    Soft(#[source] BlockError),
+    #[error(".firm field did not contain valid executed block metadata")]
+    Firm(#[source] ExecutedBlockMetadataError),
+    #[error(".soft field did not contain valid executed block metadata")]
+    Soft(#[source] ExecutedBlockMetadataError),
     #[error(transparent)]
     FirmExceedsSoft(FirmExceedsSoft),
 }
@@ -347,110 +476,120 @@ enum CommitmentStateErrorKind {
 #[derive(Debug, thiserror::Error)]
 #[error("firm commitment at `{firm} exceeds soft commitment at `{soft}")]
 pub struct FirmExceedsSoft {
-    firm: u32,
-    soft: u32,
+    firm: u64,
+    soft: u64,
 }
 
 pub struct NoFirm;
 pub struct NoSoft;
 pub struct NoBaseCelestiaHeight;
-pub struct WithFirm(Block);
-pub struct WithSoft(Block);
-pub struct WithCelestiaBaseHeight(u64);
+pub struct WithFirm(ExecutedBlockMetadata);
+pub struct WithSoft(ExecutedBlockMetadata);
+pub struct WithLowestCelestiaSearchHeight(u64);
 #[derive(Default)]
 pub struct CommitmentStateBuilder<
     TFirm = NoFirm,
     TSoft = NoSoft,
     TBaseCelestiaHeight = NoBaseCelestiaHeight,
 > {
-    firm: TFirm,
-    soft: TSoft,
-    base_celestia_height: TBaseCelestiaHeight,
+    firm_executed_block_metadata: TFirm,
+    soft_executed_block_metadata: TSoft,
+    lowest_celestia_search_height: TBaseCelestiaHeight,
 }
 
 impl CommitmentStateBuilder<NoFirm, NoSoft, NoBaseCelestiaHeight> {
     fn new() -> Self {
         Self {
-            firm: NoFirm,
-            soft: NoSoft,
-            base_celestia_height: NoBaseCelestiaHeight,
+            firm_executed_block_metadata: NoFirm,
+            soft_executed_block_metadata: NoSoft,
+            lowest_celestia_search_height: NoBaseCelestiaHeight,
         }
     }
 }
 
 impl<TFirm, TSoft, TCelestiaBaseHeight> CommitmentStateBuilder<TFirm, TSoft, TCelestiaBaseHeight> {
-    pub fn firm(self, firm: Block) -> CommitmentStateBuilder<WithFirm, TSoft, TCelestiaBaseHeight> {
-        let Self {
-            soft,
-            base_celestia_height,
-            ..
-        } = self;
-        CommitmentStateBuilder {
-            firm: WithFirm(firm),
-            soft,
-            base_celestia_height,
-        }
-    }
-
-    pub fn soft(self, soft: Block) -> CommitmentStateBuilder<TFirm, WithSoft, TCelestiaBaseHeight> {
-        let Self {
-            firm,
-            base_celestia_height,
-            ..
-        } = self;
-        CommitmentStateBuilder {
-            firm,
-            soft: WithSoft(soft),
-            base_celestia_height,
-        }
-    }
-
-    pub fn base_celestia_height(
+    pub fn firm_executed_block_metadata(
         self,
-        base_celestia_height: u64,
-    ) -> CommitmentStateBuilder<TFirm, TSoft, WithCelestiaBaseHeight> {
+        firm_executed_block_metadata: ExecutedBlockMetadata,
+    ) -> CommitmentStateBuilder<WithFirm, TSoft, TCelestiaBaseHeight> {
         let Self {
-            firm,
-            soft,
+            soft_executed_block_metadata,
+            lowest_celestia_search_height,
             ..
         } = self;
         CommitmentStateBuilder {
-            firm,
-            soft,
-            base_celestia_height: WithCelestiaBaseHeight(base_celestia_height),
+            firm_executed_block_metadata: WithFirm(firm_executed_block_metadata),
+            soft_executed_block_metadata,
+            lowest_celestia_search_height,
+        }
+    }
+
+    pub fn soft_executed_block_metadata(
+        self,
+        soft_executed_block_metadata: ExecutedBlockMetadata,
+    ) -> CommitmentStateBuilder<TFirm, WithSoft, TCelestiaBaseHeight> {
+        let Self {
+            firm_executed_block_metadata,
+            lowest_celestia_search_height,
+            ..
+        } = self;
+        CommitmentStateBuilder {
+            firm_executed_block_metadata,
+            soft_executed_block_metadata: WithSoft(soft_executed_block_metadata),
+            lowest_celestia_search_height,
+        }
+    }
+
+    pub fn lowest_celestia_search_height(
+        self,
+        lowest_celestia_search_height: u64,
+    ) -> CommitmentStateBuilder<TFirm, TSoft, WithLowestCelestiaSearchHeight> {
+        let Self {
+            firm_executed_block_metadata,
+            soft_executed_block_metadata,
+            ..
+        } = self;
+        CommitmentStateBuilder {
+            firm_executed_block_metadata,
+            soft_executed_block_metadata,
+            lowest_celestia_search_height: WithLowestCelestiaSearchHeight(
+                lowest_celestia_search_height,
+            ),
         }
     }
 }
 
-impl CommitmentStateBuilder<WithFirm, WithSoft, WithCelestiaBaseHeight> {
+impl CommitmentStateBuilder<WithFirm, WithSoft, WithLowestCelestiaSearchHeight> {
     /// Finalize the commitment state.
     ///
     /// # Errors
     /// Returns an error if the firm block exceeds the soft one.
     pub fn build(self) -> Result<CommitmentState, FirmExceedsSoft> {
         let Self {
-            firm: WithFirm(firm),
-            soft: WithSoft(soft),
-            base_celestia_height: WithCelestiaBaseHeight(base_celestia_height),
+            firm_executed_block_metadata: WithFirm(firm_executed_block_metadata),
+            soft_executed_block_metadata: WithSoft(soft_executed_block_metadata),
+            lowest_celestia_search_height:
+                WithLowestCelestiaSearchHeight(lowest_celestia_search_height),
         } = self;
-        if firm.number() > soft.number() {
+        if firm_executed_block_metadata.number() > soft_executed_block_metadata.number() {
             return Err(FirmExceedsSoft {
-                firm: firm.number(),
-                soft: soft.number(),
+                firm: firm_executed_block_metadata.number(),
+                soft: soft_executed_block_metadata.number(),
             });
         }
         Ok(CommitmentState {
-            soft,
-            firm,
-            base_celestia_height,
+            soft_executed_block_metadata,
+            firm_executed_block_metadata,
+            lowest_celestia_search_height,
         })
     }
 }
 
-/// Information about the [`Block`] at each sequencer commitment level.
+/// The `CommitmentState` holds the block at each stage of sequencer commitment
+/// level
 ///
-/// A commitment state is valid if:
-/// - Block numbers are such that soft >= firm (upheld by this type).
+/// A Valid `CommitmentState`:
+/// - Block numbers are such that soft >= firm.
 /// - No blocks ever decrease in block number.
 /// - The chain defined by soft is the head of the canonical chain the firm block must belong to.
 #[derive(Clone, Debug, PartialEq)]
@@ -460,13 +599,16 @@ impl CommitmentStateBuilder<WithFirm, WithSoft, WithCelestiaBaseHeight> {
     serde(into = "crate::generated::astria::execution::v2::CommitmentState")
 )]
 pub struct CommitmentState {
-    /// Soft commitment is the rollup block matching latest sequencer block.
-    soft: Block,
-    /// Firm commitment is achieved when data has been seen in DA.
-    firm: Block,
-    /// The base height of celestia from which to search for blocks after this
-    /// commitment state.
-    base_celestia_height: u64,
+    /// Soft committed block metadata derived directly from an Astria sequencer block.
+    soft_executed_block_metadata: ExecutedBlockMetadata,
+    /// Firm committed block metadata derived from a Sequencer block that has been
+    /// written to the data availability layer (Celestia).
+    firm_executed_block_metadata: ExecutedBlockMetadata,
+    /// The lowest Celestia height that will be searched for the next firm block.
+    /// This information is stored as part of `CommitmentState` so that it will be
+    /// routinely updated as new firm blocks are received, and so that the execution
+    /// client will not need to search from Celestia genesis.
+    lowest_celestia_search_height: u64,
 }
 
 impl CommitmentState {
@@ -476,17 +618,18 @@ impl CommitmentState {
     }
 
     #[must_use]
-    pub fn firm(&self) -> &Block {
-        &self.firm
+    pub fn firm(&self) -> &ExecutedBlockMetadata {
+        &self.firm_executed_block_metadata
     }
 
     #[must_use]
-    pub fn soft(&self) -> &Block {
-        &self.soft
+    pub fn soft(&self) -> &ExecutedBlockMetadata {
+        &self.soft_executed_block_metadata
     }
 
-    pub fn base_celestia_height(&self) -> u64 {
-        self.base_celestia_height
+    #[must_use]
+    pub fn lowest_celestia_search_height(&self) -> u64 {
+        self.lowest_celestia_search_height
     }
 }
 
@@ -502,44 +645,44 @@ impl Protobuf for CommitmentState {
 
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let Self::Raw {
-            soft,
-            firm,
-            base_celestia_height,
+            soft_executed_block_metadata,
+            firm_executed_block_metadata,
+            lowest_celestia_search_height,
         } = raw;
-        let soft = 'soft: {
-            let Some(soft) = soft else {
+        let soft_executed_block_metadata = 'soft: {
+            let Some(soft) = soft_executed_block_metadata else {
                 break 'soft Err(Self::Error::field_not_set(".soft"));
             };
-            Block::try_from_raw_ref(soft).map_err(Self::Error::soft)
+            ExecutedBlockMetadata::try_from_raw_ref(soft).map_err(Self::Error::soft)
         }?;
-        let firm = 'firm: {
-            let Some(firm) = firm else {
+        let firm_executed_block_metadata = 'firm: {
+            let Some(firm) = firm_executed_block_metadata else {
                 break 'firm Err(Self::Error::field_not_set(".firm"));
             };
-            Block::try_from_raw_ref(firm).map_err(Self::Error::firm)
+            ExecutedBlockMetadata::try_from_raw_ref(firm).map_err(Self::Error::firm)
         }?;
 
         Self::builder()
-            .firm(firm)
-            .soft(soft)
-            .base_celestia_height(*base_celestia_height)
+            .firm_executed_block_metadata(firm_executed_block_metadata)
+            .soft_executed_block_metadata(soft_executed_block_metadata)
+            .lowest_celestia_search_height(*lowest_celestia_search_height)
             .build()
             .map_err(Self::Error::firm_exceeds_soft)
     }
 
     fn to_raw(&self) -> Self::Raw {
         let Self {
-            soft,
-            firm,
-            base_celestia_height,
+            soft_executed_block_metadata,
+            firm_executed_block_metadata,
+            lowest_celestia_search_height,
         } = self;
-        let soft = soft.to_raw();
-        let firm = firm.to_raw();
-        let base_celestia_height = *base_celestia_height;
+        let soft_executed_block_metadata = soft_executed_block_metadata.to_raw();
+        let firm_executed_block_metadata = firm_executed_block_metadata.to_raw();
+        let lowest_celestia_search_height = *lowest_celestia_search_height;
         Self::Raw {
-            soft: Some(soft),
-            firm: Some(firm),
-            base_celestia_height,
+            soft_executed_block_metadata: Some(soft_executed_block_metadata),
+            firm_executed_block_metadata: Some(firm_executed_block_metadata),
+            lowest_celestia_search_height,
         }
     }
 }

@@ -5,8 +5,8 @@ use std::{
 
 use astria_core::{
     execution::v2::{
-        Block,
         CommitmentState,
+        ExecutedBlockMetadata,
     },
     primitive::v1::RollupId,
     sequencerblock::v1::block::{
@@ -194,30 +194,18 @@ impl Executor {
 
     #[instrument(skip_all, err, ret(Display))]
     async fn create_initial_node_state(&self) -> eyre::Result<StateSender> {
-        let genesis_info = {
-            async {
-                self.client
-                    .clone()
-                    .get_genesis_info_with_retry()
-                    .await
-                    .wrap_err("failed getting genesis info")
-            }
-        };
-        let commitment_state = {
-            async {
-                self.client
-                    .clone()
-                    .get_commitment_state_with_retry()
-                    .await
-                    .wrap_err("failed getting commitment state")
-            }
-        };
-        let (genesis_info, commitment_state) = tokio::try_join!(genesis_info, commitment_state)?;
+        let execution_session = self
+            .client
+            .clone()
+            .create_execution_session_with_retry()
+            .await
+            .wrap_err("failed getting genesis info")?;
 
         let (state, _) = state::channel(
-            State::try_from_genesis_info_and_commitment_state(
-                genesis_info,
-                commitment_state,
+            State::try_from_execution_session_parameters_and_commitment_state(
+                execution_session.session_id().clone(),
+                execution_session.execution_session_parameters().clone(),
+                execution_session.commitment_state().clone(),
                 self.config.execution_commit_level,
             )
             .wrap_err(
@@ -258,7 +246,7 @@ struct Initialized {
     ///
     /// Required to mark firm blocks received from celestia as executed
     /// without re-executing on top of the rollup node.
-    blocks_pending_finalization: HashMap<u32, Block>,
+    blocks_pending_finalization: HashMap<u64, ExecutedBlockMetadata>,
 
     metrics: &'static Metrics,
 
@@ -374,28 +362,29 @@ impl Initialized {
             std::cmp::Ordering::Equal => {}
         }
 
-        let sequencer_start_height = self.state.sequencer_start_height();
+        let sequencer_start_block_height = self.state.sequencer_start_block_height();
         let rollup_start_block_number = self.state.rollup_start_block_number();
         let current_block_height = executable_block.height;
         let Some(block_number) = state::map_sequencer_height_to_rollup_height(
-            sequencer_start_height,
+            sequencer_start_block_height,
             rollup_start_block_number,
             current_block_height,
         ) else {
             bail!(
-                "failed to map block height rollup number. This means the operation
-                `sequencer_height - sequencer_start_height + rollup_start_block_number` \
+                "failed to map block height to rollup number. This means the operation
+                `sequencer_height - sequencer_start_block_height + rollup_start_block_number` \
                  underflowed or was not a valid cometbft height. Sequencer height: \
                  `{current_block_height}`,
-                 sequencer start height: `{sequencer_start_height}`,
-                 rollup start height: `{rollup_start_block_number}`"
+                 sequencer start height: `{sequencer_start_block_height}`,
+                 rollup start number: `{rollup_start_block_number}`"
             )
         };
 
         // The parent hash of the next block is the hash of the block at the current head.
         let parent_hash = self.state.soft_hash();
+        let session_id = self.state.execution_session_id();
         let executed_block = self
-            .execute_block(parent_hash, executable_block)
+            .execute_block(session_id, parent_hash, executable_block)
             .await
             .wrap_err("failed to execute block")?;
 
@@ -432,27 +421,28 @@ impl Initialized {
             "expected block at sequencer height {expected_height}, but got {block_height}",
         );
 
-        let sequencer_start_height = self.state.sequencer_start_height();
+        let sequencer_start_block_height = self.state.sequencer_start_block_height();
         let rollup_start_block_number = self.state.rollup_start_block_number();
         let Some(block_number) = state::map_sequencer_height_to_rollup_height(
-            sequencer_start_height,
+            sequencer_start_block_height,
             rollup_start_block_number,
             block_height,
         ) else {
             bail!(
-                "failed to map block height rollup number. This means the operation
-                `sequencer_height - sequencer_start_height + rollup_start_block_number` \
+                "failed to map block height to rollup number. This means the operation
+                `sequencer_height - sequencer_start_block_height + rollup_start_block_number` \
                  underflowed or was not a valid cometbft height. Sequencer block height: \
                  `{block_height}`,
-                 sequencer start height: `{sequencer_start_height}`,
-                 rollup start height: `{rollup_start_block_number}`"
+                 sequencer start height: `{sequencer_start_block_height}`,
+                 rollup start number: `{rollup_start_block_number}`"
             )
         };
 
         let update = if self.should_execute_firm_block() {
             let parent_hash = self.state.firm_hash();
+            let session_id = self.state.execution_session_id();
             let executed_block = self
-                .execute_block(parent_hash, executable_block)
+                .execute_block(session_id, parent_hash, executable_block)
                 .await
                 .wrap_err("failed to execute block")?;
             self.does_block_response_fulfill_contract(ExecutionKind::Firm, &executed_block)
@@ -511,9 +501,10 @@ impl Initialized {
     ))]
     async fn execute_block(
         &mut self,
-        parent_hash: Bytes,
+        session_id: String,
+        parent_hash: String,
         block: ExecutableBlock,
-    ) -> eyre::Result<Block> {
+    ) -> eyre::Result<ExecutedBlockMetadata> {
         let ExecutableBlock {
             transactions,
             timestamp,
@@ -522,9 +513,9 @@ impl Initialized {
 
         let n_transactions = transactions.len();
 
-        let executed_block = self
+        let executed_block_metadata = self
             .client
-            .execute_block_with_retry(parent_hash, transactions, timestamp)
+            .execute_block_with_retry(session_id, parent_hash, transactions, timestamp)
             .await
             .wrap_err("failed to run execute_block RPC")?;
 
@@ -532,12 +523,12 @@ impl Initialized {
             .record_transactions_per_executed_block(n_transactions);
 
         info!(
-            executed_block.hash = %telemetry::display::base64(&executed_block.hash()),
-            executed_block.number = executed_block.number(),
+            executed_block_metadata.hash = %telemetry::display::base64(&executed_block_metadata.hash()),
+            executed_block_metadata.number = executed_block_metadata.number(),
             "executed block",
         );
 
-        Ok(executed_block)
+        Ok(executed_block_metadata)
     }
 
     #[instrument(skip_all, err)]
@@ -559,7 +550,7 @@ impl Initialized {
             OnlySoft(soft) => (
                 self.state.firm(),
                 soft,
-                self.state.celestia_base_block_height(),
+                self.state.lowest_celestia_search_height(),
                 CommitLevel::SoftOnly,
             ),
             ToSame(block, celestia_height) => (
@@ -570,14 +561,15 @@ impl Initialized {
             ),
         };
         let commitment_state = CommitmentState::builder()
-            .firm(firm)
-            .soft(soft)
-            .base_celestia_height(celestia_height)
+            .firm_executed_block_metadata(firm)
+            .soft_executed_block_metadata(soft)
+            .lowest_celestia_search_height(celestia_height)
             .build()
             .wrap_err("failed constructing commitment state")?;
+        let session_id = self.state.execution_session_id();
         let new_state = self
             .client
-            .update_commitment_state_with_retry(commitment_state)
+            .update_commitment_state_with_retry(session_id, commitment_state)
             .await
             .wrap_err("failed updating remote commitment state")?;
         info!(
@@ -596,9 +588,9 @@ impl Initialized {
     fn does_block_response_fulfill_contract(
         &mut self,
         kind: ExecutionKind,
-        block: &Block,
+        block_metadata: &ExecutedBlockMetadata,
     ) -> Result<(), ContractViolation> {
-        does_block_response_fulfill_contract(&mut self.state, kind, block)
+        does_block_response_fulfill_contract(&mut self.state, kind, block_metadata)
     }
 
     /// Returns whether a firm block should be executed.
@@ -623,7 +615,7 @@ impl Initialized {
         match task {
             ReaderKind::Firm if self.config.is_with_firm() => {
                 match (
-                    self.state.rollup_stop_block_number().is_some(),
+                    self.state.rollup_end_block_number().is_some(),
                     self.state.has_firm_number_reached_stop_height(),
                 ) {
                     (true, true) => {
@@ -658,7 +650,7 @@ impl Initialized {
 
             ReaderKind::Soft if self.config.is_with_soft() => {
                 match (
-                    self.state.rollup_stop_block_number().is_some(),
+                    self.state.rollup_end_block_number().is_some(),
                     self.state.has_soft_number_reached_stop_height(),
                 ) {
                     (true, true) => {
@@ -719,9 +711,9 @@ impl Initialized {
 }
 
 enum Update {
-    OnlyFirm(Block, CelestiaHeight),
-    OnlySoft(Block),
-    ToSame(Block, CelestiaHeight),
+    OnlyFirm(ExecutedBlockMetadata, CelestiaHeight),
+    OnlySoft(ExecutedBlockMetadata),
+    ToSame(ExecutedBlockMetadata, CelestiaHeight),
 }
 
 #[derive(Debug)]
@@ -807,24 +799,24 @@ enum ContractViolation {
     )]
     WrongBlock {
         kind: ExecutionKind,
-        current: u32,
-        expected: u32,
-        actual: u32,
+        current: u64,
+        expected: u64,
+        actual: u64,
     },
     #[error("contract violated: current height cannot be incremented")]
-    CurrentBlockNumberIsMax { kind: ExecutionKind, actual: u32 },
+    CurrentBlockNumberIsMax { kind: ExecutionKind, actual: u64 },
 }
 
 fn does_block_response_fulfill_contract(
     state: &mut StateSender,
     kind: ExecutionKind,
-    block: &Block,
+    block_metadata: &ExecutedBlockMetadata,
 ) -> Result<(), ContractViolation> {
     let current = match kind {
         ExecutionKind::Firm => state.firm_number(),
         ExecutionKind::Soft => state.soft_number(),
     };
-    let actual = block.number();
+    let actual = block_metadata.number();
     let expected = current
         .checked_add(1)
         .ok_or(ContractViolation::CurrentBlockNumberIsMax {

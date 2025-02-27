@@ -1,14 +1,13 @@
 use astria_core::{
     self,
     execution::v2::{
-        Block,
         CommitmentState,
-        GenesisInfo,
+        ExecutedBlockMetadata,
+        ExecutionSessionParameters,
     },
     generated::astria::execution::v2 as raw,
     Protobuf as _,
 };
-use bytes::Bytes;
 
 use super::{
     should_execute_firm_block,
@@ -20,14 +19,14 @@ use super::{
 };
 use crate::{
     config::CommitLevel,
-    test_utils::make_genesis_info,
+    test_utils::make_execution_session_parameters,
 };
 
-fn make_block(number: u32) -> raw::Block {
-    raw::Block {
+fn make_block_metadata(number: u64) -> raw::ExecutedBlockMetadata {
+    raw::ExecutedBlockMetadata {
         number,
-        hash: Bytes::from_static(&[0u8; 32]),
-        parent_block_hash: Bytes::from_static(&[0u8; 32]),
+        hash: hex::encode([0u8; 32]).to_string(),
+        parent_hash: hex::encode([0u8; 32]).to_string(),
         timestamp: Some(pbjson_types::Timestamp {
             seconds: 0,
             nanos: 0,
@@ -36,8 +35,8 @@ fn make_block(number: u32) -> raw::Block {
 }
 
 struct MakeState {
-    firm: u32,
-    soft: u32,
+    firm: u64,
+    soft: u64,
 }
 
 fn make_state(
@@ -46,15 +45,17 @@ fn make_state(
         soft,
     }: MakeState,
 ) -> (StateSender, StateReceiver) {
-    let genesis_info = GenesisInfo::try_from_raw(make_genesis_info()).unwrap();
+    let execution_session_parameters =
+        ExecutionSessionParameters::try_from_raw(make_execution_session_parameters()).unwrap();
     let commitment_state = CommitmentState::try_from_raw(raw::CommitmentState {
-        firm: Some(make_block(firm)),
-        soft: Some(make_block(soft)),
-        base_celestia_height: 1,
+        firm_executed_block_metadata: Some(make_block_metadata(firm)),
+        soft_executed_block_metadata: Some(make_block_metadata(soft)),
+        lowest_celestia_search_height: 1,
     })
     .unwrap();
-    let state = State::try_from_genesis_info_and_commitment_state(
-        genesis_info,
+    let state = State::try_from_execution_session_parameters_and_commitment_state(
+        "test_execution_session".to_string(),
+        execution_session_parameters,
         commitment_state,
         crate::config::CommitLevel::SoftAndFirm,
     )
@@ -63,18 +64,18 @@ fn make_state(
 }
 
 #[track_caller]
-fn assert_contract_fulfilled(kind: super::ExecutionKind, state: MakeState, number: u32) {
-    let block = Block::try_from_raw(make_block(number)).unwrap();
+fn assert_contract_fulfilled(kind: super::ExecutionKind, state: MakeState, number: u64) {
+    let block_metadata = ExecutedBlockMetadata::try_from_raw(make_block_metadata(number)).unwrap();
     let mut state = make_state(state);
-    super::does_block_response_fulfill_contract(&mut state.0, kind, &block)
+    super::does_block_response_fulfill_contract(&mut state.0, kind, &block_metadata)
         .expect("number stored in response block must be one more than in tracked state");
 }
 
 #[track_caller]
-fn assert_contract_violated(kind: super::ExecutionKind, state: MakeState, number: u32) {
-    let block = Block::try_from_raw(make_block(number)).unwrap();
+fn assert_contract_violated(kind: super::ExecutionKind, state: MakeState, number: u64) {
+    let block_metadata = ExecutedBlockMetadata::try_from_raw(make_block_metadata(number)).unwrap();
     let mut state = make_state(state);
-    super::does_block_response_fulfill_contract(&mut state.0, kind, &block).expect_err(
+    super::does_block_response_fulfill_contract(&mut state.0, kind, &block_metadata).expect_err(
         "number stored in response block must not be one more than in tracked
 state",
     );
