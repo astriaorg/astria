@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package astria.sequencerblock.optimistic.v1alpha1;
+
+import "astria/sequencerblock/optimistic/v1alpha1/sequencer_block_commit.proto";
+
+message GetBlockCommitmentStreamResponse {
+  SequencerBlockCommit commitment = 1;
+}

@@ -46,7 +46,7 @@ modules:
       disallow_comment_ignores: true
     breaking:
       use:
-        - FILE
+        - PACKAGE
       ignore_unstable_packages: true
   - path: proto/protocolapis
     name: buf.build/astria/protocol-apis
@@ -65,7 +65,7 @@ modules:
       disallow_comment_ignores: true
     breaking:
       use:
-        - WIRE_JSON
+        - PACKAGE
       ignore_unstable_packages: true
   - path: proto/sequencerblockapis
     name: buf.build/astria/sequencerblock-apis
@@ -81,7 +81,7 @@ modules:
       disallow_comment_ignores: true
     breaking:
       use:
-        - WIRE_JSON
+        - PACKAGE
       ignore_unstable_packages: true
   - path: proto/vendored
     name: buf.build/astria/vendored
