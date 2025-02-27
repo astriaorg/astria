@@ -3,6 +3,7 @@ use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
         ensure,
+        OptionExt as _,
         Result,
         WrapErr as _,
     },
@@ -96,10 +97,11 @@ impl ActionHandler for action::RecoverClient {
                 .wrap_err("failed to get revision number")?,
         };
         let substitute_consensus_state = state
-            .get_verified_consensus_state(&height, &self.substitute_client_id)
+            .prev_verified_consensus_state(&self.substitute_client_id, &height)
             .await
             .map_err(anyhow_to_eyre)
-            .wrap_err("substitute client consensus state not found")?;
+            .wrap_err("failed to get substitute client consensus state")?
+            .ok_or_eyre("substitute client consensus state not found")?;
         state
             .put_verified_consensus_state::<crate::ibc::host_interface::AstriaHost>(
                 height,
