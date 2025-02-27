@@ -23,6 +23,7 @@ use astria_core::{
             IbcSudoChangeFeeComponents,
             Ics20WithdrawalFeeComponents,
             InitBridgeAccountFeeComponents,
+            RecoverClientFeeComponents,
             RollupDataSubmissionFeeComponents,
             SudoAddressChangeFeeComponents,
             TransferFeeComponents,
@@ -200,6 +201,13 @@ fn proto_genesis_state() -> astria_core::generated::protocol::genesis::v1::Genes
             ),
             ibc_sudo_change: Some(
                 IbcSudoChangeFeeComponents {
+                    base: 0,
+                    multiplier: 0,
+                }
+                .to_raw(),
+            ),
+            recover_client: Some(
+                RecoverClientFeeComponents {
                     base: 0,
                     multiplier: 0,
                 }

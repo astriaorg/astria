@@ -33,6 +33,7 @@ use crate::{
         IbcSudoChangeFeeComponents,
         Ics20WithdrawalFeeComponents,
         InitBridgeAccountFeeComponents,
+        RecoverClientFeeComponents,
         RollupDataSubmissionFeeComponents,
         SudoAddressChangeFeeComponents,
         TransferFeeComponents,
@@ -1978,6 +1979,7 @@ pub enum FeeChange {
     IbcRelayerChange(IbcRelayerChangeFeeComponents),
     SudoAddressChange(SudoAddressChangeFeeComponents),
     IbcSudoChange(IbcSudoChangeFeeComponents),
+    RecoverClient(RecoverClientFeeComponents),
 }
 
 impl Protobuf for FeeChange {
@@ -2029,6 +2031,9 @@ impl Protobuf for FeeChange {
                 }
                 Self::IbcSudoChange(fee_change) => {
                     raw::fee_change::FeeComponents::IbcSudoChange(fee_change.to_raw())
+                }
+                Self::RecoverClient(fee_change) => {
+                    raw::fee_change::FeeComponents::RecoverClient(fee_change.to_raw())
                 }
             }),
         }
@@ -2089,6 +2094,9 @@ impl Protobuf for FeeChange {
             }
             Some(raw::fee_change::FeeComponents::IbcSudoChange(fee_change)) => {
                 Self::IbcSudoChange(IbcSudoChangeFeeComponents::try_from_raw_ref(fee_change)?)
+            }
+            Some(raw::fee_change::FeeComponents::RecoverClient(fee_change)) => {
+                Self::RecoverClient(RecoverClientFeeComponents::try_from_raw_ref(fee_change)?)
             }
             None => return Err(FeeChangeError::field_unset("fee_components")),
         })

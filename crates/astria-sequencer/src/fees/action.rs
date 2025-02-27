@@ -84,6 +84,9 @@ impl ActionHandler for FeeChange {
             Self::IbcSudoChange(fees) => state
                 .put_ibc_sudo_change_fees(*fees)
                 .wrap_err("failed to put ibc sudo change fees"),
+            Self::RecoverClient(fees) => state
+                .put_recover_client_fees(*fees)
+                .wrap_err("failed to put recover client fees"),
         }
     }
 }
@@ -230,5 +233,6 @@ mod tests {
         fee_change => FeeChange,
         sudo_address_change => SudoAddressChange,
         ibc_sudo_change => IbcSudoChange,
+        recover_client => RecoverClient,
     );
 }

@@ -404,7 +404,7 @@ pub struct FeeChange {
     /// the new fee components values
     #[prost(
         oneof = "fee_change::FeeComponents",
-        tags = "1, 2, 3, 4, 5, 7, 6, 8, 9, 10, 11, 12, 13, 14"
+        tags = "1, 2, 3, 4, 5, 7, 6, 8, 9, 10, 11, 12, 13, 14, 15"
     )]
     pub fee_components: ::core::option::Option<fee_change::FeeComponents>,
 }
@@ -444,6 +444,8 @@ pub mod fee_change {
         Transfer(super::super::super::fees::v1::TransferFeeComponents),
         #[prost(message, tag = "14")]
         ValidatorUpdate(super::super::super::fees::v1::ValidatorUpdateFeeComponents),
+        #[prost(message, tag = "15")]
+        RecoverClient(super::super::super::fees::v1::RecoverClientFeeComponents),
     }
 }
 impl ::prost::Name for FeeChange {
