@@ -104,7 +104,7 @@ impl ActionHandler for action::RecoverClient {
             .ok_or_eyre("substitute client consensus state not found")?;
         state
             .put_verified_consensus_state::<crate::ibc::host_interface::AstriaHost>(
-                height,
+                substitute_client_state.latest_height(),
                 self.subject_client_id.clone(),
                 substitute_consensus_state,
             )
