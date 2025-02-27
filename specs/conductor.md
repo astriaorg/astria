@@ -96,7 +96,8 @@ are gRPC):
 9. Call `astria.execution.v2.ExecuteBlock` with the result of step 9.
 10. Call `astria.execution.v2.UpdateCommitmentState` with the result of
   step 9, specifically updating the tracked commitment state
-  `C.firm.number == C.soft.number += 1`[^2] and `C.lowest_celestia_search_height = H`,
+  `C.firm.number == C.soft.number += 1`[^2] and `C.lowest_celestia_search_height
+   = H`,
   with `H` the source Celestia height of the just executed pair `P`.
 11. Go to step 5.
 
