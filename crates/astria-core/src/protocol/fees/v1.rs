@@ -171,7 +171,7 @@ impl<T: ?Sized> PartialEq for FeeComponents<T> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransactionFeeResponse {
     pub height: u64,
     pub fees: Vec<(asset::Denom, u128)>,
