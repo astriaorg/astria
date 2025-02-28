@@ -1,5 +1,0 @@
----
-source: crates/astria-sequencer/src/storage/stored_value.rs
-expression: "format!(\"{:?}\", discriminant(&StoredValue::Unit))"
----
-Discriminant(0)

@@ -1,5 +1,0 @@
----
-source: crates/astria-sequencer/src/authority/storage/values.rs
-expression: "format!(\"{:?}\", discriminant(&ValueImpl::ValidatorSet(ValidatorSet(vec![]))))"
----
-Discriminant(1)

@@ -1,5 +1,0 @@
----
-source: crates/astria-sequencer/src/bridge/storage/values/mod.rs
-expression: "format!(\"{:?}\",\ndiscriminant(&ValueImpl::IbcPrefixedDenom((&DomainIbcPrefixed::new([0;\n32])).into())))"
----
-Discriminant(1)

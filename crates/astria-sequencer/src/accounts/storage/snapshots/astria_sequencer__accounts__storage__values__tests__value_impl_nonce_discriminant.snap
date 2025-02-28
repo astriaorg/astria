@@ -1,5 +1,0 @@
----
-source: crates/astria-sequencer/src/accounts/storage/values.rs
-expression: "format!(\"{:?}\", discriminant(&ValueImpl::Nonce(Nonce(0))))"
----
-Discriminant(1)

@@ -34,8 +34,6 @@ enum ValueImpl<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::mem::discriminant;
-
     use astria_core::{
         crypto::ADDRESS_LENGTH,
         primitive::v1::{
@@ -50,91 +48,54 @@ mod tests {
     use insta::assert_snapshot;
 
     use super::*;
+    use crate::test_utils::borsh_then_hex;
 
     #[test]
-    fn value_impl_rollup_id_discriminant_unchanged() {
+    fn value_impl_existing_variants_unchanged() {
         assert_snapshot!(
-            "value_impl_rollup_id_discriminant",
-            format!(
-                "{:?}",
-                discriminant(&ValueImpl::RollupId(
-                    (&DomainRollupId::new([0; ROLLUP_ID_LEN])).into()
-                ))
-            )
+            "value_impl_rollup_id",
+            borsh_then_hex(&ValueImpl::RollupId(
+                (&DomainRollupId::new([0; ROLLUP_ID_LEN])).into()
+            ))
         );
-    }
-
-    #[test]
-    fn value_impl_ibc_prefixed_denom_discriminant_unchanged() {
         assert_snapshot!(
-            "value_impl_ibc_prefixed_denom_discriminant",
-            format!(
-                "{:?}",
-                discriminant(&ValueImpl::IbcPrefixedDenom(
-                    (&DomainIbcPrefixed::new([0; 32])).into()
-                ))
-            )
+            "value_impl_ibc_prefixed_denom",
+            borsh_then_hex(&ValueImpl::IbcPrefixedDenom(
+                (&DomainIbcPrefixed::new([0; 32])).into()
+            ))
         );
-    }
-
-    #[test]
-    fn value_impl_address_bytes_discriminant_unchanged() {
         assert_snapshot!(
-            "value_impl_address_bytes_discriminant",
-            format!(
-                "{:?}",
-                discriminant(&ValueImpl::AddressBytes((&[0; ADDRESS_LENGTH]).into()))
-            )
+            "value_impl_address_bytes",
+            borsh_then_hex(&ValueImpl::AddressBytes((&[0; ADDRESS_LENGTH]).into()))
         );
-    }
-
-    #[test]
-    fn value_impl_block_height_discriminant_unchanged() {
         assert_snapshot!(
-            "value_impl_block_height_discriminant",
-            format!("{:?}", discriminant(&ValueImpl::BlockHeight(1.into())))
+            "value_impl_block_height",
+            borsh_then_hex(&ValueImpl::BlockHeight(1.into()))
         );
-    }
-
-    #[test]
-    fn value_impl_deposits_discriminant_unchanged() {
         assert_snapshot!(
-            "value_impl_deposits_discriminant",
-            format!(
-                "{:?}",
-                discriminant(&ValueImpl::Deposits(
-                    Vec::<DomainDeposit>::new().iter().into()
-                ))
-            )
+            "value_impl_deposits",
+            borsh_then_hex(&ValueImpl::Deposits(
+                Vec::<DomainDeposit>::new().iter().into()
+            ))
         );
-    }
-
-    #[test]
-    fn value_impl_transaction_id_discriminant_unchanged() {
         assert_snapshot!(
-            "value_impl_transaction_id_discriminant",
-            format!(
-                "{:?}",
-                discriminant(&ValueImpl::TransactionId(
-                    (&DomainTransactionId::new([0; TRANSACTION_ID_LEN])).into()
-                ))
-            )
+            "value_impl_transaction_id",
+            borsh_then_hex(&ValueImpl::TransactionId(
+                (&DomainTransactionId::new([0; TRANSACTION_ID_LEN])).into()
+            ))
         );
     }
 
     // Note: This test must be here instead of in `crate::storage` since `ValueImpl` is not
     // re-exported.
     #[test]
-    fn stored_value_bridge_discriminant_unchanged() {
+    fn stored_value_bridge_variant_unchanged() {
         use crate::storage::StoredValue;
         assert_snapshot!(
-            "stored_value_bridge_discriminant",
-            format!(
-                "{:?}",
-                discriminant(&StoredValue::Bridge(Value(ValueImpl::BlockHeight(
-                    1.into()
-                ))))
-            )
+            "stored_value_bridge_variant",
+            borsh_then_hex(&StoredValue::Bridge(Value(ValueImpl::BlockHeight(
+                1.into()
+            ))))
         );
     }
 }

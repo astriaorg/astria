@@ -49,36 +49,29 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for AddressPrefix<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::mem::discriminant;
-
     use insta::assert_snapshot;
 
     use super::*;
+    use crate::test_utils::borsh_then_hex;
 
     #[test]
-    fn value_impl_address_prefix_discriminant_unchanged() {
+    fn value_impl_existing_variants_unchanged() {
         assert_snapshot!(
-            "value_impl_address_prefix_discriminant",
-            format!(
-                "{:?}",
-                discriminant(&ValueImpl::AddressPrefix("test_prefix".into()))
-            )
+            "value_impl_address_prefix",
+            borsh_then_hex(&ValueImpl::AddressPrefix("test_prefix".into()))
         );
     }
 
     // Note: This test must be here instead of in `crate::storage` since `ValueImpl` is not
     // re-exported.
     #[test]
-    fn stored_value_address_discriminant_unchanged() {
+    fn stored_value_address_variant_unchanged() {
         use crate::storage::StoredValue;
         assert_snapshot!(
-            "stored_value_address_discriminant",
-            format!(
-                "{:?}",
-                discriminant(&StoredValue::Address(Value(ValueImpl::AddressPrefix(
-                    "test_prefix".into()
-                ))))
-            )
+            "stored_value_address_variant",
+            borsh_then_hex(&StoredValue::Address(Value(ValueImpl::AddressPrefix(
+                "test_prefix".into()
+            ))))
         );
     }
 }

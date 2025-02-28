@@ -1,5 +1,0 @@
----
-source: crates/astria-sequencer/src/app/storage/values/mod.rs
-expression: "format!(\"{:?}\",\ndiscriminant(&ValueImpl::ChainId((&tendermint::chain::Id::try_from(\"test_prefix\".to_string()).unwrap()).into())))"
----
-Discriminant(0)

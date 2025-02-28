@@ -33,14 +33,13 @@ impl StoredValue<'_> {
 
 #[cfg(test)]
 mod tests {
-    use std::mem::discriminant;
-
     use insta::assert_snapshot;
 
     use super::*;
+    use crate::test_utils::borsh_then_hex;
 
     #[test]
-    fn stored_value_unit_discriminant_unchanged() {
-        assert_snapshot!(format!("{:?}", discriminant(&StoredValue::Unit)));
+    fn stored_value_unit_variant_unchanged() {
+        assert_snapshot!("stored_value_unit_variant", borsh_then_hex(&StoredValue::Unit));
     }
 }

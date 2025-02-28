@@ -1,5 +1,0 @@
----
-source: crates/astria-sequencer/src/app/storage/values/mod.rs
-expression: "format!(\"{:?}\",\ndiscriminant(&ValueImpl::BlockTimestamp(tendermint::Time::now().into())))"
----
-Discriminant(3)

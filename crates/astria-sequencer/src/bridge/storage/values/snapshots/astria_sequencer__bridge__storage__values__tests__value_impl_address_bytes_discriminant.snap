@@ -1,5 +1,0 @@
----
-source: crates/astria-sequencer/src/bridge/storage/values/mod.rs
-expression: "format!(\"{:?}\",\ndiscriminant(&ValueImpl::AddressBytes((&[0; ADDRESS_LENGTH]).into())))"
----
-Discriminant(2)

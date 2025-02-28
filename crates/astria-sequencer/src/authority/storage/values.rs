@@ -156,47 +156,33 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for ValidatorSet<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::mem::discriminant;
-
     use insta::assert_snapshot;
 
     use super::*;
+    use crate::test_utils::borsh_then_hex;
 
     #[test]
-    fn value_impl_address_bytes_discriminant_unchanged() {
+    fn value_impl_existing_variants_unchanged() {
         assert_snapshot!(
-            "value_impl_address_bytes_discriminant",
-            format!(
-                "{:?}",
-                discriminant(&ValueImpl::AddressBytes((&[0; ADDRESS_LEN]).into()))
-            )
+            "value_impl_address_bytes",
+            borsh_then_hex(&ValueImpl::AddressBytes((&[0; ADDRESS_LEN]).into()))
         );
-    }
-
-    #[test]
-    fn value_impl_validator_set_discriminant_unchanged() {
         assert_snapshot!(
-            "value_impl_validator_set_discriminant",
-            format!(
-                "{:?}",
-                discriminant(&ValueImpl::ValidatorSet(ValidatorSet(vec![])))
-            )
+            "value_impl_validator_set",
+            borsh_then_hex(&ValueImpl::ValidatorSet(ValidatorSet(vec![])))
         );
     }
 
     // Note: This test must be here instead of in `crate::storage` since `ValueImpl` is not
     // re-exported.
     #[test]
-    fn stored_value_authority_discriminant_unchanged() {
+    fn stored_value_authority_variant_unchanged() {
         use crate::storage::StoredValue;
         assert_snapshot!(
-            "stored_value_authority_discriminant",
-            format!(
-                "{:?}",
-                discriminant(&StoredValue::Authority(Value(ValueImpl::ValidatorSet(
-                    ValidatorSet(vec![])
-                ))))
-            )
+            "stored_value_authority_variant",
+            borsh_then_hex(&StoredValue::Authority(Value(ValueImpl::ValidatorSet(
+                ValidatorSet(vec![])
+            ))))
         );
     }
 }

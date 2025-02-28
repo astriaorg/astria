@@ -1,5 +1,0 @@
----
-source: crates/astria-sequencer/src/address/storage/values.rs
-expression: "format!(\"{:?}\",\ndiscriminant(&StoredValue::Address(Value(ValueImpl::AddressPrefix(\"test_prefix\".into())))))"
----
-Discriminant(1)

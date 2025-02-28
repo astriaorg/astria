@@ -1,5 +1,0 @@
----
-source: crates/astria-sequencer/src/bridge/storage/values/mod.rs
-expression: "format!(\"{:?}\", discriminant(&ValueImpl::BlockHeight(1.into())))"
----
-Discriminant(3)

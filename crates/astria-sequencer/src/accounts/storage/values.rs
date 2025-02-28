@@ -80,41 +80,31 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for Nonce {
 
 #[cfg(test)]
 mod tests {
-    use std::mem::discriminant;
-
     use insta::assert_snapshot;
 
     use super::*;
+    use crate::test_utils::borsh_then_hex;
 
     #[test]
-    fn value_impl_balance_discriminant_unchanged() {
+    fn value_impl_existing_variants_unchanged() {
         assert_snapshot!(
-            "value_impl_balance_discriminant",
-            format!("{:?}", discriminant(&ValueImpl::Balance(Balance(0))))
+            "value_impl_balance",
+            borsh_then_hex(&ValueImpl::Balance(Balance(0)))
         );
-    }
-
-    #[test]
-    fn value_impl_nonce_discriminant_unchanged() {
         assert_snapshot!(
-            "value_impl_nonce_discriminant",
-            format!("{:?}", discriminant(&ValueImpl::Nonce(Nonce(0))))
+            "value_impl_nonce",
+            borsh_then_hex(&ValueImpl::Nonce(Nonce(0)))
         );
     }
 
     // Note: This test must be here instead of in `crate::storage` since `ValueImpl` is not
     // re-exported.
     #[test]
-    fn stored_value_account_discriminant_unchanged() {
+    fn stored_value_account_variant_unchanged() {
         use crate::storage::StoredValue;
         assert_snapshot!(
-            "stored_value_account_discriminant",
-            format!(
-                "{:?}",
-                discriminant(&StoredValue::Accounts(Value(ValueImpl::Balance(Balance(
-                    0
-                )))))
-            )
+            "stored_value_account_variant",
+            borsh_then_hex(&StoredValue::Accounts(Value(ValueImpl::Nonce(Nonce(0)))))
         );
     }
 }
