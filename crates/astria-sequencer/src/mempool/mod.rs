@@ -29,6 +29,7 @@ use tokio::{
 use tracing::{
     error,
     instrument,
+    Level,
 };
 pub(crate) use transactions_container::InsertionError;
 use transactions_container::{
@@ -112,7 +113,7 @@ struct ContainedTxLock<'a> {
     txs: RwLockWriteGuard<'a, HashSet<[u8; 32]>>,
 }
 
-impl<'a> ContainedTxLock<'a> {
+impl ContainedTxLock<'_> {
     fn add(&mut self, id: [u8; 32]) {
         if !self.txs.insert(id) {
             self.mempool.metrics.increment_internal_logic_error();
@@ -203,7 +204,7 @@ impl Mempool {
 
     /// Inserts a transaction into the mempool and does not allow for transaction replacement.
     /// Will return the reason for insertion failure if failure occurs.
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(tx_hash = %tx.id(), current_account_nonce), err(level = Level::DEBUG))]
     pub(crate) async fn insert(
         &self,
         tx: Arc<Transaction>,
@@ -291,11 +292,8 @@ impl Mempool {
     /// Returns a copy of all transactions and their hashes ready for execution, sorted first by the
     /// difference between a transaction and the account's current nonce and then by the time that
     /// the transaction was first seen by the appside mempool.
-    pub(crate) async fn builder_queue<S: accounts::StateReadExt>(
-        &self,
-        state: &S,
-    ) -> Result<Vec<([u8; 32], Arc<Transaction>)>> {
-        self.pending.read().await.builder_queue(state).await
+    pub(crate) async fn builder_queue(&self) -> Vec<([u8; 32], Arc<Transaction>)> {
+        self.pending.read().await.builder_queue()
     }
 
     /// Removes the target transaction and all transactions for associated account with higher
@@ -303,6 +301,7 @@ impl Mempool {
     ///
     /// This function should only be used to remove invalid/failing transactions and not executed
     /// transactions. Executed transactions will be removed in the `run_maintenance()` function.
+    #[instrument(skip_all, fields(tx_hash = %signed_tx.id()))]
     pub(crate) async fn remove_tx_invalid(
         &self,
         signed_tx: Arc<Transaction>,
@@ -342,13 +341,13 @@ impl Mempool {
 
     /// Checks if a transaction was flagged to be removed from the `CometBFT` mempool. Will
     /// remove the transaction from the cache if it is present.
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(tx_hash = %hex::encode(tx_hash)))]
     pub(crate) async fn check_removed_comet_bft(&self, tx_hash: [u8; 32]) -> Option<RemovalReason> {
         self.comet_bft_removal_cache.write().await.remove(tx_hash)
     }
 
     /// Returns true if the transaction is tracked as inserted.
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(tx_hash = %hex::encode(tx_hash)))]
     pub(crate) async fn is_tracked(&self, tx_hash: [u8; 32]) -> bool {
         self.contained_txs.read().await.contains(&tx_hash)
     }
@@ -482,7 +481,7 @@ impl Mempool {
     /// does not take into account gapped nonces in the parked queue. For example, if the
     /// pending queue for an account has nonces [0,1] and the parked queue has [3], [1] will be
     /// returned.
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(address = %telemetry::display::base64(address)))]
     pub(crate) async fn pending_nonce(&self, address: &[u8; 20]) -> Option<u32> {
         self.pending.read().await.pending_nonce(address)
     }
@@ -505,19 +504,23 @@ mod tests {
 
     use super::*;
     use crate::{
-        app::test_utils::{
-            get_bob_signing_key,
-            mock_balances,
-            mock_state_getter,
-            mock_state_put_account_balances,
-            mock_state_put_account_nonce,
-            mock_tx_cost,
-            MockTxBuilder,
-            ALICE_ADDRESS,
-            BOB_ADDRESS,
-            CAROL_ADDRESS,
+        app::{
+            benchmark_and_test_utils::{
+                mock_balances,
+                mock_state_getter,
+                mock_state_put_account_balances,
+                mock_state_put_account_nonce,
+                mock_tx_cost,
+                ALICE_ADDRESS,
+                BOB_ADDRESS,
+                CAROL_ADDRESS,
+            },
+            test_utils::{
+                get_bob_signing_key,
+                MockTxBuilder,
+            },
         },
-        test_utils::astria_address_from_hex_string,
+        benchmark_and_test_utils::astria_address_from_hex_string,
     };
 
     #[tokio::test]
@@ -582,10 +585,9 @@ mod tests {
     #[tokio::test]
     async fn single_account_flow_extensive() {
         // This test tries to hit the more complex edges of the mempool with a single account.
-        // The test adds the nonces [1,2,0,4], creates a builder queue with the account
-        // nonce at 1, and then cleans the pool to nonce 4. This tests some of the
-        // odder edge cases that can be hit if a node goes offline or fails to see
-        // some transactions that other nodes include into their proposed blocks.
+        // The test adds the nonces [1,2,0,4], creates a builder queue, and then cleans the pool to
+        // nonce 4. This tests some of the odder edge cases that can be hit if a node goes offline
+        // or fails to see some transactions that other nodes include into their proposed blocks.
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mempool = Mempool::new(metrics, 100);
         let account_balances = mock_balances(100, 100);
@@ -635,24 +637,13 @@ mod tests {
         // assert size
         assert_eq!(mempool.len().await, 4);
 
-        // mock state with nonce at 1
-        let mut mock_state = mock_state_getter().await;
-        mock_state_put_account_nonce(
-            &mut mock_state,
-            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
-            1,
-        );
-
-        // grab building queue, should return transactions [1,2] since [0] was below and [4] is
-        // gapped
-        let builder_queue = mempool
-            .builder_queue(&mock_state)
-            .await
-            .expect("failed to get builder queue");
+        // grab building queue, should return transactions [0,1,2] since [4] is gapped
+        let builder_queue = mempool.builder_queue().await;
 
         // see contains first two transactions that should be pending
-        assert_eq!(builder_queue[0].1.nonce(), 1, "nonce should be one");
-        assert_eq!(builder_queue[1].1.nonce(), 2, "nonce should be two");
+        assert_eq!(builder_queue[0].1.nonce(), 0, "nonce should be zero");
+        assert_eq!(builder_queue[1].1.nonce(), 1, "nonce should be one");
+        assert_eq!(builder_queue[2].1.nonce(), 2, "nonce should be two");
 
         // see mempool's transactions just cloned, not consumed
         assert_eq!(mempool.len().await, 4);
@@ -661,6 +652,7 @@ mod tests {
         // to pending
 
         // setup state
+        let mut mock_state = mock_state_getter().await;
         mock_state_put_account_nonce(
             &mut mock_state,
             astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
@@ -678,10 +670,7 @@ mod tests {
         assert_eq!(mempool.len().await, 1);
 
         // see transaction [4] properly promoted
-        let mut builder_queue = mempool
-            .builder_queue(&mock_state)
-            .await
-            .expect("failed to get builder queue");
+        let mut builder_queue = mempool.builder_queue().await;
         let (_, returned_tx) = builder_queue.pop().expect("should return last transaction");
         assert_eq!(returned_tx.nonce(), 4, "nonce should be four");
     }
@@ -726,10 +715,7 @@ mod tests {
             1,
         );
 
-        let builder_queue = mempool
-            .builder_queue(&mock_state)
-            .await
-            .expect("failed to get builder queue");
+        let builder_queue = mempool.builder_queue().await;
         assert_eq!(
             builder_queue.len(),
             1,
@@ -748,10 +734,7 @@ mod tests {
         mempool.run_maintenance(&mock_state, false).await;
 
         // see builder queue now contains them
-        let builder_queue = mempool
-            .builder_queue(&mock_state)
-            .await
-            .expect("failed to get builder queue");
+        let builder_queue = mempool.builder_queue().await;
         assert_eq!(
             builder_queue.len(),
             3,
@@ -800,10 +783,7 @@ mod tests {
             1,
         );
 
-        let builder_queue = mempool
-            .builder_queue(&mock_state)
-            .await
-            .expect("failed to get builder queue");
+        let builder_queue = mempool.builder_queue().await;
         assert_eq!(
             builder_queue.len(),
             4,
@@ -820,10 +800,7 @@ mod tests {
         mempool.run_maintenance(&mock_state, false).await;
 
         // see builder queue now contains single transactions
-        let builder_queue = mempool
-            .builder_queue(&mock_state)
-            .await
-            .expect("failed to get builder queue");
+        let builder_queue = mempool.builder_queue().await;
         assert_eq!(
             builder_queue.len(),
             1,
@@ -843,10 +820,7 @@ mod tests {
 
         mempool.run_maintenance(&mock_state, false).await;
 
-        let builder_queue = mempool
-            .builder_queue(&mock_state)
-            .await
-            .expect("failed to get builder queue");
+        let builder_queue = mempool.builder_queue().await;
         assert_eq!(
             builder_queue.len(),
             3,
@@ -1036,12 +1010,10 @@ mod tests {
         );
 
         // Check the pending nonce for an address with no txs is `None`.
-        assert!(
-            mempool
-                .pending_nonce(astria_address_from_hex_string(CAROL_ADDRESS).as_bytes())
-                .await
-                .is_none()
-        );
+        assert!(mempool
+            .pending_nonce(astria_address_from_hex_string(CAROL_ADDRESS).as_bytes())
+            .await
+            .is_none());
     }
 
     #[tokio::test]

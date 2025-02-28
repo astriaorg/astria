@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "rollup.name" . }}-geth
+  labels:
+    app: {{ include "rollup.appName" . }}
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  replicas : {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "rollup.appName" . }}
+  template:
+    metadata:
+      name: {{ include "rollup.name" . }}-execution-chain
+      labels:
+        app: {{ include "rollup.appName" . }}
+    spec:
+      initContainers:
+        {{- if .Values.config.geth.purgeMempool }}
+        - name: purge-mempool
+          image: {{ include "rollup.image" . }}
+          imagePullPolicy: {{ .Values.images.geth.pullPolicy }}
+          command: [ "sh", "-c", "rm" ]
+          args:
+            - -f
+            - {{ include "rollup.gethDataDir" . }}/geth/transactions.rlp
+          volumeMounts:
+            - mountPath: /home/geth
+              name: {{ include "rollup.name" $ }}-rollup-shared-storage-vol
+              subPath: {{ include "rollup.name" . }}/executor
+        {{- end }}
+        - name: init-geth
+          command: [ "/scripts/init-geth.sh" ]
+          image: {{ include "rollup.image" . }}
+          imagePullPolicy: {{ .Values.images.geth.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "rollup.name" . }}-geth-env
+          volumeMounts:
+            - mountPath: /scripts/
+              name: {{ include "rollup.name" . }}-executor-scripts-volume
+            - mountPath: /home/geth
+              name: {{ include "rollup.name" $ }}-rollup-shared-storage-vol
+              subPath: {{ include "rollup.name" . }}/executor
+      containers:
+        - name: geth
+          command: [ "geth" ]
+          args:
+            {{- range $arg := .Values.config.geth.flags }}
+            {{- if hasKey $arg "condition" }}
+            {{- if eq (tpl $arg.condition $) "true" }}
+            - --{{ $arg.name }}{{ if $arg.value }}={{ tpl $arg.value $ }}{{ end }}
+            {{- end }}
+            {{- else }}
+            - --{{ $arg.name }}{{ if $arg.value }}={{ tpl $arg.value $ }}{{ end }}
+            {{- end }}
+            {{- end }}
+          image: {{ include "rollup.image" . }}
+          imagePullPolicy: {{ .Values.images.geth.pullPolicy }}
+          volumeMounts:
+            - mountPath: /scripts/
+              name: {{ include "rollup.name" . }}-executor-scripts-volume
+              readOnly: true
+            - mountPath: /home/geth
+              name: {{ include "rollup.name" . }}-rollup-shared-storage-vol
+              subPath: {{ include "rollup.name" . }}/executor
+          ports:
+            - containerPort: {{ .Values.ports.jsonRPC }}
+              name: json-rpc
+            - containerPort: {{ .Values.ports.wsRPC }}
+              name: ws-rpc
+            - containerPort: {{ .Values.ports.executionGRPC }}
+              name: execution-grpc
+            {{- if .Values.metrics.enabled }}
+            - containerPort: {{ .Values.ports.metrics }}
+              name: geth-metr
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources.geth | trim | nindent 12 }}
+        - name: conductor
+          image: {{ include "conductor.image" . }}
+          imagePullPolicy: {{ .Values.images.conductor.pullPolicy }}
+          command: [ "/usr/local/bin/astria-conductor" ]
+          stdin: {{ .Values.global.useTTY }}
+          tty: {{ .Values.global.useTTY }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "rollup.name" . }}-conductor-env
+          resources:
+            {{- toYaml .Values.resources.conductor | trim | nindent 12 }}
+          {{- if .Values.metrics.enabled }}
+          ports:
+            - containerPort: {{ .Values.ports.conductorMetrics }}
+              name: conductor-metr
+          {{- end }}
+      volumes:
+        - name: {{ include "rollup.name" . }}-executor-scripts-volume
+          configMap:
+            name: {{ include "rollup.name" . }}-executor-scripts
+            defaultMode: 0500
+        - name: {{ include "rollup.name" $ }}-rollup-shared-storage-vol
+          {{- if .Values.storage.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "rollup.name" $ }}-rollup-shared-storage-pvc-geth
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---

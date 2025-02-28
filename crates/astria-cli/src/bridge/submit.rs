@@ -30,14 +30,19 @@ use tracing::{
 
 #[derive(clap::Args, Debug)]
 pub(crate) struct Command {
+    /// Path to the file containing the actions to submit
     #[arg(long, short)]
     input: PathBuf,
+    /// Path to the file containing the signing key
     #[arg(long)]
     signing_key: PathBuf,
+    /// The address prefix for the sequencer account
     #[arg(long, default_value = "astria")]
     sequencer_address_prefix: String,
+    /// The chain ID of the sequencer
     #[arg(long)]
     sequencer_chain_id: String,
+    /// The URL of the sequencer rpc
     #[arg(long)]
     sequencer_url: String,
 }

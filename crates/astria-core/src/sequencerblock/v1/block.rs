@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fmt::Display,
     vec::IntoIter,
 };
 
@@ -37,7 +38,7 @@ use crate::{
         Transaction,
         TransactionError,
     },
-    Protobuf as _,
+    Protobuf,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -580,11 +581,98 @@ enum SequencerBlockHeaderErrorKind {
 /// Exists to provide convenient access to fields of a [`SequencerBlock`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct SequencerBlockParts {
-    pub block_hash: [u8; 32],
+    pub block_hash: Hash,
     pub header: SequencerBlockHeader,
     pub rollup_transactions: IndexMap<RollupId, RollupTransactions>,
     pub rollup_transactions_proof: merkle::Proof,
     pub rollup_ids_proof: merkle::Proof,
+}
+
+/// A newtype wrapper around `[u8; 32]` to represent the hash of a [`SequencerBlock`].
+///
+/// [`Hash`] is the cometbft constructed hash of block.
+///
+/// There are two main purposes of this type:
+///
+/// 1. avoid confusion with other hashes of the form `[u8; 32]` common in Astria, like rollup
+///    (ethereum) 32 byte hashes.
+/// 2. to provide a hex formatted display impl, which is the convention for block hashes.
+///
+/// Note that hex based [`Display`] impl of [`Hash`] does not follow the pbjson
+/// convention to display protobuf `bytes` using base64 encoding. To get the
+/// display formatting faithful to pbjson convention use the alternative formatting selector,
+/// `{block_hash:#}` instead.
+///
+/// # Examples
+///
+/// ```
+/// use astria_core::sequencerblock::v1::block;
+///
+/// let block_hash = block::Hash::new([42; 32]);
+/// assert_eq!(
+///     "2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a",
+///     format!("{block_hash}"),
+/// );
+/// assert_eq!(
+///     "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=",
+///     format!("{block_hash:#}"),
+/// );
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Hash([u8; 32]);
+
+impl Hash {
+    #[must_use]
+    pub const fn new(inner: [u8; 32]) -> Self {
+        Self(inner)
+    }
+
+    #[must_use]
+    pub const fn get(self) -> [u8; 32] {
+        self.0
+    }
+
+    #[must_use]
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("block hash requires 32 bytes, but slice contained `{actual}`")]
+pub struct HashFromSliceError {
+    actual: usize,
+    source: std::array::TryFromSliceError,
+}
+
+impl<'a> TryFrom<&'a [u8]> for Hash {
+    type Error = HashFromSliceError;
+
+    fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+        let inner = value.try_into().map_err(|source| Self::Error {
+            actual: value.len(),
+            source,
+        })?;
+        Ok(Self(inner))
+    }
+}
+
+impl Display for Hash {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use base64::{
+            display::Base64Display,
+            engine::general_purpose::STANDARD,
+        };
+
+        if f.alternate() {
+            Base64Display::new(&self.0, &STANDARD).fmt(f)?;
+        } else {
+            for byte in self.0 {
+                write!(f, "{byte:02x}")?;
+            }
+        }
+        Ok(())
+    }
 }
 
 /// `SequencerBlock` is constructed from a tendermint/cometbft block by
@@ -597,7 +685,7 @@ pub struct SequencerBlockParts {
 pub struct SequencerBlock {
     /// The result of hashing the cometbft header. Guaranteed to not be `None` as compared to
     /// the cometbft/tendermint-rs return type.
-    block_hash: [u8; 32],
+    block_hash: Hash,
     /// the block header, which contains the cometbft header and additional sequencer-specific
     /// commitments.
     header: SequencerBlockHeader,
@@ -622,7 +710,7 @@ impl SequencerBlock {
     ///
     /// This is done by hashing the `CometBFT` header stored in this block.
     #[must_use]
-    pub fn block_hash(&self) -> &[u8; 32] {
+    pub fn block_hash(&self) -> &Hash {
         &self.block_hash
     }
 
@@ -687,7 +775,7 @@ impl SequencerBlock {
             rollup_ids_proof,
         } = self;
         raw::SequencerBlock {
-            block_hash: Bytes::copy_from_slice(&block_hash),
+            block_hash: Bytes::copy_from_slice(block_hash.as_bytes()),
             header: Some(header.into_raw()),
             rollup_transactions: rollup_transactions
                 .into_values()
@@ -784,8 +872,9 @@ impl SequencerBlock {
 
         let mut rollup_datas = IndexMap::new();
         for elem in data_list {
-            let raw_tx = crate::generated::protocol::transaction::v1::Transaction::decode(&*elem)
-                .map_err(SequencerBlockError::transaction_protobuf_decode)?;
+            let raw_tx =
+                crate::generated::astria::protocol::transaction::v1::Transaction::decode(&*elem)
+                    .map_err(SequencerBlockError::transaction_protobuf_decode)?;
             let tx = Transaction::try_from_raw(raw_tx)
                 .map_err(SequencerBlockError::raw_signed_transaction_conversion)?;
             for action in tx.into_unsigned().into_actions() {
@@ -862,7 +951,7 @@ impl SequencerBlock {
         );
 
         Ok(Self {
-            block_hash,
+            block_hash: Hash(block_hash),
             header: SequencerBlockHeader {
                 chain_id,
                 height,
@@ -1031,7 +1120,7 @@ where
 /// Exists to provide convenient access to fields of a [`FilteredSequencerBlock`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct FilteredSequencerBlockParts {
-    pub block_hash: [u8; 32],
+    pub block_hash: Hash,
     pub header: SequencerBlockHeader,
     // filtered set of rollup transactions
     pub rollup_transactions: IndexMap<RollupId, RollupTransactions>,
@@ -1049,7 +1138,7 @@ pub struct FilteredSequencerBlockParts {
     reason = "we want consistent and specific naming"
 )]
 pub struct FilteredSequencerBlock {
-    block_hash: [u8; 32],
+    block_hash: Hash,
     header: SequencerBlockHeader,
     // filtered set of rollup transactions
     rollup_transactions: IndexMap<RollupId, RollupTransactions>,
@@ -1063,7 +1152,7 @@ pub struct FilteredSequencerBlock {
 
 impl FilteredSequencerBlock {
     #[must_use]
-    pub fn block_hash(&self) -> &[u8; 32] {
+    pub fn block_hash(&self) -> &Hash {
         &self.block_hash
     }
 
@@ -1113,7 +1202,7 @@ impl FilteredSequencerBlock {
             ..
         } = self;
         raw::FilteredSequencerBlock {
-            block_hash: Bytes::copy_from_slice(&block_hash),
+            block_hash: Bytes::copy_from_slice(block_hash.as_bytes()),
             header: Some(header.into_raw()),
             rollup_transactions: rollup_transactions
                 .into_values()
@@ -1269,6 +1358,27 @@ impl FilteredSequencerBlock {
     }
 }
 
+impl Protobuf for FilteredSequencerBlock {
+    type Error = FilteredSequencerBlockError;
+    type Raw = raw::FilteredSequencerBlock;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        Self::try_from_raw(raw.clone())
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        self.clone().into_raw()
+    }
+
+    fn try_from_raw(raw: Self::Raw) -> Result<Self, Self::Error> {
+        Self::try_from_raw(raw)
+    }
+
+    fn into_raw(self) -> Self::Raw {
+        self.into_raw()
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct FilteredSequencerBlockError(FilteredSequencerBlockErrorKind);
@@ -1363,7 +1473,7 @@ impl FilteredSequencerBlockError {
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(
     feature = "serde",
-    serde(into = "crate::generated::sequencerblock::v1::Deposit")
+    serde(into = "crate::generated::astria::sequencerblock::v1::Deposit")
 )]
 pub struct Deposit {
     // the address on the sequencer to which the funds were sent to.
@@ -1428,7 +1538,7 @@ impl Deposit {
             return Err(DepositError::field_not_set("bridge_address"));
         };
         let bridge_address =
-            Address::try_from_raw(&bridge_address).map_err(DepositError::address)?;
+            Address::try_from_raw(bridge_address).map_err(DepositError::address)?;
         let amount = amount.ok_or(DepositError::field_not_set("amount"))?.into();
         let Some(rollup_id) = rollup_id else {
             return Err(DepositError::field_not_set("rollup_id"));

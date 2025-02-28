@@ -25,7 +25,10 @@ use sequencer_client::{
     LatestHeightStream,
     StreamLatestHeight as _,
 };
-use tokio::select;
+use tokio::{
+    select,
+    sync::mpsc,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::{
     debug,
@@ -40,12 +43,6 @@ use tracing::{
 
 use crate::{
     block_cache::BlockCache,
-    executor::{
-        self,
-        SoftSendError,
-        SoftTrySendError,
-        StateIsInit,
-    },
     sequencer::block_stream::BlocksFromHeightStream,
 };
 
@@ -56,16 +53,15 @@ mod reporting;
 pub(crate) use builder::Builder;
 pub(crate) use client::SequencerGrpcClient;
 
+use crate::executor::StateReceiver;
+
 /// [`Reader`] reads Sequencer blocks and forwards them to the [`crate::Executor`] task.
 ///
 /// The blocks are forwarded in strictly sequential order of their Sequencr heights.
 /// A [`Reader`] is created with [`Builder::build`] and run with [`Reader::run_until_stopped`].
 pub(crate) struct Reader {
-    /// The handle for sending sequencer blocks as soft commits to the executor
-    /// and checking it for the next expected height, and rollup ID associated with
-    /// this instance of Conductor.
-    /// Must be initialized before it can be used.
-    executor: executor::Handle,
+    rollup_state: StateReceiver,
+    soft_blocks: mpsc::Sender<FilteredSequencerBlock>,
 
     /// The gRPC client to fetch new blocks from the Sequencer network.
     sequencer_grpc_client: SequencerGrpcClient,
@@ -87,22 +83,22 @@ pub(crate) struct Reader {
 
 impl Reader {
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        let executor = select!(
+        select!(
             () = self.shutdown.clone().cancelled_owned() => {
                 return report_exit(Ok("received shutdown signal while waiting for Sequencer reader task to initialize"), "");
             }
             res = self.initialize() => {
-                res?
+                res?;
             }
         );
-        RunningReader::try_from_parts(self, executor)
+        RunningReader::try_from_parts(self)
             .wrap_err("failed entering run loop")?
             .run_until_stopped()
             .await
     }
 
     #[instrument(skip_all, err)]
-    async fn initialize(&mut self) -> eyre::Result<executor::Handle<StateIsInit>> {
+    async fn initialize(&mut self) -> eyre::Result<()> {
         let actual_sequencer_chain_id =
             get_sequencer_chain_id(self.sequencer_cometbft_client.clone())
                 .await
@@ -113,20 +109,13 @@ impl Reader {
             "expected chain id `{expected_sequencer_chain_id}` does not match actual: \
              `{actual_sequencer_chain_id}`"
         );
-
-        self.executor
-            .wait_for_init()
-            .await
-            .wrap_err("handle to executor failed while waiting for it being initialized")
+        Ok(())
     }
 }
 
 struct RunningReader {
-    /// The initialized handle to the executor task.
-    /// Used for sending sequencer blocks as soft commits to the executor
-    /// and checking it for the next expected height, and rollup ID associated with
-    /// this instance of Conductor.
-    executor: executor::Handle<StateIsInit>,
+    rollup_state: StateReceiver,
+    soft_blocks: mpsc::Sender<FilteredSequencerBlock>,
 
     /// Caches the filtered sequencer blocks retrieved from the Sequencer.
     /// This cache will yield a block if it contains a block that matches the
@@ -143,26 +132,26 @@ struct RunningReader {
 
     /// An enqueued block waiting for executor to free up. Set if the executor exhibits
     /// backpressure.
-    enqueued_block: Fuse<BoxFuture<'static, Result<(), SoftSendError>>>,
+    enqueued_block:
+        Fuse<BoxFuture<'static, Result<(), mpsc::error::SendError<FilteredSequencerBlock>>>>,
 
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
 }
 
 impl RunningReader {
-    fn try_from_parts(
-        reader: Reader,
-        mut executor: executor::Handle<StateIsInit>,
-    ) -> eyre::Result<Self> {
+    fn try_from_parts(reader: Reader) -> eyre::Result<Self> {
         let Reader {
             sequencer_grpc_client,
             sequencer_cometbft_client,
             sequencer_block_time,
             shutdown,
+            rollup_state,
+            soft_blocks,
             ..
         } = reader;
 
-        let next_expected_height = executor.next_expected_soft_sequencer_height();
+        let next_expected_height = rollup_state.next_expected_soft_sequencer_height();
 
         let latest_height_stream =
             sequencer_cometbft_client.stream_latest_height(sequencer_block_time);
@@ -171,14 +160,15 @@ impl RunningReader {
             .wrap_err("failed constructing sequential block cache")?;
 
         let blocks_from_heights = BlocksFromHeightStream::new(
-            executor.rollup_id(),
+            rollup_state.rollup_id(),
             next_expected_height,
             sequencer_grpc_client,
         );
 
         let enqueued_block: Fuse<BoxFuture<Result<_, _>>> = future::Fuse::terminated();
         Ok(RunningReader {
-            executor,
+            rollup_state,
+            soft_blocks,
             block_cache,
             latest_height_stream,
             blocks_from_heights,
@@ -215,7 +205,7 @@ impl RunningReader {
                 }
 
                 // Skip heights that executor has already executed (e.g. firm blocks from Celestia)
-                Ok(next_height) = self.executor.next_expected_soft_height_if_changed() => {
+                Ok(next_height) = self.rollup_state.next_expected_soft_height_if_changed() => {
                     self.update_next_expected_height(next_height);
                 }
 
@@ -267,34 +257,18 @@ impl RunningReader {
     /// Enqueues the block is the channel to the executor is full, sending it once
     /// it frees up.
     fn send_to_executor(&mut self, block: FilteredSequencerBlock) -> eyre::Result<()> {
-        if let Err(err) = self.executor.try_send_soft_block(block) {
+        if let Err(err) = self.soft_blocks.try_send(block) {
             match err {
-                SoftTrySendError::Channel {
-                    source,
-                } => match *source {
-                    executor::channel::TrySendError::Closed(_) => {
-                        bail!("could not send block to executor because its channel was closed");
-                    }
-
-                    executor::channel::TrySendError::NoPermits(block) => {
-                        trace!(
-                            "executor channel is full; scheduling block and stopping block fetch \
-                             until a slot opens up"
-                        );
-                        self.enqueued_block = self
-                            .executor
-                            .clone()
-                            .send_soft_block_owned(block)
-                            .boxed()
-                            .fuse();
-                    }
-                },
-
-                SoftTrySendError::NotSet => {
-                    bail!(
-                        "conductor was configured without soft commitments; the sequencer reader \
-                         task should have never been started",
+                mpsc::error::TrySendError::Full(block) => {
+                    trace!(
+                        "executor channel is full; scheduling block and stopping block fetch \
+                         until a slot opens up"
                     );
+                    let chan = self.soft_blocks.clone();
+                    self.enqueued_block = async move { chan.send(block).await }.boxed().fuse();
+                }
+                mpsc::error::TrySendError::Closed(_) => {
+                    bail!("could not send block to executor because its channel was closed")
                 }
             }
         }

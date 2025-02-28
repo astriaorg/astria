@@ -50,12 +50,21 @@ mod tests {
 
     #[test]
     fn keys_should_not_change() {
-        insta::assert_snapshot!(block_hash_by_height(42));
-        insta::assert_snapshot!(sequencer_block_header_by_hash(&HASH));
-        insta::assert_snapshot!(rollup_data_by_hash_and_rollup_id(&HASH, &ROLLUP_ID));
-        insta::assert_snapshot!(rollup_ids_by_hash(&HASH));
-        insta::assert_snapshot!(rollup_transactions_proof_by_hash(&HASH));
-        insta::assert_snapshot!(rollup_ids_proof_by_hash(&HASH));
+        insta::assert_snapshot!("block_hash_by_height_key", block_hash_by_height(42));
+        insta::assert_snapshot!(
+            "sequencer_block_header_by_hash_key",
+            sequencer_block_header_by_hash(&HASH)
+        );
+        insta::assert_snapshot!(
+            "rollup_data_by_has_and_id_key",
+            rollup_data_by_hash_and_rollup_id(&HASH, &ROLLUP_ID)
+        );
+        insta::assert_snapshot!("rollup_ids_by_hash_key", rollup_ids_by_hash(&HASH));
+        insta::assert_snapshot!(
+            "rollup_transactions_proof_by_hash_key",
+            rollup_transactions_proof_by_hash(&HASH)
+        );
+        insta::assert_snapshot!("rollup_ids_proof_by_hash", rollup_ids_proof_by_hash(&HASH));
     }
 
     #[test]

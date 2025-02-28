@@ -8,7 +8,7 @@ data:
   ASTRIA_CONDUCTOR_CELESTIA_NODE_HTTP_URL: "{{ .Values.config.celestia.rpc }}"
   ASTRIA_CONDUCTOR_EXPECTED_CELESTIA_CHAIN_ID: "{{ tpl .Values.config.conductor.celestiaChainId . }}"
   ASTRIA_CONDUCTOR_CELESTIA_BEARER_TOKEN: "{{ .Values.config.celestia.token }}"
-  ASTRIA_CONDUCTOR_CELESTIA_BLOCK_TIME_MS: "12000"
+  ASTRIA_CONDUCTOR_CELESTIA_BLOCK_TIME_MS: "{{ .Values.config.conductor.celestiaBlockTimeMs }}"
   ASTRIA_CONDUCTOR_EXECUTION_RPC_URL: "http://127.0.0.1:{{ .Values.ports.executionGRPC }}"
   ASTRIA_CONDUCTOR_EXECUTION_COMMIT_LEVEL: "{{ .Values.config.conductor.executionCommitLevel }}"
   ASTRIA_CONDUCTOR_SEQUENCER_GRPC_URL: "{{ tpl .Values.config.conductor.sequencerGrpc . }}"
@@ -53,4 +53,36 @@ data:
     {{- tpl (.Files.Get "files/genesis/geth-genesis.json") $ | nindent 4 }}
   init-geth.sh: |
     {{- tpl (.Files.Get "files/scripts/init-geth.sh") $ | nindent 4 }}
+  {{- if .Values.config.geth.snapshot.create.enabled }}
+  create-snapshot.sh: |
+    {{- tpl (.Files.Get "files/scripts/create-snapshot.sh") $ | nindent 4 }}
+  {{- end }}
+  {{- if .Values.config.geth.snapshot.restore.enabled }}
+  restore-snapshot.sh: |
+    {{- tpl (.Files.Get "files/scripts/restore-snapshot.sh") $ | nindent 4 }}
+  {{- end }}
 ---
+{{- if or
+  (and
+    .Values.config.geth.snapshot.create.enabled
+    .Values.config.geth.snapshot.create.storage.upload.enabled
+  )
+  (.Values.config.geth.snapshot.restore.enabled)
+}}
+{{- if not .Values.secretProvider.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "rollup.name" . }}-rclone-config
+  namespace: {{ include "rollup.namespace" .  }}
+data:
+  rclone.conf: |
+    {{- range $section, $config := .Values.rclone.config.devContent }}
+    [{{ $section }}]
+    {{- range $key, $value := $config }}
+    {{ $key | snakecase }} = {{ $value }}
+    {{- end }}
+    {{- end }}
+---
+{{- end }}
+{{- end }}

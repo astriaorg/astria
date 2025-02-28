@@ -22,6 +22,14 @@ use astria_core::{
     },
     sequencerblock::v1::block::Deposit,
 };
+use benchmark_and_test_utils::{
+    default_genesis_accounts,
+    initialize_app_with_storage,
+    mock_balances,
+    mock_tx_cost,
+    BOB_ADDRESS,
+    JUDY_ADDRESS,
+};
 use cnidarium::StateDelta;
 use prost::{
     bytes::Bytes,
@@ -58,15 +66,15 @@ use crate::{
         StateWriteExt as _,
         ValidatorSet,
     },
-    bridge::StateWriteExt as _,
-    fees::StateReadExt as _,
-    proposal::commitment::generate_rollup_datas_commitment,
-    test_utils::{
+    benchmark_and_test_utils::{
         astria_address,
         astria_address_from_hex_string,
         nria,
         verification_key,
     },
+    bridge::StateWriteExt as _,
+    fees::StateReadExt as _,
+    proposal::commitment::generate_rollup_datas_commitment,
 };
 
 fn default_tendermint_header() -> Header {
@@ -158,7 +166,7 @@ async fn app_begin_block_remove_byzantine_validators() {
     let misbehavior = types::Misbehavior {
         kind: types::MisbehaviorKind::Unknown,
         validator: types::Validator {
-            address: *crate::test_utils::verification_key(1).address_bytes(),
+            address: *verification_key(1).address_bytes(),
             power: 0u32.into(),
         },
         height: Height::default(),
@@ -236,15 +244,13 @@ async fn app_transfer_block_fees_to_sudo() {
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let amount = 333_333;
     let tx = TransactionBody::builder()
-        .actions(vec![
-            Transfer {
-                to: bob_address,
-                amount,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![Transfer {
+            to: bob_address,
+            amount,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -276,11 +282,11 @@ async fn app_transfer_block_fees_to_sudo() {
     // assert that transaction fees were transferred to the block proposer
     let transfer_base_fee = app
         .state
-        .get_transfer_fees()
+        .get_fees::<Transfer>()
         .await
         .expect("should not error fetching transfer fees")
         .expect("transfer fees should be stored")
-        .base;
+        .base();
     assert_eq!(
         app.state
             .get_account_balance(&astria_address_from_hex_string(JUDY_ADDRESS), &nria())
@@ -294,7 +300,7 @@ async fn app_transfer_block_fees_to_sudo() {
 #[tokio::test]
 async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     use astria_core::{
-        generated::sequencerblock::v1::RollupData as RawRollupData,
+        generated::astria::sequencerblock::v1::RollupData as RawRollupData,
         sequencerblock::v1::block::RollupData,
     };
 
@@ -581,28 +587,24 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
     // create txs which will cause cometBFT overflow
     let alice = get_alice_signing_key();
     let tx_pass = TransactionBody::builder()
-        .actions(vec![
-            RollupDataSubmission {
-                rollup_id: RollupId::from([1u8; 32]),
-                data: Bytes::copy_from_slice(&[1u8; 100_000]),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![RollupDataSubmission {
+            rollup_id: RollupId::from([1u8; 32]),
+            data: Bytes::copy_from_slice(&[1u8; 100_000]),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()
         .sign(&alice);
 
     let tx_overflow = TransactionBody::builder()
-        .actions(vec![
-            RollupDataSubmission {
-                rollup_id: RollupId::from([1u8; 32]),
-                data: Bytes::copy_from_slice(&[1u8; 100_000]),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![RollupDataSubmission {
+            rollup_id: RollupId::from([1u8; 32]),
+            data: Bytes::copy_from_slice(&[1u8; 100_000]),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .nonce(1)
         .try_build()
@@ -671,27 +673,23 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
     // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
     let alice = get_alice_signing_key();
     let tx_pass = TransactionBody::builder()
-        .actions(vec![
-            RollupDataSubmission {
-                rollup_id: RollupId::from([1u8; 32]),
-                data: Bytes::copy_from_slice(&[1u8; 200_000]),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![RollupDataSubmission {
+            rollup_id: RollupId::from([1u8; 32]),
+            data: Bytes::copy_from_slice(&[1u8; 200_000]),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()
         .sign(&alice);
     let tx_overflow = TransactionBody::builder()
-        .actions(vec![
-            RollupDataSubmission {
-                rollup_id: RollupId::from([1u8; 32]),
-                data: Bytes::copy_from_slice(&[1u8; 100_000]),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![RollupDataSubmission {
+            rollup_id: RollupId::from([1u8; 32]),
+            data: Bytes::copy_from_slice(&[1u8; 100_000]),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .nonce(1)
         .chain_id("test")
         .try_build()
@@ -760,27 +758,23 @@ async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
     // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
     let alice = get_alice_signing_key();
     let tx_pass = TransactionBody::builder()
-        .actions(vec![
-            RollupDataSubmission {
-                rollup_id: RollupId::from([1u8; 32]),
-                data: Bytes::copy_from_slice(&[1u8; 200_000]),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![RollupDataSubmission {
+            rollup_id: RollupId::from([1u8; 32]),
+            data: Bytes::copy_from_slice(&[1u8; 200_000]),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()
         .sign(&alice);
     let tx_overflow = TransactionBody::builder()
-        .actions(vec![
-            RollupDataSubmission {
-                rollup_id: RollupId::from([1u8; 32]),
-                data: Bytes::copy_from_slice(&[1u8; 100_000]),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![RollupDataSubmission {
+            rollup_id: RollupId::from([1u8; 32]),
+            data: Bytes::copy_from_slice(&[1u8; 100_000]),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .nonce(1)
         .chain_id("test")
         .try_build()
@@ -826,12 +820,10 @@ async fn app_process_proposal_transaction_fails_to_execute_fails() {
     // create txs which will cause transaction execution failure
     let alice = get_alice_signing_key();
     let tx_fail = TransactionBody::builder()
-        .actions(vec![
-            SudoAddressChange {
-                new_address: astria_address_from_hex_string(BOB_ADDRESS),
-            }
-            .into(),
-        ])
+        .actions(vec![SudoAddressChange {
+            new_address: astria_address_from_hex_string(BOB_ADDRESS),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()
@@ -872,11 +864,11 @@ async fn app_end_block_validator_updates() {
     let initial_validator_set = vec![
         ValidatorUpdate {
             power: 100,
-            verification_key: crate::test_utils::verification_key(1),
+            verification_key: verification_key(1),
         },
         ValidatorUpdate {
             power: 1,
-            verification_key: crate::test_utils::verification_key(2),
+            verification_key: verification_key(2),
         },
     ];
 

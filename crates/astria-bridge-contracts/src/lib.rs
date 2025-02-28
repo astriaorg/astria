@@ -33,9 +33,27 @@ use ethers::{
         Filter,
         Log,
         H256,
+        U256,
     },
 };
 pub use generated::*;
+
+const NON_ERC20_CONTRACT_DECIMALS: u32 = 18u32;
+
+macro_rules! warn {
+    ($($tt:tt)*) => {
+        #[cfg(feature = "tracing")]
+        {
+            #![cfg_attr(
+                feature = "tracing",
+                expect(
+                    clippy::used_underscore_binding,
+                    reason = "underscore is needed to quiet `unused-variables` warning if `tracing` feature is not set",
+            ))]
+            ::tracing::warn!($($tt)*);
+        }
+    }
+}
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
@@ -279,7 +297,7 @@ where
         if let Some(ics20_asset_to_withdraw) = &ics20_asset_to_withdraw {
             ics20_source_channel.replace(
                 ics20_asset_to_withdraw
-                    .last_channel()
+                    .leading_channel()
                     .ok_or(BuildError::ics20_asset_without_channel())?
                     .parse()
                     .map_err(BuildError::parse_ics20_asset_source_channel)?,
@@ -295,7 +313,25 @@ where
             .await
             .map_err(BuildError::call_base_chain_asset_precision)?;
 
-        let exponent = 18u32
+        let contract_decimals = {
+            let erc_20_contract = astria_bridgeable_erc20::AstriaBridgeableERC20::new(
+                contract_address,
+                provider.clone(),
+            );
+            match erc_20_contract.decimals().call().await {
+                Ok(decimals) => decimals.into(),
+                Err(_error) => {
+                    warn!(
+                        error = &_error as &dyn std::error::Error,
+                        "failed reading decimals from contract; assuming it is not an ERC20 \
+                         contract and falling back to `{NON_ERC20_CONTRACT_DECIMALS}`"
+                    );
+                    NON_ERC20_CONTRACT_DECIMALS
+                }
+            }
+        };
+
+        let exponent = contract_decimals
             .checked_sub(base_chain_asset_precision)
             .ok_or_else(|| BuildError::bad_divisor(base_chain_asset_precision))?;
 
@@ -397,14 +433,10 @@ where
 
         let transaction_hash = log
             .transaction_hash
-            .ok_or_else(|| GetWithdrawalActionsError::log_without_transaction_hash(&log))?
-            .encode_hex();
+            .ok_or_else(|| GetWithdrawalActionsError::log_without_transaction_hash(&log))?;
         let event_index = log
             .log_index
-            .ok_or_else(|| GetWithdrawalActionsError::log_without_log_index(&log))?
-            .encode_hex();
-
-        let rollup_withdrawal_event_id = format!("{transaction_hash}.{event_index}");
+            .ok_or_else(|| GetWithdrawalActionsError::log_without_log_index(&log))?;
 
         let event = decode_log::<Ics20WithdrawalFilter>(log)
             .map_err(GetWithdrawalActionsError::decode_log)?;
@@ -419,13 +451,9 @@ where
                 .expect("must be set if this method is entered"),
         );
 
-        let memo = memo_to_json(&memos::v1::Ics20WithdrawalFromRollup {
-            memo: event.memo.clone(),
-            rollup_block_number,
-            rollup_return_address: event.sender.encode_hex(),
-            rollup_withdrawal_event_id,
-        })
-        .map_err(GetWithdrawalActionsError::encode_memo)?;
+        let memo =
+            make_withdrawal_memo(&event, rollup_block_number, &transaction_hash, &event_index)
+                .map_err(GetWithdrawalActionsError::encode_memo)?;
 
         let amount = calculate_amount(&event, self.asset_withdrawal_divisor)
             .map_err(GetWithdrawalActionsError::calculate_withdrawal_amount)?;
@@ -459,14 +487,13 @@ where
 
         let transaction_hash = log
             .transaction_hash
-            .ok_or_else(|| GetWithdrawalActionsError::log_without_transaction_hash(&log))?
-            .encode_hex();
+            .ok_or_else(|| GetWithdrawalActionsError::log_without_transaction_hash(&log))?;
         let event_index = log
             .log_index
-            .ok_or_else(|| GetWithdrawalActionsError::log_without_log_index(&log))?
-            .encode_hex();
+            .ok_or_else(|| GetWithdrawalActionsError::log_without_log_index(&log))?;
 
-        let rollup_withdrawal_event_id = format!("{transaction_hash}.{event_index}");
+        let rollup_withdrawal_event_id =
+            rollup_withdrawal_event_id(&transaction_hash, &event_index);
 
         let event = decode_log::<SequencerWithdrawalFilter>(log)
             .map_err(GetWithdrawalActionsError::decode_log)?;
@@ -663,9 +690,31 @@ struct EncodeMemoError {
     source: serde_json::Error,
 }
 
-fn memo_to_json<T: prost::Name + serde::Serialize>(memo: &T) -> Result<String, EncodeMemoError> {
-    serde_json::to_string(memo).map_err(|source| EncodeMemoError {
-        proto_message: T::full_name(),
+fn rollup_withdrawal_event_id(transaction_hash: &H256, event_index: &U256) -> String {
+    format!(
+        "{}.{}",
+        transaction_hash.encode_hex(),
+        event_index.encode_hex()
+    )
+}
+
+fn make_withdrawal_memo(
+    event: &Ics20WithdrawalFilter,
+    rollup_block_number: u64,
+    transaction_hash: &H256,
+    event_index: &U256,
+) -> Result<String, EncodeMemoError> {
+    use prost::Name as _;
+    type Memo = memos::v1::Ics20WithdrawalFromRollup;
+
+    let withdrawal = Memo {
+        memo: event.memo.clone(),
+        rollup_block_number,
+        rollup_return_address: event.sender.encode_hex(),
+        rollup_withdrawal_event_id: rollup_withdrawal_event_id(transaction_hash, event_index),
+    };
+    serde_json::to_string(&withdrawal).map_err(|source| EncodeMemoError {
+        proto_message: Memo::full_name(),
         source,
     })
 }
@@ -688,9 +737,23 @@ fn timeout_in_5_min() -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::max_timeout_height;
+    use super::*;
+
     #[test]
     fn max_timeout_height_does_not_panic() {
         max_timeout_height();
+    }
+
+    #[test]
+    fn memo_format_should_not_change() {
+        let event = Ics20WithdrawalFilter {
+            sender: "14cbd075f796969cf5dbd853da492d86071f97ed".parse().unwrap(),
+            amount: U256::one(),
+            destination_chain_address: "destination address".to_string(),
+            memo: "<a third party memo>".to_string(),
+        };
+        let json_encoded_memo =
+            make_withdrawal_memo(&event, 999, &H256::from_slice(&[1; 32]), &U256::one()).unwrap();
+        insta::assert_snapshot!("memo_snapshot", json_encoded_memo);
     }
 }

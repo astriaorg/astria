@@ -15,9 +15,11 @@ use tokio::sync::mpsc;
 use tower_abci::BoxError;
 use tower_actor::Message;
 use tracing::{
+    debug,
     instrument,
     warn,
     Instrument,
+    Level,
 };
 
 use crate::app::App;
@@ -153,7 +155,7 @@ impl Consensus {
         })
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn handle_prepare_proposal(
         &mut self,
         prepare_proposal: request::PrepareProposal,
@@ -163,7 +165,7 @@ impl Consensus {
             .await
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn handle_process_proposal(
         &mut self,
         process_proposal: request::ProcessProposal,
@@ -171,11 +173,11 @@ impl Consensus {
         self.app
             .process_proposal(process_proposal, self.storage.clone())
             .await?;
-        tracing::debug!("proposal processed");
+        debug!("proposal processed");
         Ok(())
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err)]
     async fn finalize_block(
         &mut self,
         finalize_block: request::FinalizeBlock,
@@ -227,7 +229,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        app::test_utils::{
+        app::benchmark_and_test_utils::{
             mock_balances,
             mock_tx_cost,
         },
@@ -238,14 +240,12 @@ mod tests {
 
     fn make_unsigned_tx() -> TransactionBody {
         TransactionBody::builder()
-            .actions(vec![
-                RollupDataSubmission {
-                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                    data: Bytes::from_static(b"hello world"),
-                    fee_asset: crate::test_utils::nria().into(),
-                }
-                .into(),
-            ])
+            .actions(vec![RollupDataSubmission {
+                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                data: Bytes::from_static(b"hello world"),
+                fee_asset: crate::benchmark_and_test_utils::nria().into(),
+            }
+            .into()])
             .chain_id("test")
             .try_build()
             .unwrap()
@@ -340,30 +340,26 @@ mod tests {
     async fn process_proposal_fail_missing_action_commitment() {
         let (mut consensus_service, _) = new_consensus_service(None).await;
         let process_proposal = new_process_proposal_request(vec![]);
-        assert!(
-            consensus_service
-                .handle_process_proposal(process_proposal)
-                .await
-                .err()
-                .unwrap()
-                .to_string()
-                .contains("no transaction commitment in proposal")
-        );
+        assert!(consensus_service
+            .handle_process_proposal(process_proposal)
+            .await
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("no transaction commitment in proposal"));
     }
 
     #[tokio::test]
     async fn process_proposal_fail_wrong_commitment_length() {
         let (mut consensus_service, _) = new_consensus_service(None).await;
         let process_proposal = new_process_proposal_request(vec![[0u8; 16].to_vec().into()]);
-        assert!(
-            consensus_service
-                .handle_process_proposal(process_proposal)
-                .await
-                .err()
-                .unwrap()
-                .to_string()
-                .contains("transaction commitment must be 32 bytes")
-        );
+        assert!(consensus_service
+            .handle_process_proposal(process_proposal)
+            .await
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("transaction commitment must be 32 bytes"));
     }
 
     #[tokio::test]
@@ -373,15 +369,13 @@ mod tests {
             [99u8; 32].to_vec().into(),
             [99u8; 32].to_vec().into(),
         ]);
-        assert!(
-            consensus_service
-                .handle_process_proposal(process_proposal)
-                .await
-                .err()
-                .unwrap()
-                .to_string()
-                .contains("transaction commitment does not match expected")
-        );
+        assert!(consensus_service
+            .handle_process_proposal(process_proposal)
+            .await
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("transaction commitment does not match expected"));
     }
 
     #[tokio::test]
@@ -450,17 +444,20 @@ mod tests {
 
     async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
         let accounts = if let Some(funded_key) = funded_key {
-            vec![astria_core::generated::protocol::genesis::v1::Account {
-                address: Some(
-                    crate::test_utils::astria_address(funded_key.address_bytes()).to_raw(),
-                ),
-                balance: Some(10u128.pow(19).into()),
-            }]
+            vec![
+                astria_core::generated::astria::protocol::genesis::v1::Account {
+                    address: Some(
+                        crate::benchmark_and_test_utils::astria_address(funded_key.address_bytes())
+                            .to_raw(),
+                    ),
+                    balance: Some(10u128.pow(19).into()),
+                },
+            ]
         } else {
             vec![]
         };
         let genesis_state = {
-            let mut state = crate::app::test_utils::proto_genesis_state();
+            let mut state = crate::app::benchmark_and_test_utils::proto_genesis_state();
             state.accounts = accounts;
             state
         }

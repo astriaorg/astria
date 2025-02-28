@@ -149,6 +149,10 @@ pub struct GenesisFees {
     pub recover_client: ::core::option::Option<
         super::super::fees::v1::RecoverClientFeeComponents,
     >,
+    #[prost(message, optional, tag = "16")]
+    pub bridge_transfer: ::core::option::Option<
+        super::super::fees::v1::BridgeTransferFeeComponents,
+    >,
 }
 impl ::prost::Name for GenesisFees {
     const NAME: &'static str = "GenesisFees";

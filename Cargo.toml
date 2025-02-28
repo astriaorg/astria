@@ -2,6 +2,7 @@
 exclude = ["tools/protobuf-compiler", "tools/solidity-compiler"]
 
 members = [
+  "crates/astria-auctioneer",
   "crates/astria-bridge-contracts",
   "crates/astria-bridge-withdrawer",
   "crates/astria-build-info",
@@ -10,6 +11,9 @@ members = [
   "crates/astria-conductor",
   "crates/astria-config",
   "crates/astria-core",
+  "crates/astria-core-address",
+  "crates/astria-core-consts",
+  "crates/astria-core-crypto",
   "crates/astria-eyre",
   "crates/astria-grpc-mock",
   "crates/astria-grpc-mock-test",
@@ -26,6 +30,7 @@ members = [
 # Specify default members so that cargo invocations in github actions will
 # not act on lints
 default-members = [
+  "crates/astria-auctioneer",
   "crates/astria-bridge-contracts",
   "crates/astria-bridge-withdrawer",
   "crates/astria-build-info",
@@ -34,6 +39,9 @@ default-members = [
   "crates/astria-conductor",
   "crates/astria-config",
   "crates/astria-core",
+  "crates/astria-core-address",
+  "crates/astria-core-consts",
+  "crates/astria-core-crypto",
   "crates/astria-grpc-mock",
   "crates/astria-grpc-mock-test",
   "crates/astria-grpc-mock-test-codegen",
@@ -75,9 +83,9 @@ itoa = "1.0.10"
 jsonrpsee = { version = "0.20" }
 pbjson-types = "0.6"
 # Note that when updating the penumbra versions, vendored types in `proto/sequencerapis/astria_vendored` may need to be updated as well.
-penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "81332eb18330bce0929b1fcf6a49f08eccbbdde5", default-features = false }
-penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "81332eb18330bce0929b1fcf6a49f08eccbbdde5" }
-penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "81332eb18330bce0929b1fcf6a49f08eccbbdde5" }
+penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "686fa5b53e8ad306736d2de61d1ffb6d11722e2b", default-features = false }
+penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "686fa5b53e8ad306736d2de61d1ffb6d11722e2b" }
+penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "686fa5b53e8ad306736d2de61d1ffb6d11722e2b" }
 pin-project-lite = "0.2.13"
 prost = "0.12"
 rand = "0.8.5"
@@ -99,7 +107,7 @@ thiserror = "1"
 tokio = "1.28"
 tokio-stream = { version = "0.1.14" }
 tokio-test = "0.4.2"
-tokio-util = "0.7.9"
+tokio-util = "0.7.13"
 tonic = "0.10"
 tracing = "0.1"
 tryhard = "0.5.1"

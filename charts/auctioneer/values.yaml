@@ -1,0 +1,96 @@
+global:
+  namespaceOverride: ""
+  replicaCount: 1
+  # Whether to use tty readable logging for astria services, when false use json.
+  useTTY: false
+  dev: false
+
+images:
+  auctioneer:
+    repo: ghcr.io/astriaorg/auctioneer
+    pullPolicy: IfNotPresent
+    # TODO - update to latest tag
+    tag: "pr-1839"
+    devTag: "pr-1839"
+
+config:
+  sequencerGrpcEndpoint: ""
+  sequencerAbciEndpoint: ""
+  sequencerChainId: ""
+  sequencerPrivateKey:
+    devContent: ""
+    secret:
+      filename: "key.hex"
+      resourceName: "projects/$PROJECT_ID/secrets/sequencerPrivateKey/versions/latest"
+  feeAssetDenomination: ""
+  sequencerAddressPrefix: astria
+  rollupGrpcEndpoint: ""
+  rollupId: ""
+  latencyMarginMs: ""
+  logLevel: "info"
+
+otel:
+  enabled: false
+  serviceName: "auctioneer"
+  endpoint: ""
+  tracesEndpoint: ""
+  tracesCompression: "gzip"
+  tracesTimeout: "10"
+  otlpHeaders: ""
+  traceHeaders: ""
+
+metrics:
+  enabled: false
+
+serviceMonitor:
+  # set to enable port svc and service monitor
+  enabled: false
+  port: 6060
+  additionalLabels:
+    release: kube-prometheus-stack
+
+alerting:
+  enabled: false
+  interval: ""
+  additionalLabels:
+    release: kube-prometheus-stack
+  annotations: {}
+  # scrapeTimeout: 10s
+  # path: /metrics
+  prometheusRule:
+    enabled: true
+    additionalLabels:
+      release: kube-prometheus-stack
+    namespace: monitoring
+    rules:
+      - alert: Auctioneer_Node_Down
+        expr: up{container="auctioneer"} == 0  # Insert your query Expression
+        for: 1m  # Rough number but should be enough to init warn
+        labels:
+          severity: warning
+        annotations:
+          summary: Auctioneer is Down (instance {{ $labels.instance }})
+          description: "auctioneer node '{{ $labels.namespace }}' has disappeared from Prometheus target discovery.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+# When deploying in a production environment should use a secret provider
+# This is configured for use with GCP, need to set own resource names
+# and keys
+secretProvider:
+  enabled: false
+  provider: gcp
+  parametersTemplate: |-
+    secrets: |
+      - resourceName: {{ .key.resourceName }}
+        fileName: "{{ .key.filename }}"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 100Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# Default service ports
+ports:
+  metrics: 6060

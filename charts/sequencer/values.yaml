@@ -9,21 +9,31 @@ global:
   useTTY: true
   dev: false
 
+snapshotLoad:
+  enabled: false
+  config:
+    provider: Cloudflare
+    accessKeyId: 0d8d8005e468dd86498bde6dfa02044f
+    secretAccessKey: e33ea43e00d9b655cb72d8a8107fa2957bd6b77e5718df0a26f259956532bba8
+    region: auto
+    endpoint: https://fb1caa337c8e4e3101363ca1240e03ca.r2.cloudflarestorage.com
+    acl: private
+
 # sequencer core images
 images:
   init:
-    repo: ghcr.io/tomwright/dasel
+    repo: rclone/rclone
     pullPolicy: IfNotPresent
-    tag: alpine
+    tag: 1.56.0
   cometBFT:
     repo: docker.io/cometbft/cometbft
     pullPolicy: IfNotPresent
-    tag: v0.38.8
-    devTag: v0.38.8
+    tag: v0.38.17
+    devTag: v0.38.17
   sequencer:
     repo: ghcr.io/astriaorg/sequencer
     pullPolicy: IfNotPresent
-    tag: 1.0.0-rc.1
+    tag: 1.0.0
     devTag: latest
 
 moniker: ""
@@ -105,6 +115,7 @@ genesis:
     #   pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
 
 sequencer:
+  abciUDS: true
   mempool:
     parked:
       maxTxCount: 200
@@ -120,6 +131,9 @@ sequencer:
     tracesTimeout: 10
     otlpHeaders:
     traceHeaders:
+  optimisticBlockApis:
+    # set to true to enable optimistic block APIs
+    enabled: false
 
 cometbft:
   config:
@@ -311,7 +325,7 @@ storage:
   local: true
   entities:
     sequencerSharedStorage:
-      size: "5Gi"
+      size: "50Gi"
       persistentVolumeName: "sequencer-shared-storage"
       path: "/data/sequencer-data"
 

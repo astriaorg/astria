@@ -5,7 +5,7 @@ use astria_conductor::{
     Conductor,
     Config,
 };
-use astria_core::generated::execution::v1::{
+use astria_core::generated::astria::execution::v1::{
     GetCommitmentStateRequest,
     GetGenesisInfoRequest,
 };
@@ -125,7 +125,7 @@ async fn simple() {
     .await
     .expect(
         "conductor should have executed the firm block and updated the firm commitment state \
-         within 1000ms",
+         within 2000ms",
     );
 }
 

@@ -2,6 +2,7 @@ use color_eyre::eyre;
 
 mod fee_asset;
 mod ibc_relayer;
+mod ibc_sudo_change;
 mod recover_client;
 mod sudo_address_change;
 mod validator_update;
@@ -20,6 +21,9 @@ impl Command {
             SubCommand::SudoAddressChange(sudo_address_change) => sudo_address_change.run().await,
             SubCommand::ValidatorUpdate(validator_update) => validator_update.run().await,
             SubCommand::RecoverClient(recover_client) => recover_client.run().await,
+            SubCommand::IbcSudoAddressChange(ibc_sudo_address_change) => {
+                ibc_sudo_address_change.run().await
+            }
         }
     }
 }
@@ -31,4 +35,5 @@ enum SubCommand {
     SudoAddressChange(sudo_address_change::Command),
     ValidatorUpdate(validator_update::Command),
     RecoverClient(recover_client::Command),
+    IbcSudoAddressChange(ibc_sudo_change::Command),
 }

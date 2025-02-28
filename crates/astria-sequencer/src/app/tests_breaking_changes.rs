@@ -15,7 +15,10 @@ use std::{
 };
 
 use astria_core::{
-    primitive::v1::RollupId,
+    primitive::v1::{
+        Address,
+        RollupId,
+    },
     protocol::{
         genesis::v1::Account,
         transaction::v1::{
@@ -50,31 +53,35 @@ use tendermint::{
 };
 
 use crate::{
-    app::test_utils::{
-        default_genesis_accounts,
-        get_alice_signing_key,
-        get_bridge_signing_key,
-        initialize_app,
-        initialize_app_with_storage,
-        proto_genesis_state,
-        BOB_ADDRESS,
-        CAROL_ADDRESS,
+    app::{
+        benchmark_and_test_utils::{
+            default_genesis_accounts,
+            initialize_app_with_storage,
+            proto_genesis_state,
+            BOB_ADDRESS,
+            CAROL_ADDRESS,
+        },
+        test_utils::{
+            get_alice_signing_key,
+            get_bridge_signing_key,
+            initialize_app,
+        },
     },
     authority::StateReadExt as _,
-    bridge::StateWriteExt as _,
-    proposal::commitment::generate_rollup_datas_commitment,
-    test_utils::{
+    benchmark_and_test_utils::{
         astria_address,
         astria_address_from_hex_string,
         nria,
         ASTRIA_PREFIX,
     },
+    bridge::StateWriteExt as _,
+    proposal::commitment::generate_rollup_datas_commitment,
 };
 
 #[tokio::test]
 async fn app_genesis_snapshot() {
     let app = initialize_app(None, vec![]).await;
-    insta::assert_json_snapshot!(app.app_hash.as_bytes());
+    insta::assert_json_snapshot!("app_hash_at_genesis", app.app_hash.as_bytes());
 }
 
 #[tokio::test]
@@ -154,7 +161,7 @@ async fn app_finalize_block_snapshot() {
         .await
         .unwrap();
     app.commit(storage.clone()).await;
-    insta::assert_json_snapshot!(app.app_hash.as_bytes());
+    insta::assert_json_snapshot!("app_hash_finalize_block", app.app_hash.as_bytes());
 }
 
 // Note: this tests every action except for `Ics20Withdrawal` and `IbcRelay`.
@@ -184,10 +191,24 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         });
         acc.into_iter().map(Protobuf::into_raw).collect()
     };
-    let genesis_state = astria_core::generated::protocol::genesis::v1::GenesisAppState {
+    let genesis_state = astria_core::generated::astria::protocol::genesis::v1::GenesisAppState {
         accounts,
-        authority_sudo_address: Some(alice.try_address(ASTRIA_PREFIX).unwrap().to_raw()),
-        ibc_sudo_address: Some(alice.try_address(ASTRIA_PREFIX).unwrap().to_raw()),
+        authority_sudo_address: Some(
+            Address::builder()
+                .prefix(ASTRIA_PREFIX)
+                .array(alice.address_bytes())
+                .try_build()
+                .unwrap()
+                .to_raw(),
+        ),
+        ibc_sudo_address: Some(
+            Address::builder()
+                .prefix(ASTRIA_PREFIX)
+                .array(alice.address_bytes())
+                .try_build()
+                .unwrap()
+                .to_raw(),
+        ),
         ..proto_genesis_state()
     }
     .try_into()
@@ -197,7 +218,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     // setup for ValidatorUpdate action
     let update = ValidatorUpdate {
         power: 100,
-        verification_key: crate::test_utils::verification_key(1),
+        verification_key: crate::benchmark_and_test_utils::verification_key(1),
     };
 
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -238,24 +259,20 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .unwrap();
 
     let tx_sudo_ibc = TransactionBody::builder()
-        .actions(vec![
-            IbcSudoChange {
-                new_address: bob_address,
-            }
-            .into(),
-        ])
+        .actions(vec![IbcSudoChange {
+            new_address: bob_address,
+        }
+        .into()])
         .nonce(2)
         .chain_id("test")
         .try_build()
         .unwrap();
 
     let tx_sudo = TransactionBody::builder()
-        .actions(vec![
-            SudoAddressChange {
-                new_address: bob_address,
-            }
-            .into(),
-        ])
+        .actions(vec![SudoAddressChange {
+            new_address: bob_address,
+        }
+        .into()])
         .nonce(3)
         .chain_id("test")
         .try_build()
@@ -278,16 +295,14 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     app.execute_transaction(signed_tx_sudo).await.unwrap();
 
     let tx = TransactionBody::builder()
-        .actions(vec![
-            InitBridgeAccount {
-                rollup_id,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-                sudo_address: None,
-                withdrawer_address: None,
-            }
-            .into(),
-        ])
+        .actions(vec![InitBridgeAccount {
+            rollup_id,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+            sudo_address: None,
+            withdrawer_address: None,
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap();
@@ -324,15 +339,13 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     app.execute_transaction(signed_tx).await.unwrap();
 
     let tx_bridge = TransactionBody::builder()
-        .actions(vec![
-            BridgeSudoChange {
-                bridge_address,
-                new_sudo_address: Some(bob_address),
-                new_withdrawer_address: Some(bob_address),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![BridgeSudoChange {
+            bridge_address,
+            new_sudo_address: Some(bob_address),
+            new_withdrawer_address: Some(bob_address),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .nonce(2)
         .chain_id("test")
         .try_build()
@@ -347,5 +360,5 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
 
-    insta::assert_json_snapshot!(app.app_hash.as_bytes());
+    insta::assert_json_snapshot!("app_hash_execute_every_action", app.app_hash.as_bytes());
 }

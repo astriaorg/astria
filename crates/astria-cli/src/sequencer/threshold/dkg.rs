@@ -48,6 +48,7 @@ pub(super) struct Command {
     #[arg(long)]
     public_key_package_path: String,
 
+    /// The address prefix for the generated address.
     #[arg(long, default_value = "astria")]
     prefix: String,
 }

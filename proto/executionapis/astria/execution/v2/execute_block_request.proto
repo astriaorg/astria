@@ -1,0 +1,23 @@
+syntax = 'proto3';
+
+package astria.execution.v2;
+
+import "astria/sequencerblock/v1/block.proto";
+import "google/protobuf/timestamp.proto";
+
+// ExecuteBlockRequest contains all the information needed to create a new rollup
+// block.
+//
+// This information comes from previous rollup blocks, as well as from sequencer
+// blocks.
+message ExecuteBlockRequest {
+  // The session within which the block is intended to be executed.
+  string session_id = 1;
+  // The hash of previous block, which this new block will be created on top of,
+  // formatted in the execution node's preferred encoding.
+  string parent_hash = 2;
+  // List of transactions to include in the new block.
+  repeated astria.sequencerblock.v1.RollupData transactions = 3;
+  // Timestamp to be used for new block.
+  google.protobuf.Timestamp timestamp = 4;
+}

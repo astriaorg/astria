@@ -16,20 +16,19 @@ use cnidarium::Storage;
 
 use crate::{
     app::{
-        test_utils,
-        test_utils::{
+        benchmark_and_test_utils::{
             mock_balances,
             mock_tx_cost,
         },
         App,
     },
+    benchmark_and_test_utils::astria_address,
     benchmark_utils::{
         self,
         TxTypes,
         SIGNER_COUNT,
     },
     proposal::block_size_constraints::BlockSizeConstraints,
-    test_utils::astria_address,
 };
 
 /// The max time for any benchmark.
@@ -62,17 +61,20 @@ impl Fixture {
             .collect::<Vec<_>>();
         let first_address = accounts.first().cloned().unwrap().address;
         let genesis_state = GenesisAppState::try_from_raw(
-            astria_core::generated::protocol::genesis::v1::GenesisAppState {
+            astria_core::generated::astria::protocol::genesis::v1::GenesisAppState {
                 accounts,
                 authority_sudo_address: first_address.clone(),
                 ibc_sudo_address: first_address.clone(),
-                ..crate::app::test_utils::proto_genesis_state()
+                ..crate::app::benchmark_and_test_utils::proto_genesis_state()
             },
         )
         .unwrap();
 
-        let (app, storage) =
-            test_utils::initialize_app_with_storage(Some(genesis_state), vec![]).await;
+        let (app, storage) = crate::app::benchmark_and_test_utils::initialize_app_with_storage(
+            Some(genesis_state),
+            vec![],
+        )
+        .await;
 
         let mock_balances = mock_balances(0, 0);
         let mock_tx_cost = mock_tx_cost(0, 0, 0);
@@ -91,7 +93,7 @@ impl Fixture {
 }
 
 #[divan::bench(max_time = MAX_TIME)]
-fn execute_transactions_prepare_proposal(bencher: divan::Bencher) {
+fn prepare_proposal_tx_execution(bencher: divan::Bencher) {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -103,7 +105,7 @@ fn execute_transactions_prepare_proposal(bencher: divan::Bencher) {
             let (_tx_bytes, included_txs) = runtime.block_on(async {
                 fixture
                     .app
-                    .execute_transactions_prepare_proposal(constraints)
+                    .prepare_proposal_tx_execution(constraints)
                     .await
                     .unwrap()
             });

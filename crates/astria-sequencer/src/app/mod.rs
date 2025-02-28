@@ -1,9 +1,11 @@
-mod action_handler;
+#[cfg(any(test, feature = "benchmark"))]
+pub(crate) mod benchmark_and_test_utils;
 #[cfg(feature = "benchmark")]
 mod benchmarks;
+pub(crate) mod event_bus;
 mod state_ext;
 pub(crate) mod storage;
-#[cfg(any(test, feature = "benchmark"))]
+#[cfg(test)]
 pub(crate) mod test_utils;
 #[cfg(test)]
 mod tests_app;
@@ -20,7 +22,8 @@ use std::{
 };
 
 use astria_core::{
-    generated::protocol::transaction::v1 as raw,
+    generated::astria::protocol::transaction::v1 as raw,
+    primitive::v1::TRANSACTION_ID_LEN,
     protocol::{
         abci::AbciErrorCode,
         genesis::v1::GenesisAppState,
@@ -78,21 +81,27 @@ use tracing::{
     debug,
     info,
     instrument,
+    Level,
 };
 
-pub(crate) use self::{
-    action_handler::ActionHandler,
-    state_ext::{
-        StateReadExt,
-        StateWriteExt,
-    },
+pub(crate) use self::state_ext::{
+    StateReadExt,
+    StateWriteExt,
 };
 use crate::{
     accounts::{
         component::AccountsComponent,
         StateWriteExt as _,
     },
+    action_handler::{
+        impls::transaction::InvalidNonce,
+        ActionHandler as _,
+    },
     address::StateWriteExt as _,
+    app::event_bus::{
+        EventBus,
+        EventBusSubscription,
+    },
     assets::StateWriteExt as _,
     authority::{
         component::{
@@ -125,7 +134,6 @@ use crate::{
             GeneratedCommitments,
         },
     },
-    transaction::InvalidNonce,
 };
 
 // ephemeral store key for the cache of results of executing of transactions in `prepare_proposal`.
@@ -230,10 +238,14 @@ pub(crate) struct App {
     )]
     app_hash: AppHash,
 
+    // the sequencer event bus, used to send and receive events between components within the app
+    event_bus: EventBus,
+
     metrics: &'static Metrics,
 }
 
 impl App {
+    #[instrument(name = "App::new", skip_all, err)]
     pub(crate) async fn new(
         snapshot: Snapshot,
         mempool: Mempool,
@@ -255,6 +267,8 @@ impl App {
         // there should be no unexpected copies elsewhere.
         let state = Arc::new(StateDelta::new(snapshot));
 
+        let event_bus = EventBus::new();
+
         Ok(Self {
             state,
             mempool,
@@ -263,11 +277,16 @@ impl App {
             recost_mempool: false,
             write_batch: None,
             app_hash,
+            event_bus,
             metrics,
         })
     }
 
-    #[instrument(name = "App:init_chain", skip_all)]
+    pub(crate) fn subscribe_to_events(&self) -> EventBusSubscription {
+        self.event_bus.subscribe()
+    }
+
+    #[instrument(name = "App:init_chain", skip_all, err)]
     pub(crate) async fn init_chain(
         &mut self,
         storage: Storage,
@@ -354,7 +373,7 @@ impl App {
     /// It puts this special "commitment" as the first transaction in a block.
     /// When other validators receive the block, they know the first transaction is
     /// supposed to be the commitment, and verifies that is it correct.
-    #[instrument(name = "App::prepare_proposal", skip_all)]
+    #[instrument(name = "App::prepare_proposal", skip_all, err(level = Level::WARN))]
     pub(crate) async fn prepare_proposal(
         &mut self,
         prepare_proposal: abci::request::PrepareProposal,
@@ -383,7 +402,7 @@ impl App {
 
         // ignore the txs passed by cometbft in favour of our app-side mempool
         let (included_tx_bytes, signed_txs_included) = self
-            .execute_transactions_prepare_proposal(&mut block_size_constraints)
+            .prepare_proposal_tx_execution(&mut block_size_constraints)
             .await
             .wrap_err("failed to execute transactions")?;
         self.metrics
@@ -404,7 +423,7 @@ impl App {
     /// Generates a commitment to the `sequence::Actions` in the block's transactions
     /// and ensures it matches the commitment created by the proposer, which
     /// should be the first transaction in the block.
-    #[instrument(name = "App::process_proposal", skip_all)]
+    #[instrument(name = "App::process_proposal", skip_all, err(level = Level::WARN))]
     pub(crate) async fn process_proposal(
         &mut self,
         process_proposal: abci::request::ProcessProposal,
@@ -431,16 +450,21 @@ impl App {
                     bail!("execution results must be present after executing transactions")
                 };
 
-                self.post_execute_transactions(
-                    process_proposal.hash,
-                    process_proposal.height,
-                    process_proposal.time,
-                    process_proposal.proposer_address,
-                    process_proposal.txs,
-                    tx_results,
-                )
-                .await
-                .wrap_err("failed to run post execute transactions handler")?;
+                // FIXME - avoid duplicate calls to post_execute_transactions. refer to: https://github.com/astriaorg/astria/issues/1835
+                let sequencer_block = self
+                    .post_execute_transactions(
+                        process_proposal.hash,
+                        process_proposal.height,
+                        process_proposal.time,
+                        process_proposal.proposer_address,
+                        process_proposal.txs,
+                        tx_results,
+                    )
+                    .await
+                    .wrap_err("failed to run post execute transactions handler")?;
+
+                self.event_bus
+                    .send_process_proposal_block(Arc::new(sequencer_block));
 
                 return Ok(());
             }
@@ -499,7 +523,7 @@ impl App {
             .collect::<Vec<_>>();
 
         let tx_results = self
-            .execute_transactions_process_proposal(signed_txs.clone(), &mut block_size_constraints)
+            .process_proposal_tx_execution(signed_txs.clone(), &mut block_size_constraints)
             .await
             .wrap_err("failed to execute transactions")?;
 
@@ -531,16 +555,22 @@ impl App {
         );
 
         self.executed_proposal_hash = process_proposal.hash;
-        self.post_execute_transactions(
-            process_proposal.hash,
-            process_proposal.height,
-            process_proposal.time,
-            process_proposal.proposer_address,
-            process_proposal.txs,
-            tx_results,
-        )
-        .await
-        .wrap_err("failed to run post execute transactions handler")?;
+
+        // FIXME - avoid duplicate calls to post_execute_transactions. refer to: https://github.com/astriaorg/astria/issues/1835
+        let sequencer_block = self
+            .post_execute_transactions(
+                process_proposal.hash,
+                process_proposal.height,
+                process_proposal.time,
+                process_proposal.proposer_address,
+                process_proposal.txs,
+                tx_results,
+            )
+            .await
+            .wrap_err("failed to run post execute transactions handler")?;
+
+        self.event_bus
+            .send_process_proposal_block(Arc::new(sequencer_block));
 
         Ok(())
     }
@@ -564,146 +594,57 @@ impl App {
     ///
     /// As a result, all transactions in a sequencer block are guaranteed to execute
     /// successfully.
-    #[instrument(name = "App::execute_transactions_prepare_proposal", skip_all)]
-    async fn execute_transactions_prepare_proposal(
+    #[instrument(name = "App::prepare_proposal_tx_execution", skip_all, err(level = Level::DEBUG))]
+    async fn prepare_proposal_tx_execution(
         &mut self,
         block_size_constraints: &mut BlockSizeConstraints,
     ) -> Result<(Vec<bytes::Bytes>, Vec<Transaction>)> {
         let mempool_len = self.mempool.len().await;
         debug!(mempool_len, "executing transactions from mempool");
 
-        let mut validated_txs: Vec<bytes::Bytes> = Vec::new();
-        let mut included_signed_txs = Vec::new();
-        let mut failed_tx_count: usize = 0;
-        let mut execution_results = Vec::new();
-        let mut excluded_txs: usize = 0;
-        let mut current_tx_group = Group::BundleableGeneral;
+        let mut proposal_info = Proposal::Prepare {
+            validated_txs: Vec::new(),
+            included_signed_txs: Vec::new(),
+            failed_tx_count: 0,
+            execution_results: Vec::new(),
+            excluded_txs: 0,
+            current_tx_group: Group::BundleableGeneral,
+            mempool: self.mempool.clone(),
+            metrics: self.metrics,
+        };
 
         // get copy of transactions to execute from mempool
-        let pending_txs = self
-            .mempool
-            .builder_queue(&self.state)
-            .await
-            .expect("failed to fetch pending transactions");
+        let pending_txs = self.mempool.builder_queue().await;
 
         let mut unused_count = pending_txs.len();
         for (tx_hash, tx) in pending_txs {
             unused_count = unused_count.saturating_sub(1);
-            let tx_hash_base64 = telemetry::display::base64(&tx_hash).to_string();
-            let bytes = tx.to_raw().encode_to_vec();
-            let tx_len = bytes.len();
-            info!(transaction_hash = %tx_hash_base64, "executing transaction");
 
-            // don't include tx if it would make the cometBFT block too large
-            if !block_size_constraints.cometbft_has_space(tx_len) {
-                self.metrics
-                    .increment_prepare_proposal_excluded_transactions_cometbft_space();
-                debug!(
-                    transaction_hash = %tx_hash_base64,
-                    block_size_constraints = %json(&block_size_constraints),
-                    tx_data_bytes = tx_len,
-                    "excluding remaining transactions: max cometBFT data limit reached"
-                );
-                excluded_txs = excluded_txs.saturating_add(1);
-
-                // break from loop, as the block is full
+            if BreakOrContinue::Break
+                == proposal_checks_and_tx_execution(
+                    self,
+                    tx,
+                    Some(tx_hash),
+                    block_size_constraints,
+                    &mut proposal_info,
+                )
+                .await?
+            {
                 break;
             }
-
-            // check if tx's sequence data will fit into sequence block
-            let tx_sequence_data_bytes = tx
-                .unsigned_transaction()
-                .actions()
-                .iter()
-                .filter_map(Action::as_rollup_data_submission)
-                .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
-
-            if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
-                self.metrics
-                    .increment_prepare_proposal_excluded_transactions_sequencer_space();
-                debug!(
-                    transaction_hash = %tx_hash_base64,
-                    block_size_constraints = %json(&block_size_constraints),
-                    tx_data_bytes = tx_sequence_data_bytes,
-                    "excluding transaction: max block sequenced data limit reached"
-                );
-                excluded_txs = excluded_txs.saturating_add(1);
-
-                // continue as there might be non-sequence txs that can fit
-                continue;
-            }
-
-            // ensure transaction's group is less than or equal to current action group
-            let tx_group = tx.group();
-            if tx_group > current_tx_group {
-                debug!(
-                    transaction_hash = %tx_hash_base64,
-                    block_size_constraints = %json(&block_size_constraints),
-                    "excluding transaction: group is higher priority than previously included transactions"
-                );
-                excluded_txs = excluded_txs.saturating_add(1);
-
-                // note: we don't remove the tx from mempool as it may be valid in the future
-                continue;
-            }
-
-            // execute tx and store in `execution_results` list on success
-            match self.execute_transaction(tx.clone()).await {
-                Ok(events) => {
-                    execution_results.push(ExecTxResult {
-                        events,
-                        ..Default::default()
-                    });
-                    block_size_constraints
-                        .sequencer_checked_add(tx_sequence_data_bytes)
-                        .wrap_err("error growing sequencer block size")?;
-                    block_size_constraints
-                        .cometbft_checked_add(tx_len)
-                        .wrap_err("error growing cometBFT block size")?;
-                    validated_txs.push(bytes.into());
-                    included_signed_txs.push((*tx).clone());
-                }
-                Err(e) => {
-                    self.metrics
-                        .increment_prepare_proposal_excluded_transactions_failed_execution();
-                    debug!(
-                        transaction_hash = %tx_hash_base64,
-                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                        "failed to execute transaction, not including in block"
-                    );
-
-                    if e.downcast_ref::<InvalidNonce>().is_some() {
-                        // we don't remove the tx from mempool if it failed to execute
-                        // due to an invalid nonce, as it may be valid in the future.
-                        // if it's invalid due to the nonce being too low, it'll be
-                        // removed from the mempool in `update_mempool_after_finalization`.
-                        //
-                        // this is important for possible out-of-order transaction
-                        // groups fed into prepare_proposal. a transaction with a higher
-                        // nonce might be in a higher priority group than a transaction
-                        // from the same account wiht a lower nonce. this higher nonce
-                        // could execute in the next block fine.
-                    } else {
-                        failed_tx_count = failed_tx_count.saturating_add(1);
-
-                        // remove the failing transaction from the mempool
-                        //
-                        // this will remove any transactions from the same sender
-                        // as well, as the dependent nonces will not be able
-                        // to execute
-                        self.mempool
-                            .remove_tx_invalid(
-                                tx,
-                                RemovalReason::FailedPrepareProposal(e.to_string()),
-                            )
-                            .await;
-                    }
-                }
-            }
-
-            // update current action group to tx's action group
-            current_tx_group = tx_group;
         }
+
+        let Proposal::Prepare {
+            validated_txs,
+            included_signed_txs,
+            failed_tx_count,
+            execution_results,
+            excluded_txs,
+            ..
+        } = proposal_info
+        else {
+            bail!("expected `Proposal::Prepare`, received `Proposal::Process`")
+        };
 
         if failed_tx_count > 0 {
             info!(
@@ -744,77 +685,33 @@ impl App {
     ///
     /// As a result, all transactions in a sequencer block are guaranteed to execute
     /// successfully.
-    #[instrument(name = "App::execute_transactions_process_proposal", skip_all)]
-    async fn execute_transactions_process_proposal(
+    #[instrument(name = "App::process_proposal_tx_execution", skip_all, err(level = Level::DEBUG))]
+    async fn process_proposal_tx_execution(
         &mut self,
         txs: Vec<Transaction>,
         block_size_constraints: &mut BlockSizeConstraints,
     ) -> Result<Vec<ExecTxResult>> {
-        let mut execution_results = Vec::new();
-        let mut current_tx_group = Group::BundleableGeneral;
+        let mut proposal_info = Proposal::Process {
+            execution_results: vec![],
+            current_tx_group: Group::BundleableGeneral,
+        };
 
         for tx in txs {
-            let bytes = tx.to_raw().encode_to_vec();
-            let tx_hash = Sha256::digest(&bytes);
-            let tx_len = bytes.len();
-
-            // check if tx's sequence data will fit into sequence block
-            let tx_sequence_data_bytes = tx
-                .unsigned_transaction()
-                .actions()
-                .iter()
-                .filter_map(Action::as_rollup_data_submission)
-                .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
-
-            if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
-                debug!(
-                    transaction_hash = %telemetry::display::base64(&tx_hash),
-                    block_size_constraints = %json(&block_size_constraints),
-                    tx_data_bytes = tx_sequence_data_bytes,
-                    "transaction error: max block sequenced data limit passed"
-                );
-                bail!("max block sequenced data limit passed");
+            let tx = Arc::new(tx);
+            if BreakOrContinue::Break
+                == proposal_checks_and_tx_execution(
+                    self,
+                    tx,
+                    None,
+                    block_size_constraints,
+                    &mut proposal_info,
+                )
+                .await?
+            {
+                break;
             }
-
-            // ensure transaction's group is less than or equal to current action group
-            let tx_group = tx.group();
-            if tx_group > current_tx_group {
-                debug!(
-                    transaction_hash = %telemetry::display::base64(&tx_hash),
-                    "transaction error: block has incorrect transaction group ordering"
-                );
-                bail!("transactions have incorrect transaction group ordering");
-            }
-
-            // execute tx and store in `execution_results` list on success
-            match self.execute_transaction(Arc::new(tx.clone())).await {
-                Ok(events) => {
-                    execution_results.push(ExecTxResult {
-                        events,
-                        ..Default::default()
-                    });
-                    block_size_constraints
-                        .sequencer_checked_add(tx_sequence_data_bytes)
-                        .wrap_err("error growing sequencer block size")?;
-                    block_size_constraints
-                        .cometbft_checked_add(tx_len)
-                        .wrap_err("error growing cometBFT block size")?;
-                }
-                Err(e) => {
-                    debug!(
-                        transaction_hash = %telemetry::display::base64(&tx_hash),
-                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                        "transaction error: failed to execute transaction"
-                    );
-                    bail!("transaction failed to execute");
-                }
-            }
-
-            // update current action group to tx's action group
-            current_tx_group = tx_group;
         }
-
-        Ok(execution_results)
+        Ok(proposal_info.execution_results())
     }
 
     /// sets up the state for execution of the block's transactions.
@@ -822,7 +719,7 @@ impl App {
     ///
     /// this *must* be called anytime before a block's txs are executed, whether it's
     /// during the proposal phase, or finalize_block phase.
-    #[instrument(name = "App::pre_execute_transactions", skip_all, err)]
+    #[instrument(name = "App::pre_execute_transactions", skip_all, err(level = Level::WARN))]
     async fn pre_execute_transactions(&mut self, block_data: BlockData) -> Result<()> {
         let chain_id = self
             .state
@@ -877,7 +774,8 @@ impl App {
     /// `SequencerBlock`.
     ///
     /// this must be called after a block's transactions are executed.
-    #[instrument(name = "App::post_execute_transactions", skip_all)]
+    /// FIXME: don't return sequencer block but grab the block from state delta https://github.com/astriaorg/astria/issues/1436
+    #[instrument(name = "App::post_execute_transactions", skip_all, err(level = Level::WARN))]
     async fn post_execute_transactions(
         &mut self,
         block_hash: Hash,
@@ -886,7 +784,7 @@ impl App {
         proposer_address: account::Id,
         txs: Vec<bytes::Bytes>,
         tx_results: Vec<ExecTxResult>,
-    ) -> Result<()> {
+    ) -> Result<SequencerBlock> {
         let Hash::Sha256(block_hash) = block_hash else {
             bail!("block hash is empty; this should not occur")
         };
@@ -925,6 +823,7 @@ impl App {
         finalize_block_tx_results.extend(std::iter::repeat(ExecTxResult::default()).take(2));
         finalize_block_tx_results.extend(tx_results);
 
+        // FIXME - avoid duplicate calls to post_execute_transactions. refer to: https://github.com/astriaorg/astria/issues/1835
         let sequencer_block = SequencerBlock::try_from_block_info_and_data(
             block_hash,
             chain_id,
@@ -936,7 +835,7 @@ impl App {
         )
         .wrap_err("failed to convert block info and data to SequencerBlock")?;
         state_tx
-            .put_sequencer_block(sequencer_block)
+            .put_sequencer_block(sequencer_block.clone())
             .wrap_err("failed to write sequencer block to state")?;
 
         let result = PostTransactionExecutionResult {
@@ -952,7 +851,7 @@ impl App {
         // there should be none anyways.
         let _ = self.apply(state_tx);
 
-        Ok(())
+        Ok(sequencer_block)
     }
 
     /// Executes the given block, but does not write it to disk.
@@ -961,7 +860,7 @@ impl App {
     ///
     /// This is called by cometbft after the block has already been
     /// committed by the network's consensus.
-    #[instrument(name = "App::finalize_block", skip_all)]
+    #[instrument(name = "App::finalize_block", skip_all, err)]
     pub(crate) async fn finalize_block(
         &mut self,
         finalize_block: abci::request::FinalizeBlock,
@@ -979,18 +878,20 @@ impl App {
              rollup IDs commitment"
         );
 
+        // FIXME: refactor to avoid cloning the finalize block
+        let finalize_block_arc = Arc::new(finalize_block.clone());
+
         // When the hash is not empty, we have already executed and cached the results
         if self.executed_proposal_hash.is_empty() {
             // convert tendermint id to astria address; this assumes they are
             // the same address, as they are both ed25519 keys
             let proposer_address = finalize_block.proposer_address;
-            let height = finalize_block.height;
             let time = finalize_block.time;
 
             // we haven't executed anything yet, so set up the state for execution.
             let block_data = BlockData {
                 misbehavior: finalize_block.misbehavior,
-                height,
+                height: finalize_block.height,
                 time,
                 next_validators_hash: finalize_block.next_validators_hash,
                 proposer_address,
@@ -1034,7 +935,7 @@ impl App {
 
             self.post_execute_transactions(
                 finalize_block.hash,
-                height,
+                finalize_block.height,
                 time,
                 proposer_address,
                 finalize_block.txs,
@@ -1064,7 +965,7 @@ impl App {
             .prepare_commit(storage)
             .await
             .wrap_err("failed to prepare commit")?;
-        let finalize_block = abci::response::FinalizeBlock {
+        let finalize_block_response = abci::response::FinalizeBlock {
             events: post_transaction_execution_result.events,
             validator_updates: post_transaction_execution_result.validator_updates,
             consensus_param_updates: post_transaction_execution_result.consensus_param_updates,
@@ -1072,10 +973,12 @@ impl App {
             tx_results: post_transaction_execution_result.tx_results,
         };
 
-        Ok(finalize_block)
+        self.event_bus.send_finalized_block(finalize_block_arc);
+
+        Ok(finalize_block_response)
     }
 
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn prepare_commit(&mut self, storage: Storage) -> Result<AppHash> {
         // extract the state we've built up to so we can prepare it as a `StagedWriteBatch`.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
@@ -1112,7 +1015,7 @@ impl App {
         Ok(app_hash)
     }
 
-    #[instrument(name = "App::begin_block", skip_all)]
+    #[instrument(name = "App::begin_block", skip_all, err(level = Level::WARN))]
     async fn begin_block(
         &mut self,
         begin_block: &abci::request::BeginBlock,
@@ -1148,7 +1051,7 @@ impl App {
     }
 
     /// Executes a signed transaction.
-    #[instrument(name = "App::execute_transaction", skip_all)]
+    #[instrument(name = "App::execute_transaction", skip_all, err(level = Level::DEBUG))]
     async fn execute_transaction(&mut self, signed_tx: Arc<Transaction>) -> Result<Vec<Event>> {
         signed_tx
             .check_stateless()
@@ -1173,10 +1076,19 @@ impl App {
                     .iter()
                     .any(|act| act.is_fee_asset_change() || act.is_fee_change());
 
-        Ok(state_tx.apply().1)
+        // index all event attributes
+        let mut events = state_tx.apply().1;
+        for event in &mut events {
+            event
+                .attributes
+                .iter_mut()
+                .for_each(|attr| attr.index = true);
+        }
+
+        Ok(events)
     }
 
-    #[instrument(name = "App::end_block", skip_all)]
+    #[instrument(name = "App::end_block", skip_all, err(level = Level::WARN))]
     async fn end_block(
         &mut self,
         height: u64,
@@ -1322,4 +1234,249 @@ struct PostTransactionExecutionResult {
     tx_results: Vec<ExecTxResult>,
     validator_updates: Vec<tendermint::validator::Update>,
     consensus_param_updates: Option<tendermint::consensus::Params>,
+}
+
+#[derive(PartialEq)]
+enum BreakOrContinue {
+    Break,
+    Continue,
+}
+
+enum Proposal {
+    Prepare {
+        validated_txs: Vec<bytes::Bytes>,
+        included_signed_txs: Vec<Transaction>,
+        failed_tx_count: usize,
+        execution_results: Vec<ExecTxResult>,
+        excluded_txs: usize,
+        current_tx_group: Group,
+        mempool: Mempool,
+        metrics: &'static Metrics,
+    },
+    Process {
+        execution_results: Vec<ExecTxResult>,
+        current_tx_group: Group,
+    },
+}
+
+impl Proposal {
+    fn current_tx_group(&self) -> Group {
+        match self {
+            Proposal::Prepare {
+                current_tx_group, ..
+            }
+            | Proposal::Process {
+                current_tx_group, ..
+            } => *current_tx_group,
+        }
+    }
+
+    fn set_current_tx_group(&mut self, group: Group) {
+        match self {
+            Proposal::Prepare {
+                current_tx_group, ..
+            }
+            | Proposal::Process {
+                current_tx_group, ..
+            } => *current_tx_group = group,
+        }
+    }
+
+    fn execution_results_mut(&mut self) -> &mut Vec<ExecTxResult> {
+        match self {
+            Proposal::Prepare {
+                execution_results, ..
+            }
+            | Proposal::Process {
+                execution_results, ..
+            } => execution_results,
+        }
+    }
+
+    fn execution_results(self) -> Vec<ExecTxResult> {
+        match self {
+            Proposal::Prepare {
+                execution_results, ..
+            }
+            | Proposal::Process {
+                execution_results, ..
+            } => execution_results,
+        }
+    }
+}
+
+#[instrument(skip_all)]
+async fn proposal_checks_and_tx_execution(
+    app: &mut App,
+    tx: Arc<Transaction>,
+    // `prepare_proposal_tx_execution` already has the tx hash, so we pass it in here
+    tx_hash: Option<[u8; TRANSACTION_ID_LEN]>,
+    block_size_constraints: &mut BlockSizeConstraints,
+    proposal_info: &mut Proposal,
+) -> Result<BreakOrContinue> {
+    let tx_bytes = tx.to_raw().encode_to_vec();
+    let tx_hash_base_64 =
+        telemetry::display::base64(tx_hash.unwrap_or_else(|| Sha256::digest(&tx_bytes).into()))
+            .to_string();
+    let tx_len = tx_bytes.len();
+
+    info!(transaction_hash = %tx_hash_base_64, "executing transaction");
+
+    // check CometBFT size constraints for `prepare_proposal`
+    if let Proposal::Prepare {
+        metrics,
+        excluded_txs,
+        ..
+    } = proposal_info
+    {
+        if !block_size_constraints.cometbft_has_space(tx_len) {
+            metrics.increment_prepare_proposal_excluded_transactions_cometbft_space();
+            debug!(
+                transaction_hash = %tx_hash_base_64,
+                block_size_constraints = %json(&block_size_constraints),
+                tx_data_bytes = tx_len,
+                "excluding remaining transactions: max cometBFT data limit reached"
+            );
+            *excluded_txs = excluded_txs.saturating_add(1);
+
+            // break from calling loop, as the block is full
+            return Ok(BreakOrContinue::Break);
+        }
+    }
+
+    let debug_msg = match proposal_info {
+        Proposal::Prepare {
+            ..
+        } => "excluding transaction",
+        Proposal::Process {
+            ..
+        } => "transaction error",
+    };
+
+    // check sequencer size constraints
+    let tx_sequence_data_bytes = tx
+        .unsigned_transaction()
+        .actions()
+        .iter()
+        .filter_map(Action::as_rollup_data_submission)
+        .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
+    if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
+        debug!(
+            transaction_hash = %tx_hash_base_64,
+            block_size_constraints = %json(&block_size_constraints),
+            tx_data_bytes = tx_sequence_data_bytes,
+            "{debug_msg}: max block sequenced data limit reached"
+        );
+        match proposal_info {
+            Proposal::Prepare {
+                metrics,
+                excluded_txs,
+                ..
+            } => {
+                metrics.increment_prepare_proposal_excluded_transactions_sequencer_space();
+                *excluded_txs = excluded_txs.saturating_add(1);
+
+                // continue as there might be non-sequence txs that can fit
+                return Ok(BreakOrContinue::Continue);
+            }
+            Proposal::Process {
+                ..
+            } => bail!("max block sequenced data limit passed"),
+        };
+    }
+
+    // ensure transaction's group is less than or equal to current action group
+    let tx_group = tx.group();
+    if tx_group > proposal_info.current_tx_group() {
+        debug!(
+            transaction_hash = %tx_hash_base_64,
+            "{debug_msg}: group is higher priority than previously included transactions"
+        );
+        match proposal_info {
+            Proposal::Prepare {
+                excluded_txs, ..
+            } => {
+                *excluded_txs = excluded_txs.saturating_add(1);
+                return Ok(BreakOrContinue::Continue);
+            }
+            Proposal::Process {
+                ..
+            } => {
+                bail!("transactions have incorrect transaction group ordering");
+            }
+        };
+    }
+
+    let execution_results = proposal_info.execution_results_mut();
+    match app.execute_transaction(tx.clone()).await {
+        Ok(events) => {
+            execution_results.push(ExecTxResult {
+                events,
+                ..Default::default()
+            });
+            block_size_constraints
+                .sequencer_checked_add(tx_sequence_data_bytes)
+                .wrap_err("error growing sequencer block size")?;
+            block_size_constraints
+                .cometbft_checked_add(tx_len)
+                .wrap_err("error growing cometBFT block size")?;
+            if let Proposal::Prepare {
+                validated_txs,
+                included_signed_txs,
+                ..
+            } = proposal_info
+            {
+                validated_txs.push(tx_bytes.into());
+                included_signed_txs.push((*tx).clone());
+            }
+        }
+        Err(e) => {
+            debug!(
+                transaction_hash = %tx_hash_base_64,
+                error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                "{debug_msg}: failed to execute transaction"
+            );
+            match proposal_info {
+                Proposal::Prepare {
+                    metrics,
+                    failed_tx_count,
+                    mempool,
+                    ..
+                } => {
+                    metrics.increment_prepare_proposal_excluded_transactions_failed_execution();
+                    if e.downcast_ref::<InvalidNonce>().is_some() {
+                        // we don't remove the tx from mempool if it failed to execute
+                        // due to an invalid nonce, as it may be valid in the future.
+                        // if it's invalid due to the nonce being too low, it'll be
+                        // removed from the mempool in `update_mempool_after_finalization`.
+                        //
+                        // this is important for possible out-of-order transaction
+                        // groups fed into prepare_proposal. a transaction with a higher
+                        // nonce might be in a higher priority group than a transaction
+                        // from the same account wiht a lower nonce. this higher nonce
+                        // could execute in the next block fine.
+                    } else {
+                        *failed_tx_count = failed_tx_count.saturating_add(1);
+
+                        // remove the failing transaction from the mempool
+                        //
+                        // this will remove any transactions from the same sender
+                        // as well, as the dependent nonces will not be able
+                        // to execute
+                        mempool
+                            .remove_tx_invalid(
+                                tx,
+                                RemovalReason::FailedPrepareProposal(e.to_string()),
+                            )
+                            .await;
+                    }
+                }
+                Proposal::Process {
+                    ..
+                } => return Err(e.wrap_err("transaction failed to execute")),
+            }
+        }
+    };
+    proposal_info.set_current_tx_group(tx_group);
+    Ok(BreakOrContinue::Continue)
 }
