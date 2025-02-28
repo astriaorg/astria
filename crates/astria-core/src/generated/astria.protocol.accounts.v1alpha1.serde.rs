@@ -123,6 +123,7 @@ impl serde::Serialize for BalanceResponse {
         let mut struct_ser = serializer.serialize_struct("astria.protocol.accounts.v1alpha1.BalanceResponse", len)?;
         if self.height != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
         }
         if !self.balances.is_empty() {
@@ -234,6 +235,7 @@ impl serde::Serialize for NonceResponse {
         let mut struct_ser = serializer.serialize_struct("astria.protocol.accounts.v1alpha1.NonceResponse", len)?;
         if self.height != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
         }
         if self.nonce != 0 {

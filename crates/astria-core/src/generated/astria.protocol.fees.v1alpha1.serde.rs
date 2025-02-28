@@ -1419,6 +1419,7 @@ impl serde::Serialize for TransactionFeeResponse {
         let mut struct_ser = serializer.serialize_struct("astria.protocol.fees.v1alpha1.TransactionFeeResponse", len)?;
         if self.height != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
         }
         if !self.fees.is_empty() {

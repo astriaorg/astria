@@ -11,7 +11,6 @@ use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
-use bytes::Bytes;
 use futures::{
     Future,
     FutureExt as _,
@@ -22,12 +21,8 @@ use http::{
     Request,
     Response,
 };
-use http_body::combinators::UnsyncBoxBody;
 use pin_project_lite::pin_project;
-use tonic::{
-    transport::Channel,
-    Status,
-};
+use tonic::transport::Channel;
 use tower::{
     util::BoxCloneService,
     ServiceBuilder,
@@ -41,8 +36,8 @@ use tower_http::{
 };
 
 pub(crate) type InstrumentedChannel = BoxCloneService<
-    Request<UnsyncBoxBody<Bytes, Status>>,
-    Response<UnsyncBoxBody<Bytes, hyper::Error>>,
+    Request<tonic::body::BoxBody>,
+    Response<tonic::body::BoxBody>,
     tonic::transport::Error,
 >;
 
@@ -66,7 +61,7 @@ pub(crate) fn make_instrumented_channel(uri: &str) -> eyre::Result<InstrumentedC
         .connect_lazy();
 
     let channel = ServiceBuilder::new()
-        .layer(MapResponseBodyLayer::new(UnsyncBoxBody::new))
+        .layer(MapResponseBodyLayer::new(tonic::body::BoxBody::new))
         .layer(
             TraceLayer::new_for_grpc().make_span_with(DefaultMakeSpan::new().include_headers(true)),
         )

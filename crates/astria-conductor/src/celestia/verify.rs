@@ -28,7 +28,7 @@ use sequencer_client::{
 };
 use tokio_util::task::JoinMap;
 use tower::{
-    util::BoxService,
+    util::BoxCloneSyncService,
     BoxError,
     Service as _,
     ServiceExt as _,
@@ -440,10 +440,7 @@ impl From<tendermint_rpc::endpoint::validators::Response> for VerificationRespon
 
 #[derive(Clone)]
 struct RateLimitedVerificationClient {
-    inner: tower::buffer::Buffer<
-        BoxService<VerificationRequest, VerificationResponse, VerificationMetaError>,
-        VerificationRequest,
-    >,
+    inner: BoxCloneSyncService<VerificationRequest, VerificationResponse, tower::BoxError>,
 }
 
 impl RateLimitedVerificationClient {
@@ -498,43 +495,38 @@ impl RateLimitedVerificationClient {
     }
 
     fn try_new(client: SequencerClient, requests_per_second: u32) -> eyre::Result<Self> {
-        // XXX: the construction in here is a bit strange:
-        // the straight forward way to create a type-erased tower service is to use
-        // ServiceBuilder::boxed_clone().
-        //
-        // However, this gives a BoxCloneService which is always Clone + Send, but !Sync.
-        // Therefore we can't use the ServiceBuilder::buffer adapter.
-        //
-        // We can however work around it: ServiceBuilder::boxed gives a BoxService, which is
-        // Send + Sync, but not Clone. We then manually evoke Buffer::new to create a
-        // Buffer<BoxService>, which is Send + Sync + Clone.
-        let service = tower::ServiceBuilder::new()
-            .boxed()
-            .rate_limit(requests_per_second.into(), Duration::from_secs(1))
-            .service_fn(move |req: VerificationRequest| {
-                let client = client.clone();
-                async move {
-                    match req {
-                        VerificationRequest::Commit {
-                            height,
-                        } => fetch_commit_with_retry(client, height).await,
-                        VerificationRequest::Validators {
-                            prev_height,
-                            height,
-                        } => fetch_validators_with_retry(client, prev_height, height).await,
-                    }
+        let service_builder = tower::ServiceBuilder::new()
+            // XXX: This number is arbitarily set to the same number os the rate-limit. Does that
+            // make sense? Should the number be set higher?
+            .buffer(
+                requests_per_second
+                    .try_into()
+                    .wrap_err("failed to convert u32 requests-per-second to usize")?,
+            )
+            .rate_limit(requests_per_second.into(), Duration::from_secs(1));
+        // TODO(janis): use the ServiceBuilder::boxed_clone_sync adapter implemented in
+        //              https://github.com/tower-rs/tower/pull/804/ once a new tower
+        //              release is cut.
+        let service = {
+            let layer = service_builder.into_inner();
+            tower::ServiceBuilder::new().layer(tower::util::BoxCloneSyncServiceLayer::new(layer))
+        }
+        .service_fn(move |req: VerificationRequest| {
+            let client = client.clone();
+            async move {
+                match req {
+                    VerificationRequest::Commit {
+                        height,
+                    } => fetch_commit_with_retry(client, height).await,
+                    VerificationRequest::Validators {
+                        prev_height,
+                        height,
+                    } => fetch_validators_with_retry(client, prev_height, height).await,
                 }
-            });
-        // XXX: This number is arbitarily set to the same number os the rate-limit. Does that
-        // make sense? Should the number be set higher?
-        let inner = tower::buffer::Buffer::new(
-            service,
-            requests_per_second
-                .try_into()
-                .wrap_err("failed to convert u32 requests-per-second to usize")?,
-        );
+            }
+        });
         Ok(Self {
-            inner,
+            inner: service,
         })
     }
 }

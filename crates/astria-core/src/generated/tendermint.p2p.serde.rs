@@ -48,6 +48,7 @@ impl serde::Serialize for DefaultNodeInfo {
         }
         if !self.channels.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("channels", pbjson::private::base64::encode(&self.channels).as_str())?;
         }
         if !self.moniker.is_empty() {
@@ -344,14 +345,17 @@ impl serde::Serialize for ProtocolVersion {
         let mut struct_ser = serializer.serialize_struct("tendermint.p2p.ProtocolVersion", len)?;
         if self.p2p != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("p2p", ToString::to_string(&self.p2p).as_str())?;
         }
         if self.block != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("block", ToString::to_string(&self.block).as_str())?;
         }
         if self.app != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("app", ToString::to_string(&self.app).as_str())?;
         }
         struct_ser.end()

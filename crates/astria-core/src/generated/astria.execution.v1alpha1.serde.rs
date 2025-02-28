@@ -18,6 +18,7 @@ impl serde::Serialize for DoBlockRequest {
         let mut struct_ser = serializer.serialize_struct("astria.execution.v1alpha1.DoBlockRequest", len)?;
         if !self.prev_block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("prevBlockHash", pbjson::private::base64::encode(&self.prev_block_hash).as_str())?;
         }
         if !self.transactions.is_empty() {
@@ -144,6 +145,7 @@ impl serde::Serialize for DoBlockResponse {
         let mut struct_ser = serializer.serialize_struct("astria.execution.v1alpha1.DoBlockResponse", len)?;
         if !self.block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("blockHash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
         }
         struct_ser.end()
@@ -239,6 +241,7 @@ impl serde::Serialize for FinalizeBlockRequest {
         let mut struct_ser = serializer.serialize_struct("astria.execution.v1alpha1.FinalizeBlockRequest", len)?;
         if !self.block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("blockHash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
         }
         struct_ser.end()
@@ -476,6 +479,7 @@ impl serde::Serialize for InitStateResponse {
         let mut struct_ser = serializer.serialize_struct("astria.execution.v1alpha1.InitStateResponse", len)?;
         if !self.block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("blockHash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
         }
         struct_ser.end()

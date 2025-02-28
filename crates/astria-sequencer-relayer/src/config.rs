@@ -48,8 +48,6 @@ pub struct Config {
     pub no_metrics: bool,
     /// The endpoint which will be listened on for serving prometheus metrics
     pub metrics_http_listener_addr: String,
-    /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
-    pub pretty_print: bool,
     /// The path to which relayer will write its state while submitting to Celestia.
     pub submission_state_path: PathBuf,
 }

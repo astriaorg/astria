@@ -24,6 +24,7 @@ impl serde::Serialize for BridgeAccountInfoResponse {
         let mut struct_ser = serializer.serialize_struct("astria.protocol.bridge.v1.BridgeAccountInfoResponse", len)?;
         if self.height != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
         }
         if let Some(v) = self.rollup_id.as_ref() {
@@ -180,10 +181,12 @@ impl serde::Serialize for BridgeAccountLastTxHashResponse {
         let mut struct_ser = serializer.serialize_struct("astria.protocol.bridge.v1.BridgeAccountLastTxHashResponse", len)?;
         if self.height != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
         }
         if let Some(v) = self.tx_hash.as_ref() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("txHash", pbjson::private::base64::encode(&v).as_str())?;
         }
         struct_ser.end()
