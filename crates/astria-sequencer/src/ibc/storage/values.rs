@@ -113,7 +113,7 @@ mod tests {
         assert_snapshot!(
             "value_impl_address_bytes",
             borsh_then_hex(&ValueImpl::AddressBytes((&[0; ADDRESS_LEN]).into()))
-        )
+        );
     }
 
     // Note: This test must be here instead of in `crate::storage` since `ValueImpl` is not

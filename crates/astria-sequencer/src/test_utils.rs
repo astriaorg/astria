@@ -49,5 +49,5 @@ pub(crate) async fn calculate_rollup_data_submission_fee_from_state<
 }
 
 pub(crate) fn borsh_then_hex<T: borsh::BorshSerialize>(item: &T) -> String {
-    hex::encode(&borsh::to_vec(item).unwrap())
+    hex::encode(borsh::to_vec(item).unwrap())
 }

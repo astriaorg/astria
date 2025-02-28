@@ -40,6 +40,9 @@ mod tests {
 
     #[test]
     fn stored_value_unit_variant_unchanged() {
-        assert_snapshot!("stored_value_unit_variant", borsh_then_hex(&StoredValue::Unit));
+        assert_snapshot!(
+            "stored_value_unit_variant",
+            borsh_then_hex(&StoredValue::Unit)
+        );
     }
 }
