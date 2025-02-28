@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/bridge/storage/values/mod.rs
+expression: "borsh_then_hex(&ValueImpl::IbcPrefixedDenom((&DomainIbcPrefixed::new([0;\n32])).into()))"
+---
+010000000000000000000000000000000000000000000000000000000000000000

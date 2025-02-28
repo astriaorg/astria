@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/authority/storage/values.rs
+expression: "borsh_then_hex(&ValueImpl::AddressBytes((&[0; ADDRESS_LEN]).into()))"
+---
+000000000000000000000000000000000000000000

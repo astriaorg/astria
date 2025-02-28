@@ -65,3 +65,42 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for TracePrefixedDenom<'a> {
         Ok(denom)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use insta::assert_snapshot;
+
+    use super::*;
+    use crate::test_utils::borsh_then_hex;
+
+    #[test]
+    fn value_impl_existing_variants_unchanged() {
+        assert_snapshot!(
+            "value_impl_trace_prefixed_denom",
+            borsh_then_hex(&ValueImpl::TracePrefixedDenom(
+                (&"test_denom"
+                    .to_string()
+                    .parse::<DomainTracePrefixed>()
+                    .unwrap())
+                    .into()
+            ))
+        );
+    }
+
+    // Note: This test must be here instead of in `crate::storage` since `ValueImpl` is not
+    // re-exported.
+    #[test]
+    fn stored_value_assets_variant_unchanged() {
+        use crate::storage::StoredValue;
+        assert_snapshot!(
+            "stored_value_assets_variant",
+            borsh_then_hex(&StoredValue::Assets(Value(ValueImpl::TracePrefixedDenom(
+                (&"test_denom"
+                    .to_string()
+                    .parse::<DomainTracePrefixed>()
+                    .unwrap())
+                    .into()
+            ))))
+        );
+    }
+}

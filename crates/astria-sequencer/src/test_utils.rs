@@ -47,3 +47,7 @@ pub(crate) async fn calculate_rollup_data_submission_fee_from_state<
         )
         .expect("fee addition should not overflow")
 }
+
+pub(crate) fn borsh_then_hex<T: borsh::BorshSerialize>(item: &T) -> String {
+    hex::encode(borsh::to_vec(item).unwrap())
+}

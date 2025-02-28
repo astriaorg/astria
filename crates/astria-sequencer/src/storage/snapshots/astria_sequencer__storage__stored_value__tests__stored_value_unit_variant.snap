@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/storage/stored_value.rs
+expression: "borsh_then_hex(&StoredValue::Unit)"
+---
+00

@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/bridge/storage/values/mod.rs
+expression: "borsh_then_hex(&ValueImpl::RollupId((&DomainRollupId::new([0;\nROLLUP_ID_LEN])).into()))"
+---
+000000000000000000000000000000000000000000000000000000000000000000
