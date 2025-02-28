@@ -28,7 +28,7 @@ pub mod action {
         BridgeSudoChange(super::BridgeSudoChange),
         /// IBC user actions are defined on 21-30
         #[prost(message, tag = "21")]
-        Ibc(::penumbra_sdk_proto::core::component::ibc::v1::IbcRelay),
+        Ibc(::penumbra_proto::core::component::ibc::v1::IbcRelay),
         #[prost(message, tag = "22")]
         Ics20Withdrawal(super::Ics20Withdrawal),
         /// POA sudo actions are defined on 50-60
