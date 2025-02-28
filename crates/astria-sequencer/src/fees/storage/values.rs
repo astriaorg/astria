@@ -30,7 +30,7 @@ pub(crate) struct Value(ValueImpl);
 
 #[expect(
     clippy::enum_variant_names,
-    reason = "all types are fee types, and this is for storage internals only"
+    reason = "want to make it clear that these are fees and not actions"
 )]
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 enum ValueImpl {

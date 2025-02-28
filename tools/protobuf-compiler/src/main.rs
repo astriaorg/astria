@@ -73,7 +73,7 @@ fn main() {
         .bytes([".astria", ".celestia", ".cosmos", ".tendermint"])
         .client_mod_attribute(".", "#[cfg(feature=\"client\")]")
         .server_mod_attribute(".", "#[cfg(feature=\"server\")]")
-        .extern_path(".astria_vendored.penumbra", "::penumbra-sdk-proto")
+        .extern_path(".astria_vendored.penumbra", "::penumbra-proto")
         .type_attribute(".astria.primitive.v1.Uint128", "#[derive(Copy)]")
         .type_attribute(
             ".astria.protocol.genesis.v1.IbcParameters",
