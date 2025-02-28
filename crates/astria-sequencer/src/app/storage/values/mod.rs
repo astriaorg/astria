@@ -69,10 +69,7 @@ mod tests {
         use crate::storage::StoredValue;
         assert_snapshot!(
             "stored_value_app_variant",
-            format!(
-                "{:?}",
-                borsh_then_hex(&StoredValue::App(Value(ValueImpl::BlockHeight(1.into()))))
-            )
+            borsh_then_hex(&StoredValue::App(Value(ValueImpl::BlockHeight(1.into()))))
         );
     }
 }

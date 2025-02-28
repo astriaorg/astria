@@ -1,5 +1,0 @@
----
-source: crates/astria-sequencer/src/grpc/storage/values/mod.rs
-expression: "format!(\"{:?}\",\ndiscriminant(&ValueImpl::RollupIds(Vec::<DomainRollupId>::new().iter().into())))"
----
-Discriminant(0)

@@ -1,5 +1,0 @@
----
-source: crates/astria-sequencer/src/grpc/storage/values/mod.rs
-expression: "format!(\"{:?}\",\ndiscriminant(&ValueImpl::Proof((&merkle::Proof::unchecked_from_parts(merkle::audit::UncheckedProof\n{ audit_path: vec![], leaf_index: 1, tree_size: 1, })).into())))"
----
-Discriminant(4)

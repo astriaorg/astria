@@ -31,8 +31,6 @@ enum ValueImpl<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::mem::discriminant;
-
     use astria_core::{
         primitive::v1::RollupId as DomainRollupId,
         sequencerblock::v1::block::{
@@ -47,93 +45,6 @@ mod tests {
 
     use super::*;
     use crate::test_utils::borsh_then_hex;
-
-    #[test]
-    fn value_impl_rollup_ids_discriminant_unchanged() {
-        assert_snapshot!(
-            "value_impl_rollup_ids_discriminant",
-            format!(
-                "{:?}",
-                discriminant(&ValueImpl::RollupIds(
-                    Vec::<DomainRollupId>::new().iter().into()
-                ))
-            )
-        );
-    }
-
-    #[test]
-    fn value_impl_block_hash_discriminant_unchanged() {
-        assert_snapshot!(
-            "value_impl_block_hash_discriminant",
-            format!(
-                "{:?}",
-                discriminant(&ValueImpl::BlockHash((&Hash::new([0; 32])).into()))
-            )
-        );
-    }
-
-    #[test]
-    fn value_impl_sequencer_block_header_discriminant_unchanged() {
-        assert_snapshot!(
-            "value_impl_sequencer_block_header_discriminant",
-            format!(
-                "{:?}",
-                discriminant(&ValueImpl::SequencerBlockHeader(
-                    (&DomainSequencerBlockHeader::unchecked_from_parts(
-                        SequencerBlockHeaderParts {
-                            chain_id: "test_chain_id".to_string().try_into().unwrap(),
-                            height: 0u32.into(),
-                            time: tendermint::Time::now(),
-                            rollup_transactions_root: [0; 32],
-                            data_hash: [0; 32],
-                            proposer_address: tendermint::account::Id::new([0; 20])
-                        }
-                    ))
-                        .into()
-                ))
-            )
-        );
-    }
-
-    #[test]
-    fn value_impl_rollup_transactions_discriminant_unchanged() {
-        assert_snapshot!(
-            "value_impl_rollup_transactions_discriminant",
-            format!(
-                "{:?}",
-                discriminant(&ValueImpl::RollupTransactions(
-                    (&DomainRollupTransactions::unchecked_from_parts(RollupTransactionsParts {
-                        rollup_id: DomainRollupId::new([0; 32]),
-                        transactions: Vec::new(),
-                        proof: merkle::Proof::unchecked_from_parts(merkle::audit::UncheckedProof {
-                            audit_path: vec![],
-                            leaf_index: 1,
-                            tree_size: 1,
-                        }),
-                    }))
-                        .into()
-                ))
-            )
-        );
-    }
-
-    #[test]
-    fn value_impl_proof_discriminant_unchanged() {
-        assert_snapshot!(
-            "value_impl_proof_discriminant",
-            format!(
-                "{:?}",
-                discriminant(&ValueImpl::Proof(
-                    (&merkle::Proof::unchecked_from_parts(merkle::audit::UncheckedProof {
-                        audit_path: vec![],
-                        leaf_index: 1,
-                        tree_size: 1,
-                    }))
-                        .into()
-                ))
-            )
-        );
-    }
 
     #[test]
     fn value_impl_existing_variants_unchanged() {
