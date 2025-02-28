@@ -30,7 +30,7 @@ pub mod action {
         BridgeTransfer(super::BridgeTransfer),
         /// IBC user actions are defined on 21-30
         #[prost(message, tag = "21")]
-        Ibc(::penumbra_proto::core::component::ibc::v1::IbcRelay),
+        Ibc(::penumbra_sdk_proto::core::component::ibc::v1::IbcRelay),
         #[prost(message, tag = "22")]
         Ics20Withdrawal(super::Ics20Withdrawal),
         #[prost(message, tag = "23")]
@@ -488,9 +488,9 @@ pub mod fee_change {
         #[prost(message, tag = "14")]
         ValidatorUpdate(super::super::super::fees::v1::ValidatorUpdateFeeComponents),
         #[prost(message, tag = "15")]
-        RecoverClient(super::super::super::fees::v1::RecoverClientFeeComponents),
-        #[prost(message, tag = "16")]
         BridgeTransfer(super::super::super::fees::v1::BridgeTransferFeeComponents),
+        #[prost(message, tag = "16")]
+        RecoverClient(super::super::super::fees::v1::RecoverClientFeeComponents),
     }
 }
 impl ::prost::Name for FeeChange {

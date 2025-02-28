@@ -517,10 +517,10 @@ impl serde::Serialize for GenesisFees {
         if self.validator_update.is_some() {
             len += 1;
         }
-        if self.recover_client.is_some() {
+        if self.bridge_transfer.is_some() {
             len += 1;
         }
-        if self.bridge_transfer.is_some() {
+        if self.recover_client.is_some() {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.protocol.genesis.v1.GenesisFees", len)?;
@@ -566,11 +566,11 @@ impl serde::Serialize for GenesisFees {
         if let Some(v) = self.validator_update.as_ref() {
             struct_ser.serialize_field("validatorUpdate", v)?;
         }
-        if let Some(v) = self.recover_client.as_ref() {
-            struct_ser.serialize_field("recoverClient", v)?;
-        }
         if let Some(v) = self.bridge_transfer.as_ref() {
             struct_ser.serialize_field("bridgeTransfer", v)?;
+        }
+        if let Some(v) = self.recover_client.as_ref() {
+            struct_ser.serialize_field("recoverClient", v)?;
         }
         struct_ser.end()
     }
@@ -609,10 +609,10 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
             "transfer",
             "validator_update",
             "validatorUpdate",
-            "recover_client",
-            "recoverClient",
             "bridge_transfer",
             "bridgeTransfer",
+            "recover_client",
+            "recoverClient",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -631,8 +631,8 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
             SudoAddressChange,
             Transfer,
             ValidatorUpdate,
-            RecoverClient,
             BridgeTransfer,
+            RecoverClient,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -668,8 +668,8 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                             "sudoAddressChange" | "sudo_address_change" => Ok(GeneratedField::SudoAddressChange),
                             "transfer" => Ok(GeneratedField::Transfer),
                             "validatorUpdate" | "validator_update" => Ok(GeneratedField::ValidatorUpdate),
-                            "recoverClient" | "recover_client" => Ok(GeneratedField::RecoverClient),
                             "bridgeTransfer" | "bridge_transfer" => Ok(GeneratedField::BridgeTransfer),
+                            "recoverClient" | "recover_client" => Ok(GeneratedField::RecoverClient),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -703,8 +703,8 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                 let mut sudo_address_change__ = None;
                 let mut transfer__ = None;
                 let mut validator_update__ = None;
-                let mut recover_client__ = None;
                 let mut bridge_transfer__ = None;
+                let mut recover_client__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::BridgeLock => {
@@ -791,17 +791,17 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                             }
                             validator_update__ = map_.next_value()?;
                         }
-                        GeneratedField::RecoverClient => {
-                            if recover_client__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("recoverClient"));
-                            }
-                            recover_client__ = map_.next_value()?;
-                        }
                         GeneratedField::BridgeTransfer => {
                             if bridge_transfer__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("bridgeTransfer"));
                             }
                             bridge_transfer__ = map_.next_value()?;
+                        }
+                        GeneratedField::RecoverClient => {
+                            if recover_client__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("recoverClient"));
+                            }
+                            recover_client__ = map_.next_value()?;
                         }
                     }
                 }
@@ -820,8 +820,8 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                     sudo_address_change: sudo_address_change__,
                     transfer: transfer__,
                     validator_update: validator_update__,
-                    recover_client: recover_client__,
                     bridge_transfer: bridge_transfer__,
+                    recover_client: recover_client__,
                 })
             }
         }

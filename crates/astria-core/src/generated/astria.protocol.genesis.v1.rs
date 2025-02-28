@@ -146,12 +146,12 @@ pub struct GenesisFees {
         super::super::fees::v1::ValidatorUpdateFeeComponents,
     >,
     #[prost(message, optional, tag = "15")]
-    pub recover_client: ::core::option::Option<
-        super::super::fees::v1::RecoverClientFeeComponents,
-    >,
-    #[prost(message, optional, tag = "16")]
     pub bridge_transfer: ::core::option::Option<
         super::super::fees::v1::BridgeTransferFeeComponents,
+    >,
+    #[prost(message, optional, tag = "16")]
+    pub recover_client: ::core::option::Option<
+        super::super::fees::v1::RecoverClientFeeComponents,
     >,
 }
 impl ::prost::Name for GenesisFees {
