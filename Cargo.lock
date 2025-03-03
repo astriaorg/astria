@@ -498,6 +498,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "astria-auctioneer"
+version = "0.0.1"
+dependencies = [
+ "astria-build-info",
+ "astria-config",
+ "astria-core",
+ "astria-eyre",
+ "astria-sequencer-client",
+ "astria-telemetry",
+ "base64 0.21.7",
+ "bytes",
+ "futures",
+ "hex",
+ "http 0.2.12",
+ "http-body 0.4.6",
+ "humantime",
+ "hyper 0.14.30",
+ "itertools 0.12.1",
+ "pbjson-types",
+ "pin-project-lite",
+ "prost",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.63",
+ "tokio",
+ "tokio-stream",
+ "tokio-util 0.7.13",
+ "tonic 0.10.2",
+ "tower 0.5.2",
+ "tower-http",
+ "tracing",
+ "tryhard",
+]
+
+[[package]]
 name = "astria-bridge-contracts"
 version = "0.1.0"
 dependencies = [
@@ -548,7 +583,7 @@ dependencies = [
  "tendermint-rpc",
  "tokio",
  "tokio-stream",
- "tokio-util 0.7.11",
+ "tokio-util 0.7.13",
  "tonic 0.10.2",
  "tracing",
  "tryhard",
@@ -631,7 +666,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-test",
- "tokio-util 0.7.11",
+ "tokio-util 0.7.13",
  "tonic 0.10.2",
  "tonic-health",
  "tracing",
@@ -682,9 +717,9 @@ dependencies = [
  "thiserror 1.0.63",
  "tokio",
  "tokio-stream",
- "tokio-util 0.7.11",
+ "tokio-util 0.7.13",
  "tonic 0.10.2",
- "tower",
+ "tower 0.4.13",
  "tracing",
  "tryhard",
  "wiremock",
@@ -843,6 +878,7 @@ dependencies = [
  "ibc-proto",
  "ibc-types",
  "insta",
+ "itertools 0.12.1",
  "maplit",
  "matchit",
  "penumbra-ibc",
@@ -860,12 +896,14 @@ dependencies = [
  "tendermint-proto",
  "thiserror 1.0.63",
  "tokio",
+ "tokio-util 0.7.13",
  "tonic 0.10.2",
- "tower",
+ "tower 0.4.13",
  "tower-abci",
  "tower-actor",
  "tower-http",
  "tracing",
+ "url",
 ]
 
 [[package]]
@@ -943,9 +981,9 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-test",
- "tokio-util 0.7.11",
+ "tokio-util 0.7.13",
  "tonic 0.10.2",
- "tower",
+ "tower 0.4.13",
  "tracing",
  "tryhard",
  "wiremock",
@@ -1169,9 +1207,9 @@ dependencies = [
  "serde_json",
  "serde_path_to_error",
  "serde_urlencoded",
- "sync_wrapper",
+ "sync_wrapper 0.1.2",
  "tokio",
- "tower",
+ "tower 0.4.13",
  "tower-layer",
  "tower-service",
 ]
@@ -3724,7 +3762,7 @@ dependencies = [
  "indexmap 2.4.0",
  "slab",
  "tokio",
- "tokio-util 0.7.11",
+ "tokio-util 0.7.13",
  "tracing",
 ]
 
@@ -3743,7 +3781,7 @@ dependencies = [
  "indexmap 2.4.0",
  "slab",
  "tokio",
- "tokio-util 0.7.11",
+ "tokio-util 0.7.13",
  "tracing",
 ]
 
@@ -4085,7 +4123,7 @@ dependencies = [
  "pin-project-lite",
  "socket2",
  "tokio",
- "tower",
+ "tower 0.4.13",
  "tower-service",
  "tracing",
 ]
@@ -4867,7 +4905,7 @@ dependencies = [
  "thiserror 1.0.63",
  "tokio",
  "tokio-rustls",
- "tokio-util 0.7.11",
+ "tokio-util 0.7.13",
  "tracing",
  "url",
 ]
@@ -4912,7 +4950,7 @@ dependencies = [
  "serde_json",
  "thiserror 1.0.63",
  "tokio",
- "tower",
+ "tower 0.4.13",
  "tracing",
  "url",
 ]
@@ -4948,8 +4986,8 @@ dependencies = [
  "thiserror 1.0.63",
  "tokio",
  "tokio-stream",
- "tokio-util 0.7.11",
- "tower",
+ "tokio-util 0.7.13",
+ "tower 0.4.13",
  "tracing",
 ]
 
@@ -5973,7 +6011,7 @@ dependencies = [
  "tendermint-light-client-verifier",
  "time",
  "tonic 0.10.2",
- "tower",
+ "tower 0.4.13",
  "tracing",
 ]
 
@@ -6166,9 +6204,9 @@ dependencies = [
  "tendermint-proto",
  "tokio",
  "tokio-stream",
- "tokio-util 0.7.11",
+ "tokio-util 0.7.13",
  "tonic 0.10.2",
- "tower",
+ "tower 0.4.13",
  "tower-service",
  "tracing",
 ]
@@ -6246,9 +6284,9 @@ dependencies = [
 
 [[package]]
 name = "pin-project-lite"
-version = "0.2.14"
+version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bda66fc9667c18cb2758a2ac84d1167245054bcf85d5d1aaa6923f45801bdd02"
+checksum = "3b3cff922bd51709b605d9ead9aa71031d81447142d828eb4a6eba76fe619f9b"
 
 [[package]]
 name = "pin-utils"
@@ -6833,7 +6871,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
- "sync_wrapper",
+ "sync_wrapper 0.1.2",
  "system-configuration",
  "tokio",
  "tokio-rustls",
@@ -7784,6 +7822,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2047c6ded9c721764247e62cd3b03c09ffc529b2ba5b10ec482ae507a4a70160"
 
 [[package]]
+name = "sync_wrapper"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0bf256ce5efdfa370213c1dabab5935a12e49f2c58d15e9eac2870d3b4f27263"
+
+[[package]]
 name = "synstructure"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8198,6 +8242,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util 0.7.13",
 ]
 
 [[package]]
@@ -8241,9 +8286,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.11"
+version = "0.7.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cf6b47b3771c49ac75ad09a6162f53ad4b8088b76ac60e8ec1455b31a189fe1"
+checksum = "d7fcaa8d55a2bdd6b83ace262b016eca0d79ee02818c5c1bcdf0305114081078"
 dependencies = [
  "bytes",
  "futures-core",
@@ -8359,7 +8404,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tokio-stream",
- "tower",
+ "tower 0.4.13",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -8387,7 +8432,7 @@ dependencies = [
  "prost",
  "tokio",
  "tokio-stream",
- "tower",
+ "tower 0.4.13",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -8434,10 +8479,24 @@ dependencies = [
  "rand 0.8.5",
  "slab",
  "tokio",
- "tokio-util 0.7.11",
+ "tokio-util 0.7.13",
  "tower-layer",
  "tower-service",
  "tracing",
+]
+
+[[package]]
+name = "tower"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d039ad9159c98b70ecfd540b2573b97f7f52c3e8d9f8ad57a24b916a536975f9"
+dependencies = [
+ "futures-core",
+ "futures-util",
+ "pin-project-lite",
+ "sync_wrapper 1.0.2",
+ "tower-layer",
+ "tower-service",
 ]
 
 [[package]]
@@ -8455,7 +8514,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util 0.6.10",
- "tower",
+ "tower 0.4.13",
  "tracing",
 ]
 
@@ -8469,8 +8528,8 @@ dependencies = [
  "pin-project",
  "thiserror 1.0.63",
  "tokio",
- "tokio-util 0.7.11",
- "tower",
+ "tokio-util 0.7.13",
+ "tower 0.4.13",
  "tracing",
 ]
 
@@ -8490,6 +8549,7 @@ dependencies = [
  "pin-project-lite",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
 
 [[package]]

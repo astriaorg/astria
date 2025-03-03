@@ -3,7 +3,7 @@ global:
   replicaCount: 1
   logLevel: debug
 
-image: ghcr.io/astriaorg/hermes:0.3.0
+image: ghcr.io/astriaorg/hermes:0.4.0
 imagePullPolicy: IfNotPresent
 
 fullnameOverride: ""
