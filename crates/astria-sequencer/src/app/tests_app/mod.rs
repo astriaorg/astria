@@ -4,6 +4,11 @@ mod upgrades;
 use std::collections::HashMap;
 
 use astria_core::{
+    oracles::price_feed::types::v2::{
+        CurrencyPair,
+        CurrencyPairId,
+        CurrencyPairNonce,
+    },
     primitive::v1::{
         asset::TracePrefixed,
         RollupId,
@@ -11,6 +16,7 @@ use astria_core::{
     },
     protocol::{
         genesis::v1::Account,
+        price_feed::v1::CurrencyPairInfo,
         transaction::v1::{
             action::{
                 BridgeLock,
@@ -45,6 +51,7 @@ use tendermint::{
         types::{
             CommitInfo,
             ExtendedCommitInfo,
+            ExtendedVoteInfo,
         },
     },
     account,
@@ -83,6 +90,7 @@ use crate::{
     },
     bridge::StateWriteExt as _,
     fees::StateReadExt as _,
+    oracles::price_feed::oracle::state_ext::StateWriteExt,
 };
 
 fn default_tendermint_header() -> Header {
@@ -948,4 +956,140 @@ async fn app_end_block_validator_updates() {
     assert_eq!(validator_c.verification_key, verification_key(2));
     assert_eq!(validator_c.power, 100);
     assert_eq!(app.state.get_validator_updates().await.unwrap().len(), 0);
+}
+
+#[expect(
+    clippy::too_many_lines,
+    reason = "it's a test, so allow a lot of lines"
+)]
+#[tokio::test]
+async fn app_oracle_price_update_events_in_finalize_block() {
+    use astria_core::{
+        generated::price_feed::abci::v2::OracleVoteExtension as RawOracleVoteExtension,
+        oracles::price_feed::{
+            oracle::v2::CurrencyPairState,
+            types::v2::Price,
+        },
+        protocol::price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
+    };
+    use prost::Message as _;
+    use tendermint::{
+        abci::types::{
+            BlockSignatureInfo,
+            Validator,
+        },
+        block::BlockIdFlag,
+    };
+    use tendermint_proto::types::CanonicalVoteExtension;
+
+    use crate::proposal::commitment::generate_rollup_datas_commitment;
+
+    let alice_signing_key = get_alice_signing_key();
+    let initial_validator_set = vec![ValidatorUpdate {
+        power: 100,
+        verification_key: alice_signing_key.verification_key(),
+    }];
+    let (mut app, storage) = AppInitializer::new()
+        .with_genesis_validators(initial_validator_set)
+        .init()
+        .await;
+
+    let currency_pair: CurrencyPair = "ETH/USD".parse().unwrap();
+    let id = CurrencyPairId::new(0);
+    let currency_pair_state = CurrencyPairState {
+        price: None,
+        nonce: CurrencyPairNonce::new(0),
+        id,
+    };
+    let mut state_tx = StateDelta::new(app.state.clone());
+    state_tx
+        .put_currency_pair_state(currency_pair.clone(), currency_pair_state)
+        .unwrap();
+    app.apply(state_tx);
+    app.prepare_commit(storage.clone()).await.unwrap();
+    app.commit(storage.clone()).await.unwrap();
+
+    let mut prices = std::collections::BTreeMap::new();
+    let price = Price::new(10000i128);
+    let price_bytes = price.get().to_be_bytes().to_vec();
+    let id_to_currency_pair = indexmap::indexmap! {
+        id => CurrencyPairInfo{
+            currency_pair: currency_pair.clone(),
+            decimals: 0,
+        }
+    };
+    let _ = prices.insert(id.get(), price_bytes.into());
+    let extension_bytes = RawOracleVoteExtension {
+        prices,
+    }
+    .encode_to_vec();
+    let message_to_sign = CanonicalVoteExtension {
+        extension: extension_bytes.clone(),
+        height: 1,
+        round: 1,
+        chain_id: "test".to_string(),
+    }
+    .encode_length_delimited_to_vec();
+
+    let vote = ExtendedVoteInfo {
+        validator: Validator {
+            address: *alice_signing_key.verification_key().address_bytes(),
+            power: 100u32.into(),
+        },
+        sig_info: BlockSignatureInfo::Flag(BlockIdFlag::Commit),
+        vote_extension: extension_bytes.into(),
+        extension_signature: Some(
+            alice_signing_key
+                .sign(&message_to_sign)
+                .to_bytes()
+                .to_vec()
+                .try_into()
+                .unwrap(),
+        ),
+    };
+    let extended_commit_info = ExtendedCommitInfo {
+        round: 1u16.into(),
+        votes: vec![vote],
+    };
+    let extended_commit_info = ExtendedCommitInfoWithCurrencyPairMapping {
+        extended_commit_info,
+        id_to_currency_pair,
+    };
+    let encoded_extended_commit_info =
+        DataItem::ExtendedCommitInfo(extended_commit_info.into_raw().encode_to_vec().into())
+            .encode();
+    let commitments = generate_rollup_datas_commitment::<true>(&[], HashMap::new());
+    let txs_with_commit_info: Vec<Bytes> = commitments
+        .into_iter()
+        .chain(std::iter::once(encoded_extended_commit_info))
+        .collect();
+
+    let proposer_address: account::Id = [99u8; 20].to_vec().try_into().unwrap();
+    let finalize_block = abci::request::FinalizeBlock {
+        hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
+        height: 2u32.into(),
+        time: Time::now(),
+        next_validators_hash: Hash::default(),
+        proposer_address,
+        txs: txs_with_commit_info,
+        decided_last_commit: CommitInfo {
+            votes: vec![],
+            round: Round::default(),
+        },
+        misbehavior: vec![],
+    };
+    let finalize_block = app
+        .finalize_block(finalize_block, storage.clone())
+        .await
+        .unwrap();
+    assert_eq!(finalize_block.events.len(), 1);
+
+    let expected_event = Event::new(
+        "price_update",
+        [
+            ("currency_pair", currency_pair.to_string()),
+            ("price", price.to_string()),
+        ],
+    );
+    assert_eq!(finalize_block.events[0], expected_event);
 }

@@ -1206,7 +1206,7 @@ impl App {
         }
         .wrap_err("failed to parse data items")?;
 
-        if let Some(extended_commit_info_with_proof) =
+        let mut all_events = if let Some(extended_commit_info_with_proof) =
             &expanded_block_data.extended_commit_info_with_proof
         {
             let extended_commit_info = extended_commit_info_with_proof.extended_commit_info();
@@ -1220,8 +1220,10 @@ impl App {
             )
             .await
             .wrap_err("failed to apply prices from vote extensions")?;
-            let _ = self.apply(state_tx);
-        }
+            self.apply(state_tx)
+        } else {
+            vec![]
+        };
 
         // When the hash is not empty, we have already executed and cached the results
         if self.executed_proposal_hash.is_empty() {
@@ -1309,8 +1311,9 @@ impl App {
             .prepare_commit(storage)
             .await
             .wrap_err("failed to prepare commit")?;
+        all_events.extend(events);
         let finalize_block = abci::response::FinalizeBlock {
-            events,
+            events: all_events,
             tx_results,
             validator_updates,
             consensus_param_updates,

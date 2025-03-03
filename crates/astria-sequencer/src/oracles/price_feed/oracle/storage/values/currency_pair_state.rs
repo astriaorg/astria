@@ -50,7 +50,7 @@ impl From<Timestamp> for DomainTimestamp {
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 struct QuotePrice {
-    price: u128,
+    price: i128,
     block_timestamp: Timestamp,
     block_height: u64,
 }

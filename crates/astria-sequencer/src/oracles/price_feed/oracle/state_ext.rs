@@ -15,13 +15,11 @@ use astria_core::oracles::price_feed::{
     types::v2::{
         CurrencyPair,
         CurrencyPairId,
-        CurrencyPairNonce,
     },
 };
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
-        ContextCompat as _,
         OptionExt as _,
         Result,
         WrapErr as _,
@@ -278,31 +276,17 @@ pub(crate) trait StateWriteExt: StateWrite {
         currency_pair: CurrencyPair,
         price: QuotePrice,
     ) -> Result<()> {
-        let state = if let Some(mut state) = self
+        let mut state = self
             .get_currency_pair_state(&currency_pair)
             .await
             .wrap_err("failed to get currency pair state")?
-        {
-            state.price = Some(price);
-            state.nonce = state
-                .nonce
-                .increment()
-                .ok_or_eyre("increment nonce overflowed")?;
-            state
-        } else {
-            let id = self
-                .get_next_currency_pair_id()
-                .await
-                .wrap_err("failed to read next currency pair ID")?;
-            let next_id = id.increment().wrap_err("increment ID overflowed")?;
-            self.put_next_currency_pair_id(next_id)
-                .wrap_err("failed to put next currency pair ID")?;
-            CurrencyPairState {
-                price: Some(price),
-                nonce: CurrencyPairNonce::new(0),
-                id,
-            }
-        };
+            .ok_or_eyre("currency pair state not found")?;
+
+        state.price = Some(price);
+        state.nonce = state
+            .nonce
+            .increment()
+            .ok_or_eyre("increment nonce overflowed")?;
         self.put_currency_pair_state(currency_pair, state)
             .wrap_err("failed to put currency pair state")
     }
@@ -356,6 +340,7 @@ mod tests {
     use astria_core::{
         oracles::price_feed::types::v2::{
             CurrencyPair,
+            CurrencyPairNonce,
             Price,
         },
         Timestamp,
