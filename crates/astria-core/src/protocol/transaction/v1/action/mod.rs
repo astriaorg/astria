@@ -2263,9 +2263,11 @@ impl Protobuf for FeeChange {
                     fee_change,
                 )?)
             }
-            Some(raw::fee_change::FeeComponents::RecoverIbcClient(fee_change)) => Self::RecoverIbcClient(
-                FeeComponents::<RecoverIbcClient>::try_from_raw_ref(fee_change)?,
-            ),
+            Some(raw::fee_change::FeeComponents::RecoverIbcClient(fee_change)) => {
+                Self::RecoverIbcClient(FeeComponents::<RecoverIbcClient>::try_from_raw_ref(
+                    fee_change,
+                )?)
+            }
             None => return Err(FeeChangeError::field_unset("fee_components")),
         })
     }
@@ -2304,14 +2306,12 @@ impl Protobuf for RecoverIbcClient {
     /// - if the `subject_client_id` field is not set
     /// - if the `substitute_client_id` field is not set
     fn try_from_raw(proto: raw::RecoverIbcClient) -> Result<Self, RecoverIbcClientError> {
-        let subject_client_id = proto
-            .subject_client_id
-            .parse()
-            .map_err(|_| RecoverIbcClientError(RecoverIbcClientErrorKind::InvalidSubjectClientId))?;
-        let substitute_client_id = proto
-            .substitute_client_id
-            .parse()
-            .map_err(|_| RecoverIbcClientError(RecoverIbcClientErrorKind::InvalidSubstituteClientId))?;
+        let subject_client_id = proto.subject_client_id.parse().map_err(|_| {
+            RecoverIbcClientError(RecoverIbcClientErrorKind::InvalidSubjectClientId)
+        })?;
+        let substitute_client_id = proto.substitute_client_id.parse().map_err(|_| {
+            RecoverIbcClientError(RecoverIbcClientErrorKind::InvalidSubstituteClientId)
+        })?;
         Ok(Self {
             subject_client_id,
             substitute_client_id,

@@ -305,7 +305,8 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
         OnceCell::new();
     let fee_asset_change_fees: OnceCell<Option<FeeComponents<FeeAssetChange>>> = OnceCell::new();
     let fee_change_fees: OnceCell<Option<FeeComponents<FeeChange>>> = OnceCell::new();
-    let recover_ibc_client_fees: OnceCell<Option<FeeComponents<RecoverIbcClient>>> = OnceCell::new();
+    let recover_ibc_client_fees: OnceCell<Option<FeeComponents<RecoverIbcClient>>> =
+        OnceCell::new();
 
     let mut fees_by_asset = HashMap::new();
     for action in tx.actions() {

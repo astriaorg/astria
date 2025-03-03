@@ -788,7 +788,8 @@ impl Protobuf for GenesisFees {
                 .map(|act| FeeComponents::<SudoAddressChange>::to_raw(&act)),
             ibc_sudo_change: ibc_sudo_change
                 .map(|act| FeeComponents::<IbcSudoChange>::to_raw(&act)),
-            recover_ibc_client: recover_ibc_client.map(|act| FeeComponents::<RecoverIbcClient>::to_raw(&act)),
+            recover_ibc_client: recover_ibc_client
+                .map(|act| FeeComponents::<RecoverIbcClient>::to_raw(&act)),
         }
     }
 }
