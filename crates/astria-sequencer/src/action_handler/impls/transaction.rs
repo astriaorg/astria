@@ -150,10 +150,10 @@ impl ActionHandler for Transaction {
                     .check_stateless()
                     .await
                     .wrap_err("stateless check failed for BridgeSudoChange action")?,
-                Action::RecoverClient(act) => act
+                Action::RecoverIbcClient(act) => act
                     .check_stateless()
                     .await
-                    .wrap_err("stateless check failed for RecoverClient action")?,
+                    .wrap_err("stateless check failed for RecoverIbcClient action")?,
             }
         }
         Ok(())
@@ -283,7 +283,7 @@ impl ActionHandler for Transaction {
                 Action::BridgeSudoChange(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("failed executing bridge sudo change")?,
-                Action::RecoverClient(act) => check_execute_and_pay_fees(act, &mut state)
+                Action::RecoverIbcClient(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("failed executing recover client")?,
             }

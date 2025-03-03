@@ -56,7 +56,7 @@ mod tests {
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
-            RecoverClient,
+            RecoverIbcClient,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
@@ -118,7 +118,7 @@ mod tests {
         assert!(name::<SudoAddressChange>().starts_with(COMPONENT_PREFIX));
         assert!(name::<IbcSudoChange>().starts_with(COMPONENT_PREFIX));
         assert!(name::<BridgeTransfer>().starts_with(COMPONENT_PREFIX));
-        assert!(name::<RecoverClient>().starts_with(COMPONENT_PREFIX));
+        assert!(name::<RecoverIbcClient>().starts_with(COMPONENT_PREFIX));
         assert!(ALLOWED_ASSET_PREFIX.starts_with(COMPONENT_PREFIX));
         assert!(allowed_asset(&test_asset()).starts_with(COMPONENT_PREFIX));
     }

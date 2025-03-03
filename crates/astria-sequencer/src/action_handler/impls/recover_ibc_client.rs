@@ -24,7 +24,7 @@ use crate::{
 };
 
 #[async_trait::async_trait]
-impl ActionHandler for action::RecoverClient {
+impl ActionHandler for action::RecoverIbcClient {
     async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }

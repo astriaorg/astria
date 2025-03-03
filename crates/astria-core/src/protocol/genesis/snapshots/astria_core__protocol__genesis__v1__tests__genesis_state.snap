@@ -138,7 +138,7 @@ expression: genesis_state()
       },
       "multiplier": {}
     },
-    "recoverClient": {
+    "RecoverIbcClient": {
       "base": {},
       "multiplier": {}
     }

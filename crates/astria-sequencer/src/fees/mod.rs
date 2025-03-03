@@ -13,7 +13,7 @@ use astria_core::{
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
-            RecoverClient,
+            RecoverIbcClient,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
@@ -482,7 +482,7 @@ impl FeeHandler for IbcRelay {
     }
 }
 
-impl FeeHandler for RecoverClient {
+impl FeeHandler for RecoverIbcClient {
     fn name() -> &'static str {
         <Self as Protobuf>::Raw::NAME
     }
@@ -492,7 +492,7 @@ impl FeeHandler for RecoverClient {
     }
 
     fn snake_case_name() -> &'static str {
-        "recover_client"
+        "recover_ibc_client"
     }
 
     fn variable_component(&self) -> u128 {

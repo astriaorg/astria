@@ -1,5 +1,5 @@
 use astria_core::protocol::transaction::v1::{
-    action::RecoverClient,
+    action::RecoverIbcClient,
     Action,
 };
 use color_eyre::eyre::{
@@ -43,15 +43,15 @@ impl Command {
             self.sequencer_chain_id.clone(),
             &self.prefix,
             self.private_key.as_str(),
-            Action::RecoverClient(RecoverClient {
+            Action::RecoverIbcClient(RecoverIbcClient {
                 subject_client_id: self.subject_client_id.parse()?,
                 substitute_client_id: self.substitute_client_id.parse()?,
             }),
         )
         .await
-        .wrap_err("failed to submit RecoverClient transaction")?;
+        .wrap_err("failed to submit RecoverIbcClient transaction")?;
 
-        println!("RecoverClient completed!");
+        println!("RecoverIbcClient completed!");
         println!("Included in block: {}", res.height);
         Ok(())
     }

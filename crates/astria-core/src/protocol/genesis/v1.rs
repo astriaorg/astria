@@ -32,7 +32,7 @@ use crate::{
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
-            RecoverClient,
+            RecoverIbcClient,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
@@ -596,7 +596,7 @@ pub struct GenesisFees {
     pub ibc_relayer_change: Option<FeeComponents<IbcRelayerChange>>,
     pub sudo_address_change: Option<FeeComponents<SudoAddressChange>>,
     pub ibc_sudo_change: Option<FeeComponents<IbcSudoChange>>,
-    pub recover_client: Option<FeeComponents<RecoverClient>>,
+    pub recover_ibc_client: Option<FeeComponents<RecoverIbcClient>>,
 }
 
 impl Protobuf for GenesisFees {
@@ -624,7 +624,7 @@ impl Protobuf for GenesisFees {
             ibc_relayer_change,
             sudo_address_change,
             ibc_sudo_change,
-            recover_client,
+            recover_ibc_client,
         } = raw;
         let rollup_data_submission = rollup_data_submission
             .clone()
@@ -717,11 +717,11 @@ impl Protobuf for GenesisFees {
             .transpose()
             .map_err(|e| FeesError::fee_components("ibc_sudo_change", e))?;
 
-        let recover_client = recover_client
+        let recover_ibc_client = recover_ibc_client
             .clone()
-            .map(FeeComponents::<RecoverClient>::try_from_raw)
+            .map(FeeComponents::<RecoverIbcClient>::try_from_raw)
             .transpose()
-            .map_err(|e| FeesError::fee_components("recover_client", e))?;
+            .map_err(|e| FeesError::fee_components("recover_ibc_client", e))?;
 
         Ok(Self {
             rollup_data_submission,
@@ -739,7 +739,7 @@ impl Protobuf for GenesisFees {
             ibc_relayer_change,
             sudo_address_change,
             ibc_sudo_change,
-            recover_client,
+            recover_ibc_client,
         })
     }
 
@@ -760,7 +760,7 @@ impl Protobuf for GenesisFees {
             ibc_relayer_change,
             sudo_address_change,
             ibc_sudo_change,
-            recover_client,
+            recover_ibc_client,
         } = self;
         Self::Raw {
             transfer: transfer.map(|act| FeeComponents::<Transfer>::to_raw(&act)),
@@ -788,7 +788,7 @@ impl Protobuf for GenesisFees {
                 .map(|act| FeeComponents::<SudoAddressChange>::to_raw(&act)),
             ibc_sudo_change: ibc_sudo_change
                 .map(|act| FeeComponents::<IbcSudoChange>::to_raw(&act)),
-            recover_client: recover_client.map(|act| FeeComponents::<RecoverClient>::to_raw(&act)),
+            recover_ibc_client: recover_ibc_client.map(|act| FeeComponents::<RecoverIbcClient>::to_raw(&act)),
         }
     }
 }
@@ -912,7 +912,7 @@ mod tests {
                 ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0).to_raw()),
                 sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0).to_raw()),
                 ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0).to_raw()),
-                recover_client: Some(FeeComponents::<RecoverClient>::new(0, 0).to_raw()),
+                recover_ibc_client: Some(FeeComponents::<RecoverIbcClient>::new(0, 0).to_raw()),
             }),
         }
     }

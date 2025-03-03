@@ -1186,7 +1186,7 @@ impl<'de> serde::Deserialize<'de> for InitBridgeAccountFeeComponents {
         deserializer.deserialize_struct("astria.protocol.fees.v1.InitBridgeAccountFeeComponents", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for RecoverClientFeeComponents {
+impl serde::Serialize for RecoverIbcClientFeeComponents {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -1200,7 +1200,7 @@ impl serde::Serialize for RecoverClientFeeComponents {
         if self.multiplier.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.fees.v1.RecoverClientFeeComponents", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.fees.v1.RecoverIbcClientFeeComponents", len)?;
         if let Some(v) = self.base.as_ref() {
             struct_ser.serialize_field("base", v)?;
         }
@@ -1210,7 +1210,7 @@ impl serde::Serialize for RecoverClientFeeComponents {
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for RecoverClientFeeComponents {
+impl<'de> serde::Deserialize<'de> for RecoverIbcClientFeeComponents {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -1257,13 +1257,13 @@ impl<'de> serde::Deserialize<'de> for RecoverClientFeeComponents {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = RecoverClientFeeComponents;
+            type Value = RecoverIbcClientFeeComponents;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.fees.v1.RecoverClientFeeComponents")
+                formatter.write_str("struct astria.protocol.fees.v1.RecoverIbcClientFeeComponents")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<RecoverClientFeeComponents, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<RecoverIbcClientFeeComponents, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
@@ -1285,13 +1285,13 @@ impl<'de> serde::Deserialize<'de> for RecoverClientFeeComponents {
                         }
                     }
                 }
-                Ok(RecoverClientFeeComponents {
+                Ok(RecoverIbcClientFeeComponents {
                     base: base__,
                     multiplier: multiplier__,
                 })
             }
         }
-        deserializer.deserialize_struct("astria.protocol.fees.v1.RecoverClientFeeComponents", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.protocol.fees.v1.RecoverIbcClientFeeComponents", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for RollupDataSubmissionFeeComponents {

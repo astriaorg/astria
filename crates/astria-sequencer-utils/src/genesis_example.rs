@@ -28,7 +28,7 @@ use astria_core::{
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
-            RecoverClient,
+            RecoverIbcClient,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
@@ -126,7 +126,7 @@ fn proto_genesis_state() -> astria_core::generated::astria::protocol::genesis::v
             ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0).to_raw()),
             sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0).to_raw()),
             ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0).to_raw()),
-            recover_client: Some(FeeComponents::<RecoverClient>::new(0, 0).to_raw()),
+            recover_ibc_client: Some(FeeComponents::<RecoverIbcClient>::new(0, 0).to_raw()),
         }),
     }
 }

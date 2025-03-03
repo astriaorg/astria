@@ -1,5 +1,5 @@
 ---
 source: crates/astria-sequencer/src/fees/storage/keys.rs
-expression: RECOVER_CLIENT
+expression: recover_ibc_client
 ---
-fees/recover_client
+fees/recover_ibc_client

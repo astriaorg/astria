@@ -3,7 +3,7 @@
 pub struct Action {
     #[prost(
         oneof = "action::Value",
-        tags = "1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 50, 51, 52, 53, 55, 56"
+        tags = "1, 2, 11, 12, 13, 14, 15, 21, 22, 50, 51, 52, 53, 55, 56, 57"
     )]
     pub value: ::core::option::Option<action::Value>,
 }
@@ -33,8 +33,6 @@ pub mod action {
         Ibc(::penumbra_proto::core::component::ibc::v1::IbcRelay),
         #[prost(message, tag = "22")]
         Ics20Withdrawal(super::Ics20Withdrawal),
-        #[prost(message, tag = "23")]
-        RecoverClient(super::RecoverClient),
         /// POA sudo actions are defined on 50-60
         #[prost(message, tag = "50")]
         SudoAddressChange(super::SudoAddressChange),
@@ -50,6 +48,8 @@ pub mod action {
         FeeChange(super::FeeChange),
         #[prost(message, tag = "56")]
         IbcSudoChange(super::IbcSudoChange),
+        #[prost(message, tag = "57")]
+        RecoverIbcClient(super::RecoverIbcClient),
     }
 }
 impl ::prost::Name for Action {
@@ -490,7 +490,7 @@ pub mod fee_change {
         #[prost(message, tag = "15")]
         BridgeTransfer(super::super::super::fees::v1::BridgeTransferFeeComponents),
         #[prost(message, tag = "16")]
-        RecoverClient(super::super::super::fees::v1::RecoverClientFeeComponents),
+        RecoverIbcClient(super::super::super::fees::v1::RecoverIbcClientFeeComponents),
     }
 }
 impl ::prost::Name for FeeChange {
@@ -513,9 +513,15 @@ impl ::prost::Name for IbcSudoChange {
         ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
     }
 }
+/// `RecoverIbcClient` represents a transaction that recovers an IBC client
+/// by updating the client located at `subject_client_id` with the client
+/// located at `substitute_client_id`.
+///
+/// `subject_client_id` must not be active, and `substitute_client_id` must be
+/// active.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RecoverClient {
+pub struct RecoverIbcClient {
     /// the client identifier for the client to be updated
     #[prost(string, tag = "1")]
     pub subject_client_id: ::prost::alloc::string::String,
@@ -524,8 +530,8 @@ pub struct RecoverClient {
     #[prost(string, tag = "2")]
     pub substitute_client_id: ::prost::alloc::string::String,
 }
-impl ::prost::Name for RecoverClient {
-    const NAME: &'static str = "RecoverClient";
+impl ::prost::Name for RecoverIbcClient {
+    const NAME: &'static str = "RecoverIbcClient";
     const PACKAGE: &'static str = "astria.protocol.transaction.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)

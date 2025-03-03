@@ -23,7 +23,7 @@ use astria_core::{
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
-            RecoverClient,
+            RecoverIbcClient,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
@@ -89,7 +89,7 @@ pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1::GenesisFees 
         ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0)),
         sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0)),
         ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0)),
-        recover_client: Some(FeeComponents::<RecoverClient>::new(0, 0)),
+        recover_ibc_client: Some(FeeComponents::<RecoverIbcClient>::new(0, 0)),
     }
 }
 
@@ -366,9 +366,9 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .wrap_err("failed to initiate ibc sudo change fee components")
         .unwrap();
 
-    let recover_client_fees = FeeComponents::<RecoverClient>::new(0, 0);
+    let recover_ibc_client_fees = FeeComponents::<RecoverIbcClient>::new(0, 0);
     state
-        .put_fees(recover_client_fees)
+        .put_fees(recover_ibc_client_fees)
         .wrap_err("failed to initiate recover client fee components")
         .unwrap();
 

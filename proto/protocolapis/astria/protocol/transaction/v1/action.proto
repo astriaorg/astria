@@ -23,7 +23,6 @@ message Action {
     // IBC user actions are defined on 21-30
     astria_vendored.penumbra.core.component.ibc.v1.IbcRelay ibc = 21;
     Ics20Withdrawal ics20_withdrawal = 22;
-    RecoverClient recover_client = 23;
 
     // POA sudo actions are defined on 50-60
     SudoAddressChange sudo_address_change = 50;
@@ -32,6 +31,7 @@ message Action {
     FeeAssetChange fee_asset_change = 53;
     FeeChange fee_change = 55;
     IbcSudoChange ibc_sudo_change = 56;
+    RecoverIbcClient recover_ibc_client = 57;
   }
 }
 
@@ -255,7 +255,7 @@ message FeeChange {
     astria.protocol.fees.v1.TransferFeeComponents transfer = 13;
     astria.protocol.fees.v1.ValidatorUpdateFeeComponents validator_update = 14;
     astria.protocol.fees.v1.BridgeTransferFeeComponents bridge_transfer = 15;
-    astria.protocol.fees.v1.RecoverClientFeeComponents recover_client = 16;
+    astria.protocol.fees.v1.RecoverIbcClientFeeComponents recover_ibc_client = 16;
   }
 }
 
@@ -263,7 +263,13 @@ message IbcSudoChange {
   astria.primitive.v1.Address new_address = 1;
 }
 
-message RecoverClient {
+// `RecoverIbcClient` represents a transaction that recovers an IBC client
+// by updating the client located at `subject_client_id` with the client
+// located at `substitute_client_id`.
+//
+// `subject_client_id` must not be active, and `substitute_client_id` must be
+// active.
+message RecoverIbcClient {
   // the client identifier for the client to be updated
   string subject_client_id = 1;
   // the substitute client identifier for the client which will replace the subject
