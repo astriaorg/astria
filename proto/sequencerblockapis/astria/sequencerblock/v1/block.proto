@@ -181,6 +181,6 @@ message OracleData {
 
 message Price {
   connect.types.v2.CurrencyPair currency_pair = 1;
-  astria.primitive.v1.Uint128 price = 2;
+  astria.primitive.v1.Int128 price = 2;
   uint64 decimals = 3;
 }

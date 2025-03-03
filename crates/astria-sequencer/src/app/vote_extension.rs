@@ -599,16 +599,23 @@ pub(super) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
             },
             block_height: height,
         };
+        state
+            .put_price_for_currency_pair(price.currency_pair().clone(), quote_price)
+            .await
+            .wrap_err("failed to put price")?;
         debug!(
             "applied price from vote extension currency_pair=\"{}\" price={}",
             price.currency_pair(),
             price.price()
         );
-
-        state
-            .put_price_for_currency_pair(price.currency_pair().clone(), quote_price)
-            .await
-            .wrap_err("failed to put price")?;
+        let event = abci::Event::new(
+            "price_update",
+            [
+                ("currency_pair", price.currency_pair().to_string()),
+                ("price", price.price().to_string()),
+            ],
+        );
+        state.record(event);
     }
 
     Ok(())

@@ -83,8 +83,8 @@ use crate::{
 const PROPOSER_SEED: [u8; 32] = [1; 32];
 const VALIDATOR_SEED: [u8; 32] = [2; 32];
 const NON_VALIDATOR_SEED: [u8; 32] = [3; 32];
-const NEW_CURRENCY_PAIR_0_PRICE: u128 = 1_000;
-const NEW_CURRENCY_PAIR_1_PRICE: u128 = 1_001;
+const NEW_CURRENCY_PAIR_0_PRICE: i128 = 1_000;
+const NEW_CURRENCY_PAIR_1_PRICE: i128 = 1_001;
 
 fn signed_tx(nonce: u32) -> Arc<Transaction> {
     let tx = TransactionBody::builder()
