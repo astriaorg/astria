@@ -114,7 +114,6 @@ impl ActionHandler for action::RecoverIbcClient {
             )?;
 
         subject_client_state.latest_height = substitute_client_state.latest_height;
-        subject_client_state.chain_id = substitute_client_state.chain_id;
         subject_client_state.trusting_period = substitute_client_state.trusting_period;
         state.put_client(&self.subject_client_id, subject_client_state);
         Ok(())
