@@ -222,6 +222,11 @@ mod tests {
         test_fee_change_action::<BridgeTransfer>().await;
     }
 
+    #[tokio::test]
+    async fn recover_ibc_client_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<RecoverIbcClient>().await;
+    }
+
     async fn test_fee_change_action<'a, F>()
     where
         F: FeeHandler,

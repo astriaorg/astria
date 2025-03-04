@@ -9,6 +9,7 @@ use astria_eyre::{
     },
 };
 use cnidarium::StateWrite;
+use ibc_types::lightclients::tendermint::client_state::ClientState;
 use penumbra_ibc::component::{
     ClientStateReadExt as _,
     ClientStateWriteExt as _,
@@ -84,45 +85,10 @@ impl ActionHandler for action::RecoverIbcClient {
             substitute_client_state.latest_height(),
         );
 
-        ensure!(
-            client_to_replace_state.trust_level == substitute_client_state.trust_level,
-            "substitute client trust level must match subject client trust level; subject client \
-             trust level: {:?}, substitute client trust level: {:?}",
-            client_to_replace_state.trust_level,
-            substitute_client_state.trust_level,
-        );
-
-        ensure!(
-            client_to_replace_state.unbonding_period == substitute_client_state.unbonding_period,
-            "substitute client unbonding period must match subject client unbonding period; \
-             subject client unbonding period: {:?}, substitute client unbonding period: {:?}",
-            client_to_replace_state.unbonding_period,
-            substitute_client_state.unbonding_period,
-        );
-
-        ensure!(
-            client_to_replace_state.max_clock_drift == substitute_client_state.max_clock_drift,
-            "substitute client max clock drift must match subject client max clock drift; subject \
-             client max clock drift: {:?}, substitute client max clock drift: {:?}",
-            client_to_replace_state.max_clock_drift,
-            substitute_client_state.max_clock_drift,
-        );
-
-        ensure!(
-            client_to_replace_state.proof_specs == substitute_client_state.proof_specs,
-            "substitute client proof specs must match subject client proof specs; subject client \
-             proof specs: {:?}, substitute client proof specs: {:?}",
-            client_to_replace_state.proof_specs,
-            substitute_client_state.proof_specs,
-        );
-
-        ensure!(
-            client_to_replace_state.upgrade_path == substitute_client_state.upgrade_path,
-            "substitute client upgrade path must match subject client upgrade path; subject \
-             client upgrade path: {:?}, substitute client upgrade path: {:?}",
-            client_to_replace_state.upgrade_path,
-            substitute_client_state.upgrade_path,
-        );
+        ensure_required_client_state_fields_match(
+            &client_to_replace_state,
+            &substitute_client_state,
+        )?;
 
         let height = ibc_types::core::client::Height {
             revision_height: state
@@ -155,4 +121,51 @@ impl ActionHandler for action::RecoverIbcClient {
         state.put_client(&self.client_id_to_replace, client_to_replace_state);
         Ok(())
     }
+}
+
+fn ensure_required_client_state_fields_match(
+    client_to_replace_state: &ClientState,
+    substitute_client_state: &ClientState,
+) -> Result<()> {
+    ensure!(
+        client_to_replace_state.trust_level == substitute_client_state.trust_level,
+        "substitute client trust level must match subject client trust level; subject client \
+         trust level: {:?}, substitute client trust level: {:?}",
+        client_to_replace_state.trust_level,
+        substitute_client_state.trust_level,
+    );
+
+    ensure!(
+        client_to_replace_state.unbonding_period == substitute_client_state.unbonding_period,
+        "substitute client unbonding period must match subject client unbonding period; subject \
+         client unbonding period: {:?}, substitute client unbonding period: {:?}",
+        client_to_replace_state.unbonding_period,
+        substitute_client_state.unbonding_period,
+    );
+
+    ensure!(
+        client_to_replace_state.max_clock_drift == substitute_client_state.max_clock_drift,
+        "substitute client max clock drift must match subject client max clock drift; subject \
+         client max clock drift: {:?}, substitute client max clock drift: {:?}",
+        client_to_replace_state.max_clock_drift,
+        substitute_client_state.max_clock_drift,
+    );
+
+    ensure!(
+        client_to_replace_state.proof_specs == substitute_client_state.proof_specs,
+        "substitute client proof specs must match subject client proof specs; subject client \
+         proof specs: {:?}, substitute client proof specs: {:?}",
+        client_to_replace_state.proof_specs,
+        substitute_client_state.proof_specs,
+    );
+
+    ensure!(
+        client_to_replace_state.upgrade_path == substitute_client_state.upgrade_path,
+        "substitute client upgrade path must match subject client upgrade path; subject client \
+         upgrade path: {:?}, substitute client upgrade path: {:?}",
+        client_to_replace_state.upgrade_path,
+        substitute_client_state.upgrade_path,
+    );
+
+    Ok(())
 }
