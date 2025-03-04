@@ -119,6 +119,11 @@ impl ActionHandler for action::RecoverIbcClient {
     }
 }
 
+// according to the ADR, all fields must match except for the latest height, trusting period,
+// frozen height, and chain ID: https://ibc.cosmos.network/architecture/adr-026-ibc-client-recovery-mechanisms/
+//
+// this function checks that the required fields match, except for `allow_update`, which is
+// deprecated.
 fn ensure_required_client_state_fields_match(
     client_state: &ClientState,
     replacement_client_state: &ClientState,
