@@ -1,18 +1,7 @@
 //! Contains the `ActionHandler` trait, which houses all stateless/stateful checks and execution, as
 //! well as all of its implementations.
 
-use astria_core::{
-    primitive::v1::{
-        asset::Denom,
-        Address,
-    },
-    protocol::transaction::v1::action::{
-        BridgeLock,
-        BridgeTransfer,
-        Transfer,
-    },
-    sequencerblock::v1::block::Deposit,
-};
+use astria_core::protocol::transaction::v1::action::Transfer;
 use astria_eyre::eyre::{
     ensure,
     OptionExt as _,
@@ -127,82 +116,6 @@ where
     );
 
     Ok(())
-}
-
-pub(in crate::action_handler) trait DepositInfo {
-    fn bridge_address(&self) -> &Address;
-    fn amount(&self) -> u128;
-    fn destination_chain_address(&self) -> &str;
-}
-
-impl DepositInfo for BridgeLock {
-    fn bridge_address(&self) -> &Address {
-        &self.to
-    }
-
-    fn amount(&self) -> u128 {
-        self.amount
-    }
-
-    fn destination_chain_address(&self) -> &str {
-        &self.destination_chain_address
-    }
-}
-
-impl DepositInfo for BridgeTransfer {
-    #[expect(
-        clippy::misnamed_getters,
-        reason = "bridge_address matches the use case for this trait method"
-    )]
-    fn bridge_address(&self) -> &Address {
-        &self.to
-    }
-
-    fn amount(&self) -> u128 {
-        self.amount
-    }
-
-    fn destination_chain_address(&self) -> &str {
-        &self.destination_chain_address
-    }
-}
-
-// FIXME(issue number): Use bridge address to obtain IBC-prefixed denom and convert to trace
-// prefixed for deposit. This will be a breaking change, since previously sequencer relied on bridge
-// lock's asset instead of what was stored in state, hence it is out of scope in this refactoring PR
-// (insert).
-pub(in crate::action_handler) async fn create_deposit<
-    S: StateRead,
-    D: DepositInfo,
-    A: Into<Denom>,
->(
-    state: &S,
-    action: &D,
-    asset: A,
-) -> Result<Deposit> {
-    let source_transaction_id = state
-        .get_transaction_context()
-        .expect("current source should be set before executing action")
-        .transaction_id;
-    let source_action_index = state
-        .get_transaction_context()
-        .expect("current source should be set before executing action")
-        .position_in_transaction;
-    let rollup_id = state
-        .get_bridge_account_rollup_id(action.bridge_address())
-        .await
-        .wrap_err("failed to get bridge account rollup id")?
-        .ok_or_eyre("bridge lock must be sent to a bridge account")?;
-
-    Ok(Deposit {
-        bridge_address: *action.bridge_address(),
-        rollup_id,
-        amount: action.amount(),
-        asset: asset.into(),
-        destination_chain_address: action.destination_chain_address().to_string(),
-        source_transaction_id,
-        source_action_index,
-    })
 }
 
 #[cfg(test)]

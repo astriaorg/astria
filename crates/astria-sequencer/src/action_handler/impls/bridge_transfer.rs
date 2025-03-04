@@ -1,11 +1,10 @@
 use astria_core::protocol::transaction::v1::action::{
+    BridgeLock,
     BridgeTransfer,
     BridgeUnlock,
-    Transfer,
 };
 use astria_eyre::eyre::{
     ensure,
-    OptionExt as _,
     Result,
     WrapErr as _,
 };
@@ -18,19 +17,16 @@ use tracing::{
 
 use crate::{
     action_handler::{
-        check_transfer,
-        create_deposit,
-        execute_transfer,
+        impls::{
+            bridge_lock::execute_bridge_lock,
+            bridge_unlock::check_bridge_unlock,
+        },
         ActionHandler,
     },
-    address::StateReadExt as _,
-    assets::StateReadExt as _,
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::StateReadExt as _,
-    utils::create_deposit_event,
 };
 
 #[async_trait]
@@ -51,14 +47,17 @@ impl ActionHandler for BridgeTransfer {
 
     #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        state
-            .ensure_base_prefix(&self.to)
-            .await
-            .wrap_err("failed check for base prefix of destination address")?;
-        state
-            .ensure_base_prefix(&self.bridge_address)
-            .await
-            .wrap_err("failed check for base prefix of bridge address")?;
+        // first, check that the bridge unlock is valid
+        let bridge_unlock = BridgeUnlock {
+            to: self.to,
+            amount: self.amount,
+            memo: String::new(),
+            rollup_withdrawal_event_id: self.rollup_withdrawal_event_id.clone(),
+            rollup_block_number: self.rollup_block_number,
+            fee_asset: self.fee_asset.clone(),
+            bridge_address: self.bridge_address,
+        };
+        check_bridge_unlock(&bridge_unlock, &state).await?;
 
         // check that the assets for both bridge accounts match
         // also implicitly checks that both accounts are bridge accounts, as
@@ -85,33 +84,15 @@ impl ActionHandler for BridgeTransfer {
             .await
             .context("withdrawal event already processed")?;
 
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
-
-        let bridge_asset = state
-            .map_ibc_to_trace_prefixed_asset(&from_asset)
-            .await
-            .wrap_err("failed to map IBC asset to trace prefixed asset")?
-            .ok_or_eyre("mapping from IBC prefixed bridge asset to trace prefixed not found")?;
-        let deposit = create_deposit(&state, self, bridge_asset)
-            .await
-            .wrap_err("failed to construct deposit from state and bridge lock action")?;
-        let deposit_abci_event = create_deposit_event(&deposit);
-
-        let transfer_action = Transfer {
+        // execute the actual transfer as a BridgeLock
+        let bridge_lock = BridgeLock {
             to: self.to,
             asset: from_asset.into(),
             amount: self.amount,
             fee_asset: self.fee_asset.clone(),
+            destination_chain_address: self.destination_chain_address.clone(),
         };
-
-        check_transfer(&transfer_action, &from, &state).await?;
-        execute_transfer(&transfer_action, &from, &mut state).await?;
-
-        state.cache_deposit_event(deposit);
-        state.record(deposit_abci_event);
+        execute_bridge_lock(&bridge_lock, state).await?;
 
         Ok(())
     }

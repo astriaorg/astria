@@ -9,7 +9,10 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use async_trait::async_trait;
-use cnidarium::StateWrite;
+use cnidarium::{
+    StateRead,
+    StateWrite,
+};
 use tracing::{
     instrument,
     Level,
@@ -52,10 +55,7 @@ impl ActionHandler for BridgeUnlock {
 
     #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        state
-            .ensure_base_prefix(&self.to)
-            .await
-            .wrap_err("failed check for base prefix of destination address")?;
+        check_bridge_unlock(self, &state).await?;
 
         if state
             .is_a_bridge_account(&self.to)
@@ -64,11 +64,6 @@ impl ActionHandler for BridgeUnlock {
         {
             bail!("bridge accounts cannot receive bridge unlocks");
         }
-
-        state
-            .ensure_base_prefix(&self.bridge_address)
-            .await
-            .wrap_err("failed check for base prefix of bridge address")?;
 
         let asset = state
             .get_bridge_account_ibc_asset(&self.bridge_address)
@@ -95,6 +90,22 @@ impl ActionHandler for BridgeUnlock {
 
         Ok(())
     }
+}
+
+pub(super) async fn check_bridge_unlock<S: StateRead>(
+    bridge_unlock: &BridgeUnlock,
+    state: &S,
+) -> Result<()> {
+    state
+        .ensure_base_prefix(&bridge_unlock.to)
+        .await
+        .wrap_err("failed check for base prefix of destination address")?;
+    state
+        .ensure_base_prefix(&bridge_unlock.bridge_address)
+        .await
+        .wrap_err("failed check for base prefix of bridge address")?;
+
+    Ok(())
 }
 
 #[cfg(test)]
