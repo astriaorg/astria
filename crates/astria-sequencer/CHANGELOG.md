@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 of signer [#1905](https://github.com/astriaorg/astria/pull/1905).
 - Add more thorough unit tests for all actions [#1916](https://github.com/astriaorg/astria/pull/1916).
 - Implement `BridgeTransfer` action [#1934](https://github.com/astriaorg/astria/pull/1934).
+- Implement `RecoverIbcClient` action [#2008](https://github.com/astriaorg/astria/pull/2008).
 
 ### Removed
 

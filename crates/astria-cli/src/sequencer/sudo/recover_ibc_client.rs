@@ -29,11 +29,11 @@ pub(super) struct Command {
 
     /// The client id of the client to be replaced
     #[arg(long)]
-    client_id_to_replace: String,
+    client_id: String,
 
     /// The client id of the client to replace the subject client
     #[arg(long)]
-    substitute_client_id: String,
+    replacement_client_id: String,
 }
 
 impl Command {
@@ -44,8 +44,8 @@ impl Command {
             &self.prefix,
             self.private_key.as_str(),
             Action::RecoverIbcClient(RecoverIbcClient {
-                client_id_to_replace: self.client_id_to_replace.parse()?,
-                substitute_client_id: self.substitute_client_id.parse()?,
+                client_id: self.client_id.parse()?,
+                replacement_client_id: self.replacement_client_id.parse()?,
             }),
         )
         .await

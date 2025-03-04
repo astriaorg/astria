@@ -2275,8 +2275,8 @@ impl Protobuf for FeeChange {
 
 #[derive(Debug, Clone)]
 pub struct RecoverIbcClient {
-    pub client_id_to_replace: ibc_types::core::client::ClientId,
-    pub substitute_client_id: ibc_types::core::client::ClientId,
+    pub client_id: ibc_types::core::client::ClientId,
+    pub replacement_client_id: ibc_types::core::client::ClientId,
 }
 
 impl Protobuf for RecoverIbcClient {
@@ -2286,16 +2286,16 @@ impl Protobuf for RecoverIbcClient {
     #[must_use]
     fn into_raw(self) -> raw::RecoverIbcClient {
         raw::RecoverIbcClient {
-            client_id_to_replace: self.client_id_to_replace.to_string(),
-            substitute_client_id: self.substitute_client_id.to_string(),
+            client_id: self.client_id.to_string(),
+            replacement_client_id: self.replacement_client_id.to_string(),
         }
     }
 
     #[must_use]
     fn to_raw(&self) -> raw::RecoverIbcClient {
         raw::RecoverIbcClient {
-            client_id_to_replace: self.client_id_to_replace.clone().to_string(),
-            substitute_client_id: self.substitute_client_id.clone().to_string(),
+            client_id: self.client_id.clone().to_string(),
+            replacement_client_id: self.replacement_client_id.clone().to_string(),
         }
     }
 
@@ -2303,18 +2303,18 @@ impl Protobuf for RecoverIbcClient {
     ///
     /// # Errors
     ///
-    /// - if the `client_id_to_replace` field is not set
-    /// - if the `substitute_client_id` field is not set
+    /// - if the `client_id` field is not set
+    /// - if the `replacement_client_id` field is not set
     fn try_from_raw(proto: raw::RecoverIbcClient) -> Result<Self, RecoverIbcClientError> {
-        let client_id_to_replace = proto.client_id_to_replace.parse().map_err(|_| {
+        let client_id = proto.client_id.parse().map_err(|_| {
             RecoverIbcClientError(RecoverIbcClientErrorKind::InvalidSubjectClientId)
         })?;
-        let substitute_client_id = proto.substitute_client_id.parse().map_err(|_| {
+        let replacement_client_id = proto.replacement_client_id.parse().map_err(|_| {
             RecoverIbcClientError(RecoverIbcClientErrorKind::InvalidSubstituteClientId)
         })?;
         Ok(Self {
-            client_id_to_replace,
-            substitute_client_id,
+            client_id,
+            replacement_client_id,
         })
     }
 
@@ -2322,8 +2322,8 @@ impl Protobuf for RecoverIbcClient {
     ///
     /// # Errors
     ///
-    /// - if the `client_id_to_replace` field is not set
-    /// - if the `substitute_client_id` field is not set
+    /// - if the `client_id` field is not set
+    /// - if the `replacement_client_id` field is not set
     fn try_from_raw_ref(proto: &Self::Raw) -> Result<Self, RecoverIbcClientError> {
         Self::try_from_raw(proto.clone())
     }
@@ -2335,9 +2335,9 @@ pub struct RecoverIbcClientError(RecoverIbcClientErrorKind);
 
 #[derive(Debug, thiserror::Error)]
 enum RecoverIbcClientErrorKind {
-    #[error("the `client_id_to_replace` field was invalid")]
+    #[error("the `client_id` field was invalid")]
     InvalidSubjectClientId,
-    #[error("the `substitute_client_id` field was invalid")]
+    #[error("the `replacement_client_id` field was invalid")]
     InvalidSubstituteClientId,
 }
 

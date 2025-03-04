@@ -2184,18 +2184,18 @@ impl serde::Serialize for RecoverIbcClient {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if !self.client_id_to_replace.is_empty() {
+        if !self.client_id.is_empty() {
             len += 1;
         }
-        if !self.substitute_client_id.is_empty() {
+        if !self.replacement_client_id.is_empty() {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.RecoverIbcClient", len)?;
-        if !self.client_id_to_replace.is_empty() {
-            struct_ser.serialize_field("clientIdToReplace", &self.client_id_to_replace)?;
+        if !self.client_id.is_empty() {
+            struct_ser.serialize_field("clientId", &self.client_id)?;
         }
-        if !self.substitute_client_id.is_empty() {
-            struct_ser.serialize_field("substituteClientId", &self.substitute_client_id)?;
+        if !self.replacement_client_id.is_empty() {
+            struct_ser.serialize_field("replacementClientId", &self.replacement_client_id)?;
         }
         struct_ser.end()
     }
@@ -2207,16 +2207,16 @@ impl<'de> serde::Deserialize<'de> for RecoverIbcClient {
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "client_id_to_replace",
-            "clientIdToReplace",
-            "substitute_client_id",
-            "substituteClientId",
+            "client_id",
+            "clientId",
+            "replacement_client_id",
+            "replacementClientId",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            ClientIdToReplace,
-            SubstituteClientId,
+            ClientId,
+            ReplacementClientId,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -2238,8 +2238,8 @@ impl<'de> serde::Deserialize<'de> for RecoverIbcClient {
                         E: serde::de::Error,
                     {
                         match value {
-                            "clientIdToReplace" | "client_id_to_replace" => Ok(GeneratedField::ClientIdToReplace),
-                            "substituteClientId" | "substitute_client_id" => Ok(GeneratedField::SubstituteClientId),
+                            "clientId" | "client_id" => Ok(GeneratedField::ClientId),
+                            "replacementClientId" | "replacement_client_id" => Ok(GeneratedField::ReplacementClientId),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -2259,27 +2259,27 @@ impl<'de> serde::Deserialize<'de> for RecoverIbcClient {
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut client_id_to_replace__ = None;
-                let mut substitute_client_id__ = None;
+                let mut client_id__ = None;
+                let mut replacement_client_id__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::ClientIdToReplace => {
-                            if client_id_to_replace__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("clientIdToReplace"));
+                        GeneratedField::ClientId => {
+                            if client_id__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("clientId"));
                             }
-                            client_id_to_replace__ = Some(map_.next_value()?);
+                            client_id__ = Some(map_.next_value()?);
                         }
-                        GeneratedField::SubstituteClientId => {
-                            if substitute_client_id__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("substituteClientId"));
+                        GeneratedField::ReplacementClientId => {
+                            if replacement_client_id__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("replacementClientId"));
                             }
-                            substitute_client_id__ = Some(map_.next_value()?);
+                            replacement_client_id__ = Some(map_.next_value()?);
                         }
                     }
                 }
                 Ok(RecoverIbcClient {
-                    client_id_to_replace: client_id_to_replace__.unwrap_or_default(),
-                    substitute_client_id: substitute_client_id__.unwrap_or_default(),
+                    client_id: client_id__.unwrap_or_default(),
+                    replacement_client_id: replacement_client_id__.unwrap_or_default(),
                 })
             }
         }
