@@ -369,7 +369,7 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
     let recover_ibc_client_fees = FeeComponents::<RecoverIbcClient>::new(0, 0);
     state
         .put_fees(recover_ibc_client_fees)
-        .wrap_err("failed to initiate recover client fee components")
+        .wrap_err("failed to initiate recover ibc client fee components")
         .unwrap();
 
     // put denoms as allowed fee asset

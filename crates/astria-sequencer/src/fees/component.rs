@@ -134,7 +134,7 @@ impl Component for FeesComponent {
         if let Some(recover_ibc_client_fees) = recover_ibc_client_fees {
             state
                 .put_fees(recover_ibc_client_fees)
-                .wrap_err("failed to store recover client fee components")?;
+                .wrap_err("failed to store recover ibc client fee components")?;
         }
 
         Ok(())

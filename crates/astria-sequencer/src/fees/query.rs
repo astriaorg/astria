@@ -472,6 +472,7 @@ struct AllFeeComponents {
     ibc_relayer_change: FetchResult,
     sudo_address_change: FetchResult,
     ibc_sudo_change: FetchResult,
+    recover_ibc_client: FetchResult,
 }
 
 #[derive(serde::Serialize)]
@@ -512,6 +513,7 @@ async fn get_all_fee_components<S: StateRead>(state: &S) -> AllFeeComponents {
         ibc_relayer_change,
         fee_asset_change,
         fee_change,
+        recover_ibc_client,
     ) = join!(
         state.get_fees::<Transfer>().map(FetchResult::from),
         state
@@ -530,6 +532,7 @@ async fn get_all_fee_components<S: StateRead>(state: &S) -> AllFeeComponents {
         state.get_fees::<IbcRelayerChange>().map(FetchResult::from),
         state.get_fees::<FeeAssetChange>().map(FetchResult::from),
         state.get_fees::<FeeChange>().map(FetchResult::from),
+        state.get_fees::<RecoverIbcClient>().map(FetchResult::from),
     );
     AllFeeComponents {
         transfer,
@@ -547,6 +550,7 @@ async fn get_all_fee_components<S: StateRead>(state: &S) -> AllFeeComponents {
         ibc_relayer_change,
         sudo_address_change,
         ibc_sudo_change,
+        recover_ibc_client,
     }
 }
 

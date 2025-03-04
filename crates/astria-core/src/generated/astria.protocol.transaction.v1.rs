@@ -514,17 +514,17 @@ impl ::prost::Name for IbcSudoChange {
     }
 }
 /// `RecoverIbcClient` represents a transaction that recovers an IBC client
-/// by updating the client located at `subject_client_id` with the client
+/// by updating the client located at `client_id_to_replace` with the client
 /// located at `substitute_client_id`.
 ///
-/// `subject_client_id` must not be active, and `substitute_client_id` must be
+/// `client_id_to_replace` must not be active, and `substitute_client_id` must be
 /// active.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RecoverIbcClient {
     /// the client identifier for the client to be updated
     #[prost(string, tag = "1")]
-    pub subject_client_id: ::prost::alloc::string::String,
+    pub client_id_to_replace: ::prost::alloc::string::String,
     /// the substitute client identifier for the client which will replace the subject
     /// client
     #[prost(string, tag = "2")]

@@ -47,7 +47,7 @@ impl ActionHandler for action::RecoverIbcClient {
             .await
             .wrap_err("failed to get timestamp")?;
         let subject_client_status = state
-            .get_client_status(&self.subject_client_id, timestamp)
+            .get_client_status(&self.client_id_to_replace, timestamp)
             .await;
 
         ensure!(
@@ -66,7 +66,7 @@ impl ActionHandler for action::RecoverIbcClient {
         );
 
         let mut subject_client_state = state
-            .get_client_state(&self.subject_client_id)
+            .get_client_state(&self.client_id_to_replace)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("subject client state not found")?;
@@ -103,19 +103,16 @@ impl ActionHandler for action::RecoverIbcClient {
         state
             .put_verified_consensus_state::<crate::ibc::host_interface::AstriaHost>(
                 substitute_client_state.latest_height(),
-                self.subject_client_id.clone(),
+                self.client_id_to_replace.clone(),
                 substitute_consensus_state,
             )
             .await
             .map_err(anyhow_to_eyre)
-            .wrap_err(
-                "failed to put
-        verified consensus state",
-            )?;
+            .wrap_err("failed to put verified consensus state")?;
 
         subject_client_state.latest_height = substitute_client_state.latest_height;
         subject_client_state.trusting_period = substitute_client_state.trusting_period;
-        state.put_client(&self.subject_client_id, subject_client_state);
+        state.put_client(&self.client_id_to_replace, subject_client_state);
         Ok(())
     }
 }

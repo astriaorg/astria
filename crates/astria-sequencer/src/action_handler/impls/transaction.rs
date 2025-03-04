@@ -285,7 +285,7 @@ impl ActionHandler for Transaction {
                     .wrap_err("failed executing bridge sudo change")?,
                 Action::RecoverIbcClient(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
-                    .wrap_err("failed executing recover client")?,
+                    .wrap_err("failed executing recover ibc client")?,
             }
         }
 

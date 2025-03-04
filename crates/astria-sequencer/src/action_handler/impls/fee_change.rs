@@ -87,7 +87,7 @@ impl ActionHandler for FeeChange {
                 .wrap_err("failed to put bridge transfer fees"),
             Self::RecoverIbcClient(fees) => state
                 .put_fees(*fees)
-                .wrap_err("failed to put recover client fees"),
+                .wrap_err("failed to put recover ibc client fees"),
         }
     }
 }

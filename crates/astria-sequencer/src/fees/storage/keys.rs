@@ -92,6 +92,7 @@ mod tests {
         check::<IbcSudoChange>();
         check::<Ics20Withdrawal>();
         check::<InitBridgeAccount>();
+        check::<RecoverIbcClient>();
         check::<RollupDataSubmission>();
         check::<SudoAddressChange>();
         check::<Transfer>();
