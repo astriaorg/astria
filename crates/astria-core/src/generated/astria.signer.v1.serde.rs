@@ -279,7 +279,7 @@ impl<'de> serde::Deserialize<'de> for GetVerifyingShareResponse {
         deserializer.deserialize_struct("astria.signer.v1.GetVerifyingShareResponse", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for Part1Request {
+impl serde::Serialize for RoundOneRequest {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -287,11 +287,11 @@ impl serde::Serialize for Part1Request {
     {
         use serde::ser::SerializeStruct;
         let len = 0;
-        let struct_ser = serializer.serialize_struct("astria.signer.v1.Part1Request", len)?;
+        let struct_ser = serializer.serialize_struct("astria.signer.v1.RoundOneRequest", len)?;
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for Part1Request {
+impl<'de> serde::Deserialize<'de> for RoundOneRequest {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -330,27 +330,27 @@ impl<'de> serde::Deserialize<'de> for Part1Request {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = Part1Request;
+            type Value = RoundOneRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.signer.v1.Part1Request")
+                formatter.write_str("struct astria.signer.v1.RoundOneRequest")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<Part1Request, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<RoundOneRequest, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
                 while map_.next_key::<GeneratedField>()?.is_some() {
                     let _ = map_.next_value::<serde::de::IgnoredAny>()?;
                 }
-                Ok(Part1Request {
+                Ok(RoundOneRequest {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.signer.v1.Part1Request", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.signer.v1.RoundOneRequest", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for Part1Response {
+impl serde::Serialize for RoundOneResponse {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -364,7 +364,7 @@ impl serde::Serialize for Part1Response {
         if self.request_identifier != 0 {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.signer.v1.Part1Response", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.signer.v1.RoundOneResponse", len)?;
         if !self.commitment.is_empty() {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("commitment", pbjson::private::base64::encode(&self.commitment).as_str())?;
@@ -375,7 +375,7 @@ impl serde::Serialize for Part1Response {
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for Part1Response {
+impl<'de> serde::Deserialize<'de> for RoundOneResponse {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -423,13 +423,13 @@ impl<'de> serde::Deserialize<'de> for Part1Response {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = Part1Response;
+            type Value = RoundOneResponse;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.signer.v1.Part1Response")
+                formatter.write_str("struct astria.signer.v1.RoundOneResponse")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<Part1Response, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<RoundOneResponse, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
@@ -455,16 +455,16 @@ impl<'de> serde::Deserialize<'de> for Part1Response {
                         }
                     }
                 }
-                Ok(Part1Response {
+                Ok(RoundOneResponse {
                     commitment: commitment__.unwrap_or_default(),
                     request_identifier: request_identifier__.unwrap_or_default(),
                 })
             }
         }
-        deserializer.deserialize_struct("astria.signer.v1.Part1Response", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.signer.v1.RoundOneResponse", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for Part2Request {
+impl serde::Serialize for RoundTwoRequest {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -481,7 +481,7 @@ impl serde::Serialize for Part2Request {
         if self.request_identifier != 0 {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.signer.v1.Part2Request", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.signer.v1.RoundTwoRequest", len)?;
         if !self.commitments.is_empty() {
             struct_ser.serialize_field("commitments", &self.commitments)?;
         }
@@ -495,7 +495,7 @@ impl serde::Serialize for Part2Request {
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for Part2Request {
+impl<'de> serde::Deserialize<'de> for RoundTwoRequest {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -546,13 +546,13 @@ impl<'de> serde::Deserialize<'de> for Part2Request {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = Part2Request;
+            type Value = RoundTwoRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.signer.v1.Part2Request")
+                formatter.write_str("struct astria.signer.v1.RoundTwoRequest")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<Part2Request, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<RoundTwoRequest, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
@@ -585,17 +585,17 @@ impl<'de> serde::Deserialize<'de> for Part2Request {
                         }
                     }
                 }
-                Ok(Part2Request {
+                Ok(RoundTwoRequest {
                     commitments: commitments__.unwrap_or_default(),
                     message: message__.unwrap_or_default(),
                     request_identifier: request_identifier__.unwrap_or_default(),
                 })
             }
         }
-        deserializer.deserialize_struct("astria.signer.v1.Part2Request", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.signer.v1.RoundTwoRequest", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for Part2Response {
+impl serde::Serialize for RoundTwoResponse {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -606,7 +606,7 @@ impl serde::Serialize for Part2Response {
         if !self.signature_share.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.signer.v1.Part2Response", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.signer.v1.RoundTwoResponse", len)?;
         if !self.signature_share.is_empty() {
             #[allow(clippy::needless_borrow)]
             struct_ser.serialize_field("signatureShare", pbjson::private::base64::encode(&self.signature_share).as_str())?;
@@ -614,7 +614,7 @@ impl serde::Serialize for Part2Response {
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for Part2Response {
+impl<'de> serde::Deserialize<'de> for RoundTwoResponse {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -659,13 +659,13 @@ impl<'de> serde::Deserialize<'de> for Part2Response {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = Part2Response;
+            type Value = RoundTwoResponse;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.signer.v1.Part2Response")
+                formatter.write_str("struct astria.signer.v1.RoundTwoResponse")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<Part2Response, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<RoundTwoResponse, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
@@ -682,11 +682,11 @@ impl<'de> serde::Deserialize<'de> for Part2Response {
                         }
                     }
                 }
-                Ok(Part2Response {
+                Ok(RoundTwoResponse {
                     signature_share: signature_share__.unwrap_or_default(),
                 })
             }
         }
-        deserializer.deserialize_struct("astria.signer.v1.Part2Response", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.signer.v1.RoundTwoResponse", FIELDS, GeneratedVisitor)
     }
 }

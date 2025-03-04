@@ -9,8 +9,8 @@ use astria_core::{
         frost_participant_service_client::FrostParticipantServiceClient,
         CommitmentWithIdentifier,
         GetVerifyingShareRequest,
-        Part1Request,
-        Part2Request,
+        RoundOneRequest,
+        RoundTwoRequest,
     },
     primitive::v1::Address,
     protocol::transaction::v1::{
@@ -238,9 +238,12 @@ impl FrostSigner {
         for (id, client) in &self.participant_clients {
             let mut client = client.clone();
             stream.push(async move {
-                let resp = client.part1(Part1Request {}).await.wrap_err(format!(
-                    "failed to get part 1 response for participant with id {id:?}"
-                ))?;
+                let resp = client
+                    .execute_round_one(RoundOneRequest {})
+                    .await
+                    .wrap_err(format!(
+                        "failed to get part 1 response for participant with id {id:?}"
+                    ))?;
                 Ok((id, resp.into_inner()))
             });
         }
@@ -289,7 +292,7 @@ impl FrostSigner {
             let tx_bytes = tx_bytes.clone();
             stream.push(async move {
                 let resp = client
-                    .part2(Part2Request {
+                    .execute_round_two(RoundTwoRequest {
                         request_identifier,
                         message: tx_bytes.into(),
                         commitments: request_commitments,

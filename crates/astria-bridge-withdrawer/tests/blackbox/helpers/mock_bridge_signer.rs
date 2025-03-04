@@ -12,10 +12,10 @@ use astria_core::{
         },
         GetVerifyingShareRequest,
         GetVerifyingShareResponse,
-        Part1Request,
-        Part1Response,
-        Part2Request,
-        Part2Response,
+        RoundOneRequest,
+        RoundOneResponse,
+        RoundTwoRequest,
+        RoundTwoResponse,
     },
 };
 use astria_eyre::eyre::{
@@ -120,10 +120,10 @@ impl FrostParticipantService for FrostParticipantServiceImpl {
             .await
     }
 
-    async fn part1(
+    async fn execute_round_one(
         self: Arc<Self>,
-        _request: Request<Part1Request>,
-    ) -> Result<Response<Part1Response>, Status> {
+        _request: Request<RoundOneRequest>,
+    ) -> Result<Response<RoundOneResponse>, Status> {
         let mut rng = OsRng;
         let (nonces, commitments) =
             frost_ed25519::round1::commit(self.secret_package.signing_share(), &mut rng);
@@ -133,16 +133,16 @@ impl FrostParticipantService for FrostParticipantServiceImpl {
             .into();
         let mut nonce = self.nonce.lock().await;
         *nonce = Some(nonces.clone());
-        Ok(Response::new(Part1Response {
+        Ok(Response::new(RoundOneResponse {
             request_identifier: 0,
             commitment,
         }))
     }
 
-    async fn part2(
+    async fn execute_round_two(
         self: Arc<Self>,
-        request: Request<Part2Request>,
-    ) -> Result<Response<Part2Response>, Status> {
+        request: Request<RoundTwoRequest>,
+    ) -> Result<Response<RoundTwoResponse>, Status> {
         let request = request.into_inner();
         let signing_commitments = request
             .commitments
@@ -169,7 +169,7 @@ impl FrostParticipantService for FrostParticipantServiceImpl {
                 .serialize()
                 .into();
 
-        Ok(Response::new(Part2Response {
+        Ok(Response::new(RoundTwoResponse {
             signature_share,
         }))
     }

@@ -42,9 +42,9 @@ impl ::prost::Name for CommitmentWithIdentifier {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Part1Request {}
-impl ::prost::Name for Part1Request {
-    const NAME: &'static str = "Part1Request";
+pub struct RoundOneRequest {}
+impl ::prost::Name for RoundOneRequest {
+    const NAME: &'static str = "RoundOneRequest";
     const PACKAGE: &'static str = "astria.signer.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.signer.v1.{}", Self::NAME)
@@ -52,7 +52,7 @@ impl ::prost::Name for Part1Request {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Part1Response {
+pub struct RoundOneResponse {
     #[prost(bytes = "bytes", tag = "1")]
     pub commitment: ::prost::bytes::Bytes,
     /// required for the participant to internally track the nonce
@@ -60,8 +60,8 @@ pub struct Part1Response {
     #[prost(uint32, tag = "2")]
     pub request_identifier: u32,
 }
-impl ::prost::Name for Part1Response {
-    const NAME: &'static str = "Part1Response";
+impl ::prost::Name for RoundOneResponse {
+    const NAME: &'static str = "RoundOneResponse";
     const PACKAGE: &'static str = "astria.signer.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.signer.v1.{}", Self::NAME)
@@ -69,7 +69,7 @@ impl ::prost::Name for Part1Response {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Part2Request {
+pub struct RoundTwoRequest {
     #[prost(message, repeated, tag = "1")]
     pub commitments: ::prost::alloc::vec::Vec<CommitmentWithIdentifier>,
     #[prost(bytes = "bytes", tag = "2")]
@@ -77,8 +77,8 @@ pub struct Part2Request {
     #[prost(uint32, tag = "3")]
     pub request_identifier: u32,
 }
-impl ::prost::Name for Part2Request {
-    const NAME: &'static str = "Part2Request";
+impl ::prost::Name for RoundTwoRequest {
+    const NAME: &'static str = "RoundTwoRequest";
     const PACKAGE: &'static str = "astria.signer.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.signer.v1.{}", Self::NAME)
@@ -86,12 +86,12 @@ impl ::prost::Name for Part2Request {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Part2Response {
+pub struct RoundTwoResponse {
     #[prost(bytes = "bytes", tag = "1")]
     pub signature_share: ::prost::bytes::Bytes,
 }
-impl ::prost::Name for Part2Response {
-    const NAME: &'static str = "Part2Response";
+impl ::prost::Name for RoundTwoResponse {
+    const NAME: &'static str = "RoundTwoResponse";
     const PACKAGE: &'static str = "astria.signer.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.signer.v1.{}", Self::NAME)
@@ -215,10 +215,13 @@ pub mod frost_participant_service_client {
                 );
             self.inner.unary(req, path, codec).await
         }
-        pub async fn part1(
+        pub async fn execute_round_one(
             &mut self,
-            request: impl tonic::IntoRequest<super::Part1Request>,
-        ) -> std::result::Result<tonic::Response<super::Part1Response>, tonic::Status> {
+            request: impl tonic::IntoRequest<super::RoundOneRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::RoundOneResponse>,
+            tonic::Status,
+        > {
             self.inner
                 .ready()
                 .await
@@ -230,19 +233,25 @@ pub mod frost_participant_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.signer.v1.FrostParticipantService/Part1",
+                "/astria.signer.v1.FrostParticipantService/ExecuteRoundOne",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
-                    GrpcMethod::new("astria.signer.v1.FrostParticipantService", "Part1"),
+                    GrpcMethod::new(
+                        "astria.signer.v1.FrostParticipantService",
+                        "ExecuteRoundOne",
+                    ),
                 );
             self.inner.unary(req, path, codec).await
         }
-        pub async fn part2(
+        pub async fn execute_round_two(
             &mut self,
-            request: impl tonic::IntoRequest<super::Part2Request>,
-        ) -> std::result::Result<tonic::Response<super::Part2Response>, tonic::Status> {
+            request: impl tonic::IntoRequest<super::RoundTwoRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::RoundTwoResponse>,
+            tonic::Status,
+        > {
             self.inner
                 .ready()
                 .await
@@ -254,12 +263,15 @@ pub mod frost_participant_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.signer.v1.FrostParticipantService/Part2",
+                "/astria.signer.v1.FrostParticipantService/ExecuteRoundTwo",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
-                    GrpcMethod::new("astria.signer.v1.FrostParticipantService", "Part2"),
+                    GrpcMethod::new(
+                        "astria.signer.v1.FrostParticipantService",
+                        "ExecuteRoundTwo",
+                    ),
                 );
             self.inner.unary(req, path, codec).await
         }
@@ -280,14 +292,20 @@ pub mod frost_participant_service_server {
             tonic::Response<super::GetVerifyingShareResponse>,
             tonic::Status,
         >;
-        async fn part1(
+        async fn execute_round_one(
             self: std::sync::Arc<Self>,
-            request: tonic::Request<super::Part1Request>,
-        ) -> std::result::Result<tonic::Response<super::Part1Response>, tonic::Status>;
-        async fn part2(
+            request: tonic::Request<super::RoundOneRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::RoundOneResponse>,
+            tonic::Status,
+        >;
+        async fn execute_round_two(
             self: std::sync::Arc<Self>,
-            request: tonic::Request<super::Part2Request>,
-        ) -> std::result::Result<tonic::Response<super::Part2Response>, tonic::Status>;
+            request: tonic::Request<super::RoundTwoRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::RoundTwoResponse>,
+            tonic::Status,
+        >;
     }
     #[derive(Debug)]
     pub struct FrostParticipantServiceServer<T: FrostParticipantService> {
@@ -419,24 +437,29 @@ pub mod frost_participant_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria.signer.v1.FrostParticipantService/Part1" => {
+                "/astria.signer.v1.FrostParticipantService/ExecuteRoundOne" => {
                     #[allow(non_camel_case_types)]
-                    struct Part1Svc<T: FrostParticipantService>(pub Arc<T>);
+                    struct ExecuteRoundOneSvc<T: FrostParticipantService>(pub Arc<T>);
                     impl<
                         T: FrostParticipantService,
-                    > tonic::server::UnaryService<super::Part1Request> for Part1Svc<T> {
-                        type Response = super::Part1Response;
+                    > tonic::server::UnaryService<super::RoundOneRequest>
+                    for ExecuteRoundOneSvc<T> {
+                        type Response = super::RoundOneResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::Part1Request>,
+                            request: tonic::Request<super::RoundOneRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as FrostParticipantService>::part1(inner, request).await
+                                <T as FrostParticipantService>::execute_round_one(
+                                        inner,
+                                        request,
+                                    )
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -448,7 +471,7 @@ pub mod frost_participant_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = Part1Svc(inner);
+                        let method = ExecuteRoundOneSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -464,24 +487,29 @@ pub mod frost_participant_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria.signer.v1.FrostParticipantService/Part2" => {
+                "/astria.signer.v1.FrostParticipantService/ExecuteRoundTwo" => {
                     #[allow(non_camel_case_types)]
-                    struct Part2Svc<T: FrostParticipantService>(pub Arc<T>);
+                    struct ExecuteRoundTwoSvc<T: FrostParticipantService>(pub Arc<T>);
                     impl<
                         T: FrostParticipantService,
-                    > tonic::server::UnaryService<super::Part2Request> for Part2Svc<T> {
-                        type Response = super::Part2Response;
+                    > tonic::server::UnaryService<super::RoundTwoRequest>
+                    for ExecuteRoundTwoSvc<T> {
+                        type Response = super::RoundTwoResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::Part2Request>,
+                            request: tonic::Request<super::RoundTwoRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as FrostParticipantService>::part2(inner, request).await
+                                <T as FrostParticipantService>::execute_round_two(
+                                        inner,
+                                        request,
+                                    )
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -493,7 +521,7 @@ pub mod frost_participant_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = Part2Svc(inner);
+                        let method = ExecuteRoundTwoSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
