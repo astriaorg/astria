@@ -28,18 +28,16 @@ evm-rollup:
           addressPrefix: "astria"
           # Block height to start syncing rollup from (inclusive), lowest possible is 2
           startHeight: 2
-          # Block height (on sequencer) to stop syncing rollup at, continuing to next configuration fork
-          stopHeight: 0
         celestia:
           # The chain id of the celestia chain
           chainId: "celestia-local-0"
           # The first Celestia height to utilize when looking for rollup data
           startHeight: 2
-          # The variance in Celestia height to allow before halting the chain
-          heightVariance: 10
+          # The maximum number of blocks ahead of the lowest Celestia search height
+          # to search for a firm commitment
+          searchHeightMaxLookAhead: 100
         bridgeAddresses:
         - bridgeAddress: "astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr"
-          startHeight: 1
           assetDenom: "transfer/channel-0/utia"
           assetPrecision: 6
 

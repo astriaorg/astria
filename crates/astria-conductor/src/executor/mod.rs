@@ -134,8 +134,14 @@ impl Executor {
         let reader_cancellation_token = self.shutdown.child_token();
 
         let (firm_blocks_tx, firm_blocks_rx) = tokio::sync::mpsc::channel(16);
-        let (soft_blocks_tx, soft_blocks_rx) =
-            tokio::sync::mpsc::channel(state.calculate_max_spread());
+        let (soft_blocks_tx, soft_blocks_rx) = tokio::sync::mpsc::channel(
+            state
+                .celestia_search_height_max_look_ahead()
+                .try_into()
+                .expect(
+                    "converting a u64 to usize should work on any architecture conductor runs on",
+                ),
+        );
 
         let mut reader_tasks = JoinMap::new();
         if self.config.is_with_firm() {
@@ -199,17 +205,15 @@ impl Executor {
             .clone()
             .create_execution_session_with_retry()
             .await
-            .wrap_err("failed getting genesis info")?;
+            .wrap_err("failed creating execution session")?;
 
         let (state, _) = state::channel(
-            State::try_from_execution_session_parameters_and_commitment_state(
-                execution_session.session_id().clone(),
-                execution_session.execution_session_parameters().clone(),
-                execution_session.commitment_state().clone(),
+            State::try_from_execution_session(
+                &execution_session,
                 self.config.execution_commit_level,
             )
             .wrap_err(
-                "failed to construct initial state gensis and commitment info received from rollup",
+                "failed to construct initial state using execution session received from rollup",
             )?,
         );
 
@@ -326,9 +330,8 @@ impl Initialized {
             (next_firm, next_soft)
         };
 
-        let is_too_far_ahead = usize::try_from(next_soft.saturating_sub(next_firm))
-            .map(|spread| spread >= self.state.calculate_max_spread())
-            .unwrap_or(false);
+        let is_too_far_ahead = next_soft.saturating_sub(next_firm)
+            >= self.state.celestia_search_height_max_look_ahead();
 
         if is_too_far_ahead {
             debug!("soft blocks are too far ahead of firm; skipping soft blocks");

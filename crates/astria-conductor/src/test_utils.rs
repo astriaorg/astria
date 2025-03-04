@@ -1,4 +1,5 @@
 use astria_core::{
+    execution::v2::ExecutionSession,
     generated::astria::execution::v2::{
         CommitmentState,
         ExecutionSessionParameters,
@@ -54,18 +55,14 @@ pub(crate) fn make_rollup_state(
     execution_session_parameters: ExecutionSessionParameters,
     commitment_state: CommitmentState,
 ) -> State {
-    let execution_session_parameters =
-        astria_core::execution::v2::ExecutionSessionParameters::try_from_raw(
-            execution_session_parameters,
-        )
-        .unwrap();
-    let commitment_state =
-        astria_core::execution::v2::CommitmentState::try_from_raw(commitment_state).unwrap();
-    State::try_from_execution_session_parameters_and_commitment_state(
-        execution_session_id,
-        execution_session_parameters,
-        commitment_state,
-        crate::config::CommitLevel::SoftAndFirm,
+    let execution_session = ExecutionSession::try_from_raw(
+        astria_core::generated::astria::execution::v2::ExecutionSession {
+            session_id: execution_session_id,
+            execution_session_parameters: Some(execution_session_parameters),
+            commitment_state: Some(commitment_state),
+        },
     )
-    .unwrap()
+    .unwrap();
+    State::try_from_execution_session(&execution_session, crate::config::CommitLevel::SoftAndFirm)
+        .unwrap()
 }

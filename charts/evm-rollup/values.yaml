@@ -12,7 +12,7 @@ images:
     pullPolicy: IfNotPresent
     tag: 1.0.0
     devTag: pr-59
-    overrideTag: ""
+    overrideTag: pr-59
   conductor:
     repo: ghcr.io/astriaorg/conductor
     pullPolicy: IfNotPresent
@@ -63,13 +63,13 @@ genesis:
         chainId: ""
         # The first Celestia height to utilize when looking for rollup data
         startHeight: ""
-        # The variance in Celestia height to allow before halting the chain
-        heightVariance: ""
+        # The maximum number of blocks ahead of the lowest Celestia search height
+        # to search for a firm commitment
+        searchHeightMaxLookAhead: ""
       # Configure the sequencer bridge addresses and allowed assets if using
       # the astria canonical bridge. Recommend removing alloc values if so.
       bridgeAddresses: []
         # - address: "684ae50c49a434199199c9c698115391152d7b3f"
-        #   startHeight: 1
         #   assetDenom: "nria"
         #   senderAddress: "0x0000000000000000000000000000000000000000"
         #   assetPrecision: 9

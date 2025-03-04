@@ -164,10 +164,7 @@ fn should_restart_despite_error(err: &eyre::Report) -> bool {
     let mut current = Some(err.as_ref() as &dyn std::error::Error);
     while let Some(err) = current {
         if let Some(status) = err.downcast_ref::<tonic::Status>() {
-            if status.code() == tonic::Code::PermissionDenied
-                // Fallback in case execute block is called outside of execution session bounds
-                || status.code() == tonic::Code::OutOfRange
-            {
+            if status.code() == tonic::Code::PermissionDenied {
                 return true;
             }
         }
@@ -283,7 +280,6 @@ mod tests {
     #[test]
     fn should_restart_despite_error() {
         should_restart_despite_error_test(tonic::Code::PermissionDenied);
-        should_restart_despite_error_test(tonic::Code::OutOfRange);
     }
 
     #[track_caller]

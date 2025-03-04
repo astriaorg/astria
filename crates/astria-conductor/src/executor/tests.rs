@@ -1,9 +1,8 @@
 use astria_core::{
     self,
     execution::v2::{
-        CommitmentState,
         ExecutedBlockMetadata,
-        ExecutionSessionParameters,
+        ExecutionSession,
     },
     generated::astria::execution::v2 as raw,
     Protobuf as _,
@@ -45,18 +44,19 @@ fn make_state(
         soft,
     }: MakeState,
 ) -> (StateSender, StateReceiver) {
-    let execution_session_parameters =
-        ExecutionSessionParameters::try_from_raw(make_execution_session_parameters()).unwrap();
-    let commitment_state = CommitmentState::try_from_raw(raw::CommitmentState {
+    let commitment_state = raw::CommitmentState {
         firm_executed_block_metadata: Some(make_block_metadata(firm)),
         soft_executed_block_metadata: Some(make_block_metadata(soft)),
         lowest_celestia_search_height: 1,
+    };
+    let execution_session = ExecutionSession::try_from_raw(raw::ExecutionSession {
+        session_id: "test_execution_session".to_string(),
+        execution_session_parameters: Some(make_execution_session_parameters()),
+        commitment_state: Some(commitment_state),
     })
     .unwrap();
-    let state = State::try_from_execution_session_parameters_and_commitment_state(
-        "test_execution_session".to_string(),
-        execution_session_parameters,
-        commitment_state,
+    let state = State::try_from_execution_session(
+        &execution_session,
         crate::config::CommitLevel::SoftAndFirm,
     )
     .unwrap();

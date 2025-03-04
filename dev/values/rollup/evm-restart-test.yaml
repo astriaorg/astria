@@ -37,13 +37,13 @@ evm-rollup:
           chainId: "celestia-local-0"
           # The first Celestia height to utilize when looking for rollup data
           startHeight: 2
-          # The variance in Celestia height to allow before halting the chain
-          heightVariance: 10
+          # The maximum number of blocks ahead of the lowest Celestia search height
+          # to search for a firm commitment
+          searchHeightMaxLookAhead: 50
         # Configure the sequencer bridge addresses and allowed assets if using
         # the astria canonical bridge. Recommend removing alloc values if so.
         bridgeAddresses:
           - bridgeAddress: "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
-            startHeight: 1
             senderAddress: "0x0000000000000000000000000000000000000000"
             assetDenom: "nria"
             assetPrecision: 9

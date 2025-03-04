@@ -95,8 +95,8 @@
                     {{- $celestiaFields = append $celestiaFields (printf "\"startHeight\": %s" (toString .celestia.startHeight | replace "\"" "")) }}
                     {{- end }}
 
-                    {{- if .celestia.heightVariance }}
-                    {{- $celestiaFields = append $celestiaFields (printf "\"heightVariance\": %s" (toString .celestia.heightVariance | replace "\"" "")) }}
+                    {{- if .celestia.searchHeightMaxLookAhead }}
+                    {{- $celestiaFields = append $celestiaFields (printf "\"searchHeightMaxLookAhead\": %s" (toString .celestia.searchHeightMaxLookAhead | replace "\"" "")) }}
                     {{- end }}
 
                     {{- if $celestiaFields | len }}

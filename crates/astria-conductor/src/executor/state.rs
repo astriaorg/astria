@@ -8,6 +8,7 @@ use astria_core::{
     execution::v2::{
         CommitmentState,
         ExecutedBlockMetadata,
+        ExecutionSession,
         ExecutionSessionParameters,
     },
     primitive::v1::RollupId,
@@ -164,25 +165,6 @@ impl StateSender {
         }
     }
 
-    /// Calculates the maximum allowed spread between firm and soft commitments heights.
-    ///
-    /// The maximum allowed spread is taken as `max_spread = max_look_ahead * 3`, where
-    /// `max_look_ahead` is the `celestia_search_height_max_look_ahead` as defined in the
-    /// current execution session.
-    ///
-    /// The heuristic 3 is the largest number of Sequencer heights that will be found at
-    /// one Celestia height.
-    ///
-    /// # Panics
-    /// Panics if the `u64` underlying the celestia search height max look ahead tracked in the
-    /// state could not be converted to a `usize`. This should never happen on any reasonable
-    /// architecture that Conductor will run on.
-    pub(super) fn calculate_max_spread(&self) -> usize {
-        usize::try_from(self.celestia_search_height_max_look_ahead())
-            .expect("converting a u64 to usize should work on any architecture conductor runs on")
-            .saturating_mul(3)
-    }
-
     pub(super) fn try_update_commitment_state(
         &mut self,
         commitment_state: CommitmentState,
@@ -283,22 +265,22 @@ pub(crate) struct State {
 }
 
 impl State {
-    pub(crate) fn try_from_execution_session_parameters_and_commitment_state(
-        execution_session_id: String,
-        execution_session_parameters: ExecutionSessionParameters,
-        commitment_state: CommitmentState,
+    pub(crate) fn try_from_execution_session(
+        execution_session: &ExecutionSession,
         commit_level: crate::config::CommitLevel,
     ) -> Result<Self, InvalidState> {
+        let execution_session_parameters = execution_session.execution_session_parameters();
+        let commitment_state = execution_session.commitment_state();
         if commit_level.is_with_firm() {
-            let _ = map_firm_to_sequencer_height(&execution_session_parameters, &commitment_state)?;
+            let _ = map_firm_to_sequencer_height(execution_session_parameters, commitment_state)?;
         }
         if commit_level.is_with_soft() {
-            let _ = map_soft_to_sequencer_height(&execution_session_parameters, &commitment_state)?;
+            let _ = map_soft_to_sequencer_height(execution_session_parameters, commitment_state)?;
         }
         Ok(State {
-            execution_session_id,
-            execution_session_parameters,
-            commitment_state,
+            execution_session_id: execution_session.session_id().clone(),
+            execution_session_parameters: execution_session_parameters.clone(),
+            commitment_state: commitment_state.clone(),
         })
     }
 
