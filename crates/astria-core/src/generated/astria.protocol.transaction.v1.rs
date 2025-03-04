@@ -519,6 +519,10 @@ impl ::prost::Name for IbcSudoChange {
 ///
 /// `client_id` must not be active, and `replacement_client_id` must be
 /// active.
+///
+/// This is based on <https://buf.build/cosmos/ibc/docs/main:ibc.core.client.v1#ibc.core.client.v1.MsgRecoverClient>
+/// Although the field names are different, the first two fields are
+/// still wire-compatible.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RecoverIbcClient {
