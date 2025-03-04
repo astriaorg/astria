@@ -46,12 +46,12 @@ impl ActionHandler for action::RecoverIbcClient {
             .get_block_timestamp()
             .await
             .wrap_err("failed to get timestamp")?;
-        let subject_client_status = state
+        let client_to_replace_status = state
             .get_client_status(&self.client_id_to_replace, timestamp)
             .await;
 
         ensure!(
-            subject_client_status != ClientStatus::Active,
+            client_to_replace_status != ClientStatus::Active,
             "cannot recover an active client",
         );
 
@@ -65,7 +65,7 @@ impl ActionHandler for action::RecoverIbcClient {
             substitute_client_status,
         );
 
-        let mut subject_client_state = state
+        let mut client_to_replace_state = state
             .get_client_state(&self.client_id_to_replace)
             .await
             .map_err(anyhow_to_eyre)
@@ -77,11 +77,51 @@ impl ActionHandler for action::RecoverIbcClient {
             .wrap_err("substitute client state not found")?;
 
         ensure!(
-            subject_client_state.latest_height() < substitute_client_state.latest_height(),
+            client_to_replace_state.latest_height() < substitute_client_state.latest_height(),
             "substitute client must have a higher height than that of subject client; subject \
              client height: {}, substitute client height: {}",
-            subject_client_state.latest_height(),
+            client_to_replace_state.latest_height(),
             substitute_client_state.latest_height(),
+        );
+
+        ensure!(
+            client_to_replace_state.trust_level == substitute_client_state.trust_level,
+            "substitute client trust level must match subject client trust level; subject client \
+             trust level: {:?}, substitute client trust level: {:?}",
+            client_to_replace_state.trust_level,
+            substitute_client_state.trust_level,
+        );
+
+        ensure!(
+            client_to_replace_state.unbonding_period == substitute_client_state.unbonding_period,
+            "substitute client unbonding period must match subject client unbonding period; \
+             subject client unbonding period: {:?}, substitute client unbonding period: {:?}",
+            client_to_replace_state.unbonding_period,
+            substitute_client_state.unbonding_period,
+        );
+
+        ensure!(
+            client_to_replace_state.max_clock_drift == substitute_client_state.max_clock_drift,
+            "substitute client max clock drift must match subject client max clock drift; subject \
+             client max clock drift: {:?}, substitute client max clock drift: {:?}",
+            client_to_replace_state.max_clock_drift,
+            substitute_client_state.max_clock_drift,
+        );
+
+        ensure!(
+            client_to_replace_state.proof_specs == substitute_client_state.proof_specs,
+            "substitute client proof specs must match subject client proof specs; subject client \
+             proof specs: {:?}, substitute client proof specs: {:?}",
+            client_to_replace_state.proof_specs,
+            substitute_client_state.proof_specs,
+        );
+
+        ensure!(
+            client_to_replace_state.upgrade_path == substitute_client_state.upgrade_path,
+            "substitute client upgrade path must match subject client upgrade path; subject \
+             client upgrade path: {:?}, substitute client upgrade path: {:?}",
+            client_to_replace_state.upgrade_path,
+            substitute_client_state.upgrade_path,
         );
 
         let height = ibc_types::core::client::Height {
@@ -110,9 +150,9 @@ impl ActionHandler for action::RecoverIbcClient {
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to put verified consensus state")?;
 
-        subject_client_state.latest_height = substitute_client_state.latest_height;
-        subject_client_state.trusting_period = substitute_client_state.trusting_period;
-        state.put_client(&self.client_id_to_replace, subject_client_state);
+        client_to_replace_state.latest_height = substitute_client_state.latest_height;
+        client_to_replace_state.trusting_period = substitute_client_state.trusting_period;
+        state.put_client(&self.client_id_to_replace, client_to_replace_state);
         Ok(())
     }
 }
