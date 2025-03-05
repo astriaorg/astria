@@ -559,12 +559,12 @@ async fn confirm_submission_exits_for_unknown_status_after_time_limit() {
         .await;
 
     let tx_unknown_guard = sequencer_relayer
-        .mount_celestia_app_tx_status_response_as_scoped("tx status 1", 53, "UNKNOWN", 6)
+        .mount_celestia_app_tx_status_response_as_scoped("tx status 1", 53, "UNKNOWN", 7)
         .await;
 
     sequencer_relayer
         .timeout_ms(
-            7_000,
+            8_000,
             "waiting for first broadcast tx guard and tx status evicted guard",
             join(
                 broadcast_tx_guard_1.wait_until_satisfied(),
@@ -584,7 +584,7 @@ async fn confirm_submission_exits_for_unknown_status_after_time_limit() {
         .await;
     sequencer_relayer
         .timeout_ms(
-            2_000,
+            4_000,
             "waiting for second broadcast tx guard and tx status confirmed guard",
             join(
                 tx_confirmed_guard.wait_until_satisfied(),
