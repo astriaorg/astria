@@ -33,7 +33,7 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
 ] }
 
 borsh = { version = "1.5.1", features = ["bytes", "derive"] }
-cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "ac7abacc9bb09503d6fd6a396bc0b6850079084e", features = [
+cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "686fa5b53e8ad306736d2de61d1ffb6d11722e2b", features = [
   "metrics",
 ] }
 ibc-proto = { version = "0.41.0", features = ["server"] }

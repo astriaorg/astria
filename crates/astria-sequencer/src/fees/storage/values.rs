@@ -11,6 +11,7 @@ use astria_core::protocol::{
         IbcSudoChange,
         Ics20Withdrawal,
         InitBridgeAccount,
+        RecoverIbcClient,
         RollupDataSubmission,
         SudoAddressChange,
         Transfer,
@@ -27,11 +28,11 @@ use penumbra_ibc::IbcRelay;
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(crate) struct Value(ValueImpl);
 
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
 #[expect(
     clippy::enum_variant_names,
     reason = "want to make it clear that these are fees and not actions"
 )]
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
 enum ValueImpl {
     TransferFees(FeeComponents),
     RollupDataSubmissionFees(FeeComponents),
@@ -48,6 +49,7 @@ enum ValueImpl {
     IbcSudoChangeFees(FeeComponents),
     SudoAddressChangeFees(FeeComponents),
     BridgeTransferFees(FeeComponents),
+    RecoverIbcClientFees(FeeComponents),
 }
 
 macro_rules! impl_from_for_fee_storage {
@@ -103,7 +105,6 @@ impl_from_for_fee_storage!(
     DomainFeeComponents<InitBridgeAccount> => InitBridgeAccountFees,
     DomainFeeComponents<BridgeLock> => BridgeLockFees,
     DomainFeeComponents<BridgeUnlock> => BridgeUnlockFees,
-    DomainFeeComponents<BridgeTransfer> => BridgeTransferFees,
     DomainFeeComponents<BridgeSudoChange> => BridgeSudoChangeFees,
     DomainFeeComponents<IbcRelay> => IbcRelayFees,
     DomainFeeComponents<ValidatorUpdate> => ValidatorUpdateFees,
@@ -112,4 +113,6 @@ impl_from_for_fee_storage!(
     DomainFeeComponents<IbcRelayerChange> => IbcRelayerChangeFees,
     DomainFeeComponents<IbcSudoChange> => IbcSudoChangeFees,
     DomainFeeComponents<SudoAddressChange> => SudoAddressChangeFees,
+    DomainFeeComponents<BridgeTransfer> => BridgeTransferFees,
+    DomainFeeComponents<RecoverIbcClient> => RecoverIbcClientFees,
 );
