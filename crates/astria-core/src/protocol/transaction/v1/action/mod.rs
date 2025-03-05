@@ -1556,7 +1556,7 @@ impl Protobuf for BridgeLock {
     /// - if the `to` field is not set
     /// - if the `to` field is invalid
     /// - if the `asset` field is invalid
-    /// - if the `fee_asset` field is invalid 
+    /// - if the `fee_asset` field is invalid
     /// - if `destination_chain_address` is not set
     /// - if the `destination_chain_address` is over 256 bytes long
     fn try_from_raw(proto: raw::BridgeLock) -> Result<Self, BridgeLockError> {
@@ -1652,7 +1652,7 @@ enum BridgeLockErrorKind {
     InvalidAsset(#[source] asset::ParseDenomError),
     #[error("the `fee_asset` field was invalid")]
     InvalidFeeAsset(#[source] asset::ParseDenomError),
-    #[error("the destination_chain_address length is 0 or greater than 256")]
+    #[error("the destination_chain_address length is greater than 256 bytes")]
     InvalidDestinationChainAddressLength,
 }
 
@@ -2005,11 +2005,10 @@ impl Protobuf for BridgeTransfer {
                 "destination_chain_address",
             ));
         }
-        if destination_chain_address.as_bytes().is_empty()
-        {
+        if destination_chain_address.as_bytes().is_empty() {
             return Err(BridgeTransferError::null_destination_chain_address());
         }
-        if destination_chain_address.as_bytes().len() > 256{
+        if destination_chain_address.as_bytes().len() > 256 {
             return Err(BridgeTransferError::invalid_destination_chain_address());
         }
 
