@@ -288,19 +288,21 @@ async fn make_signer(
     frost_participant_endpoints: Vec<String>,
     sequencer_key_path: String,
     sequencer_address_prefix: String,
-) -> eyre::Result<Arc<dyn Signer>> {
-    let signer: Arc<dyn Signer> = if frost_threshold_signing_enabled {
-        let public_key_package_str = std::fs::read_to_string(frost_public_key_package_path)
-            .wrap_err("failed to read frost public key package")?;
+) -> eyre::Result<Signer> {
+    let signer = if frost_threshold_signing_enabled {
         let public_key_package =
-            serde_json::from_str::<frost_ed25519::keys::PublicKeyPackage>(&public_key_package_str)
-                .wrap_err("failed to deserialize public key package")?;
+            read_frost_key(&frost_public_key_package_path).wrap_err_with(|| {
+                format!(
+                    "failed reading frost public key package from file \
+                     `{frost_public_key_package_path}`"
+                )
+            })?;
 
         let participant_clients =
             initialize_frost_participant_clients(frost_participant_endpoints, &public_key_package)
                 .await
                 .wrap_err("failed to initialize frost participant clients")?;
-        Arc::new(
+        Signer::Threshold(
             FrostSignerBuilder::new()
                 .min_signers(frost_min_signers)
                 .public_key_package(public_key_package)
@@ -310,15 +312,24 @@ async fn make_signer(
                 .wrap_err("failed to initialize frost signer")?,
         )
     } else {
-        Arc::new(
+        Signer::Single(Box::new(
             crate::bridge_withdrawer::submitter::signer::SequencerKey::builder()
                 .path(sequencer_key_path)
                 .prefix(sequencer_address_prefix)
                 .try_build()
                 .wrap_err("failed to load sequencer private key")?,
-        )
+        ))
     };
     Ok(signer)
+}
+
+fn read_frost_key<P: AsRef<std::path::Path>>(
+    path: P,
+) -> eyre::Result<frost_ed25519::keys::PublicKeyPackage> {
+    let key_str =
+        std::fs::read_to_string(path).wrap_err("failed to read frost public key package")?;
+    serde_json::from_str::<frost_ed25519::keys::PublicKeyPackage>(&key_str)
+        .wrap_err("failed to deserialize public key package")
 }
 
 #[expect(

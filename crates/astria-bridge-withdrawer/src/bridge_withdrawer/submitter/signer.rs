@@ -20,12 +20,28 @@ use astria_eyre::eyre::{
     eyre,
     Context,
 };
-use tonic::async_trait;
 
-#[async_trait]
-pub(crate) trait Signer: Send + Sync {
-    fn address(&self) -> &Address;
-    async fn sign(&self, tx: TransactionBody) -> eyre::Result<Transaction>;
+use super::frost_signer::FrostSigner;
+
+pub(crate) enum Signer {
+    Single(Box<SequencerKey>),
+    Threshold(FrostSigner),
+}
+
+impl Signer {
+    pub(crate) fn address(&self) -> &Address {
+        match self {
+            Self::Single(signer) => signer.address(),
+            Self::Threshold(signer) => signer.address(),
+        }
+    }
+
+    pub(crate) async fn sign(&self, tx: TransactionBody) -> eyre::Result<Transaction> {
+        match self {
+            Self::Single(signer) => Ok(signer.sign(tx)),
+            Self::Threshold(signer) => signer.sign(tx).await,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -110,13 +126,12 @@ impl SequencerKey {
     }
 }
 
-#[async_trait]
-impl Signer for SequencerKey {
+impl SequencerKey {
     fn address(&self) -> &Address {
         &self.address
     }
 
-    async fn sign(&self, tx: TransactionBody) -> eyre::Result<Transaction> {
-        Ok(tx.sign(&self.signing_key))
+    fn sign(&self, tx: TransactionBody) -> Transaction {
+        tx.sign(&self.signing_key)
     }
 }

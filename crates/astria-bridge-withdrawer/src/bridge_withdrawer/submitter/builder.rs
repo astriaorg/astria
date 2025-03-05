@@ -49,7 +49,7 @@ impl Handle {
 pub(crate) struct Builder {
     pub(crate) shutdown_token: CancellationToken,
     pub(crate) startup_handle: startup::InfoHandle,
-    pub(crate) signer: Arc<dyn Signer>,
+    pub(crate) signer: Signer,
     pub(crate) sequencer_cometbft_client: sequencer_client::HttpClient,
     pub(crate) sequencer_grpc_client: SequencerServiceClient<tonic::transport::Channel>,
     pub(crate) state: Arc<State>,

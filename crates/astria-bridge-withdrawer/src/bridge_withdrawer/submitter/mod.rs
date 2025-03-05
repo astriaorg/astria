@@ -72,7 +72,7 @@ pub(super) struct Submitter {
     batches_rx: mpsc::Receiver<Batch>,
     sequencer_cometbft_client: sequencer_client::HttpClient,
     sequencer_grpc_client: SequencerServiceClient<Channel>,
-    signer: Arc<dyn Signer>,
+    signer: Signer,
     metrics: &'static Metrics,
 }
 
@@ -236,39 +236,6 @@ fn report_exit(reason: eyre::Result<&str>) {
             error!(%reason, "submitter shutting down");
         }
     }
-}
-
-#[instrument(name = "sign_tx", skip_all, err)]
-async fn sign_tx(signer: Arc<dyn Signer>, body: TransactionBody) -> eyre::Result<Transaction> {
-    let span = Span::current();
-    let retry_config = tryhard::RetryFutureConfig::new(1024)
-        .exponential_backoff(Duration::from_millis(200))
-        .max_delay(Duration::from_secs(60))
-        .on_retry(
-            |attempt, next_delay: Option<Duration>, err: &eyre::Report| {
-                let wait_duration = next_delay
-                    .map(humantime::format_duration)
-                    .map(tracing::field::display);
-                warn!(
-                    parent: span.clone(),
-                    attempt,
-                    wait_duration,
-                    error = err.as_ref() as &dyn std::error::Error,
-                    "failed signingstart transaction body; retrying after backoff",
-                );
-                async move {}
-            },
-        );
-    let signed = tryhard::retry_fn(|| {
-        let body = body.clone();
-        let signer = signer.clone();
-        let span = info_span!(parent: span.clone(), "attempt sign");
-        async move { signer.sign(body).await }.instrument(span)
-    })
-    .with_config(retry_config)
-    .await
-    .wrap_err("failed to sign transaction after 1024 attempts")?;
-    Ok(signed)
 }
 
 /// Submits a transaction to the sequencer with exponential backoff.

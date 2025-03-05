@@ -23,7 +23,7 @@ use astria_eyre::eyre::{
     self,
     ensure,
     eyre,
-    Context,
+    WrapErr as _,
 };
 use frost_ed25519::{
     keys::{
@@ -38,8 +38,6 @@ use prost::{
     Message as _,
     Name as _,
 };
-
-use super::Signer;
 
 pub(crate) async fn initialize_frost_participant_clients(
     endpoints: Vec<String>,
@@ -172,9 +170,8 @@ pub(crate) struct FrostSigner {
         HashMap<Identifier, FrostParticipantServiceClient<tonic::transport::Channel>>,
 }
 
-#[tonic::async_trait]
-impl Signer for FrostSigner {
-    async fn sign(&self, tx: TransactionBody) -> eyre::Result<Transaction> {
+impl FrostSigner {
+    pub(crate) async fn sign(&self, tx: TransactionBody) -> eyre::Result<Transaction> {
         // part 1: gather commitments from participants
         let (commitments, signing_package_commitments) = self.frost_part_1().await;
         ensure!(
@@ -222,7 +219,7 @@ impl Signer for FrostSigner {
         Ok(transaction)
     }
 
-    fn address(&self) -> &Address {
+    pub(crate) fn address(&self) -> &Address {
         &self.address
     }
 }
