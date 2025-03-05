@@ -12,7 +12,10 @@ use tracing::{
     instrument,
 };
 
-use super::state::State;
+use super::{
+    signer::Signer,
+    state::State,
+};
 use crate::{
     bridge_withdrawer::{
         startup,
@@ -46,8 +49,7 @@ impl Handle {
 pub(crate) struct Builder {
     pub(crate) shutdown_token: CancellationToken,
     pub(crate) startup_handle: startup::InfoHandle,
-    pub(crate) sequencer_key_path: String,
-    pub(crate) sequencer_address_prefix: String,
+    pub(crate) signer: Signer,
     pub(crate) sequencer_cometbft_client: sequencer_client::HttpClient,
     pub(crate) sequencer_grpc_client: SequencerServiceClient<tonic::transport::Channel>,
     pub(crate) state: Arc<State>,
@@ -56,29 +58,23 @@ pub(crate) struct Builder {
 
 impl Builder {
     /// Instantiates an `Submitter`.
-    pub(crate) fn build(self) -> eyre::Result<(super::Submitter, Handle)> {
+    pub(crate) fn build(self) -> (super::Submitter, Handle) {
         let Self {
             shutdown_token,
             startup_handle,
-            sequencer_key_path,
-            sequencer_address_prefix,
+            signer,
             sequencer_cometbft_client,
             sequencer_grpc_client,
             state,
             metrics,
         } = self;
 
-        let signer = super::signer::SequencerKey::builder()
-            .path(sequencer_key_path)
-            .prefix(sequencer_address_prefix)
-            .try_build()
-            .wrap_err("failed to load sequencer private key")?;
         info!(address = %signer.address(), "loaded sequencer signer");
 
         let (batches_tx, batches_rx) = tokio::sync::mpsc::channel(BATCH_QUEUE_SIZE);
         let handle = Handle::new(batches_tx);
 
-        Ok((
+        (
             super::Submitter {
                 shutdown_token,
                 startup_handle,
@@ -90,6 +86,6 @@ impl Builder {
                 metrics,
             },
             handle,
-        ))
+        )
     }
 }

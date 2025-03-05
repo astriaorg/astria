@@ -1,10 +1,14 @@
 use std::{
+    collections::HashMap,
     net::SocketAddr,
     sync::Arc,
     time::Duration,
 };
 
-use astria_core::generated::astria::sequencerblock::v1::sequencer_service_client::SequencerServiceClient;
+use astria_core::generated::astria::{
+    sequencerblock::v1::sequencer_service_client::SequencerServiceClient,
+    signer::v1::frost_participant_service_client::FrostParticipantServiceClient,
+};
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -15,6 +19,7 @@ use axum::{
     Server,
 };
 use ethereum::watcher::Watcher;
+use frost_ed25519::Identifier;
 use http::Uri;
 use hyper::server::conn::AddrIncoming;
 use startup::Startup;
@@ -45,6 +50,7 @@ use self::{
 };
 use crate::{
     api,
+    bridge_withdrawer::submitter::make_signer,
     config::Config,
     metrics::Metrics,
 };
@@ -71,13 +77,22 @@ impl BridgeWithdrawer {
     /// # Errors
     ///
     /// - If the provided `api_addr` string cannot be parsed as a socket address.
-    pub fn new(cfg: Config, metrics: &'static Metrics) -> eyre::Result<(Self, ShutdownHandle)> {
+    pub fn new(
+        cfg: Config,
+        metrics: &'static Metrics,
+        frost_participant_clients: Option<
+            HashMap<Identifier, FrostParticipantServiceClient<tonic::transport::Channel>>,
+        >,
+        frost_public_key_package: Option<frost_ed25519::keys::PublicKeyPackage>,
+    ) -> eyre::Result<(Self, ShutdownHandle)> {
         let shutdown_handle = ShutdownHandle::new();
         let Config {
             api_addr,
             sequencer_cometbft_endpoint,
             sequencer_chain_id,
+            no_frost_threshold_signing,
             sequencer_key_path,
+            frost_min_signers,
             sequencer_address_prefix,
             fee_asset_denomination,
             ethereum_contract_address,
@@ -118,19 +133,26 @@ impl BridgeWithdrawer {
 
         let startup_handle = startup::InfoHandle::new(state.subscribe());
 
-        // make submitter object
+        let signer = make_signer(
+            no_frost_threshold_signing,
+            frost_min_signers,
+            frost_public_key_package,
+            frost_participant_clients,
+            sequencer_key_path,
+            sequencer_address_prefix,
+        )
+        .wrap_err("failed to create signer")?;
+
         let (submitter, submitter_handle) = submitter::Builder {
             shutdown_token: shutdown_handle.token(),
             startup_handle: startup_handle.clone(),
             sequencer_cometbft_client,
             sequencer_grpc_client,
-            sequencer_key_path,
-            sequencer_address_prefix: sequencer_address_prefix.clone(),
+            signer,
             state: state.clone(),
             metrics,
         }
-        .build()
-        .wrap_err("failed to initialize submitter")?;
+        .build();
 
         let ethereum_watcher = watcher::Builder {
             ethereum_contract_address,
