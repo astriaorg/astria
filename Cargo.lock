@@ -551,6 +551,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "astria-bridge-signer"
+version = "0.1.0"
+dependencies = [
+ "astria-bridge-contracts",
+ "astria-build-info",
+ "astria-config",
+ "astria-core",
+ "astria-eyre",
+ "astria-telemetry",
+ "ethers",
+ "frost-ed25519",
+ "futures",
+ "prost",
+ "rand 0.8.5",
+ "regex",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tonic 0.10.2",
+ "tracing",
+]
+
+[[package]]
 name = "astria-bridge-withdrawer"
 version = "1.0.1"
 dependencies = [
