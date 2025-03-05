@@ -31,7 +31,7 @@ config:
   noFrostThresholdSigning: "true"
   frostMinSigners: "0"
   frostPublicKeyPackagePath: ""
-  frostParticipantEndpoints: "[]"
+  frostParticipantEndpoints: ""
   sequencerPrivateKey:
     devContent: ""
     secret:
