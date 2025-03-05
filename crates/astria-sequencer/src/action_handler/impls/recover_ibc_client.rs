@@ -49,6 +49,12 @@ impl ActionHandler for action::RecoverIbcClient {
             .wrap_err("failed to get timestamp")?;
         let client_status = state.get_client_status(&self.client_id, timestamp).await;
 
+        // the spec requires the client to be either frozen or expired, but there is another
+        // variant other than active, which is `ClientStatus::Unknown`.
+        //
+        // since unknown is only returned if there's an error calculating the status,
+        // we can assume it's safe to only check for not-active as an error calculating
+        // the status would cause various other errors.
         ensure!(
             client_status != ClientStatus::Active,
             "cannot recover an active client",
