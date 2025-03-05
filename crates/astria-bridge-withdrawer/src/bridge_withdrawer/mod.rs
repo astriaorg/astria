@@ -1,10 +1,14 @@
 use std::{
+    collections::HashMap,
     net::SocketAddr,
     sync::Arc,
     time::Duration,
 };
 
-use astria_core::generated::astria::sequencerblock::v1::sequencer_service_client::SequencerServiceClient;
+use astria_core::generated::astria::{
+    sequencerblock::v1::sequencer_service_client::SequencerServiceClient,
+    signer::v1::frost_participant_service_client::FrostParticipantServiceClient,
+};
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -15,6 +19,7 @@ use axum::{
     Server,
 };
 use ethereum::watcher::Watcher;
+use frost_ed25519::Identifier;
 use http::Uri;
 use hyper::server::conn::AddrIncoming;
 use startup::Startup;
@@ -72,9 +77,13 @@ impl BridgeWithdrawer {
     /// # Errors
     ///
     /// - If the provided `api_addr` string cannot be parsed as a socket address.
-    pub async fn new(
+    pub fn new(
         cfg: Config,
         metrics: &'static Metrics,
+        frost_participant_clients: Option<
+            HashMap<Identifier, FrostParticipantServiceClient<tonic::transport::Channel>>,
+        >,
+        frost_public_key_package: Option<frost_ed25519::keys::PublicKeyPackage>,
     ) -> eyre::Result<(Self, ShutdownHandle)> {
         let shutdown_handle = ShutdownHandle::new();
         let Config {
@@ -84,8 +93,6 @@ impl BridgeWithdrawer {
             no_frost_threshold_signing,
             sequencer_key_path,
             frost_min_signers,
-            frost_public_key_package_path,
-            frost_participant_endpoints,
             sequencer_address_prefix,
             fee_asset_denomination,
             ethereum_contract_address,
@@ -126,21 +133,14 @@ impl BridgeWithdrawer {
 
         let startup_handle = startup::InfoHandle::new(state.subscribe());
 
-        let frost_participant_endpoints = frost_participant_endpoints
-            .split(',')
-            .map(str::to_string)
-            .collect();
-
-        // make submitter object
         let signer = make_signer(
             no_frost_threshold_signing,
             frost_min_signers,
-            frost_public_key_package_path,
-            frost_participant_endpoints,
+            frost_public_key_package,
+            frost_participant_clients,
             sequencer_key_path,
             sequencer_address_prefix,
         )
-        .await
         .wrap_err("failed to create signer")?;
 
         let (submitter, submitter_handle) = submitter::Builder {

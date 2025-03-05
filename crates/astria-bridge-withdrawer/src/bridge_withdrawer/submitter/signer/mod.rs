@@ -1,9 +1,16 @@
 mod frost_signer;
 mod sequencer_key;
 
+use std::collections::HashMap;
+
+use astria_core::generated::astria::signer::v1::frost_participant_service_client::FrostParticipantServiceClient;
 use astria_eyre::{
     eyre,
     eyre::WrapErr as _,
+};
+use frost_ed25519::{
+    keys::PublicKeyPackage,
+    Identifier,
 };
 
 pub(crate) enum Signer {
@@ -30,11 +37,13 @@ impl Signer {
     }
 }
 
-pub(crate) async fn make_signer(
+pub(crate) fn make_signer(
     no_frost_threshold_signing: bool,
     frost_min_signers: usize,
-    frost_public_key_package_path: String,
-    frost_participant_endpoints: Vec<String>,
+    public_key_package: Option<PublicKeyPackage>,
+    frost_participant_clients: Option<
+        HashMap<Identifier, FrostParticipantServiceClient<tonic::transport::Channel>>,
+    >,
     sequencer_key_path: String,
     sequencer_address_prefix: String,
 ) -> eyre::Result<Signer> {
@@ -47,20 +56,12 @@ pub(crate) async fn make_signer(
                 .wrap_err("failed to load sequencer private key")?,
         ))
     } else {
-        let public_key_package =
-            read_frost_key(&frost_public_key_package_path).wrap_err_with(|| {
-                format!(
-                    "failed reading frost public key package from file \
-                     `{frost_public_key_package_path}`"
-                )
-            })?;
-
-        let participant_clients = frost_signer::initialize_frost_participant_clients(
-            frost_participant_endpoints,
-            &public_key_package,
-        )
-        .await
-        .wrap_err("failed to initialize frost participant clients")?;
+        let participant_clients = frost_participant_clients.ok_or(eyre::eyre!(
+            "frost participant clients must be set when using frost threshold signing"
+        ))?;
+        let public_key_package = public_key_package.ok_or(eyre::eyre!(
+            "frost public key package must be set when using frost threshold signing"
+        ))?;
         Signer::Threshold(
             frost_signer::FrostSignerBuilder::new()
                 .min_signers(frost_min_signers)
@@ -72,13 +73,4 @@ pub(crate) async fn make_signer(
         )
     };
     Ok(signer)
-}
-
-fn read_frost_key<P: AsRef<std::path::Path>>(
-    path: P,
-) -> eyre::Result<frost_ed25519::keys::PublicKeyPackage> {
-    let key_str =
-        std::fs::read_to_string(path).wrap_err("failed to read frost public key package")?;
-    serde_json::from_str::<frost_ed25519::keys::PublicKeyPackage>(&key_str)
-        .wrap_err("failed to deserialize public key package")
 }

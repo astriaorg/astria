@@ -8,7 +8,6 @@ use astria_core::{
     generated::astria::signer::v1::{
         frost_participant_service_client::FrostParticipantServiceClient,
         CommitmentWithIdentifier,
-        GetVerifyingShareRequest,
         RoundOneRequest,
         RoundTwoRequest,
     },
@@ -26,10 +25,7 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use frost_ed25519::{
-    keys::{
-        PublicKeyPackage,
-        VerifyingShare,
-    },
+    keys::PublicKeyPackage,
     round1,
     Identifier,
 };
@@ -38,38 +34,6 @@ use prost::{
     Message as _,
     Name as _,
 };
-
-pub(crate) async fn initialize_frost_participant_clients(
-    endpoints: Vec<String>,
-    public_key_package: &PublicKeyPackage,
-) -> eyre::Result<HashMap<Identifier, FrostParticipantServiceClient<tonic::transport::Channel>>> {
-    let mut participant_clients = HashMap::new();
-    for endpoint in endpoints {
-        let mut client = FrostParticipantServiceClient::connect(endpoint)
-            .await
-            .wrap_err("failed to connect to participant")?;
-        let resp = client
-            .get_verifying_share(GetVerifyingShareRequest {})
-            .await
-            .wrap_err("failed to get verifying share")?;
-        let verifying_share = VerifyingShare::deserialize(&resp.into_inner().verifying_share)
-            .wrap_err("failed to deserialize verifying share")?;
-        let identifier = public_key_package
-            .verifying_shares()
-            .iter()
-            .find(|(_, vs)| vs == &&verifying_share)
-            .map(|(id, _)| id)
-            .ok_or_else(|| eyre!("failed to find identifier for verifying share"))?;
-        participant_clients.insert(identifier.to_owned(), client);
-    }
-
-    ensure!(
-        participant_clients.len() == public_key_package.verifying_shares().len(),
-        "failed to initialize all participant clients; are there duplicate endpoints?"
-    );
-
-    Ok(participant_clients)
-}
 
 pub(crate) struct FrostSignerBuilder {
     min_signers: Option<usize>,
