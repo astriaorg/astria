@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add `fee-assets` subcommand to `sequencer` CLI [#1816](https://github.com/astriaorg/astria/pull/1816).
+- Add the `submit-rollup-tx` command to directly submit a rollup transaction to the sequencer
 
 ### Changed
 
@@ -19,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update `idna` dependency to resolve cargo audit warning [#1869](https://github.com/astriaorg/astria/pull/1869).
 - Remove default values from `--sequencer.chain-id` and `--sequencer-url` arguments
   [#1792](https://github.com/astriaorg/astria/pull/1792)
+- Added `--fee-asset` parameter to `blockheight` & `transfer` commands to specify fee denom.
 
 ### Fixed
 

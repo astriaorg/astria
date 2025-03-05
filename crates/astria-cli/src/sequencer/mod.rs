@@ -13,6 +13,7 @@ mod ics20_withdrawal;
 mod init_bridge_account;
 mod sign;
 mod submit;
+mod submit_rollup_tx;
 mod sudo;
 mod threshold;
 mod transfer;
@@ -37,6 +38,7 @@ impl Command {
             SubCommand::Threshold(threshold) => threshold.run().await,
             SubCommand::Ics20Withdrawal(ics20_withdrawal) => ics20_withdrawal.run().await,
             SubCommand::Submit(submit) => submit.run().await,
+            SubCommand::SubmitRollupTx(submit_rollup_tx) => submit_rollup_tx.run().await,
             SubCommand::Sign(sign) => sign.run(),
             SubCommand::BridgeSudoChange(bridge_sudo_change) => bridge_sudo_change.run().await,
             SubCommand::BridgeAccount(bridge_account) => bridge_account.run().await,
@@ -71,6 +73,8 @@ enum SubCommand {
     Ics20Withdrawal(ics20_withdrawal::Command),
     /// Submit the signed pbjson formatted Transaction.
     Submit(submit::Command),
+    /// Submit a rollup transaction directly to the sequencer
+    SubmitRollupTx(submit_rollup_tx::Command),
     /// Sign a pbjson formatted TransactionBody to produce a Transaction.
     #[expect(
         clippy::doc_markdown,
