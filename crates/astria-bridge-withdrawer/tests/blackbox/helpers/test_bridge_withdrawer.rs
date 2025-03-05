@@ -326,6 +326,7 @@ impl TestBridgeWithdrawerConfig {
                 .to_str()
                 .expect("can get public key package path")
                 .to_string();
+            let frost_participant_endpoints: String = frost_participant_endpoints.join(",");
             (
                 public_key_package_path,
                 frost_participant_endpoints,
@@ -333,7 +334,7 @@ impl TestBridgeWithdrawerConfig {
                 Some(public_key_package_file),
             )
         } else {
-            (String::new(), Vec::new(), Vec::new(), None)
+            (String::new(), String::new(), Vec::new(), None)
         };
 
         let config = Config {
@@ -341,7 +342,7 @@ impl TestBridgeWithdrawerConfig {
             sequencer_grpc_endpoint: format!("http://{}", sequencer_mock.local_addr),
             sequencer_chain_id: SEQUENCER_CHAIN_ID.into(),
             sequencer_key_path,
-            frost_threshold_signing_enabled: threshold_signer_count != 0,
+            no_frost_threshold_signing: threshold_signer_count != 0,
             frost_min_signers: threshold_signer_count as usize,
             frost_public_key_package_path,
             frost_participant_endpoints,

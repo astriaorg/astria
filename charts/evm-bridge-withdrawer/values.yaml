@@ -28,7 +28,7 @@ config:
   rollupAssetDenom: ""
   evmContractAddress: "0x"
   evmRpcEndpoint: ""
-  frostThresholdSigningEnabled: "false"
+  frostThresholdSigningDisabled: "true"
   frostMinSigners: "0"
   frostPublicKeyPackagePath: ""
   frostParticipantEndpoints: "[]"

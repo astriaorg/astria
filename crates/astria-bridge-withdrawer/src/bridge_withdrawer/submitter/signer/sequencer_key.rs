@@ -21,29 +21,6 @@ use astria_eyre::eyre::{
     Context,
 };
 
-use super::frost_signer::FrostSigner;
-
-pub(crate) enum Signer {
-    Single(Box<SequencerKey>),
-    Threshold(FrostSigner),
-}
-
-impl Signer {
-    pub(crate) fn address(&self) -> &Address {
-        match self {
-            Self::Single(signer) => signer.address(),
-            Self::Threshold(signer) => signer.address(),
-        }
-    }
-
-    pub(crate) async fn sign(&self, tx: TransactionBody) -> eyre::Result<Transaction> {
-        match self {
-            Self::Single(signer) => Ok(signer.sign(tx)),
-            Self::Threshold(signer) => signer.sign(tx).await,
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub(crate) struct SequencerKey {
     address: Address,
@@ -127,11 +104,11 @@ impl SequencerKey {
 }
 
 impl SequencerKey {
-    fn address(&self) -> &Address {
+    pub(crate) fn address(&self) -> &Address {
         &self.address
     }
 
-    fn sign(&self, tx: TransactionBody) -> Transaction {
+    pub(crate) fn sign(&self, tx: TransactionBody) -> Transaction {
         tx.sign(&self.signing_key)
     }
 }

@@ -173,17 +173,19 @@ pub(crate) struct FrostSigner {
 impl FrostSigner {
     pub(crate) async fn sign(&self, tx: TransactionBody) -> eyre::Result<Transaction> {
         // part 1: gather commitments from participants
-        let (commitments, signing_package_commitments) = self.frost_part_1().await;
+        let round_1_results = self.execute_round_1().await;
         ensure!(
-            commitments.len() >= self.min_signers,
-            "not enough part 1 commitments received; want at least {}, got {}",
+            round_1_results.responses.len() >= self.min_signers,
+            "not enough part 1 responses received; want at least {}, got {}",
             self.min_signers,
-            commitments.len()
+            round_1_results.responses.len()
         );
 
         // part 2: gather signature shares from participants
         let tx_bytes = tx.to_raw().encode_to_vec();
-        let sig_shares = self.frost_part_2(commitments, tx_bytes.clone()).await;
+        let sig_shares = self
+            .execute_round_2(round_1_results.responses, tx_bytes.clone())
+            .await;
         ensure!(
             sig_shares.len() >= self.min_signers,
             "not enough part 2 signature shares received; want at least {}, got {}",
@@ -192,8 +194,10 @@ impl FrostSigner {
         );
 
         // finally, aggregate and create signature
-        let signing_package =
-            frost_ed25519::SigningPackage::new(signing_package_commitments, &tx_bytes);
+        let signing_package = frost_ed25519::SigningPackage::new(
+            round_1_results.signing_package_commitments,
+            &tx_bytes,
+        );
         let signature =
             frost_ed25519::aggregate(&signing_package, &sig_shares, &self.public_key_package)
                 .wrap_err("failed to aggregate signature shares")?;
@@ -224,13 +228,19 @@ impl FrostSigner {
     }
 }
 
+struct Round1Results {
+    responses: Vec<Round1Response>,
+    signing_package_commitments: BTreeMap<Identifier, round1::SigningCommitments>,
+}
+
+struct Round1Response {
+    id: Identifier,
+    commitment: axum::body::Bytes,
+    request_identifier: u32,
+}
+
 impl FrostSigner {
-    async fn frost_part_1(
-        &self,
-    ) -> (
-        Vec<(Identifier, axum::body::Bytes, u32)>,
-        BTreeMap<Identifier, round1::SigningCommitments>,
-    ) {
+    async fn execute_round_1(&self) -> Round1Results {
         let stream = futures::stream::FuturesUnordered::new();
         for (id, client) in &self.participant_clients {
             let mut client = client.clone();
@@ -248,35 +258,53 @@ impl FrostSigner {
         let mut signing_package_commitments: BTreeMap<Identifier, round1::SigningCommitments> =
             BTreeMap::new();
 
-        let commitments = results
+        let responses = results
             .into_iter()
             .filter_map(|res| match res {
                 Ok((id, part1)) => {
                     let signing_commitment =
                         round1::SigningCommitments::deserialize(&part1.commitment).ok()?;
                     signing_package_commitments.insert(*id, signing_commitment);
-                    Some((*id, part1.commitment, part1.request_identifier))
+                    Some(Round1Response {
+                        id: *id,
+                        commitment: part1.commitment,
+                        request_identifier: part1.request_identifier,
+                    })
                 }
                 Err(_) => None,
             })
             .collect::<Vec<_>>();
-        (commitments, signing_package_commitments)
+        Round1Results {
+            responses,
+            signing_package_commitments,
+        }
     }
 
-    async fn frost_part_2(
+    async fn execute_round_2(
         &self,
-        commitments: Vec<(Identifier, axum::body::Bytes, u32)>,
+        responses: Vec<Round1Response>,
         tx_bytes: Vec<u8>,
     ) -> BTreeMap<Identifier, frost_ed25519::round2::SignatureShare> {
         let stream = futures::stream::FuturesUnordered::new();
-        let request_commitments: Vec<CommitmentWithIdentifier> = commitments
+        let request_commitments: Vec<CommitmentWithIdentifier> = responses
             .iter()
-            .map(|(id, commitment, _)| CommitmentWithIdentifier {
-                commitment: commitment.clone(),
-                participant_identifier: id.serialize().into(),
-            })
+            .map(
+                |Round1Response {
+                     id,
+                     commitment,
+                     ..
+                 }| CommitmentWithIdentifier {
+                    commitment: commitment.clone(),
+                    participant_identifier: id.serialize().into(),
+                },
+            )
             .collect();
-        for (id, _, request_identifier) in commitments {
+        for Round1Response {
+            id,
+            request_identifier,
+            ..
+        } in responses
+        {
             let mut client = self
                 .participant_clients
                 .get(&id)

@@ -60,10 +60,12 @@ use super::{
 use crate::metrics::Metrics;
 
 mod builder;
-pub(crate) mod frost_signer;
-pub(crate) mod signer;
+mod signer;
 
-use crate::bridge_withdrawer::submitter::signer::Signer;
+pub(crate) use signer::{
+    make_signer,
+    Signer,
+};
 
 pub(super) struct Submitter {
     shutdown_token: CancellationToken,
