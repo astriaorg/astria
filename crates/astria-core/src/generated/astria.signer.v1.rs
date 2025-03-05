@@ -1,5 +1,20 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CommitmentWithIdentifier {
+    #[prost(bytes = "bytes", tag = "1")]
+    pub commitment: ::prost::bytes::Bytes,
+    #[prost(bytes = "bytes", tag = "2")]
+    pub participant_identifier: ::prost::bytes::Bytes,
+}
+impl ::prost::Name for CommitmentWithIdentifier {
+    const NAME: &'static str = "CommitmentWithIdentifier";
+    const PACKAGE: &'static str = "astria.signer.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.signer.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetVerifyingShareRequest {}
 impl ::prost::Name for GetVerifyingShareRequest {
     const NAME: &'static str = "GetVerifyingShareRequest";
@@ -20,21 +35,6 @@ pub struct GetVerifyingShareResponse {
 }
 impl ::prost::Name for GetVerifyingShareResponse {
     const NAME: &'static str = "GetVerifyingShareResponse";
-    const PACKAGE: &'static str = "astria.signer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.signer.v1.{}", Self::NAME)
-    }
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CommitmentWithIdentifier {
-    #[prost(bytes = "bytes", tag = "1")]
-    pub commitment: ::prost::bytes::Bytes,
-    #[prost(bytes = "bytes", tag = "2")]
-    pub participant_identifier: ::prost::bytes::Bytes,
-}
-impl ::prost::Name for CommitmentWithIdentifier {
-    const NAME: &'static str = "CommitmentWithIdentifier";
     const PACKAGE: &'static str = "astria.signer.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.signer.v1.{}", Self::NAME)
