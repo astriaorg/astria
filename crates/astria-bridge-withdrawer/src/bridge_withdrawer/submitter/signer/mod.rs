@@ -39,6 +39,14 @@ pub(crate) async fn make_signer(
     sequencer_address_prefix: String,
 ) -> eyre::Result<Signer> {
     let signer = if no_frost_threshold_signing {
+        Signer::Single(Box::new(
+            sequencer_key::SequencerKey::builder()
+                .path(sequencer_key_path)
+                .prefix(sequencer_address_prefix)
+                .try_build()
+                .wrap_err("failed to load sequencer private key")?,
+        ))
+    } else {
         let public_key_package =
             read_frost_key(&frost_public_key_package_path).wrap_err_with(|| {
                 format!(
@@ -62,14 +70,6 @@ pub(crate) async fn make_signer(
                 .try_build()
                 .wrap_err("failed to initialize frost signer")?,
         )
-    } else {
-        Signer::Single(Box::new(
-            sequencer_key::SequencerKey::builder()
-                .path(sequencer_key_path)
-                .prefix(sequencer_address_prefix)
-                .try_build()
-                .wrap_err("failed to load sequencer private key")?,
-        ))
     };
     Ok(signer)
 }
