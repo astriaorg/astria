@@ -9,6 +9,9 @@ global:
   celestiaChainId: celestia-local-0
 
 evm-rollup:
+  images:
+    geth:
+      devTag: pr-75
   genesis:
     ## These values are used to configure the genesis block of the rollup chain
     ## no defaults as they are unique to each chain
@@ -61,7 +64,7 @@ evm-rollup:
     ## Standard Eth Genesis config values
     # Configuration of Eth forks, setting to 0 will enable from height,
     # left as is these forks will not activate.
-    cancunTime: ""
+    cancunTime: "0"
     pragueTime: ""
     verkleTime: ""
     # Can configure the genesis allocs for the chain
@@ -74,6 +77,13 @@ evm-rollup:
         value:
           balance: "0"
           code: "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3"
+      # EIP-4877 Beacon Block Contract
+      # Code is defined by the contract in the spec: https://eips.ethereum.org/EIPS/eip-4788
+      - address: "0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02"
+        value:
+          balance: "0"
+          code: "0x3373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500"
+      # The EVM Withdrawer contract
       - address: "0xA58639fB5458e65E4fA917FF951C390292C24A15"
         value:
           balance: "0"

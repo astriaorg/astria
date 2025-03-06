@@ -17,6 +17,14 @@ pub struct ExecutedBlockMetadata {
     /// was constructed from.
     #[prost(message, optional, tag = "4")]
     pub timestamp: ::core::option::Option<::pbjson_types::Timestamp>,
+    /// The hash of the sequencer block from which this block was derived.
+    ///
+    /// Must be 32 byte base16 encoded string. It may be prefixed with `0x`.
+    ///
+    /// (Optional) This field will only be utilized if the execution node stores
+    /// this data in blocks during `ExecuteBlock`.
+    #[prost(string, tag = "5")]
+    pub sequencer_block_hash: ::prost::alloc::string::String,
 }
 impl ::prost::Name for ExecutedBlockMetadata {
     const NAME: &'static str = "ExecutedBlockMetadata";
@@ -92,6 +100,14 @@ pub struct ExecuteBlockRequest {
     /// Timestamp to be used for new block.
     #[prost(message, optional, tag = "4")]
     pub timestamp: ::core::option::Option<::pbjson_types::Timestamp>,
+    /// The hash of the sequencer block from which the transactions and timestamp
+    /// are derived.
+    ///
+    /// Must be a 32 byte base16 encoded string. It may be prefixed with `0x`.
+    ///
+    /// Utilizing this field is optional for the execution node.
+    #[prost(string, tag = "5")]
+    pub sequencer_block_hash: ::prost::alloc::string::String,
 }
 impl ::prost::Name for ExecuteBlockRequest {
     const NAME: &'static str = "ExecuteBlockRequest";

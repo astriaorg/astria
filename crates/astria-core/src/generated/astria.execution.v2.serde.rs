@@ -220,6 +220,9 @@ impl serde::Serialize for ExecuteBlockRequest {
         if self.timestamp.is_some() {
             len += 1;
         }
+        if !self.sequencer_block_hash.is_empty() {
+            len += 1;
+        }
         let mut struct_ser = serializer.serialize_struct("astria.execution.v2.ExecuteBlockRequest", len)?;
         if !self.session_id.is_empty() {
             struct_ser.serialize_field("sessionId", &self.session_id)?;
@@ -232,6 +235,9 @@ impl serde::Serialize for ExecuteBlockRequest {
         }
         if let Some(v) = self.timestamp.as_ref() {
             struct_ser.serialize_field("timestamp", v)?;
+        }
+        if !self.sequencer_block_hash.is_empty() {
+            struct_ser.serialize_field("sequencerBlockHash", &self.sequencer_block_hash)?;
         }
         struct_ser.end()
     }
@@ -249,6 +255,8 @@ impl<'de> serde::Deserialize<'de> for ExecuteBlockRequest {
             "parentHash",
             "transactions",
             "timestamp",
+            "sequencer_block_hash",
+            "sequencerBlockHash",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -257,6 +265,7 @@ impl<'de> serde::Deserialize<'de> for ExecuteBlockRequest {
             ParentHash,
             Transactions,
             Timestamp,
+            SequencerBlockHash,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -282,6 +291,7 @@ impl<'de> serde::Deserialize<'de> for ExecuteBlockRequest {
                             "parentHash" | "parent_hash" => Ok(GeneratedField::ParentHash),
                             "transactions" => Ok(GeneratedField::Transactions),
                             "timestamp" => Ok(GeneratedField::Timestamp),
+                            "sequencerBlockHash" | "sequencer_block_hash" => Ok(GeneratedField::SequencerBlockHash),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -305,6 +315,7 @@ impl<'de> serde::Deserialize<'de> for ExecuteBlockRequest {
                 let mut parent_hash__ = None;
                 let mut transactions__ = None;
                 let mut timestamp__ = None;
+                let mut sequencer_block_hash__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::SessionId => {
@@ -331,6 +342,12 @@ impl<'de> serde::Deserialize<'de> for ExecuteBlockRequest {
                             }
                             timestamp__ = map_.next_value()?;
                         }
+                        GeneratedField::SequencerBlockHash => {
+                            if sequencer_block_hash__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sequencerBlockHash"));
+                            }
+                            sequencer_block_hash__ = Some(map_.next_value()?);
+                        }
                     }
                 }
                 Ok(ExecuteBlockRequest {
@@ -338,6 +355,7 @@ impl<'de> serde::Deserialize<'de> for ExecuteBlockRequest {
                     parent_hash: parent_hash__.unwrap_or_default(),
                     transactions: transactions__.unwrap_or_default(),
                     timestamp: timestamp__,
+                    sequencer_block_hash: sequencer_block_hash__.unwrap_or_default(),
                 })
             }
         }
@@ -564,6 +582,9 @@ impl serde::Serialize for ExecutedBlockMetadata {
         if self.timestamp.is_some() {
             len += 1;
         }
+        if !self.sequencer_block_hash.is_empty() {
+            len += 1;
+        }
         let mut struct_ser = serializer.serialize_struct("astria.execution.v2.ExecutedBlockMetadata", len)?;
         if self.number != 0 {
             #[allow(clippy::needless_borrow)]
@@ -577,6 +598,9 @@ impl serde::Serialize for ExecutedBlockMetadata {
         }
         if let Some(v) = self.timestamp.as_ref() {
             struct_ser.serialize_field("timestamp", v)?;
+        }
+        if !self.sequencer_block_hash.is_empty() {
+            struct_ser.serialize_field("sequencerBlockHash", &self.sequencer_block_hash)?;
         }
         struct_ser.end()
     }
@@ -593,6 +617,8 @@ impl<'de> serde::Deserialize<'de> for ExecutedBlockMetadata {
             "parent_hash",
             "parentHash",
             "timestamp",
+            "sequencer_block_hash",
+            "sequencerBlockHash",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -601,6 +627,7 @@ impl<'de> serde::Deserialize<'de> for ExecutedBlockMetadata {
             Hash,
             ParentHash,
             Timestamp,
+            SequencerBlockHash,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -626,6 +653,7 @@ impl<'de> serde::Deserialize<'de> for ExecutedBlockMetadata {
                             "hash" => Ok(GeneratedField::Hash),
                             "parentHash" | "parent_hash" => Ok(GeneratedField::ParentHash),
                             "timestamp" => Ok(GeneratedField::Timestamp),
+                            "sequencerBlockHash" | "sequencer_block_hash" => Ok(GeneratedField::SequencerBlockHash),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -649,6 +677,7 @@ impl<'de> serde::Deserialize<'de> for ExecutedBlockMetadata {
                 let mut hash__ = None;
                 let mut parent_hash__ = None;
                 let mut timestamp__ = None;
+                let mut sequencer_block_hash__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::Number => {
@@ -677,6 +706,12 @@ impl<'de> serde::Deserialize<'de> for ExecutedBlockMetadata {
                             }
                             timestamp__ = map_.next_value()?;
                         }
+                        GeneratedField::SequencerBlockHash => {
+                            if sequencer_block_hash__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sequencerBlockHash"));
+                            }
+                            sequencer_block_hash__ = Some(map_.next_value()?);
+                        }
                     }
                 }
                 Ok(ExecutedBlockMetadata {
@@ -684,6 +719,7 @@ impl<'de> serde::Deserialize<'de> for ExecutedBlockMetadata {
                     hash: hash__.unwrap_or_default(),
                     parent_hash: parent_hash__.unwrap_or_default(),
                     timestamp: timestamp__,
+                    sequencer_block_hash: sequencer_block_hash__.unwrap_or_default(),
                 })
             }
         }

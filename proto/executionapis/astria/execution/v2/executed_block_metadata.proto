@@ -17,4 +17,11 @@ message ExecutedBlockMetadata {
   // Timestamp of the block, taken from the sequencer block that this rollup block
   // was constructed from.
   google.protobuf.Timestamp timestamp = 4;
+  // The hash of the sequencer block from which this block was derived.
+  //
+  // Must be 32 byte base16 encoded string. It may be prefixed with `0x`.
+  //
+  // (Optional) This field will only be utilized if the execution node stores
+  // this data in blocks during `ExecuteBlock`.
+  string sequencer_block_hash = 5;
 }
