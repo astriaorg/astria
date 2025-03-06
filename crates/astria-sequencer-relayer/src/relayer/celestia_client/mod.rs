@@ -391,31 +391,33 @@ impl CelestiaClient {
         &mut self,
         hex_encoded_tx_hash: String,
     ) -> Result<u64, ConfirmSubmissionError> {
-        // The amount of time to sleep after receiving a TxStatus response and sending the next
-        // request.
-        const POLL_INTERVAL: Duration = Duration::from_secs(1);
+        // The minimum amount of time to sleep after receiving a TxStatus response and sending the
+        // next request.
+        const MIN_POLL_INTERVAL: Duration = Duration::from_secs(1);
+        // The maximum amount of time to sleep after receiving a TxStatus response and sending the
+        // next request.
+        const MAX_POLL_INTERVAL: Duration = Duration::from_secs(6);
         // The amount of time to wait before switching to warn level logging instead of debug.
         // Corresponds with the Celestia block time.
         const START_WARN_DELAY: Duration = Duration::from_secs(6);
-        // The minimum duration between logs.
-        const MIN_LOG_INTERVAL: Duration = Duration::from_secs(3);
+        // The duration between logs.
+        const LOG_INTERVAL: Duration = Duration::from_secs(3);
         // The maximum amount of time to wait for a transaction to be committed if its status is
         // `UNKNOWN`. Corresponds with Celestia block time + 1 second down time.
         const MAX_WAIT_FOR_UNKNOWN: Duration = Duration::from_secs(7);
 
         let start = Instant::now();
         let mut logged_at = start;
-        let mut log_interval = MIN_LOG_INTERVAL;
 
         let mut log_if_due = |status: &str| {
-            if logged_at.elapsed() <= log_interval {
+            if logged_at.elapsed() <= LOG_INTERVAL {
                 return;
             }
 
             // If elapsed time since start is under `START_WARN_DELAY`, log at debug level at a
             // constant interval. If elapsed time since start is over `START_WARN_DELAY`, this means
             // at least one Celestia block has passed and the transaction should have been
-            // submitted. We then start logging at warn level with an exponential backoff.
+            // submitted. We then start logging at the warn level.
             if start.elapsed() > START_WARN_DELAY {
                 warn!(
                     reason = format!("transaction status: {status}"),
@@ -423,7 +425,6 @@ impl CelestiaClient {
                     elapsed_seconds = start.elapsed().as_secs_f32(),
                     "waiting to confirm blob submission"
                 );
-                log_interval = log_interval.saturating_mul(2);
             } else {
                 debug!(
                     reason = format!("transaction status: {status}"),
@@ -435,8 +436,9 @@ impl CelestiaClient {
             logged_at = Instant::now();
         };
 
+        let mut poll_interval = MIN_POLL_INTERVAL;
         loop {
-            tokio::time::sleep(POLL_INTERVAL).await;
+            tokio::time::sleep(poll_interval).await;
             match self.tx_status(hex_encoded_tx_hash.clone()).await {
                 Ok(TxStatus::Unknown) => {
                     if start.elapsed() > MAX_WAIT_FOR_UNKNOWN {
@@ -468,6 +470,7 @@ impl CelestiaClient {
                     return Err(ConfirmSubmissionError::TxStatus(error));
                 }
             }
+            poll_interval = std::cmp::min(poll_interval.saturating_mul(2), MAX_POLL_INTERVAL);
         }
     }
 }

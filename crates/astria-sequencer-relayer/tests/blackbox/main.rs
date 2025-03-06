@@ -376,11 +376,11 @@ async fn confirm_submission_loops_on_pending_status() {
     let tx_pending_guard = sequencer_relayer
         .mount_celestia_app_tx_status_response_as_scoped("tx status 1", 53, "PENDING", 2)
         .await;
-    // Allow 3 seconds for two `TxStatus` calls. MIN_POLL_INTERVAL_SECS is 1, so with two calls
-    // we're allowing 1 extra second for this mount to be satisfied.
+    // Allow 4 seconds for two `TxStatus` calls. MIN_POLL_INTERVAL_SECS is 1 with exponential
+    // backoff, so with two calls we're allowing 1 extra second for this mount to be satisfied.
     sequencer_relayer
         .timeout_ms(
-            3_000,
+            4_000,
             "waiting for tx status pending guard",
             tx_pending_guard.wait_until_satisfied(),
         )
@@ -393,7 +393,7 @@ async fn confirm_submission_loops_on_pending_status() {
         .await;
     sequencer_relayer
         .timeout_ms(
-            2_000,
+            6_000,
             "waiting for tx status confirmed guard",
             tx_confirmed_guard.wait_until_satisfied(),
         )
@@ -435,11 +435,11 @@ async fn confirm_submission_loops_on_unknown_status_up_to_time_limit() {
     let tx_unknown_guard = sequencer_relayer
         .mount_celestia_app_tx_status_response_as_scoped("tx status 1", 53, "UNKNOWN", 2)
         .await;
-    // Allow 3 seconds for two `TxStatus` calls. MIN_POLL_INTERVAL_SECS is 1, so with two calls
-    // we're allowing 1 extra second for this mount to be satisfied.
+    // Allow 4 seconds for two `TxStatus` calls. MIN_POLL_INTERVAL_SECS is 1 with exponential
+    // backoff, so with two calls we're allowing 1 extra second for this mount to be satisfied.
     sequencer_relayer
         .timeout_ms(
-            3_000,
+            4_000,
             "waiting for tx status unknown guard",
             tx_unknown_guard.wait_until_satisfied(),
         )
@@ -452,7 +452,7 @@ async fn confirm_submission_loops_on_unknown_status_up_to_time_limit() {
         .await;
     sequencer_relayer
         .timeout_ms(
-            2_000,
+            6_000,
             "waiting for tx status confirmed guard",
             tx_confirmed_guard.wait_until_satisfied(),
         )
@@ -559,7 +559,7 @@ async fn confirm_submission_exits_for_unknown_status_after_time_limit() {
         .await;
 
     let tx_unknown_guard = sequencer_relayer
-        .mount_celestia_app_tx_status_response_as_scoped("tx status 1", 53, "UNKNOWN", 7)
+        .mount_celestia_app_tx_status_response_as_scoped("tx status 1", 53, "UNKNOWN", 3)
         .await;
 
     sequencer_relayer
@@ -584,7 +584,7 @@ async fn confirm_submission_exits_for_unknown_status_after_time_limit() {
         .await;
     sequencer_relayer
         .timeout_ms(
-            4_000,
+            6_000,
             "waiting for second broadcast tx guard and tx status confirmed guard",
             join(
                 tx_confirmed_guard.wait_until_satisfied(),
