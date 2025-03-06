@@ -15,7 +15,7 @@ evm-rollup:
 
     # The "forks" for upgrading the chain. Contains necessary information for starting
     # and, if desired, restarting the chain at a given height. The necessary fields
-    # for the first fork are provided, and additional forks can be added as needed.
+    # for the genesis fork are provided, and additional forks can be added as needed.
     forks:
       ## These values are used to configure the genesis block of the rollup chain
       ## no defaults as they are unique to each chain
@@ -40,13 +40,15 @@ evm-rollup:
           # The maximum number of blocks ahead of the lowest Celestia search height
           # to search for a firm commitment
           searchHeightMaxLookAhead: 50
-          # Configure the sequencer bridge addresses and allowed assets if using
-          # the astria canonical bridge. Recommend removing alloc values if so.
+        # Configure the sequencer bridge addresses and allowed assets if using
+        # the astria canonical bridge. Recommend removing alloc values if so.
         bridgeAddresses:
           - bridgeAddress: "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
             senderAddress: "0x0000000000000000000000000000000000000000"
             assetDenom: "nria"
             assetPrecision: 9
+      restart:
+        height: 19
 
     ## These are general configuration values with some recommended defaults
 
