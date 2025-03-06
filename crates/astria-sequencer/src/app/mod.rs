@@ -945,13 +945,6 @@ impl App {
             .wrap_err("failed to run post execute transactions handler")?;
         }
 
-        // update the priority of any txs in the mempool based on the updated app state
-        if self.recost_mempool {
-            self.metrics.increment_mempool_recosted();
-        }
-        update_mempool_after_finalization(&mut self.mempool, &self.state, self.recost_mempool)
-            .await;
-
         let post_transaction_execution_result: PostTransactionExecutionResult = self
             .state
             .object_get(POST_TRANSACTION_EXECUTION_RESULT_KEY)
@@ -1170,6 +1163,13 @@ impl App {
 
         // Get the latest version of the state, now that we've committed it.
         self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
+
+        // update the priority of any txs in the mempool based on the updated app state
+        if self.recost_mempool {
+            self.metrics.increment_mempool_recosted();
+        }
+        update_mempool_after_finalization(&mut self.mempool, &self.state, self.recost_mempool)
+            .await;
     }
 
     // StateDelta::apply only works when the StateDelta wraps an underlying
