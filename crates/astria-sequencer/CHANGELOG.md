@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0-RC1] - 2025-03-06
+
 ### Fixed
 
 - Ensure getPendingNonce gRPC returns the correct nonce [#2012](https://github.com/astriaorg/astria/pull/2012).
