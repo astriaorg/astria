@@ -11,7 +11,7 @@ global:
 evm-rollup:
   images:
     geth:
-      devTag: sha-76bc884
+      devTag: pr-75
   genesis:
     ## These values are used to configure the genesis block of the rollup chain
     ## no defaults as they are unique to each chain
