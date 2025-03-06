@@ -182,7 +182,7 @@ mod tests {
     use crate::{
         action_handler::ActionHandler,
         address::StateWriteExt as _,
-        app::StateWriteExt,
+        app::StateWriteExt as _,
         benchmark_and_test_utils::{
             assert_eyre_error,
             astria_address,
