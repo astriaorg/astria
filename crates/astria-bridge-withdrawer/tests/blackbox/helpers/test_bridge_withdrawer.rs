@@ -73,7 +73,6 @@ pub(crate) const DEFAULT_IBC_DENOM: &str = "transfer/channel-0/utia";
 pub(crate) const SEQUENCER_CHAIN_ID: &str = "test-sequencer";
 const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
-
 pub struct TestBridgeWithdrawer {
     /// The address of the public API server (health, ready).
     pub api_address: SocketAddr,
