@@ -145,7 +145,7 @@ impl Submitter {
         } = self;
 
         if actions.is_empty() {
-            metrics.record_batch_total_settled_value(0);
+            metrics.record_batch_settled_value(0);
 
             return Ok(());
         }
@@ -213,7 +213,7 @@ impl Submitter {
                 batch.value = total_value,
                 "withdraw batch successfully executed."
             );
-            metrics.record_batch_total_settled_value(total_value);
+            metrics.record_batch_settled_value(total_value);
             state.set_last_rollup_height_submitted(rollup_height);
             state.set_last_sequencer_height(tx_response.height.value());
             state.set_last_sequencer_tx_hash(tx_response.hash);

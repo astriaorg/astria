@@ -9,10 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Histogram etric `batch_settled_value` now a histogram [#2016](https://github.com/astriaorg/astria/pull/2016).
+
 ### Changed
 
 - Update `idna` dependency to resolve cargo audit warning [#1869](https://github.com/astriaorg/astria/pull/1869).
-- Metric `batch_total_settled_value` now a histogram
+
+### Removed
+
+- Metric `batch_total_settled_value` removed in favor of `batch_settled_value` [#2016](https://github.com/astriaorg/astria/pull/2016).
 
 ## [1.0.1] - 2024-11-01
 

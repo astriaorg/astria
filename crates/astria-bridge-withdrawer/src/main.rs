@@ -37,7 +37,7 @@ async fn main() -> ExitCode {
     }
 
     let (metrics, _telemetry_guard) = match telemetry_conf
-        .try_init(&())
+        .try_init(&cfg)
         .wrap_err("failed to setup telemetry")
     {
         Err(e) => {

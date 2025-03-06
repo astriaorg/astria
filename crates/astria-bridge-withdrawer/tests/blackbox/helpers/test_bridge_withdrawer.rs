@@ -2,7 +2,6 @@ use std::{
     io::Write as _,
     mem,
     net::SocketAddr,
-    sync::LazyLock,
     time::Duration,
 };
 
@@ -74,24 +73,6 @@ pub(crate) const DEFAULT_IBC_DENOM: &str = "transfer/channel-0/utia";
 pub(crate) const SEQUENCER_CHAIN_ID: &str = "test-sequencer";
 const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
-static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
-    if std::env::var_os("TEST_LOG").is_some() {
-        let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
-        telemetry::configure()
-            .set_no_otel(true)
-            .set_stdout_writer(std::io::stdout)
-            .set_pretty_print(true)
-            .set_filter_directives(&filter_directives)
-            .try_init::<Metrics>(&())
-            .unwrap();
-    } else {
-        telemetry::configure()
-            .set_no_otel(true)
-            .set_stdout_writer(std::io::sink)
-            .try_init::<Metrics>(&())
-            .unwrap();
-    }
-});
 
 pub struct TestBridgeWithdrawer {
     /// The address of the public API server (health, ready).
@@ -251,7 +232,6 @@ impl TestBridgeWithdrawerConfig {
             ethereum_config,
             asset_denom,
         } = self;
-        LazyLock::force(&TELEMETRY);
 
         // sequencer signer key
         let keyfile = NamedTempFile::new().unwrap();
@@ -287,12 +267,28 @@ impl TestBridgeWithdrawerConfig {
             metrics_http_listener_addr: String::new(),
             pretty_print: true,
         };
+        if std::env::var_os("TEST_LOG").is_some() {
+            let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
+            telemetry::configure()
+                .set_no_otel(true)
+                .set_stdout_writer(std::io::stdout)
+                .set_pretty_print(true)
+                .set_filter_directives(&filter_directives)
+                .try_init::<Metrics>(&config)
+                .unwrap();
+        } else {
+            telemetry::configure()
+                .set_no_otel(true)
+                .set_stdout_writer(std::io::sink)
+                .try_init::<Metrics>(&config)
+                .unwrap();
+        }
 
         info!(config = serde_json::to_string(&config).unwrap());
 
         let (metrics, metrics_handle) = metrics::ConfigBuilder::new()
             .set_global_recorder(false)
-            .build(&())
+            .build(&config)
             .unwrap();
         let metrics = Box::leak(Box::new(metrics));
 
