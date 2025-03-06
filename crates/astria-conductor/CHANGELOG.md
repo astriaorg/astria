@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add `sequencer_block_hash` to Execution API [#1999](https://github.com/astriaorg/astria/pull/1999).
+- Send `sequencer_block_hash` as part of `ExecuteBlockRequest` [#1999](https://github.com/astriaorg/astria/pull/1999).
 
 ## [1.0.0] - 2024-10-25
 
