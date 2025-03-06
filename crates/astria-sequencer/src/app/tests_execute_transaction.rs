@@ -54,6 +54,7 @@ use crate::{
     },
     authority::StateReadExt as _,
     benchmark_and_test_utils::{
+        assert_eyre_error,
         astria_address,
         astria_address_from_hex_string,
         nria,
@@ -1304,4 +1305,32 @@ async fn ensure_all_event_attributes_are_indexed() {
                 attribute.key,
             );
         });
+}
+
+#[tokio::test]
+async fn app_execute_transaction_base_prefix_check() {
+    let mut app = initialize_app(None, vec![]).await;
+
+    let alice = get_alice_signing_key();
+    let bad_address = Address::builder()
+        .prefix("bad_prefix")
+        .slice(&[0; 20])
+        .try_build()
+        .unwrap();
+    let tx = TransactionBody::builder()
+        .actions(vec![Transfer {
+            to: bad_address,
+            amount: 1,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+        }
+        .into()])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+
+    let signed_tx = Arc::new(tx.sign(&alice));
+    let err = app.execute_transaction(signed_tx).await.unwrap_err();
+
+    assert_eyre_error(&err, "address `to` is not base prefixed");
 }

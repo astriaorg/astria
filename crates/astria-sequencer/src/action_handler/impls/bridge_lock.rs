@@ -25,7 +25,6 @@ use crate::{
         execute_transfer,
         ActionHandler,
     },
-    address::StateReadExt as _,
     assets::StateReadExt as _,
     bridge::{
         StateReadExt as _,
@@ -43,11 +42,6 @@ impl ActionHandler for BridgeLock {
 
     #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn check_and_execute<S: StateWrite>(&self, state: S) -> Result<()> {
-        state
-            .ensure_base_prefix(&self.to)
-            .await
-            .wrap_err("failed check for base prefix of destination address")?;
-
         // check that the asset to be transferred matches the bridge account asset.
         // this also implicitly ensures the recipient is a bridge account.
         let allowed_asset = state
@@ -239,39 +233,6 @@ mod tests {
                 .await
                 .unwrap_err(),
             "failed to get bridge account asset ID; account is not a bridge account",
-        );
-    }
-
-    #[tokio::test]
-    async fn bridge_lock_fails_if_destination_address_is_not_base_prefixed() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        state.put_transaction_context(TransactionContext {
-            address_bytes: [1; 20],
-            transaction_id: TransactionId::new([0; 32]),
-            position_in_transaction: 0,
-        });
-        let different_prefix = "different_prefix";
-        state.put_base_prefix(different_prefix.to_string()).unwrap();
-
-        let bridge_lock_action = BridgeLock {
-            to: astria_address(&[3; 20]),
-            amount: 1,
-            asset: nria().into(),
-            fee_asset: nria().into(),
-            destination_chain_address: "ethan_was_here".to_string(),
-        };
-
-        assert_eyre_error(
-            &bridge_lock_action
-                .check_and_execute(&mut state)
-                .await
-                .unwrap_err(),
-            &format!(
-                "address has prefix `{ASTRIA_PREFIX}` but only `{different_prefix}` is permitted"
-            ),
         );
     }
 
