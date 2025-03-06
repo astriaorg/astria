@@ -18,7 +18,7 @@ pub struct Metrics {
     nonce_fetch_latency: Histogram,
     sequencer_submission_failure_count: Counter,
     sequencer_submission_latency: Histogram,
-    batch_total_settled_value: Gauge,
+    batch_total_settled_value: Histogram,
 }
 
 impl Metrics {
@@ -46,8 +46,8 @@ impl Metrics {
         self.sequencer_submission_failure_count.increment(1);
     }
 
-    pub(crate) fn set_batch_total_settled_value(&self, value: u128) {
-        self.batch_total_settled_value.set(value);
+    pub(crate) fn record_batch_total_settled_value(&self, value: u128) {
+        self.batch_total_settled_value.record(value);
     }
 }
 
@@ -98,7 +98,7 @@ impl metrics::Metrics for Metrics {
             .register()?;
 
         let batch_total_settled_value = builder
-            .new_gauge_factory(
+            .new_histogram_factory(
                 BATCH_TOTAL_SETTLED_VALUE,
                 "Total value of withdrawals settled in a given sequencer block",
             )?
