@@ -135,6 +135,8 @@ use crate::{
         },
     },
 };
+use crate::app::event_bus::CommitedBlockEvent;
+use crate::grpc::StateReadExt as _;
 
 // ephemeral store key for the cache of results of executing of transactions in `prepare_proposal`.
 // cleared in `process_proposal` if we're the proposer.
@@ -1163,6 +1165,13 @@ impl App {
 
         // Get the latest version of the state, now that we've committed it.
         self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
+
+        // TODO - revisit error messages
+        let block_height = self.state.get_block_height().await.expect("block height must be set");
+        if block_height != 0 {
+            let block_hash = self.state.get_block_hash_by_height(block_height).await.expect("block hash must be set");
+            self.event_bus.send_commited_block(Arc::new(CommitedBlockEvent::new(block_height, block_hash)));
+        }
 
         // update the priority of any txs in the mempool based on the updated app state
         if self.recost_mempool {

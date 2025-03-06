@@ -7,6 +7,31 @@ use tokio::sync::watch::{
     Receiver,
     Sender,
 };
+use astria_core::sequencerblock::v1::block::Hash;
+
+// TODO - we need to revisit the visibility specifiers for `CommitedBlockEvent`
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub struct CommitedBlockEvent {
+    block_height: u64,
+    block_hash: Hash
+}
+
+impl CommitedBlockEvent {
+    pub fn new(block_height: u64, block_hash: Hash) -> Self {
+        Self {
+            block_height,
+            block_hash
+        }
+    }
+
+    pub fn block_hash(&self) -> Hash {
+        self.block_hash
+    }
+
+    pub fn block_height(&self) -> u64 {
+        self.block_height
+    }
+}
 
 /// `EventReceiver` contains the receiver side of the events sent by the Sequencer App.
 /// The listeners of the events can receive the latest value of the event by calling the
@@ -84,6 +109,7 @@ impl<T> EventSender<T> {
 pub(crate) struct EventBusSubscription {
     process_proposal_blocks: EventReceiver<Arc<SequencerBlock>>,
     finalized_blocks: EventReceiver<Arc<FinalizeBlock>>,
+    commited_blocks: EventReceiver<Arc<CommitedBlockEvent>>
 }
 
 impl EventBusSubscription {
@@ -106,6 +132,16 @@ impl EventBusSubscription {
         receiver.inner.mark_unchanged();
         receiver
     }
+
+    /// Receive the height of the commited blocks
+    ///
+    /// The returned [`EventReceiver`] will always provide the next
+    /// event and ignore the latest one.
+    pub(crate) fn commited_blocks(&self) -> EventReceiver<Arc<CommitedBlockEvent>> {
+        let mut receiver = self.commited_blocks.clone();
+        receiver.inner.mark_unchanged();
+        receiver
+    }
 }
 
 /// The Sequencer `EventBus` is used to send and receive events between different components of the
@@ -122,6 +158,10 @@ pub(super) struct EventBus {
     // Sends a finalized block event to the subscribers. The event is sent in the form of the
     // finalize block abci request.
     finalized_block_sender: EventSender<Arc<FinalizeBlock>>,
+    // Sends a commited block event to the subscribers. The event is sent in the form of a u64 which is
+    // the block height of the commited block.
+    // TODO - define the block height behind a type rather than sending it as an u64
+    commited_block_sender: EventSender<Arc<CommitedBlockEvent>>
 }
 
 impl EventBus {
@@ -129,10 +169,12 @@ impl EventBus {
     pub(super) fn new() -> Self {
         let process_proposal_block_sender = EventSender::new();
         let finalized_block_sender = EventSender::new();
+        let commited_block_sender = EventSender::new();
 
         Self {
             process_proposal_block_sender,
             finalized_block_sender,
+            commited_block_sender
         }
     }
 
@@ -141,6 +183,7 @@ impl EventBus {
         EventBusSubscription {
             process_proposal_blocks: self.process_proposal_block_sender.subscribe(),
             finalized_blocks: self.finalized_block_sender.subscribe(),
+            commited_blocks: self.commited_block_sender.subscribe()
         }
     }
 
@@ -152,5 +195,9 @@ impl EventBus {
     /// Sends a finalized block event over the event bus.
     pub(super) fn send_finalized_block(&self, sequencer_block_commit: Arc<FinalizeBlock>) {
         self.finalized_block_sender.send(sequencer_block_commit);
+    }
+
+    pub(super) fn send_commited_block(&self, commited_block_event: Arc<CommitedBlockEvent>) {
+        self.commited_block_sender.send(commited_block_event);
     }
 }

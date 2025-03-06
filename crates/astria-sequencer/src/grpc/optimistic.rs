@@ -56,10 +56,7 @@ use tracing::{
     warn,
 };
 
-use crate::app::event_bus::{
-    EventBusSubscription,
-    EventReceiver,
-};
+use crate::app::event_bus::{CommitedBlockEvent, EventBusSubscription, EventReceiver};
 
 const STREAM_TASKS_SHUTDOWN_DURATION: Duration = Duration::from_secs(1);
 const OPTIMISTIC_STREAM_SPAN: &str = "optimistic_stream";
@@ -149,9 +146,9 @@ impl Runner {
             response,
         } = request;
 
-        let finalized_blocks = self.event_bus_subscription.finalized_blocks();
+        let commited_blocks = self.event_bus_subscription.commited_blocks();
         self.stream_tasks.spawn(block_commitment_stream(
-            finalized_blocks,
+            commited_blocks,
             response,
             self.cancellation_token.child_token(),
         ));
@@ -318,25 +315,25 @@ impl OptimisticBlockService for Facade {
 }
 
 async fn block_commitment_stream(
-    mut finalized_blocks_receiver: EventReceiver<Arc<FinalizeBlock>>,
+    mut committed_blocks_receiver: EventReceiver<Arc<CommitedBlockEvent>>,
     tx: mpsc::Sender<tonic::Result<GetBlockCommitmentStreamResponse>>,
     cancellation_token: CancellationToken,
 ) -> Result<(), eyre::Report> {
     match cancellation_token
         .run_until_cancelled(async move {
             loop {
-                match finalized_blocks_receiver.receive().await {
-                    Ok(finalized_block) => {
+                match committed_blocks_receiver.receive().await {
+                    Ok(commited_block) => {
                         if let Err(error) =
                             info_span!(BLOCK_COMMITMENT_STREAM_SPAN).in_scope(|| {
-                                let Hash::Sha256(block_hash) = finalized_block.hash else {
-                                    warn!("block hash is empty; this should not occur");
-                                    return Ok(());
-                                };
+                                // let Hash::Sha256(block_hash) = finalized_block.hash else {
+                                //     warn!("block hash is empty; this should not occur");
+                                //     return Ok(());
+                                // };
 
                                 let sequencer_block_commit = SequencerBlockCommit::new(
-                                    finalized_block.height.value(),
-                                    block::Hash::new(block_hash),
+                                    commited_block.block_height(),
+                                    commited_block.block_hash(),
                                 );
 
                                 let get_block_commitment_stream_response =
