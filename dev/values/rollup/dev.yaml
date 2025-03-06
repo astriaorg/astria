@@ -78,6 +78,7 @@ evm-rollup:
           balance: "0"
           code: "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3"
       # EIP-4877 Beacon Block Contract
+      # Code is defined by the contract in the spec: https://eips.ethereum.org/EIPS/eip-4788
       - address: "0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02"
         value:
           balance: "0"
