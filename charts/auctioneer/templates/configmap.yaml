@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auctioneer-env
+  namespace: {{ include "auctioneer.namespace" . }}
+data:
+  ASTRIA_AUCTIONEER_SEQUENCER_GRPC_ENDPOINT: "{{ tpl .Values.config.sequencerGrpcEndpoint . }}"
+  ASTRIA_AUCTIONEER_SEQUENCER_ABCI_ENDPOINT: "{{ tpl .Values.config.sequencerAbciEndpoint . }}"
+  ASTRIA_AUCTIONEER_SEQUENCER_CHAIN_ID: "{{ tpl .Values.config.sequencerChainId . }}"
+  ASTRIA_AUCTIONEER_SEQUENCER_PRIVATE_KEY_PATH: "/var/secrets/{{ .Values.config.sequencerPrivateKey.secret.filename }}"
+  ASTRIA_AUCTIONEER_FEE_ASSET_DENOMINATION: "{{ .Values.config.feeAssetDenomination }}"
+  ASTRIA_AUCTIONEER_SEQUENCER_ADDRESS_PREFIX: "{{ .Values.config.sequencerAddressPrefix }}"
+  ASTRIA_AUCTIONEER_ROLLUP_GRPC_ENDPOINT: "{{ .Values.config.rollupGrpcEndpoint }}"
+  ASTRIA_AUCTIONEER_ROLLUP_ID: "{{ .Values.config.rollupId }}"
+  ASTRIA_AUCTIONEER_LATENCY_MARGIN_MS: "{{ .Values.config.latencyMarginMs }}"
+  ASTRIA_AUCTIONEER_LOG: "astria_auctioneer={{ .Values.config.logLevel }}"
+  ASTRIA_AUCTIONEER_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
+  ASTRIA_AUCTIONEER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
+  NO_COLOR: "{{ .Values.global.useTTY }}"
+  ASTRIA_AUCTIONEER_NO_METRICS: "{{ not .Values.metrics.enabled }}"
+  ASTRIA_AUCTIONEER_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.metrics }}"
+  ASTRIA_AUCTIONEER_NO_OTEL: "{{ not .Values.otel.enabled }}"
+  ASTRIA_AUCTIONEER_NO_METRICS: "{{ not .Values.metrics.enabled }}"
+  ASTRIA_AUCTIONEER_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.metrics }}"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "{{ tpl .Values.otel.endpoint . }}"
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "{{ tpl .Values.otel.tracesEndpoint . }}"
+  OTEL_EXPORTER_OTLP_TRACES_TIMEOUT: "{{ tpl .Values.otel.tracesTimeout . }}"
+  OTEL_EXPORTER_OTLP_TRACES_COMPRESSION: "{{ tpl .Values.otel.tracesCompression . }}"
+  OTEL_EXPORTER_OTLP_HEADERS: "{{ tpl .Values.otel.otlpHeaders . }}"
+  OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ tpl .Values.otel.traceHeaders . }}"
+  OTEL_SERVICE_NAME: "{{ tpl .Values.otel.serviceName . }}"
+  {{- if not .Values.global.dev }}
+  {{- else }}
+  {{- end }}
+---
+{{- if not .Values.secretProvider.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: {{ include "auctioneer.namespace" .  }}
+  name: auctioneer-private-key
+data:
+  {{ .Values.config.sequencerPrivateKey.secret.filename }}: |
+    {{ .Values.config.sequencerPrivateKey.devContent }}
+---
+{{- end }}

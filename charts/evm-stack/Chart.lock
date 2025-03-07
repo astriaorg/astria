@@ -5,9 +5,15 @@ dependencies:
 - name: evm-rollup
   repository: file://../evm-rollup
   version: 1.2.0
+- name: flame-rollup
+  repository: file://../flame-rollup
+  version: 0.0.2
 - name: composer
   repository: file://../composer
   version: 1.0.0
+- name: auctioneer
+  repository: file://../auctioneer
+  version: 0.0.2
 - name: evm-faucet
   repository: file://../evm-faucet
   version: 0.1.4

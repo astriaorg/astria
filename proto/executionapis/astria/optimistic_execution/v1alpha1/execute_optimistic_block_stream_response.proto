@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package astria.optimistic_execution.v1alpha1;
+
+import "astria/execution/v1/execution.proto";
+
+message ExecuteOptimisticBlockStreamResponse {
+  // Metadata identifying the block resulting from executing a block. Includes number, hash,
+  // parent hash and timestamp.
+  astria.execution.v1.Block block = 1;
+  // The base_sequencer_block_hash is the hash from the base sequencer block this block
+  // is based on. This is used to associate an optimistic execution result with the hash
+  // received once a sequencer block is committed.
+  bytes base_sequencer_block_hash = 2;
+}

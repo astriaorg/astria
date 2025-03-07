@@ -96,3 +96,34 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for AddressBytes<'a> {
         Ok(address)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use insta::assert_snapshot;
+
+    use super::*;
+    use crate::test_utils::borsh_then_hex;
+
+    #[test]
+    fn value_impl_existing_variants_unchanged() {
+        assert_snapshot!(
+            "value_impl_balance",
+            borsh_then_hex(&ValueImpl::Balance(Balance(0)))
+        );
+        assert_snapshot!(
+            "value_impl_address_bytes",
+            borsh_then_hex(&ValueImpl::AddressBytes((&[0; ADDRESS_LEN]).into()))
+        );
+    }
+
+    // Note: This test must be here instead of in `crate::storage` since `ValueImpl` is not
+    // re-exported.
+    #[test]
+    fn stored_value_ibc_variant_unchanged() {
+        use crate::storage::StoredValue;
+        assert_snapshot!(
+            "stored_value_ibc_variant",
+            borsh_then_hex(&StoredValue::Ibc(Value(ValueImpl::Balance(Balance(0)))))
+        );
+    }
+}

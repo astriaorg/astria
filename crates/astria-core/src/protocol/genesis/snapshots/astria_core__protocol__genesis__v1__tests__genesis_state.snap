@@ -132,6 +132,16 @@ expression: genesis_state()
       "base": {},
       "multiplier": {}
     },
+    "bridgeTransfer": {
+      "base": {
+        "lo": "24"
+      },
+      "multiplier": {}
+    },
+    "recoverIbcClient": {
+      "base": {},
+      "multiplier": {}
+    },
     "priceFeed": {
       "base": {},
       "multiplier": {}

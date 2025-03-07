@@ -3,6 +3,7 @@ use astria_core::protocol::{
     transaction::v1::action::{
         BridgeLock,
         BridgeSudoChange,
+        BridgeTransfer,
         BridgeUnlock,
         FeeAssetChange,
         FeeChange,
@@ -11,6 +12,7 @@ use astria_core::protocol::{
         Ics20Withdrawal,
         InitBridgeAccount,
         PriceFeed,
+        RecoverIbcClient,
         RollupDataSubmission,
         SudoAddressChange,
         Transfer,
@@ -27,11 +29,11 @@ use penumbra_ibc::IbcRelay;
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(crate) struct Value(ValueImpl);
 
-#[derive(Debug, BorshSerialize, BorshDeserialize)]
 #[expect(
     clippy::enum_variant_names,
     reason = "want to make it clear that these are fees and not actions"
 )]
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
 enum ValueImpl {
     TransferFees(FeeComponents),
     RollupDataSubmissionFees(FeeComponents),
@@ -47,6 +49,8 @@ enum ValueImpl {
     IbcRelayerChangeFees(FeeComponents),
     IbcSudoChangeFees(FeeComponents),
     SudoAddressChangeFees(FeeComponents),
+    BridgeTransferFees(FeeComponents),
+    RecoverIbcClientFees(FeeComponents),
     PriceFeedFees(FeeComponents),
 }
 
@@ -111,5 +115,104 @@ impl_from_for_fee_storage!(
     DomainFeeComponents<IbcRelayerChange> => IbcRelayerChangeFees,
     DomainFeeComponents<IbcSudoChange> => IbcSudoChangeFees,
     DomainFeeComponents<SudoAddressChange> => SudoAddressChangeFees,
+    DomainFeeComponents<BridgeTransfer> => BridgeTransferFees,
+    DomainFeeComponents<RecoverIbcClient> => RecoverIbcClientFees,
     DomainFeeComponents<PriceFeed> => PriceFeedFees,
 );
+
+#[cfg(test)]
+mod tests {
+    use insta::assert_snapshot;
+
+    use super::*;
+    use crate::test_utils::borsh_then_hex;
+
+    macro_rules! value_impl_borsh_as_hex {
+        ($value_impl:ident) => {{
+            borsh_then_hex(&ValueImpl::$value_impl(FeeComponents {
+                base: 1,
+                multiplier: 2,
+            }))
+        }};
+    }
+
+    #[test]
+    fn value_impl_existing_variants_unchanged() {
+        assert_snapshot!(
+            "value_impl_transfer_fees",
+            value_impl_borsh_as_hex!(TransferFees)
+        );
+        assert_snapshot!(
+            "value_impl_rollup_data_submission_fees",
+            value_impl_borsh_as_hex!(RollupDataSubmissionFees),
+        );
+        assert_snapshot!(
+            "value_impl_ics20_withdrawal_fees",
+            value_impl_borsh_as_hex!(Ics20WithdrawalFees),
+        );
+        assert_snapshot!(
+            "value_impl_init_bridge_account_fees",
+            value_impl_borsh_as_hex!(InitBridgeAccountFees),
+        );
+        assert_snapshot!(
+            "value_impl_bridge_lock_fees",
+            value_impl_borsh_as_hex!(BridgeLockFees),
+        );
+        assert_snapshot!(
+            "value_impl_bridge_unlock_fees",
+            value_impl_borsh_as_hex!(BridgeUnlockFees),
+        );
+        assert_snapshot!(
+            "value_impl_bridge_sudo_change_fees",
+            value_impl_borsh_as_hex!(BridgeSudoChangeFees),
+        );
+        assert_snapshot!(
+            "value_impl_ibc_relay_fees",
+            value_impl_borsh_as_hex!(IbcRelayFees),
+        );
+        assert_snapshot!(
+            "value_impl_validator_update_fees",
+            value_impl_borsh_as_hex!(ValidatorUpdateFees),
+        );
+        assert_snapshot!(
+            "value_impl_fee_asset_change_fees",
+            value_impl_borsh_as_hex!(FeeAssetChangeFees),
+        );
+        assert_snapshot!(
+            "value_impl_fee_change_fees",
+            value_impl_borsh_as_hex!(FeeChangeFees),
+        );
+        assert_snapshot!(
+            "value_impl_ibc_relayer_change_fees",
+            value_impl_borsh_as_hex!(IbcRelayerChangeFees),
+        );
+        assert_snapshot!(
+            "value_impl_ibc_sudo_change_fees",
+            value_impl_borsh_as_hex!(IbcSudoChangeFees),
+        );
+        assert_snapshot!(
+            "value_impl_sudo_address_change_fees",
+            value_impl_borsh_as_hex!(SudoAddressChangeFees),
+        );
+        assert_snapshot!(
+            "value_impl_bridge_transfer_fees",
+            value_impl_borsh_as_hex!(BridgeTransferFees),
+        );
+    }
+
+    // Note: This test must be here instead of in `crate::storage` since `ValueImpl` is not
+    // re-exported.
+    #[test]
+    fn stored_value_fees_variant_unchanged() {
+        use crate::storage::StoredValue;
+        assert_snapshot!(
+            "stored_value_fees_variant",
+            borsh_then_hex(&StoredValue::Fees(Value(ValueImpl::TransferFees(
+                FeeComponents {
+                    base: 1,
+                    multiplier: 2,
+                }
+            ))))
+        );
+    }
+}

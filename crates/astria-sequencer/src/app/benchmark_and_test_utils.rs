@@ -20,6 +20,7 @@ use astria_core::{
         transaction::v1::action::{
             BridgeLock,
             BridgeSudoChange,
+            BridgeTransfer,
             BridgeUnlock,
             FeeAssetChange,
             FeeChange,
@@ -28,6 +29,7 @@ use astria_core::{
             Ics20Withdrawal,
             InitBridgeAccount,
             PriceFeed,
+            RecoverIbcClient,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
@@ -83,6 +85,7 @@ pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1::GenesisFees 
         bridge_lock: Some(FeeComponents::<BridgeLock>::new(12, 1)),
         bridge_sudo_change: Some(FeeComponents::<BridgeSudoChange>::new(24, 0)),
         ics20_withdrawal: Some(FeeComponents::<Ics20Withdrawal>::new(24, 0)),
+        bridge_transfer: Some(FeeComponents::<BridgeTransfer>::new(24, 0)),
         // should reflect transfer fee
         bridge_unlock: Some(FeeComponents::<BridgeUnlock>::new(12, 0)),
         ibc_relay: Some(FeeComponents::<IbcRelay>::new(0, 0)),
@@ -92,6 +95,7 @@ pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1::GenesisFees 
         ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0)),
         sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0)),
         ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0)),
+        recover_ibc_client: Some(FeeComponents::<RecoverIbcClient>::new(0, 0)),
         price_feed: Some(FeeComponents::<PriceFeed>::new(0, 0)),
     }
 }
@@ -277,7 +281,7 @@ pub(crate) fn mock_state_put_account_nonce(
     state.put_account_nonce(address, nonce).unwrap();
 }
 
-#[expect(clippy::too_many_lines, reason = "this is needed for test set up")]
+#[expect(clippy::too_many_lines, reason = "this is a test helper function")]
 pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
     let storage = cnidarium::TempStorage::new().await.unwrap();
     let snapshot = storage.latest_snapshot();
@@ -390,6 +394,12 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
     state
         .put_fees(ibc_sudo_change_fees)
         .wrap_err("failed to initiate ibc sudo change fee components")
+        .unwrap();
+
+    let recover_ibc_client_fees = FeeComponents::<RecoverIbcClient>::new(0, 0);
+    state
+        .put_fees(recover_ibc_client_fees)
+        .wrap_err("failed to initiate recover ibc client fee components")
         .unwrap();
 
     let price_feed_fees = FeeComponents::<PriceFeed>::new(0, 0);

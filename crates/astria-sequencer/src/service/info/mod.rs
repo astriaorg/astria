@@ -179,6 +179,7 @@ mod tests {
             transaction::v1::action::{
                 BridgeLock,
                 BridgeSudoChange,
+                BridgeTransfer,
                 BridgeUnlock,
                 FeeAssetChange,
                 FeeChange,
@@ -186,6 +187,7 @@ mod tests {
                 IbcSudoChange,
                 Ics20Withdrawal,
                 InitBridgeAccount,
+                RecoverIbcClient,
                 RollupDataSubmission,
                 SudoAddressChange,
                 Transfer,
@@ -449,6 +451,10 @@ mod tests {
                 "base": 2,
                 "multiplier": 2
               },
+              "bridge_transfer": {
+                "base": 13,
+                "multiplier": 13
+              },
               "fee_asset_change": {
                 "base": 4,
                 "multiplier": 4
@@ -477,6 +483,10 @@ mod tests {
                 "base": 6,
                 "multiplier": 6
               },
+              "recover_ibc_client": {
+                "base": 0,
+                "multiplier": 0
+              },
               "rollup_data_submission": {
                 "base": 11,
                 "multiplier": 11
@@ -504,6 +514,9 @@ mod tests {
             .put_fees(FeeComponents::<BridgeUnlock>::new(2, 2))
             .unwrap();
         state
+            .put_fees(FeeComponents::<BridgeTransfer>::new(13, 13))
+            .unwrap();
+        state
             .put_fees(FeeComponents::<BridgeSudoChange>::new(3, 3))
             .unwrap();
         state
@@ -526,6 +539,9 @@ mod tests {
             .unwrap();
         state
             .put_fees(FeeComponents::<Ics20Withdrawal>::new(10, 10))
+            .unwrap();
+        state
+            .put_fees(FeeComponents::<RecoverIbcClient>::new(0, 0))
             .unwrap();
         state
             .put_fees(FeeComponents::<RollupDataSubmission>::new(11, 11))

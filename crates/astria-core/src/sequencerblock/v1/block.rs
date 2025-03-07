@@ -50,7 +50,7 @@ use crate::{
             TransactionError,
         },
     },
-    Protobuf as _,
+    Protobuf,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -1687,6 +1687,27 @@ impl FilteredSequencerBlock {
             extended_commit_info,
             extended_commit_info_proof,
         }
+    }
+}
+
+impl Protobuf for FilteredSequencerBlock {
+    type Error = FilteredSequencerBlockError;
+    type Raw = raw::FilteredSequencerBlock;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        Self::try_from_raw(raw.clone())
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        self.clone().into_raw()
+    }
+
+    fn try_from_raw(raw: Self::Raw) -> Result<Self, Self::Error> {
+        Self::try_from_raw(raw)
+    }
+
+    fn into_raw(self) -> Self::Raw {
+        self.into_raw()
     }
 }
 

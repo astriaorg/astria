@@ -28,8 +28,8 @@ images:
   cometBFT:
     repo: docker.io/cometbft/cometbft
     pullPolicy: IfNotPresent
-    tag: v0.38.8
-    devTag: v0.38.8
+    tag: v0.38.17
+    devTag: v0.38.17
   sequencer:
     repo: ghcr.io/astriaorg/sequencer
     pullPolicy: IfNotPresent
@@ -127,6 +127,7 @@ genesis:
     #   pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
 
 sequencer:
+  abciUDS: true
   mempool:
     parked:
       maxTxCount: 200
@@ -148,6 +149,9 @@ sequencer:
     tracesTimeout: 10
     otlpHeaders:
     traceHeaders:
+  optimisticBlockApis:
+    # set to true to enable optimistic block APIs
+    enabled: false
 
 cometbft:
   config:
@@ -342,7 +346,7 @@ storage:
   local: true
   entities:
     sequencerSharedStorage:
-      size: "5Gi"
+      size: "50Gi"
       persistentVolumeName: "sequencer-shared-storage"
       path: "/data/sequencer-data"
 

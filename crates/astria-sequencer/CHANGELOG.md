@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Implement `astria.sequencerblock.optimistic.v1alpha1.OptimisticBlockService` [#1839](https://github.com/astriaorg/astria/pull/1839).
+
 ### Changed
 
 - Bump MSRV to 1.83.0 [#1857](https://github.com/astriaorg/astria/pull/1857).
@@ -19,6 +23,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove events reporting on state storage creation [#1892](https://github.com/astriaorg/astria/pull/1892).
 - Use bridge address to determine asset in bridge unlock cost estimation instead
 of signer [#1905](https://github.com/astriaorg/astria/pull/1905).
+- Add more thorough unit tests for all actions [#1916](https://github.com/astriaorg/astria/pull/1916).
+- Implement `BridgeTransfer` action [#1934](https://github.com/astriaorg/astria/pull/1934).
+- Implement `RecoverIbcClient` action [#2008](https://github.com/astriaorg/astria/pull/2008).
+
+### Removed
+
+- Remove ASTRIA_SEQUENCER_LISTEN_ADDR config variable [#1877](https://github.com/astriaorg/astria/pull/1877)
+
+### Added
+
+- Add ASTRIA_SEQUENCER_ABCI_LISTEN_URL config variable [#1877](https://github.com/astriaorg/astria/pull/1877)
 
 ## [1.0.0] - 2024-10-25
 
