@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0-rc.1] - 2025-03-06
+
 ### Fixed
 
 - Ensure getPendingNonce gRPC returns the correct nonce [#2012](https://github.com/astriaorg/astria/pull/2012).
@@ -469,7 +471,8 @@ address [#721](https://github.com/astriaorg/astria/pull/721).
 
 - Initial release.
 
-[unreleased]: https://github.com/astriaorg/astria/compare/sequencer-v1.0.0...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/sequencer-v2.0.0-rc.1...HEAD
+[2.0.0-rc.1]: https://github.com/astriaorg/astria/compare/sequencer-v1.0.0...sequencer-v2.0.0-rc.1
 [1.0.0]: https://github.com/astriaorg/astria/compare/sequencer-v1.0.0-rc.2...sequencer-v1.0.0
 [1.0.0-rc.2]: https://github.com/astriaorg/astria/compare/sequencer-v1.0.0-rc.1...sequencer-v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/astriaorg/astria/compare/sequencer-v0.17.0...sequencer-v1.0.0-rc.1
