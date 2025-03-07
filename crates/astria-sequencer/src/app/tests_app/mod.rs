@@ -514,12 +514,15 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         local_last_commit: None,
         misbehavior: vec![],
     };
-    let proposal_fingerprint = prepare_proposal.clone().into();
 
     let prepare_proposal_result = app
-        .prepare_proposal(prepare_proposal, storage.clone())
+        .prepare_proposal(prepare_proposal.clone(), storage.clone())
         .await
         .unwrap();
+    let proposal_fingerprint = ProposalFingerprint::from_prepare_proposal_request_response(
+        prepare_proposal,
+        prepare_proposal_result.clone(),
+    );
     assert_eq!(prepare_proposal_result.txs, finalize_block.txs);
     assert_eq!(app.executed_proposal_hash, Hash::default());
     assert_eq!(

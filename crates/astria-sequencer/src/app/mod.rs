@@ -157,17 +157,22 @@ type InterBlockState = Arc<StateDelta<Snapshot>>;
 /// the proposal from that node. This is not a perfect solution, but it only
 /// impacts sentry nodes does not halt the network and is cheaper computationally
 /// than an exhaustive comparison.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ProposalFingerprint {
     validator_address: account::Id,
     timestamp: tendermint::Time,
+    txs: Vec<bytes::Bytes>,
 }
 
-impl From<abci::request::PrepareProposal> for ProposalFingerprint {
-    fn from(proposal: abci::request::PrepareProposal) -> Self {
+impl ProposalFingerprint {
+    fn from_prepare_proposal_request_response(
+        request: abci::request::PrepareProposal,
+        response: abci::response::PrepareProposal,
+    ) -> Self {
         Self {
-            validator_address: proposal.proposer_address,
-            timestamp: proposal.time,
+            validator_address: request.proposer_address,
+            timestamp: request.time,
+            txs: response.txs,
         }
     }
 }
@@ -177,6 +182,7 @@ impl From<abci::request::ProcessProposal> for ProposalFingerprint {
         Self {
             validator_address: proposal.proposer_address,
             timestamp: proposal.time,
+            txs: proposal.txs,
         }
     }
 }
@@ -379,7 +385,6 @@ impl App {
         prepare_proposal: abci::request::PrepareProposal,
         storage: Storage,
     ) -> Result<abci::response::PrepareProposal> {
-        self.executed_proposal_fingerprint = Some(prepare_proposal.clone().into());
         self.update_state_for_new_round(&storage);
 
         let mut block_size_constraints = BlockSizeConstraints::new(
@@ -388,6 +393,7 @@ impl App {
         )
         .wrap_err("failed to create block size constraints")?;
 
+        let request = prepare_proposal.clone();
         let block_data = BlockData {
             misbehavior: prepare_proposal.misbehavior,
             height: prepare_proposal.height,
@@ -415,9 +421,15 @@ impl App {
         // included in the block
         let res = generate_rollup_datas_commitment(&signed_txs_included, deposits);
         let txs = res.into_transactions(included_tx_bytes);
-        Ok(abci::response::PrepareProposal {
+        
+        let response = abci::response::PrepareProposal {
             txs,
-        })
+        };
+        self.executed_proposal_fingerprint = Some(ProposalFingerprint::from_prepare_proposal_request_response(
+            request.clone(),
+            response.clone(),
+        ));
+        Ok(response)
     }
 
     /// Generates a commitment to the `sequence::Actions` in the block's transactions
@@ -434,7 +446,7 @@ impl App {
         //
         // if we didn't propose this block, `self.validator_address` will be None or a different
         // value, so we will execute  block as normal.
-        if let Some(constructed_id) = self.executed_proposal_fingerprint {
+        if let Some(constructed_id) = self.executed_proposal_fingerprint.clone() {
             let proposal_id = process_proposal.clone().into();
             if constructed_id == proposal_id {
                 debug!("skipping process_proposal as we are the proposer for this block");
