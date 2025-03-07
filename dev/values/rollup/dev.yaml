@@ -9,9 +9,6 @@ global:
   celestiaChainId: celestia-local-0
 
 evm-rollup:
-  images:
-    geth:
-      devTag: pr-75
   genesis:
     ## These values are used to configure the genesis block of the rollup chain
     ## no defaults as they are unique to each chain
