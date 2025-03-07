@@ -2,6 +2,7 @@ use std::{
     io::Write as _,
     mem,
     net::SocketAddr,
+    sync::LazyLock,
     time::Duration,
 };
 
@@ -72,6 +73,45 @@ use crate::helpers::ethereum::{
 pub(crate) const DEFAULT_IBC_DENOM: &str = "transfer/channel-0/utia";
 pub(crate) const SEQUENCER_CHAIN_ID: &str = "test-sequencer";
 const ASTRIA_ADDRESS_PREFIX: &str = "astria";
+
+static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
+    let config = Config {
+        sequencer_cometbft_endpoint: String::new(),
+        sequencer_grpc_endpoint: String::new(),
+        sequencer_chain_id: SEQUENCER_CHAIN_ID.into(),
+        sequencer_key_path: String::new(),
+        fee_asset_denomination: default_native_asset(),
+        rollup_asset_denomination: default_native_asset().as_trace_prefixed().unwrap().clone(),
+        sequencer_bridge_address: default_bridge_address().to_string(),
+        use_compat_address: false,
+        ethereum_contract_address: String::new(),
+        ethereum_rpc_endpoint: String::new(),
+        sequencer_address_prefix: ASTRIA_ADDRESS_PREFIX.into(),
+        api_addr: String::new(),
+        log: String::new(),
+        force_stdout: false,
+        no_otel: false,
+        no_metrics: false,
+        metrics_http_listener_addr: String::new(),
+        pretty_print: true,
+    };
+    if std::env::var_os("TEST_LOG").is_some() {
+        let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
+        telemetry::configure()
+            .set_no_otel(true)
+            .set_stdout_writer(std::io::stdout)
+            .set_pretty_print(true)
+            .set_filter_directives(&filter_directives)
+            .try_init::<Metrics>(&config)
+            .unwrap();
+    } else {
+        telemetry::configure()
+            .set_no_otel(true)
+            .set_stdout_writer(std::io::sink)
+            .try_init::<Metrics>(&config)
+            .unwrap();
+    }
+});
 
 pub struct TestBridgeWithdrawer {
     /// The address of the public API server (health, ready).
@@ -231,6 +271,7 @@ impl TestBridgeWithdrawerConfig {
             ethereum_config,
             asset_denom,
         } = self;
+        LazyLock::force(&TELEMETRY);
 
         // sequencer signer key
         let keyfile = NamedTempFile::new().unwrap();
@@ -262,26 +303,10 @@ impl TestBridgeWithdrawerConfig {
             log: String::new(),
             force_stdout: false,
             no_otel: false,
-            no_metrics: false,
+            no_metrics: true,
             metrics_http_listener_addr: String::new(),
             pretty_print: true,
         };
-        if std::env::var_os("TEST_LOG").is_some() {
-            let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
-            telemetry::configure()
-                .set_no_otel(true)
-                .set_stdout_writer(std::io::stdout)
-                .set_pretty_print(true)
-                .set_filter_directives(&filter_directives)
-                .try_init::<Metrics>(&config)
-                .unwrap();
-        } else {
-            telemetry::configure()
-                .set_no_otel(true)
-                .set_stdout_writer(std::io::sink)
-                .try_init::<Metrics>(&config)
-                .unwrap();
-        }
 
         info!(config = serde_json::to_string(&config).unwrap());
 
