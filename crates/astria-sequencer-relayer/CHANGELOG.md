@@ -274,7 +274,8 @@ address [#721](https://github.com/astriaorg/astria/pull/721).
 
 - Initial release.
 
-[unreleased]: https://github.com/astriaorg/astria/compare/sequencer-relayer-v1.0.0...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/sequencer-relayer-v1.0.1...HEAD
+[1.0.1]: https://github.com/astriaorg/astria/compare/sequencer-relayer-v1.0.0...sequencer-relayer-v1.0.1
 [1.0.0]: https://github.com/astriaorg/astria/compare/sequencer-relayer-v1.0.0-rc.2...sequencer-relayer-v1.0.0
 [1.0.0-rc.2]: https://github.com/astriaorg/astria/compare/sequencer-relayer-v1.0.0-rc.1...sequencer-relayer-v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/astriaorg/astria/compare/sequencer-relayer-v0.16.2...sequencer-relayer-v1.0.0-rc.1
