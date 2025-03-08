@@ -16,4 +16,11 @@ ignore = [
   # transient dependency of the deprecated `ethers`. We should replace our usage of `ethers` with
   # `alloy` to resolve this. See https://github.com/astriaorg/astria/issues/2020.
   "RUSTSEC-2025-0009",
+  # `ring` < 0.17 is Unmaintained. It is a transient dependency of the deprecated `ethers`. As with
+  # RUSTSEC-2025-0009 above, we should replace our usage of `ethers` with `alloy` to resolve this.
+  # See https://github.com/astriaorg/astria/issues/2020.
+  "RUSTSEC-2025-0010",
+  # `paste` is Unmaintained. It is a transient dependency of many crates including several penumbra
+  # ones, so cannot easily be replaced.
+  "RUSTSEC-2024-0436",
 ]
