@@ -125,7 +125,7 @@ async fn simple() {
     .await
     .expect(
         "conductor should have executed the firm block and updated the firm commitment state \
-         within 1000ms",
+         within 2000ms",
     );
 }
 

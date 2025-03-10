@@ -148,6 +148,14 @@ pub struct GenesisFees {
         super::super::fees::v1::ValidatorUpdateFeeComponents,
     >,
     #[prost(message, optional, tag = "15")]
+    pub bridge_transfer: ::core::option::Option<
+        super::super::fees::v1::BridgeTransferFeeComponents,
+    >,
+    #[prost(message, optional, tag = "16")]
+    pub recover_ibc_client: ::core::option::Option<
+        super::super::fees::v1::RecoverIbcClientFeeComponents,
+    >,
+    #[prost(message, optional, tag = "17")]
     pub price_feed: ::core::option::Option<
         super::super::fees::v1::PriceFeedFeeComponents,
     >,

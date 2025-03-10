@@ -21,6 +21,7 @@ impl Action {
             Action::IbcRelayerChange(_)
             | Action::FeeChange(_)
             | Action::FeeAssetChange(_)
+            | Action::RecoverIbcClient(_)
             | Action::PriceFeed(PriceFeed::MarketMap(MarketMapChange::Params(_))) => {
                 Group::BundleableSudo
             }
@@ -35,6 +36,7 @@ impl Action {
             | Action::Ics20Withdrawal(_)
             | Action::BridgeLock(_)
             | Action::BridgeUnlock(_)
+            | Action::BridgeTransfer(_)
             | Action::Ibc(_)
             | Action::PriceFeed(
                 PriceFeed::Oracle(_) | PriceFeed::MarketMap(MarketMapChange::Markets(_)),

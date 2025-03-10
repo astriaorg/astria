@@ -16,6 +16,9 @@ spec:
       labels:
         app: {{ .Values.moniker }}-sequencer
     spec:
+      securityContext:
+        runAsUser: 1000
+        fsGroup: 2000
       initContainers:
         - command: [ "/scripts/init-cometbft.sh" ]
           name: config-cometbft
@@ -51,6 +54,8 @@ spec:
             - mountPath: /sequencer
               name: sequencer-shared-storage-vol
               subPath: {{ .Values.moniker }}/sequencer
+            - mountPath: {{ include "sequencer.socket_directory" . }}
+              name: socket-volume
             - mountPath: /sequencer-upgrades
               name: sequencer-upgrades-volume
           ports:
@@ -86,6 +91,8 @@ spec:
             - mountPath: /secrets
               readOnly: true
               name: sequencer-secret-keys-vol
+            - mountPath: {{ include "sequencer.socket_directory" . }}
+              name: socket-volume
           ports:
             - containerPort: {{ .Values.ports.cometbftP2P }}
               name: cometbft-p2p
@@ -120,6 +127,8 @@ spec:
             - containerPort: {{ .Values.ports.priceFeedMetrics }}
               name: price-fd-metric
       volumes:
+        - name: socket-volume
+          emptyDir: {}
         - name: cometbft-config-volume
           configMap:
             name: {{ .Values.moniker }}-cometbft-config
