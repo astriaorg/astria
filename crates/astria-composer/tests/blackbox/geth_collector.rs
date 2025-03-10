@@ -24,9 +24,12 @@ async fn tx_from_one_rollup_is_received_by_sequencer() {
         .push_tx(Transaction::default())
         .unwrap();
 
-    // wait for 1 sequencer block time to make sure the bundle is preempted
+    // manually tick block timer to preempt next bundle
+    test_composer.tick_block_timer().await;
+
+    // give composer 100ms after sequencer block time to broadcast tx
     tokio::time::timeout(
-        Duration::from_millis(test_composer.cfg.block_time_ms),
+        Duration::from_millis(100),
         mock_guard.wait_until_satisfied(),
     )
     .await
@@ -56,11 +59,13 @@ async fn collector_restarts_after_exit() {
         .push_tx(Transaction::default())
         .unwrap();
 
-    // wait for 1 sequencer block time to make sure the bundle is preempted
-    // we added an extra 1000ms to the block time to make sure the collector has restarted
+    // manually tick block timer to preempt next bundle
+    test_composer.tick_block_timer().await;
+
+    // Allow an extra 100ms to the block time to make sure the collector has restarted
     // as the collector has to establish a new subscription on start up.
     tokio::time::timeout(
-        Duration::from_millis(test_composer.cfg.block_time_ms + 1000),
+        Duration::from_millis(100),
         mock_guard.wait_until_satisfied(),
     )
     .await
@@ -97,9 +102,12 @@ async fn invalid_nonce_causes_resubmission_under_different_nonce() {
         .push_tx(Transaction::default())
         .unwrap();
 
-    // wait for 1 sequencer block time to make sure the bundle is preempted
+    // manually ticker block timer to preempt next bundle
+    test_composer.tick_block_timer().await;
+
+    // give composer 100ms after block time to hit invalid nonce guard
     tokio::time::timeout(
-        Duration::from_millis(test_composer.cfg.block_time_ms),
+        Duration::from_millis(100),
         invalid_nonce_guard.wait_until_satisfied(),
     )
     .await
@@ -143,9 +151,12 @@ async fn nonce_taken_causes_resubmission_under_different_nonce() {
         .push_tx(Transaction::default())
         .unwrap();
 
-    // wait for 1 sequencer block time to make sure the bundle is preempted
+    // manually ticker block timer to preempt next bundle
+    test_composer.tick_block_timer().await;
+
+    // give composer 100ms after block time to hit invalid nonce guard
     tokio::time::timeout(
-        Duration::from_millis(test_composer.cfg.block_time_ms + 1000),
+        Duration::from_millis(100),
         invalid_nonce_guard.wait_until_satisfied(),
     )
     .await
@@ -171,9 +182,12 @@ async fn single_rollup_tx_payload_integrity() {
 
     test_composer.rollup_nodes["test1"].push_tx(tx).unwrap();
 
-    // wait for 1 sequencer block time to make sure the bundle is preempted
+    // manually tick block timer to preempt next bundle
+    test_composer.tick_block_timer().await;
+
+    // give composer 100ms after sequencer block time to broadcast tx
     tokio::time::timeout(
-        Duration::from_millis(test_composer.cfg.block_time_ms),
+        Duration::from_millis(100),
         mock_guard.wait_until_satisfied(),
     )
     .await
