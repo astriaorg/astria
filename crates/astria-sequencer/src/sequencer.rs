@@ -1,16 +1,6 @@
 use std::time::Duration;
 
-use astria_core::{
-    generated::{
-        astria::sequencerblock::v1::sequencer_service_server::SequencerServiceServer,
-        connect::{
-            marketmap::v2::query_server::QueryServer as MarketMapQueryServer,
-            oracle::v2::query_server::QueryServer as OracleQueryServer,
-            service::v2::oracle_client::OracleClient,
-        },
-    },
-    upgrades::v1::Upgrades,
-};
+use astria_core::generated::connect::service::v2::oracle_client::OracleClient;
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
@@ -62,9 +52,10 @@ use crate::{
         ShouldShutDown,
     },
     assets::StateReadExt as _,
-    config::Config,
-    grpc::sequencer::SequencerServer,
-    ibc::host_interface::AstriaHost,
+    config::{
+        AbciListenUrl,
+        Config,
+    },
     mempool::Mempool,
     metrics::Metrics,
     service,
@@ -86,6 +77,7 @@ struct RunningGrpcServer {
 struct RunningAbciServer {
     pub handle: AbciServerHandle,
     pub shutdown_rx: oneshot::Receiver<()>,
+    pub consensus_cancellation_token: tokio_util::sync::CancellationToken,
 }
 
 enum InitializationOutcome {
@@ -137,8 +129,14 @@ impl Sequencer {
                 info_span!("run_until_stopped").in_scope(|| info!("shutting down sequencer"));
             }
 
+            () = abci_server.consensus_cancellation_token.cancelled() => {
+                info_span!("run_until_stopped")
+                    .in_scope(|| info!("consensus server shutting down sequencer"));
+            },
+
             _ = abci_server.shutdown_rx => {
-                info_span!("run_until_stopped").in_scope(|| error!("ABCI server task exited, this shouldn't happen"));
+                info_span!("run_until_stopped")
+                    .in_scope(|| error!("ABCI server task exited, this shouldn't happen"));
             }
         }
 
@@ -233,32 +231,9 @@ impl Sequencer {
         .await
         .wrap_err("failed to initialize app")?;
 
-        let consensus_token = tokio_util::sync::CancellationToken::new();
-        let cloned_token = consensus_token.clone();
-        let consensus_service = tower::ServiceBuilder::new()
-            .layer(request_span::layer(|req: &ConsensusRequest| {
-                req.create_span()
-            }))
-            .service(tower_actor::Actor::new(10, |queue: _| {
-                let storage = storage.clone();
-                async move {
-                    service::Consensus::new(storage, app, queue, cloned_token)
-                        .run()
-                        .await
-                }
-            }));
-        let mempool_service = service::Mempool::new(storage.clone(), mempool.clone(), metrics);
-        let info_service =
-            service::Info::new(storage.clone()).wrap_err("failed initializing info service")?;
-        let snapshot_service = service::Snapshot;
+        let event_bus_subscription = app.subscribe_to_events();
 
-        let abci_server = Server::builder()
-            .consensus(consensus_service)
-            .info(info_service)
-            .mempool(mempool_service)
-            .snapshot(snapshot_service)
-            .finish()
-            .ok_or_eyre("server builder didn't return server; are all fields set?")?;
+        let mempool_service = service::Mempool::new(storage.clone(), mempool.clone(), metrics);
 
         let (grpc_shutdown_tx, grpc_shutdown_rx) = tokio::sync::oneshot::channel();
         let (abci_shutdown_tx, abci_shutdown_rx) = tokio::sync::oneshot::channel();
@@ -267,25 +242,31 @@ impl Sequencer {
             .grpc_addr
             .parse()
             .wrap_err("failed to parse grpc_addr address")?;
-        let grpc_server_handle =
-            start_grpc_server(&storage, mempool, upgrades, grpc_addr, grpc_shutdown_rx);
 
-        debug!(config.listen_addr, "starting sequencer");
+        // TODO(janis): need a mechanism to check and report if the grpc server setup failed.
+        // right now it's fire and forget and the grpc server is only reaped if sequencer
+        // itself is taken down.
+        let grpc_server_handle = tokio::spawn(crate::grpc::serve(
+            storage.clone(),
+            mempool,
+            upgrades,
+            grpc_addr,
+            config.no_optimistic_blocks,
+            event_bus_subscription,
+            grpc_shutdown_rx,
+        ));
 
-        let listen_addr = config.listen_addr.clone();
-        let abci_server_handle = tokio::spawn(async move {
-            match abci_server.listen_tcp(listen_addr).await {
-                Ok(()) => {
-                    // this shouldn't happen, as there isn't a way for the ABCI server to exit
-                    info_span!("abci_server").in_scope(|| info!("ABCI server exited successfully"));
-                }
-                Err(e) => {
-                    error_span!("abci_server")
-                        .in_scope(|| error!(err = e.as_ref(), "ABCI server exited with error"));
-                }
-            }
-            let _ = abci_shutdown_tx.send(());
-        });
+        debug!(%config.abci_listen_url, "starting sequencer");
+        let consensus_cancellation_token = tokio_util::sync::CancellationToken::new();
+        let abci_server_handle = start_abci_server(
+            &storage,
+            app,
+            mempool_service,
+            config.abci_listen_url,
+            abci_shutdown_tx,
+            consensus_cancellation_token.clone(),
+        )
+        .wrap_err("failed to start ABCI server")?;
 
         let grpc_server = RunningGrpcServer {
             handle: grpc_server_handle,
@@ -294,6 +275,7 @@ impl Sequencer {
         let abci_server = RunningAbciServer {
             handle: abci_server_handle,
             shutdown_rx: abci_shutdown_rx,
+            consensus_cancellation_token,
         };
 
         Ok(InitializationOutcome::Initialized {
@@ -303,57 +285,57 @@ impl Sequencer {
     }
 }
 
-fn start_grpc_server(
+fn start_abci_server(
     storage: &cnidarium::Storage,
-    mempool: Mempool,
-    upgrades: Upgrades,
-    grpc_addr: std::net::SocketAddr,
-    shutdown_rx: oneshot::Receiver<()>,
-) -> JoinHandle<Result<(), tonic::transport::Error>> {
-    use futures::TryFutureExt as _;
-    use ibc_proto::ibc::core::{
-        channel::v1::query_server::QueryServer as ChannelQueryServer,
-        client::v1::query_server::QueryServer as ClientQueryServer,
-        connection::v1::query_server::QueryServer as ConnectionQueryServer,
-    };
-    use penumbra_tower_trace::remote_addr;
-    use tower_http::cors::CorsLayer;
-
-    let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
-    let sequencer_api = SequencerServer::new(storage.clone(), mempool, upgrades);
-    let market_map_api = crate::grpc::connect::SequencerServer::new(storage.clone());
-    let oracle_api = crate::grpc::connect::SequencerServer::new(storage.clone());
-    let cors_layer: CorsLayer = CorsLayer::permissive();
-
-    // TODO: setup HTTPS?
-    let grpc_server = tonic::transport::Server::builder()
-        .trace_fn(|req| {
-            if let Some(remote_addr) = remote_addr(req) {
-                let addr = remote_addr.to_string();
-                error_span!("grpc", addr)
-            } else {
-                error_span!("grpc")
+    app: App,
+    mempool_service: service::Mempool,
+    listen_url: AbciListenUrl,
+    abci_shutdown_tx: oneshot::Sender<()>,
+    consensus_cancellation_token: tokio_util::sync::CancellationToken,
+) -> eyre::Result<JoinHandle<()>> {
+    let consensus_service = tower::ServiceBuilder::new()
+        .layer(request_span::layer(|req: &ConsensusRequest| {
+            req.create_span()
+        }))
+        .service(tower_actor::Actor::new(10, |queue: _| {
+            let storage = storage.clone();
+            async move {
+                service::Consensus::new(storage, app, queue, consensus_cancellation_token)
+                    .run()
+                    .await
             }
-        })
-        // (from Penumbra) Allow HTTP/1, which will be used by grpc-web connections.
-        // This is particularly important when running locally, as gRPC
-        // typically uses HTTP/2, which requires HTTPS. Accepting HTTP/2
-        // allows local applications such as web browsers to talk to pd.
-        .accept_http1(true)
-        // (from Penumbra) Add permissive CORS headers, so pd's gRPC services are accessible
-        // from arbitrary web contexts, including from localhost.
-        .layer(cors_layer)
-        .add_service(ClientQueryServer::new(ibc.clone()))
-        .add_service(ChannelQueryServer::new(ibc.clone()))
-        .add_service(ConnectionQueryServer::new(ibc.clone()))
-        .add_service(SequencerServiceServer::new(sequencer_api))
-        .add_service(MarketMapQueryServer::new(market_map_api))
-        .add_service(OracleQueryServer::new(oracle_api));
+        }));
+    let info_service =
+        service::Info::new(storage.clone()).wrap_err("failed initializing info service")?;
+    let snapshot_service = service::Snapshot;
 
-    info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
-    tokio::task::spawn(
-        grpc_server.serve_with_shutdown(grpc_addr, shutdown_rx.unwrap_or_else(|_| ())),
-    )
+    let server = Server::builder()
+        .consensus(consensus_service)
+        .info(info_service)
+        .mempool(mempool_service)
+        .snapshot(snapshot_service)
+        .finish()
+        .ok_or_eyre("server builder didn't return server; are all fields set?")?;
+
+    let server_handle = tokio::spawn(async move {
+        let server_listen_result = match listen_url {
+            AbciListenUrl::Tcp(socket_addr) => server.listen_tcp(socket_addr).await,
+            AbciListenUrl::Unix(path) => server.listen_unix(path).await,
+        };
+        match server_listen_result {
+            Ok(()) => {
+                // this shouldn't happen, as there isn't a way for the ABCI server to exit
+                info_span!("abci_server").in_scope(|| info!("ABCI server exited successfully"));
+            }
+            Err(e) => {
+                error_span!("abci_server")
+                    .in_scope(|| error!(err = e.as_ref(), "ABCI server exited with error"));
+            }
+        }
+        let _ = abci_shutdown_tx.send(());
+    });
+
+    Ok(server_handle)
 }
 
 struct SignalReceiver {
@@ -459,7 +441,7 @@ mod tests {
         // We only care about `no_oracle` and `oracle_grpc_addr` values - the others can be
         // meaningless.
         let config = Config {
-            listen_addr: String::new(),
+            abci_listen_url: AbciListenUrl::Unix(PathBuf::new()),
             db_filepath: "".into(),
             log: String::new(),
             grpc_addr: String::new(),
@@ -474,6 +456,7 @@ mod tests {
             oracle_grpc_addr: "http://127.0.0.1:8081".to_string(),
             oracle_client_timeout_milliseconds: 1,
             mempool_parked_max_tx_count: 1,
+            no_optimistic_blocks: false,
         };
 
         let start = tokio::time::Instant::now();

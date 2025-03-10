@@ -579,6 +579,7 @@ mod tests {
     #[tokio::test]
     async fn block_lifecycle() {
         let signing_key = SigningKey::new(OsRng);
+        let address_bytes = *signing_key.verification_key().address_bytes();
         let (mut consensus_service, mempool) =
             new_consensus_service(Some(signing_key.verification_key())).await;
 
@@ -620,7 +621,15 @@ mod tests {
             .await
             .unwrap();
 
+        // Mempool should still have a transaction
+        assert_eq!(mempool.len().await, 1);
+        assert_eq!(mempool.pending_nonce(&address_bytes).await, Some(1));
+
+        let commit = ConsensusRequest::Commit {};
+        consensus_service.handle_request(commit).await.unwrap();
+
         // ensure that txs included in a block are removed from the mempool
         assert_eq!(mempool.len().await, 0);
+        assert_eq!(mempool.pending_nonce(&address_bytes).await, None);
     }
 }

@@ -9,6 +9,7 @@ macro_rules! block {
                 seconds: 1,
                 nanos: 1,
             }),
+            sequencer_block_hash: ::bytes::Bytes::new(),
         }
     };
 }

@@ -63,7 +63,7 @@ use crate::{
         ChangeHash,
         ChangeHashError,
     },
-    Protobuf as _,
+    Protobuf,
 };
 
 const SHA256_DIGEST_LENGTH: usize = 32;
@@ -1977,6 +1977,27 @@ impl FilteredSequencerBlock {
             upgrade_change_hashes,
             extended_commit_info_with_proof,
         }
+    }
+}
+
+impl Protobuf for FilteredSequencerBlock {
+    type Error = FilteredSequencerBlockError;
+    type Raw = raw::FilteredSequencerBlock;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        Self::try_from_raw(raw.clone())
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        self.clone().into_raw()
+    }
+
+    fn try_from_raw(raw: Self::Raw) -> Result<Self, Self::Error> {
+        Self::try_from_raw(raw)
+    }
+
+    fn into_raw(self) -> Self::Raw {
+        self.into_raw()
     }
 }
 

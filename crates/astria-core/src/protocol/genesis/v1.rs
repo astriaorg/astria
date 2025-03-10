@@ -29,6 +29,7 @@ use crate::{
         transaction::v1::action::{
             BridgeLock,
             BridgeSudoChange,
+            BridgeTransfer,
             BridgeUnlock,
             FeeAssetChange,
             FeeChange,
@@ -37,6 +38,7 @@ use crate::{
             Ics20Withdrawal,
             InitBridgeAccount,
             PriceFeed,
+            RecoverIbcClient,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
@@ -746,6 +748,7 @@ pub struct GenesisFees {
     pub init_bridge_account: Option<FeeComponents<InitBridgeAccount>>,
     pub bridge_lock: Option<FeeComponents<BridgeLock>>,
     pub bridge_unlock: Option<FeeComponents<BridgeUnlock>>,
+    pub bridge_transfer: Option<FeeComponents<BridgeTransfer>>,
     pub bridge_sudo_change: Option<FeeComponents<BridgeSudoChange>>,
     pub ibc_relay: Option<FeeComponents<IbcRelay>>,
     pub validator_update: Option<FeeComponents<ValidatorUpdate>>,
@@ -754,6 +757,7 @@ pub struct GenesisFees {
     pub ibc_relayer_change: Option<FeeComponents<IbcRelayerChange>>,
     pub sudo_address_change: Option<FeeComponents<SudoAddressChange>>,
     pub ibc_sudo_change: Option<FeeComponents<IbcSudoChange>>,
+    pub recover_ibc_client: Option<FeeComponents<RecoverIbcClient>>,
     pub price_feed: Option<FeeComponents<PriceFeed>>,
 }
 
@@ -773,6 +777,7 @@ impl Protobuf for GenesisFees {
             init_bridge_account,
             bridge_lock,
             bridge_unlock,
+            bridge_transfer,
             bridge_sudo_change,
             ibc_relay,
             validator_update,
@@ -781,6 +786,7 @@ impl Protobuf for GenesisFees {
             ibc_relayer_change,
             sudo_address_change,
             ibc_sudo_change,
+            recover_ibc_client,
             price_feed,
         } = raw;
         let rollup_data_submission = rollup_data_submission
@@ -818,6 +824,12 @@ impl Protobuf for GenesisFees {
             .map(FeeComponents::<BridgeUnlock>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("bridge_unlock", e))?;
+
+        let bridge_transfer = bridge_transfer
+            .clone()
+            .map(FeeComponents::<BridgeTransfer>::try_from_raw)
+            .transpose()
+            .map_err(|e| FeesError::fee_components("bridge_transfer", e))?;
 
         let bridge_sudo_change = bridge_sudo_change
             .clone()
@@ -868,6 +880,12 @@ impl Protobuf for GenesisFees {
             .transpose()
             .map_err(|e| FeesError::fee_components("ibc_sudo_change", e))?;
 
+        let recover_ibc_client = recover_ibc_client
+            .clone()
+            .map(FeeComponents::<RecoverIbcClient>::try_from_raw)
+            .transpose()
+            .map_err(|e| FeesError::fee_components("recover_ibc_client", e))?;
+
         let price_feed = price_feed
             .clone()
             .map(FeeComponents::<PriceFeed>::try_from_raw)
@@ -881,6 +899,7 @@ impl Protobuf for GenesisFees {
             init_bridge_account,
             bridge_lock,
             bridge_unlock,
+            bridge_transfer,
             bridge_sudo_change,
             ibc_relay,
             validator_update,
@@ -889,6 +908,7 @@ impl Protobuf for GenesisFees {
             ibc_relayer_change,
             sudo_address_change,
             ibc_sudo_change,
+            recover_ibc_client,
             price_feed,
         })
     }
@@ -901,6 +921,7 @@ impl Protobuf for GenesisFees {
             init_bridge_account,
             bridge_lock,
             bridge_unlock,
+            bridge_transfer,
             bridge_sudo_change,
             ibc_relay,
             validator_update,
@@ -909,6 +930,7 @@ impl Protobuf for GenesisFees {
             ibc_relayer_change,
             sudo_address_change,
             ibc_sudo_change,
+            recover_ibc_client,
             price_feed,
         } = self;
         Self::Raw {
@@ -921,6 +943,8 @@ impl Protobuf for GenesisFees {
                 .map(|act| FeeComponents::<InitBridgeAccount>::to_raw(&act)),
             bridge_lock: bridge_lock.map(|act| FeeComponents::<BridgeLock>::to_raw(&act)),
             bridge_unlock: bridge_unlock.map(|act| FeeComponents::<BridgeUnlock>::to_raw(&act)),
+            bridge_transfer: bridge_transfer
+                .map(|act| FeeComponents::<BridgeTransfer>::to_raw(&act)),
             bridge_sudo_change: bridge_sudo_change
                 .map(|act| FeeComponents::<BridgeSudoChange>::to_raw(&act)),
             ibc_relay: ibc_relay.map(|act| FeeComponents::<IbcRelay>::to_raw(&act)),
@@ -935,6 +959,8 @@ impl Protobuf for GenesisFees {
                 .map(|act| FeeComponents::<SudoAddressChange>::to_raw(&act)),
             ibc_sudo_change: ibc_sudo_change
                 .map(|act| FeeComponents::<IbcSudoChange>::to_raw(&act)),
+            recover_ibc_client: recover_ibc_client
+                .map(|act| FeeComponents::<RecoverIbcClient>::to_raw(&act)),
             price_feed: price_feed.map(|act| FeeComponents::<PriceFeed>::to_raw(&act)),
         }
     }
@@ -1071,6 +1097,7 @@ mod tests {
             init_bridge_account: Some(FeeComponents::<InitBridgeAccount>::new(48, 0).to_raw()),
             bridge_lock: Some(FeeComponents::<BridgeLock>::new(12, 1).to_raw()),
             bridge_unlock: Some(FeeComponents::<BridgeUnlock>::new(12, 0).to_raw()),
+            bridge_transfer: Some(FeeComponents::<BridgeTransfer>::new(24, 0).to_raw()),
             bridge_sudo_change: Some(FeeComponents::<BridgeSudoChange>::new(24, 0).to_raw()),
             ics20_withdrawal: Some(FeeComponents::<Ics20Withdrawal>::new(24, 0).to_raw()),
             ibc_relay: Some(FeeComponents::<IbcRelay>::new(0, 0).to_raw()),
@@ -1080,6 +1107,7 @@ mod tests {
             ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0).to_raw()),
             sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0).to_raw()),
             ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0).to_raw()),
+            recover_ibc_client: Some(FeeComponents::<RecoverIbcClient>::new(0, 0).to_raw()),
             price_feed: Some(FeeComponents::<PriceFeed>::new(0, 0).to_raw()),
         }
     }

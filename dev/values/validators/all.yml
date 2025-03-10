@@ -39,6 +39,9 @@ genesis:
       balance: "69000000"
 
 sequencer:
+  optimisticBlockApis:
+    # set to true to enable optimistic block APIs
+    enabled: false
   oracle:
     enabled: true
     metrics:

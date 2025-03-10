@@ -1,0 +1,38 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ include "rollup.name" . }}-evm-service
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  selector:
+    app: {{ include "rollup.appName" . }}
+  ports:
+    - name: json-rpc-svc
+      port: {{ .Values.ports.jsonRPC }}
+      targetPort: json-rpc
+    - name: ws-rpc-svc
+      port: {{ .Values.ports.wsRPC }}
+      targetPort: ws-rpc
+    - name: exec-grpc-svc
+      port: {{ .Values.ports.executionGRPC }}
+      targetPort: execution-grpc
+---
+{{- if .Values.metrics.enabled }}
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ include "rollup.name" . }}-metrics
+  namespace: {{ include "rollup.namespace" . }}
+  labels:
+    app: {{ include "rollup.appName" . }}
+spec:
+  selector:
+    app: {{ include "rollup.appName" . }}
+  ports:
+    - name: geth-metr
+      port: {{ .Values.ports.metrics }}
+      targetPort: geth-metr
+    - name: conductor-metr
+      port: {{ .Values.ports.conductorMetrics }}
+      targetPort: conductor-metr
+{{- end }}
