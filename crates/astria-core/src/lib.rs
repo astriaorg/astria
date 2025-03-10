@@ -14,8 +14,8 @@ compile_error!(
     reason = "cannot prevent allow attributes in generated files"
 )]
 pub mod generated;
-pub mod connect;
 pub mod execution;
+pub mod oracles;
 pub mod primitive;
 pub mod protocol;
 pub mod sequencerblock;

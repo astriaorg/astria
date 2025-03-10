@@ -120,8 +120,8 @@ pub mod astria {
             pub mod v1;
         }
         #[path = ""]
-        pub mod connect {
-            #[path = "astria.protocol.connect.v1.rs"]
+        pub mod price_feed {
+            #[path = "astria.protocol.price_feed.v1.rs"]
             pub mod v1;
         }
         #[path = ""]
@@ -245,8 +245,10 @@ pub mod celestia {
     }
 }
 
+use price_feed as connect;
+
 #[path = ""]
-pub mod connect {
+pub mod price_feed {
     pub mod abci {
         pub mod v2 {
             include!("connect.abci.v2.rs");

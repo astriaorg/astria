@@ -1,5 +1,0 @@
----
-source: crates/astria-sequencer/src/connect/market_map/storage/keys.rs
-expression: LAST_UPDATED
----
-connect/market_map/last_updated

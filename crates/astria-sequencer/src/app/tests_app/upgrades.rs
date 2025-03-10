@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use astria_core::{
-    connect::{
+    crypto::SigningKey,
+    oracles::price_feed::{
         abci::v2::OracleVoteExtension,
         oracle::v2::QuotePrice,
         types::v2::{
@@ -9,9 +10,8 @@ use astria_core::{
             Price,
         },
     },
-    crypto::SigningKey,
     protocol::{
-        test_utils::dummy_connect_genesis,
+        test_utils::dummy_price_feed_genesis,
         transaction::v1::{
             action::{
                 Transfer,
@@ -77,7 +77,7 @@ use crate::{
         astria_address_from_hex_string,
         nria,
     },
-    connect::oracle::state_ext::StateReadExt as _,
+    oracles::price_feed::oracle::state_ext::StateReadExt as _,
 };
 
 const PROPOSER_SEED: [u8; 32] = [1; 32];
@@ -270,7 +270,7 @@ fn new_finalize_block(
 }
 
 async fn latest_currency_pair_price(storage: Storage, index: usize) -> QuotePrice {
-    let markets = dummy_connect_genesis()
+    let markets = dummy_price_feed_genesis()
         .market_map()
         .market_map
         .markets

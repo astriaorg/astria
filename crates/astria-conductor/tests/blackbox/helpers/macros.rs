@@ -283,7 +283,7 @@ macro_rules! mount_executed_block {
             ::serde_json::json!({
                 "prevBlockHash": BASE64_STANDARD.encode($parent),
                 "transactions": [
-                    {"oracleData": {}},
+                    {"priceFeedData": {}},
                     {"sequencedData": BASE64_STANDARD.encode($crate::helpers::data())}
                 ],
             }),
@@ -415,7 +415,7 @@ macro_rules! mount_execute_block_tonic_code {
             ::serde_json::json!({
                 "prevBlockHash": BASE64_STANDARD.encode($parent),
                 "transactions": [
-                    {"oracleData": {}},
+                    {"priceFeedData": {}},
                     {"sequencedData": BASE64_STANDARD.encode($crate::helpers::data())}
                 ],
             }),

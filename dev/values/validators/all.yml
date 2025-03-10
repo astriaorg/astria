@@ -42,7 +42,7 @@ sequencer:
   optimisticBlockApis:
     # set to true to enable optimistic block APIs
     enabled: false
-  oracle:
+  priceFeed:
     enabled: true
     metrics:
       enabled: true
