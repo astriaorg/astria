@@ -41,6 +41,25 @@ evm-rollup:
     otlpHeaders: "{{ .Values.global.otel.otlpHeaders }}"
     traceHeaders: "{{ .Values.global.otel.traceHeaders }}"
 
+flame-rollup:
+  enabled: false
+  genesis:
+    rollupName: "{{ .Values.global.rollupName }}"
+    chainId: "{{ .Values.global.evmChainId }}"
+  config:
+    conductor:
+      sequencerChainId: "{{ .Values.global.sequencerChainId }}"
+      celestiaChainId: "{{ .Values.global.celestiaChainId }}"
+      sequencerRpc: "{{ .Values.global.sequencerRpc }}"
+      sequencerGrpc: "{{ .Values.global.sequencerGrpc }}"
+  otel:
+    endpoint: "{{ .Values.global.otel.endpoint }}"
+    tracesEndpoint: "{{ .Values.global.otel.tracesEndpoint }}"
+    tracesCompression: "{{ .Values.global.otel.tracesCompression }}"
+    tracesTimeout: "{{ .Values.global.otel.tracesTimeout }}"
+    otlpHeaders: "{{ .Values.global.otel.otlpHeaders }}"
+    traceHeaders: "{{ .Values.global.otel.traceHeaders }}"
+
 celestia-node:
   enabled: false
 
@@ -53,6 +72,21 @@ composer:
     rollups:
       - name: "{{ .Values.global.rollupName }}"
         wsRpc: "ws://{{ .Values.global.rollupName }}-evm-service.{{ default .Release.Namespace .Values.global.namespaceOverride  }}.svc.cluster.local:8546"
+  otel:
+    endpoint: "{{ .Values.global.otel.endpoint }}"
+    tracesEndpoint: "{{ .Values.global.otel.tracesEndpoint }}"
+    tracesCompression: "{{ .Values.global.otel.tracesCompression }}"
+    tracesTimeout: "{{ .Values.global.otel.tracesTimeout }}"
+    otlpHeaders: "{{ .Values.global.otel.otlpHeaders }}"
+    traceHeaders: "{{ .Values.global.otel.traceHeaders }}"
+
+auctioneer:
+  enabled: false
+  config:
+    sequencerGrpcEndpoint: "{{ .Values.global.sequencerGrpc }}"
+    sequencerAbciEndpoint: "{{ .Values.global.sequencerRpc }}"
+    sequencerChainId: "{{ .Values.global.sequencerChainId }}"
+
   otel:
     endpoint: "{{ .Values.global.otel.endpoint }}"
     tracesEndpoint: "{{ .Values.global.otel.tracesEndpoint }}"

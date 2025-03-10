@@ -2,6 +2,7 @@
 pub(crate) mod benchmark_and_test_utils;
 #[cfg(feature = "benchmark")]
 mod benchmarks;
+pub(crate) mod event_bus;
 mod state_ext;
 pub(crate) mod storage;
 #[cfg(test)]
@@ -41,9 +42,12 @@ use astria_core::{
             Transaction,
         },
     },
-    sequencerblock::v1::block::{
-        self,
-        SequencerBlockBuilder,
+    sequencerblock::v1::{
+        block::{
+            self,
+            SequencerBlockBuilder,
+        },
+        SequencerBlock,
     },
     Protobuf as _,
 };
@@ -111,7 +115,13 @@ use crate::{
         ActionHandler as _,
     },
     address::StateWriteExt as _,
-    app::vote_extension::ProposalHandler,
+    app::{
+        event_bus::{
+            EventBus,
+            EventBusSubscription,
+        },
+        vote_extension::ProposalHandler,
+    },
     assets::StateWriteExt as _,
     authority::{
         component::{
@@ -273,6 +283,9 @@ pub(crate) struct App {
     )]
     app_hash: AppHash,
 
+    // the sequencer event bus, used to send and receive events between components within the app
+    event_bus: EventBus,
+
     // used to create and verify vote extensions, if this is a validator node.
     vote_extension_handler: vote_extension::Handler,
 
@@ -303,6 +316,8 @@ impl App {
         // there should be no unexpected copies elsewhere.
         let state = Arc::new(StateDelta::new(snapshot));
 
+        let event_bus = EventBus::new();
+
         Ok(Self {
             state,
             mempool,
@@ -311,9 +326,14 @@ impl App {
             recost_mempool: false,
             write_batch: None,
             app_hash,
+            event_bus,
             vote_extension_handler,
             metrics,
         })
+    }
+
+    pub(crate) fn subscribe_to_events(&self) -> EventBusSubscription {
+        self.event_bus.subscribe()
     }
 
     #[instrument(name = "App:init_chain", skip_all, err)]
@@ -580,16 +600,21 @@ impl App {
                     bail!("execution results must be present after executing transactions")
                 };
 
-                self.post_execute_transactions(
-                    process_proposal.hash,
-                    process_proposal.height,
-                    process_proposal.time,
-                    process_proposal.proposer_address,
-                    process_proposal.txs,
-                    tx_results,
-                )
-                .await
-                .wrap_err("failed to run post execute transactions handler")?;
+                // FIXME - avoid duplicate calls to post_execute_transactions. refer to: https://github.com/astriaorg/astria/issues/1835
+                let sequencer_block = self
+                    .post_execute_transactions(
+                        process_proposal.hash,
+                        process_proposal.height,
+                        process_proposal.time,
+                        process_proposal.proposer_address,
+                        process_proposal.txs,
+                        tx_results,
+                    )
+                    .await
+                    .wrap_err("failed to run post execute transactions handler")?;
+
+                self.event_bus
+                    .send_process_proposal_block(Arc::new(sequencer_block));
 
                 return Ok(());
             }
@@ -717,16 +742,22 @@ impl App {
         );
 
         self.executed_proposal_hash = process_proposal.hash;
-        self.post_execute_transactions(
-            process_proposal.hash,
-            process_proposal.height,
-            process_proposal.time,
-            process_proposal.proposer_address,
-            process_proposal.txs,
-            tx_results,
-        )
-        .await
-        .wrap_err("failed to run post execute transactions handler")?;
+
+        // FIXME - avoid duplicate calls to post_execute_transactions. refer to: https://github.com/astriaorg/astria/issues/1835
+        let sequencer_block = self
+            .post_execute_transactions(
+                process_proposal.hash,
+                process_proposal.height,
+                process_proposal.time,
+                process_proposal.proposer_address,
+                process_proposal.txs,
+                tx_results,
+            )
+            .await
+            .wrap_err("failed to run post execute transactions handler")?;
+
+        self.event_bus
+            .send_process_proposal_block(Arc::new(sequencer_block));
 
         Ok(())
     }
@@ -947,6 +978,7 @@ impl App {
     /// `SequencerBlock`.
     ///
     /// this must be called after a block's transactions are executed.
+    /// FIXME: don't return sequencer block but grab the block from state delta https://github.com/astriaorg/astria/issues/1436
     #[instrument(name = "App::post_execute_transactions", skip_all, err(level = Level::WARN))]
     async fn post_execute_transactions(
         &mut self,
@@ -956,7 +988,7 @@ impl App {
         proposer_address: account::Id,
         txs: Vec<bytes::Bytes>,
         tx_results: Vec<ExecTxResult>,
-    ) -> Result<()> {
+    ) -> Result<SequencerBlock> {
         let Hash::Sha256(block_hash) = block_hash else {
             bail!("block hash is empty; this should not occur")
         };
@@ -1021,7 +1053,7 @@ impl App {
         .try_build()
         .wrap_err("failed to convert block info and data to SequencerBlock")?;
         state_tx
-            .put_sequencer_block(sequencer_block)
+            .put_sequencer_block(sequencer_block.clone())
             .wrap_err("failed to write sequencer block to state")?;
 
         handle_consensus_param_updates(
@@ -1044,7 +1076,7 @@ impl App {
         // there should be none anyways.
         let _ = self.apply(state_tx);
 
-        Ok(())
+        Ok(sequencer_block)
     }
 
     /// Executes the given block, but does not write it to disk.
@@ -1116,18 +1148,20 @@ impl App {
                 )
             };
 
+        // FIXME: refactor to avoid cloning the finalize block
+        let finalize_block_arc = Arc::new(finalize_block.clone());
+
         // When the hash is not empty, we have already executed and cached the results
         if self.executed_proposal_hash.is_empty() {
             // convert tendermint id to astria address; this assumes they are
             // the same address, as they are both ed25519 keys
             let proposer_address = finalize_block.proposer_address;
-            let height = finalize_block.height;
             let time = finalize_block.time;
 
             // we haven't executed anything yet, so set up the state for execution.
             let block_data = BlockData {
                 misbehavior: finalize_block.misbehavior,
-                height,
+                height: finalize_block.height,
                 time,
                 next_validators_hash: finalize_block.next_validators_hash,
                 proposer_address,
@@ -1172,7 +1206,7 @@ impl App {
 
             self.post_execute_transactions(
                 finalize_block.hash,
-                height,
+                finalize_block.height,
                 time,
                 proposer_address,
                 finalize_block.txs,
@@ -1181,13 +1215,6 @@ impl App {
             .await
             .wrap_err("failed to run post execute transactions handler")?;
         }
-
-        // update the priority of any txs in the mempool based on the updated app state
-        if self.recost_mempool {
-            self.metrics.increment_mempool_recosted();
-        }
-        update_mempool_after_finalization(&mut self.mempool, &self.state, self.recost_mempool)
-            .await;
 
         let post_transaction_execution_result: PostTransactionExecutionResult = self
             .state
@@ -1203,7 +1230,7 @@ impl App {
             .await
             .wrap_err("failed to prepare commit")?;
         events.extend(post_transaction_execution_result.events);
-        let finalize_block = abci::response::FinalizeBlock {
+        let finalize_block_response = abci::response::FinalizeBlock {
             events,
             validator_updates: post_transaction_execution_result.validator_updates,
             consensus_param_updates: post_transaction_execution_result.consensus_param_updates,
@@ -1211,7 +1238,9 @@ impl App {
             tx_results: post_transaction_execution_result.tx_results,
         };
 
-        Ok(finalize_block)
+        self.event_bus.send_finalized_block(finalize_block_arc);
+
+        Ok(finalize_block_response)
     }
 
     #[instrument(skip_all, err(level = Level::WARN))]
@@ -1418,6 +1447,13 @@ impl App {
 
         // Get the latest version of the state, now that we've committed it.
         self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
+
+        // update the priority of any txs in the mempool based on the updated app state
+        if self.recost_mempool {
+            self.metrics.increment_mempool_recosted();
+        }
+        update_mempool_after_finalization(&mut self.mempool, &self.state, self.recost_mempool)
+            .await;
     }
 
     // StateDelta::apply only works when the StateDelta wraps an underlying

@@ -142,10 +142,18 @@ impl ActionHandler for Transaction {
                     .check_stateless()
                     .await
                     .wrap_err("stateless check failed for BridgeUnlock action")?,
+                Action::BridgeTransfer(act) => act
+                    .check_stateless()
+                    .await
+                    .wrap_err("stateless check failed for BridgeTransfer action")?,
                 Action::BridgeSudoChange(act) => act
                     .check_stateless()
                     .await
                     .wrap_err("stateless check failed for BridgeSudoChange action")?,
+                Action::RecoverIbcClient(act) => act
+                    .check_stateless()
+                    .await
+                    .wrap_err("stateless check failed for RecoverIbcClient action")?,
                 Action::PriceFeed(act) => act
                     .check_stateless()
                     .await
@@ -273,9 +281,15 @@ impl ActionHandler for Transaction {
                 Action::BridgeUnlock(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("failed executing bridge unlock")?,
+                Action::BridgeTransfer(act) => check_execute_and_pay_fees(act, &mut state)
+                    .await
+                    .wrap_err("failed executing bridge transfer")?,
                 Action::BridgeSudoChange(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("failed executing bridge sudo change")?,
+                Action::RecoverIbcClient(act) => check_execute_and_pay_fees(act, &mut state)
+                    .await
+                    .wrap_err("failed executing recover ibc client")?,
                 Action::PriceFeed(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("failed executing price feed")?,

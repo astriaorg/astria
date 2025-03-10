@@ -17,6 +17,7 @@ use astria_core::{
             action::{
                 BridgeLock,
                 BridgeSudoChange,
+                BridgeTransfer,
                 BridgeUnlock,
                 FeeAssetChange,
                 FeeChange,
@@ -25,6 +26,7 @@ use astria_core::{
                 Ics20Withdrawal,
                 InitBridgeAccount,
                 PriceFeed,
+                RecoverIbcClient,
                 RollupDataSubmission,
                 SudoAddressChange,
                 Transfer,
@@ -292,6 +294,7 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
         OnceCell::new();
     let bridge_lock_fees: OnceCell<Option<FeeComponents<BridgeLock>>> = OnceCell::new();
     let bridge_unlock_fees: OnceCell<Option<FeeComponents<BridgeUnlock>>> = OnceCell::new();
+    let bridge_transfer_fees: OnceCell<Option<FeeComponents<BridgeTransfer>>> = OnceCell::new();
     let bridge_sudo_change_fees: OnceCell<Option<FeeComponents<BridgeSudoChange>>> =
         OnceCell::new();
     let validator_update_fees: OnceCell<Option<FeeComponents<ValidatorUpdate>>> = OnceCell::new();
@@ -303,6 +306,8 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
         OnceCell::new();
     let fee_asset_change_fees: OnceCell<Option<FeeComponents<FeeAssetChange>>> = OnceCell::new();
     let fee_change_fees: OnceCell<Option<FeeComponents<FeeChange>>> = OnceCell::new();
+    let recover_ibc_client_fees: OnceCell<Option<FeeComponents<RecoverIbcClient>>> =
+        OnceCell::new();
     let price_feed_fees: OnceCell<Option<FeeComponents<PriceFeed>>> = OnceCell::new();
 
     let mut fees_by_asset = HashMap::new();
@@ -330,6 +335,10 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
             }
             Action::BridgeUnlock(act) => {
                 let fees = get_or_init_fees(state, &bridge_unlock_fees).await?;
+                calculate_and_add_fees(act, &mut fees_by_asset, fees);
+            }
+            Action::BridgeTransfer(act) => {
+                let fees = get_or_init_fees(state, &bridge_transfer_fees).await?;
                 calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
             Action::BridgeSudoChange(act) => {
@@ -362,6 +371,10 @@ pub(crate) async fn get_fees_for_transaction<S: StateRead>(
             }
             Action::FeeChange(act) => {
                 let fees = get_or_init_fees(state, &fee_change_fees).await?;
+                calculate_and_add_fees(act, &mut fees_by_asset, fees);
+            }
+            Action::RecoverIbcClient(act) => {
+                let fees = get_or_init_fees(state, &recover_ibc_client_fees).await?;
                 calculate_and_add_fees(act, &mut fees_by_asset, fees);
             }
             Action::PriceFeed(act) => {
@@ -456,6 +469,7 @@ struct AllFeeComponents {
     init_bridge_account: FetchResult,
     bridge_lock: FetchResult,
     bridge_unlock: FetchResult,
+    bridge_transfer: FetchResult,
     bridge_sudo_change: FetchResult,
     ibc_relay: FetchResult,
     validator_update: FetchResult,
@@ -464,6 +478,7 @@ struct AllFeeComponents {
     ibc_relayer_change: FetchResult,
     sudo_address_change: FetchResult,
     ibc_sudo_change: FetchResult,
+    recover_ibc_client: FetchResult,
 }
 
 #[derive(serde::Serialize)]
@@ -495,6 +510,7 @@ async fn get_all_fee_components<S: StateRead>(state: &S) -> AllFeeComponents {
         init_bridge_account,
         bridge_lock,
         bridge_unlock,
+        bridge_transfer,
         bridge_sudo_change,
         validator_update,
         sudo_address_change,
@@ -503,6 +519,7 @@ async fn get_all_fee_components<S: StateRead>(state: &S) -> AllFeeComponents {
         ibc_relayer_change,
         fee_asset_change,
         fee_change,
+        recover_ibc_client,
     ) = join!(
         state.get_fees::<Transfer>().map(FetchResult::from),
         state
@@ -512,6 +529,7 @@ async fn get_all_fee_components<S: StateRead>(state: &S) -> AllFeeComponents {
         state.get_fees::<InitBridgeAccount>().map(FetchResult::from),
         state.get_fees::<BridgeLock>().map(FetchResult::from),
         state.get_fees::<BridgeUnlock>().map(FetchResult::from),
+        state.get_fees::<BridgeTransfer>().map(FetchResult::from),
         state.get_fees::<BridgeSudoChange>().map(FetchResult::from),
         state.get_fees::<ValidatorUpdate>().map(FetchResult::from),
         state.get_fees::<SudoAddressChange>().map(FetchResult::from),
@@ -520,6 +538,7 @@ async fn get_all_fee_components<S: StateRead>(state: &S) -> AllFeeComponents {
         state.get_fees::<IbcRelayerChange>().map(FetchResult::from),
         state.get_fees::<FeeAssetChange>().map(FetchResult::from),
         state.get_fees::<FeeChange>().map(FetchResult::from),
+        state.get_fees::<RecoverIbcClient>().map(FetchResult::from),
     );
     AllFeeComponents {
         transfer,
@@ -528,6 +547,7 @@ async fn get_all_fee_components<S: StateRead>(state: &S) -> AllFeeComponents {
         init_bridge_account,
         bridge_lock,
         bridge_unlock,
+        bridge_transfer,
         bridge_sudo_change,
         ibc_relay,
         validator_update,
@@ -536,6 +556,7 @@ async fn get_all_fee_components<S: StateRead>(state: &S) -> AllFeeComponents {
         ibc_relayer_change,
         sudo_address_change,
         ibc_sudo_change,
+        recover_ibc_client,
     }
 }
 

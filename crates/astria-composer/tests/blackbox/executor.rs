@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    fmt::Write as _,
+    time::Duration,
+};
 
 use astria_core::{
     generated::astria::composer::v1::{
@@ -17,6 +20,7 @@ use crate::helper::{
     mount_broadcast_tx_sync_rollup_data_submissions_mock,
     signed_tx_from_request,
     spawn_composer,
+    TEST_CHAIN_ID,
 };
 
 /// Test to check that the executor sends a signed transaction to the sequencer after its
@@ -207,22 +211,23 @@ async fn two_rollup_data_submissions_single_bundle() {
 /// ID
 #[tokio::test]
 async fn chain_id_mismatch_returns_error() {
-    // TODO(https://github.com/astriaorg/astria/issues/1833): this test will currently succeed if
-    // the executor fails for any reason on startup, not just if the chain ID is incorrect. This is
-    // a symptom of the current implementation of executor, though, which should be propagating
-    // errors. As such, I think it is out of the scope for the following test-only changes and
-    // should be fixed in a followup.
-
     let bad_chain_id = "bad_id";
     let test_composer = spawn_composer(&["test1"], Some(bad_chain_id), false).await;
+    let expected_err_msg =
+        format!("expected chain ID `{TEST_CHAIN_ID}`, but received `{bad_chain_id}`");
     let err = test_composer.composer.await.unwrap().unwrap_err();
     for cause in err.chain() {
-        if cause
-            .to_string()
-            .contains("executor failed while waiting for it to become ready")
-        {
+        if cause.to_string().contains(&expected_err_msg) {
             return;
         }
     }
-    panic!("did not find expected executor error message")
+    let mut panic_msg = String::new();
+    writeln!(
+        &mut panic_msg,
+        "did not find expected executor error message"
+    )
+    .unwrap();
+    writeln!(&mut panic_msg, "expected cause:\n\t{expected_err_msg}").unwrap();
+    writeln!(&mut panic_msg, "actual cause chain:\n\t{err:?}").unwrap();
+    panic!("{panic_msg}");
 }

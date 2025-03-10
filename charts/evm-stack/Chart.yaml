@@ -23,12 +23,21 @@ dependencies:
     repository: "file://../celestia-node"
     condition: celestia-node.enabled
   - name: evm-rollup
-    version: 1.2.0
+    version: 1.2.1
     repository: "file://../evm-rollup"
+    condition: evm-rollup.enabled
+  - name: flame-rollup
+    version: 0.0.2
+    repository: "file://../flame-rollup"
+    condition: flame-rollup.enabled
   - name: composer
     version: 1.0.0
     repository: "file://../composer"
     condition: composer.enabled
+  - name: auctioneer
+    version: 0.0.2
+    repository: "file://../auctioneer"
+    condition: auctioneer.enabled
   - name: evm-faucet
     version: 0.1.4
     repository: "file://../evm-faucet"
