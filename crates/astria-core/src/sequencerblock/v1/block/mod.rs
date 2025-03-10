@@ -1,13 +1,19 @@
+#[cfg(test)]
+mod tests;
+
 use std::{
     collections::HashMap,
     fmt::Display,
-    vec::IntoIter,
+    sync::Arc,
 };
 
 use bytes::Bytes;
 use indexmap::IndexMap;
 use prost::Message as _;
-use sha2::Sha256;
+use sha2::{
+    Digest as _,
+    Sha256,
+};
 use tendermint::{
     account,
     Time,
@@ -28,7 +34,10 @@ use crate::{
         CurrencyPair,
         CurrencyPairError,
     },
-    generated::protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping as RawExtendedCommitInfoWithCurrencyPairMapping,
+    generated::protocol::{
+        connect::v1::ExtendedCommitInfoWithCurrencyPairMapping as RawExtendedCommitInfoWithCurrencyPairMapping,
+        transaction::v1::Transaction as RawTransaction,
+    },
     primitive::v1::{
         asset,
         derive_merkle_tree_from_rollup_txs,
@@ -50,8 +59,14 @@ use crate::{
             TransactionError,
         },
     },
+    upgrades::v1::{
+        ChangeHash,
+        ChangeHashError,
+    },
     Protobuf,
 };
+
+const SHA256_DIGEST_LENGTH: usize = 32;
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
@@ -154,12 +169,9 @@ impl RollupTransactions {
         };
         let rollup_id =
             RollupId::try_from_raw(rollup_id).map_err(RollupTransactionsError::rollup_id)?;
-        let proof = 'proof: {
-            let Some(proof) = proof else {
-                break 'proof Err(RollupTransactionsError::field_not_set("proof"));
-            };
-            merkle::Proof::try_from_raw(proof).map_err(RollupTransactionsError::proof_invalid)
-        }?;
+        let raw_proof = proof.ok_or_else(|| RollupTransactionsError::field_not_set("proof"))?;
+        let proof = merkle::Proof::try_from_raw(raw_proof)
+            .map_err(RollupTransactionsError::proof_invalid)?;
         let transactions = transactions.into_iter().map(Into::into).collect();
         Ok(Self {
             rollup_id,
@@ -234,32 +246,32 @@ impl SequencerBlockError {
         Self(SequencerBlockErrorKind::IdProofInvalid(source))
     }
 
-    fn no_extended_commit_info() -> Self {
-        Self(SequencerBlockErrorKind::NoExtendedCommitInfo)
+    fn data_item(source: DataItemError) -> Self {
+        Self(SequencerBlockErrorKind::DataItem(source))
     }
 
     fn no_rollup_transactions_root() -> Self {
         Self(SequencerBlockErrorKind::NoRollupTransactionsRoot)
     }
 
-    fn incorrect_rollup_transactions_root_length(len: usize) -> Self {
-        Self(SequencerBlockErrorKind::IncorrectRollupTransactionsRootLength(len))
+    fn incorrect_rollup_transactions_root_length() -> Self {
+        Self(SequencerBlockErrorKind::IncorrectRollupTransactionsRootLength)
     }
 
     fn no_rollup_ids_root() -> Self {
         Self(SequencerBlockErrorKind::NoRollupIdsRoot)
     }
 
-    fn incorrect_rollup_ids_root_length(len: usize) -> Self {
-        Self(SequencerBlockErrorKind::IncorrectRollupIdsRootLength(len))
+    fn incorrect_rollup_ids_root_length() -> Self {
+        Self(SequencerBlockErrorKind::IncorrectRollupIdsRootLength)
+    }
+
+    fn no_extended_commit_info() -> Self {
+        Self(SequencerBlockErrorKind::NoExtendedCommitInfo)
     }
 
     fn rollup_transactions_not_in_sequencer_block() -> Self {
         Self(SequencerBlockErrorKind::RollupTransactionsNotInSequencerBlock)
-    }
-
-    fn rollup_ids_not_in_sequencer_block() -> Self {
-        Self(SequencerBlockErrorKind::RollupIdsNotInSequencerBlock)
     }
 
     fn transaction_protobuf_decode(source: prost::DecodeError) -> Self {
@@ -284,6 +296,10 @@ impl SequencerBlockError {
 
     fn invalid_rollup_ids_proof() -> Self {
         Self(SequencerBlockErrorKind::InvalidRollupIdsProof)
+    }
+
+    fn upgrade_change_hashes(source: ChangeHashError) -> Self {
+        Self(SequencerBlockErrorKind::UpgradeChangeHashes(source))
     }
 
     fn extended_commit_info(source: ExtendedCommitInfoError) -> Self {
@@ -318,67 +334,57 @@ enum SequencerBlockErrorKind {
     TransactionProofInvalid(#[source] merkle::audit::InvalidProof),
     #[error("failed constructing a rollup ID proof from the raw protobuf rollup ID proof")]
     IdProofInvalid(#[source] merkle::audit::InvalidProof),
-    #[error(
-        "the cometbft block.data field was too short and did not contain the extended commit info"
-    )]
-    NoExtendedCommitInfo,
-    #[error(
-        "the cometbft block.data field was too short and did not contain the rollup transaction \
-         root"
-    )]
+    #[error(transparent)]
+    DataItem(DataItemError),
+    #[error("the cometbft `block.data` field did not contain the rollup transactions root")]
     NoRollupTransactionsRoot,
     #[error(
-        "the rollup transaction root in the cometbft block.data field was expected to be 32 bytes \
-         long, but was actually `{0}`"
+        "the rollup transactions root in the cometbft `block.data` field was not 32 bytes long"
     )]
-    IncorrectRollupTransactionsRootLength(usize),
-    #[error("the cometbft block.data field was too short and did not contain the rollup ID root")]
+    IncorrectRollupTransactionsRootLength,
+    #[error("the cometbft `block.data` field did not contain the rollup IDs root")]
     NoRollupIdsRoot,
-    #[error(
-        "the rollup ID root in the cometbft block.data field was expected to be 32 bytes long, \
-         but was actually `{0}`"
-    )]
-    IncorrectRollupIdsRootLength(usize),
+    #[error("the rollup IDs root in the cometbft `block.data` field was not 32 bytes long")]
+    IncorrectRollupIdsRootLength,
+    #[error("the cometbft `block.data` field did not contain the extended commit info")]
+    NoExtendedCommitInfo,
     #[error(
         "the Merkle Tree Hash derived from the rollup transactions recorded in the raw protobuf \
          sequencer block could not be verified against their proof and the block's data hash"
     )]
     RollupTransactionsNotInSequencerBlock,
     #[error(
-        "the Merkle Tree Hash derived from the rollup IDs recorded in the raw protobuf sequencer \
-         block could not be verified against their proof and the block's data hash"
-    )]
-    RollupIdsNotInSequencerBlock,
-    #[error(
-        "failed decoding an entry in the cometbft block.data field as a protobuf astria \
+        "failed decoding an entry in the cometbft `block.data` field as a protobuf astria \
          transaction"
     )]
     TransactionProtobufDecode(#[source] prost::DecodeError),
     #[error(
-        "failed converting a raw protobuf transaction decoded from the cometbft block.data
+        "failed converting a raw protobuf transaction decoded from the cometbft `block.data`
         field to a native astria transaction"
     )]
     RawTransactionConversion(#[source] TransactionError),
     #[error(
-        "the root derived from the rollup transactions in the cometbft block.data field did not \
+        "the root derived from the rollup transactions in the cometbft `block.data` field did not \
          match the root stored in the same block.data field"
     )]
     RollupTransactionsRootDoesNotMatchReconstructed,
     #[error(
-        "the root derived from the rollup IDs in the cometbft block.data field did not match the \
-         root stored in the same block.data field"
+        "the root derived from the rollup IDs in the cometbft `block.data` field did not match \
+         the root stored in the same block.data field"
     )]
     RollupIdsRootDoesNotMatchReconstructed,
     #[error(
-        "the rollup transactions root in the header did not verify against data_hash given the \
+        "the rollup transactions root in the header did not verify against `data_hash` given the \
          rollup transactions proof"
     )]
     InvalidRollupTransactionsRoot,
     #[error(
         "the rollup IDs root constructed from the block's rollup IDs did not verify against \
-         data_hash given the rollup IDs proof"
+         `data_hash` given the rollup IDs proof"
     )]
     InvalidRollupIdsProof,
+    #[error(transparent)]
+    UpgradeChangeHashes(ChangeHashError),
     #[error("extended commit info or proof error")]
     ExtendedCommitInfo(#[source] ExtendedCommitInfoError),
     #[error("failed to decode extended commit info")]
@@ -396,8 +402,8 @@ pub struct SequencerBlockHeaderParts {
     pub chain_id: tendermint::chain::Id,
     pub height: tendermint::block::Height,
     pub time: Time,
-    pub rollup_transactions_root: [u8; 32],
-    pub data_hash: [u8; 32],
+    pub rollup_transactions_root: [u8; SHA256_DIGEST_LENGTH],
+    pub data_hash: [u8; SHA256_DIGEST_LENGTH],
     pub proposer_address: account::Id,
 }
 
@@ -407,8 +413,8 @@ pub struct SequencerBlockHeader {
     height: tendermint::block::Height,
     time: Time,
     // the 32-byte merkle root of all the rollup transactions in the block
-    rollup_transactions_root: [u8; 32],
-    data_hash: [u8; 32],
+    rollup_transactions_root: [u8; SHA256_DIGEST_LENGTH],
+    data_hash: [u8; SHA256_DIGEST_LENGTH],
     proposer_address: account::Id,
 }
 
@@ -429,12 +435,12 @@ impl SequencerBlockHeader {
     }
 
     #[must_use]
-    pub fn rollup_transactions_root(&self) -> &[u8; 32] {
+    pub fn rollup_transactions_root(&self) -> &[u8; SHA256_DIGEST_LENGTH] {
         &self.rollup_transactions_root
     }
 
     #[must_use]
-    pub fn data_hash(&self) -> &[u8; 32] {
+    pub fn data_hash(&self) -> &[u8; SHA256_DIGEST_LENGTH] {
         &self.data_hash
     }
 
@@ -606,8 +612,8 @@ enum SequencerBlockHeaderErrorKind {
     #[error("failed to create a tendermint time from the raw protobuf time")]
     Time(#[source] tendermint::Error),
     #[error(
-        "the rollup transaction root in the cometbft block.data field was expected to be 32 bytes \
-         long, but was actually `{0}`"
+        "the rollup transaction root in the cometbft `block.data` field was expected to be 32 \
+         bytes long, but was actually `{0}`"
     )]
     IncorrectRollupTransactionsRootLength(usize),
     #[error(
@@ -626,8 +632,8 @@ pub struct SequencerBlockParts {
     pub rollup_transactions: IndexMap<RollupId, RollupTransactions>,
     pub rollup_transactions_proof: merkle::Proof,
     pub rollup_ids_proof: merkle::Proof,
-    pub extended_commit_info: Option<Bytes>,
-    pub extended_commit_info_proof: Option<merkle::Proof>,
+    pub upgrade_change_hashes: Vec<ChangeHash>,
+    pub extended_commit_info_with_proof: Option<ExtendedCommitInfoWithProof>,
 }
 
 /// A newtype wrapper around `[u8; 32]` to represent the hash of a [`SequencerBlock`].
@@ -723,9 +729,8 @@ pub struct SequencerBlockBuilder {
     pub height: tendermint::block::Height,
     pub time: Time,
     pub proposer_address: account::Id,
-    pub data: Vec<Bytes>,
+    pub expanded_block_data: ExpandedBlockData,
     pub deposits: HashMap<RollupId, Vec<Deposit>>,
-    pub with_extended_commit_info: bool,
 }
 
 impl SequencerBlockBuilder {
@@ -733,13 +738,9 @@ impl SequencerBlockBuilder {
     ///
     /// # Errors
     ///
-    /// - if the first transaction in the data is not the 32-byte rollup transactions root.
-    /// - if the second transaction in the data is not the 32-byte rollup IDs root.
-    /// - if `with_extended_commit_info` is set to `true` and the third transaction in the data is
-    ///   not the extended commit info.
-    /// - if any transaction in the data cannot be decoded.
-    /// - if the rollup transactions root does not match the reconstructed root.
-    /// - if the rollup IDs root does not match the reconstructed root.
+    /// Returns an error if `expanded_block_data.rollup_transactions_root` does not match
+    /// reconstructed root, or if `expanded_block_data.rollup_ids_root` does not match reconstructed
+    /// root.
     ///
     /// # Panics
     ///
@@ -751,33 +752,24 @@ impl SequencerBlockBuilder {
             height,
             time,
             proposer_address,
-            data,
+            expanded_block_data,
             deposits,
-            with_extended_commit_info,
         } = self;
 
-        let InitialDataElements {
+        let ExpandedBlockData {
             data_root_hash,
-            // This iterator over `data` has been advanced to skip the injected transactions while
-            // retrieving the initial elements. The next element to be yielded will be
-            // the first of the actual user-submitted txs.
-            data_iter,
-            extended_commit_info,
-            extended_commit_info_proof,
             rollup_transactions_root,
             rollup_transactions_proof,
             rollup_ids_root,
             rollup_ids_proof,
-        } = take_initial_elements_from_data(data, with_extended_commit_info)?;
+            upgrade_change_hashes,
+            extended_commit_info_with_proof,
+            user_submitted_transactions,
+        } = expanded_block_data;
 
         let mut rollup_datas = IndexMap::new();
-        for elem in data_iter {
-            let raw_tx =
-                crate::generated::astria::protocol::transaction::v1::Transaction::decode(&*elem)
-                    .map_err(SequencerBlockError::transaction_protobuf_decode)?;
-            let tx = Transaction::try_from_raw(raw_tx)
-                .map_err(SequencerBlockError::raw_signed_transaction_conversion)?;
-            for action in tx.into_unsigned().into_actions() {
+        for tx in user_submitted_transactions {
+            for action in (*tx).clone().into_unsigned().into_actions() {
                 // XXX: The fee asset is dropped. We should explain why that's ok.
                 if let action::Action::RollupDataSubmission(action::RollupDataSubmission {
                     rollup_id,
@@ -854,8 +846,8 @@ impl SequencerBlockBuilder {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
-            extended_commit_info,
-            extended_commit_info_proof,
+            upgrade_change_hashes,
+            extended_commit_info_with_proof,
         })
     }
 }
@@ -877,27 +869,27 @@ pub struct SequencerBlock {
     /// The collection of rollup transactions that were included in this block.
     rollup_transactions: IndexMap<RollupId, RollupTransactions>,
     /// The proof that the rollup transactions are included in the `CometBFT` block this
-    /// sequencer block is derived form. This proof together with
+    /// sequencer block is derived from. This proof together with
     /// `Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
     /// `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
     /// rollup transactions.
     rollup_transactions_proof: merkle::Proof,
     /// The proof that the rollup IDs listed in `rollup_transactions` are included
-    /// in the `CometBFT` block this sequencer block is derived form. This proof together
+    /// in the `CometBFT` block this sequencer block is derived from. This proof together
     /// with `Sha256(MTH(rollup_ids))` must match `header.data_hash`.
     /// `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
     /// the rollup transactions.
     rollup_ids_proof: merkle::Proof,
-    /// The extended commit info for the block, if vote extensions were enabled at this height.
+    /// The hashes of any upgrade changes applied during this block.
     ///
-    /// This is verified to be of the form `ExtendedCommitInfoWithCurrencyPairMapping` when the
-    /// type is constructed, but is left as `Bytes` so that it can be verified against the
-    /// `data_hash` using the `extended_commit_info_proof` (as re-encoding the protobuf type
-    /// may not be deterministic).
-    extended_commit_info: Option<Bytes>,
-    /// The proof that the extended commit info is included in the cometbft block data (if it
-    /// exists), specifically the third item in the data field.
-    extended_commit_info_proof: Option<merkle::Proof>,
+    /// If this is not empty, then the hashes are the third item in the cometbft block's `data`.
+    upgrade_change_hashes: Vec<ChangeHash>,
+    /// The extended commit info for the block and its proof, if vote extensions were enabled at
+    /// this height.
+    ///
+    /// This is normally the third item in the cometbft block's `data`, but is the fourth if the
+    /// block also has upgrade change hashes.
+    extended_commit_info_with_proof: Option<ExtendedCommitInfoWithProof>,
 }
 
 impl SequencerBlock {
@@ -936,39 +928,29 @@ impl SequencerBlock {
     }
 
     #[must_use]
-    pub fn extended_commit_info(&self) -> Option<&Bytes> {
-        self.extended_commit_info.as_ref()
+    pub fn upgrade_change_hashes(&self) -> &Vec<ChangeHash> {
+        &self.upgrade_change_hashes
+    }
+
+    #[must_use]
+    pub fn extended_commit_info(&self) -> Option<&ExtendedCommitInfoWithCurrencyPairMapping> {
+        self.extended_commit_info_with_proof
+            .as_ref()
+            .map(ExtendedCommitInfoWithProof::extended_commit_info)
+    }
+
+    #[must_use]
+    pub fn encoded_extended_commit_info(&self) -> Option<&Bytes> {
+        self.extended_commit_info_with_proof
+            .as_ref()
+            .map(ExtendedCommitInfoWithProof::encoded_extended_commit_info)
     }
 
     #[must_use]
     pub fn extended_commit_info_proof(&self) -> Option<&merkle::Proof> {
-        self.extended_commit_info_proof.as_ref()
-    }
-
-    /// Returns the decoded `ExtendedCommitInfoWithCurrencyPairMapping` contained in this block.
-    ///
-    /// # Panics
-    ///
-    /// - if the `extended_commit_info` field is not a valid protobuf
-    ///   `ExtendedCommitInfoWithCurrencyPairMapping`; this should not happen as this type can only
-    ///   be constructed with a valid protobuf.
-    #[must_use]
-    pub fn decoded_extended_commit_info(
-        &self,
-    ) -> Option<ExtendedCommitInfoWithCurrencyPairMapping> {
-        let extended_commit_info = self.extended_commit_info.clone()?;
-
-        let raw_info = RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info)
-            .expect(
-                "must be a valid protobuf as the type was verified when constructing the \
-                 sequencer block",
-            );
-        Some(
-            ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info).expect(
-                "must be a valid ExtendedCommitInfoWithCurrencyPairMapping as the type was \
-                 verified when constructing the sequencer block",
-            ),
-        )
+        self.extended_commit_info_with_proof
+            .as_ref()
+            .map(ExtendedCommitInfoWithProof::proof)
     }
 
     /// Converts a [`SequencerBlock`] into its [`SequencerBlockParts`].
@@ -980,8 +962,8 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
-            extended_commit_info,
-            extended_commit_info_proof,
+            upgrade_change_hashes,
+            extended_commit_info_with_proof,
         } = self;
         SequencerBlockParts {
             block_hash,
@@ -989,8 +971,8 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
-            extended_commit_info,
-            extended_commit_info_proof,
+            upgrade_change_hashes,
+            extended_commit_info_with_proof,
         }
     }
 
@@ -1008,8 +990,8 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
-            extended_commit_info,
-            extended_commit_info_proof,
+            upgrade_change_hashes,
+            extended_commit_info_with_proof,
         } = self;
         raw::SequencerBlock {
             block_hash: Bytes::copy_from_slice(block_hash.as_bytes()),
@@ -1020,8 +1002,12 @@ impl SequencerBlock {
                 .collect(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
-            extended_commit_info: extended_commit_info.map(Into::into),
-            extended_commit_info_proof: extended_commit_info_proof.map(merkle::Proof::into_raw),
+            upgrade_change_hashes: upgrade_change_hashes
+                .into_iter()
+                .map(|change_hash| Bytes::copy_from_slice(change_hash.as_bytes()))
+                .collect(),
+            extended_commit_info_with_proof: extended_commit_info_with_proof
+                .map(ExtendedCommitInfoWithProof::into_raw),
         }
     }
 
@@ -1048,8 +1034,8 @@ impl SequencerBlock {
             rollup_transactions_proof: self.rollup_transactions_proof,
             all_rollup_ids,
             rollup_ids_proof: self.rollup_ids_proof,
-            extended_commit_info: self.extended_commit_info,
-            extended_commit_info_proof: self.extended_commit_info_proof,
+            upgrade_change_hashes: self.upgrade_change_hashes,
+            extended_commit_info_with_proof: self.extended_commit_info_with_proof,
         }
     }
 
@@ -1076,8 +1062,8 @@ impl SequencerBlock {
             rollup_transactions_proof: self.rollup_transactions_proof.clone(),
             all_rollup_ids,
             rollup_ids_proof: self.rollup_ids_proof.clone(),
-            extended_commit_info: self.extended_commit_info.clone(),
-            extended_commit_info_proof: self.extended_commit_info_proof.clone(),
+            upgrade_change_hashes: self.upgrade_change_hashes.clone(),
+            extended_commit_info_with_proof: self.extended_commit_info_with_proof.clone(),
         }
     }
 
@@ -1092,8 +1078,6 @@ impl SequencerBlock {
     /// # Errors
     /// TODO(https://github.com/astriaorg/astria/issues/612)
     pub fn try_from_raw(raw: raw::SequencerBlock) -> Result<Self, SequencerBlockError> {
-        use sha2::Digest as _;
-
         fn rollup_txs_to_tuple(
             raw: raw::RollupTransactions,
         ) -> Result<(RollupId, RollupTransactions), RollupTransactionsError> {
@@ -1107,8 +1091,8 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
-            extended_commit_info,
-            extended_commit_info_proof,
+            upgrade_change_hashes,
+            extended_commit_info_with_proof,
         } = raw;
 
         let block_hash = block_hash
@@ -1116,28 +1100,19 @@ impl SequencerBlock {
             .try_into()
             .map_err(|_| SequencerBlockError::invalid_block_hash(block_hash.len()))?;
 
-        let rollup_transactions_proof = 'proof: {
-            let Some(rollup_transactions_proof) = rollup_transactions_proof else {
-                break 'proof Err(SequencerBlockError::field_not_set(
-                    "rollup_transactions_proof",
-                ));
-            };
-            merkle::Proof::try_from_raw(rollup_transactions_proof)
-                .map_err(SequencerBlockError::transaction_proof_invalid)
-        }?;
-        let rollup_ids_proof = 'proof: {
-            let Some(rollup_ids_proof) = rollup_ids_proof else {
-                break 'proof Err(SequencerBlockError::field_not_set("rollup_ids_proof"));
-            };
-            merkle::Proof::try_from_raw(rollup_ids_proof)
-                .map_err(SequencerBlockError::id_proof_invalid)
-        }?;
-        let header = 'header: {
-            let Some(header) = header else {
-                break 'header Err(SequencerBlockError::field_not_set("header"));
-            };
-            SequencerBlockHeader::try_from_raw(header).map_err(SequencerBlockError::header)
-        }?;
+        let raw_rollup_transactions_proof = rollup_transactions_proof
+            .ok_or_else(|| SequencerBlockError::field_not_set("rollup_transactions_proof"))?;
+        let rollup_transactions_proof = merkle::Proof::try_from_raw(raw_rollup_transactions_proof)
+            .map_err(SequencerBlockError::transaction_proof_invalid)?;
+
+        let raw_rollup_ids_proof = rollup_ids_proof
+            .ok_or_else(|| SequencerBlockError::field_not_set("rollup_ids_proof"))?;
+        let rollup_ids_proof = merkle::Proof::try_from_raw(raw_rollup_ids_proof)
+            .map_err(SequencerBlockError::id_proof_invalid)?;
+
+        let raw_header = header.ok_or_else(|| SequencerBlockError::field_not_set("header"))?;
+        let header =
+            SequencerBlockHeader::try_from_raw(raw_header).map_err(SequencerBlockError::header)?;
 
         let rollup_transactions: IndexMap<RollupId, RollupTransactions> = rollup_transactions
             .into_iter()
@@ -1153,28 +1128,25 @@ impl SequencerBlock {
             return Err(SequencerBlockError::invalid_rollup_transactions_root());
         };
 
-        let rollup_ids_root = merkle::Tree::from_leaves(rollup_transactions.keys()).root();
-        if !rollup_ids_proof.verify(&Sha256::digest(rollup_ids_root), data_hash) {
-            return Err(SequencerBlockError::invalid_rollup_ids_proof());
-        };
-
         if !are_rollup_txs_included(&rollup_transactions, &rollup_transactions_proof, data_hash) {
             return Err(SequencerBlockError::rollup_transactions_not_in_sequencer_block());
         }
-        if !are_rollup_ids_included(
-            rollup_transactions.keys().copied(),
-            &rollup_ids_proof,
-            data_hash,
-        ) {
-            return Err(SequencerBlockError::rollup_ids_not_in_sequencer_block());
+        if !are_rollup_ids_included(rollup_transactions.keys(), &rollup_ids_proof, data_hash) {
+            return Err(SequencerBlockError::invalid_rollup_ids_proof());
         }
 
-        let extended_commit_info_proof = get_and_verify_extended_commit_info_proof(
-            extended_commit_info.clone(),
-            extended_commit_info_proof,
-            data_hash,
-        )
-        .map_err(SequencerBlockError::extended_commit_info)?;
+        let upgrade_change_hashes = upgrade_change_hashes
+            .into_iter()
+            .map(|raw_hash| ChangeHash::try_from(raw_hash.as_ref()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(SequencerBlockError::upgrade_change_hashes)?;
+
+        let extended_commit_info_with_proof = extended_commit_info_with_proof
+            .map(|raw| {
+                ExtendedCommitInfoWithProof::try_from_raw(raw, data_hash)
+                    .map_err(SequencerBlockError::extended_commit_info)
+            })
+            .transpose()?;
 
         Ok(Self {
             block_hash,
@@ -1182,8 +1154,8 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
-            extended_commit_info,
-            extended_commit_info_proof,
+            upgrade_change_hashes,
+            extended_commit_info_with_proof,
         })
     }
 
@@ -1202,8 +1174,8 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
-            extended_commit_info,
-            extended_commit_info_proof,
+            upgrade_change_hashes,
+            extended_commit_info_with_proof,
         } = parts;
         Self {
             block_hash,
@@ -1211,8 +1183,8 @@ impl SequencerBlock {
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
-            extended_commit_info,
-            extended_commit_info_proof,
+            upgrade_change_hashes,
+            extended_commit_info_with_proof,
         }
     }
 }
@@ -1226,20 +1198,16 @@ impl ExtendedCommitInfoError {
         Self(ExtendedCommitInfoErrorKind::ProofNotSet)
     }
 
-    fn invalid_extended_commit_info_proof(source: merkle::audit::InvalidProof) -> Self {
-        Self(ExtendedCommitInfoErrorKind::InvalidExtendedCommitInfoProof(
-            source,
-        ))
+    fn invalid_proof(source: merkle::audit::InvalidProof) -> Self {
+        Self(ExtendedCommitInfoErrorKind::InvalidProof(source))
     }
 
-    fn extended_commit_info_not_in_sequencer_block() -> Self {
-        Self(ExtendedCommitInfoErrorKind::ExtendedCommitInfoNotInSequencerBlock)
+    fn not_in_sequencer_block() -> Self {
+        Self(ExtendedCommitInfoErrorKind::NotInSequencerBlock)
     }
 
-    fn decode_extended_commit_info(source: prost::DecodeError) -> Self {
-        Self(ExtendedCommitInfoErrorKind::DecodeExtendedCommitInfo(
-            source,
-        ))
+    fn decode(source: prost::DecodeError) -> Self {
+        Self(ExtendedCommitInfoErrorKind::Decode(source))
     }
 
     fn invalid_extended_commit_info(
@@ -1253,122 +1221,466 @@ impl ExtendedCommitInfoError {
 
 #[derive(Debug, thiserror::Error)]
 enum ExtendedCommitInfoErrorKind {
-    #[error("the extended commit info was not set")]
+    #[error("the extended commit info proof field was not set")]
     ProofNotSet,
     #[error("failed to convert into native extended commit info proof from the raw protobuf")]
-    InvalidExtendedCommitInfoProof(#[source] merkle::audit::InvalidProof),
+    InvalidProof(#[source] merkle::audit::InvalidProof),
     #[error(
         "the extended commit info in the sequencer block was not included in the block's data hash"
     )]
-    ExtendedCommitInfoNotInSequencerBlock,
+    NotInSequencerBlock,
     #[error("failed decoding the extended commit info from the raw protobuf")]
-    DecodeExtendedCommitInfo(prost::DecodeError),
-    #[error("failed constructing the extended commit info proof from the raw protobuf")]
+    Decode(prost::DecodeError),
+    #[error(
+        "failed constructing the extended commit info with currency pair mapping from the raw \
+         protobuf"
+    )]
     InvalidExtendedCommitInfo(ExtendedCommitInfoWithCurrencyPairMappingError),
 }
 
-fn get_and_verify_extended_commit_info_proof(
-    extended_commit_info: Option<Bytes>,
-    extended_commit_info_proof: Option<crate::generated::primitive::v1::Proof>,
-    data_hash: [u8; 32],
-) -> Result<Option<merkle::Proof>, ExtendedCommitInfoError> {
-    use sha2::Digest as _;
+/// Wraps the initial elements of the `txs` field of CometBFT requests/responses like
+/// `PrepareProposal` and `FinalizeBlock`.
+///
+/// These special elements always appear before all the actual rollup txs in a defined order.
+///
+/// Rollup txs are not included in this enum as wrapping them would cause them to be indexed under
+/// a different hash from their original one by CometBFT, making it difficult for clients to
+/// identify their txs and meaning they would not be cleared out of the CometBFT mempool when added
+/// to a block.
+pub enum DataItem {
+    RollupTransactionsRoot([u8; SHA256_DIGEST_LENGTH]),
+    RollupIdsRoot([u8; SHA256_DIGEST_LENGTH]),
+    UpgradeChangeHashes(Vec<ChangeHash>),
+    ExtendedCommitInfo(Bytes),
+}
 
-    let extended_commit_info_proof = if let Some(extended_commit_info) = extended_commit_info {
-        let Some(extended_commit_info_proof) = extended_commit_info_proof else {
-            return Err(ExtendedCommitInfoError::proof_not_set());
-        };
-        let extended_commit_info_proof = merkle::Proof::try_from_raw(extended_commit_info_proof)
-            .map_err(ExtendedCommitInfoError::invalid_extended_commit_info_proof)?;
+impl DataItem {
+    /// The number of bytes output by [`Self::encode`] when `self` is `RollupIdsRoot`.
+    pub const ENCODED_ROLLUP_IDS_ROOT_LENGTH: usize = SHA256_DIGEST_LENGTH + 2;
+    /// The number of bytes output by [`Self::encode`] when `self` is `RollupTransactionsRoot`.
+    pub const ENCODED_ROLLUP_TRANSACTIONS_ROOT_LENGTH: usize = SHA256_DIGEST_LENGTH + 2;
+    const EXTENDED_COMMIT_INFO_VARIANT_NAME: &'static str = "extended commit info";
+    const ROLLUP_IDS_ROOT_VARIANT_NAME: &'static str = "rollup ids root";
+    const ROLLUP_TXS_ROOT_VARIANT_NAME: &'static str = "rollup transactions root";
+    const UPGRADE_HASHES_VARIANT_NAME: &'static str = "upgrade change hashes";
 
-        if !extended_commit_info_proof.verify(&Sha256::digest(&extended_commit_info), data_hash) {
-            return Err(ExtendedCommitInfoError::extended_commit_info_not_in_sequencer_block());
+    fn variant_name(&self) -> &'static str {
+        match self {
+            DataItem::RollupTransactionsRoot(_) => Self::ROLLUP_TXS_ROOT_VARIANT_NAME,
+            DataItem::RollupIdsRoot(_) => Self::ROLLUP_IDS_ROOT_VARIANT_NAME,
+            DataItem::UpgradeChangeHashes(_) => Self::UPGRADE_HASHES_VARIANT_NAME,
+            DataItem::ExtendedCommitInfo(_) => Self::EXTENDED_COMMIT_INFO_VARIANT_NAME,
         }
+    }
 
-        let raw_info = RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info)
-            .map_err(ExtendedCommitInfoError::decode_extended_commit_info)?;
-        ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info)
-            .map_err(ExtendedCommitInfoError::invalid_extended_commit_info)?;
+    /// Returns the protobuf-encoded bytes of `self`.
+    pub fn encode(&self) -> Bytes {
+        let value = match self {
+            DataItem::RollupTransactionsRoot(root) => {
+                raw::data_item::Value::RollupTransactionsRoot(Bytes::copy_from_slice(root))
+            }
+            DataItem::RollupIdsRoot(root) => {
+                raw::data_item::Value::RollupIdsRoot(Bytes::copy_from_slice(root))
+            }
+            DataItem::UpgradeChangeHashes(change_hashes) => {
+                let hashes = change_hashes
+                    .iter()
+                    .map(|change_hash| Bytes::copy_from_slice(change_hash.as_bytes()))
+                    .collect();
+                raw::data_item::Value::UpgradeChangeHashes(raw::data_item::UpgradeChangeHashes {
+                    hashes,
+                })
+            }
+            DataItem::ExtendedCommitInfo(info) => {
+                raw::data_item::Value::ExtendedCommitInfo(info.clone())
+            }
+        };
+        raw::DataItem {
+            value: Some(value),
+        }
+        .encode_to_vec()
+        .into()
+    }
 
-        Some(extended_commit_info_proof)
-    } else {
-        None
-    };
-    Ok(extended_commit_info_proof)
+    /// Decodes a `DataItem` from the protobuf-encoded `bytes`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if decoding fails.
+    fn decode(index_in_data_collection: usize, bytes: &[u8]) -> Result<Self, DataItemError> {
+        let raw = raw::DataItem::decode(bytes)
+            .map_err(|source| DataItemError::decode(source, index_in_data_collection))?;
+        let value = raw
+            .value
+            .ok_or_else(|| DataItemError::field_not_set("value"))?;
+        match value {
+            raw::data_item::Value::RollupTransactionsRoot(root) => {
+                let decoded_root = root.as_ref().try_into().map_err(|_| {
+                    DataItemError::incorrect_hash_length("rollup_transactions_root", root.len())
+                })?;
+                Ok(DataItem::RollupTransactionsRoot(decoded_root))
+            }
+            raw::data_item::Value::RollupIdsRoot(root) => {
+                let decoded_root = root.as_ref().try_into().map_err(|_| {
+                    DataItemError::incorrect_hash_length("rollup_ids_root", root.len())
+                })?;
+                Ok(DataItem::RollupIdsRoot(decoded_root))
+            }
+            raw::data_item::Value::UpgradeChangeHashes(hashes) => {
+                let decoded_hashes = hashes
+                    .hashes
+                    .into_iter()
+                    .map(|hash| {
+                        let bytes = hash.as_ref().try_into().map_err(|_| {
+                            DataItemError::incorrect_hash_length("upgrade_change_hash", hash.len())
+                        })?;
+                        Ok(ChangeHash::new(bytes))
+                    })
+                    .collect::<Result<_, _>>()?;
+                Ok(DataItem::UpgradeChangeHashes(decoded_hashes))
+            }
+            raw::data_item::Value::ExtendedCommitInfo(info) => {
+                Ok(DataItem::ExtendedCommitInfo(info))
+            }
+        }
+    }
+
+    fn into_rollup_transactions_root(
+        self,
+        index: usize,
+    ) -> Result<[u8; SHA256_DIGEST_LENGTH], DataItemError> {
+        match self {
+            DataItem::RollupTransactionsRoot(root_hash) => Ok(root_hash),
+            _ => Err(DataItemError::mismatch(
+                index,
+                Self::ROLLUP_TXS_ROOT_VARIANT_NAME,
+                self.variant_name(),
+            )),
+        }
+    }
+
+    fn into_rollup_ids_root(
+        self,
+        index: usize,
+    ) -> Result<[u8; SHA256_DIGEST_LENGTH], DataItemError> {
+        match self {
+            DataItem::RollupIdsRoot(root_hash) => Ok(root_hash),
+            _ => Err(DataItemError::mismatch(
+                index,
+                Self::ROLLUP_IDS_ROOT_VARIANT_NAME,
+                self.variant_name(),
+            )),
+        }
+    }
+
+    fn into_upgrade_change_hashes(self, index: usize) -> Result<Vec<ChangeHash>, DataItemError> {
+        match self {
+            DataItem::UpgradeChangeHashes(hashes) => Ok(hashes),
+            _ => Err(DataItemError::mismatch(
+                index,
+                Self::UPGRADE_HASHES_VARIANT_NAME,
+                self.variant_name(),
+            )),
+        }
+    }
+
+    fn into_extended_commit_info(self, index: usize) -> Result<Bytes, DataItemError> {
+        match self {
+            DataItem::ExtendedCommitInfo(bytes) => Ok(bytes),
+            _ => Err(DataItemError::mismatch(
+                index,
+                Self::EXTENDED_COMMIT_INFO_VARIANT_NAME,
+                self.variant_name(),
+            )),
+        }
+    }
 }
 
-struct InitialDataElements {
-    data_root_hash: [u8; 32],
-    data_iter: IntoIter<Bytes>,
-    extended_commit_info: Option<Bytes>,
-    extended_commit_info_proof: Option<merkle::Proof>,
-    rollup_transactions_root: [u8; 32],
-    rollup_transactions_proof: merkle::Proof,
-    rollup_ids_root: [u8; 32],
-    rollup_ids_proof: merkle::Proof,
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct DataItemError(DataItemErrorKind);
+
+impl DataItemError {
+    fn decode(source: prost::DecodeError, index: usize) -> Self {
+        Self(DataItemErrorKind::Decode {
+            source,
+            index,
+        })
+    }
+
+    fn field_not_set(field: &'static str) -> Self {
+        Self(DataItemErrorKind::FieldNotSet(field))
+    }
+
+    fn incorrect_hash_length(name: &'static str, actual: usize) -> Self {
+        Self(DataItemErrorKind::IncorrectHashLength {
+            name,
+            actual,
+        })
+    }
+
+    fn mismatch(index: usize, expected: &'static str, actual: &'static str) -> Self {
+        Self(DataItemErrorKind::Mismatch {
+            index,
+            expected,
+            actual,
+        })
+    }
 }
 
-fn take_initial_elements_from_data(
-    data: Vec<Bytes>,
-    with_extended_commit_info: bool,
-) -> Result<InitialDataElements, SequencerBlockError> {
-    let tree = merkle_tree_from_data(&data);
-    let data_root_hash = tree.root();
-    let mut data_iter = data.into_iter();
+#[derive(Debug, thiserror::Error)]
+enum DataItemErrorKind {
+    #[error("item {index} of cometbft `block.data` could not be protobuf-decoded")]
+    Decode {
+        source: prost::DecodeError,
+        index: usize,
+    },
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error("{name} hash must have exactly 32 bytes, but {actual} bytes provided")]
+    IncorrectHashLength { name: &'static str, actual: usize },
+    #[error("unexpected data element `{actual}` at index {index}, expected `{expected}`")]
+    Mismatch {
+        index: usize,
+        expected: &'static str,
+        actual: &'static str,
+    },
+}
 
-    let rollup_transactions_root: [u8; 32] = data_iter
-        .next()
-        .ok_or(SequencerBlockError::no_rollup_transactions_root())?
-        .as_ref()
-        .try_into()
-        .map_err(|_| {
-            SequencerBlockError::incorrect_rollup_transactions_root_length(data_iter.len())
-        })?;
-    let rollup_transactions_proof = tree.construct_proof(0).expect(
-        "the leaf must exist in the tree as `rollup_transactions_root` was created from the same \
-         index in `data` used to construct the tree",
-    );
+/// The parsed elements of the `data` field of a `SequencerBlock`, along with values derived from
+/// these.
+#[derive(Debug)]
+pub struct ExpandedBlockData {
+    /// The root hash of the Merkle tree derived from the `data` (not itself an actual entry in
+    /// `data`).
+    pub data_root_hash: [u8; SHA256_DIGEST_LENGTH],
+    /// The first item in `data`: the root hash of the Merkle tree derived from the rollup txs.
+    pub rollup_transactions_root: [u8; SHA256_DIGEST_LENGTH],
+    /// The proof that `rollup_transactions_root` exists in the data Merkle tree (not itself an
+    /// actual entry in `data`).
+    pub rollup_transactions_proof: merkle::Proof,
+    /// The second item in `data`: the root hash of the Merkle tree derived from the rollup IDs.
+    pub rollup_ids_root: [u8; SHA256_DIGEST_LENGTH],
+    /// The proof that `rollup_ids_root` exists in the data Merkle tree (not itself an actual entry
+    /// in `data`).
+    pub rollup_ids_proof: merkle::Proof,
+    /// The optional third item in `data`: the collection of `ChangeHash`es applied as part of an
+    /// upgrade executed during this block. If no such upgrade exists, there will be no entry in
+    /// `data` for this, as opposed to an empty or `None` entry.
+    pub upgrade_change_hashes: Vec<ChangeHash>,
+    /// The optional next item in `data` (third or fourth depending on whether an upgrade exists in
+    /// `data`): the encoded extended commit info, along with the proof that this entry exists in
+    /// the data Merkle tree. If extended commit info is enabled at this block height, this entry
+    /// must exist. If not, there must be no entry in `data` for this, as opposed to an empty or
+    /// `None` entry.
+    pub extended_commit_info_with_proof: Option<ExtendedCommitInfoWithProof>,
+    /// All remaining entries of `data`, parsed into txs, in the same order as they appear in
+    /// `data`.
+    pub user_submitted_transactions: Vec<Arc<Transaction>>,
+}
 
-    let rollup_ids_root: [u8; 32] = data_iter
-        .next()
-        .ok_or(SequencerBlockError::no_rollup_ids_root())?
-        .as_ref()
-        .try_into()
-        .map_err(|_| SequencerBlockError::incorrect_rollup_ids_root_length(data_iter.len()))?;
-    let rollup_ids_proof = tree.construct_proof(1).expect(
-        "the leaf must exist in the tree as `rollup_ids_root` was created from the same index in \
-         `data` used to construct the tree",
-    );
+impl ExpandedBlockData {
+    /// Constructs a new `ExpandedBlockData` from `data`, expecting the entries to be in the
+    /// pre-upgrade1 form of two raw `[u8; 32]` hashes followed by the raw bytes of rollup txs.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the data is not in this order, or cannot be parsed.
+    #[expect(clippy::missing_panics_doc, reason = "can't panic")]
+    pub fn new_from_untyped_data(data: &[Bytes]) -> Result<Self, SequencerBlockError> {
+        let tree = merkle_tree_from_data(data);
+        let data_root_hash = tree.root();
+        let mut data_iter = data.iter().enumerate();
 
-    let (extended_commit_info, extended_commit_info_proof) = if with_extended_commit_info {
-        let extended_commit_info = data_iter
+        let (index, rollup_transactions_root_bytes) = data_iter
             .next()
-            .ok_or(SequencerBlockError::no_extended_commit_info())?;
-        let extended_commit_info_proof = tree.construct_proof(2).expect(
-            "the leaf must exist in the tree as `extended_commit_info` was created from the same \
-             index in `data` used to construct the tree",
+            .ok_or(SequencerBlockError::no_rollup_transactions_root())?;
+        let rollup_transactions_root =
+            <[u8; SHA256_DIGEST_LENGTH]>::try_from(rollup_transactions_root_bytes.as_ref())
+                .map_err(|_| SequencerBlockError::incorrect_rollup_transactions_root_length())?;
+        let rollup_transactions_proof = tree.construct_proof(index).expect(
+            "the leaf must exist in the tree as `rollup_transactions_root` was created from the \
+             same index in `data` used to construct the tree",
         );
 
-        let raw_info =
-            RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info.clone())
-                .map_err(SequencerBlockError::decode_extended_commit_info)?;
-        ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info)
-            .map_err(SequencerBlockError::invalid_extended_commit_info)?;
-        (Some(extended_commit_info), Some(extended_commit_info_proof))
-    } else {
-        (None, None)
-    };
+        let (index, rollup_ids_root_bytes) = data_iter
+            .next()
+            .ok_or(SequencerBlockError::no_rollup_ids_root())?;
+        let rollup_ids_root =
+            <[u8; SHA256_DIGEST_LENGTH]>::try_from(rollup_ids_root_bytes.as_ref())
+                .map_err(|_| SequencerBlockError::incorrect_rollup_ids_root_length())?;
+        let rollup_ids_proof = tree.construct_proof(index).expect(
+            "the leaf must exist in the tree as `rollup_ids_root` was created from the same index \
+             in `data` used to construct the tree",
+        );
 
-    Ok(InitialDataElements {
-        data_root_hash,
-        data_iter,
-        extended_commit_info,
-        extended_commit_info_proof,
-        rollup_transactions_root,
-        rollup_transactions_proof,
-        rollup_ids_root,
-        rollup_ids_proof,
-    })
+        let user_submitted_transactions = data_iter
+            .map(|(_index, bytes)| {
+                let raw_tx = RawTransaction::decode(bytes.as_ref())
+                    .map_err(SequencerBlockError::transaction_protobuf_decode)?;
+                Transaction::try_from_raw(raw_tx)
+                    .map(Arc::new)
+                    .map_err(SequencerBlockError::raw_signed_transaction_conversion)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(Self {
+            data_root_hash,
+            rollup_transactions_root,
+            rollup_transactions_proof,
+            rollup_ids_root,
+            rollup_ids_proof,
+            upgrade_change_hashes: vec![],
+            extended_commit_info_with_proof: None,
+            user_submitted_transactions,
+        })
+    }
+
+    /// Constructs a new `ExpandedBlockData` from `data`, expecting the entries to be in the
+    /// post-upgrade1 form of protobuf-encoded `DataItem`s.
+    ///
+    /// The expected order is:
+    ///   - `RollupTransactionsRoot`
+    ///   - `RollupIdsRoot`
+    ///   - `UpgradeChangeHashes` if an upgrade was applied at this block height, or no entry if not
+    ///   - `ExtendedCommitInfo` if `with_extended_commit_info` is true, or no entry if not
+    ///   - zero or more `RollupTransaction`s.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the data is not in this order, or cannot be parsed.
+    #[expect(clippy::missing_panics_doc, reason = "can't panic")]
+    pub fn new_from_typed_data(
+        data: &[Bytes],
+        with_extended_commit_info: bool,
+    ) -> Result<Self, SequencerBlockError> {
+        let mut merkle_tree_leaves = Vec::with_capacity(data.len());
+
+        let mut data_iter = data.iter().enumerate().peekable();
+
+        // First item must be a rollup txs root.
+        let (rollup_txs_root_index, bytes) = data_iter
+            .next()
+            .ok_or(SequencerBlockError::no_rollup_transactions_root())?;
+        let rollup_transactions_root = DataItem::decode(rollup_txs_root_index, bytes.as_ref())
+            .and_then(|data_item| data_item.into_rollup_transactions_root(rollup_txs_root_index))
+            .map_err(SequencerBlockError::data_item)?;
+        merkle_tree_leaves.push(Sha256::digest(rollup_transactions_root));
+
+        // Second item must be a rollup IDs root.
+        let (rollup_ids_root_index, bytes) = data_iter
+            .next()
+            .ok_or(SequencerBlockError::no_rollup_ids_root())?;
+        let rollup_ids_root = DataItem::decode(rollup_ids_root_index, bytes.as_ref())
+            .and_then(|data_item| data_item.into_rollup_ids_root(rollup_ids_root_index))
+            .map_err(SequencerBlockError::data_item)?;
+        merkle_tree_leaves.push(Sha256::digest(rollup_ids_root));
+
+        // Third item might be upgrade change hashes - peek to check before advancing the iterator.
+        let upgrade_change_hashes = matches!(
+            data_iter.peek().map(|(index, bytes)| {
+                DataItem::decode(*index, bytes.as_ref()).map_err(SequencerBlockError::data_item)
+            }),
+            Some(Ok(DataItem::UpgradeChangeHashes(_)))
+        )
+        .then(|| {
+            // The next item is upgrade change hashes - advance the iterator and parse the item.
+            let (index, bytes) = data_iter
+                .next()
+                .expect("must be `Some`, since it's `Some` in peek");
+            let upgrade_change_hashes = DataItem::decode(index, bytes.as_ref())
+                .and_then(|data_item| data_item.into_upgrade_change_hashes(index))
+                .expect("must be upgrade, since it's upgrade in peek");
+            Ok(upgrade_change_hashes)
+        })
+        .transpose()?
+        .unwrap_or_default();
+
+        // If `with_extended_commit_info` is true, the next item must be an extended commit info.
+        let maybe_extended_commit_info_item = with_extended_commit_info
+            .then(|| {
+                let (index, bytes) = data_iter
+                    .next()
+                    .ok_or(SequencerBlockError::no_extended_commit_info())?;
+                let encoded_extended_commit_info = DataItem::decode(index, bytes.as_ref())
+                    .and_then(|data_item| data_item.into_extended_commit_info(index))
+                    .map_err(SequencerBlockError::data_item)?;
+                let merkle_index = merkle_tree_leaves.len();
+                merkle_tree_leaves.push(Sha256::digest(&encoded_extended_commit_info));
+
+                let raw_info = RawExtendedCommitInfoWithCurrencyPairMapping::decode(
+                    encoded_extended_commit_info.clone(),
+                )
+                .map_err(SequencerBlockError::decode_extended_commit_info)?;
+                let extended_commit_info =
+                    ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info)
+                        .map_err(SequencerBlockError::invalid_extended_commit_info)?;
+
+                Ok((
+                    merkle_index,
+                    extended_commit_info,
+                    encoded_extended_commit_info,
+                ))
+            })
+            .transpose()?;
+
+        // All further items must be user-submitted txs.
+        let user_submitted_transactions = data_iter
+            .map(|(_index, bytes)| {
+                merkle_tree_leaves.push(Sha256::digest(bytes.as_ref()));
+                let raw_tx = RawTransaction::decode(bytes.as_ref())
+                    .map_err(SequencerBlockError::transaction_protobuf_decode)?;
+                Transaction::try_from_raw(raw_tx)
+                    .map(Arc::new)
+                    .map_err(SequencerBlockError::raw_signed_transaction_conversion)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // We can construct the Merkle tree now we've iterated all data items.
+        let tree = merkle::Tree::from_leaves(merkle_tree_leaves);
+        let data_root_hash = tree.root();
+        let rollup_transactions_proof = tree.construct_proof(rollup_txs_root_index).expect(
+            "the leaf must exist in the tree as `rollup_transactions_root` was created from the \
+             same index in `data` used to construct the tree",
+        );
+        let rollup_ids_proof = tree.construct_proof(rollup_ids_root_index).expect(
+            "the leaf must exist in the tree as `rollup_ids_root` was created from the same index \
+             in `data` used to construct the tree",
+        );
+        let extended_commit_info_with_proof = maybe_extended_commit_info_item.map(
+            |(index, extended_commit_info, encoded_extended_commit_info)| {
+                let extended_commit_info_proof = tree.construct_proof(index).expect(
+                    "the leaf must exist in the tree as `extended_commit_info` was created from \
+                     the same index in `data` used to construct the tree",
+                );
+                ExtendedCommitInfoWithProof {
+                    extended_commit_info,
+                    encoded_extended_commit_info,
+                    proof: extended_commit_info_proof,
+                }
+            },
+        );
+
+        Ok(Self {
+            data_root_hash,
+            rollup_transactions_root,
+            rollup_transactions_proof,
+            rollup_ids_root,
+            rollup_ids_proof,
+            upgrade_change_hashes,
+            extended_commit_info_with_proof,
+            user_submitted_transactions,
+        })
+    }
+
+    /// Returns the number of items in the original `data` collection that are injected txs, i.e.
+    /// not user-submitted txs.
+    pub fn injected_transaction_count(&self) -> usize {
+        // `rollup_transactions_root` and `rollup_ids_root` are always present.
+        2_usize
+            .saturating_add(usize::from(!self.upgrade_change_hashes.is_empty()))
+            .saturating_add(usize::from(self.extended_commit_info_with_proof.is_some()))
+    }
 }
 
 /// Constructs a `[merkle::Tree]` from an iterator yielding byte slices.
@@ -1381,7 +1693,6 @@ where
     I: IntoIterator<Item = B>,
     B: AsRef<[u8]>,
 {
-    use sha2::Digest as _;
     merkle::Tree::from_leaves(iter.into_iter().map(|item| Sha256::digest(&item)))
 }
 
@@ -1392,18 +1703,12 @@ where
 pub struct FilteredSequencerBlockParts {
     pub block_hash: Hash,
     pub header: SequencerBlockHeader,
-    // filtered set of rollup transactions
     pub rollup_transactions: IndexMap<RollupId, RollupTransactions>,
-    // proof that `rollup_transactions_root` is included in `data_hash`
     pub rollup_transactions_proof: merkle::Proof,
-    // all rollup ids in the sequencer block
     pub all_rollup_ids: Vec<RollupId>,
-    // proof that `rollup_ids` is included in `data_hash`
     pub rollup_ids_proof: merkle::Proof,
-    // extended commit info for the block, if vote extensions were enabled at this height
-    pub extended_commit_info: Option<Bytes>,
-    // proof that the extended commit info is included in the cometbft block data (if it exists)
-    pub extended_commit_info_proof: Option<merkle::Proof>,
+    pub upgrade_change_hashes: Vec<ChangeHash>,
+    pub extended_commit_info_with_proof: Option<ExtendedCommitInfoWithProof>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1414,18 +1719,19 @@ pub struct FilteredSequencerBlockParts {
 pub struct FilteredSequencerBlock {
     block_hash: Hash,
     header: SequencerBlockHeader,
-    // filtered set of rollup transactions
+    /// filtered set of rollup transactions
     rollup_transactions: IndexMap<RollupId, RollupTransactions>,
-    // proof that `rollup_transactions_root` is included in `data_hash`
+    /// proof that `rollup_transactions_root` is included in `data_hash`
     rollup_transactions_proof: merkle::Proof,
-    // all rollup ids in the sequencer block
+    /// all rollup ids in the sequencer block
     all_rollup_ids: Vec<RollupId>,
-    // proof that `rollup_ids` is included in `data_hash`
+    /// proof that `rollup_ids` is included in `data_hash`
     rollup_ids_proof: merkle::Proof,
-    // extended commit info for the block, if vote extensions were enabled at this height
-    extended_commit_info: Option<Bytes>,
-    // proof that the extended commit info is included in the cometbft block data (if it exists)
-    extended_commit_info_proof: Option<merkle::Proof>,
+    /// hashes of any upgrade changes applied during this block and their proof.
+    upgrade_change_hashes: Vec<ChangeHash>,
+    /// extended commit info for the block and its proof, if vote extensions were enabled at this
+    /// height.
+    extended_commit_info_with_proof: Option<ExtendedCommitInfoWithProof>,
 }
 
 impl FilteredSequencerBlock {
@@ -1450,7 +1756,7 @@ impl FilteredSequencerBlock {
     }
 
     #[must_use]
-    pub fn rollup_transactions_root(&self) -> &[u8; 32] {
+    pub fn rollup_transactions_root(&self) -> &[u8; SHA256_DIGEST_LENGTH] {
         &self.header.rollup_transactions_root
     }
 
@@ -1470,39 +1776,29 @@ impl FilteredSequencerBlock {
     }
 
     #[must_use]
-    pub fn extended_commit_info(&self) -> Option<&Bytes> {
-        self.extended_commit_info.as_ref()
+    pub fn upgrade_change_hashes(&self) -> &Vec<ChangeHash> {
+        &self.upgrade_change_hashes
+    }
+
+    #[must_use]
+    pub fn extended_commit_info(&self) -> Option<&ExtendedCommitInfoWithCurrencyPairMapping> {
+        self.extended_commit_info_with_proof
+            .as_ref()
+            .map(ExtendedCommitInfoWithProof::extended_commit_info)
+    }
+
+    #[must_use]
+    pub fn encoded_extended_commit_info(&self) -> Option<&Bytes> {
+        self.extended_commit_info_with_proof
+            .as_ref()
+            .map(ExtendedCommitInfoWithProof::encoded_extended_commit_info)
     }
 
     #[must_use]
     pub fn extended_commit_info_proof(&self) -> Option<&merkle::Proof> {
-        self.extended_commit_info_proof.as_ref()
-    }
-
-    /// Returns the decoded `ExtendedCommitInfoWithCurrencyPairMapping` contained in this block.
-    ///
-    /// # Panics
-    ///
-    /// - if the `extended_commit_info` field is not a valid protobuf
-    ///   `ExtendedCommitInfoWithCurrencyPairMapping`; this should not happen as this type can only
-    ///   be constructed with a valid protobuf.
-    #[must_use]
-    pub fn decoded_extended_commit_info(
-        &self,
-    ) -> Option<ExtendedCommitInfoWithCurrencyPairMapping> {
-        let extended_commit_info = self.extended_commit_info.clone()?;
-
-        let raw_info = RawExtendedCommitInfoWithCurrencyPairMapping::decode(extended_commit_info)
-            .expect(
-                "must be a valid protobuf as the type was verified when constructing the \
-                 sequencer block",
-            );
-        Some(
-            ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info).expect(
-                "must be a valid ExtendedCommitInfoWithCurrencyPairMapping as the type was \
-                 verified when constructing the sequencer block",
-            ),
-        )
+        self.extended_commit_info_with_proof
+            .as_ref()
+            .map(ExtendedCommitInfoWithProof::proof)
     }
 
     #[must_use]
@@ -1512,10 +1808,10 @@ impl FilteredSequencerBlock {
             header,
             rollup_transactions,
             rollup_transactions_proof,
+            all_rollup_ids,
             rollup_ids_proof,
-            extended_commit_info,
-            extended_commit_info_proof,
-            ..
+            upgrade_change_hashes,
+            extended_commit_info_with_proof,
         } = self;
         raw::FilteredSequencerBlock {
             block_hash: Bytes::copy_from_slice(block_hash.as_bytes()),
@@ -1525,10 +1821,14 @@ impl FilteredSequencerBlock {
                 .map(RollupTransactions::into_raw)
                 .collect(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
-            all_rollup_ids: self.all_rollup_ids.iter().map(RollupId::to_raw).collect(),
+            all_rollup_ids: all_rollup_ids.iter().map(RollupId::to_raw).collect(),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
-            extended_commit_info: extended_commit_info.map(Into::into),
-            extended_commit_info_proof: extended_commit_info_proof.map(merkle::Proof::into_raw),
+            upgrade_change_hashes: upgrade_change_hashes
+                .into_iter()
+                .map(|change_hash| Bytes::copy_from_slice(change_hash.as_bytes()))
+                .collect(),
+            extended_commit_info_with_proof: extended_commit_info_with_proof
+                .map(ExtendedCommitInfoWithProof::into_raw),
         }
     }
 
@@ -1552,8 +1852,6 @@ impl FilteredSequencerBlock {
     pub fn try_from_raw(
         raw: raw::FilteredSequencerBlock,
     ) -> Result<Self, FilteredSequencerBlockError> {
-        use sha2::Digest as _;
-
         fn rollup_txs_to_tuple(
             raw: raw::RollupTransactions,
         ) -> Result<(RollupId, RollupTransactions), RollupTransactionsError> {
@@ -1568,8 +1866,8 @@ impl FilteredSequencerBlock {
             rollup_transactions_proof,
             all_rollup_ids,
             rollup_ids_proof,
-            extended_commit_info,
-            extended_commit_info_proof,
+            upgrade_change_hashes,
+            extended_commit_info_with_proof,
         } = raw;
 
         let block_hash = block_hash
@@ -1577,31 +1875,21 @@ impl FilteredSequencerBlock {
             .try_into()
             .map_err(|_| FilteredSequencerBlockError::invalid_block_hash(block_hash.len()))?;
 
-        let rollup_transactions_proof = {
-            let Some(rollup_transactions_proof) = rollup_transactions_proof else {
-                return Err(FilteredSequencerBlockError::field_not_set(
-                    "rollup_transactions_proof",
-                ));
-            };
-            merkle::Proof::try_from_raw(rollup_transactions_proof)
-                .map_err(FilteredSequencerBlockError::transaction_proof_invalid)
-        }?;
-        let rollup_ids_proof = {
-            let Some(rollup_ids_proof) = rollup_ids_proof else {
-                return Err(FilteredSequencerBlockError::field_not_set(
-                    "rollup_ids_proof",
-                ));
-            };
-            merkle::Proof::try_from_raw(rollup_ids_proof)
-                .map_err(FilteredSequencerBlockError::id_proof_invalid)
-        }?;
-        let header = {
-            let Some(header) = header else {
-                return Err(FilteredSequencerBlockError::field_not_set("header"));
-            };
-            SequencerBlockHeader::try_from_raw(header)
-                .map_err(FilteredSequencerBlockError::invalid_header)
-        }?;
+        let raw_rollup_transactions_proof = rollup_transactions_proof.ok_or_else(|| {
+            FilteredSequencerBlockError::field_not_set("rollup_transactions_proof")
+        })?;
+        let rollup_transactions_proof = merkle::Proof::try_from_raw(raw_rollup_transactions_proof)
+            .map_err(FilteredSequencerBlockError::transaction_proof_invalid)?;
+
+        let raw_rollup_ids_proof = rollup_ids_proof
+            .ok_or_else(|| FilteredSequencerBlockError::field_not_set("rollup_ids_proof"))?;
+        let rollup_ids_proof = merkle::Proof::try_from_raw(raw_rollup_ids_proof)
+            .map_err(FilteredSequencerBlockError::id_proof_invalid)?;
+
+        let raw_header =
+            header.ok_or_else(|| FilteredSequencerBlockError::field_not_set("header"))?;
+        let header = SequencerBlockHeader::try_from_raw(raw_header)
+            .map_err(FilteredSequencerBlockError::invalid_header)?;
 
         // XXX: These rollup transactions are not sorted compared to those used for
         // deriving the rollup transactions merkle tree in `SequencerBlock`.
@@ -1625,7 +1913,7 @@ impl FilteredSequencerBlock {
         }
 
         for rollup_transactions in rollup_transactions.values() {
-            if !super::do_rollup_transaction_match_root(
+            if !super::do_rollup_transactions_match_root(
                 rollup_transactions,
                 header.rollup_transactions_root,
             ) {
@@ -1637,20 +1925,22 @@ impl FilteredSequencerBlock {
             }
         }
 
-        if !are_rollup_ids_included(
-            all_rollup_ids.iter().copied(),
-            &rollup_ids_proof,
-            header.data_hash,
-        ) {
-            return Err(FilteredSequencerBlockError::rollup_ids_not_in_sequencer_block());
+        if !are_rollup_ids_included(&all_rollup_ids, &rollup_ids_proof, header.data_hash) {
+            return Err(FilteredSequencerBlockError::invalid_rollup_ids_proof());
         }
 
-        let extended_commit_info_proof = get_and_verify_extended_commit_info_proof(
-            extended_commit_info.clone(),
-            extended_commit_info_proof,
-            header.data_hash,
-        )
-        .map_err(FilteredSequencerBlockError::extended_commit_info)?;
+        let upgrade_change_hashes = upgrade_change_hashes
+            .into_iter()
+            .map(|raw_hash| ChangeHash::try_from(raw_hash.as_ref()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(FilteredSequencerBlockError::upgrade_change_hashes)?;
+
+        let extended_commit_info_with_proof = extended_commit_info_with_proof
+            .map(|raw| {
+                ExtendedCommitInfoWithProof::try_from_raw(raw, header.data_hash)
+                    .map_err(FilteredSequencerBlockError::extended_commit_info)
+            })
+            .transpose()?;
 
         Ok(Self {
             block_hash,
@@ -1659,8 +1949,8 @@ impl FilteredSequencerBlock {
             rollup_transactions_proof,
             all_rollup_ids,
             rollup_ids_proof,
-            extended_commit_info,
-            extended_commit_info_proof,
+            upgrade_change_hashes,
+            extended_commit_info_with_proof,
         })
     }
 
@@ -1674,8 +1964,8 @@ impl FilteredSequencerBlock {
             rollup_transactions_proof,
             all_rollup_ids,
             rollup_ids_proof,
-            extended_commit_info,
-            extended_commit_info_proof,
+            upgrade_change_hashes,
+            extended_commit_info_with_proof,
         } = self;
         FilteredSequencerBlockParts {
             block_hash,
@@ -1684,8 +1974,8 @@ impl FilteredSequencerBlock {
             rollup_transactions_proof,
             all_rollup_ids,
             rollup_ids_proof,
-            extended_commit_info,
-            extended_commit_info_proof,
+            upgrade_change_hashes,
+            extended_commit_info_with_proof,
         }
     }
 }
@@ -1739,12 +2029,17 @@ enum FilteredSequencerBlockErrorKind {
          could not be verified against the rollup transactions root"
     )]
     RollupTransactionForIdNotInSequencerBlock { id: RollupId },
-    #[error("the rollup IDs in the sequencer block were not included in the block's data hash")]
-    RollupIdsNotInSequencerBlock,
+    #[error(
+        "the rollup IDs root constructed from the block's rollup IDs did not verify against \
+         `data_hash` given the rollup IDs proof"
+    )]
+    InvalidRollupIdsProof,
     #[error("failed constructing a transaction proof from the raw protobuf transaction proof")]
     TransactionProofInvalid(merkle::audit::InvalidProof),
     #[error("failed constructing a rollup ID proof from the raw protobuf rollup ID proof")]
     IdProofInvalid(merkle::audit::InvalidProof),
+    #[error(transparent)]
+    UpgradeChangeHashes(ChangeHashError),
     #[error("extended commit info or proof error")]
     ExtendedCommitInfo(#[source] ExtendedCommitInfoError),
 }
@@ -1784,8 +2079,8 @@ impl FilteredSequencerBlockError {
         )
     }
 
-    fn rollup_ids_not_in_sequencer_block() -> Self {
-        Self(FilteredSequencerBlockErrorKind::RollupIdsNotInSequencerBlock)
+    fn invalid_rollup_ids_proof() -> Self {
+        Self(FilteredSequencerBlockErrorKind::InvalidRollupIdsProof)
     }
 
     fn transaction_proof_invalid(source: merkle::audit::InvalidProof) -> Self {
@@ -1796,6 +2091,10 @@ impl FilteredSequencerBlockError {
 
     fn id_proof_invalid(source: merkle::audit::InvalidProof) -> Self {
         Self(FilteredSequencerBlockErrorKind::IdProofInvalid(source))
+    }
+
+    fn upgrade_change_hashes(source: ChangeHashError) -> Self {
+        Self(FilteredSequencerBlockErrorKind::UpgradeChangeHashes(source))
     }
 
     fn extended_commit_info(source: ExtendedCommitInfoError) -> Self {
@@ -1947,6 +2246,102 @@ enum DepositErrorKind {
     IncorrectAsset(#[source] asset::ParseDenomError),
     #[error("field `source_transaction_id` was invalid")]
     TransactionIdError(#[source] TransactionIdError),
+}
+
+/// The `extended_commit_info` is verified to be of the form
+/// [`ExtendedCommitInfoWithCurrencyPairMapping`] when the type is constructed, but also held as
+/// unencoded `Bytes` so that it can be verified against the `data_hash` using the given `proof`, as
+/// re-encoding the protobuf type may not be deterministic.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExtendedCommitInfoWithProof {
+    extended_commit_info: ExtendedCommitInfoWithCurrencyPairMapping,
+    encoded_extended_commit_info: Bytes,
+    proof: merkle::Proof,
+}
+
+impl ExtendedCommitInfoWithProof {
+    #[must_use]
+    pub fn extended_commit_info(&self) -> &ExtendedCommitInfoWithCurrencyPairMapping {
+        &self.extended_commit_info
+    }
+
+    #[must_use]
+    pub fn encoded_extended_commit_info(&self) -> &Bytes {
+        &self.encoded_extended_commit_info
+    }
+
+    #[must_use]
+    pub fn proof(&self) -> &merkle::Proof {
+        &self.proof
+    }
+
+    pub fn into_raw(self) -> raw::ExtendedCommitInfoWithProof {
+        let Self {
+            encoded_extended_commit_info,
+            proof,
+            ..
+        } = self;
+        raw::ExtendedCommitInfoWithProof {
+            extended_commit_info: encoded_extended_commit_info,
+            proof: Some(proof.into_raw()),
+        }
+    }
+
+    /// Constructs `Self` from a raw protobuf `ExtendedCommitInfoWithProof`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if conversion or verification fails.
+    pub fn try_from_raw(
+        raw: raw::ExtendedCommitInfoWithProof,
+        data_hash: [u8; SHA256_DIGEST_LENGTH],
+    ) -> Result<Self, ExtendedCommitInfoError> {
+        let raw_proof = raw
+            .proof
+            .ok_or_else(ExtendedCommitInfoError::proof_not_set)?;
+        let proof = merkle::Proof::try_from_raw(raw_proof)
+            .map_err(ExtendedCommitInfoError::invalid_proof)?;
+
+        // Verify the hash of the extended commit info is a leaf in the Merkle proof.
+        if !proof.verify(&Sha256::digest(&raw.extended_commit_info), data_hash) {
+            return Err(ExtendedCommitInfoError::not_in_sequencer_block());
+        }
+
+        let raw_info =
+            RawExtendedCommitInfoWithCurrencyPairMapping::decode(raw.extended_commit_info.clone())
+                .map_err(ExtendedCommitInfoError::decode)?;
+        let extended_commit_info =
+            ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info)
+                .map_err(ExtendedCommitInfoError::invalid_extended_commit_info)?;
+
+        Ok(Self {
+            extended_commit_info,
+            encoded_extended_commit_info: raw.extended_commit_info,
+            proof,
+        })
+    }
+
+    /// This should only be used where `parts` has been provided by a trusted entity, e.g. read from
+    /// our own state store.
+    ///
+    /// Note that this function is not considered part of the public API and is subject to breaking
+    /// change at any time.
+    #[cfg(feature = "unchecked-constructors")]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn unchecked_from_parts(encoded_extended_commit_info: Bytes, proof: merkle::Proof) -> Self {
+        let raw_info = RawExtendedCommitInfoWithCurrencyPairMapping::decode(
+            encoded_extended_commit_info.clone(),
+        )
+        .unwrap();
+        let extended_commit_info =
+            ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(raw_info).unwrap();
+        Self {
+            extended_commit_info,
+            encoded_extended_commit_info,
+            proof,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
