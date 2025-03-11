@@ -335,7 +335,7 @@ pub mod v2 {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct Ticker {
         pub currency_pair: CurrencyPair,
-        pub decimals: u64,
+        pub decimals: u8,
         pub min_provider_count: u64,
         pub enabled: bool,
         pub metadata_json: String,
@@ -368,10 +368,14 @@ pub mod v2 {
                 .ok_or_else(|| TickerError::field_not_set("currency_pair"))?
                 .try_into()
                 .map_err(TickerError::invalid_currency_pair)?;
+            let decimals = raw
+                .decimals
+                .try_into()
+                .map_err(|_| TickerError::decimals_too_large())?;
 
             Ok(Self {
                 currency_pair,
-                decimals: raw.decimals,
+                decimals,
                 min_provider_count: raw.min_provider_count,
                 enabled: raw.enabled,
                 metadata_json: raw.metadata_json,
@@ -382,7 +386,7 @@ pub mod v2 {
         pub fn into_raw(self) -> raw::Ticker {
             raw::Ticker {
                 currency_pair: Some(self.currency_pair.into_raw()),
-                decimals: self.decimals,
+                decimals: self.decimals.into(),
                 min_provider_count: self.min_provider_count,
                 enabled: self.enabled,
                 metadata_json: self.metadata_json,
@@ -399,7 +403,7 @@ pub mod v2 {
         #[must_use]
         pub fn unchecked_from_parts(
             currency_pair: CurrencyPair,
-            decimals: u64,
+            decimals: u8,
             min_provider_count: u64,
             enabled: bool,
             metadata_json: String,
@@ -434,6 +438,11 @@ pub mod v2 {
             }
             .into()
         }
+
+        #[must_use]
+        fn decimals_too_large() -> Self {
+            TickerErrorKind::DecimalsTooLarge.into()
+        }
     }
 
     #[derive(Debug, thiserror::Error)]
@@ -443,6 +452,8 @@ pub mod v2 {
         FieldNotSet { name: &'static str },
         #[error("field `.currency_pair` was invalid")]
         InvalidCurrencyPair { source: CurrencyPairError },
+        #[error("field `.decimals` was too large; must fit in a u8")]
+        DecimalsTooLarge,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]

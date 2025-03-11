@@ -1953,7 +1953,7 @@ enum DepositErrorKind {
 pub struct Price {
     currency_pair: CurrencyPair,
     price: crate::connect::types::v2::Price,
-    decimals: u64,
+    decimals: u8,
 }
 
 impl Price {
@@ -1961,7 +1961,7 @@ impl Price {
     pub fn new(
         currency_pair: CurrencyPair,
         price: crate::connect::types::v2::Price,
-        decimals: u64,
+        decimals: u8,
     ) -> Self {
         Self {
             currency_pair,
@@ -1981,7 +1981,7 @@ impl Price {
     }
 
     #[must_use]
-    pub fn decimals(&self) -> u64 {
+    pub fn decimals(&self) -> u8 {
         self.decimals
     }
 
@@ -1995,7 +1995,7 @@ impl Price {
         raw::Price {
             currency_pair: Some(currency_pair.into_raw()),
             price: Some(price.get().into()),
-            decimals,
+            decimals: decimals.into(),
         }
     }
 
@@ -2019,6 +2019,9 @@ impl Price {
         let price = crate::connect::types::v2::Price::new(
             price.ok_or(PriceError::field_not_set("price"))?.into(),
         );
+        let decimals = decimals
+            .try_into()
+            .map_err(|_| PriceError::decimals_too_large())?;
         Ok(Self {
             currency_pair,
             price,
@@ -2039,6 +2042,10 @@ impl PriceError {
     fn currency(source: CurrencyPairError) -> Self {
         Self(PriceErrorKind::Currency(source))
     }
+
+    fn decimals_too_large() -> Self {
+        Self(PriceErrorKind::DecimalsTooLarge)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -2047,6 +2054,8 @@ enum PriceErrorKind {
     FieldNotSet(&'static str),
     #[error("the currency pair is invalid")]
     Currency(#[source] CurrencyPairError),
+    #[error("the decimals value is too large; must fit into a u8")]
+    DecimalsTooLarge,
 }
 
 #[derive(Debug, Clone, PartialEq)]

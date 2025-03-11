@@ -86,7 +86,7 @@ pub mod v1 {
     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     pub struct CurrencyPairInfo {
         pub currency_pair: CurrencyPair,
-        pub decimals: u64,
+        pub decimals: u8,
     }
 
     impl std::fmt::Display for CurrencyPairInfo {
@@ -164,11 +164,16 @@ pub mod v1 {
                     };
                     let currency_pair = CurrencyPair::try_from_raw(currency_pair)
                         .map_err(ExtendedCommitInfoWithCurrencyPairMappingError::currency_pair)?;
+                    let decimals = id_with_currency_pair.decimals.try_into().map_err(|_| {
+                        ExtendedCommitInfoWithCurrencyPairMappingError::decimals_too_large(
+                            id_with_currency_pair.decimals,
+                        )
+                    })?;
                     Ok((
                         currency_pair_id,
                         CurrencyPairInfo {
                             currency_pair,
-                            decimals: id_with_currency_pair.decimals,
+                            decimals,
                         },
                     ))
                 })
@@ -193,7 +198,7 @@ pub mod v1 {
                     |(currency_pair_id, currency_pair_info)| raw::IdWithCurrencyPair {
                         id: currency_pair_id.get(),
                         currency_pair: Some(currency_pair_info.currency_pair.into_raw()),
-                        decimals: currency_pair_info.decimals,
+                        decimals: currency_pair_info.decimals.into(),
                     },
                 )
                 .collect();
@@ -226,6 +231,14 @@ pub mod v1 {
         fn extended_commit_info(error: tendermint::Error) -> Self {
             Self(ExtendedCommitInfoWithCurrencyPairMappingErrorKind::ExtendedCommitInfo(error))
         }
+
+        fn decimals_too_large(decimals: u64) -> Self {
+            Self(
+                ExtendedCommitInfoWithCurrencyPairMappingErrorKind::DecimalsTooLarge {
+                    decimals,
+                },
+            )
+        }
     }
 
     #[derive(Debug, thiserror::Error)]
@@ -236,5 +249,7 @@ pub mod v1 {
         CurrencyPair(#[from] CurrencyPairError),
         #[error("invalid extended commit info")]
         ExtendedCommitInfo(#[from] tendermint::Error),
+        #[error("decimals too large: {decimals}; must fit in a u8")]
+        DecimalsTooLarge { decimals: u64 },
     }
 }
