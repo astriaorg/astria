@@ -1,32 +1,11 @@
-use std::{
-    collections::HashMap,
-    process::ExitCode,
-};
+use std::process::ExitCode;
 
 use astria_bridge_withdrawer::{
     BridgeWithdrawer,
     Config,
     BUILD_INFO,
 };
-use astria_core::generated::astria::signer::v1::{
-    frost_participant_service_client::FrostParticipantServiceClient,
-    GetVerifyingShareRequest,
-};
-use astria_eyre::{
-    eyre,
-    eyre::{
-        ensure,
-        eyre,
-        WrapErr as _,
-    },
-};
-use frost_ed25519::{
-    keys::{
-        PublicKeyPackage,
-        VerifyingShare,
-    },
-    Identifier,
-};
+use astria_eyre::eyre::WrapErr as _;
 use tokio::signal::unix::{
     signal,
     SignalKind,
@@ -73,51 +52,9 @@ async fn main() -> ExitCode {
         "initializing bridge withdrawer"
     );
 
-    let (frost_participant_clients, frost_public_key_package) = if cfg.no_frost_threshold_signing {
-        (None, None)
-    } else {
-        let public_key_package = match read_frost_key(&cfg.frost_public_key_package_path)
-            .wrap_err_with(|| {
-                format!(
-                    "failed reading frost public key package from file `{}`",
-                    cfg.frost_public_key_package_path
-                )
-            }) {
-            Err(error) => {
-                error!(%error, "failed to read frost public key package");
-                return ExitCode::FAILURE;
-            }
-            Ok(key) => key,
-        };
-
-        let frost_participant_endpoints = cfg
-            .frost_participant_endpoints
-            .split(',')
-            .map(str::to_string)
-            .collect();
-        let participant_clients = match initialize_frost_participant_clients(
-            frost_participant_endpoints,
-            &public_key_package,
-        )
-        .await
-        {
-            Err(error) => {
-                error!(%error, "failed to initialize frost participant clients");
-                return ExitCode::FAILURE;
-            }
-            Ok(clients) => clients,
-        };
-        (Some(participant_clients), Some(public_key_package))
-    };
-
     let mut sigterm = signal(SignalKind::terminate())
         .expect("setting a SIGTERM listener should always work on Unix");
-    let (withdrawer, shutdown_handle) = match BridgeWithdrawer::new(
-        cfg,
-        metrics,
-        frost_participant_clients,
-        frost_public_key_package,
-    ) {
+    let (withdrawer, shutdown_handle) = match BridgeWithdrawer::new(cfg, metrics) {
         Err(error) => {
             error!(%error, "failed initializing bridge withdrawer");
             return ExitCode::FAILURE;
@@ -145,45 +82,4 @@ async fn main() -> ExitCode {
 
     info!("withdrawer stopped");
     ExitCode::SUCCESS
-}
-
-fn read_frost_key<P: AsRef<std::path::Path>>(
-    path: P,
-) -> astria_eyre::eyre::Result<PublicKeyPackage> {
-    let key_str =
-        std::fs::read_to_string(path).wrap_err("failed to read frost public key package")?;
-    serde_json::from_str::<PublicKeyPackage>(&key_str)
-        .wrap_err("failed to deserialize public key package")
-}
-
-async fn initialize_frost_participant_clients(
-    endpoints: Vec<String>,
-    public_key_package: &PublicKeyPackage,
-) -> eyre::Result<HashMap<Identifier, FrostParticipantServiceClient<tonic::transport::Channel>>> {
-    let mut participant_clients = HashMap::new();
-    for endpoint in endpoints {
-        let mut client = FrostParticipantServiceClient::connect(endpoint)
-            .await
-            .wrap_err("failed to connect to participant")?;
-        let resp = client
-            .get_verifying_share(GetVerifyingShareRequest {})
-            .await
-            .wrap_err("failed to get verifying share")?;
-        let verifying_share = VerifyingShare::deserialize(&resp.into_inner().verifying_share)
-            .wrap_err("failed to deserialize verifying share")?;
-        let identifier = public_key_package
-            .verifying_shares()
-            .iter()
-            .find(|(_, vs)| vs == &&verifying_share)
-            .map(|(id, _)| id)
-            .ok_or_else(|| eyre!("failed to find identifier for verifying share"))?;
-        participant_clients.insert(identifier.to_owned(), client);
-    }
-
-    ensure!(
-        participant_clients.len() == public_key_package.verifying_shares().len(),
-        "failed to initialize all participant clients; are there duplicate endpoints?"
-    );
-
-    Ok(participant_clients)
 }

@@ -12,14 +12,14 @@ use tracing::{
     instrument,
 };
 
-use super::{
-    signer::Signer,
-    state::State,
-};
+use super::state::State;
 use crate::{
     bridge_withdrawer::{
         startup,
-        submitter::Batch,
+        submitter::{
+            make_signer,
+            Batch,
+        },
     },
     metrics::Metrics,
 };
@@ -49,32 +49,51 @@ impl Handle {
 pub(crate) struct Builder {
     pub(crate) shutdown_token: CancellationToken,
     pub(crate) startup_handle: startup::InfoHandle,
-    pub(crate) signer: Signer,
     pub(crate) sequencer_cometbft_client: sequencer_client::HttpClient,
     pub(crate) sequencer_grpc_client: SequencerServiceClient<tonic::transport::Channel>,
+    pub(crate) no_frost_threshold_signing: bool,
+    pub(crate) frost_min_signers: usize,
+    pub(crate) frost_public_key_package_path: String,
+    pub(crate) frost_participant_endpoints: String,
+    pub(crate) sequencer_key_path: String,
+    pub(crate) sequencer_address_prefix: String,
     pub(crate) state: Arc<State>,
     pub(crate) metrics: &'static Metrics,
 }
 
 impl Builder {
     /// Instantiates an `Submitter`.
-    pub(crate) fn build(self) -> (super::Submitter, Handle) {
+    pub(crate) fn build(self) -> eyre::Result<(super::Submitter, Handle)> {
         let Self {
             shutdown_token,
             startup_handle,
-            signer,
             sequencer_cometbft_client,
             sequencer_grpc_client,
+            no_frost_threshold_signing,
+            frost_min_signers,
+            frost_public_key_package_path,
+            frost_participant_endpoints,
+            sequencer_key_path,
+            sequencer_address_prefix,
             state,
             metrics,
         } = self;
 
+        let signer = make_signer(
+            no_frost_threshold_signing,
+            frost_min_signers,
+            frost_public_key_package_path,
+            frost_participant_endpoints,
+            sequencer_key_path,
+            sequencer_address_prefix,
+        )
+        .wrap_err("failed to make signer")?;
         info!(address = %signer.address(), "loaded sequencer signer");
 
         let (batches_tx, batches_rx) = tokio::sync::mpsc::channel(BATCH_QUEUE_SIZE);
         let handle = Handle::new(batches_tx);
 
-        (
+        Ok((
             super::Submitter {
                 shutdown_token,
                 startup_handle,
@@ -86,6 +105,6 @@ impl Builder {
                 metrics,
             },
             handle,
-        )
+        ))
     }
 }

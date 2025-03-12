@@ -10,7 +10,7 @@ homepage = "https://astria.org"
 
 [dependencies]
 http = "0.2.9"
-frost-ed25519 = { version = "2.1.0", features = [] }
+frost-ed25519 = { version = "2.1.0" }
 
 axum = { workspace = true }
 futures = { workspace = true }

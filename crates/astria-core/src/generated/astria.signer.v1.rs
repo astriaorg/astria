@@ -25,7 +25,7 @@ impl ::prost::Name for GetVerifyingShareRequest {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetVerifyingShareResponse {
+pub struct VerifyingShare {
     /// the verifying share (partial public key) of the participant.
     /// this is used for the coordinator to determine the identifier of the participant.
     /// TODO: do we need to verify this (ie. have the server send back a signed message
@@ -33,8 +33,8 @@ pub struct GetVerifyingShareResponse {
     #[prost(bytes = "bytes", tag = "1")]
     pub verifying_share: ::prost::bytes::Bytes,
 }
-impl ::prost::Name for GetVerifyingShareResponse {
-    const NAME: &'static str = "GetVerifyingShareResponse";
+impl ::prost::Name for VerifyingShare {
+    const NAME: &'static str = "VerifyingShare";
     const PACKAGE: &'static str = "astria.signer.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.signer.v1.{}", Self::NAME)
@@ -188,10 +188,7 @@ pub mod frost_participant_service_client {
         pub async fn get_verifying_share(
             &mut self,
             request: impl tonic::IntoRequest<super::GetVerifyingShareRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::GetVerifyingShareResponse>,
-            tonic::Status,
-        > {
+        ) -> std::result::Result<tonic::Response<super::VerifyingShare>, tonic::Status> {
             self.inner
                 .ready()
                 .await
@@ -288,10 +285,7 @@ pub mod frost_participant_service_server {
         async fn get_verifying_share(
             self: std::sync::Arc<Self>,
             request: tonic::Request<super::GetVerifyingShareRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::GetVerifyingShareResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::VerifyingShare>, tonic::Status>;
         async fn execute_round_one(
             self: std::sync::Arc<Self>,
             request: tonic::Request<super::RoundOneRequest>,
@@ -394,7 +388,7 @@ pub mod frost_participant_service_server {
                         T: FrostParticipantService,
                     > tonic::server::UnaryService<super::GetVerifyingShareRequest>
                     for GetVerifyingShareSvc<T> {
-                        type Response = super::GetVerifyingShareResponse;
+                        type Response = super::VerifyingShare;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,

@@ -80,6 +80,21 @@ pub(super) struct Submitter {
 
 impl Submitter {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
+        if let Signer::Threshold(frost_signer) = &mut self.signer {
+            select! {
+                () = self.shutdown_token.cancelled() => {
+                    report_exit(Ok("submitter received shutdown signal while waiting for startup"));
+                    return Ok(());
+                }
+
+                res = frost_signer.initialize_participant_clients() => {
+                    if let Err(e) = res {
+                        return Err(e);
+                    }
+                }
+            };
+        }
+
         let sequencer_chain_id = select! {
             () = self.shutdown_token.cancelled() => {
                 report_exit(Ok("submitter received shutdown signal while waiting for startup"));

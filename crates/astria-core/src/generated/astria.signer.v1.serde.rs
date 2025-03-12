@@ -184,101 +184,6 @@ impl<'de> serde::Deserialize<'de> for GetVerifyingShareRequest {
         deserializer.deserialize_struct("astria.signer.v1.GetVerifyingShareRequest", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for GetVerifyingShareResponse {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if !self.verifying_share.is_empty() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.signer.v1.GetVerifyingShareResponse", len)?;
-        if !self.verifying_share.is_empty() {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("verifyingShare", pbjson::private::base64::encode(&self.verifying_share).as_str())?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for GetVerifyingShareResponse {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "verifying_share",
-            "verifyingShare",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            VerifyingShare,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "verifyingShare" | "verifying_share" => Ok(GeneratedField::VerifyingShare),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = GetVerifyingShareResponse;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.signer.v1.GetVerifyingShareResponse")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<GetVerifyingShareResponse, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut verifying_share__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::VerifyingShare => {
-                            if verifying_share__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("verifyingShare"));
-                            }
-                            verifying_share__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
-                        }
-                    }
-                }
-                Ok(GetVerifyingShareResponse {
-                    verifying_share: verifying_share__.unwrap_or_default(),
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.signer.v1.GetVerifyingShareResponse", FIELDS, GeneratedVisitor)
-    }
-}
 impl serde::Serialize for RoundOneRequest {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -688,5 +593,100 @@ impl<'de> serde::Deserialize<'de> for RoundTwoResponse {
             }
         }
         deserializer.deserialize_struct("astria.signer.v1.RoundTwoResponse", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for VerifyingShare {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.verifying_share.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.signer.v1.VerifyingShare", len)?;
+        if !self.verifying_share.is_empty() {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("verifyingShare", pbjson::private::base64::encode(&self.verifying_share).as_str())?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for VerifyingShare {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "verifying_share",
+            "verifyingShare",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            VerifyingShare,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "verifyingShare" | "verifying_share" => Ok(GeneratedField::VerifyingShare),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = VerifyingShare;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.signer.v1.VerifyingShare")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<VerifyingShare, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut verifying_share__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::VerifyingShare => {
+                            if verifying_share__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("verifyingShare"));
+                            }
+                            verifying_share__ = 
+                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
+                            ;
+                        }
+                    }
+                }
+                Ok(VerifyingShare {
+                    verifying_share: verifying_share__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.signer.v1.VerifyingShare", FIELDS, GeneratedVisitor)
     }
 }

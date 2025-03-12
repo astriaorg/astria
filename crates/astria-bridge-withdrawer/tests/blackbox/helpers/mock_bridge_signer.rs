@@ -11,16 +11,22 @@ use astria_core::{
             FrostParticipantServiceServer,
         },
         GetVerifyingShareRequest,
-        GetVerifyingShareResponse,
         RoundOneRequest,
         RoundOneResponse,
         RoundTwoRequest,
         RoundTwoResponse,
+        VerifyingShare,
     },
 };
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
+};
+use astria_grpc_mock::{
+    matcher::message_type,
+    response::constant_response,
+    Mock,
+    MockServer,
 };
 use frost_ed25519::round1;
 use rand::rngs::OsRng;
@@ -38,7 +44,9 @@ use tonic::{
 )]
 pub struct MockBridgeSignerServer {
     _server: JoinHandle<eyre::Result<()>>,
+    pub(crate) mock_server: MockServer,
     pub(crate) local_addr: SocketAddr,
+    secret_package: frost_ed25519::keys::KeyPackage,
 }
 
 impl MockBridgeSignerServer {
@@ -48,8 +56,11 @@ impl MockBridgeSignerServer {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let local_addr = listener.local_addr().unwrap();
 
+        let mock_server = MockServer::new();
+
         let server = {
             let sequencer_service = FrostParticipantServiceImpl {
+                server: mock_server.clone(),
                 secret_package: secret_package.clone(),
                 nonce: tokio::sync::Mutex::new(None),
             };
@@ -63,23 +74,14 @@ impl MockBridgeSignerServer {
         };
         Self {
             _server: server,
+            mock_server,
             local_addr,
+            secret_package,
         }
     }
-}
 
-struct FrostParticipantServiceImpl {
-    secret_package: frost_ed25519::keys::KeyPackage,
-    nonce: tokio::sync::Mutex<Option<round1::SigningNonces>>,
-}
-
-#[tonic::async_trait]
-impl FrostParticipantService for FrostParticipantServiceImpl {
-    async fn get_verifying_share(
-        self: Arc<Self>,
-        _request: Request<GetVerifyingShareRequest>,
-    ) -> Result<Response<GetVerifyingShareResponse>, Status> {
-        let resp = GetVerifyingShareResponse {
+    pub(crate) async fn mount_get_verifying_share_response(&self, debug_name: impl Into<String>) {
+        let resp = VerifyingShare {
             verifying_share: self
                 .secret_package
                 .verifying_share()
@@ -88,7 +90,34 @@ impl FrostParticipantService for FrostParticipantServiceImpl {
                 .expect("can serialize verifying share")
                 .into(),
         };
-        Ok(Response::new(resp))
+        Mock::for_rpc_given(
+            "get_verifying_share",
+            message_type::<GetVerifyingShareRequest>(),
+        )
+        .respond_with(constant_response(resp))
+        .up_to_n_times(1)
+        .expect(1)
+        .with_name(debug_name)
+        .mount(&self.mock_server)
+        .await;
+    }
+}
+
+struct FrostParticipantServiceImpl {
+    server: MockServer,
+    secret_package: frost_ed25519::keys::KeyPackage,
+    nonce: tokio::sync::Mutex<Option<round1::SigningNonces>>,
+}
+
+#[tonic::async_trait]
+impl FrostParticipantService for FrostParticipantServiceImpl {
+    async fn get_verifying_share(
+        self: Arc<Self>,
+        request: Request<GetVerifyingShareRequest>,
+    ) -> Result<Response<VerifyingShare>, Status> {
+        self.server
+            .handle_request("get_verifying_share", request)
+            .await
     }
 
     async fn execute_round_one(

@@ -39,8 +39,7 @@ pub(crate) struct FrostSignerBuilder {
     min_signers: Option<usize>,
     public_key_package: Option<PublicKeyPackage>,
     address_prefix: Option<String>,
-    participant_clients:
-        HashMap<Identifier, FrostParticipantServiceClient<tonic::transport::Channel>>,
+    participant_clients: Vec<FrostParticipantServiceClient<tonic::transport::Channel>>,
 }
 
 impl FrostSignerBuilder {
@@ -49,7 +48,7 @@ impl FrostSignerBuilder {
             min_signers: None,
             public_key_package: None,
             address_prefix: None,
-            participant_clients: HashMap::new(),
+            participant_clients: Vec::new(),
         }
     }
 
@@ -76,10 +75,7 @@ impl FrostSignerBuilder {
 
     pub(crate) fn participant_clients(
         self,
-        participant_clients: HashMap<
-            Identifier,
-            FrostParticipantServiceClient<tonic::transport::Channel>,
-        >,
+        participant_clients: Vec<FrostParticipantServiceClient<tonic::transport::Channel>>,
     ) -> Self {
         Self {
             participant_clients,
@@ -121,6 +117,7 @@ impl FrostSignerBuilder {
             public_key_package,
             address,
             participant_clients: self.participant_clients,
+            initialized_participant_clients: HashMap::new(),
         })
     }
 }
@@ -130,11 +127,42 @@ pub(crate) struct FrostSigner {
     min_signers: usize,
     public_key_package: PublicKeyPackage,
     address: Address,
-    participant_clients:
+    participant_clients: Vec<FrostParticipantServiceClient<tonic::transport::Channel>>,
+    initialized_participant_clients:
         HashMap<Identifier, FrostParticipantServiceClient<tonic::transport::Channel>>,
 }
 
 impl FrostSigner {
+    pub(crate) async fn initialize_participant_clients(&mut self) -> eyre::Result<()> {
+        use astria_core::generated::astria::signer::v1::GetVerifyingShareRequest;
+        use frost_ed25519::keys::VerifyingShare;
+
+        for client in &mut self.participant_clients {
+            let resp = client
+                .get_verifying_share(GetVerifyingShareRequest {})
+                .await
+                .wrap_err("failed to get verifying share")?;
+            let verifying_share = VerifyingShare::deserialize(&resp.into_inner().verifying_share)
+                .wrap_err("failed to deserialize verifying share")?;
+            let identifier = self
+                .public_key_package
+                .verifying_shares()
+                .iter()
+                .find(|(_, vs)| vs == &&verifying_share)
+                .map(|(id, _)| id)
+                .ok_or_else(|| eyre!("failed to find identifier for verifying share"))?;
+            self.initialized_participant_clients
+                .insert(identifier.to_owned(), client.clone());
+        }
+
+        ensure!(
+            self.initialized_participant_clients.len()
+                == self.public_key_package.verifying_shares().len(),
+            "failed to initialize all participant clients; are there duplicate endpoints?"
+        );
+        Ok(())
+    }
+
     pub(crate) async fn sign(&self, tx: TransactionBody) -> eyre::Result<Transaction> {
         // part 1: gather commitments from participants
         let round_1_results = self.execute_round_1().await;
@@ -206,7 +234,7 @@ struct Round1Response {
 impl FrostSigner {
     async fn execute_round_1(&self) -> Round1Results {
         let stream = futures::stream::FuturesUnordered::new();
-        for (id, client) in &self.participant_clients {
+        for (id, client) in &self.initialized_participant_clients {
             let mut client = client.clone();
             stream.push(async move {
                 let resp = client
@@ -270,7 +298,7 @@ impl FrostSigner {
         } in responses
         {
             let mut client = self
-                .participant_clients
+                .initialized_participant_clients
                 .get(&id)
                 .expect(
                     "participant client must exist in mapping, as we received a commitment from \

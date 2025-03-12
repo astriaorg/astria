@@ -50,7 +50,6 @@ use self::{
 };
 use crate::{
     api,
-    bridge_withdrawer::submitter::make_signer,
     config::Config,
     metrics::Metrics,
 };
@@ -77,14 +76,7 @@ impl BridgeWithdrawer {
     /// # Errors
     ///
     /// - If the provided `api_addr` string cannot be parsed as a socket address.
-    pub fn new(
-        cfg: Config,
-        metrics: &'static Metrics,
-        frost_participant_clients: Option<
-            HashMap<Identifier, FrostParticipantServiceClient<tonic::transport::Channel>>,
-        >,
-        frost_public_key_package: Option<frost_ed25519::keys::PublicKeyPackage>,
-    ) -> eyre::Result<(Self, ShutdownHandle)> {
+    pub fn new(cfg: Config, metrics: &'static Metrics) -> eyre::Result<(Self, ShutdownHandle)> {
         let shutdown_handle = ShutdownHandle::new();
         let Config {
             api_addr,
@@ -93,6 +85,8 @@ impl BridgeWithdrawer {
             no_frost_threshold_signing,
             sequencer_key_path,
             frost_min_signers,
+            frost_participant_endpoints,
+            frost_public_key_package_path,
             sequencer_address_prefix,
             fee_asset_denomination,
             ethereum_contract_address,
@@ -133,26 +127,22 @@ impl BridgeWithdrawer {
 
         let startup_handle = startup::InfoHandle::new(state.subscribe());
 
-        let signer = make_signer(
-            no_frost_threshold_signing,
-            frost_min_signers,
-            frost_public_key_package,
-            frost_participant_clients,
-            sequencer_key_path,
-            sequencer_address_prefix,
-        )
-        .wrap_err("failed to create signer")?;
-
         let (submitter, submitter_handle) = submitter::Builder {
             shutdown_token: shutdown_handle.token(),
             startup_handle: startup_handle.clone(),
             sequencer_cometbft_client,
             sequencer_grpc_client,
-            signer,
+            no_frost_threshold_signing,
+            frost_min_signers,
+            frost_public_key_package_path,
+            frost_participant_endpoints,
+            sequencer_key_path,
+            sequencer_address_prefix,
             state: state.clone(),
             metrics,
         }
-        .build();
+        .build()
+        .wrap_err("failed to build submitter")?;
 
         let ethereum_watcher = watcher::Builder {
             ethereum_contract_address,
@@ -193,7 +183,7 @@ impl BridgeWithdrawer {
 
     #[expect(
         clippy::missing_panics_doc,
-        reason = "Panic won't happen because `startup_task` is unwraped lazily after checking if \
+        reason = "Panic won't happen because `startup_task` is unwrapped lazily after checking if \
                   it's `Some`."
     )]
     pub async fn run(self) {
