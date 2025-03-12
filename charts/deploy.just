@@ -403,10 +403,15 @@ delete-smoke-test:
 
 # `tag` is the tag specifying the sequencer image to run to EXECUTE the upgrade, not the image to
 # run before the upgrade executes.
-run-upgrade-test tag:
+run-upgrade-test tag=default_docker_tag:
+  #!/usr/bin/env bash
+  if [ -d "system-tests/.venv" ]; then
+    echo "Found Python virtual environment, activating it..."
+    source system-tests/.venv/bin/activate
+  fi
   python3 system-tests/sequencer_upgrade_test.py \
-  --image-tag {{ if tag != '' { tag } else { 'latest' } }} \
-  --upgrade-name "upgrade1"
+    --image-tag {{ if tag != '' { tag } else { 'latest' } }} \
+    --upgrade-name "upgrade1"
 
 evm_contract_address := "0xA58639fB5458e65E4fA917FF951C390292C24A15"
 run-smoke-cli tag=defaultTag:

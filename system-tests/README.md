@@ -7,10 +7,53 @@ of CI/CD.
 
 [Python 3.8](https://www.python.org/downloads) or greater should be installed.
 
-The following packages are required:
+We recommend using [uv](https://github.com/astral-sh/uv) for package management,
+which is a fast Python package installer and resolver written in Rust.
+
+### Install uv
 
 ```shell
-pip3 install argparse requests google google-api-core grpcio python-on-whales
+# Install uv using cargo
+cargo install --git https://github.com/astral-sh/uv uv
+
+# Or using the official installer
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Or on macOS with Homebrew
+brew install uv
+```
+
+### Set up a virtual environment and install required packages
+
+First, create a virtual environment using `uv`:
+
+```shell
+cd system-tests
+uv venv
+```
+
+This creates a virtual environment in the `.venv` directory. Activate it with:
+
+```shell
+source .venv/bin/activate
+```
+
+Then install the required packages:
+
+```shell
+uv pip install -r requirements.txt
+```
+
+Alternatively, you can create a virtual environment and install packages in one command:
+
+```shell
+uv venv && uv pip install -r requirements.txt
+```
+
+Or install packages directly (not recommended):
+
+```shell
+uv pip install argparse requests google google-api-core grpcio python-on-whales
 ```
 
 ## Running the Upgrade Test
