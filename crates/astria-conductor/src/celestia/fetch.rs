@@ -103,7 +103,7 @@ async fn fetch_blobs_with_retry(
             |attempt: u32, next_delay: Option<Duration>, error: &jsonrpsee::core::Error| {
                 number_attempts.store(attempt, std::sync::atomic::Ordering::Relaxed);
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     attempt,

@@ -27,7 +27,6 @@ async-trait = { workspace = true }
 axum = { workspace = true }
 ethers = { workspace = true, features = ["ws"] }
 futures = { workspace = true }
-humantime = { workspace = true }
 hyper = { workspace = true }
 hex = { workspace = true }
 itertools = { workspace = true }
