@@ -51,7 +51,7 @@ impl<'a> From<CurrencyPair<'a>> for DomainCurrencyPair {
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 struct Ticker<'a> {
     currency_pair: CurrencyPair<'a>,
-    decimals: u64,
+    decimals: u8,
     min_provider_count: u64,
     enabled: bool,
     metadata_json: Cow<'a, str>,
