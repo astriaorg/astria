@@ -10,6 +10,7 @@ use astria_core::{
         CommitmentWithIdentifier,
         RoundOneRequest,
         RoundTwoRequest,
+        RoundTwoResponse,
     },
     primitive::v1::Address,
     protocol::transaction::v1::{
@@ -22,6 +23,7 @@ use astria_eyre::eyre::{
     self,
     ensure,
     eyre,
+    Error,
     WrapErr as _,
 };
 use frost_ed25519::{
@@ -163,12 +165,12 @@ impl FrostSigner {
         Ok(())
     }
 
-    pub(crate) async fn sign(&self, tx: TransactionBody) -> eyre::Result<Transaction> {
+    pub(super) async fn sign(&self, tx: TransactionBody) -> eyre::Result<Transaction> {
         // part 1: gather commitments from participants
         let round_1_results = self.execute_round_1().await;
         ensure!(
             round_1_results.responses.len() >= self.min_signers,
-            "not enough part 1 responses received; want at least {}, got {}",
+            "not enough part 1 responses received; want at least `{}`, got `{}`",
             self.min_signers,
             round_1_results.responses.len()
         );
@@ -180,7 +182,7 @@ impl FrostSigner {
             .await;
         ensure!(
             sig_shares.len() >= self.min_signers,
-            "not enough part 2 signature shares received; want at least {}, got {}",
+            "not enough part 2 signature shares received; want at least `{}`, got `{}`",
             self.min_signers,
             sig_shares.len()
         );
@@ -233,39 +235,52 @@ struct Round1Response {
 
 impl FrostSigner {
     async fn execute_round_1(&self) -> Round1Results {
-        let stream = futures::stream::FuturesUnordered::new();
+        use astria_core::generated::astria::signer::v1::RoundOneResponse;
+
+        let mut stream = futures::stream::FuturesUnordered::new();
         for (id, client) in &self.initialized_participant_clients {
             let mut client = client.clone();
             stream.push(async move {
                 let resp = client
                     .execute_round_one(RoundOneRequest {})
                     .await
-                    .wrap_err(format!(
-                        "failed to get part 1 response for participant with id {id:?}"
-                    ))?;
-                Ok((id, resp.into_inner()))
+                    .wrap_err_with(|| {
+                        format!("failed to get part 1 response for participant with id {id:?}")
+                    })?;
+                Ok::<(&Identifier, RoundOneResponse), Error>((id, resp.into_inner()))
             });
         }
-        let results: Vec<eyre::Result<_>> = stream.collect::<Vec<_>>().await;
+
+        let mut responses = vec![];
         let mut signing_package_commitments: BTreeMap<Identifier, round1::SigningCommitments> =
             BTreeMap::new();
-
-        let responses = results
-            .into_iter()
-            .filter_map(|res| match res {
+        while let Some(res) = stream.next().await {
+            match res {
                 Ok((id, part1)) => {
                     let signing_commitment =
-                        round1::SigningCommitments::deserialize(&part1.commitment).ok()?;
+                        match round1::SigningCommitments::deserialize(&part1.commitment) {
+                            Ok(commitment) => commitment,
+                            Err(e) => {
+                                tracing::warn!(
+                                    "failed to deserialize commitment from participant {id:?}, \
+                                     ignoring: {e}"
+                                );
+                                continue;
+                            }
+                        };
                     signing_package_commitments.insert(*id, signing_commitment);
-                    Some(Round1Response {
+                    responses.push(Round1Response {
                         id: *id,
                         commitment: part1.commitment,
                         request_identifier: part1.request_identifier,
-                    })
+                    });
                 }
-                Err(_) => None,
-            })
-            .collect::<Vec<_>>();
+                Err(e) => {
+                    tracing::warn!("failed to get part 1 response: {e}");
+                }
+            }
+        }
+
         Round1Results {
             responses,
             signing_package_commitments,
@@ -277,7 +292,7 @@ impl FrostSigner {
         responses: Vec<Round1Response>,
         tx_bytes: Vec<u8>,
     ) -> BTreeMap<Identifier, frost_ed25519::round2::SignatureShare> {
-        let stream = futures::stream::FuturesUnordered::new();
+        let mut stream = futures::stream::FuturesUnordered::new();
         let request_commitments: Vec<CommitmentWithIdentifier> = responses
             .iter()
             .map(
@@ -315,25 +330,36 @@ impl FrostSigner {
                         commitments: request_commitments,
                     })
                     .await
-                    .wrap_err(format!(
-                        "failed to get part 2 response for participant with id {id:?}"
-                    ))?;
-                Ok((id, resp.into_inner()))
+                    .wrap_err_with(|| {
+                        format!("failed to get part 2 response for participant with id {id:?}")
+                    })?;
+                Ok::<(Identifier, RoundTwoResponse), Error>((id, resp.into_inner()))
             });
         }
-        let results: Vec<eyre::Result<_>> = stream.collect::<Vec<_>>().await;
-        let sig_shares: BTreeMap<Identifier, frost_ed25519::round2::SignatureShare> = results
-            .into_iter()
-            .filter_map(|res| match res {
+
+        let mut sig_shares = BTreeMap::new();
+        while let Some(res) = stream.next().await {
+            match res {
                 Ok((id, part2)) => {
-                    let sig_share =
-                        frost_ed25519::round2::SignatureShare::deserialize(&part2.signature_share)
-                            .ok()?;
-                    Some((id, sig_share))
+                    let sig_share = match frost_ed25519::round2::SignatureShare::deserialize(
+                        &part2.signature_share,
+                    ) {
+                        Ok(sig_share) => sig_share,
+                        Err(e) => {
+                            tracing::warn!(
+                                "failed to deserialize signature share from participant {id:?}, \
+                                 ignoring: {e}"
+                            );
+                            continue;
+                        }
+                    };
+                    sig_shares.insert(id, sig_share);
                 }
-                Err(_) => None,
-            })
-            .collect();
+                Err(e) => {
+                    tracing::warn!("failed to get part 2 response: {e}");
+                }
+            }
+        }
 
         sig_shares
     }

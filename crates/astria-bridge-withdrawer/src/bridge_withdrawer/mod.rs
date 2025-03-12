@@ -1,14 +1,10 @@
 use std::{
-    collections::HashMap,
     net::SocketAddr,
     sync::Arc,
     time::Duration,
 };
 
-use astria_core::generated::astria::{
-    sequencerblock::v1::sequencer_service_client::SequencerServiceClient,
-    signer::v1::frost_participant_service_client::FrostParticipantServiceClient,
-};
+use astria_core::generated::astria::sequencerblock::v1::sequencer_service_client::SequencerServiceClient;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -19,7 +15,6 @@ use axum::{
     Server,
 };
 use ethereum::watcher::Watcher;
-use frost_ed25519::Identifier;
 use http::Uri;
 use hyper::server::conn::AddrIncoming;
 use startup::Startup;

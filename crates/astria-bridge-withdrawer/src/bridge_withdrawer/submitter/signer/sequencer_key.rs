@@ -108,7 +108,7 @@ impl SequencerKey {
         &self.address
     }
 
-    pub(crate) fn sign(&self, tx: TransactionBody) -> Transaction {
+    pub(super) fn sign(&self, tx: TransactionBody) -> Transaction {
         tx.sign(&self.signing_key)
     }
 }
