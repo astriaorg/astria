@@ -1,19 +1,29 @@
-# Override value example for second validator from main chart
+# Override value example for third validator from main chart
 moniker: 'node2'
 genesis:
+  # Nodes 0, 1, and 2 each have power 10 so nodes 3 and 4 can be made faulty without affecting the
+  # supermajority.
   validators:
     - name: node0
-      power: '1'
+      power: '10'
       address: 091E47761C58C474534F4D414AF104A6CAF90C22
       pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
     - name: node1
+      power: '10'
       address: E82D827830B163D5179291FB27BB58E605DF2FA2
       pubKey: NDE9F44v3l4irmkZxNmrZkywoGmggLlaBo5rE/Cis8M=
-      power: '1'
     - name: node2
-      power: '1'
+      power: '10'
       address: 8C17BBDC7C350C83C550163458FC9B7A5B54A64E
       pubKey: 4v1RdMiKkWgBBTTP26iRSLOEkAY99gMVfZijm6OCzjs=
+    - name: node3
+      power: '1'
+      address: 92E0D8BCBCD77C7CA072CE8337438F7EBA812DBD
+      pubKey: lq0KWre0YfAa8h3TiQ7WkEel9f7vc2CokuWbKtZF10M=
+    - name: node4
+      power: '1'
+      address: BBDCE84B76B80E1B785E74B0E8D640BF6D2BD0A5
+      pubKey: +bN9J/273RCm3zyTBSOql9VLlNcO6J37Wf0xtX0JVnw=
 
 cometbft:
   secrets:
@@ -38,6 +48,8 @@ cometbft:
 
 ingress:
   rpc:
-    enabled: false
+    enabled: true
+    hostname: sequencer-{{ .Values.moniker }}.localdev.me
   grpc:
-    enabled: false
+    enabled: true
+    hostname: sequencer-{{ .Values.moniker }}.localdev.me
