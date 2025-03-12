@@ -208,8 +208,15 @@ pub(super) struct PendingTransactionsForAccount {
 }
 
 impl PendingTransactionsForAccount {
-    fn highest_nonce(&self) -> Option<u32> {
-        self.txs.last_key_value().map(|(nonce, _)| *nonce)
+    fn pending_account_nonce(&self) -> Option<u32> {
+        // The account nonce is the number of transactions executed on the
+        // account. Tx nonce must be equal to this number at execution, thus
+        // account nonce is always one higher than the last executed tx nonce.
+        // The pending account nonce is what account nonce will be after all txs
+        // have executed. This is the highest nonce in the pending txs + 1.
+        self.txs
+            .last_key_value()
+            .map(|(nonce, _)| nonce.saturating_add(1))
     }
 
     fn current_account_nonce(&self) -> Option<u32> {
@@ -772,7 +779,7 @@ impl PendingTransactions {
     pub(super) fn pending_nonce(&self, address: &[u8; 20]) -> Option<u32> {
         self.txs
             .get(address)
-            .and_then(PendingTransactionsForAccount::highest_nonce)
+            .and_then(PendingTransactionsForAccount::pending_account_nonce)
     }
 
     /// Returns a copy of transactions and their hashes sorted by nonce difference and then time
@@ -1461,12 +1468,12 @@ mod tests {
     }
 
     #[test]
-    fn pending_transactions_for_account_highest_nonce() {
+    fn pending_transactions_for_account_pending_account_nonce() {
         let mut pending_txs = PendingTransactionsForAccount::new();
 
         // no transactions ok
         assert!(
-            pending_txs.highest_nonce().is_none(),
+            pending_txs.pending_account_nonce().is_none(),
             "no transactions will return None"
         );
 
@@ -1482,9 +1489,9 @@ mod tests {
 
         // will return last transaction
         assert_eq!(
-            pending_txs.highest_nonce(),
-            Some(2),
-            "highest nonce should be returned"
+            pending_txs.pending_account_nonce(),
+            Some(3),
+            "account nonce after all pending have executed should be returned"
         );
     }
 
@@ -1963,8 +1970,8 @@ mod tests {
         // non empty account returns highest nonce
         assert_eq!(
             pending_txs.pending_nonce(astria_address_from_hex_string(ALICE_ADDRESS).as_bytes()),
-            Some(1),
-            "should return highest nonce"
+            Some(2),
+            "should return pending account nonce"
         );
     }
 

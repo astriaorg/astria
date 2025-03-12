@@ -20,4 +20,11 @@ message ExecuteBlockRequest {
   repeated astria.sequencerblock.v1.RollupData transactions = 3;
   // Timestamp to be used for new block.
   google.protobuf.Timestamp timestamp = 4;
+  // The hash of the sequencer block from which the transactions and timestamp
+  // are derived.
+  //
+  // Must be a 32 byte base16 encoded string. It may be prefixed with `0x`.
+  //
+  // Utilizing this field is optional for the execution node.
+  string sequencer_block_hash = 5;
 }
