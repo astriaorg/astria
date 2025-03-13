@@ -1,6 +1,6 @@
 name: Code Freeze
 on:
-  pull_request_target:
+  pull_request:
     types:
       - opened
       - synchronize
