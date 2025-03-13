@@ -63,5 +63,7 @@ tendermint-rpc = { workspace = true }
 tokio-stream = { workspace = true, features = ["net"] }
 wiremock = { workspace = true }
 
+rand_chacha = "0.3.1"
+
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }

@@ -262,6 +262,7 @@ pub struct TestBridgeWithdrawerConfig {
 }
 
 impl TestBridgeWithdrawerConfig {
+    #[expect(clippy::too_many_lines, reason = "this is a test setup function")]
     pub async fn spawn(self) -> TestBridgeWithdrawer {
         let Self {
             ethereum_config,

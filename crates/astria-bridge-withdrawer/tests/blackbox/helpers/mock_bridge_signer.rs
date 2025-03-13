@@ -29,7 +29,7 @@ use astria_grpc_mock::{
     MockServer,
 };
 use frost_ed25519::round1;
-use rand::rngs::OsRng;
+use rand::SeedableRng as _;
 use tokio::task::JoinHandle;
 use tonic::{
     transport::Server,
@@ -124,7 +124,7 @@ impl FrostParticipantService for FrostParticipantServiceImpl {
         self: Arc<Self>,
         _request: Request<RoundOneRequest>,
     ) -> Result<Response<RoundOneResponse>, Status> {
-        let mut rng = OsRng;
+        let mut rng = rand_chacha::ChaChaRng::seed_from_u64(0);
         let (nonces, commitments) =
             frost_ed25519::round1::commit(self.secret_package.signing_share(), &mut rng);
         let commitment = commitments

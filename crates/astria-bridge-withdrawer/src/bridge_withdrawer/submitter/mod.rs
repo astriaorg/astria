@@ -89,7 +89,7 @@ impl Submitter {
 
                 res = frost_signer.initialize_participant_clients() => {
                     if let Err(e) = res {
-                        return Err(e);
+                        return Err(e.wrap_err("failed to initialize participant clients"));
                     }
                 }
             };

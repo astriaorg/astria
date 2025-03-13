@@ -10,7 +10,6 @@ use astria_core::{
         CommitmentWithIdentifier,
         RoundOneRequest,
         RoundTwoRequest,
-        RoundTwoResponse,
     },
     primitive::v1::Address,
     protocol::transaction::v1::{
@@ -28,7 +27,11 @@ use astria_eyre::eyre::{
 };
 use frost_ed25519::{
     keys::PublicKeyPackage,
-    round1,
+    round1::{
+        self,
+        SigningCommitments,
+    },
+    round2::SignatureShare,
     Identifier,
 };
 use futures::StreamExt as _;
@@ -235,8 +238,6 @@ struct Round1Response {
 
 impl FrostSigner {
     async fn execute_round_1(&self) -> Round1Results {
-        use astria_core::generated::astria::signer::v1::RoundOneResponse;
-
         let mut stream = futures::stream::FuturesUnordered::new();
         for (id, client) in &self.initialized_participant_clients {
             let mut client = client.clone();
@@ -246,8 +247,20 @@ impl FrostSigner {
                     .await
                     .wrap_err_with(|| {
                         format!("failed to get part 1 response for participant with id {id:?}")
+                    })?
+                    .into_inner();
+                let commitment = round1::SigningCommitments::deserialize(&resp.commitment)
+                    .wrap_err_with(|| {
+                        format!(
+                            "failed to deserialize commitment from participant with identifier \
+                             {id:?}"
+                        )
                     })?;
-                Ok::<(&Identifier, RoundOneResponse), Error>((id, resp.into_inner()))
+                Ok::<(&Identifier, SigningCommitments, u32), Error>((
+                    id,
+                    commitment,
+                    resp.request_identifier,
+                ))
             });
         }
 
@@ -256,23 +269,15 @@ impl FrostSigner {
             BTreeMap::new();
         while let Some(res) = stream.next().await {
             match res {
-                Ok((id, part1)) => {
-                    let signing_commitment =
-                        match round1::SigningCommitments::deserialize(&part1.commitment) {
-                            Ok(commitment) => commitment,
-                            Err(e) => {
-                                tracing::warn!(
-                                    "failed to deserialize commitment from participant {id:?}, \
-                                     ignoring: {e}"
-                                );
-                                continue;
-                            }
-                        };
-                    signing_package_commitments.insert(*id, signing_commitment);
+                Ok((id, commitment, request_identifier)) => {
+                    signing_package_commitments.insert(*id, commitment);
                     responses.push(Round1Response {
                         id: *id,
-                        commitment: part1.commitment,
-                        request_identifier: part1.request_identifier,
+                        commitment: commitment
+                            .serialize()
+                            .expect("commitment must be serializable, as we just deserialized it")
+                            .into(),
+                        request_identifier,
                     });
                 }
                 Err(e) => {
@@ -332,27 +337,24 @@ impl FrostSigner {
                     .await
                     .wrap_err_with(|| {
                         format!("failed to get part 2 response for participant with id {id:?}")
-                    })?;
-                Ok::<(Identifier, RoundTwoResponse), Error>((id, resp.into_inner()))
+                    })?
+                    .into_inner();
+                let sig_share =
+                    frost_ed25519::round2::SignatureShare::deserialize(&resp.signature_share)
+                        .wrap_err_with(|| {
+                            format!(
+                                "failed to deserialize signature share from participant with \
+                                 identifier {id:?}"
+                            )
+                        })?;
+                Ok::<(Identifier, SignatureShare), Error>((id, sig_share))
             });
         }
 
         let mut sig_shares = BTreeMap::new();
         while let Some(res) = stream.next().await {
             match res {
-                Ok((id, part2)) => {
-                    let sig_share = match frost_ed25519::round2::SignatureShare::deserialize(
-                        &part2.signature_share,
-                    ) {
-                        Ok(sig_share) => sig_share,
-                        Err(e) => {
-                            tracing::warn!(
-                                "failed to deserialize signature share from participant {id:?}, \
-                                 ignoring: {e}"
-                            );
-                            continue;
-                        }
-                    };
+                Ok((id, sig_share)) => {
                     sig_shares.insert(id, sig_share);
                 }
                 Err(e) => {

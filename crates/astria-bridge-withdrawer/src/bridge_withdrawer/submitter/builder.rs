@@ -83,7 +83,7 @@ impl Builder {
             no_frost_threshold_signing,
             frost_min_signers,
             frost_public_key_package_path,
-            frost_participant_endpoints,
+            &frost_participant_endpoints,
             sequencer_key_path,
             sequencer_address_prefix,
         )

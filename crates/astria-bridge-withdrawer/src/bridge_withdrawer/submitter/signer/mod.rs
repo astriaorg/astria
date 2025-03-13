@@ -37,7 +37,7 @@ pub(crate) fn make_signer(
     no_frost_threshold_signing: bool,
     frost_min_signers: usize,
     frost_public_key_package_path: String,
-    frost_participant_endpoints: String,
+    frost_participant_endpoints: &str,
     sequencer_key_path: String,
     sequencer_address_prefix: String,
 ) -> eyre::Result<Signer> {
