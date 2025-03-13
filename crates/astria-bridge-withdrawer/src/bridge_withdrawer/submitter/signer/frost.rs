@@ -22,7 +22,6 @@ use astria_eyre::eyre::{
     self,
     ensure,
     eyre,
-    Error,
     WrapErr as _,
 };
 use frost_ed25519::{
@@ -240,28 +239,8 @@ impl FrostSigner {
     async fn execute_round_1(&self) -> Round1Results {
         let mut stream = futures::stream::FuturesUnordered::new();
         for (id, client) in &self.initialized_participant_clients {
-            let mut client = client.clone();
-            stream.push(async move {
-                let resp = client
-                    .execute_round_one(RoundOneRequest {})
-                    .await
-                    .wrap_err_with(|| {
-                        format!("failed to get part 1 response for participant with id {id:?}")
-                    })?
-                    .into_inner();
-                let commitment = round1::SigningCommitments::deserialize(&resp.commitment)
-                    .wrap_err_with(|| {
-                        format!(
-                            "failed to deserialize commitment from participant with identifier \
-                             {id:?}"
-                        )
-                    })?;
-                Ok::<(&Identifier, SigningCommitments, u32), Error>((
-                    id,
-                    commitment,
-                    resp.request_identifier,
-                ))
-            });
+            let client = client.clone();
+            stream.push(execute_round_1(client, *id));
         }
 
         let mut responses = vec![];
@@ -270,9 +249,9 @@ impl FrostSigner {
         while let Some(res) = stream.next().await {
             match res {
                 Ok((id, commitment, request_identifier)) => {
-                    signing_package_commitments.insert(*id, commitment);
+                    signing_package_commitments.insert(id, commitment);
                     responses.push(Round1Response {
-                        id: *id,
+                        id,
                         commitment: commitment
                             .serialize()
                             .expect("commitment must be serializable, as we just deserialized it")
@@ -317,7 +296,7 @@ impl FrostSigner {
             ..
         } in responses
         {
-            let mut client = self
+            let client = self
                 .initialized_participant_clients
                 .get(&id)
                 .expect(
@@ -327,28 +306,13 @@ impl FrostSigner {
                 .clone();
             let request_commitments = request_commitments.clone();
             let tx_bytes = tx_bytes.clone();
-            stream.push(async move {
-                let resp = client
-                    .execute_round_two(RoundTwoRequest {
-                        request_identifier,
-                        message: tx_bytes.into(),
-                        commitments: request_commitments,
-                    })
-                    .await
-                    .wrap_err_with(|| {
-                        format!("failed to get part 2 response for participant with id {id:?}")
-                    })?
-                    .into_inner();
-                let sig_share =
-                    frost_ed25519::round2::SignatureShare::deserialize(&resp.signature_share)
-                        .wrap_err_with(|| {
-                            format!(
-                                "failed to deserialize signature share from participant with \
-                                 identifier {id:?}"
-                            )
-                        })?;
-                Ok::<(Identifier, SignatureShare), Error>((id, sig_share))
-            });
+            stream.push(execute_round_2(
+                client,
+                id,
+                request_identifier,
+                tx_bytes,
+                request_commitments,
+            ));
         }
 
         let mut sig_shares = BTreeMap::new();
@@ -365,4 +329,53 @@ impl FrostSigner {
 
         sig_shares
     }
+}
+
+async fn execute_round_1(
+    mut client: FrostParticipantServiceClient<tonic::transport::Channel>,
+    participant_id: Identifier,
+) -> eyre::Result<(Identifier, SigningCommitments, u32)> {
+    let resp = client
+        .execute_round_one(RoundOneRequest {})
+        .await
+        .wrap_err_with(|| {
+            format!("failed to get part 1 response for participant with id {participant_id:?}")
+        })?
+        .into_inner();
+    let commitment =
+        round1::SigningCommitments::deserialize(&resp.commitment).wrap_err_with(|| {
+            format!(
+                "failed to deserialize commitment from participant with identifier \
+                 {participant_id:?}"
+            )
+        })?;
+    Ok((participant_id, commitment, resp.request_identifier))
+}
+
+async fn execute_round_2(
+    mut client: FrostParticipantServiceClient<tonic::transport::Channel>,
+    participant_id: Identifier,
+    request_identifier: u32,
+    message: Vec<u8>,
+    commitments: Vec<CommitmentWithIdentifier>,
+) -> eyre::Result<(Identifier, SignatureShare)> {
+    let resp = client
+        .execute_round_two(RoundTwoRequest {
+            request_identifier,
+            message: message.into(),
+            commitments,
+        })
+        .await
+        .wrap_err_with(|| {
+            format!("failed to get part 2 response for participant with id {participant_id:?}")
+        })?
+        .into_inner();
+    let sig_share = frost_ed25519::round2::SignatureShare::deserialize(&resp.signature_share)
+        .wrap_err_with(|| {
+            format!(
+                "failed to deserialize signature share from participant with identifier \
+                 {participant_id:?}"
+            )
+        })?;
+    Ok((participant_id, sig_share))
 }
