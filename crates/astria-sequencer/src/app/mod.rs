@@ -78,7 +78,13 @@ use tendermint::{
     AppHash,
     Hash,
 };
-use tracing::{debug, info, instrument, Level, trace};
+use tracing::{
+    debug,
+    info,
+    instrument,
+    trace,
+    Level,
+};
 
 pub(crate) use self::state_ext::{
     StateReadExt,
@@ -435,7 +441,7 @@ impl App {
                          clear and execute"
                     );
                 }
-            },
+            }
             // No cached proposal, nothing to do for logging. Common case for validator voting.
             ProposalFingerprintData::Unset => {}
         }
