@@ -171,17 +171,14 @@ pub(crate) struct App {
     // Transactions are pulled from this mempool during `prepare_proposal`.
     mempool: Mempool,
 
-    // TODO(https://github.com/astriaorg/astria/issues/1660): The executed_proposal_fingerprint and
-    // executed_proposal_hash fields should be stored in the ephemeral storage instead of on the
-    // app struct, to avoid any issues with forgetting to reset them.
+    // TODO(https://github.com/astriaorg/astria/issues/1660): use the ephemeral
+    // storage to track this instead of a field on the app object.
 
-    // An identifier for the given apps status through execution.
+    // An identifier for the given app's status through execution of different ABCI
+    // calls.
     //
-    // Used to avoid executing a block in both `prepare_proposal`, `process_proposal`, and
-    // `finalize_block`. It is set in `prepare_proposal` from information sent in from cometbft
-    // and can potentially change round-to-round. In `process_proposal` we check if we prepared
-    // the proposal, and if so, we clear the value, and we skip re-execution of the block's
-    // transactions to avoid failures caused by re-execution.
+    // Used to avoid double execution of transactions across ABCI calls, as well as
+    // to indicate when we must clear and re-execute (ie if round has changed).
     execution_state: ExecutionState,
 
     // This is set when a `FeeChange` or `FeeAssetChange` action is seen in a block to flag

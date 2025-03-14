@@ -35,6 +35,10 @@ pub(crate) enum ExecutionFingerprintData {
     CheckedExecutedBlockMismatch([u8; 32], Option<[u8; 32]>),
 }
 
+// State machine for tracking what state the app has executed
+// data in. This is used to check if transactions have been executed
+// in different ABCI calls across requests, and whether the cached state can be
+// used or should be reset.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ExecutionState(ExecutionFingerprintData);
 
