@@ -51,6 +51,12 @@ impl ExecutionState {
         self.0
     }
 
+    #[cfg(test)]
+    // This is used just to make testing easier for transitions without needing to fully setup
+    fn create_with_data(data: ExecutionFingerprintData) -> Self {
+        Self(data)
+    }
+
     // Called at the end `prepare_proposal`, it takes the request and response
     // to create a partial ProcessProposal message, serializes and hashes that
     // data to create a fingerprint.
@@ -68,7 +74,7 @@ impl ExecutionState {
         };
         use tendermint_proto::v0_38::abci as pb;
         if self.0 != ExecutionFingerprintData::Unset {
-            bail!("ProposalFingerprint already set");
+            bail!("execution state already set");
         }
 
         let proposed_last_commit = if let Some(local_last_commit) = request.local_last_commit {
@@ -124,8 +130,8 @@ impl ExecutionState {
             | ExecutionFingerprintData::CheckedPreparedMismatch(_)
             | ExecutionFingerprintData::CheckedExecutedBlockMismatch(..)
             | ExecutionFingerprintData::ExecutedBlock(..) => false,
-            ExecutionFingerprintData::PreparedValid(_) => true,
-            ExecutionFingerprintData::Prepared(proposal_hash) => {
+            ExecutionFingerprintData::PreparedValid(proposal_hash)
+            | ExecutionFingerprintData::Prepared(proposal_hash) => {
                 let partial_proposal = abci::request::ProcessProposal {
                     hash: Hash::default(),
                     ..proposal.clone()
@@ -202,6 +208,323 @@ impl ExecutionState {
 
                 true
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tendermint::{
+        abci::{
+            request,
+            response,
+        },
+        Time,
+    };
+
+    use super::*;
+
+    fn build_prepare_proposal(
+        txs: &[bytes::Bytes],
+    ) -> (request::PrepareProposal, response::PrepareProposal) {
+        let time = Time::from_unix_timestamp(1_741_740_299, 32).unwrap();
+        let request = request::PrepareProposal {
+            height: 1u32.into(),
+            time,
+            proposer_address: [9u8; 20].to_vec().try_into().unwrap(),
+            next_validators_hash: Hash::default(),
+            local_last_commit: None,
+            misbehavior: vec![],
+            txs: vec![],
+            max_tx_bytes: 1_000_000,
+        };
+        let response = abci::response::PrepareProposal {
+            txs: txs.to_owned(),
+        };
+        (request, response)
+    }
+
+    fn build_process_proposal(
+        request: request::PrepareProposal,
+        response: response::PrepareProposal,
+        matching: bool,
+    ) -> request::ProcessProposal {
+        // The time is otherwise set to a fixed value so this should
+        // always be different.
+        // Also avoids using non matching values in snapshots
+        let time = if matching { request.time } else { Time::now() };
+        request::ProcessProposal {
+            hash: Hash::Sha256([6u8; 32]),
+            proposed_last_commit: None,
+            height: request.height,
+            time,
+            proposer_address: request.proposer_address,
+            next_validators_hash: request.next_validators_hash,
+            misbehavior: request.misbehavior,
+            txs: response.txs,
+        }
+    }
+
+    #[test]
+    fn new_execution_state_is_unset() {
+        let state = ExecutionState::new();
+        assert_eq!(state.data(), ExecutionFingerprintData::Unset);
+    }
+
+    #[test]
+    fn set_prepared_succeeds() {
+        let (prepare_request, prepare_response) = build_prepare_proposal(&[]);
+        let mut state = ExecutionState::new();
+
+        state
+            .set_prepared_proposal(prepare_request.clone(), prepare_response.clone())
+            .unwrap();
+        insta::assert_debug_snapshot!(state.data());
+    }
+
+    #[test]
+    fn set_prepared_fails_on_non_unset() {
+        let hash = [1u8; 32];
+        let (prepare_request, prepare_response) = build_prepare_proposal(&[]);
+
+        let states_to_test = vec![
+            ExecutionFingerprintData::Prepared(hash),
+            ExecutionFingerprintData::PreparedValid(hash),
+            ExecutionFingerprintData::CheckedPreparedMismatch(hash),
+            ExecutionFingerprintData::ExecutedBlock(hash, None),
+            ExecutionFingerprintData::ExecutedBlock(hash, Some(hash)),
+            ExecutionFingerprintData::CheckedExecutedBlockMismatch(hash, None),
+            ExecutionFingerprintData::CheckedExecutedBlockMismatch(hash, Some(hash)),
+        ];
+
+        for state in states_to_test {
+            let mut state = ExecutionState::create_with_data(state);
+            let data_copy = state.data();
+            let _ = state
+                .set_prepared_proposal(prepare_request.clone(), prepare_response.clone())
+                .unwrap_err();
+            assert_eq!(state.data(), data_copy);
+        }
+    }
+
+    #[test]
+    fn check_if_prepared_validates_successfully() {
+        let (prepare_request, prepare_response) = build_prepare_proposal(&[]);
+        let matching_request =
+            build_process_proposal(prepare_request.clone(), prepare_response.clone(), true);
+        let mut state = ExecutionState::new();
+        state
+            .set_prepared_proposal(prepare_request.clone(), prepare_response.clone())
+            .unwrap();
+
+        assert!(state.check_if_prepared_proposal(&matching_request));
+        insta::assert_debug_snapshot!(state.data());
+        let data_copy = state.data();
+
+        // Should validate a second time, don't need a second snapshot
+        assert!(state.check_if_prepared_proposal(&matching_request));
+        assert_eq!(state.data(), data_copy);
+    }
+
+    #[test]
+    fn check_if_prepared_on_prepared_valid_will_invalidate_mismatch() {
+        let (prepare_request, prepare_response) = build_prepare_proposal(&[]);
+        let match_request =
+            build_process_proposal(prepare_request.clone(), prepare_response.clone(), true);
+        let mismatch_request =
+            build_process_proposal(prepare_request.clone(), prepare_response.clone(), false);
+        let mut state = ExecutionState::new();
+        state
+            .set_prepared_proposal(prepare_request.clone(), prepare_response.clone())
+            .unwrap();
+
+        // First get validated then attempt again with mismatch
+        assert!(state.check_if_prepared_proposal(&match_request));
+        assert!(!state.check_if_prepared_proposal(&mismatch_request));
+        insta::assert_debug_snapshot!(state.data());
+
+        // Shouldn't change back to passing
+        assert!(!state.check_if_prepared_proposal(&match_request));
+    }
+
+    #[test]
+    fn check_if_prepared_invalidates_mismatch() {
+        let (prepare_request, prepare_response) = build_prepare_proposal(&[]);
+        let process_request =
+            build_process_proposal(prepare_request.clone(), prepare_response.clone(), false);
+        let mut state = ExecutionState::new();
+        state
+            .set_prepared_proposal(prepare_request.clone(), prepare_response.clone())
+            .unwrap();
+
+        assert!(!state.check_if_prepared_proposal(&process_request));
+        insta::assert_debug_snapshot!(state.data());
+    }
+
+    #[test]
+    fn check_if_prepared_false_on_ineligible_states() {
+        let block_hash = [1u8; 32];
+        let (prepare_request, prepare_response) = build_prepare_proposal(&[]);
+        let match_request =
+            build_process_proposal(prepare_request.clone(), prepare_response.clone(), true);
+        let mut state = ExecutionState::new();
+        state
+            .set_prepared_proposal(prepare_request.clone(), prepare_response.clone())
+            .unwrap();
+        let ExecutionFingerprintData::Prepared(prop_hash) = state.data() else {
+            panic!("Expected Prepared state");
+        };
+
+        // Each one of these states should return false and not change the state.
+        let states_to_test = vec![
+            ExecutionFingerprintData::Unset,
+            ExecutionFingerprintData::CheckedPreparedMismatch(prop_hash),
+            ExecutionFingerprintData::ExecutedBlock(block_hash, None),
+            ExecutionFingerprintData::ExecutedBlock(block_hash, Some(prop_hash)),
+            ExecutionFingerprintData::CheckedExecutedBlockMismatch(block_hash, None),
+            ExecutionFingerprintData::CheckedExecutedBlockMismatch(block_hash, Some(prop_hash)),
+        ];
+
+        for state in states_to_test {
+            let mut state = ExecutionState::create_with_data(state);
+            let data_copy = state.data();
+            assert!(!state.check_if_prepared_proposal(&match_request));
+            assert_eq!(state.data(), data_copy);
+        }
+    }
+
+    #[test]
+    fn set_execute_block_without_prepared_succeeds() {
+        let block_hash = [1u8; 32];
+        let mut state = ExecutionState::new();
+
+        state.set_executed_block(block_hash).unwrap();
+        assert_eq!(
+            state.data(),
+            ExecutionFingerprintData::ExecutedBlock(block_hash, None)
+        );
+    }
+
+    #[test]
+    fn set_execute_block_with_prepared_validated_succeeds() {
+        let block_hash = [1u8; 32];
+        let mut state =
+            ExecutionState::create_with_data(ExecutionFingerprintData::PreparedValid([2u8; 32]));
+
+        state.set_executed_block(block_hash).unwrap();
+        assert_eq!(
+            state.data(),
+            ExecutionFingerprintData::ExecutedBlock(block_hash, Some([2u8; 32]))
+        );
+    }
+
+    #[test]
+    fn set_execute_block_with_non_settable_states_errors() {
+        let hash = [1u8; 32];
+        let mut errors = vec![];
+
+        // All of these should error, and then we will validate errors don't change with snapshot.
+        let mut state =
+            ExecutionState::create_with_data(ExecutionFingerprintData::Prepared([1u8; 32]));
+        errors.push(state.set_executed_block(hash).unwrap_err());
+        state = ExecutionState::create_with_data(
+            ExecutionFingerprintData::CheckedPreparedMismatch(hash),
+        );
+        errors.push(state.set_executed_block(hash).unwrap_err());
+        state = ExecutionState::create_with_data(ExecutionFingerprintData::ExecutedBlock(
+            hash,
+            Some(hash),
+        ));
+        errors.push(state.set_executed_block(hash).unwrap_err());
+        state = ExecutionState::create_with_data(
+            ExecutionFingerprintData::CheckedExecutedBlockMismatch(hash, Some(hash)),
+        );
+        errors.push(state.set_executed_block(hash).unwrap_err());
+
+        insta::assert_debug_snapshot!(errors);
+    }
+
+    #[test]
+    fn check_if_execute_block_succeeds_on_matching() {
+        let block_hash = [1u8; 32];
+        let mut state = ExecutionState::create_with_data(ExecutionFingerprintData::ExecutedBlock(
+            block_hash, None,
+        ));
+        let data_copy = state.data();
+
+        assert!(state.check_if_executed_block(block_hash));
+        assert_eq!(state.data(), data_copy);
+
+        state = ExecutionState::create_with_data(ExecutionFingerprintData::ExecutedBlock(
+            block_hash,
+            Some(block_hash),
+        ));
+        let data_copy = state.data();
+
+        assert!(state.check_if_executed_block(block_hash));
+        assert_eq!(state.data(), data_copy);
+    }
+
+    #[test]
+    fn check_if_execute_block_fails_on_non_matching() {
+        let block_hash = [1u8; 32];
+        let mut state = ExecutionState::create_with_data(ExecutionFingerprintData::ExecutedBlock(
+            block_hash, None,
+        ));
+
+        assert!(!state.check_if_executed_block([2u8; 32]));
+        assert_eq!(
+            state.data(),
+            ExecutionFingerprintData::CheckedExecutedBlockMismatch(block_hash, None)
+        );
+
+        state = ExecutionState::create_with_data(ExecutionFingerprintData::ExecutedBlock(
+            block_hash,
+            Some([3u8; 32]),
+        ));
+        assert!(!state.check_if_executed_block([2u8; 32]));
+        assert_eq!(
+            state.data(),
+            ExecutionFingerprintData::CheckedExecutedBlockMismatch(block_hash, Some([3u8; 32]))
+        );
+    }
+
+    #[test]
+    fn check_if_execute_block_fails_on_prepared_states() {
+        let hash = [1u8; 32];
+        let mut state = ExecutionState::create_with_data(ExecutionFingerprintData::Prepared(hash));
+
+        assert!(!state.check_if_executed_block(hash));
+        assert_eq!(
+            state.data(),
+            ExecutionFingerprintData::CheckedPreparedMismatch(hash)
+        );
+
+        // Should also fail and state should match what is called on prepared state
+        state = ExecutionState::create_with_data(ExecutionFingerprintData::PreparedValid(hash));
+        assert!(!state.check_if_executed_block(hash));
+        assert_eq!(
+            state.data(),
+            ExecutionFingerprintData::CheckedPreparedMismatch(hash)
+        );
+    }
+
+    #[test]
+    fn check_if_execute_block_fails_on_ineligible_states() {
+        let hash = [1u8; 32];
+
+        // Each one of these states should return false and not change the state.
+        let states_to_test = vec![
+            ExecutionFingerprintData::Unset,
+            ExecutionFingerprintData::CheckedExecutedBlockMismatch(hash, None),
+            ExecutionFingerprintData::CheckedExecutedBlockMismatch(hash, Some(hash)),
+        ];
+
+        for state in states_to_test {
+            let mut state = ExecutionState::create_with_data(state);
+            let data_copy = state.data();
+            assert!(!state.check_if_executed_block(hash));
+            assert_eq!(state.data(), data_copy);
         }
     }
 }

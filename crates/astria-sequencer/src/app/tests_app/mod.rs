@@ -433,9 +433,6 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
 
-    // After commit the fingerprint should always be Unset
-    assert_eq!(app.execution_state.data(), ExecutionFingerprintData::Unset);
-
     let amount = 100;
     let lock_action = BridgeLock {
         to: bridge_address,
@@ -470,9 +467,8 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
     let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
 
-    let timestamp = Time::from_unix_timestamp(1_741_740_299, 32).unwrap();
-    let raw_hash = [99u8; 32];
-    let block_hash = Hash::Sha256(raw_hash);
+    let timestamp = Time::now();
+    let block_hash = Hash::Sha256([99u8; 32]);
     let finalize_block = abci::request::FinalizeBlock {
         hash: block_hash,
         height: 1u32.into(),
@@ -520,7 +516,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     };
 
     let prepare_proposal_result = app
-        .prepare_proposal(prepare_proposal.clone(), storage.clone())
+        .prepare_proposal(prepare_proposal, storage.clone())
         .await
         .unwrap();
     assert_eq!(prepare_proposal_result.txs, finalize_block.txs);
@@ -545,8 +541,6 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         .await
         .unwrap();
 
-    // We only validate on the hash, so this should pass
-    assert!(app.execution_state.check_if_executed_block(raw_hash));
     let finalize_block_after_prepare_proposal_result = app
         .finalize_block(finalize_block.clone(), storage.clone())
         .await
@@ -976,14 +970,14 @@ async fn app_proposal_fingerprint_triggers_update() {
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
     let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
 
-    let timestamp = Time::from_unix_timestamp(1_741_740_299, 32).unwrap();
+    let timestamp = Time::now();
     let raw_hash = [99u8; 32];
     let block_hash = Hash::Sha256(raw_hash);
     let txs = vec![signed_tx.to_raw().encode_to_vec().into()];
     let txs_with_commitments = commitments.into_transactions(txs.clone());
 
     // These two proposals match exactly, except for the commit info
-    let prepare_proposal = abci::request::PrepareProposal {
+    let prepare_proposal = PrepareProposal {
         max_tx_bytes: 1_000_000,
         height: 1u32.into(),
         time: timestamp,
@@ -993,7 +987,7 @@ async fn app_proposal_fingerprint_triggers_update() {
         local_last_commit: None,
         misbehavior: vec![],
     };
-    let match_process_proposal = abci::request::ProcessProposal {
+    let match_process_proposal = ProcessProposal {
         hash: block_hash,
         height: 1u32.into(),
         time: timestamp,
@@ -1003,7 +997,7 @@ async fn app_proposal_fingerprint_triggers_update() {
         proposed_last_commit: None,
         misbehavior: vec![],
     };
-    let non_match_process_proposal = abci::request::ProcessProposal {
+    let non_match_process_proposal = ProcessProposal {
         hash: block_hash,
         height: 1u32.into(),
         time: timestamp,
