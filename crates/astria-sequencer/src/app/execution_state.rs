@@ -251,7 +251,7 @@ mod tests {
     ) -> request::ProcessProposal {
         // The time is otherwise set to a fixed value so this should
         // always be different.
-        // Also avoids using non matching values in snapshots
+        // Also avoids using non-matching values in snapshots
         let time = if matching { request.time } else { Time::now() };
         request::ProcessProposal {
             hash: Hash::Sha256([6u8; 32]),
