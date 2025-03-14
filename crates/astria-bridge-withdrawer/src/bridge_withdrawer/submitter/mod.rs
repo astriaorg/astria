@@ -34,7 +34,6 @@ use sequencer_client::{
     SequencerClientExt,
     Transaction,
 };
-use signer::SequencerKey;
 use state::State;
 use tokio::{
     select,
@@ -61,7 +60,12 @@ use super::{
 use crate::metrics::Metrics;
 
 mod builder;
-pub(crate) mod signer;
+mod signer;
+
+pub(crate) use signer::{
+    make_signer,
+    Signer,
+};
 
 pub(super) struct Submitter {
     shutdown_token: CancellationToken,
@@ -70,12 +74,27 @@ pub(super) struct Submitter {
     batches_rx: mpsc::Receiver<Batch>,
     sequencer_cometbft_client: sequencer_client::HttpClient,
     sequencer_grpc_client: SequencerServiceClient<Channel>,
-    signer: SequencerKey,
+    signer: Signer,
     metrics: &'static Metrics,
 }
 
 impl Submitter {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
+        if let Signer::Threshold(frost_signer) = &mut self.signer {
+            select! {
+                () = self.shutdown_token.cancelled() => {
+                    report_exit(Ok("submitter received shutdown signal while waiting for startup"));
+                    return Ok(());
+                }
+
+                res = frost_signer.initialize_participant_clients() => {
+                    if let Err(e) = res {
+                        return Err(e.wrap_err("failed to initialize participant clients"));
+                    }
+                }
+            };
+        }
+
         let sequencer_chain_id = select! {
             () = self.shutdown_token.cancelled() => {
                 report_exit(Ok("submitter received shutdown signal while waiting for startup"));
@@ -178,7 +197,10 @@ impl Submitter {
             .wrap_err("failed to build unsigned transaction")?;
 
         // sign transaction
-        let signed = unsigned.sign(signer.signing_key());
+        let signed = signer
+            .sign(unsigned)
+            .await
+            .wrap_err("failed to sign transaction")?;
         debug!(transaction_id = %&signed.id(), "signed transaction");
 
         // submit transaction and handle response

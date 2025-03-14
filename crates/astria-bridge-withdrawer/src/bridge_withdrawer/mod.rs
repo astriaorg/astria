@@ -77,7 +77,11 @@ impl BridgeWithdrawer {
             api_addr,
             sequencer_cometbft_endpoint,
             sequencer_chain_id,
+            no_frost_threshold_signing,
             sequencer_key_path,
+            frost_min_signers,
+            frost_participant_endpoints,
+            frost_public_key_package_path,
             sequencer_address_prefix,
             fee_asset_denomination,
             ethereum_contract_address,
@@ -118,19 +122,22 @@ impl BridgeWithdrawer {
 
         let startup_handle = startup::InfoHandle::new(state.subscribe());
 
-        // make submitter object
         let (submitter, submitter_handle) = submitter::Builder {
             shutdown_token: shutdown_handle.token(),
             startup_handle: startup_handle.clone(),
             sequencer_cometbft_client,
             sequencer_grpc_client,
+            no_frost_threshold_signing,
+            frost_min_signers,
+            frost_public_key_package_path,
+            frost_participant_endpoints,
             sequencer_key_path,
-            sequencer_address_prefix: sequencer_address_prefix.clone(),
+            sequencer_address_prefix,
             state: state.clone(),
             metrics,
         }
         .build()
-        .wrap_err("failed to initialize submitter")?;
+        .wrap_err("failed to build submitter")?;
 
         let ethereum_watcher = watcher::Builder {
             ethereum_contract_address,
@@ -171,7 +178,7 @@ impl BridgeWithdrawer {
 
     #[expect(
         clippy::missing_panics_doc,
-        reason = "Panic won't happen because `startup_task` is unwraped lazily after checking if \
+        reason = "Panic won't happen because `startup_task` is unwrapped lazily after checking if \
                   it's `Some`."
     )]
     pub async fn run(self) {

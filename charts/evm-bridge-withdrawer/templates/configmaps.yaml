@@ -34,6 +34,10 @@ data:
   OTEL_SERVICE_NAME: "{{ tpl .Values.otel.serviceName . }}"
   {{- if not .Values.global.dev }}
   {{- else }}
+  ASTRIA_BRIDGE_WITHDRAWER_NO_FROST_THRESHOLD_SIGNING: "{{ .Values.config.noFrostThresholdSigning }}"
+  ASTRIA_BRIDGE_WITHDRAWER_FROST_MIN_SIGNERS: "{{ .Values.config.frostMinSigners }}"
+  ASTRIA_BRIDGE_WITHDRAWER_FROST_PUBLIC_KEY_PACKAGE_PATH: "{{ .Values.config.frostPublicKeyPackagePath }}"
+  ASTRIA_BRIDGE_WITHDRAWER_FROST_PARTICIPANT_ENDPOINTS: "{{ .Values.config.frostParticipantEndpoints }}"
   {{- end }}
 ---
 {{- if not .Values.secretProvider.enabled }}
