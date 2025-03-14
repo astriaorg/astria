@@ -413,23 +413,22 @@ impl App {
             ProposalFingerprintData::Prepared(_) => {
                 bail!("prepared proposal fingerprint was not validated, this should not happen")
             }
-            ProposalFingerprintData::Unset => {}
             // We have a cached proposal from prepare proposal, but it does not match
             // the current proposal. We should clear the cache and execute proposal.
             //
             // This can happen in HA nodes, but if happening in single nodes likely a bug.
-            ProposalFingerprintData::InvalidCheckedPrepared(_) => {
+            ProposalFingerprintData::CheckedPreparedMismatch(_) => {
                 self.metrics.increment_process_proposal_skipped_proposal();
                 trace!(
-                    "there was a previously prepared proposal cached, but did not match proposal, \
-                     will clear and execute block"
+                    "there was a previously prepared proposal cached, but did not match current \
+                     proposal, will clear and execute block"
                 );
                 self.update_state_for_new_round(&storage);
             }
             // There was a previously executed full block cached, likely indicates
             // a new round of voting has started. Previous proposal may have failed.
             ProposalFingerprintData::ExecutedBlock(_, proposal_hash)
-            | ProposalFingerprintData::InvalidCheckedExecutedBlock(_, proposal_hash) => {
+            | ProposalFingerprintData::CheckedExecutedBlockMismatch(_, proposal_hash) => {
                 if proposal_hash.is_none() {
                     trace!(
                         "there was a previously executed block cached, but no proposal hash, will \
@@ -437,7 +436,7 @@ impl App {
                     );
                 } else {
                     trace!(
-                        "our prepared proposal cache executed fully, but did not committed, will \
+                        "our prepared proposal cache executed fully, but was not committed, will \
                          clear and execute"
                     );
                 }
@@ -868,7 +867,7 @@ impl App {
         // If there is not a matching cached executed proposal, we need to execute the block.
         if !self
             .executed_proposal_fingerprint
-            .check_if_executed_proposal(block_hash)
+            .check_if_executed_block(block_hash)
         {
             // clear out state before execution.
             self.update_state_for_new_round(&storage);
