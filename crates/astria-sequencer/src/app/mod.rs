@@ -398,7 +398,7 @@ impl App {
         // Check the proposal against the prepared proposal fingerprint.
         let skip_execution = self
             .execution_state
-            .validate_prepared_proposal(&process_proposal);
+            .check_if_prepared_proposal(&process_proposal);
 
         // Based on the status after the check, a couple of logs and metrics may
         // be updated or emitted.
@@ -862,7 +862,7 @@ impl App {
         };
 
         // If there is not a matching cached executed proposal, we need to execute the block.
-        if !self.execution_state.validate_executed_block(block_hash) {
+        if !self.execution_state.check_if_executed_block(block_hash) {
             // clear out state before execution.
             self.update_state_for_new_round(&storage);
             // convert tendermint id to astria address; this assumes they are

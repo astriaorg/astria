@@ -109,7 +109,7 @@ impl ExecutionState {
     // `CheckedPreparedMismatch`.
     // Will always return false if called on a non `Prepared` or `PreparedValid` state.
     // Returns whether the proposal matches the current fingerprint.
-    pub(crate) fn validate_prepared_proposal(
+    pub(crate) fn check_if_prepared_proposal(
         &mut self,
         proposal: &abci::request::ProcessProposal,
     ) -> bool {
@@ -179,7 +179,7 @@ impl ExecutionState {
     //
     // Should not be called on a `Prepared` fingerprint, will change status
     // to `CheckedPreparedMismatch`.
-    pub(crate) fn validate_executed_block(&mut self, block_hash: [u8; 32]) -> bool {
+    pub(crate) fn check_if_executed_block(&mut self, block_hash: [u8; 32]) -> bool {
         match self.0 {
             ExecutionFingerprintData::Unset
             | ExecutionFingerprintData::CheckedPreparedMismatch(_)

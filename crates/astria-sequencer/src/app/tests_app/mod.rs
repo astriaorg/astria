@@ -546,7 +546,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         .unwrap();
 
     // We only validate on the hash, so this should pass
-    assert!(app.execution_state.validate_executed_block(raw_hash));
+    assert!(app.execution_state.check_if_executed_block(raw_hash));
     let finalize_block_after_prepare_proposal_result = app
         .finalize_block(finalize_block.clone(), storage.clone())
         .await
