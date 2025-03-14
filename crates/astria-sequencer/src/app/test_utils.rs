@@ -45,7 +45,7 @@ pub(crate) fn get_alice_signing_key() -> SigningKey {
 }
 
 pub(crate) fn get_bob_signing_key() -> SigningKey {
-    // this secret key corresponds to ALICE_ADDRESS
+    // this secret key corresponds to BOB_ADDRESS
     let bob_secret_bytes: [u8; 32] =
         hex::decode("b70fd3b99cab2d98dbd73602deb026b9cdc9bb7b85d35f0bbb81b17c78923dd0")
             .unwrap()
@@ -55,7 +55,7 @@ pub(crate) fn get_bob_signing_key() -> SigningKey {
 }
 
 pub(crate) fn get_carol_signing_key() -> SigningKey {
-    // this secret key corresponds to ALICE_ADDRESS
+    // this secret key corresponds to CAROL_ADDRESS
     let carol_secret_bytes: [u8; 32] =
         hex::decode("0e951afdcbefc420fe6f71b82b0c28c11eb6ee5d95be0886ce9dbf6fa512debc")
             .unwrap()
@@ -65,7 +65,7 @@ pub(crate) fn get_carol_signing_key() -> SigningKey {
 }
 
 pub(crate) fn get_judy_signing_key() -> SigningKey {
-    // this secret key corresponds to ALICE_ADDRESS
+    // this secret key corresponds to JUDY_ADDRESS
     let judy_secret_bytes: [u8; 32] =
         hex::decode("3b2a05a2168952a102dcc07f39b9e385a45b9c2a9b6e3d06acf46fb39fd14019")
             .unwrap()
