@@ -6,7 +6,7 @@ Namepsace to deploy elements into.
 {{- end }}
 
 {{- define "sequencer-relayer.imageTag" -}}
-{{- if or (eq .Values.global.network "custom") (eq .Values.global.dev "true") }}{{ .Values.images.sequencerRelayer.tag }}
+{{- if or (eq .Values.global.network "custom") (eq .Values.global.dev true) }}{{ .Values.images.sequencerRelayer.tag }}
 {{- else if eq .Values.global.network "mainnet" }}1.0.0
 {{- else if eq .Values.global.network "dawn-1" }}1.0.0
 {{- else if eq .Values.global.network "dusk-11" }}1.0.0
@@ -34,7 +34,7 @@ Namepsace to deploy elements into.
 {{- end }}
 
 {{- define "sequencer-relayer.blockTimeMs" -}}
-{{- if or (eq .Values.global.network "custom") (eq .Values.global.dev "true") }}{{ .Values.config.relayer.blockTimeMs }}
+{{- if or (eq .Values.global.network "custom") (eq .Values.global.dev true) }}{{ .Values.config.relayer.blockTimeMs }}
 {{- else if eq .Values.global.network "mainnet" }}1000
 {{- else if eq .Values.global.network "dawn-1" }}1000
 {{- else if eq .Values.global.network "dusk-11" }}1000
