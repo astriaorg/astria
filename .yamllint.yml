@@ -1,0 +1,17 @@
+---
+extends: relaxed
+
+ignore:
+  - target/*
+  - crates/astria-bridge-contracts/astria-bridge-contracts/*
+  - charts/*/templates/*
+
+rules:
+  line-length:
+    max: 120
+    allow-non-breakable-words: true
+    allow-non-breakable-inline-mappings: true
+  indentation:
+    spaces: 2
+    indent-sequences: true
+    check-multi-line-strings: false
