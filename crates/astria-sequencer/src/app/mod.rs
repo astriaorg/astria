@@ -78,12 +78,7 @@ use tendermint::{
     AppHash,
     Hash,
 };
-use tracing::{
-    debug,
-    info,
-    instrument,
-    Level,
-};
+use tracing::{debug, info, instrument, Level, trace};
 
 pub(crate) use self::state_ext::{
     StateReadExt,
@@ -398,20 +393,20 @@ impl App {
         storage: Storage,
     ) -> Result<()> {
         // Check the proposal against the prepared proposal fingerprint.
-        // Run some prework and logging based on how this check goes.
         let skip_execution = self
             .executed_proposal_fingerprint
             .check_if_prepared_proposal(&process_proposal);
+
+        // Based on the status after the check, a couple of logs and metrics may
+        // be updated or emitted.
         match self.executed_proposal_fingerprint.data() {
             // The proposal was prepared by this node, so we skip execution.
             ProposalFingerprintData::PreparedValid(_) => {
-                debug!("skipping process_proposal as we are the proposer for this block");
+                trace!("skipping process_proposal as we are the proposer for this block");
             }
             ProposalFingerprintData::Prepared(_) => {
                 bail!("prepared proposal fingerprint was not validated, this should not happen")
             }
-            // No cached proposal, operating on fresh state, can proceed with processing the
-            // proposal.
             ProposalFingerprintData::Unset => {}
             // We have a cached proposal from prepare proposal, but it does not match
             // the current proposal. We should clear the cache and execute proposal.
@@ -419,7 +414,7 @@ impl App {
             // This can happen in HA nodes, but if happening in single nodes likely a bug.
             ProposalFingerprintData::InvalidCheckedPrepared(_) => {
                 self.metrics.increment_process_proposal_skipped_proposal();
-                debug!(
+                trace!(
                     "there was a previously prepared proposal cached, but did not match proposal, \
                      will clear and execute block"
                 );
@@ -430,18 +425,19 @@ impl App {
             ProposalFingerprintData::ExecutedBlock(_, proposal_hash)
             | ProposalFingerprintData::InvalidCheckedExecutedBlock(_, proposal_hash) => {
                 if proposal_hash.is_none() {
-                    debug!(
+                    trace!(
                         "there was a previously executed block cached, but no proposal hash, will \
                          clear and execute"
                     );
                 } else {
-                    debug!(
+                    trace!(
                         "our prepared proposal cache executed fully, but did not committed, will \
                          clear and execute"
                     );
                 }
-                self.update_state_for_new_round(&storage);
-            }
+            },
+            // No cached proposal, nothing to do for logging. Common case for validator voting.
+            ProposalFingerprintData::Unset => {}
         }
 
         // If we can skip execution just fetch the cache, otherwise need to run the execution.
@@ -457,6 +453,7 @@ impl App {
 
             tx_results
         } else {
+            self.update_state_for_new_round(&storage);
             let mut txs = VecDeque::from(process_proposal.txs.clone());
             let received_rollup_datas_root: [u8; 32] = txs
                 .pop_front()
