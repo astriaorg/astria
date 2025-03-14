@@ -3,7 +3,7 @@ pub(crate) mod benchmark_and_test_utils;
 #[cfg(feature = "benchmark")]
 mod benchmarks;
 pub(crate) mod event_bus;
-mod proposal_fingerprint;
+mod execution_state;
 mod state_ext;
 pub(crate) mod storage;
 #[cfg(test)]
@@ -105,9 +105,9 @@ use crate::{
             EventBus,
             EventBusSubscription,
         },
-        proposal_fingerprint::{
-            ProposalFingerprint,
-            ProposalFingerprintData,
+        execution_state::{
+            ExecutionFingerprintData,
+            ExecutionState,
         },
     },
     assets::StateWriteExt as _,
@@ -175,14 +175,14 @@ pub(crate) struct App {
     // executed_proposal_hash fields should be stored in the ephemeral storage instead of on the
     // app struct, to avoid any issues with forgetting to reset them.
 
-    // An identifier for a given proposal constructed by this app.
+    // An identifier for the given apps status through execution.
     //
-    // Used to avoid executing a block in both `prepare_proposal` and `process_proposal`. It
-    // is set in `prepare_proposal` from information sent in from cometbft and can potentially
-    // change round-to-round. In `process_proposal` we check if we prepared the proposal, and
-    // if so, we clear the value, and we skip re-execution of the block's transactions to avoid
-    // failures caused by re-execution.
-    executed_proposal_fingerprint: ProposalFingerprint,
+    // Used to avoid executing a block in both `prepare_proposal`, `process_proposal`, and
+    // `finalize_block`. It is set in `prepare_proposal` from information sent in from cometbft
+    // and can potentially change round-to-round. In `process_proposal` we check if we prepared
+    // the proposal, and if so, we clear the value, and we skip re-execution of the block's
+    // transactions to avoid failures caused by re-execution.
+    execution_state: ExecutionState,
 
     // This is set when a `FeeChange` or `FeeAssetChange` action is seen in a block to flag
     // to the mempool to recost all transactions.
@@ -236,7 +236,7 @@ impl App {
         Ok(Self {
             state,
             mempool,
-            executed_proposal_fingerprint: ProposalFingerprint::new(),
+            execution_state: ExecutionState::new(),
             recost_mempool: false,
             write_batch: None,
             app_hash,
@@ -324,7 +324,7 @@ impl App {
         // this also clears the ephemeral storage.
         self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
 
-        self.executed_proposal_fingerprint = ProposalFingerprint::new();
+        self.execution_state = ExecutionState::new();
     }
 
     /// Generates a commitment to the `sequence::Actions` in the block's transactions.
@@ -383,7 +383,7 @@ impl App {
             txs,
         };
         // Generate the prepared proposal fingerprint.
-        self.executed_proposal_fingerprint
+        self.execution_state
             .set_prepared_proposal(request.clone(), response.clone())
             .wrap_err("failed to set executed proposal fingerprint, this should not happen")?;
         Ok(response)
@@ -400,24 +400,24 @@ impl App {
     ) -> Result<()> {
         // Check the proposal against the prepared proposal fingerprint.
         let skip_execution = self
-            .executed_proposal_fingerprint
-            .check_if_prepared_proposal(&process_proposal);
+            .execution_state
+            .validate_prepared_proposal(&process_proposal);
 
         // Based on the status after the check, a couple of logs and metrics may
         // be updated or emitted.
-        match self.executed_proposal_fingerprint.data() {
+        match self.execution_state.data() {
             // The proposal was prepared by this node, so we skip execution.
-            ProposalFingerprintData::PreparedValid(_) => {
+            ExecutionFingerprintData::PreparedValid(_) => {
                 trace!("skipping process_proposal as we are the proposer for this block");
             }
-            ProposalFingerprintData::Prepared(_) => {
+            ExecutionFingerprintData::Prepared(_) => {
                 bail!("prepared proposal fingerprint was not validated, this should not happen")
             }
             // We have a cached proposal from prepare proposal, but it does not match
             // the current proposal. We should clear the cache and execute proposal.
             //
             // This can happen in HA nodes, but if happening in single nodes likely a bug.
-            ProposalFingerprintData::CheckedPreparedMismatch(_) => {
+            ExecutionFingerprintData::CheckedPreparedMismatch(_) => {
                 self.metrics.increment_process_proposal_skipped_proposal();
                 trace!(
                     "there was a previously prepared proposal cached, but did not match current \
@@ -427,8 +427,8 @@ impl App {
             }
             // There was a previously executed full block cached, likely indicates
             // a new round of voting has started. Previous proposal may have failed.
-            ProposalFingerprintData::ExecutedBlock(_, proposal_hash)
-            | ProposalFingerprintData::CheckedExecutedBlockMismatch(_, proposal_hash) => {
+            ExecutionFingerprintData::ExecutedBlock(_, proposal_hash)
+            | ExecutionFingerprintData::CheckedExecutedBlockMismatch(_, proposal_hash) => {
                 if proposal_hash.is_none() {
                     trace!(
                         "there was a previously executed block cached, but no proposal hash, will \
@@ -442,7 +442,7 @@ impl App {
                 }
             }
             // No cached proposal, nothing to do for logging. Common case for validator voting.
-            ProposalFingerprintData::Unset => {}
+            ExecutionFingerprintData::Unset => {}
         }
 
         // If we can skip execution just fetch the cache, otherwise need to run the execution.
@@ -770,7 +770,7 @@ impl App {
         };
 
         // Update the proposal fingerprint to include the full executed block data.
-        self.executed_proposal_fingerprint
+        self.execution_state
             .set_executed_block(block_hash)
             .wrap_err("failed to set executed proposal fingerprint, this should not happen")?;
 
@@ -865,10 +865,7 @@ impl App {
         };
 
         // If there is not a matching cached executed proposal, we need to execute the block.
-        if !self
-            .executed_proposal_fingerprint
-            .check_if_executed_block(block_hash)
-        {
+        if !self.execution_state.validate_executed_block(block_hash) {
             // clear out state before execution.
             self.update_state_for_new_round(&storage);
             // convert tendermint id to astria address; this assumes they are

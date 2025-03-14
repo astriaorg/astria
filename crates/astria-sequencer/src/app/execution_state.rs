@@ -8,7 +8,7 @@ use tendermint::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ProposalFingerprintData {
+pub(crate) enum ExecutionFingerprintData {
     // No ProposalFingerprint has been set.
     // Transitions to: Prepared, ExecutedBlock
     Unset,
@@ -36,14 +36,14 @@ pub(crate) enum ProposalFingerprintData {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct ProposalFingerprint(ProposalFingerprintData);
+pub(crate) struct ExecutionState(ExecutionFingerprintData);
 
-impl ProposalFingerprint {
+impl ExecutionState {
     pub(crate) fn new() -> Self {
-        Self(ProposalFingerprintData::Unset)
+        Self(ExecutionFingerprintData::Unset)
     }
 
-    pub(crate) fn data(&self) -> ProposalFingerprintData {
+    pub(crate) fn data(&self) -> ExecutionFingerprintData {
         self.0
     }
 
@@ -63,7 +63,7 @@ impl ProposalFingerprint {
             Sha256,
         };
         use tendermint_proto::v0_38::abci as pb;
-        if self.0 != ProposalFingerprintData::Unset {
+        if self.0 != ExecutionFingerprintData::Unset {
             bail!("ProposalFingerprint already set");
         }
 
@@ -96,16 +96,16 @@ impl ProposalFingerprint {
 
         let pb_data = pb::RequestProcessProposal::from(proposal).encode_to_vec();
         let data: [u8; 32] = Sha256::digest(pb_data).into();
-        self.0 = ProposalFingerprintData::Prepared(data);
+        self.0 = ExecutionFingerprintData::Prepared(data);
         Ok(())
     }
 
     // Given a ProcessProposal request, check the ProcessProposal matches
-    // the current fingerprint. If in `Prepared` state
-    // will create a partial ProcessProposal message, serialize and hash that
-    // to compare. If it does not match, the status is set to `CheckedPreparedMismatch`.
+    // the current executed proposal. If it does not match, the status is set to
+    // `CheckedPreparedMismatch`.
+    // Will always return false if called on a non `Prepared` or `PreparedValid` state.
     // Returns whether the proposal matches the current fingerprint.
-    pub(crate) fn check_if_prepared_proposal(
+    pub(crate) fn validate_prepared_proposal(
         &mut self,
         proposal: &abci::request::ProcessProposal,
     ) -> bool {
@@ -116,12 +116,12 @@ impl ProposalFingerprint {
         };
         use tendermint_proto::v0_38::abci as pb;
         match self.0 {
-            ProposalFingerprintData::Unset
-            | ProposalFingerprintData::CheckedPreparedMismatch(_)
-            | ProposalFingerprintData::CheckedExecutedBlockMismatch(..)
-            | ProposalFingerprintData::ExecutedBlock(..) => false,
-            ProposalFingerprintData::PreparedValid(_) => true,
-            ProposalFingerprintData::Prepared(proposal_hash) => {
+            ExecutionFingerprintData::Unset
+            | ExecutionFingerprintData::CheckedPreparedMismatch(_)
+            | ExecutionFingerprintData::CheckedExecutedBlockMismatch(..)
+            | ExecutionFingerprintData::ExecutedBlock(..) => false,
+            ExecutionFingerprintData::PreparedValid(_) => true,
+            ExecutionFingerprintData::Prepared(proposal_hash) => {
                 let partial_proposal = abci::request::ProcessProposal {
                     hash: Hash::default(),
                     ..proposal.clone()
@@ -129,11 +129,11 @@ impl ProposalFingerprint {
                 let pb_data = pb::RequestProcessProposal::from(partial_proposal).encode_to_vec();
                 let data: [u8; 32] = Sha256::digest(pb_data).into();
                 if proposal_hash != data {
-                    self.0 = ProposalFingerprintData::CheckedPreparedMismatch(proposal_hash);
+                    self.0 = ExecutionFingerprintData::CheckedPreparedMismatch(proposal_hash);
                     return false;
                 }
 
-                self.0 = ProposalFingerprintData::PreparedValid(proposal_hash);
+                self.0 = ExecutionFingerprintData::PreparedValid(proposal_hash);
                 true
             }
         }
@@ -144,23 +144,23 @@ impl ProposalFingerprint {
     // or `Unset` fingerprint, otherwise will error.
     pub(crate) fn set_executed_block(&mut self, block_hash: [u8; 32]) -> Result<()> {
         match self.0 {
-            ProposalFingerprintData::Unset => {
-                self.0 = ProposalFingerprintData::ExecutedBlock(block_hash, None);
+            ExecutionFingerprintData::Unset => {
+                self.0 = ExecutionFingerprintData::ExecutedBlock(block_hash, None);
             }
-            ProposalFingerprintData::PreparedValid(proposal_hash) => {
-                self.0 = ProposalFingerprintData::ExecutedBlock(block_hash, Some(proposal_hash));
+            ExecutionFingerprintData::PreparedValid(proposal_hash) => {
+                self.0 = ExecutionFingerprintData::ExecutedBlock(block_hash, Some(proposal_hash));
             }
-            ProposalFingerprintData::Prepared(_) => {
+            ExecutionFingerprintData::Prepared(_) => {
                 bail!(
                     "executed block fingerprint attempted to be set before prepared proposal \
                      fingerprint validated.",
                 );
             }
-            ProposalFingerprintData::ExecutedBlock(..) => {
+            ExecutionFingerprintData::ExecutedBlock(..) => {
                 bail!("executed block fingerprint attempted to be set again.",);
             }
-            ProposalFingerprintData::CheckedPreparedMismatch(_)
-            | ProposalFingerprintData::CheckedExecutedBlockMismatch(..) => {
+            ExecutionFingerprintData::CheckedPreparedMismatch(_)
+            | ExecutionFingerprintData::CheckedExecutedBlockMismatch(..) => {
                 bail!("executed block fingerprint shouldn't be set after invalid check.",);
             }
         }
@@ -168,28 +168,28 @@ impl ProposalFingerprint {
         Ok(())
     }
 
-    // Given a block hash, check if it matches the current fingerprint.
+    // Given a block hash, check if it matches the current execution state.
     //
     // If checking against an `ExecutedBlock` fingerprint, will compare the hash, update
     // the status to `CheckedExecutedBlockMismatch` if it does not match.
     //
     // Should not be called on a `Prepared` fingerprint, will change status
     // to `CheckedPreparedMismatch`.
-    pub(crate) fn check_if_executed_block(&mut self, block_hash: [u8; 32]) -> bool {
+    pub(crate) fn validate_executed_block(&mut self, block_hash: [u8; 32]) -> bool {
         match self.0 {
-            ProposalFingerprintData::Unset
-            | ProposalFingerprintData::CheckedPreparedMismatch(_)
-            | ProposalFingerprintData::CheckedExecutedBlockMismatch(..) => false,
+            ExecutionFingerprintData::Unset
+            | ExecutionFingerprintData::CheckedPreparedMismatch(_)
+            | ExecutionFingerprintData::CheckedExecutedBlockMismatch(..) => false,
             // Can only call check executed on an executed fingerprint.
-            ProposalFingerprintData::Prepared(proposal_hash)
-            | ProposalFingerprintData::PreparedValid(proposal_hash) => {
-                self.0 = ProposalFingerprintData::CheckedPreparedMismatch(proposal_hash);
+            ExecutionFingerprintData::Prepared(proposal_hash)
+            | ExecutionFingerprintData::PreparedValid(proposal_hash) => {
+                self.0 = ExecutionFingerprintData::CheckedPreparedMismatch(proposal_hash);
 
                 false
             }
-            ProposalFingerprintData::ExecutedBlock(cached_block_hash, proposal_hash) => {
+            ExecutionFingerprintData::ExecutedBlock(cached_block_hash, proposal_hash) => {
                 if block_hash != cached_block_hash {
-                    self.0 = ProposalFingerprintData::CheckedExecutedBlockMismatch(
+                    self.0 = ExecutionFingerprintData::CheckedExecutedBlockMismatch(
                         cached_block_hash,
                         proposal_hash,
                     );
