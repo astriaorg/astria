@@ -5,7 +5,7 @@ metadata:
   namespace: {{ include "sequencer.namespace" . }}
 data:
   genesis.json: |
-    {{- tpl (.Files.Get "files/cometbft/config/genesis.json") $ | nindent 4 }}
+    {{- tpl (.Files.Get (tpl "files/cometbft/config/{{ .Values.global.network }}.genesis.json" .)) $ | nindent 4 }}
   config.toml: |
     {{- tpl (.Files.Get "files/cometbft/config/config.toml") $ | nindent 4 }}
 ---
