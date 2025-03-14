@@ -6,12 +6,10 @@
 # Example entry for `conductor` commented out below:
 
 # # Frozen for audit.
-# conductor: &conductor
-#   - crates/astria-conductor/src/**
+freeze_file: &freeze_file
+  - .github/workflows/code-freeze.yml
 
 # if new components are added above update the list below to get better
 # gh pr level visibility into which files are frozen.
-# Example entry for `conductor` commented out below:
-
-# changed:
-#   - *conductor
+changed:
+  - *freeze_file
