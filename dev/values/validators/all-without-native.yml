@@ -1,3 +1,6 @@
+global:
+  network: custom
+
 genesis:
   chainId: 'sequencer-test-chain-0'
   genesisTime: '2023-09-22T17:22:35.092832Z'
