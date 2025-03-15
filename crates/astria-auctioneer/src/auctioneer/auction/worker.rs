@@ -256,7 +256,7 @@ impl Worker {
                         *self.sequencer_key.address(),
                     ).in_current_span()));
                     info!(
-                        duration = %humantime::format_duration(self.latency_margin),
+                        duration = %astria_telemetry::display::format_duration(self.latency_margin),
                         "started auction timer and request for latest nonce",
                     );
                 }
@@ -288,7 +288,7 @@ pub(in crate::auctioneer) enum Error {
     NonceFetchPanicked { source: tokio::task::JoinError },
     #[error(
         "submission of winner to Sequencer elapsed after {}",
-        humantime::format_duration(SUBMISSION_TIMEOUT)
+        astria_telemetry::display::format_duration(SUBMISSION_TIMEOUT)
     )]
     SubmissionElapsed { source: tokio::time::error::Elapsed },
     #[error("encountered an error when sending the winning bid to Sequencer")]

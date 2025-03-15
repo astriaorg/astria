@@ -205,7 +205,7 @@ async fn fetch_block(
                 state.set_sequencer_connected(false);
 
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
 
                 warn!(

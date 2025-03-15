@@ -30,7 +30,6 @@ base64 = { workspace = true }
 bytes = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
-humantime = { workspace = true }
 indexmap = { workspace = true }
 itertools = { workspace = true }
 itoa = { workspace = true }

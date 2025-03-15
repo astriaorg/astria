@@ -15,6 +15,7 @@ base64 = { workspace = true, optional = true }
 base64-serde = { workspace = true, optional = true }
 const_format = { workspace = true }
 itertools = { workspace = true }
+jiff = { workspace = true, optional = true }
 
 metrics = "0.23.0"
 metrics-exporter-prometheus = { version = "0.15.0", default-features = false, features = [
@@ -47,4 +48,5 @@ display = [
   "dep:serde_json",
   "dep:base64-serde",
   "dep:serde_with",
+  "dep:jiff",
 ]

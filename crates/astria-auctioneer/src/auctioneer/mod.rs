@@ -339,7 +339,7 @@ impl Auctioneer {
 
         let message = format!(
             "waiting {} for all constituent tasks to shutdown before aborting",
-            humantime::format_duration(WAIT_BEFORE_ABORT),
+            astria_telemetry::display::format_duration(WAIT_BEFORE_ABORT),
         );
         match &reason {
             Ok(reason) => info!(%reason, message),

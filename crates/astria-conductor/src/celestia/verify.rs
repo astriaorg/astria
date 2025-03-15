@@ -307,7 +307,7 @@ async fn fetch_commit_with_retry(
         .on_retry(
             |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     attempt,
@@ -343,7 +343,7 @@ async fn fetch_validators_with_retry(
         .on_retry(
             |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     attempt,

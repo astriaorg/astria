@@ -21,10 +21,9 @@ celestia-types = { workspace = true }
 const_format = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
-humantime = { workspace = true }
-humantime-serde = "1.1.1"
 hyper = { workspace = true }
 itoa = { workspace = true }
+jiff = { workspace = true, features = ["serde"] }
 pbjson-types = { workspace = true }
 pin-project-lite = { workspace = true }
 prost = { workspace = true }

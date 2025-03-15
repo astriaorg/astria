@@ -377,7 +377,7 @@ impl Executor {
                  next_delay: Option<Duration>,
                  error: &sequencer_client::tendermint_rpc::Error| {
                     let wait_duration = next_delay
-                        .map(humantime::format_duration)
+                        .map(telemetry::display::format_duration)
                         .map(tracing::field::display);
                     warn!(
                         attempt,
@@ -491,7 +491,7 @@ async fn get_pending_nonce(
                 metrics.increment_nonce_fetch_failure_count();
 
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     parent: span.clone(),
@@ -558,7 +558,7 @@ async fn submit_tx(
                 metrics.increment_sequencer_submission_failure_count();
 
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     parent: span.clone(),

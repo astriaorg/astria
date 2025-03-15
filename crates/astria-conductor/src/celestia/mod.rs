@@ -226,7 +226,7 @@ async fn get_celestia_chain_id(
         .on_retry(
             |attempt: u32, next_delay: Option<Duration>, error: &jsonrpsee::core::Error| {
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     attempt,
@@ -675,7 +675,7 @@ async fn get_sequencer_chain_id(client: SequencerClient) -> eyre::Result<tenderm
         .on_retry(
             |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     attempt,

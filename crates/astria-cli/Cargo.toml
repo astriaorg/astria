@@ -38,7 +38,7 @@ tendermint = { workspace = true }
 tokio = { workspace = true, features = ["rt", "macros", "signal"] }
 tracing = { workspace = true }
 which = { workspace = true }
-humantime.workspace = true
+jiff.workspace = true
 tryhard.workspace = true
 serde_json.workspace = true
 futures.workspace = true
