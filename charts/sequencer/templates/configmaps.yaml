@@ -72,8 +72,12 @@ data:
   OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.sequencer.otel.otlpHeaders }}"
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.sequencer.otel.traceHeaders }}"
   OTEL_SERVICE_NAME: "{{ tpl .Values.sequencer.otel.serviceName . }}"
-  {{- if not .Values.global.dev }}
+  # These values are used when we either explicitly set dev mode or running
+  # any image other than the current release version. These are generally
+  # variables which are being deleted in the future.
+  {{- if not (or .Values.global.dev (ne (include "sequencer.imageTag" .) .Chart.AppVersion)) }}
   ASTRIA_SEQUENCER_LISTEN_ADDR: "127.0.0.1:{{ .Values.ports.sequencerABCI }}"
+  # These are variables which are added in newer releases and are not present in the current release.
   {{- else }}
   ASTRIA_SEQUENCER_ABCI_LISTEN_URL: "{{ include "sequencer.abci_url" . }}"
   ASTRIA_SEQUENCER_NO_OPTIMISTIC_BLOCKS: "{{ not .Values.sequencer.optimisticBlockApis.enabled }}"

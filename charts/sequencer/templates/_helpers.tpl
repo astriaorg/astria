@@ -8,16 +8,16 @@ Namepsace to deploy elements into.
 {{- define "sequencer.imageTag" -}}
 {{- if or (eq .Values.global.network "custom") (eq .Values.global.dev true) }}{{ .Values.images.sequencer.tag }}
 {{- else if eq .Values.global.network "mainnet" }}1.0.0
-{{- else if eq .Values.global.network "dawn-1" }}1.0.0
-{{- else if eq .Values.global.network "dusk-11" }}1.0.0
+{{- else if eq .Values.global.network "dawn-1" }}2.0.0-rc.1
+{{- else if eq .Values.global.network "dusk-11" }}2.0.0-rc.1
 {{- end }}
 {{- end }}
 
 {{- define "cometBFT.imageTag" -}}
 {{- if or (eq .Values.global.network "custom") (eq .Values.global.dev true) }}{{ .Values.images.cometBFT.tag }}
-{{- else if eq .Values.global.network "mainnet" }}1.0.0
-{{- else if eq .Values.global.network "dawn-1" }}1.0.0
-{{- else if eq .Values.global.network "dusk-11" }}1.0.0
+{{- else if eq .Values.global.network "mainnet" }}0.38.17
+{{- else if eq .Values.global.network "dawn-1" }}0.38.17
+{{- else if eq .Values.global.network "dusk-11" }}0.38.17
 {{- end }}
 {{- end }}
 
