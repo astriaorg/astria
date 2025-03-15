@@ -15,9 +15,9 @@ Namepsace to deploy elements into.
 
 {{- define "cometBFT.imageTag" -}}
 {{- if or (eq .Values.global.network "custom") (eq .Values.global.dev true) }}{{ .Values.images.cometBFT.tag }}
-{{- else if eq .Values.global.network "mainnet" }}0.38.17
-{{- else if eq .Values.global.network "dawn-1" }}0.38.17
-{{- else if eq .Values.global.network "dusk-11" }}0.38.17
+{{- else if eq .Values.global.network "mainnet" }}v0.38.17
+{{- else if eq .Values.global.network "dawn-1" }}v0.38.17
+{{- else if eq .Values.global.network "dusk-11" }}v0.38.17
 {{- end }}
 {{- end }}
 
