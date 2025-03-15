@@ -15,10 +15,12 @@ use base64::{
     Engine,
 };
 use astria_core::{
-    generated::protocol::transaction::v1::Transaction as RawTransaction,
+    generated::astria::protocol::transaction::v1::Transaction as RawTransaction,
     protocol::transaction::v1::Transaction,
 };
 use astria_core::primitive::v1::{Address, Bech32m};
+use astria_core::Protobuf;
+
 
 #[derive(clap::Args, Debug)]
 pub struct Args {
