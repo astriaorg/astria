@@ -3,6 +3,7 @@ pub(crate) mod benchmark_and_test_utils;
 #[cfg(feature = "benchmark")]
 mod benchmarks;
 pub(crate) mod event_bus;
+mod execution_state;
 mod state_ext;
 pub(crate) mod storage;
 #[cfg(test)]
@@ -81,6 +82,7 @@ use tracing::{
     debug,
     info,
     instrument,
+    trace,
     Level,
 };
 
@@ -98,9 +100,15 @@ use crate::{
         ActionHandler as _,
     },
     address::StateWriteExt as _,
-    app::event_bus::{
-        EventBus,
-        EventBusSubscription,
+    app::{
+        event_bus::{
+            EventBus,
+            EventBusSubscription,
+        },
+        execution_state::{
+            ExecutionFingerprintData,
+            ExecutionState,
+        },
     },
     assets::StateWriteExt as _,
     authority::{
@@ -147,40 +155,6 @@ const POST_TRANSACTION_EXECUTION_RESULT_KEY: &str = "post_transaction_execution_
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
 
-/// This is used to identify a proposal constructed by the app instance
-/// in `prepare_proposal` during a `process_proposal` call.
-///
-/// The fields are not exhaustive, in most instances just the validator address
-/// is adequate. When running a third party signer such as horcrux however it is
-/// possible that multiple nodes are preparing proposals as the same validator
-/// address, in these instances the timestamp is used as a unique identifier for
-/// the proposal from that node. This is not a perfect solution, but it only
-/// impacts sentry nodes does not halt the network and is cheaper computationally
-/// than an exhaustive comparison.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub(crate) struct ProposalFingerprint {
-    validator_address: account::Id,
-    timestamp: tendermint::Time,
-}
-
-impl From<abci::request::PrepareProposal> for ProposalFingerprint {
-    fn from(proposal: abci::request::PrepareProposal) -> Self {
-        Self {
-            validator_address: proposal.proposer_address,
-            timestamp: proposal.time,
-        }
-    }
-}
-
-impl From<abci::request::ProcessProposal> for ProposalFingerprint {
-    fn from(proposal: abci::request::ProcessProposal) -> Self {
-        Self {
-            validator_address: proposal.proposer_address,
-            timestamp: proposal.time,
-        }
-    }
-}
-
 /// The Sequencer application, written as a bundle of [`Component`]s.
 ///
 /// Note: this is called `App` because this is a Tendermint ABCI application,
@@ -197,28 +171,15 @@ pub(crate) struct App {
     // Transactions are pulled from this mempool during `prepare_proposal`.
     mempool: Mempool,
 
-    // TODO(https://github.com/astriaorg/astria/issues/1660): The executed_proposal_fingerprint and
-    // executed_proposal_hash fields should be stored in the ephemeral storage instead of on the
-    // app struct, to avoid any issues with forgetting to reset them.
+    // TODO(https://github.com/astriaorg/astria/issues/1660): use the ephemeral
+    // storage to track this instead of a field on the app object.
 
-    // An identifier for a given proposal constructed by this app.
+    // An identifier for the given app's status through execution of different ABCI
+    // calls.
     //
-    // Used to avoid executing a block in both `prepare_proposal` and `process_proposal`. It
-    // is set in `prepare_proposal` from information sent in from cometbft and can potentially
-    // change round-to-round. In `process_proposal` we check if we prepared the proposal, and
-    // if so, we clear the value, and we skip re-execution of the block's transactions to avoid
-    // failures caused by re-execution.
-    executed_proposal_fingerprint: Option<ProposalFingerprint>,
-
-    // This is set to the executed hash of the proposal during `process_proposal`
-    //
-    // If it does not match the hash given during `begin_block`, then we clear and
-    // reset the execution results cache + state delta. Transactions are re-executed.
-    // If it does match, we utilize cached results to reduce computation.
-    //
-    // Resets to default hash at the beginning of `prepare_proposal`, and `process_proposal` if
-    // `prepare_proposal` was not called.
-    executed_proposal_hash: Hash,
+    // Used to avoid double execution of transactions across ABCI calls, as well as
+    // to indicate when we must clear and re-execute (ie if round has changed).
+    execution_state: ExecutionState,
 
     // This is set when a `FeeChange` or `FeeAssetChange` action is seen in a block to flag
     // to the mempool to recost all transactions.
@@ -272,8 +233,7 @@ impl App {
         Ok(Self {
             state,
             mempool,
-            executed_proposal_fingerprint: None,
-            executed_proposal_hash: Hash::default(),
+            execution_state: ExecutionState::new(),
             recost_mempool: false,
             write_batch: None,
             app_hash,
@@ -361,8 +321,7 @@ impl App {
         // this also clears the ephemeral storage.
         self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
 
-        // clear the cached executed proposal hash
-        self.executed_proposal_hash = Hash::default();
+        self.execution_state = ExecutionState::new();
     }
 
     /// Generates a commitment to the `sequence::Actions` in the block's transactions.
@@ -379,7 +338,7 @@ impl App {
         prepare_proposal: abci::request::PrepareProposal,
         storage: Storage,
     ) -> Result<abci::response::PrepareProposal> {
-        self.executed_proposal_fingerprint = Some(prepare_proposal.clone().into());
+        // Always reset when preparing a proposal.
         self.update_state_for_new_round(&storage);
 
         let mut block_size_constraints = BlockSizeConstraints::new(
@@ -388,6 +347,7 @@ impl App {
         )
         .wrap_err("failed to create block size constraints")?;
 
+        let request = prepare_proposal.clone();
         let block_data = BlockData {
             misbehavior: prepare_proposal.misbehavior,
             height: prepare_proposal.height,
@@ -415,9 +375,15 @@ impl App {
         // included in the block
         let res = generate_rollup_datas_commitment(&signed_txs_included, deposits);
         let txs = res.into_transactions(included_tx_bytes);
-        Ok(abci::response::PrepareProposal {
+
+        let response = abci::response::PrepareProposal {
             txs,
-        })
+        };
+        // Generate the prepared proposal fingerprint.
+        self.execution_state
+            .set_prepared_proposal(request.clone(), response.clone())
+            .wrap_err("failed to set executed proposal fingerprint, this should not happen")?;
+        Ok(response)
     }
 
     /// Generates a commitment to the `sequence::Actions` in the block's transactions
@@ -429,134 +395,145 @@ impl App {
         process_proposal: abci::request::ProcessProposal,
         storage: Storage,
     ) -> Result<()> {
-        // if we proposed this block (ie. prepare_proposal was called directly before this), then
-        // we skip execution for this `process_proposal` call.
-        //
-        // if we didn't propose this block, `self.validator_address` will be None or a different
-        // value, so we will execute  block as normal.
-        if let Some(constructed_id) = self.executed_proposal_fingerprint {
-            let proposal_id = process_proposal.clone().into();
-            if constructed_id == proposal_id {
-                debug!("skipping process_proposal as we are the proposer for this block");
-                self.executed_proposal_fingerprint = None;
-                self.executed_proposal_hash = process_proposal.hash;
+        // Check the proposal against the prepared proposal fingerprint.
+        let skip_execution = self
+            .execution_state
+            .check_if_prepared_proposal(&process_proposal);
 
-                // if we're the proposer, we should have the execution results from
-                // `prepare_proposal`. run the post-tx-execution hook to generate the
-                // `SequencerBlock` and to set `self.finalize_block`.
-                //
-                // we can't run this in `prepare_proposal` as we don't know the block hash there.
-                let Some(tx_results) = self.state.object_get(EXECUTION_RESULTS_KEY) else {
-                    bail!("execution results must be present after executing transactions")
-                };
-
-                // FIXME - avoid duplicate calls to post_execute_transactions. refer to: https://github.com/astriaorg/astria/issues/1835
-                let sequencer_block = self
-                    .post_execute_transactions(
-                        process_proposal.hash,
-                        process_proposal.height,
-                        process_proposal.time,
-                        process_proposal.proposer_address,
-                        process_proposal.txs,
-                        tx_results,
-                    )
-                    .await
-                    .wrap_err("failed to run post execute transactions handler")?;
-
-                self.event_bus
-                    .send_process_proposal_block(Arc::new(sequencer_block));
-
-                return Ok(());
+        // Based on the status after the check, a couple of logs and metrics may
+        // be updated or emitted.
+        match self.execution_state.data() {
+            // The proposal was prepared by this node, so we skip execution.
+            ExecutionFingerprintData::PreparedValid(_) => {
+                trace!("skipping process_proposal as we are the proposer for this block");
             }
-            self.metrics.increment_process_proposal_skipped_proposal();
-            debug!(
-                "our validator address was set but we're not the proposer, so our previous \
-                 proposal was skipped, executing block"
-            );
-            self.executed_proposal_fingerprint = None;
+            ExecutionFingerprintData::Prepared(_) => {
+                bail!("prepared proposal fingerprint was not validated, this should not happen")
+            }
+            // We have a cached proposal from prepare proposal, but it does not match
+            // the current proposal. We should clear the cache and execute proposal.
+            //
+            // This can happen in HA nodes, but if happening in single nodes likely a bug.
+            ExecutionFingerprintData::CheckedPreparedMismatch(_) => {
+                self.metrics.increment_process_proposal_skipped_proposal();
+                trace!(
+                    "there was a previously prepared proposal cached, but did not match current \
+                     proposal, will clear and execute block"
+                );
+                self.update_state_for_new_round(&storage);
+            }
+            // There was a previously executed full block cached, likely indicates
+            // a new round of voting has started. Previous proposal may have failed.
+            ExecutionFingerprintData::ExecutedBlock(_, proposal_hash)
+            | ExecutionFingerprintData::CheckedExecutedBlockMismatch(_, proposal_hash) => {
+                if proposal_hash.is_none() {
+                    trace!(
+                        "there was a previously executed block cached, but no proposal hash, will \
+                         clear and execute"
+                    );
+                } else {
+                    trace!(
+                        "our prepared proposal cache executed fully, but was not committed, will \
+                         clear and execute"
+                    );
+                }
+            }
+            // No cached proposal, nothing to do for logging. Common case for validator voting.
+            ExecutionFingerprintData::Unset => {}
         }
 
-        self.update_state_for_new_round(&storage);
+        // If we can skip execution just fetch the cache, otherwise need to run the execution.
+        let tx_results = if skip_execution {
+            // if we're the proposer, we should have the execution results from
+            // `prepare_proposal`. run the post-tx-execution hook to generate the
+            // `SequencerBlock` and to set `self.finalize_block`.
+            //
+            // we can't run this in `prepare_proposal` as we don't know the block hash there.
+            let Some(tx_results) = self.state.object_get(EXECUTION_RESULTS_KEY) else {
+                bail!("execution results must be present after executing transactions")
+            };
 
-        let mut txs = VecDeque::from(process_proposal.txs.clone());
-        let received_rollup_datas_root: [u8; 32] = txs
-            .pop_front()
-            .ok_or_eyre("no transaction commitment in proposal")?
-            .to_vec()
-            .try_into()
-            .map_err(|_| eyre!("transaction commitment must be 32 bytes"))?;
+            tx_results
+        } else {
+            self.update_state_for_new_round(&storage);
+            let mut txs = VecDeque::from(process_proposal.txs.clone());
+            let received_rollup_datas_root: [u8; 32] = txs
+                .pop_front()
+                .ok_or_eyre("no transaction commitment in proposal")?
+                .to_vec()
+                .try_into()
+                .map_err(|_| eyre!("transaction commitment must be 32 bytes"))?;
 
-        let received_rollup_ids_root: [u8; 32] = txs
-            .pop_front()
-            .ok_or_eyre("no chain IDs commitment in proposal")?
-            .to_vec()
-            .try_into()
-            .map_err(|_| eyre!("chain IDs commitment must be 32 bytes"))?;
+            let received_rollup_ids_root: [u8; 32] = txs
+                .pop_front()
+                .ok_or_eyre("no chain IDs commitment in proposal")?
+                .to_vec()
+                .try_into()
+                .map_err(|_| eyre!("chain IDs commitment must be 32 bytes"))?;
 
-        let expected_txs_len = txs.len();
+            let expected_txs_len = txs.len();
 
-        let block_data = BlockData {
-            misbehavior: process_proposal.misbehavior,
-            height: process_proposal.height,
-            time: process_proposal.time,
-            next_validators_hash: process_proposal.next_validators_hash,
-            proposer_address: process_proposal.proposer_address,
+            let block_data = BlockData {
+                misbehavior: process_proposal.misbehavior.clone(),
+                height: process_proposal.height,
+                time: process_proposal.time,
+                next_validators_hash: process_proposal.next_validators_hash,
+                proposer_address: process_proposal.proposer_address,
+            };
+
+            self.pre_execute_transactions(block_data)
+                .await
+                .wrap_err("failed to prepare for executing block")?;
+
+            // we don't care about the cometbft max_tx_bytes here, as cometbft would have
+            // rejected the proposal if it was too large.
+            // however, we should still validate the other constraints, namely
+            // the max sequenced data bytes.
+            let mut block_size_constraints = BlockSizeConstraints::new_unlimited_cometbft();
+
+            // deserialize txs into `Transaction`s;
+            // this does not error if any txs fail to be deserialized, but the
+            // `execution_results.len()` check below ensures that all txs in the
+            // proposal are deserializable (and executable).
+            let signed_txs = txs
+                .into_iter()
+                .filter_map(|bytes| signed_transaction_from_bytes(bytes.as_ref()).ok())
+                .collect::<Vec<_>>();
+
+            let tx_results = self
+                .process_proposal_tx_execution(signed_txs.clone(), &mut block_size_constraints)
+                .await
+                .wrap_err("failed to execute transactions")?;
+            // all txs in the proposal should be deserializable and executable
+            // if any txs were not deserializeable or executable, they would not have been
+            // added to the `tx_results` list, thus the length of `txs_to_include`
+            // will be shorter than that of `tx_results`.
+            ensure!(
+                tx_results.len() == expected_txs_len,
+                "transactions to be included do not match expected",
+            );
+            self.metrics.record_proposal_transactions(signed_txs.len());
+
+            let deposits = self.state.get_cached_block_deposits();
+            self.metrics.record_proposal_deposits(deposits.len());
+
+            let GeneratedCommitments {
+                rollup_datas_root: expected_rollup_datas_root,
+                rollup_ids_root: expected_rollup_ids_root,
+            } = generate_rollup_datas_commitment(&signed_txs, deposits);
+            ensure!(
+                received_rollup_datas_root == expected_rollup_datas_root,
+                "transaction commitment does not match expected",
+            );
+
+            ensure!(
+                received_rollup_ids_root == expected_rollup_ids_root,
+                "chain IDs commitment does not match expected",
+            );
+
+            tx_results
         };
 
-        self.pre_execute_transactions(block_data)
-            .await
-            .wrap_err("failed to prepare for executing block")?;
-
-        // we don't care about the cometbft max_tx_bytes here, as cometbft would have
-        // rejected the proposal if it was too large.
-        // however, we should still validate the other constraints, namely
-        // the max sequenced data bytes.
-        let mut block_size_constraints = BlockSizeConstraints::new_unlimited_cometbft();
-
-        // deserialize txs into `Transaction`s;
-        // this does not error if any txs fail to be deserialized, but the `execution_results.len()`
-        // check below ensures that all txs in the proposal are deserializable (and
-        // executable).
-        let signed_txs = txs
-            .into_iter()
-            .filter_map(|bytes| signed_transaction_from_bytes(bytes.as_ref()).ok())
-            .collect::<Vec<_>>();
-
-        let tx_results = self
-            .process_proposal_tx_execution(signed_txs.clone(), &mut block_size_constraints)
-            .await
-            .wrap_err("failed to execute transactions")?;
-
-        // all txs in the proposal should be deserializable and executable
-        // if any txs were not deserializeable or executable, they would not have been
-        // added to the `tx_results` list, thus the length of `txs_to_include`
-        // will be shorter than that of `tx_results`.
-        ensure!(
-            tx_results.len() == expected_txs_len,
-            "transactions to be included do not match expected",
-        );
-        self.metrics.record_proposal_transactions(signed_txs.len());
-
-        let deposits = self.state.get_cached_block_deposits();
-        self.metrics.record_proposal_deposits(deposits.len());
-
-        let GeneratedCommitments {
-            rollup_datas_root: expected_rollup_datas_root,
-            rollup_ids_root: expected_rollup_ids_root,
-        } = generate_rollup_datas_commitment(&signed_txs, deposits);
-        ensure!(
-            received_rollup_datas_root == expected_rollup_datas_root,
-            "transaction commitment does not match expected",
-        );
-
-        ensure!(
-            received_rollup_ids_root == expected_rollup_ids_root,
-            "chain IDs commitment does not match expected",
-        );
-
-        self.executed_proposal_hash = process_proposal.hash;
-
-        // FIXME - avoid duplicate calls to post_execute_transactions. refer to: https://github.com/astriaorg/astria/issues/1835
         let sequencer_block = self
             .post_execute_transactions(
                 process_proposal.hash,
@@ -789,6 +766,11 @@ impl App {
             bail!("block hash is empty; this should not occur")
         };
 
+        // Update the proposal fingerprint to include the full executed block data.
+        self.execution_state
+            .set_executed_block(block_hash)
+            .wrap_err("failed to set executed proposal fingerprint, this should not happen")?;
+
         let chain_id = self
             .state
             .get_chain_id()
@@ -823,7 +805,6 @@ impl App {
         finalize_block_tx_results.extend(std::iter::repeat(ExecTxResult::default()).take(2));
         finalize_block_tx_results.extend(tx_results);
 
-        // FIXME - avoid duplicate calls to post_execute_transactions. refer to: https://github.com/astriaorg/astria/issues/1835
         let sequencer_block = SequencerBlock::try_from_block_info_and_data(
             block_hash,
             chain_id,
@@ -866,12 +847,6 @@ impl App {
         finalize_block: abci::request::FinalizeBlock,
         storage: Storage,
     ) -> Result<abci::response::FinalizeBlock> {
-        // If we previously executed txs in a different proposal than is being processed,
-        // reset cached state changes.
-        if self.executed_proposal_hash != finalize_block.hash {
-            self.update_state_for_new_round(&storage);
-        }
-
         ensure!(
             finalize_block.txs.len() >= 2,
             "block must contain at least two transactions: the rollup transactions commitment and
@@ -881,8 +856,15 @@ impl App {
         // FIXME: refactor to avoid cloning the finalize block
         let finalize_block_arc = Arc::new(finalize_block.clone());
 
-        // When the hash is not empty, we have already executed and cached the results
-        if self.executed_proposal_hash.is_empty() {
+        // We only need to do execution if we haven't executed the proposal yet.
+        let Hash::Sha256(block_hash) = finalize_block.hash else {
+            bail!("block hash is empty; this should not occur")
+        };
+
+        // If there is not a matching cached executed proposal, we need to execute the block.
+        if !self.execution_state.check_if_executed_block(block_hash) {
+            // clear out state before execution.
+            self.update_state_for_new_round(&storage);
             // convert tendermint id to astria address; this assumes they are
             // the same address, as they are both ed25519 keys
             let proposer_address = finalize_block.proposer_address;
@@ -1162,7 +1144,8 @@ impl App {
             .expect("root hash to app hash conversion must succeed");
 
         // Get the latest version of the state, now that we've committed it.
-        self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
+        // and clear the previous fingerprint.
+        self.update_state_for_new_round(&storage);
 
         // update the priority of any txs in the mempool based on the updated app state
         if self.recost_mempool {
