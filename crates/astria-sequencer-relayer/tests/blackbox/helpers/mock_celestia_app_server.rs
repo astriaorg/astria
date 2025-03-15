@@ -7,14 +7,24 @@ use std::{
 };
 
 use astria_core::generated::{
-    celestia::v1::{
-        query_server::{
-            Query as BlobQueryService,
-            QueryServer as BlobQueryServer,
+    celestia::{
+        blob::v1::{
+            query_server::{
+                Query as BlobQueryService,
+                QueryServer as BlobQueryServer,
+            },
+            Params as BlobParams,
+            QueryParamsRequest as QueryBlobParamsRequest,
+            QueryParamsResponse as QueryBlobParamsResponse,
         },
-        Params as BlobParams,
-        QueryParamsRequest as QueryBlobParamsRequest,
-        QueryParamsResponse as QueryBlobParamsResponse,
+        core::v1::tx::{
+            tx_server::{
+                Tx as TxStatusService,
+                TxServer as TxStatusServer,
+            },
+            TxStatusRequest,
+            TxStatusResponse,
+        },
     },
     cosmos::{
         auth::v1beta1::{
@@ -96,7 +106,7 @@ const QUERY_ACCOUNT_GRPC_NAME: &str = "query_account";
 const QUERY_AUTH_PARAMS_GRPC_NAME: &str = "query_auth_params";
 const QUERY_BLOB_PARAMS_GRPC_NAME: &str = "query_blob_params";
 const MIN_GAS_PRICE_GRPC_NAME: &str = "min_gas_price";
-const GET_TX_GRPC_NAME: &str = "get_tx";
+const TX_STATUS_GRPC_NAME: &str = "tx_status";
 const BROADCAST_TX_GRPC_NAME: &str = "broadcast_tx";
 
 pub struct MockCelestiaAppServer {
@@ -110,10 +120,10 @@ impl MockCelestiaAppServer {
     pub async fn spawn(celestia_chain_id: String) -> Self {
         use tokio_stream::wrappers::TcpListenerStream;
 
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let local_addr = listener.local_addr().unwrap();
-
+        let grpc_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let local_addr = grpc_listener.local_addr().unwrap();
         let mock_server = MockServer::new();
+
         register_get_node_info(&mock_server, celestia_chain_id).await;
         register_query_account(&mock_server).await;
         register_query_auth_params(&mock_server).await;
@@ -128,8 +138,9 @@ impl MockCelestiaAppServer {
                     .add_service(AuthQueryServer::new(service_impl.clone()))
                     .add_service(BlobQueryServer::new(service_impl.clone()))
                     .add_service(MinGasPriceServer::new(service_impl.clone()))
-                    .add_service(TxServer::new(service_impl))
-                    .serve_with_incoming(TcpListenerStream::new(listener))
+                    .add_service(TxServer::new(service_impl.clone()))
+                    .add_service(TxStatusServer::new(service_impl))
+                    .serve_with_incoming(TcpListenerStream::new(grpc_listener))
                     .await
                     .wrap_err("gRPC sequencer server failed")
             })
@@ -153,22 +164,8 @@ impl MockCelestiaAppServer {
         debug_name: impl Into<String>,
     ) -> MockGuard {
         self.prepare_broadcast_tx_response(debug_name)
-            .mount_as_scoped(&self.mock_server)
-            .await
-    }
-
-    pub async fn mount_get_tx_response(&self, height: i64, debug_name: impl Into<String>) {
-        Self::prepare_get_tx_response(height, debug_name)
-            .mount(&self.mock_server)
-            .await;
-    }
-
-    pub async fn mount_get_tx_response_as_scoped(
-        &self,
-        height: i64,
-        debug_name: impl Into<String>,
-    ) -> MockGuard {
-        Self::prepare_get_tx_response(height, debug_name)
+            .expect(1)
+            .up_to_n_times(1)
             .mount_as_scoped(&self.mock_server)
             .await
     }
@@ -202,27 +199,32 @@ impl MockCelestiaAppServer {
             .with_name(debug_name)
     }
 
-    fn prepare_get_tx_response(height: i64, debug_name: impl Into<String>) -> Mock {
-        let debug_name = debug_name.into();
-        // We only use the `tx_response.code` and `tx_response.height` fields in the success case.
-        // The `txhash` would be an actual hex-encoded SHA256 in prod, but here we can just use the
-        // debug name for ease of debugging.
-        let tx_response = TxResponse {
-            height,
-            txhash: debug_name.clone(),
-            code: 0,
-            ..TxResponse::default()
-        };
-        let response = GetTxResponse {
-            tx: None,
-            tx_response: Some(tx_response),
-        };
-        Mock::for_rpc_given(GET_TX_GRPC_NAME, message_type::<GetTxRequest>())
-            .respond_with(constant_response(response))
-            .up_to_n_times(1)
-            .expect(1)
+    pub async fn mount_tx_status_response_as_scoped(
+        &self,
+        debug_name: impl Into<String>,
+        status: String,
+        height: i64,
+        number_of_times: u64,
+    ) -> MockGuard {
+        prepare_tx_status_response(status, height)
+            .expect(number_of_times)
+            .up_to_n_times(number_of_times)
             .with_name(debug_name)
+            .mount_as_scoped(&self.mock_server)
+            .await
     }
+}
+
+fn prepare_tx_status_response(status: String, height: i64) -> Mock {
+    Mock::for_rpc_given(TX_STATUS_GRPC_NAME, message_type::<TxStatusRequest>()).respond_with(
+        constant_response(TxStatusResponse {
+            height,
+            index: 0,
+            execution_code: 0,
+            error: String::new(),
+            status,
+        }),
+    )
 }
 
 /// Registers a handler for all incoming `GetNodeInfoRequest`s which responds with the same
@@ -406,7 +408,7 @@ impl TxService for CelestiaAppServiceImpl {
         self: Arc<Self>,
         request: Request<GetTxRequest>,
     ) -> Result<Response<GetTxResponse>, Status> {
-        self.0.handle_request(GET_TX_GRPC_NAME, request).await
+        self.0.handle_request("get_tx", request).await
     }
 
     async fn broadcast_tx(
@@ -424,4 +426,14 @@ fn extract_blob_namespaces(request: &BroadcastTxRequest) -> Vec<Namespace> {
         .iter()
         .map(|blob| Namespace::new_v0(blob.namespace_id.as_ref()).unwrap())
         .collect()
+}
+
+#[async_trait::async_trait]
+impl TxStatusService for CelestiaAppServiceImpl {
+    async fn tx_status(
+        self: Arc<Self>,
+        request: tonic::Request<TxStatusRequest>,
+    ) -> Result<tonic::Response<TxStatusResponse>, tonic::Status> {
+        self.0.handle_request(TX_STATUS_GRPC_NAME, request).await
+    }
 }
