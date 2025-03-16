@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Direct fetching of consensus state in `RecoverIbcClient` action [#2037](https://github.com/astriaorg/astria/pull/2037)
+
 ## [2.0.0-rc.1] - 2025-03-06
 
 ### Fixed
