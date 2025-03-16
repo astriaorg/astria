@@ -468,7 +468,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
 
     let timestamp = Time::now();
-    let block_hash = Hash::try_from([99u8; 32].to_vec()).unwrap();
+    let block_hash = Hash::Sha256([99u8; 32]);
     let finalize_block = abci::request::FinalizeBlock {
         hash: block_hash,
         height: 1u32.into(),
@@ -514,18 +514,12 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         local_last_commit: None,
         misbehavior: vec![],
     };
-    let proposal_fingerprint = prepare_proposal.clone().into();
 
     let prepare_proposal_result = app
         .prepare_proposal(prepare_proposal, storage.clone())
         .await
         .unwrap();
     assert_eq!(prepare_proposal_result.txs, finalize_block.txs);
-    assert_eq!(app.executed_proposal_hash, Hash::default());
-    assert_eq!(
-        app.executed_proposal_fingerprint,
-        Some(proposal_fingerprint)
-    );
 
     app.mempool.run_maintenance(&app.state, false).await;
 
@@ -537,7 +531,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         height: 1u32.into(),
         time: timestamp,
         next_validators_hash: Hash::default(),
-        proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
+        proposer_address,
         txs: finalize_block.txs.clone(),
         proposed_last_commit: None,
         misbehavior: vec![],
@@ -546,14 +540,11 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     app.process_proposal(process_proposal.clone(), storage.clone())
         .await
         .unwrap();
-    assert_eq!(app.executed_proposal_hash, block_hash);
-    assert!(app.executed_proposal_fingerprint.is_none());
 
     let finalize_block_after_prepare_proposal_result = app
         .finalize_block(finalize_block.clone(), storage.clone())
         .await
         .unwrap();
-
     assert_eq!(
         finalize_block_after_prepare_proposal_result.app_hash,
         finalize_block_result.app_hash
@@ -565,8 +556,6 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     app.process_proposal(process_proposal, storage.clone())
         .await
         .unwrap();
-    assert_eq!(app.executed_proposal_hash, block_hash);
-    assert!(app.executed_proposal_fingerprint.is_none());
     let finalize_block_after_process_proposal_result = app
         .finalize_block(finalize_block, storage.clone())
         .await
@@ -917,4 +906,191 @@ async fn app_end_block_validator_updates() {
     assert_eq!(validator_c.verification_key, verification_key(2));
     assert_eq!(validator_c.power, 100);
     assert_eq!(app.state.get_validator_updates().await.unwrap().len(), 0);
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "it's a test, so allow a lot of lines"
+)]
+async fn app_proposal_fingerprint_triggers_update() {
+    let alice = get_alice_signing_key();
+    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+
+    let bridge_address = astria_address(&[99; 20]);
+    let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+    let asset = nria().clone();
+    let starting_index_of_action = 0;
+
+    let mut state_tx = StateDelta::new(app.state.clone());
+    state_tx
+        .put_bridge_account_rollup_id(&bridge_address, rollup_id)
+        .unwrap();
+    state_tx
+        .put_bridge_account_ibc_asset(&bridge_address, &asset)
+        .unwrap();
+    app.apply(state_tx);
+    app.prepare_commit(storage.clone()).await.unwrap();
+    app.commit(storage.clone()).await;
+
+    // Commit should clear the fingerprint
+    assert_eq!(app.execution_state.data(), ExecutionFingerprintData::Unset);
+
+    let amount = 100;
+    let lock_action = BridgeLock {
+        to: bridge_address,
+        amount,
+        asset: nria().into(),
+        fee_asset: nria().into(),
+        destination_chain_address: "nootwashere".to_string(),
+    };
+    let rollup_data_submission = RollupDataSubmission {
+        rollup_id,
+        data: Bytes::from_static(b"hello world"),
+        fee_asset: nria().into(),
+    };
+
+    let tx = TransactionBody::builder()
+        .actions(vec![lock_action.into(), rollup_data_submission.into()])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+
+    let signed_tx = tx.sign(&alice);
+
+    let expected_deposit = Deposit {
+        bridge_address,
+        rollup_id,
+        amount,
+        asset: nria().into(),
+        destination_chain_address: "nootwashere".to_string(),
+        source_transaction_id: signed_tx.id(),
+        source_action_index: starting_index_of_action,
+    };
+    let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
+    let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
+
+    let timestamp = Time::now();
+    let raw_hash = [99u8; 32];
+    let block_hash = Hash::Sha256(raw_hash);
+    let txs = vec![signed_tx.to_raw().encode_to_vec().into()];
+    let txs_with_commitments = commitments.into_transactions(txs.clone());
+
+    // These two proposals match exactly, except for the commit info
+    let prepare_proposal = PrepareProposal {
+        max_tx_bytes: 1_000_000,
+        height: 1u32.into(),
+        time: timestamp,
+        next_validators_hash: Hash::default(),
+        proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
+        txs: txs.clone(),
+        local_last_commit: None,
+        misbehavior: vec![],
+    };
+    let match_process_proposal = ProcessProposal {
+        hash: block_hash,
+        height: 1u32.into(),
+        time: timestamp,
+        next_validators_hash: Hash::default(),
+        proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
+        txs: txs_with_commitments.clone(),
+        proposed_last_commit: None,
+        misbehavior: vec![],
+    };
+    let non_match_process_proposal = ProcessProposal {
+        hash: block_hash,
+        height: 1u32.into(),
+        time: timestamp,
+        next_validators_hash: Hash::default(),
+        proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
+        txs: txs_with_commitments.clone(),
+        proposed_last_commit: Some(CommitInfo {
+            votes: vec![],
+            round: Round::default(),
+        }),
+        misbehavior: vec![],
+    };
+    let finalize_block = abci::request::FinalizeBlock {
+        hash: block_hash,
+        height: 1u32.into(),
+        time: timestamp,
+        next_validators_hash: Hash::default(),
+        proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
+        txs: txs_with_commitments.clone(),
+        decided_last_commit: CommitInfo {
+            votes: vec![],
+            round: Round::default(),
+        },
+        misbehavior: vec![],
+    };
+
+    // Call PrepareProposal, then ProcessProposal where the proposals match
+    // - fingerprint created during prepare_proposal
+    // - after process_proposal, fingerprint should be updated to include the block hash indicating
+    //   that the proposal execution data was utilized.
+    // - the finalize block fingerprint should match
+    app.mempool
+        .insert(
+            Arc::new(signed_tx.clone()),
+            0,
+            mock_balances(0, 0),
+            mock_tx_cost(0, 0, 0),
+        )
+        .await
+        .unwrap();
+    app.prepare_proposal(prepare_proposal.clone(), storage.clone())
+        .await
+        .unwrap();
+    let ExecutionFingerprintData::Prepared(prepare_fingerprint_hash) = app.execution_state.data()
+    else {
+        panic!("should be a prepared fingerprint")
+    };
+    app.process_proposal(match_process_proposal.clone(), storage.clone())
+        .await
+        .unwrap();
+    let expected_full_fingerprint =
+        ExecutionFingerprintData::ExecutedBlock(raw_hash, Some(prepare_fingerprint_hash));
+    assert_eq!(app.execution_state.data(), expected_full_fingerprint);
+    app.finalize_block(finalize_block.clone(), storage.clone())
+        .await
+        .unwrap();
+    assert_eq!(app.execution_state.data(), expected_full_fingerprint);
+
+    // Call PrepareProposal, then ProcessProposal where the proposals do not match
+    // - validate the prepared proposal fingerprint
+    // - after process proposal should have a ExecuteBlock fingerprint w/ no prepare fingerprint
+    //   data
+    // - finalize block should not change the fingerprint
+    app.prepare_proposal(prepare_proposal.clone(), storage.clone())
+        .await
+        .unwrap();
+    app.process_proposal(non_match_process_proposal.clone(), storage.clone())
+        .await
+        .unwrap();
+    let expected_full_fingerprint = ExecutionFingerprintData::ExecutedBlock(raw_hash, None);
+    assert_eq!(
+        ExecutionFingerprintData::ExecutedBlock(raw_hash, None),
+        app.execution_state.data()
+    );
+    app.finalize_block(finalize_block.clone(), storage.clone())
+        .await
+        .unwrap();
+    assert_eq!(expected_full_fingerprint, app.execution_state.data());
+
+    // Cannot use fingerprint to jump from prepare proposal straight to finalize block
+    // - the fingerprint at the end of finalize block should not have the prepare proposal data
+    app.prepare_proposal(prepare_proposal.clone(), storage.clone())
+        .await
+        .unwrap();
+    app.finalize_block(finalize_block.clone(), storage.clone())
+        .await
+        .unwrap();
+    assert_eq!(
+        app.execution_state.data(),
+        ExecutionFingerprintData::ExecutedBlock(raw_hash, None)
+    );
+
+    // Calling update state for new round should reset key
+    app.update_state_for_new_round(&storage);
+    assert_eq!(app.execution_state.data(), ExecutionFingerprintData::Unset);
 }
