@@ -111,7 +111,7 @@ grpc_laddr = ""
 # 0 - unlimited.
 # Should be < {ulimit -Sn} - {MaxNumInboundPeers} - {MaxNumOutboundPeers} - {N of wal, db and other open files}
 # 1024 - 40 - 10 - 50 = 924 = ~900
-grpc_max_open_connections = {{ .Values.cometbft.config.grpc.maxOpenConnections }} 
+grpc_max_open_connections = {{ .Values.cometbft.config.grpc.maxOpenConnections }}
 
 # Activate unsafe RPC commands like /dial_seeds and /unsafe_flush_mempool
 unsafe = false
@@ -409,21 +409,21 @@ version = "v0"
 wal_file = "data/cs.wal/wal"
 
 # How long we wait for a proposal block before prevoting nil
-timeout_propose = "{{ .Values.cometbft.config.consensus.timeoutPropose }}"
+timeout_propose = "{{ include "cometBFT.timeouts.propose" . }}"
 # How much timeout_propose increases with each round
-timeout_propose_delta =  "{{ .Values.cometbft.config.consensus.timeoutProposeDelta }}"
+timeout_propose_delta =  "{{ include "cometBFT.timeouts.proposeDelta" . }}"
 # How long we wait after receiving +2/3 prevotes for “anything” (ie. not a single block or nil)
-timeout_prevote =  "{{ .Values.cometbft.config.consensus.timeoutPrevote }}"
+timeout_prevote =  "{{ include "cometBFT.timeouts.prevote" . }}"
 # How much the timeout_prevote increases with each round
-timeout_prevote_delta =  "{{ .Values.cometbft.config.consensus.timeoutPrevoteDelta }}"
+timeout_prevote_delta =  "{{ include "cometBFT.timeouts.prevoteDelta" . }}"
 # How long we wait after receiving +2/3 precommits for “anything” (ie. not a single block or nil)
-timeout_precommit =  "{{ .Values.cometbft.config.consensus.timeoutPrecommit }}"
+timeout_precommit =  "{{ include "cometBFT.timeouts.precommit" . }}"
 # How much the timeout_precommit increases with each round
-timeout_precommit_delta =  "{{ .Values.cometbft.config.consensus.timeoutPrecommitDelta }}"
+timeout_precommit_delta =  "{{ include "cometBFT.timeouts.precommitDelta" . }}"
 # How long we wait after committing a block, before starting on the new
 # height (this gives us a chance to receive some more precommits, even
 # though we already have +2/3).
-timeout_commit = "{{ .Values.cometbft.config.consensus.timeoutCommit }}"
+timeout_commit = "{{ include "cometBFT.timeouts.commit" . }}"
 
 # How many blocks to look back to check existence of the node's consensus votes before joining consensus
 # When non-zero, the node will panic upon restart
