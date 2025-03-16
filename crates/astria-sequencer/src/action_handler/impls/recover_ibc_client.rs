@@ -3,7 +3,6 @@ use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
         ensure,
-        OptionExt as _,
         Result,
         WrapErr as _,
     },
@@ -91,22 +90,14 @@ impl ActionHandler for action::RecoverIbcClient {
 
         ensure_required_client_state_fields_match(&client_state, &replacement_client_state)?;
 
-        let height = ibc_types::core::client::Height {
-            revision_height: state
-                .get_block_height()
-                .await
-                .wrap_err("failed to get block height")?,
-            revision_number: state
-                .get_revision_number()
-                .await
-                .wrap_err("failed to get revision number")?,
-        };
         let substitute_consensus_state = state
-            .prev_verified_consensus_state(&self.replacement_client_id, &height)
+            .get_verified_consensus_state(
+                &replacement_client_state.latest_height(),
+                &self.replacement_client_id,
+            )
             .await
             .map_err(anyhow_to_eyre)
-            .wrap_err("failed to get substitute client consensus state")?
-            .ok_or_eyre("substitute client consensus state not found")?;
+            .wrap_err("failed to get verified consensus state")?;
         state
             .put_verified_consensus_state::<crate::ibc::host_interface::AstriaHost>(
                 replacement_client_state.latest_height(),
