@@ -117,6 +117,10 @@ indicated by `prev_block_hash`. The following should be respected:
   `soft` or `firm`. RPC should return `FAILED_PRECONDITION` status otherwise.
 - If block headers have timestamps, the created block MUST have matching timestamp
 - **NOTE:** The `CommitmentState` is NOT modified by the execution of the block.
+- It is up to the execution node if it includes the `sequencer_block_hash`
+  provided as a part of the block. If utilized the server MUST throw an
+  `INVALID_ARGUMENT` error if the `sequencer_block_hash` is not included in the
+  request.
 
 ### GetExecutedBlockMetadata
 
