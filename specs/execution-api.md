@@ -111,16 +111,16 @@ Conductor as configuration at the beginning of each execution session.
 ### ExecuteBlock
 
 `ExecuteBlock` executes a set of given transactions on top of the chain
-indicated by `prev_block_hash`. The following should be respected:
+indicated by `parent_hash`. The following should be respected:
 
-- `prev_block_hash` MUST match hash of the most recently committed block, whether
+- `parent_hash` MUST match hash of the most recently committed block, whether
   `soft` or `firm`. RPC should return `FAILED_PRECONDITION` status otherwise.
 - If block headers have timestamps, the created block MUST have matching timestamp
 - **NOTE:** The `CommitmentState` is NOT modified by the execution of the block.
 - It is up to the execution node if it includes the `sequencer_block_hash`
-  provided as a part of the block. If utilized the server MUST throw an
-  `INVALID_ARGUMENT` error if the `sequencer_block_hash` is not included in the
-  request.
+  provided as a part of the executed block metadata. If utilized, the server **MUST**
+  throw an `INVALID_ARGUMENT` error if the `sequencer_block_hash` is not included
+  in the request.
 
 ### GetExecutedBlockMetadata
 
