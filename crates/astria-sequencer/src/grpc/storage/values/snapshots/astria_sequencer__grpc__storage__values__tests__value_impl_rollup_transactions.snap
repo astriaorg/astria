@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/grpc/storage/values/mod.rs
+expression: "borsh_then_hex(&ValueImpl::RollupTransactions((&DomainRollupTransactions::unchecked_from_parts(RollupTransactionsParts\n{\n    rollup_id: DomainRollupId::new([0; 32]), transactions: Vec::new(), proof:\n    merkle::Proof::unchecked_from_parts(merkle::audit::UncheckedProof\n    { audit_path: vec![], leaf_index: 1, tree_size: 1, }),\n})).into()))"
+---
+030000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000100000000000000

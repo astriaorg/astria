@@ -24,6 +24,7 @@ use crate::{
         IbcSudoChange,
         Ics20Withdrawal,
         InitBridgeAccount,
+        RecoverIbcClient,
         RollupDataSubmission,
         SudoAddressChange,
         Transfer,
@@ -110,6 +111,7 @@ impl_protobuf_for_fee_components!(
     FeeComponents<FeeChange> => raw::FeeChangeFeeComponents,
     FeeComponents<SudoAddressChange> => raw::SudoAddressChangeFeeComponents,
     FeeComponents<IbcSudoChange> => raw::IbcSudoChangeFeeComponents,
+    FeeComponents<RecoverIbcClient> => raw::RecoverIbcClientFeeComponents,
 );
 
 pub struct FeeComponents<T: ?Sized> {
@@ -169,6 +171,12 @@ impl<T: ?Sized> PartialEq for FeeComponents<T> {
     fn eq(&self, other: &Self) -> bool {
         self.base == other.base && self.multiplier == other.multiplier
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RecoverIbcClientFeeComponents {
+    pub base: u128,
+    pub multiplier: u128,
 }
 
 #[derive(Debug, Clone)]

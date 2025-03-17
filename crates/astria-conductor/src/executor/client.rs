@@ -119,6 +119,7 @@ impl Client {
         prev_block_hash: Bytes,
         transactions: Vec<Bytes>,
         timestamp: Timestamp,
+        sequencer_block_hash: Bytes,
     ) -> eyre::Result<Block> {
         use prost::Message;
 
@@ -132,6 +133,7 @@ impl Client {
             prev_block_hash,
             transactions,
             timestamp: Some(timestamp),
+            sequencer_block_hash,
         };
         let response = tryhard::retry_fn(|| {
             let mut client = self.inner.clone();

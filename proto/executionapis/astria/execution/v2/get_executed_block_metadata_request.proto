@@ -1,0 +1,10 @@
+syntax = 'proto3';
+
+package astria.execution.v2;
+
+import "astria/execution/v2/executed_block_identifier.proto";
+
+// Used in GetExecutedBlockMetadata to find a single block.
+message GetExecutedBlockMetadataRequest {
+  ExecutedBlockIdentifier identifier = 1;
+}
