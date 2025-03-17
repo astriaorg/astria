@@ -10,7 +10,7 @@ spec:
   selector:
     {{ include "auctioneer.selectorLabels" . }}
   ports:
-    - name: metrics
+    - name: auct-metrics
       port: {{ .Values.ports.metrics }}
       targetPort: auct-metrics
 {{- end }}

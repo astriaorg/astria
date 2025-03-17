@@ -417,16 +417,16 @@ impl Mempool {
 
             if demotion_txs.is_empty() {
                 // nothing to demote, check for transactions to promote
-                let highest_pending_nonce = pending
+                let pending_nonce = pending
                     .pending_nonce(address)
-                    .map_or(current_nonce, |nonce| nonce.saturating_add(1));
+                    .map_or(current_nonce, |nonce| nonce);
 
                 let remaining_balances =
                     pending.subtract_contained_costs(address, current_balances.clone());
-                let promtion_txs =
-                    parked.find_promotables(address, highest_pending_nonce, &remaining_balances);
+                let promotion_txs =
+                    parked.find_promotables(address, pending_nonce, &remaining_balances);
 
-                for tx in promtion_txs {
+                for tx in promotion_txs {
                     let tx_id = tx.id();
                     if let Err(error) = pending.add(tx, current_nonce, &current_balances) {
                         // NOTE: this shouldn't happen. Promotions should never fail. This also
@@ -999,14 +999,14 @@ mod tests {
                 .pending_nonce(astria_address_from_hex_string(ALICE_ADDRESS).as_bytes())
                 .await
                 .unwrap(),
-            1
+            2
         );
         assert_eq!(
             mempool
                 .pending_nonce(astria_address_from_hex_string(BOB_ADDRESS).as_bytes())
                 .await
                 .unwrap(),
-            101
+            102
         );
 
         // Check the pending nonce for an address with no txs is `None`.

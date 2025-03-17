@@ -12,6 +12,7 @@ import "astria/protocol/transaction/v1/ibc_relayer_change.proto";
 import "astria/protocol/transaction/v1/ibc_sudo_change.proto";
 import "astria/protocol/transaction/v1/ics20_withdrawal.proto";
 import "astria/protocol/transaction/v1/init_bridge_account.proto";
+import "astria/protocol/transaction/v1/recover_ibc_client.proto";
 import "astria/protocol/transaction/v1/rollup_data_submission.proto";
 import "astria/protocol/transaction/v1/sudo_address_change.proto";
 import "astria/protocol/transaction/v1/transfer.proto";
@@ -42,5 +43,6 @@ message Action {
     FeeAssetChange fee_asset_change = 53;
     FeeChange fee_change = 55;
     IbcSudoChange ibc_sudo_change = 56;
+    RecoverIbcClient recover_ibc_client = 57;
   }
 }

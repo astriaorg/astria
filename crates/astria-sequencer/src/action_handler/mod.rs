@@ -4,6 +4,7 @@
 use astria_core::protocol::transaction::v1::action::Transfer;
 use astria_eyre::eyre::{
     ensure,
+    OptionExt as _,
     Result,
     WrapErr as _,
 };
@@ -19,6 +20,8 @@ use crate::{
         StateWriteExt as _,
     },
     address::StateReadExt as _,
+    bridge::StateReadExt as _,
+    transaction::StateReadExt as _,
 };
 
 pub(crate) mod impls;
@@ -79,6 +82,28 @@ where
         "failed ensuring that the destination address matches the permitted base prefix",
     )?;
 
+    // check that the sender is the withdrawer for the bridge account, if the transfer is from a
+    // bridge account
+    if state
+        .is_a_bridge_account(from)
+        .await
+        .wrap_err("failed to check if from address is a bridge account")?
+    {
+        let signer = state
+            .get_transaction_context()
+            .ok_or_eyre("failed to get transaction context")?
+            .address_bytes();
+        let withdrawer = state
+            .get_bridge_account_withdrawer_address(from)
+            .await
+            .wrap_err("failed to get bridge account withdrawer address")?
+            .ok_or_eyre("bridge account must have a withdrawer address set")?;
+        ensure!(
+            signer == withdrawer,
+            "signer is not the authorized withdrawer for the bridge account",
+        );
+    }
+
     let transfer_asset = &action.asset;
 
     let from_transfer_balance = state
@@ -95,7 +120,14 @@ where
 
 #[cfg(test)]
 mod tests {
-    use astria_core::primitive::v1::Address;
+    use astria_core::primitive::v1::{
+        Address,
+        TransactionId,
+    };
+    use cnidarium::{
+        StateDelta,
+        TempStorage,
+    };
 
     use super::*;
     use crate::{
@@ -106,13 +138,18 @@ mod tests {
             nria,
             ASTRIA_PREFIX,
         },
+        bridge::StateWriteExt as _,
+        transaction::{
+            StateWriteExt as _,
+            TransactionContext,
+        },
     };
 
     #[tokio::test]
     async fn check_transfer_fails_if_destination_is_not_base_prefixed() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let storage = TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
-        let mut state = cnidarium::StateDelta::new(snapshot);
+        let mut state = StateDelta::new(snapshot);
 
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
         let different_prefix = "different_prefix";
@@ -137,12 +174,12 @@ mod tests {
             ),
         );
     }
-    #[tokio::test]
 
+    #[tokio::test]
     async fn check_transfer_fails_if_insufficient_funds_in_sender_account() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let storage = TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
-        let mut state = cnidarium::StateDelta::new(snapshot);
+        let mut state = StateDelta::new(snapshot);
 
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
         let action = Transfer {
@@ -158,5 +195,42 @@ mod tests {
                 .unwrap_err(),
             "insufficient funds for transfer",
         );
+    }
+
+    #[tokio::test]
+    async fn check_transfer_fails_if_from_is_bridge_account_and_signer_is_not_withdrawer() {
+        let storage = TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let from_address = astria_address(&[1; 20]);
+        let withdrawer_address = astria_address(&[2; 20]);
+        let bridge_address = astria_address(&[3; 20]);
+
+        state.put_transaction_context(TransactionContext {
+            address_bytes: *from_address.address_bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+        state
+            .put_bridge_account_rollup_id(&bridge_address, [0; 32].into())
+            .unwrap();
+        state
+            .put_bridge_account_withdrawer_address(&bridge_address, withdrawer_address)
+            .unwrap();
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+
+        let transfer = Transfer {
+            to: astria_address(&[4; 20]),
+            fee_asset: nria().into(),
+            asset: nria().into(),
+            amount: 100,
+        };
+        let err = check_transfer(&transfer, &bridge_address, &state)
+            .await
+            .unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("signer is not the authorized withdrawer for the bridge account"));
     }
 }

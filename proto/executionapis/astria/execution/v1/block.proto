@@ -15,4 +15,9 @@ message Block {
   bytes parent_block_hash = 3;
   // Timestamp on the block, standardized to google protobuf standard.
   google.protobuf.Timestamp timestamp = 4;
+  // The hash of the sequencer block from which this block was derived.
+  //
+  // (Optional) This field will only be utilized if the execution node stores
+  // this data in blocks during `ExecuteBlock`.
+  bytes sequencer_block_hash = 5;
 }

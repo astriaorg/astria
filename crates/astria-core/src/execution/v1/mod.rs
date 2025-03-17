@@ -159,6 +159,8 @@ pub struct Block {
     parent_block_hash: Bytes,
     /// Timestamp on the block, standardized to google protobuf standard.
     timestamp: Timestamp,
+    /// The hash of the sequencer block that this block is derived from.
+    sequencer_block_hash: Bytes,
 }
 
 impl Block {
@@ -183,6 +185,11 @@ impl Block {
         // effectively just a copy
         self.timestamp.clone()
     }
+
+    #[must_use]
+    pub fn sequencer_block_hash(&self) -> &Bytes {
+        &self.sequencer_block_hash
+    }
 }
 
 impl From<Block> for raw::Block {
@@ -201,6 +208,7 @@ impl Protobuf for Block {
             hash,
             parent_block_hash,
             timestamp,
+            sequencer_block_hash,
         } = raw;
         // Cloning timestamp is effectively a copy because timestamp is just a (i32, i64) tuple
         let timestamp = timestamp
@@ -212,6 +220,7 @@ impl Protobuf for Block {
             hash: hash.clone(),
             parent_block_hash: parent_block_hash.clone(),
             timestamp,
+            sequencer_block_hash: sequencer_block_hash.clone(),
         })
     }
 
@@ -221,6 +230,7 @@ impl Protobuf for Block {
             hash,
             parent_block_hash,
             timestamp,
+            sequencer_block_hash,
         } = self;
         Self::Raw {
             number: *number,
@@ -229,6 +239,7 @@ impl Protobuf for Block {
             // Cloning timestamp is effectively a copy because timestamp is just a (i32, i64)
             // tuple
             timestamp: Some(timestamp.clone()),
+            sequencer_block_hash: sequencer_block_hash.clone(),
         }
     }
 }
