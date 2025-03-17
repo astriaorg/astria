@@ -1,3 +1,7 @@
+####################################################
+## NOTE: Minimum supported just version is 1.37.0 ##
+####################################################
+
 import 'just/charts/mod.just'
 
 # Kubetail usage. '$just --list kubetail' for more...
