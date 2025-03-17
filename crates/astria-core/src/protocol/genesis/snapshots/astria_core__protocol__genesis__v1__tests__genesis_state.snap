@@ -137,6 +137,10 @@ expression: genesis_state()
         "lo": "24"
       },
       "multiplier": {}
+    },
+    "recoverIbcClient": {
+      "base": {},
+      "multiplier": {}
     }
   }
 }

@@ -1,0 +1,208 @@
+{
+  "app_hash": "",
+  "app_state": {
+    "native_asset_base_denomination": "nria",
+    "fees": {
+      "bridge_lock": {
+        "base": { "lo": 0 },
+        "multiplier": { "lo": 1 }
+      },
+      "bridge_sudo_change": {
+        "base": { "lo": 24 },
+        "multiplier": { "lo": 0 }
+      },
+      "bridge_unlock": {
+        "base": { "lo": 0 },
+        "multiplier": { "lo": 0 }
+      },
+      "fee_asset_change": {
+        "base": { "lo": 0 },
+        "multiplier": { "lo": 0 }
+      },
+      "fee_change": {
+        "base": { "lo": 0 },
+        "multiplier": { "lo": 0 }
+      },
+      "ibc_relay": {
+        "base": { "lo": 0 },
+        "multiplier": { "lo": 0 }
+      },
+      "ibc_relayer_change": {
+        "base": { "lo": 0 },
+        "multiplier": { "lo": 0 }
+      },
+      "ibc_sudo_change": {
+        "base": { "lo": 0 },
+        "multiplier": { "lo": 0 }
+      },
+      "ics20_withdrawal": {
+        "base": { "lo": 24 },
+        "multiplier": { "lo": 0 }
+      },
+      "init_bridge_account": {
+        "base": { "lo": 48 },
+        "multiplier": { "lo": 0 }
+      },
+      "rollup_data_submission": {
+        "base": { "lo": 32 },
+        "multiplier": { "lo": 1 }
+      },
+      "sudo_address_change": {
+        "base": { "lo": 0 },
+        "multiplier": { "lo": 0 }
+      },
+      "transfer": {
+        "base": { "lo": 12 },
+        "multiplier": { "lo": 0 }
+      },
+      "validator_update": {
+        "base": { "lo": 0 },
+        "multiplier": { "lo": 0 }
+      }
+    },
+    "allowed_fee_assets": [
+    ],
+    "ibc_parameters": {
+      "ibc_enabled": true,
+      "inbound_ics20_transfers_enabled": true,
+      "outbound_ics20_transfers_enabled": true
+    },
+    "address_prefixes": {
+      "base": "astria",
+      "ibcCompat": "astriacompat"
+    },
+    "accounts": [
+      {
+        "address": { "bech32m": "astria1qzs2g8ft4z5nacr40n93uxufgjqya9uqjmhhuj" },
+        "balance": { "lo": 100000000000000000 }
+      }
+    ],
+    "authority_sudo_address": { "bech32m": "astria1qzs2g8ft4z5nacr40n93uxufgjqya9uqjmhhuj" },
+    "ibc_sudo_address": { "bech32m": "astria1p2lgmfyg2pszet8hstd22x7kzler7ahtf53w3r" },
+    "ibc_relayer_addresses": [
+    ]
+  },
+  "chain_id": "dawn-1",
+  "consensus_params": {
+    "block": {
+      "max_bytes": " 1048576",
+      "max_gas": "-1"
+    },
+    "evidence": {
+      "max_age_duration": "1209600000000000",
+      "max_age_num_blocks": " 4000000",
+      "max_bytes": "1048576"
+    },
+    "validator": {
+      "pub_key_types": [
+        "ed25519"
+      ]
+    },
+    "version": {
+      "app": "0"
+    }
+  },
+  "genesis_time": "2024-10-16T21:13:04.150435Z",
+  "initial_height": "0",
+  "validators": [
+    {
+      "address": "8F75C00017C59F326043A5A9054CB7C7421820D1",
+      "name": "astria0",
+      "power": "25",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "lCInm5huYMUyplra1m67dfbhodnLX0YTo11xR9Za3Hw="
+      }
+    },
+    {
+      "address": "2DF1961B30F05D130F78BDEFC787CA5BF286A720",
+      "name": "astria1",
+      "power": "25",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "oCF7nuz+1rKIBB7Yg8vqvZCLwC8fxdNRDmFMghKEcFM="
+      }
+    },
+    {
+      "address": "EFCB40DAFA5A579BC4EEB08BAF89B9BDFC415291",
+      "name": "astria2",
+      "power": "25",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "VRru43aqcqEb1QP2SRHVoUf+ArdddJ9WGgxDwEsrSw8="
+      }
+    },
+    {
+      "address": "704DC2FBE0C2C88AFBDBE3AAC95E61C4865D0C4C",
+      "name": "astria3",
+      "power": "25",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "p48+N7lI4xPaFIrRCAXqZSuzZO01vM4mSRDYqhwzGJA="
+      }
+    },
+    {
+      "address": "1E96A71EC2205C55065C249719B691C9C10846B9",
+      "name": "Nodes.Guru",
+      "power": "1",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "GQ7oQo8pIZRcxvfm992cChf4nI5iRgNI3EzKK+4WrzY="
+      }
+    },
+    {
+      "address": "50803720316D985B2FCD94C74105AFB836F6AB51",
+      "name": "Qubelabs",
+      "power": "1",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "pENCCfKZ+1qVxS7SSo3NYT1G0fUBql4nblaK2Wq6afA="
+      }
+    },
+    {
+      "address": "5EA04241DCFCCCBCC6CAD46C2EA41317D98EFAC3",
+      "name": "DSRV",
+      "power": "1",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "FcCm9xUn8er0J+D6FnSVaJt7g/5J+JfUrigz91V+9BA="
+      }
+    },
+    {
+      "address": "F5BB9D2C9BC52D1F551D3B86A5AEB7C8B7AC97B9",
+      "name": "Nocturnal Labs",
+      "power": "1",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "+KFHGN5eVHMpyxQdHYWiDFwQ4EWWNHWvpfUvlOGn7kM="
+      }
+    },
+    {
+      "address": "8E097B67FA4DAC2858CB94D7CFE00B0B82C9321F",
+      "name": "P-OPS Team",
+      "power": "1",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "NSsJJkx8puK0CEX1iZc+7rHBBo/DNrpXFxTsAYdgvgY="
+      }
+    },
+    {
+      "address": "5F9F7087258A7ED9DA8217B9A8623FF04695978D",
+      "name": "Tessellated",
+      "power": "1",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "r1151CNaMFBFa6ii3MyLyDzxsK49iTgZ9NqkPy59WPM="
+      }
+    },
+    {
+      "address": "7B87C3E324F871A123B24BD36CCBB9BEC5DFCC0F",
+      "name": "P2P.ORG - P2P Validator",
+      "power": "1",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "5v6vQJ+DYLhIZEzw96TMLgqS1A73czffLz1ilDgziWs="
+      }
+    }
+  ]
+}

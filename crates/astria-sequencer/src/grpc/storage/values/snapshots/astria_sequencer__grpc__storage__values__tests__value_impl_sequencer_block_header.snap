@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/grpc/storage/values/mod.rs
+expression: "borsh_then_hex(&ValueImpl::SequencerBlockHeader((&DomainSequencerBlockHeader::unchecked_from_parts(SequencerBlockHeaderParts\n{\n    chain_id: \"test_chain_id\".to_string().try_into().unwrap(), height:\n    0u32.into(), time: tendermint::Time::unix_epoch(),\n    rollup_transactions_root: [0; 32], data_hash: [0; 32], proposer_address:\n    tendermint::account::Id::new([0; 20])\n})).into()))"
+---
+020d000000746573745f636861696e5f6964000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
