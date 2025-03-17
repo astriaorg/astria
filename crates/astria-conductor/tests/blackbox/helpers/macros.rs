@@ -9,7 +9,7 @@ macro_rules! block_metadata {
                 seconds: 1,
                 nanos: 1,
             }),
-            sequencer_block_hash: ::bytes::Bytes::new(),
+            sequencer_block_hash: String::new(),
         }
     };
 }

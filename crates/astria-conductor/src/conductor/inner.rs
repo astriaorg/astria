@@ -315,12 +315,14 @@ mod tests {
                         hash: hex::encode([0u8; 32]).to_string(),
                         parent_hash: String::new(),
                         timestamp: Some(Timestamp::default()),
+                        sequencer_block_hash: String::new(),
                     }),
                     soft_executed_block_metadata: Some(ExecutedBlockMetadata {
                         number: 99,
                         hash: hex::encode([0u8; 32]).to_string(),
                         parent_hash: String::new(),
                         timestamp: Some(Timestamp::default()),
+                        sequencer_block_hash: String::new(),
                     }),
                     ..make_commitment_state()
                 },
@@ -350,12 +352,14 @@ mod tests {
                         hash: hex::encode([0u8; 32]).to_string(),
                         parent_hash: String::new(),
                         timestamp: Some(Timestamp::default()),
+                        sequencer_block_hash: String::new(),
                     }),
                     soft_executed_block_metadata: Some(ExecutedBlockMetadata {
                         number: 99,
                         hash: hex::encode([0u8; 32]).to_string(),
                         parent_hash: String::new(),
                         timestamp: Some(Timestamp::default()),
+                        sequencer_block_hash: String::new(),
                     }),
                     ..make_commitment_state()
                 },

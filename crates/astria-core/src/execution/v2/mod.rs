@@ -365,6 +365,8 @@ pub struct ExecutedBlockMetadata {
     /// Timestamp of the block, taken from the sequencer block that this rollup block
     /// was constructed from.
     timestamp: Timestamp,
+    /// The hash of the sequencer block that this rollup block was constructed from.
+    sequencer_block_hash: String,
 }
 
 impl ExecutedBlockMetadata {
@@ -389,6 +391,11 @@ impl ExecutedBlockMetadata {
         // effectively just a copy
         self.timestamp.clone()
     }
+
+    #[must_use]
+    pub fn sequencer_block_hash(&self) -> &str {
+        &self.sequencer_block_hash
+    }
 }
 
 impl From<ExecutedBlockMetadata> for raw::ExecutedBlockMetadata {
@@ -407,6 +414,7 @@ impl Protobuf for ExecutedBlockMetadata {
             hash,
             parent_hash,
             timestamp,
+            sequencer_block_hash,
         } = raw;
         // Cloning timestamp is effectively a copy because timestamp is just a (i32, i64) tuple
         let timestamp = timestamp
@@ -418,6 +426,7 @@ impl Protobuf for ExecutedBlockMetadata {
             hash: hash.clone(),
             parent_hash: parent_hash.clone(),
             timestamp,
+            sequencer_block_hash: sequencer_block_hash.clone(),
         })
     }
 
@@ -427,6 +436,7 @@ impl Protobuf for ExecutedBlockMetadata {
             hash,
             parent_hash,
             timestamp,
+            sequencer_block_hash,
         } = self;
         Self::Raw {
             number: *number,
@@ -435,6 +445,7 @@ impl Protobuf for ExecutedBlockMetadata {
             // Cloning timestamp is effectively a copy because timestamp is just a (i32, i64)
             // tuple
             timestamp: Some(timestamp.clone()),
+            sequencer_block_hash: sequencer_block_hash.clone(),
         }
     }
 }

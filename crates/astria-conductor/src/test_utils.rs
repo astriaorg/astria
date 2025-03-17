@@ -19,6 +19,7 @@ pub(crate) fn make_commitment_state() -> CommitmentState {
             seconds: 123_456,
             nanos: 789,
         }),
+        sequencer_block_hash: String::new(),
     };
     let soft = astria_core::generated::astria::execution::v2::ExecutedBlockMetadata {
         number: 2,
@@ -28,6 +29,7 @@ pub(crate) fn make_commitment_state() -> CommitmentState {
             seconds: 123_456,
             nanos: 789,
         }),
+        sequencer_block_hash: String::new(),
     };
 
     CommitmentState {

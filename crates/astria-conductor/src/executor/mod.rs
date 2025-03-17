@@ -516,11 +516,17 @@ impl Initialized {
         } = block;
 
         let n_transactions = transactions.len();
-        let sequencer_block_hash = hash.as_bytes().to_vec().into();
+        let sequencer_block_hash = hash.to_string();
 
         let executed_block_metadata = self
             .client
-            .execute_block_with_retry(session_id, parent_hash, transactions, timestamp, sequencer_block_hash)
+            .execute_block_with_retry(
+                session_id,
+                parent_hash,
+                transactions,
+                timestamp,
+                sequencer_block_hash,
+            )
             .await
             .wrap_err("failed to run execute_block RPC")?;
 

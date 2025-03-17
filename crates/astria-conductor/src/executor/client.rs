@@ -128,7 +128,7 @@ impl Client {
         parent_hash: String,
         transactions: Vec<Bytes>,
         timestamp: Timestamp,
-        sequencer_block_hash: Bytes,
+        sequencer_block_hash: String,
     ) -> eyre::Result<ExecutedBlockMetadata> {
         use prost::Message;
 
