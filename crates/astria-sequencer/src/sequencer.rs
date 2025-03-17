@@ -207,8 +207,8 @@ fn start_abci_server(
             let storage = storage.clone();
             async move { service::Consensus::new(storage, app, queue).run().await }
         }));
-    let info_service =
-        service::Info::new(storage.clone(), mempool.clone()).wrap_err("failed initializing info service")?;
+    let info_service = service::Info::new(storage.clone(), mempool)
+        .wrap_err("failed initializing info service")?;
     let snapshot_service = service::Snapshot;
 
     let server = Server::builder()
