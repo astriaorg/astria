@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package astria.auction.v1alpha1;
+
+import "astria/auction/v1alpha1/bid.proto";
+
+message GetBidStreamResponse {
+  Bid bid = 1;
+}

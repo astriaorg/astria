@@ -130,6 +130,13 @@ impl Component for FeesComponent {
                 .wrap_err("failed to store ibc sudo change fee components")?;
         }
 
+        let recover_ibc_client_fees = app_state.fees().recover_ibc_client;
+        if let Some(recover_ibc_client_fees) = recover_ibc_client_fees {
+            state
+                .put_fees(recover_ibc_client_fees)
+                .wrap_err("failed to store recover ibc client fee components")?;
+        }
+
         Ok(())
     }
 

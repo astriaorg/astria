@@ -316,7 +316,7 @@ mod tests {
         };
         let request = Request::new(request);
         let response = server.get_pending_nonce(request).await.unwrap();
-        assert_eq!(response.into_inner().inner, sequential_nonce);
+        assert_eq!(response.into_inner().inner, sequential_nonce + 1);
     }
 
     #[tokio::test]

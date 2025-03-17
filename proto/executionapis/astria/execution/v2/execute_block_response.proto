@@ -1,0 +1,11 @@
+syntax = 'proto3';
+
+package astria.execution.v2;
+
+import "astria/execution/v2/executed_block_metadata.proto";
+
+// ExecuteBlockResponse is the response type for the ExecuteBlock RPC. It contains
+// the metadata of the block which was executed against the rollup.
+message ExecuteBlockResponse {
+  ExecutedBlockMetadata executed_block_metadata = 1;
+}

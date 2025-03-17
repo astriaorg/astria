@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/address/storage/values.rs
+expression: "borsh_then_hex(&StoredValue::Address(Value(ValueImpl::AddressPrefix(\"test_prefix\".into()))))"
+---
+01000b000000746573745f707265666978

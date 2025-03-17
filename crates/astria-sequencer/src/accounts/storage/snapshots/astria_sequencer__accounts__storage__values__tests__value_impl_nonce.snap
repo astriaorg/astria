@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/accounts/storage/values.rs
+expression: "borsh_then_hex(&ValueImpl::Nonce(Nonce(0)))"
+---
+0100000000
