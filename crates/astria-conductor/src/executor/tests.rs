@@ -32,6 +32,7 @@ fn make_block(number: u32) -> raw::Block {
             seconds: 0,
             nanos: 0,
         }),
+        sequencer_block_hash: Bytes::new(),
     }
 }
 

@@ -1,0 +1,7 @@
+syntax = 'proto3';
+
+package astria.execution.v2;
+
+// CreateExecutionSessionRequest is used to create a new execution session on the
+// rollup.
+message CreateExecutionSessionRequest {}

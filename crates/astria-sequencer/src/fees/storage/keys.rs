@@ -48,6 +48,7 @@ mod tests {
         protocol::transaction::v1::action::{
             BridgeLock,
             BridgeSudoChange,
+            BridgeTransfer,
             BridgeUnlock,
             FeeAssetChange,
             FeeChange,
@@ -55,6 +56,7 @@ mod tests {
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
+            RecoverIbcClient,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
@@ -90,10 +92,12 @@ mod tests {
         check::<IbcSudoChange>();
         check::<Ics20Withdrawal>();
         check::<InitBridgeAccount>();
+        check::<RecoverIbcClient>();
         check::<RollupDataSubmission>();
         check::<SudoAddressChange>();
         check::<Transfer>();
         check::<ValidatorUpdate>();
+        check::<BridgeTransfer>();
         assert_snapshot!("allowed_asset_prefix", ALLOWED_ASSET_PREFIX);
         assert_snapshot!("allowed_asset_key", allowed_asset(&test_asset()));
     }
@@ -114,6 +118,8 @@ mod tests {
         assert!(name::<IbcRelayerChange>().starts_with(COMPONENT_PREFIX));
         assert!(name::<SudoAddressChange>().starts_with(COMPONENT_PREFIX));
         assert!(name::<IbcSudoChange>().starts_with(COMPONENT_PREFIX));
+        assert!(name::<BridgeTransfer>().starts_with(COMPONENT_PREFIX));
+        assert!(name::<RecoverIbcClient>().starts_with(COMPONENT_PREFIX));
         assert!(ALLOWED_ASSET_PREFIX.starts_with(COMPONENT_PREFIX));
         assert!(allowed_asset(&test_asset()).starts_with(COMPONENT_PREFIX));
     }

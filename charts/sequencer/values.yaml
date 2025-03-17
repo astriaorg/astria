@@ -8,6 +8,13 @@ global:
   # Best to be false in production environments, true for clean logs on local dev.
   useTTY: true
   dev: false
+  # Supported options are `custom`, `mainnet`, `dawn-1`, or `dusk-11`.
+  # If you are using a custom network, you should provide the genesis
+  # configuration via values.
+  #
+  # When set to a specific network, there are default images and genesis files
+  # that are used.
+  network: "custom"
 
 snapshotLoad:
   enabled: false
@@ -19,24 +26,29 @@ snapshotLoad:
     endpoint: https://fb1caa337c8e4e3101363ca1240e03ca.r2.cloudflarestorage.com
     acl: private
 
-# sequencer core images
+# Image settings for various services
 images:
   init:
     repo: rclone/rclone
     pullPolicy: IfNotPresent
     tag: 1.56.0
+  # CometBFT image will default to a tag based on the configured network.
+  # If the global.network is custom OR global.dev is true, will use the tag.
   cometBFT:
     repo: docker.io/cometbft/cometbft
     pullPolicy: IfNotPresent
     tag: v0.38.17
-    devTag: v0.38.17
   sequencer:
     repo: ghcr.io/astriaorg/sequencer
     pullPolicy: IfNotPresent
-    tag: 1.0.0
-    devTag: latest
+    tag: latest
 
+# Moniker is used for the cometbft node name, and various chart names.
+# This must be set.
 moniker: ""
+
+# Only used if the global.network is custom, otherwise utilize correct genesis for the
+# network.
 genesis:
   chainId: ""
   genesisTime: ""  # '2023-09-22T17:22:35.092832Z'
@@ -196,6 +208,7 @@ cometbft:
       maxTxsBytes: 100000000
       cacheSize: 10000
 
+    # Consensus timeout values are only overrideable in custom networks
     consensus:
       timeoutPropose: 2s
       timeoutProposeDelta: 500ms
@@ -325,7 +338,7 @@ storage:
   local: true
   entities:
     sequencerSharedStorage:
-      size: "50Gi"
+      size: "100Gi"
       persistentVolumeName: "sequencer-shared-storage"
       path: "/data/sequencer-data"
 
