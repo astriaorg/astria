@@ -934,7 +934,7 @@ async fn app_proposal_fingerprint_triggers_update() {
     app.commit(storage.clone()).await;
 
     // Commit should clear the fingerprint
-    assert_eq!(app.execution_state.data(), ExecutionFingerprintData::Unset);
+    assert_eq!(*app.execution_state.data(), ExecutionState::Unset);
 
     let amount = 100;
     let lock_action = BridgeLock {
@@ -1041,20 +1041,21 @@ async fn app_proposal_fingerprint_triggers_update() {
     app.prepare_proposal(prepare_proposal.clone(), storage.clone())
         .await
         .unwrap();
-    let ExecutionFingerprintData::Prepared(prepare_fingerprint_hash) = app.execution_state.data()
-    else {
-        panic!("should be a prepared fingerprint")
+    let ExecutionState::Prepared(cached_proposal) = app.execution_state.data().clone() else {
+        panic!("should be in prepared state")
     };
     app.process_proposal(match_process_proposal.clone(), storage.clone())
         .await
         .unwrap();
-    let expected_full_fingerprint =
-        ExecutionFingerprintData::ExecutedBlock(raw_hash, Some(prepare_fingerprint_hash));
-    assert_eq!(app.execution_state.data(), expected_full_fingerprint);
+    let expected_state = ExecutionState::ExecutedBlock {
+        cached_block_hash: raw_hash,
+        cached_proposal: Some(cached_proposal),
+    };
+    assert_eq!(*app.execution_state.data(), expected_state);
     app.finalize_block(finalize_block.clone(), storage.clone())
         .await
         .unwrap();
-    assert_eq!(app.execution_state.data(), expected_full_fingerprint);
+    assert_eq!(*app.execution_state.data(), expected_state);
 
     // Call PrepareProposal, then ProcessProposal where the proposals do not match
     // - validate the prepared proposal fingerprint
@@ -1067,15 +1068,15 @@ async fn app_proposal_fingerprint_triggers_update() {
     app.process_proposal(non_match_process_proposal.clone(), storage.clone())
         .await
         .unwrap();
-    let expected_full_fingerprint = ExecutionFingerprintData::ExecutedBlock(raw_hash, None);
-    assert_eq!(
-        ExecutionFingerprintData::ExecutedBlock(raw_hash, None),
-        app.execution_state.data()
-    );
+    let expected_state = ExecutionState::ExecutedBlock {
+        cached_block_hash: raw_hash,
+        cached_proposal: None,
+    };
+    assert_eq!(*app.execution_state.data(), expected_state);
     app.finalize_block(finalize_block.clone(), storage.clone())
         .await
         .unwrap();
-    assert_eq!(expected_full_fingerprint, app.execution_state.data());
+    assert_eq!(*app.execution_state.data(), expected_state);
 
     // Cannot use fingerprint to jump from prepare proposal straight to finalize block
     // - the fingerprint at the end of finalize block should not have the prepare proposal data
@@ -1085,12 +1086,9 @@ async fn app_proposal_fingerprint_triggers_update() {
     app.finalize_block(finalize_block.clone(), storage.clone())
         .await
         .unwrap();
-    assert_eq!(
-        app.execution_state.data(),
-        ExecutionFingerprintData::ExecutedBlock(raw_hash, None)
-    );
+    assert_eq!(*app.execution_state.data(), expected_state);
 
     // Calling update state for new round should reset key
     app.update_state_for_new_round(&storage);
-    assert_eq!(app.execution_state.data(), ExecutionFingerprintData::Unset);
+    assert_eq!(*app.execution_state.data(), ExecutionState::Unset);
 }
