@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/fees/storage/values.rs
+expression: "borsh_then_hex(&StoredValue::Fees(Value(ValueImpl::TransferFees(FeeComponents\n{ base: 1, multiplier: 2, }))))"
+---
+05000100000000000000000000000000000002000000000000000000000000000000

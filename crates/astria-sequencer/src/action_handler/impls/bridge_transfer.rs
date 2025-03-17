@@ -17,10 +17,7 @@ use tracing::{
 
 use crate::{
     action_handler::{
-        impls::{
-            bridge_lock::execute_bridge_lock,
-            bridge_unlock::check_bridge_unlock,
-        },
+        impls::bridge_lock::execute_bridge_lock,
         ActionHandler,
     },
     bridge::{
@@ -47,18 +44,6 @@ impl ActionHandler for BridgeTransfer {
 
     #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        // first, check that the bridge unlock is valid
-        let bridge_unlock = BridgeUnlock {
-            to: self.to,
-            amount: self.amount,
-            memo: String::new(),
-            rollup_withdrawal_event_id: self.rollup_withdrawal_event_id.clone(),
-            rollup_block_number: self.rollup_block_number,
-            fee_asset: self.fee_asset.clone(),
-            bridge_address: self.bridge_address,
-        };
-        check_bridge_unlock(&bridge_unlock, &state).await?;
-
         // check that the assets for both bridge accounts match
         // also implicitly checks that both accounts are bridge accounts, as
         // only bridge accounts have an associated asset set
