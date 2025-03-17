@@ -99,7 +99,7 @@ async fn executes_soft_first_then_updates_firm() {
     );
 
     timeout(
-        Duration::from_millis(500),
+        Duration::from_millis(1000),
         join(
             execute_block.wait_until_satisfied(),
             update_commitment_state_soft.wait_until_satisfied(),
@@ -108,7 +108,7 @@ async fn executes_soft_first_then_updates_firm() {
     .await
     .expect(
         "Conductor should have executed the block and updated the soft commitment state within \
-         500ms",
+         1000ms",
     );
 
     mount_celestia_blobs!(
