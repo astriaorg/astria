@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Change sequencer client to poll transaction status ABCI query so that it doesn't
 loop indefinitely [#1955](https://github.com/astriaorg/astria/pull/1955).
 
+### Fixed
+
+- Increase mempool removal cache size to be greater than default CometBFT
+  mempool size [#1969](https://github.com/astriaorg/astria/pull/1969).
+
 ## [2.0.0-rc.2]
 
 ### Fixed
