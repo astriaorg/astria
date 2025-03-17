@@ -94,7 +94,7 @@ spec:
 
               images:
                 sequencer:
-                  devTag: sha-{{.head_sha}}
+                  tag: sha-{{.head_sha}}
                   pullPolicy: Always
               ingress:
                 grpc:

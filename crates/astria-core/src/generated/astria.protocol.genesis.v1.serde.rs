@@ -520,6 +520,9 @@ impl serde::Serialize for GenesisFees {
         if self.bridge_transfer.is_some() {
             len += 1;
         }
+        if self.recover_ibc_client.is_some() {
+            len += 1;
+        }
         let mut struct_ser = serializer.serialize_struct("astria.protocol.genesis.v1.GenesisFees", len)?;
         if let Some(v) = self.bridge_lock.as_ref() {
             struct_ser.serialize_field("bridgeLock", v)?;
@@ -566,6 +569,9 @@ impl serde::Serialize for GenesisFees {
         if let Some(v) = self.bridge_transfer.as_ref() {
             struct_ser.serialize_field("bridgeTransfer", v)?;
         }
+        if let Some(v) = self.recover_ibc_client.as_ref() {
+            struct_ser.serialize_field("recoverIbcClient", v)?;
+        }
         struct_ser.end()
     }
 }
@@ -605,6 +611,8 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
             "validatorUpdate",
             "bridge_transfer",
             "bridgeTransfer",
+            "recover_ibc_client",
+            "recoverIbcClient",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -624,6 +632,7 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
             Transfer,
             ValidatorUpdate,
             BridgeTransfer,
+            RecoverIbcClient,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -660,6 +669,7 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                             "transfer" => Ok(GeneratedField::Transfer),
                             "validatorUpdate" | "validator_update" => Ok(GeneratedField::ValidatorUpdate),
                             "bridgeTransfer" | "bridge_transfer" => Ok(GeneratedField::BridgeTransfer),
+                            "recoverIbcClient" | "recover_ibc_client" => Ok(GeneratedField::RecoverIbcClient),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -694,6 +704,7 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                 let mut transfer__ = None;
                 let mut validator_update__ = None;
                 let mut bridge_transfer__ = None;
+                let mut recover_ibc_client__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::BridgeLock => {
@@ -786,6 +797,12 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                             }
                             bridge_transfer__ = map_.next_value()?;
                         }
+                        GeneratedField::RecoverIbcClient => {
+                            if recover_ibc_client__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("recoverIbcClient"));
+                            }
+                            recover_ibc_client__ = map_.next_value()?;
+                        }
                     }
                 }
                 Ok(GenesisFees {
@@ -804,6 +821,7 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                     transfer: transfer__,
                     validator_update: validator_update__,
                     bridge_transfer: bridge_transfer__,
+                    recover_ibc_client: recover_ibc_client__,
                 })
             }
         }

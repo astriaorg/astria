@@ -128,6 +128,7 @@ impl Client {
         parent_hash: String,
         transactions: Vec<Bytes>,
         timestamp: Timestamp,
+        sequencer_block_hash: Bytes,
     ) -> eyre::Result<ExecutedBlockMetadata> {
         use prost::Message;
 
@@ -142,6 +143,7 @@ impl Client {
             parent_hash,
             transactions,
             timestamp: Some(timestamp),
+            sequencer_block_hash,
         };
         let response = tryhard::retry_fn(|| {
             let mut client = self.inner.clone();

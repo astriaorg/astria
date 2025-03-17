@@ -30,6 +30,7 @@ fn make_block_metadata(number: u64) -> raw::ExecutedBlockMetadata {
             seconds: 0,
             nanos: 0,
         }),
+        sequencer_block_hash: Bytes::new(),
     }
 }
 

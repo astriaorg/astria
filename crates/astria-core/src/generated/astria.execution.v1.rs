@@ -39,6 +39,12 @@ pub struct Block {
     /// Timestamp on the block, standardized to google protobuf standard.
     #[prost(message, optional, tag = "4")]
     pub timestamp: ::core::option::Option<::pbjson_types::Timestamp>,
+    /// The hash of the sequencer block from which this block was derived.
+    ///
+    /// (Optional) This field will only be utilized if the execution node stores
+    /// this data in blocks during `ExecuteBlock`.
+    #[prost(bytes = "bytes", tag = "5")]
+    pub sequencer_block_hash: ::prost::bytes::Bytes,
 }
 impl ::prost::Name for Block {
     const NAME: &'static str = "Block";
@@ -144,6 +150,12 @@ pub struct ExecuteBlockRequest {
     /// Timestamp to be used for new block.
     #[prost(message, optional, tag = "3")]
     pub timestamp: ::core::option::Option<::pbjson_types::Timestamp>,
+    /// The hash of the sequencer block from which the transactions and timestamp
+    /// are derived.
+    ///
+    /// Utilizing this field is optional for the execution node.
+    #[prost(bytes = "bytes", tag = "4")]
+    pub sequencer_block_hash: ::prost::bytes::Bytes,
 }
 impl ::prost::Name for ExecuteBlockRequest {
     const NAME: &'static str = "ExecuteBlockRequest";

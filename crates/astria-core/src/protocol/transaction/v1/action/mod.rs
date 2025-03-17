@@ -52,6 +52,7 @@ pub enum Action {
     BridgeSudoChange(BridgeSudoChange),
     BridgeTransfer(BridgeTransfer),
     FeeChange(FeeChange),
+    RecoverIbcClient(RecoverIbcClient),
 }
 
 impl Protobuf for Action {
@@ -77,6 +78,7 @@ impl Protobuf for Action {
             Action::BridgeSudoChange(act) => Value::BridgeSudoChange(act.to_raw()),
             Action::BridgeTransfer(act) => Value::BridgeTransfer(act.to_raw()),
             Action::FeeChange(act) => Value::FeeChange(act.to_raw()),
+            Action::RecoverIbcClient(act) => Value::RecoverIbcClient(act.to_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -153,6 +155,9 @@ impl Protobuf for Action {
             Value::FeeChange(act) => {
                 Self::FeeChange(FeeChange::try_from_raw_ref(&act).map_err(Error::fee_change)?)
             }
+            Value::RecoverIbcClient(act) => Self::RecoverIbcClient(
+                RecoverIbcClient::try_from_raw(act).map_err(Error::recover_ibc_client)?,
+            ),
         };
         Ok(action)
     }
@@ -269,6 +274,12 @@ impl From<FeeChange> for Action {
     }
 }
 
+impl From<RecoverIbcClient> for Action {
+    fn from(value: RecoverIbcClient) -> Self {
+        Self::RecoverIbcClient(value)
+    }
+}
+
 impl From<Action> for raw::Action {
     fn from(value: Action) -> Self {
         value.into_raw()
@@ -307,6 +318,7 @@ impl ActionName for Action {
             Action::BridgeSudoChange(_) => "BridgeSudoChange",
             Action::BridgeTransfer(_) => "BridgeTransfer",
             Action::FeeChange(_) => "FeeChange",
+            Action::RecoverIbcClient(_) => "RecoverIbcClient",
         }
     }
 }
@@ -379,6 +391,10 @@ impl Error {
     fn fee_change(inner: FeeChangeError) -> Self {
         Self(ActionErrorKind::FeeChange(inner))
     }
+
+    fn recover_ibc_client(inner: RecoverIbcClientError) -> Self {
+        Self(ActionErrorKind::RecoverIbcClient(inner))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -415,6 +431,8 @@ enum ActionErrorKind {
     BridgeTransfer(#[source] BridgeTransferError),
     #[error("fee change action was not valid")]
     FeeChange(#[source] FeeChangeError),
+    #[error("recover ibc client action was not valid")]
+    RecoverIbcClient(#[source] RecoverIbcClientError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -2111,6 +2129,7 @@ pub enum FeeChange {
     SudoAddressChange(FeeComponents<SudoAddressChange>),
     IbcSudoChange(FeeComponents<IbcSudoChange>),
     BridgeTransfer(FeeComponents<BridgeTransfer>),
+    RecoverIbcClient(FeeComponents<RecoverIbcClient>),
 }
 
 impl Protobuf for FeeChange {
@@ -2165,6 +2184,9 @@ impl Protobuf for FeeChange {
                 }
                 Self::BridgeTransfer(fee_change) => {
                     raw::fee_change::FeeComponents::BridgeTransfer(fee_change.to_raw())
+                }
+                Self::RecoverIbcClient(fee_change) => {
+                    raw::fee_change::FeeComponents::RecoverIbcClient(fee_change.to_raw())
                 }
             }),
         }
@@ -2241,9 +2263,82 @@ impl Protobuf for FeeChange {
                     fee_change,
                 )?)
             }
+            Some(raw::fee_change::FeeComponents::RecoverIbcClient(fee_change)) => {
+                Self::RecoverIbcClient(FeeComponents::<RecoverIbcClient>::try_from_raw_ref(
+                    fee_change,
+                )?)
+            }
             None => return Err(FeeChangeError::field_unset("fee_components")),
         })
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct RecoverIbcClient {
+    pub client_id: ibc_types::core::client::ClientId,
+    pub replacement_client_id: ibc_types::core::client::ClientId,
+}
+
+impl Protobuf for RecoverIbcClient {
+    type Error = RecoverIbcClientError;
+    type Raw = raw::RecoverIbcClient;
+
+    #[must_use]
+    fn into_raw(self) -> raw::RecoverIbcClient {
+        raw::RecoverIbcClient {
+            client_id: self.client_id.to_string(),
+            replacement_client_id: self.replacement_client_id.to_string(),
+        }
+    }
+
+    #[must_use]
+    fn to_raw(&self) -> raw::RecoverIbcClient {
+        raw::RecoverIbcClient {
+            client_id: self.client_id.clone().to_string(),
+            replacement_client_id: self.replacement_client_id.clone().to_string(),
+        }
+    }
+
+    /// Convert from a raw, unchecked protobuf [`raw::RecoverIbcClientAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `client_id` field is not set
+    /// - if the `replacement_client_id` field is not set
+    fn try_from_raw(proto: raw::RecoverIbcClient) -> Result<Self, RecoverIbcClientError> {
+        let client_id = proto.client_id.parse().map_err(|_| {
+            RecoverIbcClientError(RecoverIbcClientErrorKind::InvalidSubjectClientId)
+        })?;
+        let replacement_client_id = proto.replacement_client_id.parse().map_err(|_| {
+            RecoverIbcClientError(RecoverIbcClientErrorKind::InvalidSubstituteClientId)
+        })?;
+        Ok(Self {
+            client_id,
+            replacement_client_id,
+        })
+    }
+
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::RecoverIbcClientAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `client_id` field is not set
+    /// - if the `replacement_client_id` field is not set
+    fn try_from_raw_ref(proto: &Self::Raw) -> Result<Self, RecoverIbcClientError> {
+        Self::try_from_raw(proto.clone())
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct RecoverIbcClientError(RecoverIbcClientErrorKind);
+
+#[derive(Debug, thiserror::Error)]
+enum RecoverIbcClientErrorKind {
+    #[error("the `client_id` field was invalid")]
+    InvalidSubjectClientId,
+    #[error("the `replacement_client_id` field was invalid")]
+    InvalidSubstituteClientId,
 }
 
 impl From<FeeComponents<Transfer>> for FeeChange {
@@ -2333,5 +2428,11 @@ impl From<FeeComponents<IbcSudoChange>> for FeeChange {
 impl From<FeeComponents<BridgeTransfer>> for FeeChange {
     fn from(fee: FeeComponents<BridgeTransfer>) -> Self {
         FeeChange::BridgeTransfer(fee)
+    }
+}
+
+impl From<FeeComponents<RecoverIbcClient>> for FeeChange {
+    fn from(fee: FeeComponents<RecoverIbcClient>) -> Self {
+        FeeChange::RecoverIbcClient(fee)
     }
 }
