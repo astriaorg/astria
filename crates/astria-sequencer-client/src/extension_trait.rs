@@ -83,6 +83,7 @@ use tendermint_rpc::{
 use tracing::{
     debug,
     instrument,
+    warn,
     Level,
 };
 
@@ -725,12 +726,15 @@ pub trait SequencerClientExt: Client {
         // The maximum milliseconds delay between receiving a transaction status response and
         // sending the next request.
         const MAX_POLL_INTERVAL_MILLIS: u64 = 1000;
+        // The amount of time to wait before switching to warn level logging instead of debug.
+        // Corresponds with the Sequencer block time.
+        const START_WARN_DELAY: Duration = Duration::from_millis(2_000);
         // How long to wait after `confirm_tx_inclusion` is called before starting to log.
-        const START_LOGGING_DELAY: Duration = Duration::from_millis(1000);
+        const START_LOGGING_DELAY: Duration = Duration::from_millis(1_000);
         // The duration between logging events. This is more than the maximum wait time for an
         // not found transaction status, but that is okay since a persistent not found status
         // will be logged when the error is returned.
-        const LOG_INTERVAL: Duration = Duration::from_millis(5000);
+        const LOG_INTERVAL: Duration = Duration::from_millis(5_000);
         // The maximum time to wait for a transaction to show in the app mempool.
         const MAX_WAIT_TIME_NOT_FOUND: Duration =
             Duration::from_secs(MAX_TX_STATUS_NOT_FOUND_WAIT_TIME_SECS);
@@ -745,12 +749,21 @@ pub trait SequencerClientExt: Client {
             if start.elapsed() <= START_LOGGING_DELAY || logged_at.elapsed() <= LOG_INTERVAL {
                 return;
             }
-            debug!(
-                %status,
-                %tx_hash,
-                elapsed_seconds = start.elapsed().as_secs_f32(),
-                "waiting to confirm transaction inclusion"
-            );
+            if start.elapsed() > START_WARN_DELAY {
+                warn!(
+                    %status,
+                    %tx_hash,
+                    elapsed_seconds = start.elapsed().as_secs_f32(),
+                    "waiting to confirm transaction inclusion"
+                );
+            } else {
+                debug!(
+                    %status,
+                    %tx_hash,
+                    elapsed_seconds = start.elapsed().as_secs_f32(),
+                    "waiting to confirm transaction inclusion"
+                );
+            }
             logged_at = Instant::now();
         };
 
