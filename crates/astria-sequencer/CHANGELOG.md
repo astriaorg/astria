@@ -36,7 +36,6 @@ loop indefinitely [#1955](https://github.com/astriaorg/astria/pull/1955).
 - Implement `astria.sequencerblock.optimistic.v1alpha1.OptimisticBlockService` [#1839](https://github.com/astriaorg/astria/pull/1839).
 - Add ASTRIA_SEQUENCER_ABCI_LISTEN_URL config variable [#1877](https://github.com/astriaorg/astria/pull/1877)
 
-
 ### Changed
 
 - Bump MSRV to 1.83.0 [#1857](https://github.com/astriaorg/astria/pull/1857).
