@@ -122,7 +122,7 @@ async fn app_pre_execute_transactions() {
 }
 
 #[tokio::test]
-async fn app_prepare_state_for_tx_execution_remove_byzantine_validators() {
+async fn app_begin_block_remove_byzantine_validators() {
     use tendermint::abci::types;
 
     let initial_validator_set = vec![
@@ -158,7 +158,7 @@ async fn app_prepare_state_for_tx_execution_remove_byzantine_validators() {
         time: Time::now(),
     };
 
-    app.start_block(&prepare_state_info).await.unwrap();
+    app.begin_block(&prepare_state_info).await.unwrap();
 
     // assert that validator with pubkey_a is removed
     let validator_set = app.state.get_validator_set().await.unwrap();
@@ -849,7 +849,7 @@ async fn app_process_proposal_transaction_fails_to_execute_fails() {
 }
 
 #[tokio::test]
-async fn app_handle_post_tx_execution_validator_updates() {
+async fn app_end_block_validator_updates() {
     let initial_validator_set = vec![
         ValidatorUpdate {
             power: 100,
@@ -884,8 +884,7 @@ async fn app_handle_post_tx_execution_validator_updates() {
         .unwrap();
     app.apply(state_tx);
 
-    let (returned_validator_updates, _) =
-        app.component_post_execution_state_updates().await.unwrap();
+    let (returned_validator_updates, _) = app.end_block().await.unwrap();
     // we only assert length here as the ordering of the updates is not guaranteed
     // and validator::Update does not implement Ord
     assert_eq!(returned_validator_updates.len(), validator_updates.len());

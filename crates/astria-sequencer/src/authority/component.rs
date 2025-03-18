@@ -50,8 +50,8 @@ impl Component for AuthorityComponent {
         Ok(())
     }
 
-    #[instrument(name = "AuthorityComponent::prepare_state_for_tx_execution", skip_all, err(level = Level::WARN))]
-    async fn prepare_state_for_tx_execution<S: StateWriteExt + 'static>(
+    #[instrument(name = "AuthorityComponent::begin_block", skip_all, err(level = Level::WARN))]
+    async fn begin_block<S: StateWriteExt + 'static>(
         state: &mut Arc<S>,
         prepare_state_info: &PrepareStateInfo,
     ) -> Result<()> {
@@ -72,8 +72,8 @@ impl Component for AuthorityComponent {
         Ok(())
     }
 
-    #[instrument(name = "AuthorityComponent::handle_post_tx_execution", skip_all, err(level = Level::WARN))]
-    async fn handle_post_tx_execution<S: StateWriteExt + StateReadExt + 'static>(
+    #[instrument(name = "AuthorityComponent::end_block", skip_all, err(level = Level::WARN))]
+    async fn end_block<S: StateWriteExt + StateReadExt + 'static>(
         state: &mut Arc<S>,
     ) -> Result<()> {
         // update validator set

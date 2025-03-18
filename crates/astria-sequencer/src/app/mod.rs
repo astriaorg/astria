@@ -203,7 +203,7 @@ pub(crate) struct App {
 
     // This is set to the executed hash of the proposal during `process_proposal`
     //
-    // If it does not match the hash given during `prepare_state_for_tx_execution`, then we clear
+    // If it does not match the hash given during `begin_block`, then we clear
     // and reset the execution results cache + state delta. Transactions are re-executed.
     // If it does match, we utilize cached results to reduce computation.
     //
@@ -687,7 +687,7 @@ impl App {
     }
 
     /// sets up the state for execution of the block's transactions.
-    /// set the current height and timestamp, and calls `prepare_state_for_tx_execution` on all
+    /// set the current height and timestamp, and calls `begin_block` on all
     /// components.
     ///
     /// this *must* be called anytime before a block's txs are executed, whether it's
@@ -712,9 +712,9 @@ impl App {
             time: block_data.time,
         };
 
-        self.start_block(&prepare_state_info)
+        self.begin_block(&prepare_state_info)
             .await
-            .wrap_err("prepare_state_for_tx_execution failed")?;
+            .wrap_err("begin_block failed")?;
 
         Ok(())
     }
@@ -743,7 +743,7 @@ impl App {
             .await
             .wrap_err("failed to get chain ID from state")?;
 
-        let (validator_updates, events) = self.component_post_execution_state_updates().await?;
+        let (validator_updates, events) = self.end_block().await?;
 
         // get deposits for this block from state's ephemeral cache and put them to storage.
         let mut state_tx = StateDelta::new(self.state.clone());
@@ -788,7 +788,7 @@ impl App {
 
         state_tx.object_put(POST_TRANSACTION_EXECUTION_RESULT_KEY, result);
 
-        // events that occur after handle_post_tx_execution are ignored here;
+        // events that occur after end_block are ignored here;
         // there should be none anyways.
         let _ = self.apply(state_tx);
 
@@ -951,8 +951,8 @@ impl App {
         Ok(app_hash)
     }
 
-    #[instrument(name = "App::start_block", skip_all, err(level = Level::WARN))]
-    async fn start_block(
+    #[instrument(name = "App::begin_block", skip_all, err(level = Level::WARN))]
+    async fn begin_block(
         &mut self,
         prepare_state_info: &PrepareStateInfo,
     ) -> Result<Vec<abci::Event>> {
@@ -965,20 +965,20 @@ impl App {
             .put_block_timestamp(prepare_state_info.time)
             .wrap_err("failed to put block timestamp")?;
 
-        // call prepare_state_for_tx_execution on all components
+        // call begin_block on all components
         let mut arc_state_tx = Arc::new(state_tx);
-        AccountsComponent::prepare_state_for_tx_execution(&mut arc_state_tx, prepare_state_info)
+        AccountsComponent::begin_block(&mut arc_state_tx, prepare_state_info)
             .await
-            .wrap_err("prepare_state_for_tx_execution failed on AccountsComponent")?;
-        AuthorityComponent::prepare_state_for_tx_execution(&mut arc_state_tx, prepare_state_info)
+            .wrap_err("begin_block failed on AccountsComponent")?;
+        AuthorityComponent::begin_block(&mut arc_state_tx, prepare_state_info)
             .await
-            .wrap_err("prepare_state_for_tx_execution failed on AuthorityComponent")?;
-        IbcComponent::prepare_state_for_tx_execution(&mut arc_state_tx, prepare_state_info)
+            .wrap_err("begin_block failed on AuthorityComponent")?;
+        IbcComponent::begin_block(&mut arc_state_tx, prepare_state_info)
             .await
-            .wrap_err("prepare_state_for_tx_execution failed on IbcComponent")?;
-        FeesComponent::prepare_state_for_tx_execution(&mut arc_state_tx, prepare_state_info)
+            .wrap_err("begin_block failed on IbcComponent")?;
+        FeesComponent::begin_block(&mut arc_state_tx, prepare_state_info)
             .await
-            .wrap_err("prepare_state_for_tx_execution failed on FeesComponent")?;
+            .wrap_err("begin_block failed on FeesComponent")?;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1024,26 +1024,24 @@ impl App {
         Ok(events)
     }
 
-    #[instrument(name = "App::component_post_execution_state_updates", skip_all, err(level = Level::WARN))]
-    async fn component_post_execution_state_updates(
-        &mut self,
-    ) -> Result<(Vec<tendermint::validator::Update>, Vec<Event>)> {
+    #[instrument(name = "App::end_block", skip_all, err(level = Level::WARN))]
+    async fn end_block(&mut self) -> Result<(Vec<tendermint::validator::Update>, Vec<Event>)> {
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
 
-        // call handle_post_tx_execution on all components
-        AccountsComponent::handle_post_tx_execution(&mut arc_state_tx)
+        // call end_block on all components
+        AccountsComponent::end_block(&mut arc_state_tx)
             .await
-            .wrap_err("handle_post_tx_execution failed on AccountsComponent")?;
-        AuthorityComponent::handle_post_tx_execution(&mut arc_state_tx)
+            .wrap_err("end_block failed on AccountsComponent")?;
+        AuthorityComponent::end_block(&mut arc_state_tx)
             .await
-            .wrap_err("handle_post_tx_execution failed on AuthorityComponent")?;
-        FeesComponent::handle_post_tx_execution(&mut arc_state_tx)
+            .wrap_err("end_block failed on AuthorityComponent")?;
+        FeesComponent::end_block(&mut arc_state_tx)
             .await
-            .wrap_err("handle_post_tx_execution failed on FeesComponent")?;
-        IbcComponent::handle_post_tx_execution(&mut arc_state_tx)
+            .wrap_err("end_block failed on FeesComponent")?;
+        IbcComponent::end_block(&mut arc_state_tx)
             .await
-            .wrap_err("handle_post_tx_execution failed on IbcComponent")?;
+            .wrap_err("end_block failed on IbcComponent")?;
 
         let mut state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");

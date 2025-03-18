@@ -136,18 +136,16 @@ impl Component for FeesComponent {
         Ok(())
     }
 
-    #[instrument(name = "FeesComponent::prepare_state_for_tx_execution", skip_all)]
-    async fn prepare_state_for_tx_execution<S: fees::StateWriteExt + 'static>(
+    #[instrument(name = "FeesComponent::begin_block", skip_all)]
+    async fn begin_block<S: fees::StateWriteExt + 'static>(
         _state: &mut Arc<S>,
         _prepare_state_info: &PrepareStateInfo,
     ) -> Result<()> {
         Ok(())
     }
 
-    #[instrument(name = "FeesComponent::handle_post_tx_execution", skip_all)]
-    async fn handle_post_tx_execution<S: fees::StateWriteExt + 'static>(
-        state: &mut Arc<S>,
-    ) -> Result<()> {
+    #[instrument(name = "FeesComponent::end_block", skip_all)]
+    async fn end_block<S: fees::StateWriteExt + 'static>(state: &mut Arc<S>) -> Result<()> {
         // gather block fees and transfer them to sudo
         let fees = state.get_block_fees();
         let sudo_address = state

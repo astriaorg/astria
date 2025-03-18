@@ -47,18 +47,16 @@ impl Component for AccountsComponent {
         Ok(())
     }
 
-    #[instrument(name = "AccountsComponent::prepare_state_for_tx_execution", skip_all)]
-    async fn prepare_state_for_tx_execution<S: accounts::StateWriteExt + 'static>(
+    #[instrument(name = "AccountsComponent::begin_block", skip_all)]
+    async fn begin_block<S: accounts::StateWriteExt + 'static>(
         _state: &mut Arc<S>,
         _prepare_state_info: &PrepareStateInfo,
     ) -> Result<()> {
         Ok(())
     }
 
-    #[instrument(name = "AccountsComponent::handle_post_tx_execution", skip_all)]
-    async fn handle_post_tx_execution<S: accounts::StateWriteExt + 'static>(
-        _state: &mut Arc<S>,
-    ) -> Result<()> {
+    #[instrument(name = "AccountsComponent::end_block", skip_all)]
+    async fn end_block<S: accounts::StateWriteExt + 'static>(_state: &mut Arc<S>) -> Result<()> {
         Ok(())
     }
 }

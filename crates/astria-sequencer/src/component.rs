@@ -45,7 +45,7 @@ pub(crate) trait Component {
     /// called, `state.get_mut().is_some()`, i.e., the `Arc` is not shared.  The
     /// implementor MUST ensure that any clones of the `Arc` are dropped before
     /// it returns, so that `state.get_mut().is_some()` on completion.
-    async fn prepare_state_for_tx_execution<S: StateWrite + 'static>(
+    async fn begin_block<S: StateWrite + 'static>(
         state: &mut Arc<S>,
         prepare_state_info: &PrepareStateInfo,
     ) -> Result<()>;
@@ -55,7 +55,7 @@ pub(crate) trait Component {
     ///
     /// # Invariants
     ///
-    /// This method should only be called after [`Component::prepare_state_for_tx_execution`].
+    /// This method should only be called after [`Component::begin_block`].
     /// No methods should be called following this method.
     ///
     /// The `&mut Arc<S>` allows the implementor to optionally share state with
@@ -63,5 +63,5 @@ pub(crate) trait Component {
     /// called, `state.get_mut().is_some()`, i.e., the `Arc` is not shared.  The
     /// implementor MUST ensure that any clones of the `Arc` are dropped before
     /// it returns, so that `state.get_mut().is_some()` on completion.
-    async fn handle_post_tx_execution<S: StateWrite + 'static>(state: &mut Arc<S>) -> Result<()>;
+    async fn end_block<S: StateWrite + 'static>(state: &mut Arc<S>) -> Result<()>;
 }

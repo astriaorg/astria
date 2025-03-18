@@ -63,8 +63,8 @@ impl Component for IbcComponent {
         Ok(())
     }
 
-    #[instrument(name = "IbcComponent::prepare_state_for_tx_execution", skip_all, err(level = Level::WARN))]
-    async fn prepare_state_for_tx_execution<S: StateWriteExt + 'static>(
+    #[instrument(name = "IbcComponent::begin_block", skip_all, err(level = Level::WARN))]
+    async fn begin_block<S: StateWriteExt + 'static>(
         state: &mut Arc<S>,
         prepare_state_info: &PrepareStateInfo,
     ) -> Result<()> {
@@ -99,10 +99,8 @@ impl Component for IbcComponent {
         Ok(())
     }
 
-    #[instrument(name = "IbcComponent::handle_post_tx_execution", skip_all, er(level = Level::WARN))]
-    async fn handle_post_tx_execution<S: StateWriteExt + 'static>(
-        _state: &mut Arc<S>,
-    ) -> Result<()> {
+    #[instrument(name = "IbcComponent::end_block", skip_all, er(level = Level::WARN))]
+    async fn end_block<S: StateWriteExt + 'static>(_state: &mut Arc<S>) -> Result<()> {
         // There is no need to call `Ibc::end_block`. It is a no-op.
         Ok(())
     }
