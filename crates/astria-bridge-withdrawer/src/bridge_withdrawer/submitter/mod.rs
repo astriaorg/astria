@@ -62,10 +62,7 @@ use crate::metrics::Metrics;
 mod builder;
 mod signer;
 
-pub(crate) use signer::{
-    make_signer,
-    Signer,
-};
+pub(crate) use signer::Signer;
 
 pub(super) struct Submitter {
     shutdown_token: CancellationToken,

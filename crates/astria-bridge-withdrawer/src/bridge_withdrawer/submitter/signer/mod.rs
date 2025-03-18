@@ -33,48 +33,60 @@ impl Signer {
     }
 }
 
-pub(crate) fn make_signer(
-    no_frost_threshold_signing: bool,
-    frost_min_signers: usize,
-    frost_public_key_package_path: String,
-    frost_participant_endpoints: &str,
-    sequencer_key_path: String,
-    sequencer_address_prefix: String,
-) -> eyre::Result<Signer> {
-    let signer = if no_frost_threshold_signing {
-        Signer::Single(Box::new(
-            sequencer_key::SequencerKey::builder()
-                .path(sequencer_key_path)
-                .prefix(sequencer_address_prefix)
-                .try_build()
-                .wrap_err("failed to load sequencer private key")?,
-        ))
-    } else {
-        let public_key_package = read_frost_key(frost_public_key_package_path)?;
-        let frost_participant_endpoints: Vec<Uri> = frost_participant_endpoints
-            .split(',')
-            .map(str::to_string)
-            .map(|s| s.parse().wrap_err("failed to parse participant endpoint"))
-            .collect::<eyre::Result<Vec<Uri>>>()?;
-        let participant_clients = frost_participant_endpoints
-            .into_iter()
-            .map(|endpoint| {
-                FrostParticipantServiceClient::new(
-                    tonic::transport::Endpoint::from(endpoint).connect_lazy(),
-                )
-            })
-            .collect();
-        Signer::Threshold(
-            frost::FrostSignerBuilder::new()
-                .min_signers(frost_min_signers)
-                .public_key_package(public_key_package)
-                .participant_clients(participant_clients)
-                .address_prefix(sequencer_address_prefix)
-                .try_build()
-                .wrap_err("failed to initialize frost signer")?,
-        )
-    };
-    Ok(signer)
+pub(super) struct Builder {
+    pub(super) no_frost_threshold_signing: bool,
+    pub(super) frost_min_signers: usize,
+    pub(super) frost_public_key_package_path: String,
+    pub(super) frost_participant_endpoints: String,
+    pub(super) sequencer_key_path: String,
+    pub(super) sequencer_address_prefix: String,
+}
+
+impl Builder {
+    pub(super) fn try_build(self) -> eyre::Result<Signer> {
+        let Self {
+            no_frost_threshold_signing,
+            frost_min_signers,
+            frost_public_key_package_path,
+            frost_participant_endpoints,
+            sequencer_key_path,
+            sequencer_address_prefix,
+        } = self;
+        let signer = if no_frost_threshold_signing {
+            Signer::Single(Box::new(
+                sequencer_key::SequencerKey::builder()
+                    .path(sequencer_key_path)
+                    .prefix(sequencer_address_prefix)
+                    .try_build()
+                    .wrap_err("failed to load sequencer private key")?,
+            ))
+        } else {
+            let public_key_package = read_frost_key(frost_public_key_package_path)?;
+            let frost_participant_endpoints: Vec<Uri> = frost_participant_endpoints
+                .split(',')
+                .map(str::to_string)
+                .map(|s| s.parse().wrap_err("failed to parse participant endpoint"))
+                .collect::<eyre::Result<Vec<Uri>>>()?;
+            let participant_clients = frost_participant_endpoints
+                .into_iter()
+                .map(|endpoint| {
+                    FrostParticipantServiceClient::new(
+                        tonic::transport::Endpoint::from(endpoint).connect_lazy(),
+                    )
+                })
+                .collect();
+            Signer::Threshold(
+                frost::FrostSignerBuilder::new()
+                    .min_signers(frost_min_signers)
+                    .public_key_package(public_key_package)
+                    .participant_clients(participant_clients)
+                    .address_prefix(sequencer_address_prefix)
+                    .try_build()
+                    .wrap_err("failed to initialize frost signer")?,
+            )
+        };
+        Ok(signer)
+    }
 }
 
 fn read_frost_key<P: AsRef<std::path::Path>>(

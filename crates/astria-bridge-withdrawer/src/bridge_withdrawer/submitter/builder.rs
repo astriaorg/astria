@@ -12,15 +12,13 @@ use tracing::{
     instrument,
 };
 
-use super::state::State;
+use super::{
+    signer,
+    state::State,
+    Batch,
+};
 use crate::{
-    bridge_withdrawer::{
-        startup,
-        submitter::{
-            make_signer,
-            Batch,
-        },
-    },
+    bridge_withdrawer::startup,
     metrics::Metrics,
 };
 
@@ -79,14 +77,15 @@ impl Builder {
             metrics,
         } = self;
 
-        let signer = make_signer(
+        let signer = signer::Builder {
             no_frost_threshold_signing,
             frost_min_signers,
             frost_public_key_package_path,
-            &frost_participant_endpoints,
+            frost_participant_endpoints,
             sequencer_key_path,
             sequencer_address_prefix,
-        )
+        }
+        .try_build()
         .wrap_err("failed to make signer")?;
         info!(address = %signer.address(), "loaded sequencer signer");
 
