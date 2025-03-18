@@ -473,7 +473,6 @@ impl App {
                 height: process_proposal.height,
                 time: process_proposal.time,
                 next_validators_hash: process_proposal.next_validators_hash,
-                proposer_address: process_proposal.proposer_address,
             };
 
             self.pre_execute_transactions(block_data)
