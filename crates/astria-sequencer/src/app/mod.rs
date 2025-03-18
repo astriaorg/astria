@@ -686,8 +686,7 @@ impl App {
     }
 
     /// sets up the state for execution of the block's transactions.
-    /// set the current height and timestamp, and calls `begin_block` on all
-    /// components.
+    /// set the current height and timestamp, and calls `begin_block` on all components.
     ///
     /// this *must* be called anytime before a block's txs are executed, whether it's
     /// during the proposal phase, or finalize_block phase.
