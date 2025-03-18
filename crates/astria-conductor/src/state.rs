@@ -13,6 +13,10 @@ use astria_core::{
     },
     primitive::v1::RollupId,
 };
+use astria_eyre::eyre::{
+    self,
+    eyre,
+};
 use sequencer_client::tendermint::block::Height as SequencerHeight;
 use tokio::sync::watch::{
     self,
@@ -433,15 +437,28 @@ fn map_rollup_number_to_sequencer_height(
 ///
 /// Returns `None` if `sequencer_height - sequencer_start_height + rollup_start_block_number`
 /// underflows or if the result does not fit in `u64`.
-pub(super) fn map_sequencer_height_to_rollup_height(
+pub(super) fn try_map_sequencer_height_to_rollup_height(
     sequencer_start_height: u64,
     rollup_start_block_number: u64,
     sequencer_height: SequencerHeight,
-) -> Option<u64> {
+) -> eyre::Result<u64> {
     sequencer_height
         .value()
-        .checked_sub(sequencer_start_height)?
+        .checked_sub(sequencer_start_height)
+        .ok_or_else(|| {
+            eyre!(format!(
+                "operation `sequencer_height {{{sequencer_height}}} - sequencer_start_height \
+                 {{{sequencer_start_height}}}` underflowed"
+            ))
+        })?
         .checked_add(rollup_start_block_number)
+        .ok_or_else(|| {
+            eyre!(format!(
+                "operation `(sequencer_height {{{sequencer_height}}} - sequencer_start_height \
+                 {{{sequencer_start_height}}}) + rollup_start_block_number \
+                 {{{rollup_start_block_number}}}` overflowed"
+            ))
+        })
 }
 
 #[cfg(test)]

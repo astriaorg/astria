@@ -137,9 +137,10 @@ impl Executor {
             state
                 .celestia_search_height_max_look_ahead()
                 .try_into()
-                .expect(
-                    "converting a u64 to usize should work on any architecture conductor runs on",
-                ),
+                .wrap_err(
+                    "failed converting u64 to usize; is conductor running on a 32 bit \
+                     architecture?",
+                )?,
         );
 
         let mut reader_tasks = JoinMap::new();
@@ -368,20 +369,12 @@ impl Initialized {
         let sequencer_start_block_height = self.state.sequencer_start_block_height();
         let rollup_start_block_number = self.state.rollup_start_block_number();
         let current_block_height = executable_block.height;
-        let Some(block_number) = state::map_sequencer_height_to_rollup_height(
+        let block_number = state::try_map_sequencer_height_to_rollup_height(
             sequencer_start_block_height,
             rollup_start_block_number,
             current_block_height,
-        ) else {
-            bail!(
-                "failed to map block height to rollup number. This means the operation
-                `sequencer_height - sequencer_start_block_height + rollup_start_block_number` \
-                 underflowed or was not a valid cometbft height. Sequencer height: \
-                 `{current_block_height}`,
-                 sequencer start height: `{sequencer_start_block_height}`,
-                 rollup start number: `{rollup_start_block_number}`"
-            )
-        };
+        )
+        .wrap_err("failed to map current block height to rollup number")?;
 
         // The parent hash of the next block is the hash of the block at the current head.
         let parent_hash = self.state.soft_hash();
@@ -426,20 +419,12 @@ impl Initialized {
 
         let sequencer_start_block_height = self.state.sequencer_start_block_height();
         let rollup_start_block_number = self.state.rollup_start_block_number();
-        let Some(block_number) = state::map_sequencer_height_to_rollup_height(
+        let block_number = state::try_map_sequencer_height_to_rollup_height(
             sequencer_start_block_height,
             rollup_start_block_number,
             block_height,
-        ) else {
-            bail!(
-                "failed to map block height to rollup number. This means the operation
-                `sequencer_height - sequencer_start_block_height + rollup_start_block_number` \
-                 underflowed or was not a valid cometbft height. Sequencer block height: \
-                 `{block_height}`,
-                 sequencer start height: `{sequencer_start_block_height}`,
-                 rollup start number: `{rollup_start_block_number}`"
-            )
-        };
+        )
+        .wrap_err("failed to map current block height to rollup number")?;
 
         let update = if self.should_execute_firm_block() {
             let parent_hash = self.state.firm_hash();
@@ -534,7 +519,7 @@ impl Initialized {
             .record_transactions_per_executed_block(n_transactions);
 
         info!(
-            executed_block_metadata.hash = %telemetry::display::base64(&executed_block_metadata.hash()),
+            executed_block_metadata.hash = executed_block_metadata.hash(),
             executed_block_metadata.number = executed_block_metadata.number(),
             "executed block",
         );
