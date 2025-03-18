@@ -45,6 +45,7 @@ use tracing::{
 use crate::{
     block_cache::BlockCache,
     sequencer::block_stream::BlocksFromHeightStream,
+    state::StateReceiver,
 };
 
 mod block_stream;
@@ -53,8 +54,6 @@ mod client;
 mod reporting;
 pub(crate) use builder::Builder;
 pub(crate) use client::SequencerGrpcClient;
-
-use crate::executor::StateReceiver;
 
 /// [`Reader`] reads Sequencer blocks and forwards them to the [`crate::Executor`] task.
 ///
@@ -150,9 +149,7 @@ impl RunningReader {
         } = reader;
 
         let next_expected_height = rollup_state.next_expected_soft_sequencer_height();
-        let sequencer_stop_height = rollup_state
-            .sequencer_stop_height()
-            .wrap_err("failed to obtain sequencer stop height")?;
+        let sequencer_stop_height = rollup_state.sequencer_stop_height();
 
         let latest_height_stream =
             sequencer_cometbft_client.stream_latest_height(sequencer_block_time);
@@ -189,7 +186,7 @@ impl RunningReader {
 
     async fn run_loop(&mut self) -> eyre::Result<&'static str> {
         loop {
-            if self.has_reached_stop_height()? {
+            if self.has_reached_stop_height() {
                 return Ok("stop height reached");
             }
 
@@ -294,15 +291,13 @@ impl RunningReader {
 
     /// The stop height is reached if a) the next height to be forwarded would be greater
     /// than the stop height, and b) there is no block currently in flight.
-    fn has_reached_stop_height(&self) -> eyre::Result<bool> {
-        Ok(self
-            .rollup_state
+    fn has_reached_stop_height(&self) -> bool {
+        self.rollup_state
             .sequencer_stop_height()
-            .wrap_err("failed to obtain sequencer stop height")?
             .map_or(false, |height| {
                 self.block_cache.next_height_to_pop() > height.get()
                     && self.enqueued_block.is_terminated()
-            }))
+            })
     }
 }
 

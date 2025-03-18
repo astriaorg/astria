@@ -5,7 +5,7 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use super::SequencerGrpcClient;
-use crate::executor::StateReceiver;
+use crate::state::StateReceiver;
 
 pub(crate) struct Builder {
     pub(crate) sequencer_grpc_client: SequencerGrpcClient,

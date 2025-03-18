@@ -51,8 +51,14 @@ use tracing::{
 
 use crate::{
     celestia::ReconstructedBlock,
+    conductor::ExitReason,
     config::CommitLevel,
     metrics::Metrics,
+    state::{
+        self,
+        State,
+        StateSender,
+    },
 };
 
 mod builder;
@@ -60,16 +66,9 @@ mod builder;
 pub(crate) use builder::Builder;
 
 mod client;
-mod state;
 #[cfg(test)]
 mod tests;
 pub(super) use client::Client;
-pub(crate) use state::{
-    State,
-    StateReceiver,
-};
-
-use self::state::StateSender;
 
 type CelestiaHeight = u64;
 
@@ -102,7 +101,7 @@ impl std::fmt::Display for ReaderKind {
 }
 
 impl Executor {
-    pub(crate) async fn run_until_stopped(self) -> eyre::Result<Option<State>> {
+    pub(crate) async fn run_until_stopped(self) -> eyre::Result<ExitReason> {
         let initialized = select!(
             biased;
 
@@ -110,7 +109,7 @@ impl Executor {
                 info_span!("shutdown signal on init").in_scope(|| {
                     info!("received shutdown signal while initializing executor; cancelling initialization");
                 });
-                return Ok(None);
+                return Ok(ExitReason::ShutdownSignalReceived);
             }
             res = self.init() => {
                 res.wrap_err("initialization failed")?
@@ -262,12 +261,12 @@ struct Initialized {
 }
 
 impl Initialized {
-    async fn run(mut self) -> eyre::Result<Option<State>> {
+    async fn run(mut self) -> eyre::Result<ExitReason> {
         let reason = select!(
             biased;
 
             () = self.shutdown.clone().cancelled_owned() => {
-                Ok("received shutdown signal")
+                Ok(ExitReason::ShutdownSignalReceived)
             }
 
             res = self.run_event_loop() => {
@@ -275,10 +274,11 @@ impl Initialized {
             }
         );
 
-        self.shutdown(reason).await
+        self.shutdown(&reason).await;
+        reason
     }
 
-    async fn run_event_loop(&mut self) -> eyre::Result<&'static str> {
+    async fn run_event_loop(&mut self) -> eyre::Result<ExitReason> {
         loop {
             select!(
                 biased;
@@ -307,7 +307,7 @@ impl Initialized {
                     self.handle_task_exit(task, res)?;
                 }
 
-                else => break Ok("all channels are closed")
+                else => break Ok(ExitReason::ChannelsClosed(Box::new(self.state.get().clone())))
             );
         }
     }
@@ -463,7 +463,7 @@ impl Initialized {
                 "pending block not found for block number in cache. THIS SHOULD NOT HAPPEN. \
                  Trying to fetch the already-executed block from the rollup before giving up."
             );
-            match self.client.get_block_with_retry(block_number).await {
+            match self.client.get_executed_block_metadata(block_number).await {
                 Ok(block) => Update::OnlyFirm(block, celestia_height),
                 Err(error) => {
                     error!(
@@ -694,8 +694,8 @@ impl Initialized {
         }
     }
 
-    #[instrument(skip_all, err)]
-    async fn shutdown(mut self, reason: eyre::Result<&'static str>) -> eyre::Result<Option<State>> {
+    #[instrument(skip_all)]
+    async fn shutdown(mut self, reason: &eyre::Result<ExitReason>) {
         let message = "shutting down";
         match &reason {
             Ok(reason) => {
@@ -716,8 +716,6 @@ impl Initialized {
                 Err(error) => warn!(%task, %error, "task exited"),
             }
         }
-
-        reason.map(|_| (Some(self.state.get().clone())))
     }
 }
 

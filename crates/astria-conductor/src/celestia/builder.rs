@@ -15,8 +15,8 @@ use super::{
     ReconstructedBlock,
 };
 use crate::{
-    executor::StateReceiver,
     metrics::Metrics,
+    state::StateReceiver,
 };
 
 pub(crate) struct Builder {

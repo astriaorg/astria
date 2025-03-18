@@ -13,10 +13,6 @@ use astria_core::{
     },
     primitive::v1::RollupId,
 };
-use astria_eyre::eyre::{
-    self,
-    eyre,
-};
 use sequencer_client::tendermint::block::Height as SequencerHeight;
 use tokio::sync::watch::{
     self,
@@ -37,12 +33,12 @@ pub(super) fn channel(state: State) -> (StateSender, StateReceiver) {
 
 #[derive(Debug, thiserror::Error)]
 #[error(
-    "could not map rollup number to sequencer height for commitment type `{commitment_type}`: the \
-     operation `{sequencer_start_height} + ({rollup_number} - {rollup_start_block_number})` \
-     failed because `{issue}`"
+    "could not map rollup number to sequencer height for {map_purpose}: the operation \
+     `{sequencer_start_height} + ({rollup_number} - {rollup_start_block_number})` failed because \
+     `{issue}`"
 )]
 pub(crate) struct InvalidState {
-    commitment_type: &'static str,
+    map_purpose: &'static str,
     issue: &'static str,
     sequencer_start_height: u64,
     rollup_start_block_number: u64,
@@ -59,20 +55,14 @@ impl StateReceiver {
         self.inner
             .borrow()
             .next_expected_firm_sequencer_height()
-            .expect(
-                "the tracked state must never be set to a genesis/commitment state that cannot be \
-                 mapped to a cometbft Sequencer height",
-            )
+            .expect("the tracked state must never be set to an invalid state. this is a bug")
     }
 
     pub(crate) fn next_expected_soft_sequencer_height(&self) -> SequencerHeight {
         self.inner
             .borrow()
             .next_expected_soft_sequencer_height()
-            .expect(
-                "the tracked state must never be set to a genesis/commitment state that cannot be \
-                 mapped to a cometbft Sequencer height",
-            )
+            .expect("the tracked state must never be set to an invalid state. this is a bug")
     }
 
     #[instrument(skip_all)]
@@ -83,23 +73,19 @@ impl StateReceiver {
         Ok(self.next_expected_soft_sequencer_height())
     }
 
-    pub(crate) fn sequencer_stop_height(&self) -> eyre::Result<Option<NonZeroU64>> {
-        let Some(rollup_end_block_number) = self.inner.borrow().rollup_end_block_number() else {
-            return Ok(None);
-        };
+    pub(crate) fn sequencer_stop_height(&self) -> Option<NonZeroU64> {
+        let rollup_end_block_number = self.inner.borrow().rollup_end_block_number()?;
         let sequencer_start_height = self.inner.borrow().sequencer_start_block_height();
         let rollup_start_block_number = self.inner.borrow().rollup_start_block_number();
-        Ok(NonZeroU64::new(
+        NonZeroU64::new(
             map_rollup_number_to_sequencer_height(
                 sequencer_start_height,
                 rollup_start_block_number,
                 rollup_end_block_number.get(),
             )
-            .map_err(|e| {
-                eyre!(e).wrap_err("failed to map rollup stop block number to sequencer height")
-            })?
+            .expect("the tracked state must never be set to an invalid state. this is a bug")
             .into(),
-        ))
+        )
     }
 }
 
@@ -109,7 +95,7 @@ pub(super) struct StateSender {
 
 impl std::fmt::Display for StateSender {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = serde_json::to_string(&*self.inner.borrow()).unwrap();
+        let s = serde_json::to_string(&*self.inner.borrow()).map_err(|_| std::fmt::Error)?;
         f.write_str(&s)
     }
 }
@@ -128,7 +114,7 @@ fn map_firm_to_sequencer_height(
         rollup_number,
     )
     .map_err(|issue| InvalidState {
-        commitment_type: "firm",
+        map_purpose: "firm commitment",
         issue,
         sequencer_start_height,
         rollup_start_block_number,
@@ -150,7 +136,7 @@ fn map_soft_to_sequencer_height(
         rollup_number,
     )
     .map_err(|issue| InvalidState {
-        commitment_type: "soft",
+        map_purpose: "soft commitment",
         issue,
         sequencer_start_height,
         rollup_start_block_number,
@@ -277,8 +263,25 @@ impl State {
         if commit_level.is_with_soft() {
             let _ = map_soft_to_sequencer_height(execution_session_parameters, commitment_state)?;
         }
+        let execution_session_parameters = execution_session.execution_session_parameters();
+        if let Some(rollup_end_block_number) =
+            execution_session_parameters.rollup_end_block_number()
+        {
+            let _ = map_rollup_number_to_sequencer_height(
+                execution_session_parameters.sequencer_start_block_height(),
+                execution_session_parameters.rollup_start_block_number(),
+                rollup_end_block_number.get(),
+            )
+            .map_err(|issue| InvalidState {
+                map_purpose: "rollup end block number",
+                issue,
+                sequencer_start_height: execution_session_parameters.sequencer_start_block_height(),
+                rollup_start_block_number: execution_session_parameters.rollup_start_block_number(),
+                rollup_number: rollup_end_block_number.get(),
+            })?;
+        };
         Ok(State {
-            execution_session_id: execution_session.session_id().clone(),
+            execution_session_id: execution_session.session_id().to_string(),
             execution_session_parameters: execution_session_parameters.clone(),
             commitment_state: commitment_state.clone(),
         })

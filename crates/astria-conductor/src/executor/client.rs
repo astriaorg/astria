@@ -62,7 +62,7 @@ impl Client {
 
     /// Calls RPC astria.execution.v2.GetExecutedBlockMetadata
     #[instrument(skip_all, fields(block_number, uri = %self.uri), err)]
-    pub(crate) async fn get_block_with_retry(
+    pub(crate) async fn get_executed_block_metadata(
         &mut self,
         block_number: u64,
     ) -> eyre::Result<ExecutedBlockMetadata> {

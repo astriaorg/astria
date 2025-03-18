@@ -8,7 +8,7 @@ use astria_core::{
     Protobuf as _,
 };
 
-use crate::executor::State;
+use crate::state::State;
 
 pub(crate) fn make_commitment_state() -> CommitmentState {
     let firm = astria_core::generated::astria::execution::v2::ExecutedBlockMetadata {

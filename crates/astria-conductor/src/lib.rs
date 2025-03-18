@@ -20,6 +20,7 @@ pub mod config;
 pub(crate) mod executor;
 pub(crate) mod metrics;
 pub(crate) mod sequencer;
+pub(crate) mod state;
 #[cfg(test)]
 pub(crate) mod test_utils;
 mod utils;

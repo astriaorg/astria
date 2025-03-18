@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use astria_eyre::eyre::{
     self,
+    bail,
     eyre,
     Report,
     WrapErr as _,
@@ -21,7 +22,10 @@ use tracing::{
 };
 
 use crate::{
-    executor,
+    executor::{
+        self,
+    },
+    state::State,
     Config,
     Metrics,
 };
@@ -44,14 +48,28 @@ impl std::fmt::Display for RestartOrShutdown {
     }
 }
 
-/// The business logic of Conductur.
+pub(crate) enum ExitReason {
+    ShutdownSignalReceived,
+    ChannelsClosed(Box<State>),
+}
+
+impl std::fmt::Display for ExitReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ExitReason::ShutdownSignalReceived => f.write_str("shutdown signal received"),
+            ExitReason::ChannelsClosed(_) => f.write_str("all channels closed"),
+        }
+    }
+}
+
+/// The business logic of Conductor.
 pub(super) struct Inner {
     /// Token to signal to all tasks to shut down gracefully.
     shutdown_token: CancellationToken,
 
     config: Config,
 
-    executor: Option<JoinHandle<eyre::Result<Option<crate::executor::State>>>>,
+    executor: Option<JoinHandle<eyre::Result<ExitReason>>>,
 }
 
 impl Inner {
@@ -88,25 +106,25 @@ impl Inner {
     pub(super) async fn run_until_stopped(mut self) -> eyre::Result<RestartOrShutdown> {
         info_span!("Conductor::run_until_stopped").in_scope(|| info!("conductor is running"));
 
-        let exit_status = select! {
+        let exit_reason = select! {
             biased;
 
             () = self.shutdown_token.cancelled() => {
-                Ok(None)
+                Ok(ExitReason::ShutdownSignalReceived)
             },
 
             res = self.executor.as_mut().expect("task must always be set at this point") => {
                 // XXX: must Option::take the JoinHandle to avoid polling it in the shutdown logic.
                 self.executor.take();
                 match res {
-                    Ok(Ok(state)) => Ok(state),
+                    Ok(Ok(exit_reason)) => Ok(exit_reason),
                     Ok(Err(err)) => Err(err.wrap_err("executor exited with error")),
                     Err(err) => Err(Report::new(err).wrap_err("executor panicked")),
                 }
             }
         };
 
-        self.restart_or_shutdown(exit_status).await
+        self.restart_or_shutdown(exit_reason).await
     }
 
     /// Shuts down all tasks and returns a token indicating whether to restart or not.
@@ -117,21 +135,17 @@ impl Inner {
     #[instrument(skip_all, err, ret(Display))]
     async fn restart_or_shutdown(
         mut self,
-        exit_status: eyre::Result<Option<crate::executor::State>>,
+        exit_reason: eyre::Result<ExitReason>,
     ) -> eyre::Result<RestartOrShutdown> {
         let restart_or_shutdown = 'decide_restart: {
             if self.shutdown_token.is_cancelled() {
                 break 'decide_restart Ok(RestartOrShutdown::Shutdown);
             }
 
-            match exit_status {
-                Ok(None) => Err(eyre!(
-                    "executor exited with a success value but without rollup status even though \
-                     it was not explicitly cancelled; this shouldn't happen"
-                )),
-                Ok(Some(status)) => should_restart_or_shutdown(&self.config, &status),
+            match exit_reason {
+                Ok(exit_reason) => should_restart_or_shutdown(&self.config, &exit_reason),
                 Err(error) => {
-                    error!(%error, "executor failed; checking error chain if conductor should be restarted");
+                    error!(%error, "executor failed; checking error chain if conductor should attempt new execution session");
                     if should_restart_despite_error(&error) {
                         Ok(RestartOrShutdown::Restart)
                     } else {
@@ -165,62 +179,63 @@ fn should_restart_despite_error(err: &eyre::Report) -> bool {
     while let Some(err) = current {
         if let Some(status) = err.downcast_ref::<tonic::Status>() {
             if status.code() == tonic::Code::PermissionDenied {
+                info!("received `PermissionDenied` status, attempting new execution session");
                 return true;
             }
         }
         current = err.source();
     }
+    info!("error does not warrant new execution session. shutting down");
     false
 }
 
 fn should_restart_or_shutdown(
     config: &Config,
-    status: &crate::executor::State,
+    reason: &ExitReason,
 ) -> eyre::Result<RestartOrShutdown> {
-    let Some(rollup_stop_block_number) = status.rollup_end_block_number() else {
-        return Err(eyre!(
-            "executor exited with a success value even though it was not configured to run with a \
-             stop height and even though it received no shutdown signal; this should not happen"
-        ));
+    let ExitReason::ChannelsClosed(status) = reason else {
+        return Ok(RestartOrShutdown::Shutdown);
     };
 
-    match config.execution_commit_level {
-        crate::config::CommitLevel::FirmOnly | crate::config::CommitLevel::SoftAndFirm => {
-            if status.has_firm_number_reached_stop_height() {
-                Ok(RestartOrShutdown::Restart)
-            } else {
-                Err(eyre!(
-                    "executor exited with a success value, but the stop height was not reached
+    let Some(rollup_stop_block_number) = status.rollup_end_block_number() else {
+        bail!(
+            "executor exited with a success value even though it was not configured to run with a \
+             stop height and even though it received no shutdown signal; this should not happen"
+        );
+    };
+
+    if config.execution_commit_level.is_with_firm() {
+        if status.has_firm_number_reached_stop_height() {
+            Ok(RestartOrShutdown::Restart)
+        } else {
+            Err(eyre!(
+                "executor exited with a success value, but the stop height was not reached
                     (execution kind: `{}`, firm rollup block number: `{}`, mapped to sequencer \
-                     height: `{}`, rollup start height: `{}`, sequencer start height: `{}`, \
-                     sequencer stop height: `{}`)",
-                    config.execution_commit_level,
-                    status.firm_number(),
-                    status.firm_block_number_as_sequencer_height(),
-                    status.rollup_start_block_number(),
-                    status.sequencer_start_block_height(),
-                    rollup_stop_block_number,
-                ))
-            }
+                 height: `{}`, rollup start height: `{}`, sequencer start height: `{}`, sequencer \
+                 stop height: `{}`)",
+                config.execution_commit_level,
+                status.firm_number(),
+                status.firm_block_number_as_sequencer_height(),
+                status.rollup_start_block_number(),
+                status.sequencer_start_block_height(),
+                rollup_stop_block_number,
+            ))
         }
-        crate::config::CommitLevel::SoftOnly => {
-            if status.has_soft_number_reached_stop_height() {
-                Ok(RestartOrShutdown::Restart)
-            } else {
-                Err(eyre!(
-                    "executor exited with a success value, but the stop height was not reached
+    } else if status.has_soft_number_reached_stop_height() {
+        Ok(RestartOrShutdown::Restart)
+    } else {
+        Err(eyre!(
+            "executor exited with a success value, but the stop height was not reached
                     (execution kind: `{}`, soft rollup block number: `{}`, mapped to sequencer \
-                     height: `{}`, rollup start height: `{}`, sequencer start height: `{}`, \
-                     sequencer stop height: `{}`)",
-                    config.execution_commit_level,
-                    status.soft_number(),
-                    status.soft_block_number_as_sequencer_height(),
-                    status.rollup_start_block_number(),
-                    status.sequencer_start_block_height(),
-                    rollup_stop_block_number,
-                ))
-            }
-        }
+             height: `{}`, rollup start height: `{}`, sequencer start height: `{}`, sequencer \
+             stop height: `{}`)",
+            config.execution_commit_level,
+            status.soft_number(),
+            status.soft_block_number_as_sequencer_height(),
+            status.rollup_start_block_number(),
+            status.sequencer_start_block_height(),
+            rollup_stop_block_number,
+        ))
     }
 }
 
@@ -234,12 +249,11 @@ mod tests {
     use astria_eyre::eyre::WrapErr as _;
     use pbjson_types::Timestamp;
 
-    use super::{
-        executor::State,
-        RestartOrShutdown,
-    };
+    use super::RestartOrShutdown;
     use crate::{
+        conductor::ExitReason,
         config::CommitLevel,
+        state::State,
         test_utils::{
             make_commitment_state,
             make_execution_session_parameters,
@@ -285,11 +299,15 @@ mod tests {
     #[track_caller]
     fn assert_restart_or_shutdown(
         config: &Config,
-        state: &State,
+        state: State,
         restart_or_shutdown: &RestartOrShutdown,
     ) {
         assert_eq!(
-            &super::should_restart_or_shutdown(config, state).unwrap(),
+            &super::should_restart_or_shutdown(
+                config,
+                &ExitReason::ChannelsClosed(Box::new(state))
+            )
+            .unwrap(),
             restart_or_shutdown,
         );
     }
@@ -301,7 +319,7 @@ mod tests {
                 execution_commit_level: CommitLevel::SoftAndFirm,
                 ..make_config()
             },
-            &make_rollup_state(
+            make_rollup_state(
                 "test_execution_session".to_string(),
                 ExecutionSessionParameters {
                     sequencer_start_block_height: 10,
@@ -338,7 +356,7 @@ mod tests {
                 execution_commit_level: CommitLevel::SoftOnly,
                 ..make_config()
             },
-            &make_rollup_state(
+            make_rollup_state(
                 "test_execution_session".to_string(),
                 ExecutionSessionParameters {
                     sequencer_start_block_height: 10,

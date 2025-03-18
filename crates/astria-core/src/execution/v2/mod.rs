@@ -12,16 +12,22 @@ use crate::{
 };
 
 #[derive(Debug, thiserror::Error)]
-#[error(transparent)]
+#[error("failed validating Protobuf `astria.execution.v2.ExecutionSession`")]
 pub struct ExecutionSessionError(ExecutionSessionErrorKind);
 
 impl ExecutionSessionError {
-    fn execution_session_parameters(inner: ExecutionSessionParametersError) -> Self {
-        Self(ExecutionSessionErrorKind::InvalidExecutionSessionParameters(inner))
+    fn execution_session_parameters(source: ExecutionSessionParametersError) -> Self {
+        Self(
+            ExecutionSessionErrorKind::InvalidExecutionSessionParameters {
+                source,
+            },
+        )
     }
 
-    fn commitment_state(inner: CommitmentStateError) -> Self {
-        Self(ExecutionSessionErrorKind::InvalidCommitmentState(inner))
+    fn commitment_state(source: CommitmentStateError) -> Self {
+        Self(ExecutionSessionErrorKind::InvalidCommitmentState {
+            source,
+        })
     }
 
     fn missing_execution_session_parameters() -> Self {
@@ -35,13 +41,15 @@ impl ExecutionSessionError {
 
 #[derive(Debug, thiserror::Error)]
 enum ExecutionSessionErrorKind {
-    #[error("invalid execution session parameters")]
-    InvalidExecutionSessionParameters(#[from] ExecutionSessionParametersError),
-    #[error("invalid commitment state")]
-    InvalidCommitmentState(#[from] CommitmentStateError),
-    #[error("execution session parameters missing")]
+    #[error("invalid field `.execution_session_parameters`")]
+    InvalidExecutionSessionParameters {
+        source: ExecutionSessionParametersError,
+    },
+    #[error("invalid field `.commitment_state`")]
+    InvalidCommitmentState { source: CommitmentStateError },
+    #[error("field `.execution_session_parameters` was not set")]
     MissingExecutionSessionParameters,
-    #[error("commitment state missing")]
+    #[error("field `.commitment_state` was not set")]
     MissingCommitmentState,
 }
 
@@ -64,7 +72,7 @@ pub struct ExecutionSession {
 
 impl ExecutionSession {
     #[must_use]
-    pub fn session_id(&self) -> &String {
+    pub fn session_id(&self) -> &str {
         &self.session_id
     }
 
@@ -126,33 +134,39 @@ impl Protobuf for ExecutionSession {
 // An error when transforming a [`raw::ExecutionSessionParameters`] into a
 // [`ExecutionSessionParameters`].
 #[derive(Debug, thiserror::Error)]
-#[error(transparent)]
+#[error("failed to validate Protobuf `astria.execution.v2.ExecutionSessionParameters`")]
 pub struct ExecutionSessionParametersError(ExecutionSessionParametersErrorKind);
 
 impl ExecutionSessionParametersError {
-    fn incorrect_rollup_id_length(inner: IncorrectRollupIdLength) -> Self {
-        Self(ExecutionSessionParametersErrorKind::IncorrectRollupIdLength(inner))
+    fn incorrect_rollup_id_length(source: IncorrectRollupIdLength) -> Self {
+        Self(
+            ExecutionSessionParametersErrorKind::IncorrectRollupIdLength {
+                source,
+            },
+        )
     }
 
     fn no_rollup_id() -> Self {
         Self(ExecutionSessionParametersErrorKind::NoRollupId)
     }
 
-    fn invalid_sequencer_start_block_height(inner: tendermint::Error) -> Self {
-        Self(ExecutionSessionParametersErrorKind::InvalidSequencerStartBlockHeight(inner))
+    fn invalid_sequencer_start_block_height(source: tendermint::Error) -> Self {
+        Self(
+            ExecutionSessionParametersErrorKind::InvalidSequencerStartBlockHeight {
+                source,
+            },
+        )
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 enum ExecutionSessionParametersErrorKind {
-    #[error("`rollup_id` field contained an invalid rollup ID")]
-    IncorrectRollupIdLength(IncorrectRollupIdLength),
-    #[error("`rollup_id` was not set")]
+    #[error("field `.rollup_id` was invalid")]
+    IncorrectRollupIdLength { source: IncorrectRollupIdLength },
+    #[error("field `.rollup_id` was not set")]
     NoRollupId,
-    #[error(
-        "`tendermint::block::Height` could not be constructed from `sequencer_start_block_height`"
-    )]
-    InvalidSequencerStartBlockHeight(#[from] tendermint::Error),
+    #[error("field `.sequencer_start_block_height` was invalid")]
+    InvalidSequencerStartBlockHeight { source: tendermint::Error },
 }
 
 /// Genesis Info required from a rollup to start an execution client.
@@ -327,7 +341,7 @@ impl Protobuf for ExecutionSessionParameters {
 
 /// An error when transforming a [`raw::ExecutedBlockMetadata`] into a [`ExecutedBlockMetadata`].
 #[derive(Debug, thiserror::Error)]
-#[error(transparent)]
+#[error("failed to validate Protobuf `astria.execution.v2.ExecutedBlockMetadata`")]
 pub struct ExecutedBlockMetadataError(ExecutedBlockMetadataErrorKind);
 
 impl ExecutedBlockMetadataError {
@@ -338,7 +352,7 @@ impl ExecutedBlockMetadataError {
 
 #[derive(Debug, thiserror::Error)]
 enum ExecutedBlockMetadataErrorKind {
-    #[error("{0} field not set")]
+    #[error("field `.{0}` not set")]
     FieldNotSet(&'static str),
 }
 
@@ -451,7 +465,7 @@ impl Protobuf for ExecutedBlockMetadata {
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error(transparent)]
+#[error("failed validating Protobuf `astria.execution.v2.CommitmentState`")]
 pub struct CommitmentStateError(CommitmentStateErrorKind);
 
 impl CommitmentStateError {
@@ -460,32 +474,38 @@ impl CommitmentStateError {
     }
 
     fn firm(source: ExecutedBlockMetadataError) -> Self {
-        Self(CommitmentStateErrorKind::Firm(source))
+        Self(CommitmentStateErrorKind::Firm {
+            source,
+        })
     }
 
     fn soft(source: ExecutedBlockMetadataError) -> Self {
-        Self(CommitmentStateErrorKind::Soft(source))
+        Self(CommitmentStateErrorKind::Soft {
+            source,
+        })
     }
 
     fn firm_exceeds_soft(source: FirmExceedsSoft) -> Self {
-        Self(CommitmentStateErrorKind::FirmExceedsSoft(source))
+        Self(CommitmentStateErrorKind::FirmExceedsSoft {
+            source,
+        })
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 enum CommitmentStateErrorKind {
-    #[error("{0} field not set")]
+    #[error("field `.{0}` not set")]
     FieldNotSet(&'static str),
-    #[error(".firm field did not contain valid executed block metadata")]
-    Firm(#[source] ExecutedBlockMetadataError),
-    #[error(".soft field did not contain valid executed block metadata")]
-    Soft(#[source] ExecutedBlockMetadataError),
-    #[error(transparent)]
-    FirmExceedsSoft(FirmExceedsSoft),
+    #[error("field `.firm` was invalid")]
+    Firm { source: ExecutedBlockMetadataError },
+    #[error("field `.soft` was invalid")]
+    Soft { source: ExecutedBlockMetadataError },
+    #[error("firm commitment height exceeded soft commitment height")]
+    FirmExceedsSoft { source: FirmExceedsSoft },
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("firm commitment at `{firm} exceeds soft commitment at `{soft}")]
+#[error("firm commitment at `{firm}` exceeds soft commitment at `{soft}`")]
 pub struct FirmExceedsSoft {
     firm: u64,
     soft: u64,

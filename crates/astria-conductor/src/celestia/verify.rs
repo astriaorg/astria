@@ -51,6 +51,7 @@ use super::{
     block_verifier,
     convert::ConvertedBlobs,
 };
+use crate::state::StateReceiver;
 
 pub(super) struct VerifiedBlobs {
     celestia_height: u64,
@@ -95,7 +96,7 @@ struct VerificationTaskKey {
 pub(super) async fn verify_metadata(
     blob_verifier: Arc<BlobVerifier>,
     converted_blobs: ConvertedBlobs,
-    rollup_state: crate::executor::StateReceiver,
+    rollup_state: StateReceiver,
 ) -> VerifiedBlobs {
     let (celestia_height, header_blobs, rollup_blobs) = converted_blobs.into_parts();
 
