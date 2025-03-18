@@ -1,0 +1,34 @@
+syntax = 'proto3';
+
+package astria.execution.v2;
+
+import "astria/execution/v2/commitment_state.proto";
+import "astria/execution/v2/create_execution_session_request.proto";
+import "astria/execution/v2/execute_block_request.proto";
+import "astria/execution/v2/execute_block_response.proto";
+import "astria/execution/v2/executed_block_metadata.proto";
+import "astria/execution/v2/execution_session.proto";
+import "astria/execution/v2/get_executed_block_metadata_request.proto";
+import "astria/execution/v2/update_commitment_state_request.proto";
+
+// ExecutionService is used to drive deterministic production of blocks.
+//
+// The service can be implemented by any blockchain which wants to utilize the
+// Astria Shared Sequencer, and will have block production driven via the Astria
+// "Conductor".
+service ExecutionService {
+  // CreateExecutionSession returns the necessary information for mapping sequencer block
+  // height to rollup block number.
+  rpc CreateExecutionSession(CreateExecutionSessionRequest) returns (ExecutionSession);
+
+  // GetExecutedBlockMetadata will return a block given an identifier.
+  rpc GetExecutedBlockMetadata(GetExecutedBlockMetadataRequest) returns (ExecutedBlockMetadata);
+
+  // ExecuteBlock is called to deterministically derive a rollup block from
+  // filtered sequencer block information.
+  rpc ExecuteBlock(ExecuteBlockRequest) returns (ExecuteBlockResponse);
+
+  // UpdateCommitmentState replaces the whole CommitmentState with a new
+  // CommitmentState.
+  rpc UpdateCommitmentState(UpdateCommitmentStateRequest) returns (CommitmentState);
+}

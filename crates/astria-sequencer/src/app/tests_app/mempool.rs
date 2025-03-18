@@ -54,9 +54,10 @@ async fn trigger_cleaning() {
 
     // create tx which will cause mempool cleaning flag to be set
     let tx_trigger = TransactionBody::builder()
-        .actions(vec![
-            FeeChange::Transfer(FeeComponents::<Transfer>::new(10, 0)).into(),
-        ])
+        .actions(vec![FeeChange::Transfer(FeeComponents::<Transfer>::new(
+            10, 0,
+        ))
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()
@@ -146,9 +147,10 @@ async fn do_not_trigger_cleaning() {
     // create tx which will fail execution and not trigger flag
     // (wrong sudo signer)
     let tx_fail = TransactionBody::builder()
-        .actions(vec![
-            FeeChange::Transfer(FeeComponents::<Transfer>::new(10, 0)).into(),
-        ])
+        .actions(vec![FeeChange::Transfer(FeeComponents::<Transfer>::new(
+            10, 0,
+        ))
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()
@@ -213,15 +215,13 @@ async fn maintenance_recosting_promotes() {
     // create tx which will not be included in block due to
     // having insufficient funds (transaction will be recosted to enable)
     let tx_fail_recost_funds = TransactionBody::builder()
-        .actions(vec![
-            Transfer {
-                to: astria_address_from_hex_string(CAROL_ADDRESS),
-                amount: 1u128,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![Transfer {
+            to: astria_address_from_hex_string(CAROL_ADDRESS),
+            amount: 1u128,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()
@@ -243,9 +243,10 @@ async fn maintenance_recosting_promotes() {
 
     // create tx which will enable recost tx to pass
     let tx_recost = TransactionBody::builder()
-        .actions(vec![
-            FeeChange::Transfer(FeeComponents::<Transfer>::new(10, 0)).into(),
-        ])
+        .actions(vec![FeeChange::Transfer(FeeComponents::<Transfer>::new(
+            10, 0,
+        ))
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()
@@ -288,11 +289,9 @@ async fn maintenance_recosting_promotes() {
         "two txs in mempool; one included in proposal is not yet removed"
     );
 
-    // set dummy hash
-    app.executed_proposal_hash = Hash::try_from([97u8; 32].to_vec()).unwrap();
-
+    let hash = Hash::Sha256([97u8; 32]);
     let process_proposal = abci::request::ProcessProposal {
-        hash: app.executed_proposal_hash,
+        hash,
         height: Height::default(),
         time: Time::now(),
         next_validators_hash: Hash::default(),
@@ -313,7 +312,7 @@ async fn maintenance_recosting_promotes() {
 
     // finalize with finalize block
     let finalize_block = abci::request::FinalizeBlock {
-        hash: app.executed_proposal_hash,
+        hash,
         height: 1u32.into(),
         time: Time::now(),
         next_validators_hash: Hash::default(),
@@ -389,15 +388,13 @@ async fn maintenance_funds_added_promotes() {
     // create tx that will not be included in block due to
     // having no funds (will be sent transfer to then enable)
     let tx_fail_transfer_funds = TransactionBody::builder()
-        .actions(vec![
-            Transfer {
-                to: astria_address_from_hex_string(BOB_ADDRESS),
-                amount: 10u128,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![Transfer {
+            to: astria_address_from_hex_string(BOB_ADDRESS),
+            amount: 10u128,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()
@@ -419,15 +416,13 @@ async fn maintenance_funds_added_promotes() {
 
     // create tx which will enable no funds to pass
     let tx_fund = TransactionBody::builder()
-        .actions(vec![
-            Transfer {
-                to: astria_address_from_hex_string(CAROL_ADDRESS),
-                amount: 22u128,
-                asset: nria().into(),
-                fee_asset: nria().into(),
-            }
-            .into(),
-        ])
+        .actions(vec![Transfer {
+            to: astria_address_from_hex_string(CAROL_ADDRESS),
+            amount: 22u128,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+        }
+        .into()])
         .chain_id("test")
         .try_build()
         .unwrap()
@@ -464,9 +459,9 @@ async fn maintenance_funds_added_promotes() {
         "only one transactions should've been valid (besides 2 generated txs)"
     );
 
-    app.executed_proposal_hash = Hash::try_from([97u8; 32].to_vec()).unwrap();
+    let hash = Hash::Sha256([97u8; 32]);
     let process_proposal = abci::request::ProcessProposal {
-        hash: app.executed_proposal_hash,
+        hash,
         height: Height::default(),
         time: Time::now(),
         next_validators_hash: Hash::default(),
@@ -485,12 +480,9 @@ async fn maintenance_funds_added_promotes() {
     yet removed"
     );
 
-    // set dummy hash
-    app.executed_proposal_hash = Hash::try_from([97u8; 32].to_vec()).unwrap();
-
     // finalize with finalize block
     let finalize_block = abci::request::FinalizeBlock {
-        hash: app.executed_proposal_hash,
+        hash,
         height: 1u32.into(),
         time: Time::now(),
         next_validators_hash: Hash::default(),

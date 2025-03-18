@@ -240,14 +240,12 @@ mod tests {
 
     fn make_unsigned_tx() -> TransactionBody {
         TransactionBody::builder()
-            .actions(vec![
-                RollupDataSubmission {
-                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                    data: Bytes::from_static(b"hello world"),
-                    fee_asset: crate::benchmark_and_test_utils::nria().into(),
-                }
-                .into(),
-            ])
+            .actions(vec![RollupDataSubmission {
+                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                data: Bytes::from_static(b"hello world"),
+                fee_asset: crate::benchmark_and_test_utils::nria().into(),
+            }
+            .into()])
             .chain_id("test")
             .try_build()
             .unwrap()
@@ -342,30 +340,26 @@ mod tests {
     async fn process_proposal_fail_missing_action_commitment() {
         let (mut consensus_service, _) = new_consensus_service(None).await;
         let process_proposal = new_process_proposal_request(vec![]);
-        assert!(
-            consensus_service
-                .handle_process_proposal(process_proposal)
-                .await
-                .err()
-                .unwrap()
-                .to_string()
-                .contains("no transaction commitment in proposal")
-        );
+        assert!(consensus_service
+            .handle_process_proposal(process_proposal)
+            .await
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("no transaction commitment in proposal"));
     }
 
     #[tokio::test]
     async fn process_proposal_fail_wrong_commitment_length() {
         let (mut consensus_service, _) = new_consensus_service(None).await;
         let process_proposal = new_process_proposal_request(vec![[0u8; 16].to_vec().into()]);
-        assert!(
-            consensus_service
-                .handle_process_proposal(process_proposal)
-                .await
-                .err()
-                .unwrap()
-                .to_string()
-                .contains("transaction commitment must be 32 bytes")
-        );
+        assert!(consensus_service
+            .handle_process_proposal(process_proposal)
+            .await
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("transaction commitment must be 32 bytes"));
     }
 
     #[tokio::test]
@@ -375,15 +369,13 @@ mod tests {
             [99u8; 32].to_vec().into(),
             [99u8; 32].to_vec().into(),
         ]);
-        assert!(
-            consensus_service
-                .handle_process_proposal(process_proposal)
-                .await
-                .err()
-                .unwrap()
-                .to_string()
-                .contains("transaction commitment does not match expected")
-        );
+        assert!(consensus_service
+            .handle_process_proposal(process_proposal)
+            .await
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("transaction commitment does not match expected"));
     }
 
     #[tokio::test]
@@ -491,6 +483,7 @@ mod tests {
         use sha2::Digest as _;
 
         let signing_key = SigningKey::new(OsRng);
+        let address_bytes = *signing_key.verification_key().address_bytes();
         let (mut consensus_service, mempool) =
             new_consensus_service(Some(signing_key.verification_key())).await;
 
@@ -535,7 +528,15 @@ mod tests {
             .await
             .unwrap();
 
+        // Mempool should still have a transaction
+        assert_eq!(mempool.len().await, 1);
+        assert_eq!(mempool.pending_nonce(&address_bytes).await, Some(1));
+
+        let commit = ConsensusRequest::Commit {};
+        consensus_service.handle_request(commit).await.unwrap();
+
         // ensure that txs included in a block are removed from the mempool
         assert_eq!(mempool.len().await, 0);
+        assert_eq!(mempool.pending_nonce(&address_bytes).await, None);
     }
 }

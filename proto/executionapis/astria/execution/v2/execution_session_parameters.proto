@@ -1,0 +1,48 @@
+syntax = 'proto3';
+
+package astria.execution.v2;
+
+import "astria/primitive/v1/types.proto";
+
+// ExecutionSessionParameters contains the information needed to map sequencer block height
+// to rollup block number for driving execution.
+//
+// This information is used to determine which Astria sequencer and Celestia data
+// to use from the Astria & Celestia networks, as well as define the bounds of
+// block numbers to execute in the given session.
+message ExecutionSessionParameters {
+  // The rollup_id is the unique identifier for the rollup chain.
+  astria.primitive.v1.RollupId rollup_id = 1;
+  // The first rollup block number to be executed. This is mapped to `sequencer_first_block_height`.
+  // The minimum first block number is 1, since 0 represents the genesis block.
+  // Implementors should reject a value of 0.
+  //
+  // Servers implementing this API should reject execution of blocks below this
+  // value with an OUT_OF_RANGE error code.
+  uint64 rollup_start_block_number = 2;
+  // The final rollup block number to execute as part of a session.
+  //
+  // If not set or set to 0, the execution session does not have an upper bound.
+  //
+  // Servers implementing this API should reject execution of blocks past this
+  // value with an OUT_OF_RANGE error code.
+  uint64 rollup_end_block_number = 3;
+  // The ID of the Astria Sequencer network to retrieve Sequencer blocks from.
+  // Conductor implementations should verify that the Sequencer network they are
+  // connected to have this chain ID (if fetching soft Sequencer blocks), and verify
+  // that the Sequencer metadata blobs retrieved from Celestia contain this chain
+  // ID (if extracting firm Sequencer blocks from Celestia blobs).
+  string sequencer_chain_id = 4;
+  // The first block height on the sequencer chain to use for rollup transactions.
+  // This is mapped to `rollup_start_block_number`.
+  uint64 sequencer_start_block_height = 5;
+  // The ID of the Celestia network to retrieve blobs from.
+  // Conductor implementations should verify that the Celestia network they are
+  // connected to have this chain ID (if extracting firm Sequencer blocks from
+  // Celestia blobs).
+  string celestia_chain_id = 6;
+  // The maximum number of Celestia blocks which can be read above
+  // `CommitmentState.lowest_celestia_search_height` in search of the next firm
+  // block.
+  uint64 celestia_search_height_max_look_ahead = 7;
+}

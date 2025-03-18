@@ -2,7 +2,8 @@
     unreachable_pub,
     clippy::pedantic,
     clippy::needless_borrows_for_generic_args,
-    clippy::arithmetic_side_effects
+    clippy::arithmetic_side_effects,
+    clippy::needless_lifetimes
 )]
 //! Files generated using [`tonic-build`] and [`buf`] via the [`tools/protobuf-compiler`]
 //! build tool.
@@ -40,14 +41,14 @@ pub mod astria_vendored {
 #[path = ""]
 pub mod astria {
     #[path = ""]
-    pub mod bundle {
+    pub mod auction {
         pub mod v1alpha1 {
-            include!("astria.bundle.v1alpha1.rs");
+            include!("astria.auction.v1alpha1.rs");
 
             #[cfg(feature = "serde")]
             mod _serde_impl {
                 use super::*;
-                include!("astria.bundle.v1alpha1.serde.rs");
+                include!("astria.auction.v1alpha1.serde.rs");
             }
         }
     }
@@ -61,6 +62,27 @@ pub mod astria {
             mod _serde_impl {
                 use super::*;
                 include!("astria.execution.v1.serde.rs");
+            }
+        }
+        pub mod v2 {
+            include!("astria.execution.v2.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impl {
+                use super::*;
+                include!("astria.execution.v2.serde.rs");
+            }
+        }
+    }
+
+    pub mod optimistic_execution {
+        pub mod v1alpha1 {
+            include!("astria.optimistic_execution.v1alpha1.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impl {
+                use super::*;
+                include!("astria.optimistic_execution.v1alpha1.serde.rs");
             }
         }
     }

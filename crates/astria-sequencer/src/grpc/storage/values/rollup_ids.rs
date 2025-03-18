@@ -23,7 +23,7 @@ use super::{
 #[derive(BorshSerialize, BorshDeserialize)]
 pub(super) struct RollupId<'a>(Cow<'a, [u8; 32]>);
 
-impl<'a> Debug for RollupId<'a> {
+impl Debug for RollupId<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", base64(self.0.as_slice()))
     }

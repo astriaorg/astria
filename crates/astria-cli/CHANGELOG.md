@@ -9,12 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2025-03-06
+
 ### Added
 
 - Add `fee-assets` subcommand to `sequencer` CLI [#1816](https://github.com/astriaorg/astria/pull/1816).
 
 ### Changed
 
+- Bump MSRV to 1.83.0 [#1857](https://github.com/astriaorg/astria/pull/1857).
 - Update `idna` dependency to resolve cargo audit warning [#1869](https://github.com/astriaorg/astria/pull/1869).
 - Remove default values from `--sequencer.chain-id` and `--sequencer-url` arguments
   [#1792](https://github.com/astriaorg/astria/pull/1792)
@@ -109,7 +112,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Dusk 1 CLI release
 
-[unreleased]: https://github.com/astriaorg/astria/compare/cli-v0.5.1...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/cli-v0.6.0...HEAD
+[0.6.0]: https://github.com/astriaorg/astria/compare/cli-v0.5.1...cli-v0.6.0
 [0.5.1]: https://github.com/astriaorg/astria/compare/cli-v0.5.0...cli-v0.5.1
 [0.5.0]: https://github.com/astriaorg/astria/compare/cli-v0.4.1...cli-v0.5.0
 [0.4.1]: https://github.com/astriaorg/astria/compare/cli-v0.4.0...cli-v0.4.1

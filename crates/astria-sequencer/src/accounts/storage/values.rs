@@ -28,7 +28,7 @@ impl From<Balance> for u128 {
     }
 }
 
-impl<'a> From<Balance> for crate::storage::StoredValue<'a> {
+impl From<Balance> for crate::storage::StoredValue<'_> {
     fn from(balance: Balance) -> Self {
         crate::storage::StoredValue::Accounts(Value(ValueImpl::Balance(balance)))
     }
@@ -61,7 +61,7 @@ impl From<Nonce> for u32 {
     }
 }
 
-impl<'a> From<Nonce> for crate::storage::StoredValue<'a> {
+impl From<Nonce> for crate::storage::StoredValue<'_> {
     fn from(nonce: Nonce) -> Self {
         crate::storage::StoredValue::Accounts(Value(ValueImpl::Nonce(nonce)))
     }
@@ -75,5 +75,36 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for Nonce {
             bail!("accounts stored value type mismatch: expected nonce, found {value:?}");
         };
         Ok(nonce)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use insta::assert_snapshot;
+
+    use super::*;
+    use crate::test_utils::borsh_then_hex;
+
+    #[test]
+    fn value_impl_existing_variants_unchanged() {
+        assert_snapshot!(
+            "value_impl_balance",
+            borsh_then_hex(&ValueImpl::Balance(Balance(0)))
+        );
+        assert_snapshot!(
+            "value_impl_nonce",
+            borsh_then_hex(&ValueImpl::Nonce(Nonce(0)))
+        );
+    }
+
+    // Note: This test must be here instead of in `crate::storage` since `ValueImpl` is not
+    // re-exported.
+    #[test]
+    fn stored_value_account_variant_unchanged() {
+        use crate::storage::StoredValue;
+        assert_snapshot!(
+            "stored_value_account_variant",
+            borsh_then_hex(&StoredValue::Accounts(Value(ValueImpl::Nonce(Nonce(0)))))
+        );
     }
 }

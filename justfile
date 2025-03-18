@@ -40,6 +40,7 @@ _crate_short_name crate quiet="":
   #!/usr/bin/env sh
   set -eu
   case {{crate}} in
+    astria-auctioneer) short_name=auctioneer ;;
     astria-bridge-withdrawer) short_name=bridge-withdrawer ;;
     astria-cli) short_name=astria-cli ;;
     astria-composer) short_name=composer ;;
@@ -91,7 +92,7 @@ _fmt-all:
 
 [no-exit-message]
 _fmt-rust:
-  cargo +nightly-2024-09-15 fmt --all
+  cargo +nightly-2024-10-03 fmt --all
 
 [no-exit-message]
 _lint-rust:
@@ -103,10 +104,11 @@ _lint-rust:
 
 [no-exit-message]
 _lint-rust-fmt:
-  cargo +nightly-2024-09-15 fmt --all -- --check
+  cargo +nightly-2024-10-03 fmt --all -- --check
 
 [no-exit-message]
 _lint-rust-clippy:
+  cargo clippy --version
   cargo clippy --all-targets --all-features \
           -- --warn clippy::pedantic --warn clippy::arithmetic-side-effects \
           --warn clippy::allow_attributes --warn clippy::allow_attributes_without_reason \
@@ -114,7 +116,7 @@ _lint-rust-clippy:
 
 [no-exit-message]
 _lint-rust-clippy-custom:
-  cargo +nightly-2024-09-05 clippy --all-targets --all-features \
+  cargo +nightly-2024-10-03 clippy --all-targets --all-features \
           -p tracing_debug_field \
           -- --warn clippy::pedantic --deny warnings
 

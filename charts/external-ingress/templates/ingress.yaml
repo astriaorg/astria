@@ -1,0 +1,75 @@
+{{- $ingressApiIsStable := eq (include "external-ingress.isStable" .) "true" -}}
+{{- $ingressSupportsIngressClassName := eq (include "external-ingress.supportsIngressClassName" .) "true" -}}
+{{- $ingressSupportsPathType := eq (include "external-ingress.supportsPathType" .) "true" -}}
+
+{{- range $name, $ingress := .Values.ingress }}
+{{- $serviceName := $ingress.service -}}
+{{- $_ := hasKey $.Values.services $serviceName | required "ingress.service must be one of the chart services" -}}
+{{- $servicePort := $ingress.port -}}
+{{- $ingressPath := default "/" $ingress.path -}}
+{{- $ingressPathType := default "Prefix" $ingress.pathType -}}
+{{- $extraPaths := $ingress.extraPaths -}}
+{{- $ingressClassName := default "nginx" $ingress.className }}
+{{- $servicePort := $ingress.port -}}
+{{- $ingressPath := default "/" $ingress.path -}}
+{{- $ingressPathType := default "Prefix" $ingress.pathType -}}
+{{- $extraPaths := $ingress.extraPaths -}}
+{{- $ingressClassName := default "nginx" $ingress.className }}
+apiVersion: {{ include "external-ingress.apiVersion" $ }}
+kind: Ingress
+metadata:
+  name: {{ $name }}-ingress
+  namespace: {{ include "external-ingress.namespace" $  }}
+  labels:
+    {{- with $ingress.labels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations:
+    {{- if not $ingressSupportsIngressClassName }}
+    kubernetes.io/ingress.class: {{ $ingressClassName }}
+    {{- end }}
+  {{- if $ingressApiIsStable }}
+  {{- range $key, $value := $ingress.annotations }}
+    {{ $key }}: {{ tpl $value $ | quote }}
+  {{- end }}
+  {{- end }}
+spec:
+  {{- if $ingressSupportsIngressClassName }}
+  ingressClassName: {{ $ingressClassName }}
+  {{- end }}
+  defaultBackend:
+    service:
+      name: {{ $serviceName }}
+      port:
+        number: {{ $servicePort }}
+  rules:
+  {{- with $ingress.hosts }}
+    {{- range $host := . }}
+    - host: {{ tpl $host $ }}
+      http:
+        paths:
+          {{- with $extraPaths }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+          - path: {{ $ingressPath }}
+            {{- if $ingressSupportsPathType }}
+            pathType: {{ $ingressPathType }}
+            {{- end }}
+            backend:
+              {{- if $ingressApiIsStable }}
+              service:
+                name: {{ $serviceName }}
+                port:
+                  number: {{ $servicePort }}
+              {{- else }}
+              serviceName: {{ tpl $serviceName $ }}
+              servicePort: {{ tpl $servicePort $ }}
+              {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- if $ingress.tls }}
+  tls:
+    {{- tpl (toYaml $ingress.tls) $ | nindent 4 }}
+  {{- end }}
+---
+{{- end }}

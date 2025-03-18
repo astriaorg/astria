@@ -15,9 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add method `TracePrefixed::leading_channel` to read the left-most channel of
   a trace prefixed ICS20 asset [#1768](https://github.com/astriaorg/astria/pull/1768).
 - Add `impl Protobuf for Address<Bech32m>` [#1802](https://github.com/astriaorg/astria/pull/1802).
+- Add module `sequencerblock::optimistic::v1alpha1`
+  and `impl Protobuf for FilteredSequencerBlock` [#1839](https://github.com/astriaorg/astria/pull/1839).
+- Add `BridgeTransfer` action and `BridgeTransfer` variant to `FeeChange`
+  [#1934](https://github.com/astriaorg/astria/pull/1934).
 
 ### Changed
 
+- Bump MSRV to 1.83.0 [#1857](https://github.com/astriaorg/astria/pull/1857).
 - Move `astria_core::crypto` to `astria-core-crypto` and reexport
   `astria_core_crypto as crypto` (this change is transparent)
   [#1800](https://github.com/astriaorg/astria/pull/1800/).
@@ -27,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to `astria_core::generated::astria`
   [#1825](https://github.com/astriaorg/astria/pull/1825).
 - Update `idna` dependency to resolve cargo audit warning [#1869](https://github.com/astriaorg/astria/pull/1869).
+- Replaced all instances of `[u8; 32]` by newtype
+  `astria_core::sequencerblock::v1::block::Hash` where appropriate [#1884](https://github.com/astriaorg/astria/pull/1884).
 
 ### Removed
 

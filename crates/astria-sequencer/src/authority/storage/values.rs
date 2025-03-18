@@ -36,7 +36,7 @@ enum ValueImpl<'a> {
 #[derive(BorshSerialize, BorshDeserialize)]
 pub(in crate::authority) struct AddressBytes<'a>(Cow<'a, [u8; ADDRESS_LEN]>);
 
-impl<'a> Debug for AddressBytes<'a> {
+impl Debug for AddressBytes<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", base64(self.0.as_slice()))
     }
@@ -75,7 +75,7 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for AddressBytes<'a> {
 #[derive(BorshSerialize, BorshDeserialize)]
 struct VerificationKey<'a>(Cow<'a, [u8; 32]>);
 
-impl<'a> Debug for VerificationKey<'a> {
+impl Debug for VerificationKey<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", base64(self.0.as_slice()))
     }
@@ -151,5 +151,38 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for ValidatorSet<'a> {
             bail!("authority stored value type mismatch: expected validator set, found {value:?}");
         };
         Ok(validator_set)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use insta::assert_snapshot;
+
+    use super::*;
+    use crate::test_utils::borsh_then_hex;
+
+    #[test]
+    fn value_impl_existing_variants_unchanged() {
+        assert_snapshot!(
+            "value_impl_address_bytes",
+            borsh_then_hex(&ValueImpl::AddressBytes((&[0; ADDRESS_LEN]).into()))
+        );
+        assert_snapshot!(
+            "value_impl_validator_set",
+            borsh_then_hex(&ValueImpl::ValidatorSet(ValidatorSet(vec![])))
+        );
+    }
+
+    // Note: This test must be here instead of in `crate::storage` since `ValueImpl` is not
+    // re-exported.
+    #[test]
+    fn stored_value_authority_variant_unchanged() {
+        use crate::storage::StoredValue;
+        assert_snapshot!(
+            "stored_value_authority_variant",
+            borsh_then_hex(&StoredValue::Authority(Value(ValueImpl::ValidatorSet(
+                ValidatorSet(vec![])
+            ))))
+        );
     }
 }

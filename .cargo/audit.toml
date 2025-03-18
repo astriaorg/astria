@@ -12,4 +12,8 @@ ignore = [
   # `derivative` is Unmaintained. It is a transient dependency of many crates including several
   # penumbra ones, so cannot easily be replaced.
   "RUSTSEC-2024-0388",
+  # `ring@0.16.20`: Some AES functions may panic when overflow checking is enabled. It is a
+  # transient dependency of the deprecated `ethers`. We should replace our usage of `ethers` with
+  # `alloy` to resolve this. See https://github.com/astriaorg/astria/issues/2020.
+  "RUSTSEC-2025-0009",
 ]

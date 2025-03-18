@@ -21,12 +21,28 @@ pub(crate) enum StoredValue<'a> {
     Grpc(crate::grpc::storage::Value<'a>),
 }
 
-impl<'a> StoredValue<'a> {
+impl StoredValue<'_> {
     pub(crate) fn serialize(&self) -> Result<Vec<u8>> {
         borsh::to_vec(&self).wrap_err("failed to serialize stored value")
     }
 
     pub(crate) fn deserialize(bytes: &[u8]) -> Result<Self> {
         borsh::from_slice(bytes).wrap_err("failed to deserialize stored value")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use insta::assert_snapshot;
+
+    use super::*;
+    use crate::test_utils::borsh_then_hex;
+
+    #[test]
+    fn stored_value_unit_variant_unchanged() {
+        assert_snapshot!(
+            "stored_value_unit_variant",
+            borsh_then_hex(&StoredValue::Unit)
+        );
     }
 }
