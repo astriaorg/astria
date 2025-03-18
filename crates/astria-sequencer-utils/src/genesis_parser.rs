@@ -5,7 +5,7 @@ use std::{
 
 use astria_eyre::eyre::{
     Result,
-    WrapErr,
+    WrapErr as _,
 };
 use serde_json::{
     to_writer_pretty,

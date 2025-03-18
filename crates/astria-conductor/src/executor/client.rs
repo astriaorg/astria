@@ -120,7 +120,7 @@ impl Client {
         transactions: Vec<Bytes>,
         timestamp: Timestamp,
     ) -> eyre::Result<Block> {
-        use prost::Message;
+        use prost::Message as _;
 
         let transactions = transactions
             .into_iter()

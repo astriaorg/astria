@@ -1,7 +1,7 @@
 use astria_core::primitive::v1::Address;
 use astria_sequencer_client::{
     HttpClient,
-    SequencerClientExt,
+    SequencerClientExt as _,
 };
 use color_eyre::eyre::{
     self,

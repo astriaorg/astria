@@ -54,7 +54,10 @@ default-members = [
 resolver = "2"
 
 [workspace.metadata.dylint]
-libraries = [{ path = "lint/tracing_debug_field" }]
+libraries = [
+  { path = "lint/tracing_debug_field" },
+  { path = "lint/alias_trait_imports" },
+]
 
 [workspace.dependencies]
 async-trait = "0.1.52"

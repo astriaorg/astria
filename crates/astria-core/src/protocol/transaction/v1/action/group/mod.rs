@@ -10,7 +10,7 @@ use penumbra_ibc::IbcRelay;
 
 use super::{
     Action,
-    ActionName,
+    ActionName as _,
     BridgeLock,
     BridgeSudoChange,
     BridgeUnlock,

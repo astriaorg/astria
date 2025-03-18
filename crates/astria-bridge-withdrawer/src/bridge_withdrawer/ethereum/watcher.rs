@@ -27,7 +27,7 @@ use astria_eyre::{
 use ethers::{
     core::types::Block,
     providers::{
-        Middleware,
+        Middleware as _,
         Provider,
         ProviderError,
         StreamExt as _,

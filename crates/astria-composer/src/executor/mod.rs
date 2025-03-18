@@ -81,7 +81,7 @@ use tracing::{
     instrument,
     instrument::Instrumented,
     warn,
-    Instrument,
+    Instrument as _,
     Span,
 };
 

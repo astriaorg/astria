@@ -29,7 +29,7 @@ use astria_eyre::eyre::{
 };
 use cnidarium::StateWrite;
 use penumbra_ibc::IbcRelay;
-use prost::Name;
+use prost::Name as _;
 use tracing::{
     instrument,
     Level,

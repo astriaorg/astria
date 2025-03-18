@@ -1,0 +1,649 @@
+Crate {
+    owners: [
+        Owner(
+            OwnerInfo {
+                nodes: OwnerNodes {
+                    node: ParentedNode {
+                        parent: 4294967040,
+                        node: Crate(
+                            Mod {
+                                spans: ModSpans {
+                                    inner_span: ui/re-exports.rs:1:1: 12:2 (#0),
+                                    inject_use_span: no-location (#0),
+                                },
+                                item_ids: [
+                                    ItemId {
+                                        owner_id: DefId(0:1 ~ re_exports[b67e]::{use#0}),
+                                    },
+                                    ItemId {
+                                        owner_id: DefId(0:2 ~ re_exports[b67e]::std),
+                                    },
+                                    ItemId {
+                                        owner_id: DefId(0:3 ~ re_exports[b67e]::main),
+                                    },
+                                    ItemId {
+                                        owner_id: DefId(0:4 ~ re_exports[b67e]::parent),
+                                    },
+                                ],
+                            },
+                        ),
+                    },
+                    parents: [
+                        (0, 4294967040),
+                    ],
+                    bodies: {},
+                    opt_hash_including_bodies: None,
+                },
+                parenting: UnordMap {
+                    inner: {},
+                },
+                attrs: AttributeMap {
+                    map: {},
+                    opt_hash: None,
+                },
+                trait_map: UnordMap {
+                    inner: {},
+                },
+            },
+        ),
+        Owner(
+            OwnerInfo {
+                nodes: OwnerNodes {
+                    node: ParentedNode {
+                        parent: 4294967040,
+                        node: Item(
+                            Item {
+                                ident: #0,
+                                owner_id: DefId(0:1 ~ re_exports[b67e]::{use#0}),
+                                kind: Use(
+                                    Path {
+                                        span: no-location (#1),
+                                        res: [
+                                            Err,
+                                        ],
+                                        segments: [
+                                            PathSegment {
+                                                ident: std#1,
+                                                hir_id: HirId(DefId(0:1 ~ re_exports[b67e]::{use#0}).1),
+                                                res: Def(
+                                                    Mod,
+                                                    DefId(1:0 ~ std[7a50]),
+                                                ),
+                                                args: None,
+                                                infer_args: false,
+                                            },
+                                            PathSegment {
+                                                ident: prelude#1,
+                                                hir_id: HirId(DefId(0:1 ~ re_exports[b67e]::{use#0}).2),
+                                                res: Def(
+                                                    Mod,
+                                                    DefId(1:44 ~ std[7a50]::prelude),
+                                                ),
+                                                args: None,
+                                                infer_args: false,
+                                            },
+                                            PathSegment {
+                                                ident: rust_2021#1,
+                                                hir_id: HirId(DefId(0:1 ~ re_exports[b67e]::{use#0}).3),
+                                                res: Def(
+                                                    Mod,
+                                                    DefId(1:139 ~ std[7a50]::prelude::rust_2021),
+                                                ),
+                                                args: None,
+                                                infer_args: false,
+                                            },
+                                        ],
+                                    },
+                                    Glob,
+                                ),
+                                span: no-location (#1),
+                                vis_span: no-location (#1),
+                            },
+                        ),
+                    },
+                    parents: [
+                        (0, 4294967040),
+                        (1, 0),
+                        (2, 0),
+                        (3, 0),
+                    ],
+                    bodies: {},
+                    opt_hash_including_bodies: None,
+                },
+                parenting: UnordMap {
+                    inner: {},
+                },
+                attrs: AttributeMap {
+                    map: {
+                        0: [
+                            Attribute {
+                                kind: Normal(
+                                    NormalAttr {
+                                        item: AttrItem {
+                                            unsafety: Default,
+                                            path: Path {
+                                                span: no-location (#1),
+                                                segments: [
+                                                    PathSegment {
+                                                        ident: prelude_import#1,
+                                                        id: NodeId(2),
+                                                        args: None,
+                                                    },
+                                                ],
+                                                tokens: None,
+                                            },
+                                            args: Empty,
+                                            tokens: None,
+                                        },
+                                        tokens: None,
+                                    },
+                                ),
+                                id: AttrId(1),
+                                style: Outer,
+                                span: no-location (#1),
+                            },
+                        ],
+                    },
+                    opt_hash: None,
+                },
+                trait_map: UnordMap {
+                    inner: {},
+                },
+            },
+        ),
+        Owner(
+            OwnerInfo {
+                nodes: OwnerNodes {
+                    node: ParentedNode {
+                        parent: 4294967040,
+                        node: Item(
+                            Item {
+                                ident: std#1,
+                                owner_id: DefId(0:2 ~ re_exports[b67e]::std),
+                                kind: ExternCrate(
+                                    None,
+                                ),
+                                span: no-location (#1),
+                                vis_span: no-location (#1),
+                            },
+                        ),
+                    },
+                    parents: [
+                        (0, 4294967040),
+                    ],
+                    bodies: {},
+                    opt_hash_including_bodies: None,
+                },
+                parenting: UnordMap {
+                    inner: {},
+                },
+                attrs: AttributeMap {
+                    map: {
+                        0: [
+                            Attribute {
+                                kind: Normal(
+                                    NormalAttr {
+                                        item: AttrItem {
+                                            unsafety: Default,
+                                            path: Path {
+                                                span: no-location (#1),
+                                                segments: [
+                                                    PathSegment {
+                                                        ident: macro_use#1,
+                                                        id: NodeId(7),
+                                                        args: None,
+                                                    },
+                                                ],
+                                                tokens: None,
+                                            },
+                                            args: Empty,
+                                            tokens: None,
+                                        },
+                                        tokens: None,
+                                    },
+                                ),
+                                id: AttrId(0),
+                                style: Outer,
+                                span: no-location (#1),
+                            },
+                        ],
+                    },
+                    opt_hash: None,
+                },
+                trait_map: UnordMap {
+                    inner: {},
+                },
+            },
+        ),
+        Owner(
+            OwnerInfo {
+                nodes: OwnerNodes {
+                    node: ParentedNode {
+                        parent: 4294967040,
+                        node: Item(
+                            Item {
+                                ident: main#0,
+                                owner_id: DefId(0:3 ~ re_exports[b67e]::main),
+                                kind: Fn(
+                                    FnSig {
+                                        header: FnHeader {
+                                            safety: Safe,
+                                            constness: NotConst,
+                                            asyncness: NotAsync,
+                                            abi: Rust,
+                                        },
+                                        decl: FnDecl {
+                                            inputs: [],
+                                            output: DefaultReturn(
+                                                ui/re-exports.rs:1:10: 1:10 (#0),
+                                            ),
+                                            c_variadic: false,
+                                            implicit_self: None,
+                                            lifetime_elision_allowed: false,
+                                        },
+                                        span: ui/re-exports.rs:1:1: 1:10 (#0),
+                                    },
+                                    Generics {
+                                        params: [],
+                                        predicates: [],
+                                        has_where_clause_predicates: false,
+                                        where_clause_span: ui/re-exports.rs:1:10: 1:10 (#0),
+                                        span: ui/re-exports.rs:1:8: 1:8 (#0),
+                                    },
+                                    BodyId {
+                                        hir_id: HirId(DefId(0:3 ~ re_exports[b67e]::main).2),
+                                    },
+                                ),
+                                span: ui/re-exports.rs:1:1: 1:13 (#0),
+                                vis_span: no-location (#0),
+                            },
+                        ),
+                    },
+                    parents: [
+                        (0, 4294967040),
+                        (1, 2),
+                        (2, 0),
+                    ],
+                    bodies: {
+                        2: Body {
+                            params: [],
+                            value: Expr {
+                                hir_id: HirId(DefId(0:3 ~ re_exports[b67e]::main).2),
+                                kind: Block(
+                                    Block {
+                                        stmts: [],
+                                        expr: None,
+                                        hir_id: HirId(DefId(0:3 ~ re_exports[b67e]::main).1),
+                                        rules: DefaultBlock,
+                                        span: ui/re-exports.rs:1:11: 1:13 (#0),
+                                        targeted_by_break: false,
+                                    },
+                                    None,
+                                ),
+                                span: ui/re-exports.rs:1:11: 1:13 (#0),
+                            },
+                        },
+                    },
+                    opt_hash_including_bodies: None,
+                },
+                parenting: UnordMap {
+                    inner: {},
+                },
+                attrs: AttributeMap {
+                    map: {},
+                    opt_hash: None,
+                },
+                trait_map: UnordMap {
+                    inner: {},
+                },
+            },
+        ),
+        Owner(
+            OwnerInfo {
+                nodes: OwnerNodes {
+                    node: ParentedNode {
+                        parent: 4294967040,
+                        node: Item(
+                            Item {
+                                ident: parent#0,
+                                owner_id: DefId(0:4 ~ re_exports[b67e]::parent),
+                                kind: Mod(
+                                    Mod {
+                                        spans: ModSpans {
+                                            inner_span: ui/re-exports.rs:5:5: 12:2 (#0),
+                                            inject_use_span: ui/re-exports.rs:5:5: 5:5 (#0),
+                                        },
+                                        item_ids: [
+                                            ItemId {
+                                                owner_id: DefId(0:5 ~ re_exports[b67e]::parent::{use#0}),
+                                            },
+                                            ItemId {
+                                                owner_id: DefId(0:6 ~ re_exports[b67e]::parent::child),
+                                            },
+                                        ],
+                                    },
+                                ),
+                                span: ui/re-exports.rs:4:1: 12:2 (#0),
+                                vis_span: ui/re-exports.rs:4:1: 4:4 (#0),
+                            },
+                        ),
+                    },
+                    parents: [
+                        (0, 4294967040),
+                    ],
+                    bodies: {},
+                    opt_hash_including_bodies: None,
+                },
+                parenting: UnordMap {
+                    inner: {},
+                },
+                attrs: AttributeMap {
+                    map: {},
+                    opt_hash: None,
+                },
+                trait_map: UnordMap {
+                    inner: {},
+                },
+            },
+        ),
+        Owner(
+            OwnerInfo {
+                nodes: OwnerNodes {
+                    node: ParentedNode {
+                        parent: 4294967040,
+                        node: Item(
+                            Item {
+                                ident: OtherTrait#0,
+                                owner_id: DefId(0:5 ~ re_exports[b67e]::parent::{use#0}),
+                                kind: Use(
+                                    Path {
+                                        span: ui/re-exports.rs:5:13: 5:25 (#0),
+                                        res: [
+                                            Def(
+                                                Trait,
+                                                DefId(0:7 ~ re_exports[b67e]::parent::child::Trait),
+                                            ),
+                                        ],
+                                        segments: [
+                                            PathSegment {
+                                                ident: child#0,
+                                                hir_id: HirId(DefId(0:5 ~ re_exports[b67e]::parent::{use#0}).1),
+                                                res: Def(
+                                                    Mod,
+                                                    DefId(0:6 ~ re_exports[b67e]::parent::child),
+                                                ),
+                                                args: None,
+                                                infer_args: false,
+                                            },
+                                            PathSegment {
+                                                ident: Trait#0,
+                                                hir_id: HirId(DefId(0:5 ~ re_exports[b67e]::parent::{use#0}).2),
+                                                res: Err,
+                                                args: None,
+                                                infer_args: false,
+                                            },
+                                        ],
+                                    },
+                                    Single,
+                                ),
+                                span: ui/re-exports.rs:5:5: 5:40 (#0),
+                                vis_span: ui/re-exports.rs:5:5: 5:8 (#0),
+                            },
+                        ),
+                    },
+                    parents: [
+                        (0, 4294967040),
+                        (1, 0),
+                        (2, 0),
+                    ],
+                    bodies: {},
+                    opt_hash_including_bodies: None,
+                },
+                parenting: UnordMap {
+                    inner: {},
+                },
+                attrs: AttributeMap {
+                    map: {},
+                    opt_hash: None,
+                },
+                trait_map: UnordMap {
+                    inner: {},
+                },
+            },
+        ),
+        Owner(
+            OwnerInfo {
+                nodes: OwnerNodes {
+                    node: ParentedNode {
+                        parent: 4294967040,
+                        node: Item(
+                            Item {
+                                ident: child#0,
+                                owner_id: DefId(0:6 ~ re_exports[b67e]::parent::child),
+                                kind: Mod(
+                                    Mod {
+                                        spans: ModSpans {
+                                            inner_span: ui/re-exports.rs:8:9: 11:6 (#0),
+                                            inject_use_span: ui/re-exports.rs:8:9: 8:9 (#0),
+                                        },
+                                        item_ids: [
+                                            ItemId {
+                                                owner_id: DefId(0:7 ~ re_exports[b67e]::parent::child::Trait),
+                                            },
+                                        ],
+                                    },
+                                ),
+                                span: ui/re-exports.rs:7:5: 11:6 (#0),
+                                vis_span: ui/re-exports.rs:7:5: 7:5 (#0),
+                            },
+                        ),
+                    },
+                    parents: [
+                        (0, 4294967040),
+                    ],
+                    bodies: {},
+                    opt_hash_including_bodies: None,
+                },
+                parenting: UnordMap {
+                    inner: {},
+                },
+                attrs: AttributeMap {
+                    map: {},
+                    opt_hash: None,
+                },
+                trait_map: UnordMap {
+                    inner: {},
+                },
+            },
+        ),
+        Owner(
+            OwnerInfo {
+                nodes: OwnerNodes {
+                    node: ParentedNode {
+                        parent: 4294967040,
+                        node: Item(
+                            Item {
+                                ident: Trait#0,
+                                owner_id: DefId(0:7 ~ re_exports[b67e]::parent::child::Trait),
+                                kind: Trait(
+                                    No,
+                                    Safe,
+                                    Generics {
+                                        params: [],
+                                        predicates: [],
+                                        has_where_clause_predicates: false,
+                                        where_clause_span: ui/re-exports.rs:8:24: 8:24 (#0),
+                                        span: ui/re-exports.rs:8:24: 8:24 (#0),
+                                    },
+                                    [],
+                                    [
+                                        TraitItemRef {
+                                            id: TraitItemId {
+                                                owner_id: DefId(0:8 ~ re_exports[b67e]::parent::child::Trait::method),
+                                            },
+                                            ident: method#0,
+                                            kind: Fn {
+                                                has_self: true,
+                                            },
+                                            span: ui/re-exports.rs:9:13: 9:30 (#0),
+                                        },
+                                    ],
+                                ),
+                                span: ui/re-exports.rs:8:9: 10:10 (#0),
+                                vis_span: ui/re-exports.rs:8:9: 8:12 (#0),
+                            },
+                        ),
+                    },
+                    parents: [
+                        (0, 4294967040),
+                    ],
+                    bodies: {},
+                    opt_hash_including_bodies: None,
+                },
+                parenting: UnordMap {
+                    inner: {},
+                },
+                attrs: AttributeMap {
+                    map: {},
+                    opt_hash: None,
+                },
+                trait_map: UnordMap {
+                    inner: {},
+                },
+            },
+        ),
+        Owner(
+            OwnerInfo {
+                nodes: OwnerNodes {
+                    node: ParentedNode {
+                        parent: 4294967040,
+                        node: TraitItem(
+                            TraitItem {
+                                ident: method#0,
+                                owner_id: DefId(0:8 ~ re_exports[b67e]::parent::child::Trait::method),
+                                generics: Generics {
+                                    params: [
+                                        GenericParam {
+                                            hir_id: HirId(DefId(0:8 ~ re_exports[b67e]::parent::child::Trait::method).1),
+                                            def_id: DefId(0:9 ~ re_exports[b67e]::parent::child::Trait::method::'_),
+                                            name: Fresh,
+                                            span: ui/re-exports.rs:9:23: 9:24 (#0),
+                                            pure_wrt_drop: false,
+                                            kind: Lifetime {
+                                                kind: Elided(
+                                                    Ampersand,
+                                                ),
+                                            },
+                                            colon_span: None,
+                                            source: Generics,
+                                        },
+                                    ],
+                                    predicates: [],
+                                    has_where_clause_predicates: false,
+                                    where_clause_span: ui/re-exports.rs:9:29: 9:29 (#0),
+                                    span: ui/re-exports.rs:9:22: 9:22 (#0),
+                                },
+                                kind: Fn(
+                                    FnSig {
+                                        header: FnHeader {
+                                            safety: Safe,
+                                            constness: NotConst,
+                                            asyncness: NotAsync,
+                                            abi: Rust,
+                                        },
+                                        decl: FnDecl {
+                                            inputs: [
+                                                Ty {
+                                                    hir_id: HirId(DefId(0:8 ~ re_exports[b67e]::parent::child::Trait::method).5),
+                                                    kind: Ref(
+                                                        Lifetime {
+                                                            hir_id: HirId(DefId(0:8 ~ re_exports[b67e]::parent::child::Trait::method).2),
+                                                            ident: '_#0,
+                                                            res: Param(
+                                                                DefId(0:9 ~ re_exports[b67e]::parent::child::Trait::method::'_),
+                                                            ),
+                                                        },
+                                                        MutTy {
+                                                            ty: Ty {
+                                                                hir_id: HirId(DefId(0:8 ~ re_exports[b67e]::parent::child::Trait::method).4),
+                                                                kind: Path(
+                                                                    Resolved(
+                                                                        None,
+                                                                        Path {
+                                                                            span: ui/re-exports.rs:9:24: 9:28 (#0),
+                                                                            res: SelfTyParam {
+                                                                                trait_: DefId(0:7 ~ re_exports[b67e]::parent::child::Trait),
+                                                                            },
+                                                                            segments: [
+                                                                                PathSegment {
+                                                                                    ident: Self#0,
+                                                                                    hir_id: HirId(DefId(0:8 ~ re_exports[b67e]::parent::child::Trait::method).3),
+                                                                                    res: SelfTyParam {
+                                                                                        trait_: DefId(0:7 ~ re_exports[b67e]::parent::child::Trait),
+                                                                                    },
+                                                                                    args: None,
+                                                                                    infer_args: true,
+                                                                                },
+                                                                            ],
+                                                                        },
+                                                                    ),
+                                                                ),
+                                                                span: ui/re-exports.rs:9:24: 9:28 (#0),
+                                                            },
+                                                            mutbl: Not,
+                                                        },
+                                                    ),
+                                                    span: ui/re-exports.rs:9:23: 9:28 (#0),
+                                                },
+                                            ],
+                                            output: DefaultReturn(
+                                                ui/re-exports.rs:9:29: 9:29 (#0),
+                                            ),
+                                            c_variadic: false,
+                                            implicit_self: RefImm,
+                                            lifetime_elision_allowed: true,
+                                        },
+                                        span: ui/re-exports.rs:9:13: 9:30 (#0),
+                                    },
+                                    Required(
+                                        [
+                                            self#0,
+                                        ],
+                                    ),
+                                ),
+                                span: ui/re-exports.rs:9:13: 9:30 (#0),
+                                defaultness: Default {
+                                    has_value: false,
+                                },
+                            },
+                        ),
+                    },
+                    parents: [
+                        (0, 4294967040),
+                        (1, 0),
+                        (2, 5),
+                        (3, 4),
+                        (4, 5),
+                        (5, 0),
+                    ],
+                    bodies: {},
+                    opt_hash_including_bodies: None,
+                },
+                parenting: UnordMap {
+                    inner: {},
+                },
+                attrs: AttributeMap {
+                    map: {},
+                    opt_hash: None,
+                },
+                trait_map: UnordMap {
+                    inner: {},
+                },
+            },
+        ),
+        NonOwner(
+            HirId(DefId(0:8 ~ re_exports[b67e]::parent::child::Trait::method).1),
+        ),
+    ],
+    opt_hir_hash: None,
+}

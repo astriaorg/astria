@@ -26,7 +26,7 @@ use cnidarium::{
 };
 use futures::{
     Future,
-    FutureExt,
+    FutureExt as _,
 };
 use prost::{
     Message as _,

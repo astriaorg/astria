@@ -32,7 +32,7 @@ use crate::{
     app::StateReadExt as _,
     bridge::{
         StateReadExt as _,
-        StateWriteExt,
+        StateWriteExt as _,
     },
     fees::FeeHandler,
     ibc::{

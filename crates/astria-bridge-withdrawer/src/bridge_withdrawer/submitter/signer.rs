@@ -14,7 +14,7 @@ use astria_eyre::eyre::{
     self,
     bail,
     eyre,
-    Context,
+    Context as _,
 };
 
 pub(crate) struct SequencerKey {

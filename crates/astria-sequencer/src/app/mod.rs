@@ -50,7 +50,7 @@ use astria_eyre::{
     },
 };
 use cnidarium::{
-    ArcStateDeltaExt,
+    ArcStateDeltaExt as _,
     Snapshot,
     StagedWriteBatch,
     StateDelta,

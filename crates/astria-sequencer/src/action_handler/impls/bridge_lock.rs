@@ -28,7 +28,7 @@ use crate::{
     assets::StateReadExt as _,
     bridge::{
         StateReadExt as _,
-        StateWriteExt,
+        StateWriteExt as _,
     },
     transaction::StateReadExt as _,
     utils::create_deposit_event,

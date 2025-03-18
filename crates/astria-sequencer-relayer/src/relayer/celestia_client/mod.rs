@@ -7,7 +7,7 @@ mod tests;
 
 use std::{
     borrow::Cow,
-    convert::TryInto,
+    convert::TryInto as _,
     fmt::{
         self,
         Debug,
@@ -85,7 +85,7 @@ pub(super) use error::{
     TrySubmitError,
 };
 use hex::{
-    FromHex,
+    FromHex as _,
     FromHexError,
 };
 use prost::{

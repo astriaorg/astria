@@ -427,7 +427,7 @@ impl Future for TakeSubmission<'_> {
 /// counterpart [`astria_core::sequencerblock::v1::SubmittedMetadata::into_raw`].
 fn sequencer_namespace(metadata: &SubmittedMetadata) -> Namespace {
     use const_format::concatcp;
-    use prost::Name;
+    use prost::Name as _;
     const HEADER_EXPECT_MSG: &str =
         concatcp!(SubmittedMetadata::PACKAGE, ".", SubmittedMetadata::NAME,);
 

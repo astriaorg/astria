@@ -46,7 +46,7 @@ pub(crate) async fn read_line_raw() -> eyre::Result<String> {
     use termion::color;
     // Use raw mode to allow reading more than 1KB/4KB of data at a time
     // See https://unix.stackexchange.com/questions/204815/terminal-does-not-accept-pasted-or-typed-lines-of-more-than-1024-characters
-    use termion::raw::IntoRawMode;
+    use termion::raw::IntoRawMode as _;
 
     print!("{}", color::Fg(color::Red));
     // In raw mode, the input is not mirrored into the terminal, so we need

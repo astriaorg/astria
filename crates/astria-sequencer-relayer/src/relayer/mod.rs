@@ -39,7 +39,7 @@ use tokio::{
     },
     task::JoinHandle,
 };
-use tokio_stream::StreamExt;
+use tokio_stream::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 use tracing::{

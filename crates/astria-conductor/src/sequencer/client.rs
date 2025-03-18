@@ -23,7 +23,7 @@ use tracing::{
     debug,
     instrument,
     warn,
-    Instrument,
+    Instrument as _,
 };
 
 #[derive(Clone)]

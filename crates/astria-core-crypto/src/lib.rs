@@ -17,7 +17,7 @@ pub use astria_core_consts::ADDRESS_LENGTH;
 use base64::{
     display::Base64Display,
     prelude::BASE64_STANDARD,
-    Engine,
+    Engine as _,
 };
 use ed25519_consensus::{
     Error as Ed25519Error,

@@ -7,7 +7,7 @@ use std::{
 use astria_core::primitive::v1::RollupId;
 use astria_eyre::eyre::{
     self,
-    WrapErr,
+    WrapErr as _,
 };
 use base64::{
     prelude::BASE64_STANDARD,

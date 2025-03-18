@@ -1,0 +1,14 @@
+warning: imported but unmentioned trait `Write` should be imported `as _`
+  --> $DIR/simple.rs:4:5
+   |
+LL |     use std::fmt::Write;
+   |     ^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(alias_trait_imports)]` on by default
+help: consider importing the trait `as _` to avoid namespace pollution
+   |
+LL |     use std::fmt::Write as _;
+   |
+
+warning: 1 warning emitted
+

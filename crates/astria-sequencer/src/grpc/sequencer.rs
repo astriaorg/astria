@@ -11,7 +11,7 @@ use astria_core::{
         SequencerBlock as RawSequencerBlock,
     },
     primitive::v1::RollupId,
-    Protobuf,
+    Protobuf as _,
 };
 use bytes::Bytes;
 use cnidarium::Storage;

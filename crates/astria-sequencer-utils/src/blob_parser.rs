@@ -3,7 +3,7 @@ use std::{
         self,
         Display,
         Formatter,
-        Write,
+        Write as _,
     },
     fs,
     io,
@@ -39,12 +39,12 @@ use astria_core::{
 use astria_eyre::eyre::{
     bail,
     Result,
-    WrapErr,
+    WrapErr as _,
 };
 use astria_merkle::audit::Proof;
 use base64::{
     prelude::BASE64_STANDARD,
-    Engine,
+    Engine as _,
 };
 use clap::ValueEnum;
 use colour::write_blue;
@@ -53,10 +53,10 @@ use ethers_core::types::{
     Transaction,
 };
 use indenter::indented;
-use itertools::Itertools;
+use itertools::Itertools as _;
 use prost::{
     bytes::Bytes,
-    Message,
+    Message as _,
 };
 use serde::Serialize;
 
