@@ -230,8 +230,8 @@ impl UpgradesHandler {
         if let Some(existing_app_version) = &params.version {
             if new_app_version <= existing_app_version.app {
                 error!(
-                    "new app version {new_app_version} should be greater than existing version {}",
-                    existing_app_version.app
+                    new_app_version, existing_app_version = %existing_app_version.app,
+                    "new app version should be greater than existing version",
                 );
             }
         }
