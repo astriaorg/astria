@@ -39,80 +39,53 @@ use prost::{
     Name as _,
 };
 
-pub(crate) struct FrostSignerBuilder {
-    min_signers: Option<usize>,
-    public_key_package: Option<PublicKeyPackage>,
-    address_prefix: Option<String>,
-    participant_clients: Vec<FrostParticipantServiceClient<tonic::transport::Channel>>,
+pub(crate) struct Builder {
+    pub(super) frost_min_signers: usize,
+    pub(super) public_key_package: PublicKeyPackage,
+    pub(super) sequencer_address_prefix: String,
+    pub(super) participant_clients: Vec<FrostParticipantServiceClient<tonic::transport::Channel>>,
 }
 
-impl FrostSignerBuilder {
-    pub(crate) fn new() -> Self {
-        Self {
-            min_signers: None,
-            public_key_package: None,
-            address_prefix: None,
-            participant_clients: Vec::new(),
-        }
-    }
-
-    pub(crate) fn min_signers(self, min_signers: usize) -> Self {
-        Self {
-            min_signers: Some(min_signers),
-            ..self
-        }
-    }
-
-    pub(crate) fn public_key_package(self, public_key_package: PublicKeyPackage) -> Self {
-        Self {
-            public_key_package: Some(public_key_package),
-            ..self
-        }
-    }
-
-    pub(crate) fn address_prefix(self, address_prefix: String) -> Self {
-        Self {
-            address_prefix: Some(address_prefix),
-            ..self
-        }
-    }
-
-    pub(crate) fn participant_clients(
-        self,
-        participant_clients: Vec<FrostParticipantServiceClient<tonic::transport::Channel>>,
-    ) -> Self {
-        Self {
+impl Builder {
+    pub(super) fn try_build(self) -> eyre::Result<FrostSigner> {
+        let Self {
+            frost_min_signers: min_signers,
+            public_key_package,
+            sequencer_address_prefix,
             participant_clients,
-            ..self
-        }
-    }
+        } = self;
 
-    pub(crate) fn try_build(self) -> eyre::Result<FrostSigner> {
-        let min_signers = self
-            .min_signers
-            .ok_or_else(|| eyre!("minimum number of signers is required"))?;
-        let public_key_package = self
-            .public_key_package
-            .ok_or_else(|| eyre!("public key package is required"))?;
-        let verifying_key_bytes: [u8; 32] = public_key_package
+        // XXX: VerifiyingKey<Ed25519Sha512>::serialize delegates to
+        // SerializableElement<Ed25519Sha512>::serialize, which then
+        // delegates to [`Ed25519ScalarField::serialize`], which just
+        // yields a [u8; 32].
+        //
+        // [`VerifyingKey::serialize`] itself turns it into a vec.
+        //
+        // [`Ed25519ScalarField`]: https://docs.rs/frost-ed25519/2.1.0/src/frost_ed25519/lib.rs.html#68-70
+        // [`VerifyingKey::serialize`]:  https://docs.rs/frost-core/2.1.0/src/frost_core/serialization.rs.html#22-26
+        let verifying_key_bytes = public_key_package
             .verifying_key()
             .serialize()
-            .wrap_err("failed to serialize verifying key")?
-            .try_into()
-            .map_err(|_| eyre!("failed to convert verifying key to 32 bytes"))?;
-        let verifying_key: VerificationKey = VerificationKey::try_from(verifying_key_bytes)
-            .wrap_err("failed to build verification key")?;
+            .wrap_err("failed to extract verifying key as raw bytes")?;
+        let verifying_key: VerificationKey = VerificationKey::try_from(&*verifying_key_bytes)
+            .wrap_err(
+                "failed to construct ed25519 verification key from verification key extracted \
+                 from frost public key package",
+            )?;
         let address = Address::builder()
             .array(*verifying_key.address_bytes())
-            .prefix(
-                self.address_prefix
-                    .ok_or_else(|| eyre!("astria address prefix is required"))?,
-            )
+            .prefix(&sequencer_address_prefix)
             .try_build()
-            .wrap_err("failed to build address")?;
+            .wrap_err_with(|| {
+                format!(
+                    "failed to build address given public key package and address prefix \
+                     `{sequencer_address_prefix}`"
+                )
+            })?;
 
         ensure!(
-            self.participant_clients.len() == min_signers,
+            participant_clients.len() == min_signers,
             "not enough participant clients; need at least {min_signers}"
         );
 
@@ -120,7 +93,7 @@ impl FrostSignerBuilder {
             min_signers,
             public_key_package,
             address,
-            participant_clients: self.participant_clients,
+            participant_clients,
             initialized_participant_clients: HashMap::new(),
         })
     }

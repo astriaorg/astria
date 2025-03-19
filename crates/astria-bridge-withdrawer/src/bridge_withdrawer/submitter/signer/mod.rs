@@ -55,10 +55,14 @@ impl Builder {
         let signer = if no_frost_threshold_signing {
             Signer::Single(Box::new(
                 sequencer_key::SequencerKey::builder()
-                    .path(sequencer_key_path)
+                    .path(&sequencer_key_path)
                     .prefix(sequencer_address_prefix)
                     .try_build()
-                    .wrap_err("failed to load sequencer private key")?,
+                    .wrap_err_with(|| {
+                        format!(
+                            "failed to load sequencer private key from path `{sequencer_key_path}`"
+                        )
+                    })?,
             ))
         } else {
             let public_key_package = read_frost_key(frost_public_key_package_path)?;
@@ -76,13 +80,14 @@ impl Builder {
                 })
                 .collect();
             Signer::Threshold(
-                frost::FrostSignerBuilder::new()
-                    .min_signers(frost_min_signers)
-                    .public_key_package(public_key_package)
-                    .participant_clients(participant_clients)
-                    .address_prefix(sequencer_address_prefix)
-                    .try_build()
-                    .wrap_err("failed to initialize frost signer")?,
+                frost::Builder {
+                    frost_min_signers,
+                    public_key_package,
+                    participant_clients,
+                    sequencer_address_prefix,
+                }
+                .try_build()
+                .wrap_err("failed to initialize frost signer")?,
             )
         };
         Ok(signer)
