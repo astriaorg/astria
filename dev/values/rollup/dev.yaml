@@ -61,7 +61,7 @@ evm-rollup:
     ## Standard Eth Genesis config values
     # Configuration of Eth forks, setting to 0 will enable from height,
     # left as is these forks will not activate.
-    cancunTime: "0"
+    cancunTime: ""
     pragueTime: ""
     verkleTime: ""
     # Can configure the genesis allocs for the chain

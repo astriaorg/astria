@@ -4,7 +4,7 @@ metadata:
   name: {{ include "evm-bridge-withdrawer.appName" . }}-env
   namespace: {{ include "evm-bridge-withdrawer.namespace" . }}
 data:
-  ASTRIA_BRIDGE_WITHDRAWER_LOG: "astria_bridge_withdrawer=debug"
+  ASTRIA_BRIDGE_WITHDRAWER_LOG: "astria_bridge_withdrawer=trace"
   ASTRIA_BRIDGE_WITHDRAWER_API_ADDR: "0.0.0.0:{{ .Values.ports.healthAPI }}"
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_COMETBFT_ENDPOINT: "{{ tpl .Values.config.sequencerCometbftEndpoint . }}"
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_CHAIN_ID: "{{ tpl .Values.config.sequencerChainId . }}"
@@ -36,8 +36,8 @@ data:
   {{- else }}
   ASTRIA_BRIDGE_WITHDRAWER_NO_FROST_THRESHOLD_SIGNING: "{{ .Values.config.noFrostThresholdSigning }}"
   ASTRIA_BRIDGE_WITHDRAWER_FROST_MIN_SIGNERS: "{{ .Values.config.frostMinSigners }}"
-  ASTRIA_BRIDGE_WITHDRAWER_FROST_PUBLIC_KEY_PACKAGE_PATH: "{{ .Values.config.frostPublicKeyPackagePath }}"
-  ASTRIA_BRIDGE_WITHDRAWER_FROST_PARTICIPANT_ENDPOINTS: "{{ .Values.config.frostParticipantEndpoints }}"
+  ASTRIA_BRIDGE_WITHDRAWER_FROST_PUBLIC_KEY_PACKAGE_PATH: "/secret/pubKeyPath/{{ .Values.config.frostPublicKeyPackagePath }}"
+  ASTRIA_BRIDGE_WITHDRAWER_FROST_PARTICIPANT_ENDPOINTS: "http://bridge-signer-signer-1-service.astria-dev-cluster.svc.cluster.local:9001"
   {{- end }}
 ---
 {{- if not .Values.secretProvider.enabled }}
@@ -51,3 +51,12 @@ data:
     {{ .Values.config.sequencerPrivateKey.devContent }}
 ---
 {{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "evm-bridge-withdrawer.appName" . }}-pubkey-package
+  namespace: {{ include "evm-bridge-withdrawer.namespace" . }}
+data:
+  {{ .Values.config.frostPublicKeyPackagePath }}: |
+    {{ toJson .Values.config.frostPubKeyPackage | nindent 4 }}
+---

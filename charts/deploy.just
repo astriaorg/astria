@@ -161,6 +161,13 @@ deploy-bridge-withdrawer:
     --namespace astria-dev-cluster \
     -f dev/values/withdrawer/values.yaml
 
+deploy-bridge-signer:
+  helm install bridge-signer-chart ./charts/bridge-signer \
+    --namespace astria-dev-cluster \
+
+delete-bridge-signer:
+  @just delete chart bridge-signer astria-dev-cluster
+
 delete-bridge-withdrawer:
   @just delete chart evm-bridge-withdrawer astria-dev-cluster
 
