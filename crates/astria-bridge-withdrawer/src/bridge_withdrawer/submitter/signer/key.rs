@@ -22,17 +22,17 @@ use astria_eyre::eyre::{
 };
 
 #[derive(Debug, Clone)]
-pub(crate) struct SequencerKey {
+pub(crate) struct Key {
     address: Address,
     signing_key: SigningKey,
 }
 
-pub(crate) struct SequencerKeyBuilder {
+pub(crate) struct Builder {
     path: Option<PathBuf>,
     prefix: Option<String>,
 }
 
-impl SequencerKeyBuilder {
+impl Builder {
     /// Sets the path from which the sequencey key is read.
     ///
     /// The file at `path` should contain a hex-encoded ed25519 secret key.
@@ -53,7 +53,7 @@ impl SequencerKeyBuilder {
         }
     }
 
-    pub(crate) fn try_build(self) -> eyre::Result<SequencerKey> {
+    pub(crate) fn try_build(self) -> eyre::Result<Key> {
         let Some(path) = self.path else {
             bail!("path to sequencer key file must be set");
         };
@@ -87,23 +87,23 @@ impl SequencerKeyBuilder {
                 )
             })?;
 
-        Ok(SequencerKey {
+        Ok(Key {
             address,
             signing_key,
         })
     }
 }
 
-impl SequencerKey {
-    pub(crate) fn builder() -> SequencerKeyBuilder {
-        SequencerKeyBuilder {
+impl Key {
+    pub(crate) fn builder() -> Builder {
+        Builder {
             path: None,
             prefix: None,
         }
     }
 }
 
-impl SequencerKey {
+impl Key {
     pub(crate) fn address(&self) -> &Address {
         &self.address
     }

@@ -90,7 +90,7 @@ async fn native_ics20_withdraw_success() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[ignore = "needs anvil to be present in $PATH; see gith&ub.com/foundry-rs/foundry for how to \
+#[ignore = "needs anvil to be present in $PATH; see github.com/foundry-rs/foundry for how to \
             install"]
 async fn erc20_sequencer_withdraw_success() {
     let test_env = TestBridgeWithdrawerConfig::erc20_sequencer_withdraw_config()

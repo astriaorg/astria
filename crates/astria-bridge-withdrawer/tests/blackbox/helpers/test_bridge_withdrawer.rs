@@ -337,7 +337,7 @@ impl TestBridgeWithdrawerConfig {
             no_frost_threshold_signing: threshold_signer_count == 0,
             frost_min_signers: threshold_signer_count as usize,
             frost_public_key_package_path,
-            frost_participant_endpoints,
+            frost_participant_endpoints: frost_participant_endpoints.parse().unwrap(),
             fee_asset_denomination: asset_denom.clone(),
             rollup_asset_denomination: asset_denom.as_trace_prefixed().unwrap().clone(),
             sequencer_bridge_address: default_bridge_address().to_string(),

@@ -14,7 +14,7 @@ frost-ed25519 = { version = "2.1.0" }
 
 axum = { workspace = true }
 futures = { workspace = true }
-hex = { workspace = true }
+hex.workspace = true
 ethers = { workspace = true, features = ["ws"] }
 hyper = { workspace = true }
 ibc-types = { workspace = true }
@@ -48,6 +48,7 @@ sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequ
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
   "display",
 ] }
+itertools.workspace = true
 
 [dev-dependencies]
 astria-core = { path = "../astria-core", features = ["server", "test-utils"] }
