@@ -1,38 +1,38 @@
-mod frost;
-mod sequencer_key;
-
 use astria_eyre::{
     eyre,
     eyre::WrapErr as _,
 };
 
+mod frost;
+mod key;
+
 pub(crate) struct Signer {
     inner: SignerInner,
 }
 
-impl From<sequencer_key::SequencerKey> for Signer {
-    fn from(value: sequencer_key::SequencerKey) -> Self {
+impl From<key::Key> for Signer {
+    fn from(value: key::Key) -> Self {
         Self {
-            inner: SignerInner::Single(Box::new(value)),
+            inner: SignerInner::Key(Box::new(value)),
         }
     }
 }
 
 enum SignerInner {
-    Single(Box<sequencer_key::SequencerKey>),
-    Threshold(frost::FrostSigner),
+    Key(Box<key::Key>),
+    Frost(frost::Frost),
 }
 
 impl Signer {
     pub(crate) fn address(&self) -> &astria_core::primitive::v1::Address {
         match &self.inner {
-            SignerInner::Single(signer) => signer.address(),
-            SignerInner::Threshold(signer) => signer.address(),
+            SignerInner::Key(signer) => signer.address(),
+            SignerInner::Frost(signer) => signer.address(),
         }
     }
 
     pub(crate) async fn initialize(&mut self) -> eyre::Result<()> {
-        if let SignerInner::Threshold(frost_signer) = &mut self.inner {
+        if let SignerInner::Frost(frost_signer) = &mut self.inner {
             frost_signer
                 .initialize_participant_clients()
                 .await
@@ -48,8 +48,8 @@ impl Signer {
         tx: astria_core::protocol::transaction::v1::TransactionBody,
     ) -> eyre::Result<astria_core::protocol::transaction::v1::Transaction> {
         match &self.inner {
-            SignerInner::Single(signer) => Ok(signer.sign(tx)),
-            SignerInner::Threshold(signer) => signer.sign(tx).await,
+            SignerInner::Key(signer) => Ok(signer.sign(tx)),
+            SignerInner::Frost(signer) => signer.sign(tx).await,
         }
     }
 }
@@ -74,8 +74,8 @@ impl Builder {
             sequencer_address_prefix,
         } = self;
         let inner = if no_frost_threshold_signing {
-            SignerInner::Single(Box::new(
-                sequencer_key::SequencerKey::builder()
+            SignerInner::Key(Box::new(
+                key::Key::builder()
                     .path(&sequencer_key_path)
                     .prefix(sequencer_address_prefix)
                     .try_build()
@@ -86,7 +86,7 @@ impl Builder {
                     })?,
             ))
         } else {
-            SignerInner::Threshold(
+            SignerInner::Frost(
                 frost::Builder {
                     frost_min_signers,
                     frost_participant_endpoints,

@@ -47,7 +47,7 @@ pub(super) struct Builder {
 }
 
 impl Builder {
-    pub(super) fn try_build(self) -> eyre::Result<FrostSigner> {
+    pub(super) fn try_build(self) -> eyre::Result<Frost> {
         fn read_frost_key<P: AsRef<std::path::Path>>(
             path: P,
         ) -> astria_eyre::eyre::Result<PublicKeyPackage> {
@@ -114,7 +114,7 @@ impl Builder {
             "not enough participant clients; need at least {min_signers}"
         );
 
-        Ok(FrostSigner {
+        Ok(Frost {
             min_signers,
             public_key_package,
             address,
@@ -125,7 +125,7 @@ impl Builder {
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct FrostSigner {
+pub(super) struct Frost {
     min_signers: usize,
     public_key_package: PublicKeyPackage,
     address: Address,
@@ -134,7 +134,7 @@ pub(super) struct FrostSigner {
         HashMap<Identifier, FrostParticipantServiceClient<tonic::transport::Channel>>,
 }
 
-impl FrostSigner {
+impl Frost {
     pub(super) async fn initialize_participant_clients(&mut self) -> eyre::Result<()> {
         use astria_core::generated::astria::signer::v1::GetVerifyingShareRequest;
         use frost_ed25519::keys::VerifyingShare;
@@ -233,7 +233,7 @@ struct Round1Response {
     request_identifier: u32,
 }
 
-impl FrostSigner {
+impl Frost {
     async fn execute_round_1(&self) -> Round1Results {
         let mut stream = futures::stream::FuturesUnordered::new();
         for (id, client) in &self.initialized_participant_clients {
