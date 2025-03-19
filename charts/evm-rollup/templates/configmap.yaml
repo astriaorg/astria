@@ -48,7 +48,7 @@ metadata:
   namespace: {{ include "rollup.namespace" .  }}
 data:
   geth-genesis.json: |
-    {{- tpl (.Files.Get "files/genesis/geth-genesis.json") $ | nindent 4 }}
+    {{- tpl (.Files.Get (include "rollup.genesis-file" $)) $ | nindent 4 }}
   init-geth.sh: |
     {{- tpl (.Files.Get "files/scripts/init-geth.sh") $ | nindent 4 }}
   {{- if .Values.geth.snapshot.create.enabled }}

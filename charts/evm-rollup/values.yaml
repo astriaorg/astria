@@ -5,28 +5,26 @@ global:
   # Best to be false in production environments, true for clean logs on local dev.
   useTTY: false
   dev: false
+  # The name of the rollup chain, used to generate the Rollup ID
+  # if this matches one of the predefined rollups and dev is not set to true
+  # a predefined genesis and images will be used.
+  rollupName: custom
 
 images:
   geth:
     repo: ghcr.io/astriaorg/astria-geth
     pullPolicy: IfNotPresent
-    tag: 1.1.0
-    devTag: pr-78
-    overrideTag: pr-78
+    tag: latest
   conductor:
     repo: ghcr.io/astriaorg/conductor
     pullPolicy: IfNotPresent
-    tag: 1.1.0
-    devTag: latest
+    tag: latest
   snapshot:
     repo: rclone/rclone
     pullPolicy: IfNotPresent
     tag: 1.69.0
 
 genesis:
-  # The name of the rollup chain, used to generate the Rollup ID
-  rollupName: ""
-
   # The "forks" for upgrading the chain. Contains necessary information for starting
   # and, if desired, restarting the chain at a given height. The necessary fields
   # for the genesis fork are provided, and additional forks can be added as needed.

@@ -7,8 +7,41 @@ Namepsace to deploy elements into.
 
 {{/*  The name of the rollup */}}
 {{- define "rollup.name" -}}
-{{- tpl .Values.genesis.rollupName . }}
+{{- tpl .Values.global.rollupName . }}
 {{- end }}
+
+{{- define "rollup.genesis-file" -}}
+files/genesis/{{ include "rollup.type" . }}.genesis.json
+{{- end -}}
+
+{{- define "rollup.tags.geth" -}}
+{{- $rollupType := (include "rollup.type" . ) -}}
+{{- if or (eq $rollupType "custom") .Values.global.dev -}}{{ .Values.images.geth.tag }}
+{{- else if eq $rollupType "flame-mainnet" -}}1.1.0
+{{- else if eq $rollupType "flame-testnet" -}}1.1.0
+{{- else if eq $rollupType "flame-devnet" -}}1.1.0
+{{- end -}}
+{{- end }}
+
+{{- define "rollup.tags.conductor" -}}
+{{- $rollupType := (include "rollup.type" . ) -}}
+{{- if or (eq $rollupType "custom") .Values.global.dev -}}{{ .Values.images.conductor.tag }}
+{{- else if eq $rollupType "flame-mainnet" -}}1.1.0
+{{- else if eq $rollupType "flame-testnet" -}}1.1.0
+{{- else if eq $rollupType "flame-devnet" -}}1.1.0
+{{- end -}}
+{{- end }}
+
+
+{{- define "rollup.type" -}}
+{{- $rollupName := (include "rollup.name" . ) -}}
+{{- if eq $rollupName "flame" -}}flame-mainnet
+{{- else if eq $rollupName "flame-dawn-1" -}}flame-testnet
+{{- else if eq $rollupName "astria-dusk-11-nria-evm"}}flame-devnet
+{{- else -}}custom
+{{- end -}}
+{{- end }}
+
 
 {{/* verbosity based on log level */}}
 {{- define "rollup.verbosity" -}}
@@ -68,11 +101,11 @@ The log level represented as a number
 Full image paths for Astria built images
 */}}
 {{- define "rollup.image" -}}
-{{ .Values.images.geth.repo }}:{{ if .Values.images.geth.overrideTag }}{{ .Values.images.geth.overrideTag }}{{ else }}{{ if .Values.global.dev }}{{ .Values.images.geth.devTag }}{{ else }}{{ .Values.images.geth.tag }}{{ end }}
+{{ .Values.images.geth.repo }}:{{ include "rollup.tags.geth" . }}
 {{- end }}
-{{- end }}
+
 {{- define "conductor.image" -}}
-{{ .Values.images.conductor.repo }}:{{ if .Values.global.dev }}{{ .Values.images.conductor.devTag }}{{ else }}{{ .Values.images.conductor.tag }}{{ end }}
+{{ .Values.images.conductor.repo }}:{{ include "rollup.tags.conductor" . }}
 {{- end }}
 
 
