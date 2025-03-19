@@ -68,6 +68,11 @@ impl Builder {
         } = self;
 
         ensure!(
+            min_signers > 0,
+            "minimum number of signers must be greater than 0"
+        );
+
+        ensure!(
             frost_participant_endpoints.len() >= min_signers,
             "not enough participant clients; need at least `{min_signers}`, but only `{}` were \
              provided",
@@ -225,7 +230,7 @@ impl Frost {
             .wrap_err("round two failed")?;
 
         let transaction = self
-            .aggregate_transaction(encoded_transaction_body, round_one_results, sig_shares)
+            .aggregate_transaction(encoded_transaction_body, round_one_results, &sig_shares)
             .wrap_err(
                 "failed aggregating transaction body and the results of the round 1 and 2 \
                  threshold scheme into a signed Astria transaction",
@@ -296,7 +301,7 @@ impl Frost {
         {
             let client = self
                 .initialized_participant_clients
-                .get(&participant_identifier)
+                .get(participant_identifier)
                 .expect(
                     "participant client must exist in mapping, as we received a commitment from \
                      them in part 1, meaning we already have their client",
@@ -347,7 +352,7 @@ impl Frost {
         &self,
         encoded_transaction_body: prost::bytes::Bytes,
         round_one_results: Vec<RoundOneResult>,
-        sig_shares: BTreeMap<frost_ed25519::Identifier, round2::SignatureShare>,
+        sig_shares: &BTreeMap<frost_ed25519::Identifier, round2::SignatureShare>,
     ) -> eyre::Result<Transaction> {
         let signing_commitments = round_one_results
             .into_iter()
@@ -361,7 +366,7 @@ impl Frost {
         let signing_package =
             frost_ed25519::SigningPackage::new(signing_commitments, &encoded_transaction_body);
         let signature =
-            frost_ed25519::aggregate(&signing_package, &sig_shares, &self.public_key_package)
+            frost_ed25519::aggregate(&signing_package, sig_shares, &self.public_key_package)
                 .wrap_err("failed to aggregate signature shares")?;
 
         let raw_transaction = astria_core::generated::astria::protocol::transaction::v1::Transaction {
@@ -396,10 +401,8 @@ async fn execute_round_one(
         .into_inner();
     let decoded_signing_commitments = round1::SigningCommitments::deserialize(&resp.commitment)
         .wrap_err_with(|| {
-            format!(
-                "failed deserializing round 1 signing commitments from `.commitment` field of RPC \
-                 response"
-            )
+            "failed deserializing round 1 signing commitments from `.commitment` field of RPC \
+             response"
         })?;
     Ok(RoundOneResult {
         participant_identifier,
@@ -419,7 +422,7 @@ async fn execute_round_two(
     let resp = client
         .execute_round_two(RoundTwoRequest {
             request_identifier,
-            message: message.into(),
+            message,
             commitments,
         })
         .await
