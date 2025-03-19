@@ -14,7 +14,7 @@ frost-ed25519 = { version = "2.1.0" }
 
 axum = { workspace = true }
 futures = { workspace = true }
-hex = { workspace = true }
+hex.workspace = true
 ethers = { workspace = true, features = ["ws"] }
 hyper = { workspace = true }
 humantime = { workspace = true }
