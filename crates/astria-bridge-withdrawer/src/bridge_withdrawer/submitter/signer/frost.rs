@@ -26,10 +26,7 @@ use astria_eyre::eyre::{
 };
 use frost_ed25519::{
     keys::PublicKeyPackage,
-    round1::{
-        self,
-        SigningCommitments,
-    },
+    round1,
     round2::SignatureShare,
     Identifier,
 };
@@ -167,18 +164,18 @@ impl Frost {
 
     pub(super) async fn sign(&self, tx: TransactionBody) -> eyre::Result<Transaction> {
         // part 1: gather commitments from participants
-        let round_1_results = self.execute_round_1().await;
+        let round_one_results = self.execute_round_one().await;
         ensure!(
-            round_1_results.responses.len() >= self.min_signers,
+            round_one_results.responses.len() >= self.min_signers,
             "not enough part 1 responses received; want at least `{}`, got `{}`",
             self.min_signers,
-            round_1_results.responses.len()
+            round_one_results.responses.len()
         );
 
         // part 2: gather signature shares from participants
         let tx_bytes = tx.to_raw().encode_to_vec();
         let sig_shares = self
-            .execute_round_2(round_1_results.responses, tx_bytes.clone())
+            .execute_round_two(round_one_results.responses, tx_bytes.clone())
             .await;
         ensure!(
             sig_shares.len() >= self.min_signers,
@@ -189,7 +186,7 @@ impl Frost {
 
         // finally, aggregate and create signature
         let signing_package = frost_ed25519::SigningPackage::new(
-            round_1_results.signing_package_commitments,
+            round_one_results.signing_package_commitments,
             &tx_bytes,
         );
         let signature =
@@ -222,23 +219,23 @@ impl Frost {
     }
 }
 
-struct Round1Results {
-    responses: Vec<Round1Response>,
+struct RoundOneResults {
+    responses: Vec<RoundOneResponse>,
     signing_package_commitments: BTreeMap<Identifier, round1::SigningCommitments>,
 }
 
-struct Round1Response {
+struct RoundOneResponse {
     id: Identifier,
-    commitment: axum::body::Bytes,
+    commitment: prost::bytes::Bytes,
     request_identifier: u32,
 }
 
 impl Frost {
-    async fn execute_round_1(&self) -> Round1Results {
+    async fn execute_round_one(&self) -> RoundOneResults {
         let mut stream = futures::stream::FuturesUnordered::new();
         for (id, client) in &self.initialized_participant_clients {
             let client = client.clone();
-            stream.push(execute_round_1(client, *id));
+            stream.push(execute_round_one(client, *id));
         }
 
         let mut responses = vec![];
@@ -248,7 +245,7 @@ impl Frost {
             match res {
                 Ok((id, commitment, request_identifier)) => {
                     signing_package_commitments.insert(id, commitment);
-                    responses.push(Round1Response {
+                    responses.push(RoundOneResponse {
                         id,
                         commitment: commitment
                             .serialize()
@@ -263,22 +260,22 @@ impl Frost {
             }
         }
 
-        Round1Results {
+        RoundOneResults {
             responses,
             signing_package_commitments,
         }
     }
 
-    async fn execute_round_2(
+    async fn execute_round_two(
         &self,
-        responses: Vec<Round1Response>,
+        responses: Vec<RoundOneResponse>,
         tx_bytes: Vec<u8>,
     ) -> BTreeMap<Identifier, frost_ed25519::round2::SignatureShare> {
         let mut stream = futures::stream::FuturesUnordered::new();
         let request_commitments: Vec<CommitmentWithIdentifier> = responses
             .iter()
             .map(
-                |Round1Response {
+                |RoundOneResponse {
                      id,
                      commitment,
                      ..
@@ -288,7 +285,7 @@ impl Frost {
                 },
             )
             .collect();
-        for Round1Response {
+        for RoundOneResponse {
             id,
             request_identifier,
             ..
@@ -304,7 +301,7 @@ impl Frost {
                 .clone();
             let request_commitments = request_commitments.clone();
             let tx_bytes = tx_bytes.clone();
-            stream.push(execute_round_2(
+            stream.push(execute_round_two(
                 client,
                 id,
                 request_identifier,
@@ -329,10 +326,10 @@ impl Frost {
     }
 }
 
-async fn execute_round_1(
+async fn execute_round_one(
     mut client: FrostParticipantServiceClient<tonic::transport::Channel>,
     participant_id: Identifier,
-) -> eyre::Result<(Identifier, SigningCommitments, u32)> {
+) -> eyre::Result<(Identifier, round1::SigningCommitments, u32)> {
     let resp = client
         .execute_round_one(RoundOneRequest {})
         .await
@@ -350,7 +347,7 @@ async fn execute_round_1(
     Ok((participant_id, commitment, resp.request_identifier))
 }
 
-async fn execute_round_2(
+async fn execute_round_two(
     mut client: FrostParticipantServiceClient<tonic::transport::Channel>,
     participant_id: Identifier,
     request_identifier: u32,
