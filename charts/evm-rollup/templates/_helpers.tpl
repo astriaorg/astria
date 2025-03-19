@@ -10,6 +10,22 @@ Namepsace to deploy elements into.
 {{- tpl .Values.genesis.rollupName . }}
 {{- end }}
 
+{{/* verbosity based on log level */}}
+{{- define "rollup.verbosity" -}}
+{{- if eq . "silent" }}0
+{{- else if eq . "error" }}1
+{{- else if eq . "warn" }}2
+{{- else if eq . "info" }}3
+{{- else if eq . "debug" }}4
+{{- else if eq . "trace" }}5
+{{- end }}
+{{- end }}
+
+{{- define "rollup.moduleVerbosity" -}}
+{{- range $module := .Values.geth.moduleLogLevels }}{{$module.module}}={{ include "rollup.verbosity" $module.level }},
+{{- end }}
+{{- end }}
+
 {{/*
 Expand the name of the chart.
 */}}
