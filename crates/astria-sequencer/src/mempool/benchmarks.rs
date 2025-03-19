@@ -123,9 +123,10 @@ fn init_mempool<T: MempoolSize>() -> Mempool {
         for i in 0..super::REMOVAL_CACHE_SIZE {
             let hash = Sha256::digest(i.to_le_bytes()).into();
             mempool
-                .comet_bft_removal_cache
+                .inner
                 .write()
                 .await
+                .comet_bft_removal_cache
                 .add(hash, RemovalReason::Expired);
         }
     });

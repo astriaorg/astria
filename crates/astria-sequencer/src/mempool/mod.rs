@@ -1,16 +1,12 @@
 #[cfg(feature = "benchmark")]
 mod benchmarks;
+mod mempool_inner;
 mod mempool_state;
 pub(crate) mod query;
 mod transactions_container;
 
 use std::{
-    collections::{
-        HashMap,
-        HashSet,
-        VecDeque,
-    },
-    num::NonZeroUsize,
+    collections::HashMap,
     sync::Arc,
 };
 
@@ -25,158 +21,19 @@ use astria_core::{
     },
 };
 use astria_eyre::eyre::Result;
+use mempool_inner::MempoolInner;
+pub(crate) use mempool_inner::RemovalReason;
+#[cfg(feature = "benchmark")]
+pub(crate) use mempool_inner::REMOVAL_CACHE_SIZE;
 pub(crate) use mempool_state::get_account_balances;
-use tokio::{
-    sync::{
-        RwLock,
-        RwLockWriteGuard,
-    },
-    time::Duration,
-};
-use tracing::{
-    error,
-    instrument,
-    warn,
-    Level,
-};
+use tokio::sync::RwLock;
+use tracing::instrument;
 pub(crate) use transactions_container::InsertionError;
-use transactions_container::{
-    ParkedTransactions,
-    PendingTransactions,
-    TimemarkedTransaction,
-    TransactionsContainer as _,
-};
 
 use crate::{
     accounts,
     Metrics,
 };
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub(crate) enum RemovalReason {
-    Expired,
-    NonceStale,
-    LowerNonceInvalidated,
-    FailedPrepareProposal(String),
-}
-
-impl std::fmt::Display for RemovalReason {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            RemovalReason::Expired => {
-                write!(f, "transaction expired after {} seconds", TX_TTL.as_secs())
-            }
-            RemovalReason::NonceStale => write!(f, "transaction nonce is lower than current nonce"),
-            RemovalReason::LowerNonceInvalidated => write!(
-                f,
-                "previous transaction was not executed, to this transaction's nonce has become \
-                 invalid"
-            ),
-            RemovalReason::FailedPrepareProposal(reason) => {
-                write!(f, "failed `prepare_proposal`: {reason}")
-            }
-        }
-    }
-}
-
-/// How long transactions are considered valid in the mempool.
-const TX_TTL: Duration = Duration::from_secs(240);
-/// Max number of parked transactions allowed per account.
-const MAX_PARKED_TXS_PER_ACCOUNT: usize = 15;
-/// Max number of transactions to keep in the removal cache. Should be larger than the max number of
-/// transactions allowed in the cometBFT mempool.
-const REMOVAL_CACHE_SIZE: usize = 50_000;
-
-/// `RemovalCache` is used to signal to `CometBFT` that a
-/// transaction can be removed from the `CometBFT` mempool.
-///
-/// This is useful for when a transaction fails execution or when
-/// a transaction is invalidated due to mempool removal policies.
-#[derive(Clone)]
-pub(crate) struct RemovalCache {
-    cache: HashMap<[u8; 32], RemovalReason>,
-    remove_queue: VecDeque<[u8; 32]>,
-    max_size: NonZeroUsize,
-}
-
-impl RemovalCache {
-    fn new(max_size: NonZeroUsize) -> Self {
-        Self {
-            cache: HashMap::new(),
-            remove_queue: VecDeque::with_capacity(max_size.into()),
-            max_size,
-        }
-    }
-
-    /// Returns Some(RemovalReason) if the transaction is cached and
-    /// removes the entry from the cache if present.
-    fn remove(&mut self, tx_hash: [u8; 32]) -> Option<RemovalReason> {
-        self.cache.remove(&tx_hash)
-    }
-
-    /// Adds the transaction to the cache, will preserve the original
-    /// `RemovalReason` if already in the cache.
-    fn add(&mut self, tx_hash: [u8; 32], reason: RemovalReason) {
-        if self.cache.contains_key(&tx_hash) {
-            return;
-        };
-
-        if self.remove_queue.len() == usize::from(self.max_size) {
-            // This should not happen if `REMOVAL_CACHE_SIZE` is >= CometBFT's configured mempool
-            // size.
-            //
-            // Make space for the new transaction by removing the oldest transaction.
-            let removed_tx = self
-                .remove_queue
-                .pop_front()
-                .expect("cache should contain elements");
-            warn!(
-                tx_hash = %telemetry::display::hex(&removed_tx),
-                removal_cache_size = REMOVAL_CACHE_SIZE,
-                "popped transaction from appside mempool removal cache, CometBFT will not remove \
-                this transaction from its mempool - removal cache size possibly too low"
-            );
-            // Remove transaction from cache if it is present.
-            self.cache.remove(&removed_tx);
-        }
-        self.remove_queue.push_back(tx_hash);
-        self.cache.insert(tx_hash, reason);
-    }
-
-    /// Returns the removal reason for the transaction if it is present in the cache.
-    fn get(&self, tx_hash: [u8; 32]) -> Option<&RemovalReason> {
-        self.cache.get(&tx_hash)
-    }
-}
-
-struct ContainedTxLock<'a> {
-    mempool: &'a Mempool,
-    txs: RwLockWriteGuard<'a, HashSet<[u8; 32]>>,
-}
-
-impl ContainedTxLock<'_> {
-    fn add(&mut self, id: [u8; 32]) {
-        if !self.txs.insert(id) {
-            self.mempool.metrics.increment_internal_logic_error();
-            error!(
-                tx_hash = %telemetry::display::hex(&id),
-                "attempted to add transaction already tracked in mempool's tracked container, is logic \
-                error"
-            );
-        }
-    }
-
-    fn remove(&mut self, id: [u8; 32]) {
-        if !self.txs.remove(&id) {
-            self.mempool.metrics.increment_internal_logic_error();
-            error!(
-                tx_hash = %telemetry::display::hex(&id),
-                "attempted to remove transaction absent from mempool's tracked container, is logic \
-                error"
-            );
-        }
-    }
-}
 
 /// [`Mempool`] is an account-based structure for maintaining transactions for execution.
 ///
@@ -204,129 +61,13 @@ impl ContainedTxLock<'_> {
 /// - account balance aware pending queue
 #[derive(Clone)]
 pub(crate) struct Mempool {
-    pending: Arc<RwLock<PendingTransactions>>,
-    parked: Arc<RwLock<ParkedTransactions<MAX_PARKED_TXS_PER_ACCOUNT>>>,
-    comet_bft_removal_cache: Arc<RwLock<RemovalCache>>,
-    contained_txs: Arc<RwLock<HashSet<[u8; 32]>>>,
-    metrics: &'static Metrics,
+    inner: Arc<RwLock<MempoolInner>>,
 }
 
 impl Mempool {
-    #[must_use]
     pub(crate) fn new(metrics: &'static Metrics, parked_max_tx_count: usize) -> Self {
         Self {
-            pending: Arc::new(RwLock::new(PendingTransactions::new(TX_TTL))),
-            parked: Arc::new(RwLock::new(ParkedTransactions::new(
-                TX_TTL,
-                parked_max_tx_count,
-            ))),
-            comet_bft_removal_cache: Arc::new(RwLock::new(RemovalCache::new(
-                NonZeroUsize::try_from(REMOVAL_CACHE_SIZE)
-                    .expect("Removal cache cannot be zero sized"),
-            ))),
-            contained_txs: Arc::new(RwLock::new(HashSet::new())),
-            metrics,
-        }
-    }
-
-    /// Returns the number of transactions in the mempool.
-    #[must_use]
-    #[instrument(skip_all)]
-    pub(crate) async fn len(&self) -> usize {
-        self.contained_txs.read().await.len()
-    }
-
-    async fn lock_contained_txs(&self) -> ContainedTxLock<'_> {
-        ContainedTxLock {
-            mempool: self,
-            txs: self.contained_txs.write().await,
-        }
-    }
-
-    /// Inserts a transaction into the mempool and does not allow for transaction replacement.
-    /// Will return the reason for insertion failure if failure occurs.
-    #[instrument(skip_all, fields(tx_hash = %tx.id(), current_account_nonce), err(level = Level::DEBUG))]
-    pub(crate) async fn insert(
-        &self,
-        tx: Arc<Transaction>,
-        current_account_nonce: u32,
-        current_account_balances: HashMap<IbcPrefixed, u128>,
-        transaction_cost: HashMap<IbcPrefixed, u128>,
-    ) -> Result<(), InsertionError> {
-        let timemarked_tx = TimemarkedTransaction::new(tx, transaction_cost);
-        let id = timemarked_tx.id();
-        let (mut pending, mut parked) = self.acquire_both_locks().await;
-
-        // try insert into pending
-        match pending.add(
-            timemarked_tx.clone(),
-            current_account_nonce,
-            &current_account_balances,
-        ) {
-            Err(InsertionError::NonceGap | InsertionError::AccountBalanceTooLow) => {
-                // Release the lock asap.
-                drop(pending);
-                // try to add to parked queue
-                match parked.add(
-                    timemarked_tx,
-                    current_account_nonce,
-                    &current_account_balances,
-                ) {
-                    Ok(()) => {
-                        // log current size of parked
-                        self.metrics
-                            .set_transactions_in_mempool_parked(parked.len());
-
-                        // track in contained txs
-                        self.lock_contained_txs().await.add(id);
-                        Ok(())
-                    }
-                    Err(err) => Err(err),
-                }
-            }
-            error @ Err(
-                InsertionError::AlreadyPresent
-                | InsertionError::NonceTooLow
-                | InsertionError::NonceTaken
-                | InsertionError::AccountSizeLimit
-                | InsertionError::ParkedSizeLimit,
-            ) => error,
-            Ok(()) => {
-                // check parked for txs able to be promoted
-                let to_promote = parked.find_promotables(
-                    timemarked_tx.address(),
-                    timemarked_tx
-                        .nonce()
-                        .checked_add(1)
-                        .expect("failed to increment nonce in promotion"),
-                    &pending.subtract_contained_costs(
-                        timemarked_tx.address(),
-                        current_account_balances.clone(),
-                    ),
-                );
-                // promote the transactions
-                for ttx in to_promote {
-                    let tx_id = ttx.id();
-                    if let Err(error) =
-                        pending.add(ttx, current_account_nonce, &current_account_balances)
-                    {
-                        // NOTE: this branch is not expected to be hit so grabbing the lock inside
-                        // of the loop is more performant.
-                        self.lock_contained_txs().await.remove(timemarked_tx.id());
-                        error!(
-                            current_account_nonce,
-                            tx_hash = %telemetry::display::hex(&tx_id),
-                            %error,
-                            "failed to promote transaction during insertion"
-                        );
-                    }
-                }
-
-                // track in contained txs
-                self.lock_contained_txs().await.add(timemarked_tx.id());
-
-                Ok(())
-            }
+            inner: Arc::new(RwLock::new(MempoolInner::new(metrics, parked_max_tx_count))),
         }
     }
 
@@ -334,188 +75,24 @@ impl Mempool {
     /// difference between a transaction and the account's current nonce and then by the time that
     /// the transaction was first seen by the appside mempool.
     pub(crate) async fn builder_queue(&self) -> Vec<([u8; 32], Arc<Transaction>)> {
-        self.pending.read().await.builder_queue()
-    }
-
-    /// Removes the target transaction and all transactions for associated account with higher
-    /// nonces.
-    ///
-    /// This function should only be used to remove invalid/failing transactions and not executed
-    /// transactions. Executed transactions will be removed in the `run_maintenance()` function.
-    #[instrument(skip_all, fields(tx_hash = %signed_tx.id()))]
-    pub(crate) async fn remove_tx_invalid(
-        &self,
-        signed_tx: Arc<Transaction>,
-        reason: RemovalReason,
-    ) {
-        let tx_hash = signed_tx.id().get();
-        let address = *signed_tx.verification_key().address_bytes();
-
-        // Try to remove from pending.
-        let removed_txs = match self.pending.write().await.remove(signed_tx) {
-            Ok(mut removed_txs) => {
-                // Remove all of parked.
-                removed_txs.append(&mut self.parked.write().await.clear_account(&address));
-                removed_txs
-            }
-            Err(signed_tx) => {
-                // Not found in pending, try to remove from parked and if not found, just return.
-                match self.parked.write().await.remove(signed_tx) {
-                    Ok(removed_txs) => removed_txs,
-                    Err(_) => return,
-                }
-            }
-        };
-
-        // Add all removed to removal cache for cometbft.
-        let mut removal_cache = self.comet_bft_removal_cache.write().await;
-
-        // Add the original tx first to preserve its reason for removal. The second
-        // attempt to add it inside the loop below will be a no-op.
-        removal_cache.add(tx_hash, reason);
-        let mut contained_lock = self.lock_contained_txs().await;
-        for removed_tx in removed_txs {
-            contained_lock.remove(removed_tx);
-            removal_cache.add(removed_tx, RemovalReason::LowerNonceInvalidated);
-        }
+        self.inner.read().await.pending.builder_queue()
     }
 
     /// Checks if a transaction was flagged to be removed from the `CometBFT` mempool. Will
     /// remove the transaction from the cache if it is present.
     #[instrument(skip_all, fields(tx_hash = %hex::encode(tx_hash)))]
     pub(crate) async fn check_removed_comet_bft(&self, tx_hash: [u8; 32]) -> Option<RemovalReason> {
-        self.comet_bft_removal_cache.write().await.remove(tx_hash)
+        self.inner
+            .write()
+            .await
+            .comet_bft_removal_cache
+            .remove(tx_hash)
     }
 
     /// Returns true if the transaction is tracked as inserted.
     #[instrument(skip_all, fields(tx_hash = %hex::encode(tx_hash)))]
     pub(crate) async fn is_tracked(&self, tx_hash: [u8; 32]) -> bool {
-        self.contained_txs.read().await.contains(&tx_hash)
-    }
-
-    /// Updates stored transactions to reflect current blockchain state. Will remove transactions
-    /// that have stale nonces or are expired. Will also shift transation between pending and
-    /// parked to relfect changes in account balances.
-    ///
-    /// All removed transactions are added to the CometBFT removal cache to aid with CometBFT
-    /// mempool maintenance.
-    #[instrument(skip_all)]
-    pub(crate) async fn run_maintenance<S: accounts::StateReadExt>(&self, state: &S, recost: bool) {
-        let (mut pending, mut parked) = self.acquire_both_locks().await;
-        let mut removed_txs = Vec::<([u8; 32], RemovalReason)>::new();
-
-        // To clean we need to:
-        // 1.) remove stale and expired transactions
-        // 2.) recost remaining transactions if needed
-        // 3.) check if we have transactions in pending which need to be demoted due
-        //     to balance decreases
-        // 4.) if there were no demotions, check if parked has transactions we can
-        //     promote
-
-        let addresses: HashSet<[u8; 20]> = pending
-            .addresses()
-            .chain(parked.addresses())
-            .copied()
-            .collect();
-
-        // TODO: Make this concurrent, all account state is separate with IO bound disk reads.
-        for address in &addresses {
-            // get current account state
-            let current_nonce = match state.get_account_nonce(address).await {
-                Ok(res) => res,
-                Err(error) => {
-                    error!(
-                        address = %telemetry::display::base64(&address),
-                        "failed to fetch account nonce when cleaning accounts: {error:#}"
-                    );
-                    continue;
-                }
-            };
-            let current_balances = match get_account_balances(state, address).await {
-                Ok(res) => res,
-                Err(error) => {
-                    error!(
-                        address = %telemetry::display::base64(address),
-                        "failed to fetch account balances when cleaning accounts: {error:#}"
-                    );
-                    continue;
-                }
-            };
-
-            // clean pending and parked of stale and expired
-            removed_txs.extend(pending.clean_account_stale_expired(address, current_nonce));
-            if recost {
-                pending.recost_transactions(address, state).await;
-            }
-
-            removed_txs.extend(parked.clean_account_stale_expired(address, current_nonce));
-            if recost {
-                parked.recost_transactions(address, state).await;
-            }
-
-            // get transactions to demote from pending
-            let demotion_txs = pending.find_demotables(address, &current_balances);
-
-            if demotion_txs.is_empty() {
-                // nothing to demote, check for transactions to promote
-                let pending_nonce = pending
-                    .pending_nonce(address)
-                    .map_or(current_nonce, |nonce| nonce);
-
-                let remaining_balances =
-                    pending.subtract_contained_costs(address, current_balances.clone());
-                let promotion_txs =
-                    parked.find_promotables(address, pending_nonce, &remaining_balances);
-
-                for tx in promotion_txs {
-                    let tx_id = tx.id();
-                    if let Err(error) = pending.add(tx, current_nonce, &current_balances) {
-                        // NOTE: this shouldn't happen. Promotions should never fail. This also
-                        // means grabbing the lock inside the loop is more
-                        // performant.
-                        self.lock_contained_txs().await.remove(tx_id);
-                        self.metrics.increment_internal_logic_error();
-                        error!(
-                            address = %telemetry::display::base64(&address),
-                            current_nonce,
-                            tx_hash = %telemetry::display::hex(&tx_id),
-                            %error,
-                            "failed to promote transaction during maintenance"
-                        );
-                    }
-                }
-            } else {
-                // add demoted transactions to parked
-                for tx in demotion_txs {
-                    let tx_id = tx.id();
-                    if let Err(error) = parked.add(tx, current_nonce, &current_balances) {
-                        // NOTE: this shouldn't happen normally but could on the edge case of
-                        // the parked queue being full for the account or globally.
-                        // Grabbing the lock inside the loop should be more performant.
-                        self.lock_contained_txs().await.remove(tx_id);
-                        self.metrics.increment_internal_logic_error();
-                        error!(
-                            address = %telemetry::display::base64(&address),
-                            current_nonce,
-                            tx_hash = %telemetry::display::hex(&tx_id),
-                            %error,
-                            "failed to demote transaction during maintenance"
-                        );
-                    }
-                }
-            }
-        }
-        // Release the locks asap.
-        drop(parked);
-        drop(pending);
-
-        // add to removal cache for cometbft and remove from the tracked set
-        let mut removal_cache = self.comet_bft_removal_cache.write().await;
-        let mut contained_lock = self.lock_contained_txs().await;
-        for (tx_hash, reason) in removed_txs {
-            removal_cache.add(tx_hash, reason);
-            contained_lock.remove(tx_hash);
-        }
+        self.inner.read().await.contained_txs.contains(&tx_hash)
     }
 
     /// Returns the highest pending nonce for the given address if it exists in the mempool. Note:
@@ -524,41 +101,82 @@ impl Mempool {
     /// returned.
     #[instrument(skip_all, fields(address = %telemetry::display::base64(address)))]
     pub(crate) async fn pending_nonce(&self, address: &[u8; 20]) -> Option<u32> {
-        self.pending.read().await.pending_nonce(address)
+        self.inner.read().await.pending.pending_nonce(address)
     }
 
-    async fn acquire_both_locks(
+    /// Returns the number of transactions in the mempool.
+    #[must_use]
+    #[instrument(skip_all)]
+    pub(crate) async fn len(&self) -> usize {
+        self.inner.read().await.contained_txs.len()
+    }
+
+    /// Inserts a transaction into the mempool and does not allow for transaction replacement.
+    /// Will return the reason for insertion failure if failure occurs.
+    #[instrument(skip_all)]
+    pub(crate) async fn insert(
         &self,
-    ) -> (
-        RwLockWriteGuard<PendingTransactions>,
-        RwLockWriteGuard<ParkedTransactions<MAX_PARKED_TXS_PER_ACCOUNT>>,
+        tx: Arc<Transaction>,
+        current_account_nonce: u32,
+        current_account_balances: HashMap<IbcPrefixed, u128>,
+        transaction_cost: HashMap<IbcPrefixed, u128>,
+    ) -> Result<(), InsertionError> {
+        self.inner
+            .write()
+            .await
+            .insert(
+                tx,
+                current_account_nonce,
+                current_account_balances,
+                transaction_cost,
+            )
+            .await
+    }
+
+    /// Removes the target transaction and all transactions for associated account with higher
+    /// nonces.
+    ///
+    /// This function should only be used to remove invalid/failing transactions and not executed
+    /// transactions. Executed transactions will be removed in the `run_maintenance()` function.
+    #[instrument(skip_all)]
+    pub(crate) async fn remove_tx_invalid(
+        &self,
+        signed_tx: Arc<Transaction>,
+        reason: RemovalReason,
     ) {
-        let pending = self.pending.write().await;
-        let parked = self.parked.write().await;
-        (pending, parked)
+        self.inner
+            .write()
+            .await
+            .remove_tx_invalid(signed_tx, reason)
+            .await;
+    }
+
+    /// Updates stored transactions to reflect current blockchain state. Will remove transactions
+    /// that have stale nonces or are expired
+    #[instrument(skip_all)]
+    pub(crate) async fn run_maintenance<S: accounts::StateReadExt>(&self, state: &S, recost: bool) {
+        self.inner
+            .write()
+            .await
+            .run_maintenance(state, recost)
+            .await;
     }
 
     /// Returns a given transaction's status, as well as an optional reason for removal if the
     /// transaction is in the CometBFT removal cache.
-    pub(in crate::mempool) async fn get_transaction_status(
+    #[instrument(skip_all)]
+    pub(crate) async fn get_transaction_status(
         &self,
         tx_id: &TransactionId,
     ) -> (TransactionStatus, Option<String>) {
-        if self.pending.read().await.contains(tx_id) {
-            return (TransactionStatus::Pending, None);
-        }
-        if self.parked.read().await.contains(tx_id) {
-            return (TransactionStatus::Parked, None);
-        }
-        if let Some(reason) = self.comet_bft_removal_cache.read().await.get(tx_id.get()) {
-            return (TransactionStatus::RemovalCache, Some(reason.to_string()));
-        }
-        (TransactionStatus::NotFound, None)
+        self.inner.read().await.get_transaction_status(tx_id)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroUsize;
+
     use telemetry::Metrics;
 
     use super::*;
@@ -580,6 +198,7 @@ mod tests {
             },
         },
         benchmark_and_test_utils::astria_address_from_hex_string,
+        mempool::mempool_inner::RemovalCache,
     };
 
     #[tokio::test]

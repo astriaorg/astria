@@ -1,8 +1,5 @@
 use astria_core::{
-    primitive::v1::{
-        TransactionId,
-        TRANSACTION_ID_LEN,
-    },
+    primitive::v1::TransactionId,
     protocol::{
         abci::AbciErrorCode,
         transaction::v1::TransactionStatusResponse,
@@ -94,26 +91,20 @@ fn preprocess_request(params: &[(String, String)]) -> Result<TransactionId, resp
         });
     };
 
-    // Support both "0x" prefixed and unprefixed transaction hashes
-    let tx_id = tx_id.trim_start_matches("0x");
-
-    let tx_id: [u8; TRANSACTION_ID_LEN] =
-        hex::decode(tx_id)
-            .unwrap()
-            .try_into()
-            .map_err(|err| response::Query {
-                code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
-                info: "failed to parse `tx_id` into type `[u8; 32]`".into(),
-                log: format!("{err:?}"),
-                ..response::Query::default()
-            })?;
-    Ok(TransactionId::new(tx_id))
+    let tx_id = tx_id.parse().map_err(|err| response::Query {
+        code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
+        info: "failed to parse `tx_id` into type `TransactionId`".into(),
+        log: format!("{err:?}"),
+        ..response::Query::default()
+    })?;
+    Ok(tx_id)
 }
 
 #[cfg(test)]
 mod tests {
     use astria_core::{
         generated::astria::protocol::transaction::v1::TransactionStatusResponse as RawTransactionStatusResponse,
+        primitive::v1::TRANSACTION_ID_LEN,
         protocol::transaction::v1::TransactionStatus,
     };
     use telemetry::Metrics as _;

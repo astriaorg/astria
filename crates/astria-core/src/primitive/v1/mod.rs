@@ -1,6 +1,8 @@
 pub mod asset;
 pub mod u128;
 
+use std::str::FromStr;
+
 pub use astria_core_address::{
     Address,
     Bech32,
@@ -344,16 +346,7 @@ impl TransactionId {
     /// Returns an error if the transaction ID buffer was not 32 bytes long or if it was not hex
     /// encoded.
     pub fn try_from_raw_ref(raw: &raw::TransactionId) -> Result<Self, TransactionIdError> {
-        use hex::FromHex as _;
-
-        let inner = <[u8; TRANSACTION_ID_LEN]>::from_hex(&raw.inner).map_err(|err| {
-            TransactionIdError(TransactionIdErrorKind::HexDecode {
-                source: err,
-            })
-        })?;
-        Ok(Self {
-            inner,
-        })
+        raw.inner.parse()
     }
 }
 
@@ -368,6 +361,23 @@ impl TryFrom<raw::TransactionId> for TransactionId {
 
     fn try_from(value: raw::TransactionId) -> Result<Self, Self::Error> {
         Self::try_from_raw_ref(&value)
+    }
+}
+
+impl FromStr for TransactionId {
+    type Err = TransactionIdError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // Support both "0x" prefixed and unprefixed transaction hashes
+        let s = s.trim_start_matches("0x");
+        let inner = hex::decode(s).map_err(|err| {
+            TransactionIdError(TransactionIdErrorKind::HexDecode {
+                source: err,
+            })
+        })?;
+        Ok(Self {
+            inner: inner.try_into().expect("expected 32 bytes"),
+        })
     }
 }
 

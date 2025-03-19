@@ -4,6 +4,7 @@ use std::{
         hash_map,
         BTreeMap,
         HashMap,
+        HashSet,
     },
     fmt,
     mem,
@@ -37,6 +38,7 @@ use super::RemovalReason;
 use crate::{
     accounts,
     transaction,
+    Metrics,
 };
 
 /// `TimemarkedTransaction` is a wrapper around a signed transaction used to keep track of when that
@@ -874,6 +876,51 @@ impl<const MAX_PARKED_TXS_PER_ACCOUNT: usize> ParkedTransactions<MAX_PARKED_TXS_
         }
 
         removed.collect()
+    }
+}
+
+#[derive(Clone)]
+pub(in crate::mempool) struct ContainedTxs {
+    inner: HashSet<[u8; 32]>,
+    metrics: &'static Metrics,
+}
+
+impl ContainedTxs {
+    pub(in crate::mempool) fn new(metrics: &'static Metrics) -> Self {
+        Self {
+            inner: HashSet::new(),
+            metrics,
+        }
+    }
+
+    pub(in crate::mempool) fn add(&mut self, id: [u8; 32]) {
+        if !self.inner.insert(id) {
+            self.metrics.increment_internal_logic_error();
+            error!(
+                tx_hash = %telemetry::display::hex(&id),
+                "attempted to add transaction already tracked in mempool's tracked container, is logic \
+                error"
+            );
+        }
+    }
+
+    pub(in crate::mempool) fn remove(&mut self, id: [u8; 32]) {
+        if !self.inner.remove(&id) {
+            self.metrics.increment_internal_logic_error();
+            error!(
+                tx_hash = %telemetry::display::hex(&id),
+                "attempted to remove transaction absent from mempool's tracked container, is logic \
+                error"
+            );
+        }
+    }
+
+    pub(in crate::mempool) fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    pub(in crate::mempool) fn contains(&self, id: &[u8; 32]) -> bool {
+        self.inner.contains(id)
     }
 }
 
