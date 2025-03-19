@@ -38,22 +38,53 @@ use prost::{
     Message as _,
     Name as _,
 };
+use tonic::transport::Uri;
 
 pub(crate) struct Builder {
     pub(super) frost_min_signers: usize,
-    pub(super) public_key_package: PublicKeyPackage,
+    pub(super) frost_participant_endpoints: String,
+    pub(super) frost_public_key_package_path: String,
     pub(super) sequencer_address_prefix: String,
-    pub(super) participant_clients: Vec<FrostParticipantServiceClient<tonic::transport::Channel>>,
 }
 
 impl Builder {
     pub(super) fn try_build(self) -> eyre::Result<FrostSigner> {
+        fn read_frost_key<P: AsRef<std::path::Path>>(
+            path: P,
+        ) -> astria_eyre::eyre::Result<PublicKeyPackage> {
+            let key_str = std::fs::read_to_string(path)
+                .wrap_err("failed to read frost public key package")?;
+            serde_json::from_str::<PublicKeyPackage>(&key_str)
+                .wrap_err("failed to deserialize public key package")
+        }
+
         let Self {
             frost_min_signers: min_signers,
-            public_key_package,
+            frost_participant_endpoints,
+            frost_public_key_package_path,
             sequencer_address_prefix,
-            participant_clients,
         } = self;
+        let frost_participant_endpoints: Vec<Uri> = frost_participant_endpoints
+            .split(',')
+            .map(str::to_string)
+            .map(|s| s.parse().wrap_err("failed to parse participant endpoint"))
+            .collect::<eyre::Result<Vec<Uri>>>()?;
+        let participant_clients: Vec<_> = frost_participant_endpoints
+            .into_iter()
+            .map(|endpoint| {
+                FrostParticipantServiceClient::new(
+                    tonic::transport::Endpoint::from(endpoint).connect_lazy(),
+                )
+            })
+            .collect();
+
+        let public_key_package =
+            read_frost_key(&frost_public_key_package_path).wrap_err_with(|| {
+                format!(
+                    "failed reading frost public key package from file \
+                     `{frost_public_key_package_path}`"
+                )
+            })?;
 
         // XXX: VerifiyingKey<Ed25519Sha512>::serialize delegates to
         // SerializableElement<Ed25519Sha512>::serialize, which then

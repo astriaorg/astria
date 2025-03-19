@@ -1,13 +1,10 @@
 mod frost;
 mod sequencer_key;
 
-use astria_core::generated::astria::signer::v1::frost_participant_service_client::FrostParticipantServiceClient;
 use astria_eyre::{
     eyre,
     eyre::WrapErr as _,
 };
-use frost_ed25519::keys::PublicKeyPackage;
-use http::Uri;
 
 pub(crate) enum Signer {
     Single(Box<sequencer_key::SequencerKey>),
@@ -65,25 +62,11 @@ impl Builder {
                     })?,
             ))
         } else {
-            let public_key_package = read_frost_key(frost_public_key_package_path)?;
-            let frost_participant_endpoints: Vec<Uri> = frost_participant_endpoints
-                .split(',')
-                .map(str::to_string)
-                .map(|s| s.parse().wrap_err("failed to parse participant endpoint"))
-                .collect::<eyre::Result<Vec<Uri>>>()?;
-            let participant_clients = frost_participant_endpoints
-                .into_iter()
-                .map(|endpoint| {
-                    FrostParticipantServiceClient::new(
-                        tonic::transport::Endpoint::from(endpoint).connect_lazy(),
-                    )
-                })
-                .collect();
             Signer::Threshold(
                 frost::Builder {
                     frost_min_signers,
-                    public_key_package,
-                    participant_clients,
+                    frost_participant_endpoints,
+                    frost_public_key_package_path,
                     sequencer_address_prefix,
                 }
                 .try_build()
@@ -92,13 +75,4 @@ impl Builder {
         };
         Ok(signer)
     }
-}
-
-fn read_frost_key<P: AsRef<std::path::Path>>(
-    path: P,
-) -> astria_eyre::eyre::Result<PublicKeyPackage> {
-    let key_str =
-        std::fs::read_to_string(path).wrap_err("failed to read frost public key package")?;
-    serde_json::from_str::<PublicKeyPackage>(&key_str)
-        .wrap_err("failed to deserialize public key package")
 }
