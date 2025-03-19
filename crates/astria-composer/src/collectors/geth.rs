@@ -316,7 +316,7 @@ async fn connect_to_geth_node(url: String) -> eyre::Result<Provider<Ws>> {
         .on_retry(
             |attempt, next_delay: Option<Duration>, error: &ProviderError| {
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     attempt,
