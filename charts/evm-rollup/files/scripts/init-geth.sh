@@ -8,7 +8,7 @@ if [ ! -d "$data_dir/" ]; then
   cp /scripts/geth-genesis.json $home_dir/genesis.json
 
   exec geth \
-    {{- range $arg := .Values.config.geth.flags -}}
+    {{- range $arg := .Values.geth.flags -}}
     {{- $noCondition := not (hasKey $arg "condition") }}
     {{- if or ($noCondition) (eq (tpl $arg.condition $) "true") }}
     --{{ $arg.name }}{{ if $arg.value }}={{ tpl $arg.value $ }}{{ end }} \
@@ -21,7 +21,7 @@ elif ! cmp -s "/scripts/geth-genesis.json" "$home_dir/genesis.json"; then
   cp /scripts/geth-genesis.json $home_dir/genesis.json
 
   exec geth --datadir "$data_dir/" init $home_dir/genesis.json
-elif [ "{{ .Values.config.geth.snapshot.restore.enabled }}" = "true" ]; then
+elif [ "{{ .Values.geth.snapshot.restore.enabled }}" = "true" ]; then
   echo "Snapshot restore enabled, running geth init..."
 
   exec geth --datadir "$data_dir/" init $home_dir/genesis.json
