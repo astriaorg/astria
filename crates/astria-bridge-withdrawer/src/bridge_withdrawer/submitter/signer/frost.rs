@@ -39,7 +39,7 @@ use prost::{
     Name as _,
 };
 
-pub(crate) struct Builder {
+pub(super) struct Builder {
     pub(super) frost_min_signers: usize,
     pub(super) frost_participant_endpoints: crate::config::FrostParticipantEndpoints,
     pub(super) frost_public_key_package_path: String,
@@ -125,7 +125,7 @@ impl Builder {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct FrostSigner {
+pub(super) struct FrostSigner {
     min_signers: usize,
     public_key_package: PublicKeyPackage,
     address: Address,
@@ -135,7 +135,7 @@ pub(crate) struct FrostSigner {
 }
 
 impl FrostSigner {
-    pub(crate) async fn initialize_participant_clients(&mut self) -> eyre::Result<()> {
+    pub(super) async fn initialize_participant_clients(&mut self) -> eyre::Result<()> {
         use astria_core::generated::astria::signer::v1::GetVerifyingShareRequest;
         use frost_ed25519::keys::VerifyingShare;
 
@@ -217,7 +217,7 @@ impl FrostSigner {
         Ok(transaction)
     }
 
-    pub(crate) fn address(&self) -> &Address {
+    pub(super) fn address(&self) -> &Address {
         &self.address
     }
 }

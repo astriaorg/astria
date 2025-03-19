@@ -76,35 +76,31 @@ pub(super) struct Submitter {
 }
 
 impl Submitter {
-    pub(super) async fn run(mut self) -> eyre::Result<()> {
-        if let Signer::Threshold(frost_signer) = &mut self.signer {
-            select! {
-                () = self.shutdown_token.cancelled() => {
-                    report_exit(Ok("submitter received shutdown signal while waiting for startup"));
-                    return Ok(());
-                }
-
-                res = frost_signer.initialize_participant_clients() => {
-                    if let Err(e) = res {
-                        return Err(e.wrap_err("failed to initialize participant clients"));
-                    }
-                }
-            };
+    pub(super) async fn initialize(&mut self) -> eyre::Result<String> {
+        let (startup_info, ()) = async move {
+            tokio::try_join!(self.startup_handle.get_info(), self.signer.initialize(),)
         }
+        .await?;
+        Ok(startup_info.chain_id)
+    }
 
-        let sequencer_chain_id = select! {
-            () = self.shutdown_token.cancelled() => {
-                report_exit(Ok("submitter received shutdown signal while waiting for startup"));
-                return Ok(());
-            }
-
-            startup_info = self.startup_handle.get_info() => {
-                let startup::Info { chain_id, .. } = startup_info.wrap_err("submitter failed to get startup info")?;
-
-                self.state.set_submitter_ready();
-                chain_id
-            }
+    pub(super) async fn run(mut self) -> eyre::Result<()> {
+        let sequencer_chain_id = if let Some(init_result) = self
+            .shutdown_token
+            .clone()
+            .run_until_cancelled(self.initialize())
+            .await
+        {
+            init_result.wrap_err(
+                "failed initializing task for submitting transactions to the Astria network",
+            )?
+        } else {
+            report_exit(Ok(
+                "submitter received shutdown signal while waiting for startup"
+            ));
+            return Ok(());
         };
+
         self.state.set_submitter_ready();
 
         let reason = loop {
