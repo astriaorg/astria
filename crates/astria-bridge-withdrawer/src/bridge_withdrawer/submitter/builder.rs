@@ -52,7 +52,7 @@ pub(crate) struct Builder {
     pub(crate) no_frost_threshold_signing: bool,
     pub(crate) frost_min_signers: usize,
     pub(crate) frost_public_key_package_path: String,
-    pub(crate) frost_participant_endpoints: String,
+    pub(crate) frost_participant_endpoints: crate::config::FrostParticipantEndpoints,
     pub(crate) sequencer_key_path: String,
     pub(crate) sequencer_address_prefix: String,
     pub(crate) state: Arc<State>,

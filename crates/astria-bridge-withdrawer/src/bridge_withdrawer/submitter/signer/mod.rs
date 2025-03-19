@@ -34,7 +34,7 @@ pub(super) struct Builder {
     pub(super) no_frost_threshold_signing: bool,
     pub(super) frost_min_signers: usize,
     pub(super) frost_public_key_package_path: String,
-    pub(super) frost_participant_endpoints: String,
+    pub(super) frost_participant_endpoints: crate::config::FrostParticipantEndpoints,
     pub(super) sequencer_key_path: String,
     pub(super) sequencer_address_prefix: String,
 }

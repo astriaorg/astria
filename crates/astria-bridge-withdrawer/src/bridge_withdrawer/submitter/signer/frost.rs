@@ -38,11 +38,10 @@ use prost::{
     Message as _,
     Name as _,
 };
-use tonic::transport::Uri;
 
 pub(crate) struct Builder {
     pub(super) frost_min_signers: usize,
-    pub(super) frost_participant_endpoints: String,
+    pub(super) frost_participant_endpoints: crate::config::FrostParticipantEndpoints,
     pub(super) frost_public_key_package_path: String,
     pub(super) sequencer_address_prefix: String,
 }
@@ -64,11 +63,6 @@ impl Builder {
             frost_public_key_package_path,
             sequencer_address_prefix,
         } = self;
-        let frost_participant_endpoints: Vec<Uri> = frost_participant_endpoints
-            .split(',')
-            .map(str::to_string)
-            .map(|s| s.parse().wrap_err("failed to parse participant endpoint"))
-            .collect::<eyre::Result<Vec<Uri>>>()?;
         let participant_clients: Vec<_> = frost_participant_endpoints
             .into_iter()
             .map(|endpoint| {
@@ -91,7 +85,7 @@ impl Builder {
         // delegates to [`Ed25519ScalarField::serialize`], which just
         // yields a [u8; 32].
         //
-        // [`VerifyingKey::serialize`] itself turns it into a vec.
+        // [`VerifyingKey::serialize`] itself turns it into a Vec<u8>.
         //
         // [`Ed25519ScalarField`]: https://docs.rs/frost-ed25519/2.1.0/src/frost_ed25519/lib.rs.html#68-70
         // [`VerifyingKey::serialize`]:  https://docs.rs/frost-core/2.1.0/src/frost_core/serialization.rs.html#22-26

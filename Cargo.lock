@@ -571,6 +571,7 @@ dependencies = [
  "humantime",
  "hyper 0.14.32",
  "ibc-types",
+ "itertools 0.12.1",
  "pbjson-types",
  "pin-project-lite",
  "prost",
