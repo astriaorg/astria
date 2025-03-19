@@ -66,6 +66,14 @@ impl Builder {
             frost_public_key_package_path,
             sequencer_address_prefix,
         } = self;
+
+        ensure!(
+            frost_participant_endpoints.len() >= min_signers,
+            "not enough participant clients; need at least `{min_signers}`, but only `{}` were \
+             provided",
+            frost_participant_endpoints.len(),
+        );
+
         let participant_clients: Vec<_> = frost_participant_endpoints
             .into_iter()
             .map(|endpoint| {
@@ -111,12 +119,6 @@ impl Builder {
                      `{sequencer_address_prefix}`"
                 )
             })?;
-
-        ensure!(
-            participant_clients.len() == min_signers,
-            "not enough participant clients; need at least {min_signers}"
-        );
-
         Ok(Frost {
             min_signers,
             public_key_package,

@@ -74,6 +74,12 @@ pub struct FrostParticipantEndpoints {
     inner: Vec<tonic::transport::Uri>,
 }
 
+impl FrostParticipantEndpoints {
+    pub(crate) fn len(&self) -> usize {
+        self.inner.len()
+    }
+}
+
 impl IntoIterator for FrostParticipantEndpoints {
     type IntoIter = std::vec::IntoIter<Self::Item>;
     type Item = tonic::transport::Uri;
