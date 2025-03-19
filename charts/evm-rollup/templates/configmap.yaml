@@ -4,22 +4,22 @@ metadata:
   name: {{ include "rollup.name" . }}-conductor-env
   namespace: {{ include "rollup.namespace" . }}
 data:
-  ASTRIA_CONDUCTOR_LOG: "astria_conductor={{ .Values.config.logLevel }}"
-  ASTRIA_CONDUCTOR_CELESTIA_NODE_HTTP_URL: "{{ .Values.config.celestia.rpc }}"
-  ASTRIA_CONDUCTOR_CELESTIA_BEARER_TOKEN: "{{ .Values.config.celestia.token }}"
-  ASTRIA_CONDUCTOR_CELESTIA_BLOCK_TIME_MS: "{{ .Values.config.conductor.celestiaBlockTimeMs }}"
+  ASTRIA_CONDUCTOR_LOG: "{{ .Values.conductor.logLevel }}"
+  ASTRIA_CONDUCTOR_CELESTIA_NODE_HTTP_URL: "{{ .Values.conductor.celestiaRpc }}"
+  ASTRIA_CONDUCTOR_CELESTIA_BEARER_TOKEN: "{{ .Values.conductor.celestiaToken }}"
+  ASTRIA_CONDUCTOR_CELESTIA_BLOCK_TIME_MS: "{{ .Values.conductor.celestiaBlockTimeMs }}"
   ASTRIA_CONDUCTOR_EXECUTION_RPC_URL: "http://127.0.0.1:{{ .Values.ports.executionGRPC }}"
-  ASTRIA_CONDUCTOR_EXECUTION_COMMIT_LEVEL: "{{ .Values.config.conductor.executionCommitLevel }}"
-  ASTRIA_CONDUCTOR_SEQUENCER_GRPC_URL: "{{ tpl .Values.config.conductor.sequencerGrpc . }}"
-  ASTRIA_CONDUCTOR_SEQUENCER_COMETBFT_URL: "{{ tpl .Values.config.conductor.sequencerRpc . }}"
-  ASTRIA_CONDUCTOR_SEQUENCER_BLOCK_TIME_MS: "{{ .Values.config.conductor.sequencerBlockTimeMs }}"
+  ASTRIA_CONDUCTOR_EXECUTION_COMMIT_LEVEL: "{{ .Values.conductor.executionCommitLevel }}"
+  ASTRIA_CONDUCTOR_SEQUENCER_GRPC_URL: "{{ tpl .Values.conductor.sequencerGrpc . }}"
+  ASTRIA_CONDUCTOR_SEQUENCER_COMETBFT_URL: "{{ tpl .Values.conductor.sequencerRpc . }}"
+  ASTRIA_CONDUCTOR_SEQUENCER_BLOCK_TIME_MS: "{{ .Values.conductor.sequencerBlockTimeMs }}"
   ASTRIA_CONDUCTOR_NO_METRICS: "{{ not .Values.metrics.enabled }}"
   ASTRIA_CONDUCTOR_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.conductorMetrics }}"
-  ASTRIA_CONDUCTOR_SEQUENCER_REQUESTS_PER_SECOND: "{{ .Values.config.conductor.sequencerRequestsPerSecond }}"
+  ASTRIA_CONDUCTOR_SEQUENCER_REQUESTS_PER_SECOND: "{{ .Values.conductor.sequencerRequestsPerSecond }}"
   ASTRIA_CONDUCTOR_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
   NO_COLOR: "{{ .Values.global.useTTY }}"
   ASTRIA_CONDUCTOR_NO_OTEL: "{{ not .Values.otel.enabled }}"
-  ASTRIA_CONDUCTOR_NO_CELESTIA_AUTH: "{{ not .Values.config.celestia.token }}"
+  ASTRIA_CONDUCTOR_NO_CELESTIA_AUTH: "{{ not .Values.conductor.celestiaToken }}"
   OTEL_EXPORTER_OTLP_ENDPOINT: "{{ tpl .Values.otel.endpoint . }}"
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "{{ tpl .Values.otel.tracesEndpoint . }}"
   OTEL_EXPORTER_OTLP_TRACES_TIMEOUT: "{{ tpl .Values.otel.tracesTimeout . }}"
@@ -48,24 +48,24 @@ metadata:
   namespace: {{ include "rollup.namespace" .  }}
 data:
   geth-genesis.json: |
-    {{- tpl (.Files.Get "files/genesis/geth-genesis.json") $ | nindent 4 }}
+    {{- tpl (.Files.Get (include "rollup.genesis-file" $)) $ | nindent 4 }}
   init-geth.sh: |
     {{- tpl (.Files.Get "files/scripts/init-geth.sh") $ | nindent 4 }}
-  {{- if .Values.config.geth.snapshot.create.enabled }}
+  {{- if .Values.geth.snapshot.create.enabled }}
   create-snapshot.sh: |
     {{- tpl (.Files.Get "files/scripts/create-snapshot.sh") $ | nindent 4 }}
   {{- end }}
-  {{- if .Values.config.geth.snapshot.restore.enabled }}
+  {{- if .Values.geth.snapshot.restore.enabled }}
   restore-snapshot.sh: |
     {{- tpl (.Files.Get "files/scripts/restore-snapshot.sh") $ | nindent 4 }}
   {{- end }}
 ---
 {{- if or
   (and
-    .Values.config.geth.snapshot.create.enabled
-    .Values.config.geth.snapshot.create.storage.upload.enabled
+    .Values.geth.snapshot.create.enabled
+    .Values.geth.snapshot.create.storage.upload.enabled
   )
-  (.Values.config.geth.snapshot.restore.enabled)
+  (.Values.geth.snapshot.restore.enabled)
 }}
 {{- if not .Values.secretProvider.enabled }}
 apiVersion: v1
@@ -84,3 +84,4 @@ data:
 ---
 {{- end }}
 {{- end }}
+

@@ -17,7 +17,7 @@ spec:
         app: {{ include "rollup.appName" . }}
     spec:
       initContainers:
-        {{- if .Values.config.geth.snapshot.restore.enabled }}
+        {{- if .Values.geth.snapshot.restore.enabled }}
         - name: restore-snapshot
           image: {{ .Values.images.snapshot.repo }}:{{ .Values.images.snapshot.tag }}
           imagePullPolicy: {{ .Values.images.snapshot.pullPolicy }}
@@ -26,7 +26,7 @@ spec:
             - configMapRef:
                 name: {{ include "rollup.name" . }}-geth-env
           volumeMounts:
-            {{- if .Values.config.geth.snapshot.restore.enabled }}
+            {{- if .Values.geth.snapshot.restore.enabled }}
             - mountPath: /root/.config/rclone/
               name: {{ include "rollup.name" . }}-rclone-config-volume
             {{- end }}
@@ -36,7 +36,7 @@ spec:
               name: {{ include "rollup.name" $ }}-rollup-shared-storage-vol
               subPath: {{ include "rollup.name" . }}/executor
         {{- end }}
-        {{- if .Values.config.geth.purgeMempool }}
+        {{- if .Values.geth.purgeMempool }}
         - name: purge-mempool
           image: {{ include "rollup.image" . }}
           imagePullPolicy: {{ .Values.images.geth.pullPolicy }}
@@ -66,13 +66,13 @@ spec:
         - name: geth
           command: [ "geth" ]
           args:
-            {{- range $arg := .Values.config.geth.flags }}
+            - --networkid={{ include "rollup.networkId" . }}
+            {{- range $name, $arg := .Values.geth.flags }}
             {{- $noCondition := not (hasKey $arg "condition") }}
             {{- if or ($noCondition) (eq (tpl $arg.condition $) "true") }}
-            - --{{ $arg.name }}{{ if $arg.value }}={{ tpl $arg.value $ }}{{ end }}
+            - --{{ $name }}{{ if $arg.value }}={{ tpl $arg.value $ }}{{ end }}
             {{- end }}
             {{- end }}
-            - --verbosity={{ printf "%s" (include "rollup.logLevelNum" .) }}
           image: {{ include "rollup.image" . }}
           imagePullPolicy: {{ .Values.images.geth.pullPolicy }}
           volumeMounts:
@@ -112,7 +112,7 @@ spec:
               name: conductor-metr
           {{- end }}
       volumes:
-        {{- if .Values.config.geth.snapshot.restore.enabled }}
+        {{- if .Values.geth.snapshot.restore.enabled }}
         - name: {{ include "rollup.name" . }}-rclone-config-volume
           {{- if .Values.secretProvider.enabled }}
           csi:

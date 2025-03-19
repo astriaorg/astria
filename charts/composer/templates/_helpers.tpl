@@ -31,7 +31,16 @@ Single entry of rollup names
 */}}
 {{- define "composer.rollupDefinition" }}
 {{ .name }}::{{ .wsRpc }}
-{{- end}}
+{{- end }}
+
+{{- define "composer.rollupType" }}
+{{- $rollupName := (include "composer.rollupName" . ) -}}
+{{- if eq $rollupName "flame" -}}flame-mainnet
+{{- else if eq $rollupName "flame-dawn-1" -}}flame-testnet
+{{- else if eq $rollupName "flame-dusk-11"}}flame-devnet
+{{- else -}}custom
+{{- end -}}
+{{- end }}
 
 {{/*
 Rollup config string
