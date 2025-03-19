@@ -17,7 +17,7 @@ images:
     repo: ghcr.io/astriaorg/conductor
     pullPolicy: IfNotPresent
     tag: 1.1.0
-    devTag: local
+    devTag: latest
   snapshot:
     repo: rclone/rclone
     pullPolicy: IfNotPresent
