@@ -63,7 +63,9 @@ pub(crate) enum RemovalReason {
 impl std::fmt::Display for RemovalReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RemovalReason::Expired => write!(f, "transaction expired after 240 seconds"),
+            RemovalReason::Expired => {
+                write!(f, "transaction expired after {} seconds", TX_TTL.as_secs())
+            }
             RemovalReason::NonceStale => write!(f, "transaction nonce is lower than current nonce"),
             RemovalReason::LowerNonceInvalidated => write!(
                 f,
@@ -542,28 +544,15 @@ impl Mempool {
         &self,
         tx_id: &TransactionId,
     ) -> (TransactionStatus, Option<String>) {
-        // check pending
-        let pending = self.pending.read().await;
-        if pending.contains(tx_id) {
+        if self.pending.read().await.contains(tx_id) {
             return (TransactionStatus::Pending, None);
         }
-        // if not in pending, release the lock
-        drop(pending);
-
-        // check parked
-        let parked = self.parked.read().await;
-        if parked.contains(tx_id) {
+        if self.parked.read().await.contains(tx_id) {
             return (TransactionStatus::Parked, None);
         }
-        // if not in parked, release the lock
-        drop(parked);
-
-        // check removal cache
-        let removal_cache = self.comet_bft_removal_cache.read().await;
-        if let Some(reason) = removal_cache.get(tx_id.get()) {
+        if let Some(reason) = self.comet_bft_removal_cache.read().await.get(tx_id.get()) {
             return (TransactionStatus::RemovalCache, Some(reason.to_string()));
         }
-
         (TransactionStatus::NotFound, None)
     }
 }

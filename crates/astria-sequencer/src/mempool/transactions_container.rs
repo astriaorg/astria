@@ -585,7 +585,7 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
     fn contains(&self, tx_id: &TransactionId) -> bool {
         self.txs()
             .values()
-            .any(|account_txs| account_txs.contains_tx(&tx_id.get()))
+            .any(|account_txs| account_txs.contains_tx(tx_id.as_bytes()))
     }
 
     /// Recosts transactions for an account.
