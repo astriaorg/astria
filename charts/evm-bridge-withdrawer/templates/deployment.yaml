@@ -30,6 +30,8 @@ spec:
           volumeMounts:
             - mountPath: /secret/sequencerPrivateKey/
               name: sequencer-private-key-volume
+            - mountPath: /secret/pubKeyPath/
+              name: pub-key-volume
           ports:
             - containerPort: {{ .Values.ports.metrics }}
               name: metrics
@@ -58,3 +60,6 @@ spec:
           configMap:
             name: {{ include "evm-bridge-withdrawer.appName" . }}-private-key
           {{- end }}
+        - name: pub-key-volume
+          configMap:
+            name: {{ include "evm-bridge-withdrawer.appName" . }}-pubkey-package

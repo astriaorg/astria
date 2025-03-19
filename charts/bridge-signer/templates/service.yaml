@@ -1,0 +1,29 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ include "bridge-signer.appName" . }}-service
+  namespace: {{ include "bridge-signer.namespace" . }}
+spec:
+  selector:
+    {{- include "bridge-signer.labels" . | nindent 4 }}
+  ports:
+    - name: grpc
+      port: {{ .Values.ports.grpc }}
+      targetPort: grpc
+---
+{{- if .Values.metrics.enabled }}
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ include "bridge-signer.appName" . }}-metrics
+  namespace: {{ include "bridge-signer.namespace" . }}
+  labels:
+    {{- include "bridge-signer.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "bridge-signer.labels" . | nindent 4 }}
+  ports:
+    - name: signer-metric
+      port: {{ .Values.ports.metrics }}
+      targetPort: signer-metric
+{{- end }}
