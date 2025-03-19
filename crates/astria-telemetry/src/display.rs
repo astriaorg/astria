@@ -162,7 +162,7 @@ impl Display for FormattedDuration {
                 .print_duration(&signed_duration, StdFmtWrite(f))
                 .map_err(|_| fmt::Error),
             Err(_) => {
-                write!(f, "duration greater than {:#}", SignedDuration::MAX)
+                write!(f, "<duration greater than {:#}>", SignedDuration::MAX)
             }
         }
     }
