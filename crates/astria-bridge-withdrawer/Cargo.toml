@@ -17,7 +17,6 @@ futures = { workspace = true }
 hex = { workspace = true }
 ethers = { workspace = true, features = ["ws"] }
 hyper = { workspace = true }
-humantime = { workspace = true }
 ibc-types = { workspace = true }
 pbjson-types = { workspace = true }
 pin-project-lite = { workspace = true }

@@ -20,7 +20,7 @@ delete:
     -n astria-validator-single single-sequencer-chart ./sequencer \
     -f ../dev/values/validators/all.yml \
     -f ../dev/values/validators/single.yml \
-    {{ if tag != '' { replace('--set images.sequencer.devTag=# --set sequencer-relayer.images.sequencerRelayer.devTag=#', '#', tag) } else { '' } }} \
+    {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
   just wait-for-sequencer > /dev/null
   echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./evm-stack \
@@ -45,7 +45,7 @@ delete:
     -n astria-validator-single single-sequencer-chart ./sequencer \
     -f ../dev/values/validators/all-without-native.yml \
     -f ../dev/values/validators/single.yml \
-    {{ if tag != '' { replace('--set images.sequencer.devTag=# --set sequencer-relayer.images.sequencerRelayer.devTag=#', '#', tag) } else { '' } }} \
+    {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
   just wait-for-sequencer > /dev/null
   echo "Deploying Hermes"
@@ -63,7 +63,7 @@ delete:
     -n astria-validator-single single-sequencer-chart ./sequencer \
     -f ../dev/values/validators/all.yml \
     -f ../dev/values/validators/single.yml \
-    {{ if tag != '' { replace('--set images.sequencer.devTag=# --set sequencer-relayer.images.sequencerRelayer.devTag=#', '#', tag) } else { '' } }} \
+    {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
   just wait-for-sequencer > /dev/null
   echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./evm-stack \

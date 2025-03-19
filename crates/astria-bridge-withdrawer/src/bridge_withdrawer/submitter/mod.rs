@@ -288,7 +288,7 @@ async fn submit_tx(
                 state.set_sequencer_connected(false);
 
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     parent: span.clone(),
@@ -349,7 +349,7 @@ pub(crate) async fn get_pending_nonce(
                 state.set_sequencer_connected(false);
 
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     error = err as &dyn std::error::Error,
