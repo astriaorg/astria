@@ -26,7 +26,7 @@ delete:
   echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./evm-stack \
     -f ../dev/values/rollup/dev.yaml \
     -f ../dev/values/rollup/ibc-bridge-test.yaml \
-    {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
+    {{ if tag != '' { replace('--set evm-rollup.images.conductor.tag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
     --set blockscout-stack.enabled=false \
     --set postgresql.enabled=false \
     --set evm-faucet.enabled=false > /dev/null
@@ -69,7 +69,7 @@ delete:
   echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ./evm-stack \
     -f ../dev/values/rollup/dev.yaml \
     -f ../dev/values/rollup/ibc-bridge-test.yaml \
-    {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=#', '#', tag) } else { '' } }} \
+    {{ if tag != '' { replace('--set evm-rollup.images.conductor.tag=# --set composer.images.composer.devTag=#', '#', tag) } else { '' } }} \
     --set blockscout-stack.enabled=false \
     --set evm-bridge-withdrawer.enabled=false \
     --set postgresql.enabled=false \
