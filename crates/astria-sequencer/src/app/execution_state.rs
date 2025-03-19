@@ -1,79 +1,136 @@
+use std::fmt::{
+    self,
+    Debug,
+    Formatter,
+};
+
 use astria_eyre::eyre::{
     bail,
     Result,
 };
+use bytes::Bytes;
 use tendermint::{
-    abci,
+    abci::{
+        self,
+        types::{
+            CommitInfo,
+            Misbehavior,
+        },
+    },
+    account,
+    block,
     Hash,
+    Time,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ExecutionFingerprintData {
-    // No ProposalFingerprint has been set.
-    // Transitions to: Prepared, ExecutedBlock
-    Unset,
-    // State after preparing a ProcessProposal request
-    // - data is a fingerprint of the request/response.
-    // Transitions to either: PreparedValid or CheckedPreparedMismatch
-    Prepared([u8; 32]),
-    // State after comparing a `Prepared` fingerprint to a ProcessProposal request if it matched.
-    // - data is the fingerprint from the `Prepared` state.
-    // Transitions to: ExecutedBlock
-    PreparedValid([u8; 32]),
-    // The fingerprint failed comparison against a Prepared state
-    // - data is a fingerprint from Prepared state.
-    // End state.
-    CheckedPreparedMismatch([u8; 32]),
-    // Fingerprint from after executing a complete block.
-    // - first value is the CometBft block hash
-    // - second is the `Prepared` fingerprint if transitioned from a `PreparedVerified` state.
-    // Transitions to: CheckedExecutedBlockMismatch
-    ExecutedBlock([u8; 32], Option<[u8; 32]>),
-    // The fingerprint failed comparison against a ExecutedBlock state
-    // - data matches that of the ExecutedBlock state which came from
-    // End state.
-    CheckedExecutedBlockMismatch([u8; 32], Option<[u8; 32]>),
+/// Details of a proposal that has been handled via a `PrepareProposal` or `ProcessProposal`
+/// request.
+#[derive(Clone, PartialEq, Eq)]
+pub(super) struct CachedProposal {
+    time: Time,
+    proposer_address: account::Id,
+    txs: Vec<Bytes>,
+    proposed_last_commit: Option<CommitInfo>,
+    misbehavior: Vec<Misbehavior>,
+    next_validators_hash: Hash,
+    height: block::Height,
 }
 
-// State machine for tracking what state the app has executed
-// data in. This is used to check if transactions have been executed
-// in different ABCI calls across requests, and whether the cached state can be
-// used or should be reset.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct ExecutionState(ExecutionFingerprintData);
+impl Default for CachedProposal {
+    fn default() -> Self {
+        Self {
+            time: Time::unix_epoch(),
+            proposer_address: account::Id::new([0; 20]),
+            txs: vec![],
+            proposed_last_commit: None,
+            misbehavior: vec![],
+            height: block::Height::from(0_u8),
+            next_validators_hash: Hash::default(),
+        }
+    }
+}
 
-impl ExecutionState {
-    pub(crate) fn new() -> Self {
-        Self(ExecutionFingerprintData::Unset)
+impl Debug for CachedProposal {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CachedProposal")
+            .field("time", &self.time)
+            .field("proposer_address", &self.proposer_address)
+            .field("txs", &self.txs.iter().map(hex::encode).collect::<Vec<_>>())
+            .field("proposed_last_commit", &self.proposed_last_commit)
+            .field("misbehavior", &self.misbehavior)
+            .field("height", &self.height)
+            .field("next_validators_hash", &self.next_validators_hash)
+            .finish()
+    }
+}
+
+/// The various execution states the app can be in for a given block.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum ExecutionState {
+    /// No `CachedProposal` has been set.
+    ///
+    /// Transitions to `Prepared` or `ExecutedBlock`.
+    Unset,
+    /// State after preparing a `ProcessProposal` request.
+    ///
+    /// Transitions to `PreparedValid` or `CheckedPreparedMismatch`.
+    Prepared(CachedProposal),
+    /// State after comparing a `Prepared` state to a `ProcessProposal` request if it matched.
+    ///
+    /// Transitions to `ExecutedBlock`.
+    PreparedValid(CachedProposal),
+    /// State after a `ProcessProposal` request failed comparison against a `Prepared` state.
+    ///
+    /// End state.
+    CheckedPreparedMismatch(CachedProposal),
+    /// State after executing a complete block.
+    ///
+    /// Transitions to `CheckedExecutedBlockMismatch`.
+    ExecutedBlock {
+        cached_block_hash: [u8; 32],
+        cached_proposal: Option<CachedProposal>,
+    },
+    /// State after a `FinalizeBlock` request failed comparison against an `ExecutedBlock` state.
+    ///
+    /// End state.
+    CheckedExecutedBlockMismatch {
+        cached_block_hash: [u8; 32],
+        cached_proposal: Option<CachedProposal>,
+    },
+}
+
+/// State machine for tracking what state the app has executed
+/// data in. This is used to check if transactions have been executed
+/// in different ABCI calls across requests, and whether the cached state can be
+/// used or should be reset.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct ExecutionStateMachine(ExecutionState);
+
+impl ExecutionStateMachine {
+    pub(super) fn new() -> Self {
+        Self(ExecutionState::Unset)
     }
 
-    pub(crate) fn data(&self) -> ExecutionFingerprintData {
-        self.0
+    pub(super) fn data(&self) -> &ExecutionState {
+        &self.0
     }
 
     #[cfg(test)]
     // This is used just to make testing easier for transitions without needing to fully setup
-    fn create_with_data(data: ExecutionFingerprintData) -> Self {
+    fn create_with_data(data: ExecutionState) -> Self {
         Self(data)
     }
 
-    // Called at the end `prepare_proposal`, it takes the request and response
-    // to create a partial ProcessProposal message, serializes and hashes that
-    // data to create a fingerprint.
-    //
-    // Can only be run on an unset fingerprint.
-    pub(crate) fn set_prepared_proposal(
+    /// Called at the end of `prepare_proposal`, it caches info from the request and response.
+    ///
+    /// Returns an error if the current state is not `Unset`, and `self` is left unchanged. On
+    /// success, the state transitions to `Prepared`.
+    pub(super) fn set_prepared_proposal(
         &mut self,
         request: abci::request::PrepareProposal,
         response: abci::response::PrepareProposal,
     ) -> Result<()> {
-        use prost::Message as _;
-        use sha2::{
-            Digest as _,
-            Sha256,
-        };
-        use tendermint_proto::v0_38::abci as pb;
-        if self.0 != ExecutionFingerprintData::Unset {
+        if self.0 != ExecutionState::Unset {
             bail!("execution state already set");
         }
 
@@ -86,123 +143,146 @@ impl ExecutionState {
                     sig_info: vote.sig_info,
                 })
                 .collect();
-            Some(abci::types::CommitInfo {
+            Some(CommitInfo {
                 round: local_last_commit.round,
                 votes: vote_info,
             })
         } else {
             None
         };
-        let proposal = abci::request::ProcessProposal {
-            hash: Hash::default(),
-            proposed_last_commit,
-            height: request.height,
+        let prepared_proposal = CachedProposal {
             time: request.time,
             proposer_address: request.proposer_address,
-            next_validators_hash: request.next_validators_hash,
-            misbehavior: request.misbehavior,
             txs: response.txs,
+            proposed_last_commit,
+            misbehavior: request.misbehavior,
+            height: request.height,
+            next_validators_hash: request.next_validators_hash,
         };
-
-        let pb_data = pb::RequestProcessProposal::from(proposal).encode_to_vec();
-        let data: [u8; 32] = Sha256::digest(pb_data).into();
-        self.0 = ExecutionFingerprintData::Prepared(data);
+        self.0 = ExecutionState::Prepared(prepared_proposal);
         Ok(())
     }
 
-    // Given a ProcessProposal request, check the ProcessProposal matches
-    // the current executed proposal. If it does not match, the status is set to
-    // `CheckedPreparedMismatch`.
-    // Will always return false if called on a non `Prepared` or `PreparedValid` state.
-    // Returns whether the proposal matches the current fingerprint.
-    pub(crate) fn check_if_prepared_proposal(
+    /// Given a `ProcessProposal` request, returns whether the `ProcessProposal` matches the current
+    /// cached proposal or not.
+    ///
+    /// Returns `false` if the current state is not `Prepared` or `PreparedValid`, and `self` is
+    /// left unchanged.
+    ///
+    /// If the request matches the cached info, the state transitions to `PreparedValid` and `true`
+    /// is returned. Otherwise the state transitions to `CheckedPreparedMismatch` and `false` is
+    /// returned.
+    pub(super) fn check_if_prepared_proposal(
         &mut self,
-        proposal: &abci::request::ProcessProposal,
+        request: abci::request::ProcessProposal,
     ) -> bool {
-        use prost::Message as _;
-        use sha2::{
-            Digest as _,
-            Sha256,
-        };
-        use tendermint_proto::v0_38::abci as pb;
-        match self.0 {
-            ExecutionFingerprintData::Unset
-            | ExecutionFingerprintData::CheckedPreparedMismatch(_)
-            | ExecutionFingerprintData::CheckedExecutedBlockMismatch(..)
-            | ExecutionFingerprintData::ExecutedBlock(..) => false,
-            ExecutionFingerprintData::PreparedValid(proposal_hash)
-            | ExecutionFingerprintData::Prepared(proposal_hash) => {
-                let partial_proposal = abci::request::ProcessProposal {
-                    hash: Hash::default(),
-                    ..proposal.clone()
-                };
-                let pb_data = pb::RequestProcessProposal::from(partial_proposal).encode_to_vec();
-                let data: [u8; 32] = Sha256::digest(pb_data).into();
-                if proposal_hash != data {
-                    self.0 = ExecutionFingerprintData::CheckedPreparedMismatch(proposal_hash);
-                    return false;
-                }
-
-                self.0 = ExecutionFingerprintData::PreparedValid(proposal_hash);
-                true
+        let cached_proposal = match &mut self.0 {
+            ExecutionState::Unset
+            | ExecutionState::CheckedPreparedMismatch(_)
+            | ExecutionState::CheckedExecutedBlockMismatch {
+                ..
             }
+            | ExecutionState::ExecutedBlock {
+                ..
+            } => return false,
+            ExecutionState::PreparedValid(cached_proposal)
+            | ExecutionState::Prepared(cached_proposal) => std::mem::take(cached_proposal),
+        };
+
+        let new_proposal = CachedProposal {
+            time: request.time,
+            proposer_address: request.proposer_address,
+            txs: request.txs,
+            proposed_last_commit: request.proposed_last_commit,
+            misbehavior: request.misbehavior,
+            height: request.height,
+            next_validators_hash: request.next_validators_hash,
+        };
+
+        if cached_proposal != new_proposal {
+            self.0 = ExecutionState::CheckedPreparedMismatch(cached_proposal);
+            return false;
         }
+
+        self.0 = ExecutionState::PreparedValid(cached_proposal);
+        true
     }
 
-    // Called after `process_proposal` has been called or `finalize_block` to set
-    // to a `ExecutedBlock` fingerprint. Can only be called on a `Prepared`
-    // or `Unset` fingerprint, otherwise will error.
-    pub(crate) fn set_executed_block(&mut self, block_hash: [u8; 32]) -> Result<()> {
-        match self.0 {
-            ExecutionFingerprintData::Unset => {
-                self.0 = ExecutionFingerprintData::ExecutedBlock(block_hash, None);
+    /// Called after executing a block during `process_proposal` or `finalize_block`, it caches the
+    /// executed CometBFT block hash.
+    ///
+    /// Returns an error if the current state is not `PreparedValid` or `Unset`, and `self` is left
+    /// unchanged. On success, the state transitions to `ExecutedBlock`.
+    pub(super) fn set_executed_block(&mut self, block_hash: [u8; 32]) -> Result<()> {
+        match &mut self.0 {
+            ExecutionState::Unset => {
+                self.0 = ExecutionState::ExecutedBlock {
+                    cached_block_hash: block_hash,
+                    cached_proposal: None,
+                };
             }
-            ExecutionFingerprintData::PreparedValid(proposal_hash) => {
-                self.0 = ExecutionFingerprintData::ExecutedBlock(block_hash, Some(proposal_hash));
+            ExecutionState::PreparedValid(cached_proposal) => {
+                self.0 = ExecutionState::ExecutedBlock {
+                    cached_block_hash: block_hash,
+                    cached_proposal: Some(std::mem::take(cached_proposal)),
+                };
             }
-            ExecutionFingerprintData::Prepared(_) => {
+            ExecutionState::Prepared(_) => {
                 bail!(
-                    "executed block fingerprint attempted to be set before prepared proposal \
-                     fingerprint validated.",
+                    "executed block state attempted to be set before prepared proposal state \
+                     validated",
                 );
             }
-            ExecutionFingerprintData::ExecutedBlock(..) => {
-                bail!("executed block fingerprint attempted to be set again.",);
+            ExecutionState::ExecutedBlock {
+                ..
+            } => {
+                bail!("executed block state attempted to be set again");
             }
-            ExecutionFingerprintData::CheckedPreparedMismatch(_)
-            | ExecutionFingerprintData::CheckedExecutedBlockMismatch(..) => {
-                bail!("executed block fingerprint shouldn't be set after invalid check.",);
+            ExecutionState::CheckedPreparedMismatch(_)
+            | ExecutionState::CheckedExecutedBlockMismatch {
+                ..
+            } => {
+                bail!("executed block state shouldn't be set after invalid check");
             }
         }
 
         Ok(())
     }
 
-    // Given a block hash, check if it matches the current execution state.
-    //
-    // If checking against an `ExecutedBlock` fingerprint, will compare the hash, update
-    // the status to `CheckedExecutedBlockMismatch` if it does not match.
-    //
-    // Should not be called on a `Prepared` fingerprint, will change status
-    // to `CheckedPreparedMismatch`.
-    pub(crate) fn check_if_executed_block(&mut self, block_hash: [u8; 32]) -> bool {
-        match self.0 {
-            ExecutionFingerprintData::Unset
-            | ExecutionFingerprintData::CheckedPreparedMismatch(_)
-            | ExecutionFingerprintData::CheckedExecutedBlockMismatch(..) => false,
+    /// Given a block hash, returns whether it matches the current one in execution state or not.
+    ///
+    /// Returns `false` if the current state is not `Prepared`, `PreparedValid` or `ExecutedBlock`,
+    /// and `self` is left unchanged.
+    ///
+    /// Returns `false` if the current state is `Prepared` or `PreparedValid`, and the state
+    /// transitions to `CheckedPreparedMismatch`.
+    ///
+    /// If the block hash matches the cached info in the `ExecutedBlock` state, `self` is left
+    /// unchanged and `true` is returned. Otherwise the state transitions to
+    /// `CheckedExecutedBlockMismatch` and `false` is returned.
+    pub(super) fn check_if_executed_block(&mut self, block_hash: [u8; 32]) -> bool {
+        match &mut self.0 {
+            ExecutionState::Unset
+            | ExecutionState::CheckedPreparedMismatch(_)
+            | ExecutionState::CheckedExecutedBlockMismatch {
+                ..
+            } => false,
             // Can only call check executed on an executed fingerprint.
-            ExecutionFingerprintData::Prepared(proposal_hash)
-            | ExecutionFingerprintData::PreparedValid(proposal_hash) => {
-                self.0 = ExecutionFingerprintData::CheckedPreparedMismatch(proposal_hash);
+            ExecutionState::Prepared(cached_proposal)
+            | ExecutionState::PreparedValid(cached_proposal) => {
+                self.0 = ExecutionState::CheckedPreparedMismatch(std::mem::take(cached_proposal));
 
                 false
             }
-            ExecutionFingerprintData::ExecutedBlock(cached_block_hash, proposal_hash) => {
-                if block_hash != cached_block_hash {
-                    self.0 = ExecutionFingerprintData::CheckedExecutedBlockMismatch(
-                        cached_block_hash,
-                        proposal_hash,
-                    );
+            ExecutionState::ExecutedBlock {
+                cached_block_hash,
+                cached_proposal,
+            } => {
+                if block_hash != *cached_block_hash {
+                    self.0 = ExecutionState::CheckedExecutedBlockMismatch {
+                        cached_block_hash: *cached_block_hash,
+                        cached_proposal: std::mem::take(cached_proposal),
+                    };
                     return false;
                 }
 
@@ -224,8 +304,22 @@ mod tests {
 
     use super::*;
 
+    impl From<request::PrepareProposal> for CachedProposal {
+        fn from(prepare_request: request::PrepareProposal) -> Self {
+            CachedProposal {
+                time: prepare_request.time,
+                proposer_address: prepare_request.proposer_address,
+                txs: vec![],
+                proposed_last_commit: None,
+                misbehavior: prepare_request.misbehavior.clone(),
+                next_validators_hash: prepare_request.next_validators_hash,
+                height: prepare_request.height,
+            }
+        }
+    }
+
     fn build_prepare_proposal(
-        txs: &[bytes::Bytes],
+        txs: &[Bytes],
     ) -> (request::PrepareProposal, response::PrepareProposal) {
         let time = Time::from_unix_timestamp(1_741_740_299, 32).unwrap();
         let request = request::PrepareProposal {
@@ -238,7 +332,7 @@ mod tests {
             txs: vec![],
             max_tx_bytes: 1_000_000,
         };
-        let response = abci::response::PrepareProposal {
+        let response = response::PrepareProposal {
             txs: txs.to_owned(),
         };
         (request, response)
@@ -267,14 +361,15 @@ mod tests {
 
     #[test]
     fn new_execution_state_is_unset() {
-        let state = ExecutionState::new();
-        assert_eq!(state.data(), ExecutionFingerprintData::Unset);
+        let state = ExecutionStateMachine::new();
+        assert_eq!(*state.data(), ExecutionState::Unset);
     }
 
     #[test]
     fn set_prepared_succeeds() {
-        let (prepare_request, prepare_response) = build_prepare_proposal(&[]);
-        let mut state = ExecutionState::new();
+        let (prepare_request, prepare_response) =
+            build_prepare_proposal(&[vec![1, 2, 3].into(), vec![253, 254, 255].into()]);
+        let mut state = ExecutionStateMachine::new();
 
         state
             .set_prepared_proposal(prepare_request.clone(), prepare_response.clone())
@@ -284,26 +379,39 @@ mod tests {
 
     #[test]
     fn set_prepared_fails_on_non_unset() {
-        let hash = [1u8; 32];
         let (prepare_request, prepare_response) = build_prepare_proposal(&[]);
+        let cached_proposal = CachedProposal::from(prepare_request.clone());
+        let cached_block_hash = [1u8; 32];
 
         let states_to_test = vec![
-            ExecutionFingerprintData::Prepared(hash),
-            ExecutionFingerprintData::PreparedValid(hash),
-            ExecutionFingerprintData::CheckedPreparedMismatch(hash),
-            ExecutionFingerprintData::ExecutedBlock(hash, None),
-            ExecutionFingerprintData::ExecutedBlock(hash, Some(hash)),
-            ExecutionFingerprintData::CheckedExecutedBlockMismatch(hash, None),
-            ExecutionFingerprintData::CheckedExecutedBlockMismatch(hash, Some(hash)),
+            ExecutionState::Prepared(cached_proposal.clone()),
+            ExecutionState::PreparedValid(cached_proposal.clone()),
+            ExecutionState::CheckedPreparedMismatch(cached_proposal.clone()),
+            ExecutionState::ExecutedBlock {
+                cached_block_hash,
+                cached_proposal: None,
+            },
+            ExecutionState::ExecutedBlock {
+                cached_block_hash,
+                cached_proposal: Some(cached_proposal.clone()),
+            },
+            ExecutionState::CheckedExecutedBlockMismatch {
+                cached_block_hash,
+                cached_proposal: None,
+            },
+            ExecutionState::CheckedExecutedBlockMismatch {
+                cached_block_hash,
+                cached_proposal: Some(cached_proposal),
+            },
         ];
 
         for state in states_to_test {
-            let mut state = ExecutionState::create_with_data(state);
-            let data_copy = state.data();
-            let _ = state
+            let mut state_machine = ExecutionStateMachine::create_with_data(state);
+            let data_copy = state_machine.data().clone();
+            let _ = state_machine
                 .set_prepared_proposal(prepare_request.clone(), prepare_response.clone())
                 .unwrap_err();
-            assert_eq!(state.data(), data_copy);
+            assert_eq!(*state_machine.data(), data_copy);
         }
     }
 
@@ -312,18 +420,18 @@ mod tests {
         let (prepare_request, prepare_response) = build_prepare_proposal(&[]);
         let matching_request =
             build_process_proposal(prepare_request.clone(), prepare_response.clone(), true);
-        let mut state = ExecutionState::new();
+        let mut state = ExecutionStateMachine::new();
         state
             .set_prepared_proposal(prepare_request.clone(), prepare_response.clone())
             .unwrap();
 
-        assert!(state.check_if_prepared_proposal(&matching_request));
+        assert!(state.check_if_prepared_proposal(matching_request.clone()));
         insta::assert_debug_snapshot!(state.data());
-        let data_copy = state.data();
+        let data_copy = state.data().clone();
 
         // Should validate a second time, don't need a second snapshot
-        assert!(state.check_if_prepared_proposal(&matching_request));
-        assert_eq!(state.data(), data_copy);
+        assert!(state.check_if_prepared_proposal(matching_request));
+        assert_eq!(*state.data(), data_copy);
     }
 
     #[test]
@@ -333,18 +441,18 @@ mod tests {
             build_process_proposal(prepare_request.clone(), prepare_response.clone(), true);
         let mismatch_request =
             build_process_proposal(prepare_request.clone(), prepare_response.clone(), false);
-        let mut state = ExecutionState::new();
+        let mut state = ExecutionStateMachine::new();
         state
             .set_prepared_proposal(prepare_request.clone(), prepare_response.clone())
             .unwrap();
 
         // First get validated then attempt again with mismatch
-        assert!(state.check_if_prepared_proposal(&match_request));
-        assert!(!state.check_if_prepared_proposal(&mismatch_request));
+        assert!(state.check_if_prepared_proposal(match_request.clone()));
+        assert!(!state.check_if_prepared_proposal(mismatch_request));
         insta::assert_debug_snapshot!(state.data());
 
         // Shouldn't change back to passing
-        assert!(!state.check_if_prepared_proposal(&match_request));
+        assert!(!state.check_if_prepared_proposal(match_request));
     }
 
     #[test]
@@ -352,179 +460,231 @@ mod tests {
         let (prepare_request, prepare_response) = build_prepare_proposal(&[]);
         let process_request =
             build_process_proposal(prepare_request.clone(), prepare_response.clone(), false);
-        let mut state = ExecutionState::new();
+        let mut state = ExecutionStateMachine::new();
         state
             .set_prepared_proposal(prepare_request.clone(), prepare_response.clone())
             .unwrap();
 
-        assert!(!state.check_if_prepared_proposal(&process_request));
+        assert!(!state.check_if_prepared_proposal(process_request));
         insta::assert_debug_snapshot!(state.data());
     }
 
     #[test]
     fn check_if_prepared_false_on_ineligible_states() {
-        let block_hash = [1u8; 32];
+        let cached_block_hash = [1u8; 32];
         let (prepare_request, prepare_response) = build_prepare_proposal(&[]);
         let match_request =
             build_process_proposal(prepare_request.clone(), prepare_response.clone(), true);
-        let mut state = ExecutionState::new();
+        let mut state = ExecutionStateMachine::new();
         state
             .set_prepared_proposal(prepare_request.clone(), prepare_response.clone())
             .unwrap();
-        let ExecutionFingerprintData::Prepared(prop_hash) = state.data() else {
+        let ExecutionState::Prepared(cached_proposal) = state.data().clone() else {
             panic!("Expected Prepared state");
         };
 
         // Each one of these states should return false and not change the state.
         let states_to_test = vec![
-            ExecutionFingerprintData::Unset,
-            ExecutionFingerprintData::CheckedPreparedMismatch(prop_hash),
-            ExecutionFingerprintData::ExecutedBlock(block_hash, None),
-            ExecutionFingerprintData::ExecutedBlock(block_hash, Some(prop_hash)),
-            ExecutionFingerprintData::CheckedExecutedBlockMismatch(block_hash, None),
-            ExecutionFingerprintData::CheckedExecutedBlockMismatch(block_hash, Some(prop_hash)),
+            ExecutionState::Unset,
+            ExecutionState::CheckedPreparedMismatch(cached_proposal.clone()),
+            ExecutionState::ExecutedBlock {
+                cached_block_hash,
+                cached_proposal: None,
+            },
+            ExecutionState::ExecutedBlock {
+                cached_block_hash,
+                cached_proposal: Some(cached_proposal.clone()),
+            },
+            ExecutionState::CheckedExecutedBlockMismatch {
+                cached_block_hash,
+                cached_proposal: None,
+            },
+            ExecutionState::CheckedExecutedBlockMismatch {
+                cached_block_hash,
+                cached_proposal: Some(cached_proposal),
+            },
         ];
 
         for state in states_to_test {
-            let mut state = ExecutionState::create_with_data(state);
-            let data_copy = state.data();
-            assert!(!state.check_if_prepared_proposal(&match_request));
-            assert_eq!(state.data(), data_copy);
+            let mut state = ExecutionStateMachine::create_with_data(state);
+            let data_copy = state.data().clone();
+            assert!(!state.check_if_prepared_proposal(match_request.clone()));
+            assert_eq!(*state.data(), data_copy);
         }
     }
 
     #[test]
     fn set_execute_block_without_prepared_succeeds() {
-        let block_hash = [1u8; 32];
-        let mut state = ExecutionState::new();
+        let cached_block_hash = [1u8; 32];
+        let mut state = ExecutionStateMachine::new();
 
-        state.set_executed_block(block_hash).unwrap();
+        state.set_executed_block(cached_block_hash).unwrap();
         assert_eq!(
-            state.data(),
-            ExecutionFingerprintData::ExecutedBlock(block_hash, None)
+            *state.data(),
+            ExecutionState::ExecutedBlock {
+                cached_block_hash,
+                cached_proposal: None
+            }
         );
     }
 
     #[test]
     fn set_execute_block_with_prepared_validated_succeeds() {
-        let block_hash = [1u8; 32];
-        let mut state =
-            ExecutionState::create_with_data(ExecutionFingerprintData::PreparedValid([2u8; 32]));
+        let cached_block_hash = [1u8; 32];
+        let (prepare_request, _prepare_response) = build_prepare_proposal(&[]);
+        let cached_proposal = CachedProposal::from(prepare_request);
+        let mut state = ExecutionStateMachine::create_with_data(ExecutionState::PreparedValid(
+            cached_proposal.clone(),
+        ));
 
-        state.set_executed_block(block_hash).unwrap();
+        state.set_executed_block(cached_block_hash).unwrap();
         assert_eq!(
-            state.data(),
-            ExecutionFingerprintData::ExecutedBlock(block_hash, Some([2u8; 32]))
+            *state.data(),
+            ExecutionState::ExecutedBlock {
+                cached_block_hash,
+                cached_proposal: Some(cached_proposal)
+            }
         );
     }
 
     #[test]
     fn set_execute_block_with_non_settable_states_errors() {
-        let hash = [1u8; 32];
+        let cached_block_hash = [1u8; 32];
         let mut errors = vec![];
 
         // All of these should error, and then we will validate errors don't change with snapshot.
-        let mut state =
-            ExecutionState::create_with_data(ExecutionFingerprintData::Prepared([1u8; 32]));
-        errors.push(state.set_executed_block(hash).unwrap_err());
-        state = ExecutionState::create_with_data(
-            ExecutionFingerprintData::CheckedPreparedMismatch(hash),
-        );
-        errors.push(state.set_executed_block(hash).unwrap_err());
-        state = ExecutionState::create_with_data(ExecutionFingerprintData::ExecutedBlock(
-            hash,
-            Some(hash),
+        let (prepare_request, _prepare_response) = build_prepare_proposal(&[]);
+        let cached_proposal = CachedProposal::from(prepare_request);
+        let mut state = ExecutionStateMachine::create_with_data(ExecutionState::Prepared(
+            cached_proposal.clone(),
         ));
-        errors.push(state.set_executed_block(hash).unwrap_err());
-        state = ExecutionState::create_with_data(
-            ExecutionFingerprintData::CheckedExecutedBlockMismatch(hash, Some(hash)),
-        );
-        errors.push(state.set_executed_block(hash).unwrap_err());
+        errors.push(state.set_executed_block(cached_block_hash).unwrap_err());
+        state = ExecutionStateMachine::create_with_data(ExecutionState::CheckedPreparedMismatch(
+            cached_proposal.clone(),
+        ));
+        errors.push(state.set_executed_block(cached_block_hash).unwrap_err());
+        state = ExecutionStateMachine::create_with_data(ExecutionState::ExecutedBlock {
+            cached_block_hash,
+            cached_proposal: Some(cached_proposal.clone()),
+        });
+        errors.push(state.set_executed_block(cached_block_hash).unwrap_err());
+        state =
+            ExecutionStateMachine::create_with_data(ExecutionState::CheckedExecutedBlockMismatch {
+                cached_block_hash,
+                cached_proposal: Some(cached_proposal),
+            });
+        errors.push(state.set_executed_block(cached_block_hash).unwrap_err());
 
         insta::assert_debug_snapshot!(errors);
     }
 
     #[test]
     fn check_if_execute_block_succeeds_on_matching() {
-        let block_hash = [1u8; 32];
-        let mut state = ExecutionState::create_with_data(ExecutionFingerprintData::ExecutedBlock(
-            block_hash, None,
-        ));
-        let data_copy = state.data();
+        let cached_block_hash = [1u8; 32];
+        let mut state = ExecutionStateMachine::create_with_data(ExecutionState::ExecutedBlock {
+            cached_block_hash,
+            cached_proposal: None,
+        });
+        let data_copy = state.data().clone();
 
-        assert!(state.check_if_executed_block(block_hash));
-        assert_eq!(state.data(), data_copy);
+        assert!(state.check_if_executed_block(cached_block_hash));
+        assert_eq!(*state.data(), data_copy);
 
-        state = ExecutionState::create_with_data(ExecutionFingerprintData::ExecutedBlock(
-            block_hash,
-            Some(block_hash),
-        ));
-        let data_copy = state.data();
+        let (prepare_request, _prepare_response) = build_prepare_proposal(&[]);
+        let cached_proposal = CachedProposal::from(prepare_request);
+        state = ExecutionStateMachine::create_with_data(ExecutionState::ExecutedBlock {
+            cached_block_hash,
+            cached_proposal: Some(cached_proposal),
+        });
+        let data_copy = state.data().clone();
 
-        assert!(state.check_if_executed_block(block_hash));
-        assert_eq!(state.data(), data_copy);
+        assert!(state.check_if_executed_block(cached_block_hash));
+        assert_eq!(*state.data(), data_copy);
     }
 
     #[test]
     fn check_if_execute_block_fails_on_non_matching() {
-        let block_hash = [1u8; 32];
-        let mut state = ExecutionState::create_with_data(ExecutionFingerprintData::ExecutedBlock(
-            block_hash, None,
-        ));
+        let cached_block_hash = [1u8; 32];
+        let mut state = ExecutionStateMachine::create_with_data(ExecutionState::ExecutedBlock {
+            cached_block_hash,
+            cached_proposal: None,
+        });
 
         assert!(!state.check_if_executed_block([2u8; 32]));
         assert_eq!(
-            state.data(),
-            ExecutionFingerprintData::CheckedExecutedBlockMismatch(block_hash, None)
+            *state.data(),
+            ExecutionState::CheckedExecutedBlockMismatch {
+                cached_block_hash,
+                cached_proposal: None
+            }
         );
 
-        state = ExecutionState::create_with_data(ExecutionFingerprintData::ExecutedBlock(
-            block_hash,
-            Some([3u8; 32]),
-        ));
+        let (prepare_request, _prepare_response) = build_prepare_proposal(&[]);
+        let cached_proposal = CachedProposal::from(prepare_request);
+        state = ExecutionStateMachine::create_with_data(ExecutionState::ExecutedBlock {
+            cached_block_hash,
+            cached_proposal: Some(cached_proposal.clone()),
+        });
         assert!(!state.check_if_executed_block([2u8; 32]));
         assert_eq!(
-            state.data(),
-            ExecutionFingerprintData::CheckedExecutedBlockMismatch(block_hash, Some([3u8; 32]))
+            *state.data(),
+            ExecutionState::CheckedExecutedBlockMismatch {
+                cached_block_hash,
+                cached_proposal: Some(cached_proposal)
+            }
         );
     }
 
     #[test]
     fn check_if_execute_block_fails_on_prepared_states() {
-        let hash = [1u8; 32];
-        let mut state = ExecutionState::create_with_data(ExecutionFingerprintData::Prepared(hash));
+        let block_hash = [1u8; 32];
+        let (prepare_request, _prepare_response) = build_prepare_proposal(&[]);
+        let cached_proposal = CachedProposal::from(prepare_request);
+        let mut state = ExecutionStateMachine::create_with_data(ExecutionState::Prepared(
+            cached_proposal.clone(),
+        ));
 
-        assert!(!state.check_if_executed_block(hash));
+        assert!(!state.check_if_executed_block(block_hash));
         assert_eq!(
-            state.data(),
-            ExecutionFingerprintData::CheckedPreparedMismatch(hash)
+            *state.data(),
+            ExecutionState::CheckedPreparedMismatch(cached_proposal.clone())
         );
 
         // Should also fail and state should match what is called on prepared state
-        state = ExecutionState::create_with_data(ExecutionFingerprintData::PreparedValid(hash));
-        assert!(!state.check_if_executed_block(hash));
+        state = ExecutionStateMachine::create_with_data(ExecutionState::PreparedValid(
+            cached_proposal.clone(),
+        ));
+        assert!(!state.check_if_executed_block(block_hash));
         assert_eq!(
-            state.data(),
-            ExecutionFingerprintData::CheckedPreparedMismatch(hash)
+            *state.data(),
+            ExecutionState::CheckedPreparedMismatch(cached_proposal)
         );
     }
 
     #[test]
     fn check_if_execute_block_fails_on_ineligible_states() {
-        let hash = [1u8; 32];
+        let cached_block_hash = [1u8; 32];
 
         // Each one of these states should return false and not change the state.
+        let (prepare_request, _prepare_response) = build_prepare_proposal(&[]);
+        let cached_proposal = CachedProposal::from(prepare_request);
         let states_to_test = vec![
-            ExecutionFingerprintData::Unset,
-            ExecutionFingerprintData::CheckedExecutedBlockMismatch(hash, None),
-            ExecutionFingerprintData::CheckedExecutedBlockMismatch(hash, Some(hash)),
+            ExecutionState::Unset,
+            ExecutionState::CheckedExecutedBlockMismatch {
+                cached_block_hash,
+                cached_proposal: None,
+            },
+            ExecutionState::CheckedExecutedBlockMismatch {
+                cached_block_hash,
+                cached_proposal: Some(cached_proposal.clone()),
+            },
         ];
 
         for state in states_to_test {
-            let mut state = ExecutionState::create_with_data(state);
-            let data_copy = state.data();
-            assert!(!state.check_if_executed_block(hash));
-            assert_eq!(state.data(), data_copy);
+            let mut state = ExecutionStateMachine::create_with_data(state);
+            let data_copy = state.data().clone();
+            assert!(!state.check_if_executed_block(cached_block_hash));
+            assert_eq!(*state.data(), data_copy);
         }
     }
 }

@@ -3,8 +3,8 @@ source: crates/astria-sequencer/src/app/execution_state.rs
 expression: errors
 ---
 [
-    "executed block fingerprint attempted to be set before prepared proposal fingerprint validated.",
-    "executed block fingerprint shouldn't be set after invalid check.",
-    "executed block fingerprint attempted to be set again.",
-    "executed block fingerprint shouldn't be set after invalid check.",
+    "executed block state attempted to be set before prepared proposal state validated",
+    "executed block state shouldn't be set after invalid check",
+    "executed block state attempted to be set again",
+    "executed block state shouldn't be set after invalid check",
 ]
