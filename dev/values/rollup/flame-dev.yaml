@@ -13,9 +13,6 @@ evm-rollup:
 
 flame-rollup:
   enabled: true
-  images:
-    geth:
-      devTag: pr-49
   genesis:
     ## These values are used to configure the genesis block of the rollup chain
     ## no defaults as they are unique to each chain

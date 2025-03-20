@@ -188,7 +188,7 @@
         "nextId": "{{ .Values.sequencer.priceFeed.nextId }}"
       }
     }
-  {{- end }}
+    {{- end}}
   },
   "chain_id": "{{ .Values.genesis.chainId }}",
   "consensus_params": {

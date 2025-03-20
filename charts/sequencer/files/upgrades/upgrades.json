@@ -1,5 +1,5 @@
 {
-{{- if and .Values.global.dev .Values.sequencer.upgrades.systemTest.enabled (not .Values.sequencer.upgrades.systemTest.bootstrapping) }}
+{{- if and .Values.sequencer.upgrades.systemTest.enabled (not .Values.sequencer.upgrades.systemTest.bootstrapping) }}
   "upgrade1": {
     "baseInfo": {
       "activationHeight": "{{ .Values.sequencer.upgrades.upgrade1.activationHeight }}",

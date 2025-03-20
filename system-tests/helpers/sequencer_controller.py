@@ -290,8 +290,8 @@ class SequencerController:
             "charts/sequencer",
             "--values=dev/values/validators/all.yml",
             f"--values=dev/values/validators/{self.name}.yml",
-            f"--set=images.sequencer.devTag={image_tag}",
-            f"--set=sequencer-relayer.images.sequencerRelayer.devTag={image_tag}",
+            f"--set=images.sequencer.tag={image_tag}",
+            f"--set=sequencer-relayer.images.sequencerRelayer.tag={image_tag}",
             f"--set=sequencer.priceFeed.enabled={enable_price_feed}",
             "--set=sequencer.abciUDS=false",
         ]
