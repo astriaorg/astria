@@ -11,8 +11,8 @@ use astria_core::{
     generated::astria::signer::v1::{
         frost_participant_service_client::FrostParticipantServiceClient,
         CommitmentWithIdentifier,
-        RoundOneRequest,
-        RoundTwoRequest,
+        ExecuteRoundOneRequest,
+        ExecuteRoundTwoRequest,
     },
     primitive::v1::Address,
     protocol::transaction::v1::{
@@ -395,7 +395,7 @@ async fn execute_round_one(
     participant_identifier: Identifier,
 ) -> eyre::Result<RoundOneResult> {
     let resp = client
-        .execute_round_one(RoundOneRequest {})
+        .execute_round_one(ExecuteRoundOneRequest {})
         .await
         .wrap_err("ExecuteRoundOne RPC failed")?
         .into_inner();
@@ -420,7 +420,7 @@ async fn execute_round_two(
     commitments: Vec<CommitmentWithIdentifier>,
 ) -> eyre::Result<(Identifier, SignatureShare)> {
     let resp = client
-        .execute_round_two(RoundTwoRequest {
+        .execute_round_two(ExecuteRoundTwoRequest {
             request_identifier,
             message,
             commitments,

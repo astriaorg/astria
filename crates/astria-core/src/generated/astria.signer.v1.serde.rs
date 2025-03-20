@@ -113,6 +113,208 @@ impl<'de> serde::Deserialize<'de> for CommitmentWithIdentifier {
         deserializer.deserialize_struct("astria.signer.v1.CommitmentWithIdentifier", FIELDS, GeneratedVisitor)
     }
 }
+impl serde::Serialize for ExecuteRoundOneRequest {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let len = 0;
+        let struct_ser = serializer.serialize_struct("astria.signer.v1.ExecuteRoundOneRequest", len)?;
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for ExecuteRoundOneRequest {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                            Err(serde::de::Error::unknown_field(value, FIELDS))
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = ExecuteRoundOneRequest;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.signer.v1.ExecuteRoundOneRequest")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<ExecuteRoundOneRequest, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                while map_.next_key::<GeneratedField>()?.is_some() {
+                    let _ = map_.next_value::<serde::de::IgnoredAny>()?;
+                }
+                Ok(ExecuteRoundOneRequest {
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.signer.v1.ExecuteRoundOneRequest", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for ExecuteRoundTwoRequest {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.commitments.is_empty() {
+            len += 1;
+        }
+        if !self.message.is_empty() {
+            len += 1;
+        }
+        if self.request_identifier != 0 {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.signer.v1.ExecuteRoundTwoRequest", len)?;
+        if !self.commitments.is_empty() {
+            struct_ser.serialize_field("commitments", &self.commitments)?;
+        }
+        if !self.message.is_empty() {
+            #[allow(clippy::needless_borrow)]
+            struct_ser.serialize_field("message", pbjson::private::base64::encode(&self.message).as_str())?;
+        }
+        if self.request_identifier != 0 {
+            struct_ser.serialize_field("requestIdentifier", &self.request_identifier)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for ExecuteRoundTwoRequest {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "commitments",
+            "message",
+            "request_identifier",
+            "requestIdentifier",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Commitments,
+            Message,
+            RequestIdentifier,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "commitments" => Ok(GeneratedField::Commitments),
+                            "message" => Ok(GeneratedField::Message),
+                            "requestIdentifier" | "request_identifier" => Ok(GeneratedField::RequestIdentifier),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = ExecuteRoundTwoRequest;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.signer.v1.ExecuteRoundTwoRequest")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<ExecuteRoundTwoRequest, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut commitments__ = None;
+                let mut message__ = None;
+                let mut request_identifier__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Commitments => {
+                            if commitments__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("commitments"));
+                            }
+                            commitments__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::Message => {
+                            if message__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("message"));
+                            }
+                            message__ = 
+                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
+                            ;
+                        }
+                        GeneratedField::RequestIdentifier => {
+                            if request_identifier__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("requestIdentifier"));
+                            }
+                            request_identifier__ = 
+                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
+                            ;
+                        }
+                    }
+                }
+                Ok(ExecuteRoundTwoRequest {
+                    commitments: commitments__.unwrap_or_default(),
+                    message: message__.unwrap_or_default(),
+                    request_identifier: request_identifier__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.signer.v1.ExecuteRoundTwoRequest", FIELDS, GeneratedVisitor)
+    }
+}
 impl serde::Serialize for GetVerifyingShareRequest {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -182,77 +384,6 @@ impl<'de> serde::Deserialize<'de> for GetVerifyingShareRequest {
             }
         }
         deserializer.deserialize_struct("astria.signer.v1.GetVerifyingShareRequest", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for RoundOneRequest {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let len = 0;
-        let struct_ser = serializer.serialize_struct("astria.signer.v1.RoundOneRequest", len)?;
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for RoundOneRequest {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                            Err(serde::de::Error::unknown_field(value, FIELDS))
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = RoundOneRequest;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.signer.v1.RoundOneRequest")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<RoundOneRequest, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                while map_.next_key::<GeneratedField>()?.is_some() {
-                    let _ = map_.next_value::<serde::de::IgnoredAny>()?;
-                }
-                Ok(RoundOneRequest {
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.signer.v1.RoundOneRequest", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for RoundOneResponse {
@@ -367,137 +498,6 @@ impl<'de> serde::Deserialize<'de> for RoundOneResponse {
             }
         }
         deserializer.deserialize_struct("astria.signer.v1.RoundOneResponse", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for RoundTwoRequest {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if !self.commitments.is_empty() {
-            len += 1;
-        }
-        if !self.message.is_empty() {
-            len += 1;
-        }
-        if self.request_identifier != 0 {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.signer.v1.RoundTwoRequest", len)?;
-        if !self.commitments.is_empty() {
-            struct_ser.serialize_field("commitments", &self.commitments)?;
-        }
-        if !self.message.is_empty() {
-            #[allow(clippy::needless_borrow)]
-            struct_ser.serialize_field("message", pbjson::private::base64::encode(&self.message).as_str())?;
-        }
-        if self.request_identifier != 0 {
-            struct_ser.serialize_field("requestIdentifier", &self.request_identifier)?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for RoundTwoRequest {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "commitments",
-            "message",
-            "request_identifier",
-            "requestIdentifier",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            Commitments,
-            Message,
-            RequestIdentifier,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "commitments" => Ok(GeneratedField::Commitments),
-                            "message" => Ok(GeneratedField::Message),
-                            "requestIdentifier" | "request_identifier" => Ok(GeneratedField::RequestIdentifier),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = RoundTwoRequest;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.signer.v1.RoundTwoRequest")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<RoundTwoRequest, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut commitments__ = None;
-                let mut message__ = None;
-                let mut request_identifier__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::Commitments => {
-                            if commitments__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("commitments"));
-                            }
-                            commitments__ = Some(map_.next_value()?);
-                        }
-                        GeneratedField::Message => {
-                            if message__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("message"));
-                            }
-                            message__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
-                        }
-                        GeneratedField::RequestIdentifier => {
-                            if request_identifier__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("requestIdentifier"));
-                            }
-                            request_identifier__ = 
-                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
-                            ;
-                        }
-                    }
-                }
-                Ok(RoundTwoRequest {
-                    commitments: commitments__.unwrap_or_default(),
-                    message: message__.unwrap_or_default(),
-                    request_identifier: request_identifier__.unwrap_or_default(),
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.signer.v1.RoundTwoRequest", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for RoundTwoResponse {

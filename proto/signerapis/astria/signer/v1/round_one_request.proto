@@ -2,4 +2,4 @@ syntax = 'proto3';
 
 package astria.signer.v1;
 
-message RoundOneRequest {}
+message ExecuteRoundOneRequest {}
