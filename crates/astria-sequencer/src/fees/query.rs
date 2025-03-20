@@ -261,7 +261,6 @@ pub(crate) async fn transaction_fee_request(
         };
         fees.push((trace_denom.into(), value));
     }
-    fees.sort_by(|a: &(Denom, u128), b: &(Denom, u128)| a.0.cmp(&b.0));
 
     let resp = TransactionFeeResponse {
         height,
@@ -627,8 +626,8 @@ mod test {
         assert_eq!(resp.code, 0.into(), "{}", resp.log);
 
         let proto = RawTransactionFeeResponse::decode(&*resp.value).unwrap();
-        let resp = TransactionFeeResponse::try_from_raw(proto).unwrap();
-        let expected = TransactionFeeResponse {
+        let mut resp = TransactionFeeResponse::try_from_raw(proto).unwrap();
+        let mut expected = TransactionFeeResponse {
             height: 1,
             fees: vec![
                 (
@@ -642,6 +641,9 @@ mod test {
                 ),
             ],
         };
+        resp.fees.sort_by(|a: &(Denom, u128), b: &(Denom, u128)| a.0.cmp(&b.0));
+        expected.fees.sort_by(|a: &(Denom, u128), b: &(Denom, u128)| a.0.cmp(&b.0));
+
         assert_eq!(resp, expected);
     }
 }
