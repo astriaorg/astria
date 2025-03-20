@@ -106,8 +106,8 @@ use crate::{
             EventBusSubscription,
         },
         execution_state::{
-            ExecutionFingerprintData,
             ExecutionState,
+            ExecutionStateMachine,
         },
     },
     assets::StateWriteExt as _,
@@ -179,7 +179,7 @@ pub(crate) struct App {
     //
     // Used to avoid double execution of transactions across ABCI calls, as well as
     // to indicate when we must clear and re-execute (ie if round has changed).
-    execution_state: ExecutionState,
+    execution_state: ExecutionStateMachine,
 
     // This is set when a `FeeChange` or `FeeAssetChange` action is seen in a block to flag
     // to the mempool to recost all transactions.
@@ -233,7 +233,7 @@ impl App {
         Ok(Self {
             state,
             mempool,
-            execution_state: ExecutionState::new(),
+            execution_state: ExecutionStateMachine::new(),
             recost_mempool: false,
             write_batch: None,
             app_hash,
@@ -321,7 +321,7 @@ impl App {
         // this also clears the ephemeral storage.
         self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
 
-        self.execution_state = ExecutionState::new();
+        self.execution_state = ExecutionStateMachine::new();
     }
 
     /// Generates a commitment to the `sequence::Actions` in the block's transactions.
@@ -398,23 +398,23 @@ impl App {
         // Check the proposal against the prepared proposal fingerprint.
         let skip_execution = self
             .execution_state
-            .check_if_prepared_proposal(&process_proposal);
+            .check_if_prepared_proposal(process_proposal.clone());
 
         // Based on the status after the check, a couple of logs and metrics may
         // be updated or emitted.
         match self.execution_state.data() {
             // The proposal was prepared by this node, so we skip execution.
-            ExecutionFingerprintData::PreparedValid(_) => {
+            ExecutionState::PreparedValid(_) => {
                 trace!("skipping process_proposal as we are the proposer for this block");
             }
-            ExecutionFingerprintData::Prepared(_) => {
+            ExecutionState::Prepared(_) => {
                 bail!("prepared proposal fingerprint was not validated, this should not happen")
             }
             // We have a cached proposal from prepare proposal, but it does not match
             // the current proposal. We should clear the cache and execute proposal.
             //
             // This can happen in HA nodes, but if happening in single nodes likely a bug.
-            ExecutionFingerprintData::CheckedPreparedMismatch(_) => {
+            ExecutionState::CheckedPreparedMismatch(_) => {
                 self.metrics.increment_process_proposal_skipped_proposal();
                 trace!(
                     "there was a previously prepared proposal cached, but did not match current \
@@ -424,9 +424,15 @@ impl App {
             }
             // There was a previously executed full block cached, likely indicates
             // a new round of voting has started. Previous proposal may have failed.
-            ExecutionFingerprintData::ExecutedBlock(_, proposal_hash)
-            | ExecutionFingerprintData::CheckedExecutedBlockMismatch(_, proposal_hash) => {
-                if proposal_hash.is_none() {
+            ExecutionState::ExecutedBlock {
+                cached_block_hash: _,
+                cached_proposal,
+            }
+            | ExecutionState::CheckedExecutedBlockMismatch {
+                cached_block_hash: _,
+                cached_proposal,
+            } => {
+                if cached_proposal.is_none() {
                     trace!(
                         "there was a previously executed block cached, but no proposal hash, will \
                          clear and execute"
@@ -439,7 +445,7 @@ impl App {
                 }
             }
             // No cached proposal, nothing to do for logging. Common case for validator voting.
-            ExecutionFingerprintData::Unset => {}
+            ExecutionState::Unset => {}
         }
 
         // If we can skip execution just fetch the cache, otherwise need to run the execution.

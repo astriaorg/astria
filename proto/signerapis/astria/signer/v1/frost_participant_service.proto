@@ -1,0 +1,16 @@
+syntax = 'proto3';
+
+package astria.signer.v1;
+
+import "astria/signer/v1/get_verifying_share_request.proto";
+import "astria/signer/v1/round_one_request.proto";
+import "astria/signer/v1/round_one_response.proto";
+import "astria/signer/v1/round_two_request.proto";
+import "astria/signer/v1/round_two_response.proto";
+import "astria/signer/v1/verifying_share.proto";
+
+service FrostParticipantService {
+  rpc GetVerifyingShare(GetVerifyingShareRequest) returns (VerifyingShare) {}
+  rpc ExecuteRoundOne(ExecuteRoundOneRequest) returns (RoundOneResponse) {}
+  rpc ExecuteRoundTwo(ExecuteRoundTwoRequest) returns (RoundTwoResponse) {}
+}

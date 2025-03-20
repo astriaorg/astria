@@ -7,9 +7,9 @@ Namepsace to deploy elements into.
 
 {{- define "sequencer.imageTag" -}}
 {{- if or (eq .Values.global.network "custom") (eq .Values.global.dev true) }}{{ .Values.images.sequencer.tag }}
-{{- else if eq .Values.global.network "mainnet" }}1.0.0
-{{- else if eq .Values.global.network "dawn-1" }}2.0.0-rc.2
-{{- else if eq .Values.global.network "dusk-11" }}2.0.0-rc.2
+{{- else if eq .Values.global.network "mainnet" }}2.0.0
+{{- else if eq .Values.global.network "dawn-1" }}2.0.0
+{{- else if eq .Values.global.network "dusk-11" }}2.0.0
 {{- end }}
 {{- end }}
 
@@ -156,7 +156,7 @@ name: {{ .Values.moniker }}-sequencer-metrics
 {{- end }}
 
 {{- define "sequencer.abci_url" -}}
-{{- if and .Values.global.dev .Values.sequencer.abciUDS -}}
+{{- if .Values.sequencer.abciUDS -}}
 unix://{{- include "sequencer.socket_directory" . }}abci.sock
 {{- else -}}
 tcp://127.0.0.1:{{ .Values.ports.sequencerABCI }}
