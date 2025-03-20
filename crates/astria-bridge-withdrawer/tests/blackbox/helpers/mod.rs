@@ -1,4 +1,5 @@
 mod ethereum;
+mod mock_bridge_signer;
 mod mock_cometbft;
 mod mock_sequencer;
 mod test_bridge_withdrawer;
