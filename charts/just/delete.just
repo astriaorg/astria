@@ -1,10 +1,8 @@
-set allow-duplicate-recipes
-
 import 'defaults.just'
 import 'clean.just'
 
 
-_default:
+_default_delete:
   @just --list delete
 
 

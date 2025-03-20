@@ -2,14 +2,14 @@
 ## NOTE: Minimum supported just version is 1.37.0 ##
 ####################################################
 
-import 'just/charts/mod.just'
+import 'charts/just/mod.just'
 
 # Kubetail usage. '$just --list kubetail' for more...
-mod kubetail 'just/dev/kubetail.just'
+mod kubetail 'dev/just/kubetail.just'
 # ArgoCD usage. '$just --list argo' for more...
-mod argo 'just/dev/argo.just'
+mod argo 'dev/just/argo.just'
 # Helm usage. '$just --list helm' for more...
-mod helm 'just/dev/helm.just'
+mod helm 'dev/just/helm.just'
 
 _default:
   @just --list

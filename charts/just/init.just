@@ -1,7 +1,7 @@
 import 'defaults.just'
 
 
-_default:
+_default_init:
     @just --list init
 
 

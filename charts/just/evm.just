@@ -1,6 +1,7 @@
 import 'defaults.just'
 
-_default:
+
+_default_evm:
   @just --list evm
 
 
