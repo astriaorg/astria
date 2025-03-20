@@ -233,7 +233,7 @@ impl OracleService for SequencerServer {
                 .map(astria_core::oracles::price_feed::oracle::v2::QuotePrice::into_raw),
             nonce: state.nonce.get(),
             id: state.id.get(),
-            decimals: market.ticker.decimals,
+            decimals: market.ticker.decimals.into(),
         }))
     }
 
@@ -289,7 +289,7 @@ impl OracleService for SequencerServer {
                     .map(astria_core::oracles::price_feed::oracle::v2::QuotePrice::into_raw),
                 nonce: state.nonce.get(),
                 id: state.id.get(),
-                decimals: market.ticker.decimals,
+                decimals: market.ticker.decimals.into(),
             });
         }
         Ok(Response::new(GetPricesResponse {

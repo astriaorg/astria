@@ -136,7 +136,7 @@ impl Inner {
             if timeout(wait_until_timeout, &mut executor).await.is_err() {
                 warn!(
                     "waited `{}` for executor start to respond to shutdown signal; aborting",
-                    humantime::format_duration(wait_until_timeout)
+                    telemetry::display::format_duration(wait_until_timeout)
                 );
                 executor.abort();
             } else {

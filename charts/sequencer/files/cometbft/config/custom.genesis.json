@@ -119,9 +119,9 @@
       {{- if $index }},{{- end }}
       {{ include "sequencer.address" $value }}
       {{- end }}
-    ],
+    ]
     {{- if not .Values.global.dev }}
-    {{- else }}
+    {{- else }},
     "price_feed": {
       "marketMap": {
         "marketMap": {
@@ -189,8 +189,8 @@
         "nextId": "{{ .Values.sequencer.priceFeed.nextId }}"
       }
     }
+    {{- end}}
   },
-  {{- end}}
   "chain_id": "{{ .Values.genesis.chainId }}",
   "consensus_params": {
     "block": {

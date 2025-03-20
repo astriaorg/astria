@@ -1,5 +1,5 @@
 global:
-  dev: true
+  network: custom
 
 genesis:
   chainId: 'sequencer-test-chain-0'

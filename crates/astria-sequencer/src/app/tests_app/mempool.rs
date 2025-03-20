@@ -301,11 +301,9 @@ async fn maintenance_recosting_promotes() {
         "two txs in mempool; one included in proposal is not yet removed"
     );
 
-    // set dummy hash
-    app.executed_proposal_hash = Hash::try_from([97u8; 32].to_vec()).unwrap();
-
+    let hash = Hash::Sha256([97u8; 32]);
     let process_proposal = abci::request::ProcessProposal {
-        hash: app.executed_proposal_hash,
+        hash,
         height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
@@ -329,7 +327,7 @@ async fn maintenance_recosting_promotes() {
 
     // finalize with finalize block
     let finalize_block = abci::request::FinalizeBlock {
-        hash: app.executed_proposal_hash,
+        hash,
         height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
@@ -481,9 +479,9 @@ async fn maintenance_funds_added_promotes() {
         "only one transactions should've been valid (besides 3 generated txs)"
     );
 
-    app.executed_proposal_hash = Hash::try_from([97u8; 32].to_vec()).unwrap();
+    let hash = Hash::Sha256([97u8; 32]);
     let process_proposal = abci::request::ProcessProposal {
-        hash: app.executed_proposal_hash,
+        hash,
         height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
@@ -505,12 +503,9 @@ async fn maintenance_funds_added_promotes() {
     yet removed"
     );
 
-    // set dummy hash
-    app.executed_proposal_hash = Hash::try_from([97u8; 32].to_vec()).unwrap();
-
     // finalize with finalize block
     let finalize_block = abci::request::FinalizeBlock {
-        hash: app.executed_proposal_hash,
+        hash,
         height,
         time: Time::now(),
         next_validators_hash: Hash::default(),

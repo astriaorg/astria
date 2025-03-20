@@ -292,7 +292,7 @@ impl UpgradesHandler {
             .on_retry(
                 |attempt, next_delay: Option<Duration>, error: &eyre::Report| {
                     let wait_duration = next_delay
-                        .map(humantime::format_duration)
+                        .map(telemetry::display::format_duration)
                         .map(tracing::field::display);
                     warn!(
                         error = error.as_ref() as &dyn std::error::Error,
