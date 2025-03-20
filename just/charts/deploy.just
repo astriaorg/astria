@@ -2,7 +2,7 @@ import 'defaults.just'
 
 
 _default:
-  @just --list deploy --list-heading $'Deployment Recipes:\n\nUsage: \"just deploy <recipe>\"\n\n'
+  @just --list deploy
 
 
 ########################
@@ -10,7 +10,7 @@ _default:
 ########################
 
 
-# Deploy All 
+# Deploy All
 #############
 [doc("
 Deploys cluster, ingress controller, and entire Astria stack, including rollup with
@@ -23,7 +23,7 @@ all: cluster ingress-controller astria-local astrotrek (deploy-chart "sequencer-
 ######################
 [doc("
 Deploys local Sequencer and Celestia instance.
-Usage: 
+Usage:
   $just deploy astria-local <NAMESPACE> (default: 'astria-dev-cluster')
 ")]
 astria-local namespace=defaultNamespace: (deploy-chart "celestia-local" namespace) (sequencer)
@@ -116,7 +116,7 @@ Deploys a local Sequencer network with 3 nodes defined at 'dev/values/validators
 ")]
 sequencers:
   @echo "Deploying sequencers..."
-  @just deploy sequencer "node0" 
+  @just deploy sequencer "node0"
   @just deploy sequencer "node1"
   @just deploy sequencer "node2"
 

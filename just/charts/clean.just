@@ -11,8 +11,8 @@ import 'defaults.just'
 [doc("
 Deletes Kubernetes cluster.
 Usage:
-    $just clean
-    $just clean cluster <NAMESPACE> (default: 'astria-dev-cluster')
+  $just clean
+  $just clean cluster <NAMESPACE> (default: 'astria-dev-cluster')
 ")]
 cluster namespace=defaultNamespace:
   @kind delete cluster --name {{namespace}}

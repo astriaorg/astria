@@ -4,8 +4,8 @@ import 'defaults.just'
 import 'clean.just'
 
 
-_default: 
-  @just --list delete --list-heading $'Deletion Recipes:\n\nUsage: \"just delete <recipe>\"\n\n'
+_default:
+  @just --list delete
 
 
 ######################
@@ -19,7 +19,7 @@ _default:
 Deletes all resources via deletion of the Kubernetes cluster and any associated
 persisted data.
 ")]
-all: 
+all:
   @just clean cluster
   @just clean persisted-data
 
@@ -91,7 +91,7 @@ Deletes local Sequencer deployment.
 Usage:
   $just delete sequencer <NAME> (default: 'single')
 ")]
-sequencer name=validatorName: 
+sequencer name=validatorName:
   @just delete::delete-chart {{name}}-sequencer astria-validator-{{name}}
 
 
@@ -110,7 +110,7 @@ Deletes local EVM rollup stack deployment.
 Usage:
   $just delete rollup <ROLLUP_NAME> (default: 'astria')
 ")]
-rollup rollupName=defaultRollupName: 
+rollup rollupName=defaultRollupName:
   @just delete::delete-chart {{rollupName}}-chain
 
 
@@ -147,7 +147,7 @@ Deletes Hyperlane agents on a locally running rollup.
 Usage:
   $just delete hyperlane-agents <ROLLUP_NAME> (default: 'astria')
 ")]
-hyperlane-agents rollupName=defaultRollupName: 
+hyperlane-agents rollupName=defaultRollupName:
   @just delete::delete-chart {{rollupName}}-hyperlane-agents
 
 

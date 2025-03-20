@@ -1,7 +1,7 @@
 import 'defaults.just'
 
 _default:
-  @just --list evm --list-heading $'EVM Recipes:\n\nUsage: \"just evm <recipe>\"\n\n'
+  @just --list evm
 
 
 #############################################
@@ -14,8 +14,8 @@ _default:
 [doc("
 Obtains the code of a deployed contract on the EVM given its address.
 Usage:
-    $just evm get-deployed-contract-code [CONTRACT_ADDRESS] <RPC_URL>
-        (see 'defaults.just' for default 'eth_rpc_url')
+  $just evm get-deployed-contract-code [CONTRACT_ADDRESS] <RPC_URL>
+    (see 'defaults.just' for default 'eth_rpc_url')
 ")]
 get-deployed-contract-code contractAddress rpcUrl=eth_rpc_url:
   #!/usr/bin/env bash
@@ -27,8 +27,8 @@ get-deployed-contract-code contractAddress rpcUrl=eth_rpc_url:
 [doc("
 Obtains the receipt of a transaction on the EVM given its hash.
 Usage:
-    $just evm get-transaction-receipt [TX_HASH] <RPC_URL>
-        (see 'defaults.just' for default 'eth_rpc_url')
+  $just evm get-transaction-receipt [TX_HASH] <RPC_URL>
+    (see 'defaults.just' for default 'eth_rpc_url')
 ")]
 get-transaction-receipt txHash rpcUrl=eth_rpc_url:
   #!/usr/bin/env bash
@@ -40,8 +40,8 @@ get-transaction-receipt txHash rpcUrl=eth_rpc_url:
 [doc("
 Obtains the raw transaction on the EVM given its hash.
 Usage:
-    $just evm get-raw-transaction [TX_HASH] <RPC_URL>
-        (see 'defaults.just' for default 'eth_rpc_url')
+  $just evm get-raw-transaction [TX_HASH] <RPC_URL>
+    (see 'defaults.just' for default 'eth_rpc_url')
 ")]
 get-raw-transaction txHash rpcUrl=eth_rpc_url:
   #!/usr/bin/env bash
@@ -53,8 +53,8 @@ get-raw-transaction txHash rpcUrl=eth_rpc_url:
 [doc("
 Sends a raw transaction to the EVM.
 Usage:
-    $just evm send-raw-transaction [TX_DATA] <RPC_URL>
-        (see 'defaults.just' for default 'eth_rpc_url')
+  $just evm send-raw-transaction [TX_DATA] <RPC_URL>
+    (see 'defaults.just' for default 'eth_rpc_url')
 ")]
 send-raw-transaction txData rpcUrl=eth_rpc_url:
   #!/usr/bin/env bash
@@ -66,8 +66,8 @@ send-raw-transaction txData rpcUrl=eth_rpc_url:
 [doc("
 Obtains a block on the EVM given its number.
 Usage:
-    $just evm get-block-by-number [BLOCK_NUMBER] <RPC_URL>
-        (see 'defaults.just' for default 'eth_rpc_url')
+  $just evm get-block-by-number [BLOCK_NUMBER] <RPC_URL>
+    (see 'defaults.just' for default 'eth_rpc_url')
 ")]
 get-block-by-number blockNumber rpcUrl=eth_rpc_url:
   #!/usr/bin/env bash
@@ -79,8 +79,8 @@ get-block-by-number blockNumber rpcUrl=eth_rpc_url:
 [doc("
 Obtains the balance of an address on the EVM.
 Usage:
-    $just evm get-balance [ADDRESS] <RPC_URL>
-        (see 'defaults.just' for default 'eth_rpc_url')
+  $just evm get-balance [ADDRESS] <RPC_URL>
+    (see 'defaults.just' for default 'eth_rpc_url')
 ")]
 get-balance address rpcUrl=eth_rpc_url:
   #!/usr/bin/env bash
@@ -93,14 +93,15 @@ get-balance address rpcUrl=eth_rpc_url:
 [doc("
 Obtains the length of the transaction pool on the EVM.
 Usage:
-    $just evm get-txpool-length <RPC_URL>
-        (see 'defaults.just' for default 'eth_rpc_url')
+  $just evm get-txpool-length <RPC_URL>
+    (see 'defaults.just' for default 'eth_rpc_url')
 ")]
 get-txpool-length rpcUrl=eth_rpc_url:
   #!/usr/bin/env bash
   curl -X POST {{eth_rpc_url}} -s -d '{"jsonrpc":"2.0","method":"txpool_content","params":[],"id":1}' -H 'Content-Type: application/json' | jq '.result'
 
 
+[private]
 hex-to-dec hex:
   #!/usr/bin/env bash
   HEX_NUM={{hex}}

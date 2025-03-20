@@ -12,9 +12,7 @@ mod argo 'just/dev/argo.just'
 mod helm 'just/dev/helm.just'
 
 _default:
-  @just --list --list-heading $'Astria Recipes: \n\n \
-    Usage: \"just <recipe>\"\n\n \
-    Modules can be found at bottom. Use \'$just --list <module>\' to list module recipes.\n\n'
+  @just --list
 
 default_docker_tag := 'local'
 default_repo_name := 'ghcr.io/astriaorg'

@@ -1,15 +1,14 @@
 set allow-duplicate-recipes
 
+_default:
+  @just --list run
+
+
 import '../defaults.just'
 import '../evm.just'
 
-[doc("
-Run recipes for IBC testing. Use '$just --list run ibc-test' for more info.
-")]
+[doc("Run recipes for IBC testing. Use '$just --list run ibc-test' for more info.")]
 mod ibc-test
-
-_default:
-    @just --list run --list-heading $'Run Recipes:\n\nUsage: \"just run <recipe>\"\n\n'
 
 
 #################

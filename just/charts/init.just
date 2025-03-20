@@ -2,7 +2,7 @@ import 'defaults.just'
 
 
 _default:
-    @just --list init --list-heading $'Initialization Recipes:\n\nUsage: \"just init <recipe>\"\n\n'
+    @just --list init
 
 
 ############################
@@ -17,10 +17,10 @@ Initializes a bridge account for the given rollup on the Sequencer chain.
 Usage:
     $just init rollup-bridge <TAG> <ROLLUP_NAME> <EVM_DESTINATION_ADDRESS> <TRANSFER_AMOUNT>
         defaults:
-            TAG: ''
-            ROLLUP_NAME: 'astria'
-            EVM_DESTINATION_ADDRESS: evm_destination_address (see 'defaults.just')
-            TRANSFER_AMOUNT: '10'
+          TAG: ''
+          ROLLUP_NAME: 'astria'
+          EVM_DESTINATION_ADDRESS: evm_destination_address (see 'defaults.just')
+          TRANSFER_AMOUNT: '10'
 ")]
 rollup-bridge tag=defaultTag rollupName=defaultRollupName evmDestinationAddress=evm_destination_address transferAmount=sequencer_transfer_amount:
   #!/usr/bin/env bash
@@ -55,8 +55,8 @@ Initializes an IBC bridge account for the given rollup on the Sequencer chain.
 Usage:
     $just init ibc-bridge [privateKey] [asset] [feeAsset] <TAG> <ROLLUP_NAME>
         defaults:
-            TAG: ''
-            ROLLUP_NAME: 'astria'
+          TAG: ''
+          ROLLUP_NAME: 'astria'
 ")]
 ibc-bridge privateKey asset feeAsset tag=defaultTag rollupName=defaultRollupName:
   @echo "Initializing IBC bridge accoung for rollup {{rollupName}} with asset {{asset}} \

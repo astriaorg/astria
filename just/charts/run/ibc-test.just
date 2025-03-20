@@ -16,9 +16,9 @@ import '../evm.just'
 [doc("
 Test IBC transfers between the Rollup and Celestia.
 Usage:
-    $just run ibc-test default <TAG> (default: '')
-    OR
-    $just run ibc-test
+  $just run ibc-test default <TAG> (default: '')
+  OR
+  $just run ibc-test
 ")]
 default tag=defaultTag:
   #!/usr/bin/env bash
@@ -122,7 +122,7 @@ default tag=defaultTag:
 [doc("
 Test IBC transfer from Celestia to Rollup with no native asset.
 Usage:
-    $just run ibc-test-without-native <TAG> (default: '')
+  $just run ibc-test-without-native <TAG> (default: '')
 ")]
 without-native tag=defaultTag:
   #!/usr/bin/env bash
@@ -166,7 +166,7 @@ evm_contract_address := "0xA58639fB5458e65E4fA917FF951C390292C24A15"
 [doc("
 Test IBC transfers between the Rollup and Celestia with a refund timeout.
 Usage:
-    $just run ibc-test-refund-timeout <TAG> (default: '')
+  $just run ibc-test-refund-timeout <TAG> (default: '')
 ")]
 timeout-refund tag=defaultTag:
   #!/usr/bin/env bash
@@ -360,10 +360,10 @@ evm_withdraw_tx_raw := "0xf9012f80843b9aca0782aa0a94a58639fb5458e65e4fa917ff951c
 [doc("
 Obtains the balance of a given address on the local Celestia network.
 Usage:
-    $just run ibc-test get-celestia-balance <ADDRESS> <NAMESPACE>
-        defaults: 
-            ADDRESS= celestia_dev_account_address (see 'ibc-test.just')
-            NAMESPACE= 'astria-dev-cluster'
+  $just run ibc-test get-celestia-balance <ADDRESS> <NAMESPACE>
+    defaults:
+      ADDRESS= celestia_dev_account_address (see 'ibc-test.just')
+      NAMESPACE= 'astria-dev-cluster'
 ")]
 get-celestia-balance address=celestia_dev_account_address namespace=defaultNamespace:
   #!/usr/bin/env bash
