@@ -99,7 +99,7 @@ pub mod v1 {
         }
     }
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq)]
     pub struct ExtendedCommitInfoWithCurrencyPairMapping {
         pub extended_commit_info: ExtendedCommitInfo,
         pub id_to_currency_pair: IndexMap<CurrencyPairId, CurrencyPairInfo>,

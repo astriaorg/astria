@@ -3,12 +3,15 @@ use std::{
     time::Duration,
 };
 
-use astria_core::generated::{
-    astria::sequencerblock::v1::sequencer_service_server::SequencerServiceServer,
-    connect::{
-        marketmap::v2::query_server::QueryServer as MarketMapQueryServer,
-        oracle::v2::query_server::QueryServer as OracleQueryServer,
+use astria_core::{
+    generated::{
+        astria::sequencerblock::v1::sequencer_service_server::SequencerServiceServer,
+        connect::{
+            marketmap::v2::query_server::QueryServer as MarketMapQueryServer,
+            oracle::v2::query_server::QueryServer as OracleQueryServer,
+        },
     },
+    upgrades::v1::Upgrades,
 };
 use astria_eyre::eyre;
 pub(crate) use state_ext::{
@@ -95,6 +98,7 @@ impl BackgroundTasks {
 pub(crate) async fn serve(
     storage: cnidarium::Storage,
     mempool: Mempool,
+    upgrades: Upgrades,
     grpc_addr: std::net::SocketAddr,
     no_optimistic_blocks: bool,
     event_bus_subscription: EventBusSubscription,
@@ -109,7 +113,7 @@ pub(crate) async fn serve(
     use tower_http::cors::CorsLayer;
 
     let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
-    let sequencer_api = SequencerServer::new(storage.clone(), mempool);
+    let sequencer_api = SequencerServer::new(storage.clone(), mempool, upgrades);
     let market_map_api = connect::SequencerServer::new(storage.clone());
     let oracle_api = connect::SequencerServer::new(storage.clone());
     let cors_layer: CorsLayer = CorsLayer::permissive();

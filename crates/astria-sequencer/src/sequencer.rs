@@ -47,7 +47,10 @@ use tracing::{
 
 use crate::{
     address::StateReadExt as _,
-    app::App,
+    app::{
+        App,
+        ShouldShutDown,
+    },
     assets::StateReadExt as _,
     config::{
         AbciListenUrl,
@@ -56,20 +59,33 @@ use crate::{
     mempool::Mempool,
     metrics::Metrics,
     service,
+    upgrades::UpgradesHandler,
 };
 
 const MAX_RETRIES_TO_CONNECT_TO_ORACLE_SIDECAR: u32 = 36;
 
 pub struct Sequencer;
 
+type GrpcServerHandle = JoinHandle<Result<(), tonic::transport::Error>>;
+type AbciServerHandle = JoinHandle<()>;
+
 struct RunningGrpcServer {
-    pub handle: JoinHandle<Result<(), tonic::transport::Error>>,
+    pub handle: GrpcServerHandle,
     pub shutdown_tx: oneshot::Sender<()>,
 }
 
 struct RunningAbciServer {
-    pub handle: JoinHandle<()>,
+    pub handle: AbciServerHandle,
     pub shutdown_rx: oneshot::Receiver<()>,
+    pub consensus_cancellation_token: tokio_util::sync::CancellationToken,
+}
+
+enum InitializationOutcome {
+    Initialized {
+        grpc_server: RunningGrpcServer,
+        abci_server: RunningAbciServer,
+    },
+    ShutDownForUpgrade,
 }
 
 impl Sequencer {
@@ -93,15 +109,19 @@ impl Sequencer {
             }
 
             result = initialize_fut => {
-                let (grpc_server, abci_server) = result?;
-                Self::run_until_stopped(abci_server, grpc_server, &mut signals).await
+                match result? {
+                    InitializationOutcome::Initialized{grpc_server,abci_server  } => {
+                        Self::run_until_stopped(grpc_server, abci_server, &mut signals).await
+                    }
+                    InitializationOutcome::ShutDownForUpgrade => { Ok(()) }
+                }
             }
         }
     }
 
     async fn run_until_stopped(
-        abci_server: RunningAbciServer,
         grpc_server: RunningGrpcServer,
+        abci_server: RunningAbciServer,
         signals: &mut SignalReceiver,
     ) -> Result<()> {
         select! {
@@ -109,8 +129,14 @@ impl Sequencer {
                 info_span!("run_until_stopped").in_scope(|| info!("shutting down sequencer"));
             }
 
+            () = abci_server.consensus_cancellation_token.cancelled() => {
+                info_span!("run_until_stopped")
+                    .in_scope(|| info!("consensus server shutting down sequencer"));
+            },
+
             _ = abci_server.shutdown_rx => {
-                info_span!("run_until_stopped").in_scope(|| error!("ABCI server task exited, this shouldn't happen"));
+                info_span!("run_until_stopped")
+                    .in_scope(|| error!("ABCI server task exited, this shouldn't happen"));
             }
         }
 
@@ -131,7 +157,7 @@ impl Sequencer {
     async fn initialize(
         config: Config,
         metrics: &'static Metrics,
-    ) -> Result<(RunningGrpcServer, RunningAbciServer)> {
+    ) -> Result<InitializationOutcome> {
         cnidarium::register_metrics();
         register_histogram_global("cnidarium_get_raw_duration_seconds");
         register_histogram_global("cnidarium_nonverifiable_get_raw_duration_seconds");
@@ -142,13 +168,38 @@ impl Sequencer {
             config.db_filepath.clone(),
             substore_prefixes
                 .into_iter()
-                .map(std::string::ToString::to_string)
+                .map(ToString::to_string)
                 .collect(),
         )
         .await
         .map_err(anyhow_to_eyre)
         .wrap_err("failed to load storage backing chain state")?;
         let snapshot = storage.latest_snapshot();
+
+        let upgrades_handler =
+            UpgradesHandler::new(&config.upgrades_filepath, config.cometbft_rpc_addr.clone())
+                .wrap_err("failed constructing upgrades handler")?;
+        upgrades_handler
+            .ensure_historical_upgrades_applied(&snapshot)
+            .await
+            .wrap_err("historical upgrades not applied")?;
+        if let ShouldShutDown::ShutDownForUpgrade {
+            upgrade_activation_height,
+            block_time,
+            hex_encoded_app_hash,
+        } = upgrades_handler
+            .should_shut_down(&snapshot)
+            .await
+            .wrap_err("failed to establish if sequencer should shut down for upgrade")?
+        {
+            info!(
+                upgrade_activation_height,
+                latest_app_hash = %hex_encoded_app_hash,
+                latest_block_time = %block_time,
+                "shutting down for upgrade"
+            );
+            return Ok(InitializationOutcome::ShutDownForUpgrade);
+        }
 
         // the native asset should be configurable only at genesis.
         // the genesis state must include the native asset's base
@@ -165,14 +216,15 @@ impl Sequencer {
                 .context("failed to query state for base prefix")?;
         }
 
+        let mempool = Mempool::new(metrics, config.mempool_parked_max_tx_count);
         let oracle_client = new_oracle_client(&config)
             .await
             .wrap_err("failed to create connected oracle client")?;
-
-        let mempool = Mempool::new(metrics, config.mempool_parked_max_tx_count);
+        let upgrades = upgrades_handler.upgrades().clone();
         let app = App::new(
             snapshot,
             mempool.clone(),
+            upgrades_handler,
             crate::app::vote_extension::Handler::new(oracle_client),
             metrics,
         )
@@ -197,6 +249,7 @@ impl Sequencer {
         let grpc_server_handle = tokio::spawn(crate::grpc::serve(
             storage.clone(),
             mempool,
+            upgrades,
             grpc_addr,
             config.no_optimistic_blocks,
             event_bus_subscription,
@@ -204,12 +257,14 @@ impl Sequencer {
         ));
 
         debug!(%config.abci_listen_url, "starting sequencer");
+        let consensus_cancellation_token = tokio_util::sync::CancellationToken::new();
         let abci_server_handle = start_abci_server(
             &storage,
             app,
             mempool_service,
             config.abci_listen_url,
             abci_shutdown_tx,
+            consensus_cancellation_token.clone(),
         )
         .wrap_err("failed to start ABCI server")?;
 
@@ -220,9 +275,13 @@ impl Sequencer {
         let abci_server = RunningAbciServer {
             handle: abci_server_handle,
             shutdown_rx: abci_shutdown_rx,
+            consensus_cancellation_token,
         };
 
-        Ok((grpc_server, abci_server))
+        Ok(InitializationOutcome::Initialized {
+            grpc_server,
+            abci_server,
+        })
     }
 }
 
@@ -232,6 +291,7 @@ fn start_abci_server(
     mempool_service: service::Mempool,
     listen_url: AbciListenUrl,
     abci_shutdown_tx: oneshot::Sender<()>,
+    consensus_cancellation_token: tokio_util::sync::CancellationToken,
 ) -> eyre::Result<JoinHandle<()>> {
     let consensus_service = tower::ServiceBuilder::new()
         .layer(request_span::layer(|req: &ConsensusRequest| {
@@ -239,7 +299,11 @@ fn start_abci_server(
         }))
         .service(tower_actor::Actor::new(10, |queue: _| {
             let storage = storage.clone();
-            async move { service::Consensus::new(storage, app, queue).run().await }
+            async move {
+                service::Consensus::new(storage, app, queue, consensus_cancellation_token)
+                    .run()
+                    .await
+            }
         }));
     let info_service =
         service::Info::new(storage.clone()).wrap_err("failed initializing info service")?;
@@ -386,6 +450,8 @@ mod tests {
             no_metrics: true,
             metrics_http_listener_addr: String::new(),
             pretty_print: true,
+            upgrades_filepath: PathBuf::new(),
+            cometbft_rpc_addr: String::new(),
             no_oracle: false,
             oracle_grpc_addr: "http://127.0.0.1:8081".to_string(),
             oracle_client_timeout_milliseconds: 1,

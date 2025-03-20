@@ -29,6 +29,25 @@ message GetPendingNonceResponse {
   uint32 inner = 1;
 }
 
+message GetUpgradesInfoRequest {}
+
+message GetUpgradesInfoResponse {
+  // Brief details of a given upgrade change.
+  message ChangeInfo {
+    // The block height at which this change was applied.
+    uint64 activation_height = 1;
+    // The human-readable name assigned to to this change.
+    string change_name = 2;
+    // The app version running after the change was applied.
+    uint64 app_version = 3;
+    // The SHA256 digest of this change after Borsh-encoding. The digest is base64 (standard) encoded.
+    string base64_hash = 4;
+  }
+
+  repeated ChangeInfo applied = 1;
+  repeated ChangeInfo scheduled = 2;
+}
+
 service SequencerService {
   // Given a block height, returns the sequencer block at that height.
   rpc GetSequencerBlock(GetSequencerBlockRequest) returns (SequencerBlock) {
@@ -47,5 +66,10 @@ service SequencerService {
   // Returns the pending nonce for the given account.
   rpc GetPendingNonce(GetPendingNonceRequest) returns (GetPendingNonceResponse) {
     option (google.api.http) = {get: "/v1/sequencer/pendingnonce/{account}"};
+  }
+
+  // Returns info about the sequencer upgrades applied and scheduled.
+  rpc GetUpgradesInfo(GetUpgradesInfoRequest) returns (GetUpgradesInfoResponse) {
+    option (google.api.http) = {get: "/v1/sequencer/upgrades"};
   }
 }
