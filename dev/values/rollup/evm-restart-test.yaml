@@ -15,7 +15,7 @@ evm-rollup:
 
     # The "forks" for upgrading the chain. Contains necessary information for starting
     # and, if desired, restarting the chain at a given height. The necessary fields
-    # for the first fork are provided, and additional forks can be added as needed.
+    # for the genesis fork are provided, and additional forks can be added as needed.
     forks:
       ## These values are used to configure the genesis block of the rollup chain
       ## no defaults as they are unique to each chain
@@ -40,13 +40,15 @@ evm-rollup:
           # The maximum number of blocks ahead of the lowest Celestia search height
           # to search for a firm commitment
           searchHeightMaxLookAhead: 50
-          # Configure the sequencer bridge addresses and allowed assets if using
-          # the astria canonical bridge. Recommend removing alloc values if so.
+        # Configure the sequencer bridge addresses and allowed assets if using
+        # the astria canonical bridge. Recommend removing alloc values if so.
         bridgeAddresses:
           - bridgeAddress: "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
             senderAddress: "0x0000000000000000000000000000000000000000"
             assetDenom: "nria"
             assetPrecision: 9
+      restart:
+        height: 19
 
     ## These are general configuration values with some recommended defaults
 
@@ -58,7 +60,7 @@ evm-rollup:
     ## Standard Eth Genesis config values
     # Configuration of Eth forks, setting to 0 will enable from height,
     # left as is these forks will not activate.
-    cancunTime: "0"
+    cancunTime: ""
     pragueTime: ""
     verkleTime: ""
     # Can configure the genesis allocs for the chain
@@ -71,13 +73,6 @@ evm-rollup:
         value:
           balance: "0"
           code: "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3"
-      # EIP-4877 Beacon Block Contract
-      # Code is defined by the contract in the spec: https://eips.ethereum.org/EIPS/eip-4788
-      - address: "0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02"
-        value:
-          balance: "0"
-          code: "0x3373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500"
-      # The EVM Withdrawer contract
       - address: "0xA58639fB5458e65E4fA917FF951C390292C24A15"
         value:
           balance: "0"
