@@ -14,6 +14,8 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 
+use crate::utils::wait_for_tx_inclusion;
+
 #[derive(clap::Args, Debug)]
 pub(super) struct Command {
     /// The URL at which the Sequencer node is listening for ABCI commands.
@@ -41,7 +43,9 @@ impl Command {
 
         ensure!(res.code.is_ok(), "failed to check tx: {}", res.log);
 
-        let tx_response = sequencer_client.wait_for_tx_inclusion(res.hash).await;
+        let tx_response = wait_for_tx_inclusion(sequencer_client, res.hash)
+            .await
+            .wrap_err("failed waiting for tx inclusion")?;
 
         ensure!(
             tx_response.tx_result.code.is_ok(),

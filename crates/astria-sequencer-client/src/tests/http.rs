@@ -374,7 +374,7 @@ async fn submit_tx_sync() {
 }
 
 #[tokio::test]
-async fn wait_for_tx_inclusion() {
+async fn get_tx() {
     let MockSequencer {
         server,
         client,
@@ -410,11 +410,12 @@ async fn wait_for_tx_inclusion() {
 
     let _tx_response_guard = register_tx_response(&server, tx_server_response.clone()).await;
 
-    let response = client.wait_for_tx_inclusion(tx_server_response.hash);
+    let response = client.get_tx(tx_server_response.hash);
 
     let response = timeout(Duration::from_millis(1000), response)
         .await
-        .expect("should have received a transaction response within 1000ms");
+        .expect("should have received a transaction response within 1000ms")
+        .unwrap();
 
     assert_eq!(response.tx_result.code, tx_server_response.tx_result.code);
     assert_eq!(response.tx_result.data, tx_server_response.tx_result.data);

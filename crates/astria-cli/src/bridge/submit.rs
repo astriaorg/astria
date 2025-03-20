@@ -28,6 +28,8 @@ use tracing::{
     warn,
 };
 
+use crate::utils::wait_for_tx_inclusion;
+
 #[derive(clap::Args, Debug)]
 pub(crate) struct Command {
     /// Path to the file containing the actions to submit
@@ -144,7 +146,9 @@ async fn submit_transaction(
         .await
         .wrap_err("failed to submit transaction")?;
 
-    let tx_response = client.wait_for_tx_inclusion(res.hash).await;
+    let tx_response = wait_for_tx_inclusion(client, res.hash)
+        .await
+        .wrap_err("failed waiting for tx inclusion")?;
 
     ensure!(res.code.is_ok(), "failed to check tx: {}", res.log);
     ensure!(
