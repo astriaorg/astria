@@ -119,9 +119,9 @@
       {{- if $index }},{{- end }}
       {{ include "sequencer.address" $value }}
       {{- end }}
-    ],
+    ]
     {{- if not .Values.global.dev }}
-    {{- else }}
+    {{- else }},
     "connect": {
       "marketMap": {
         "marketMap": {

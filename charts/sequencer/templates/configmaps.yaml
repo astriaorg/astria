@@ -85,5 +85,8 @@ data:
   {{- if not (or .Values.global.dev (ne (include "sequencer.imageTag" .) .Chart.AppVersion)) }}
   # These are variables which are added in newer releases and are not present in the current release.
   {{- else }}
+  ASTRIA_SEQUENCER_NO_ORACLE: "{{ not .Values.sequencer.oracle.enabled }}"
+  ASTRIA_SEQUENCER_ORACLE_GRPC_ADDR: "http://127.0.0.1:{{ .Values.ports.oracleGrpc }}"
+  ASTRIA_SEQUENCER_ORACLE_CLIENT_TIMEOUT_MILLISECONDS: "{{ .Values.sequencer.oracle.clientTimeout }}"
   {{- end }}
 ---
