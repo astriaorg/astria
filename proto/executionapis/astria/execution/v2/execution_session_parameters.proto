@@ -2,7 +2,7 @@ syntax = 'proto3';
 
 package astria.execution.v2;
 
-import "astria/primitive/v1/types.proto";
+import "astria/primitive/v1/rollup_id.proto";
 
 // ExecutionSessionParameters contains the information needed to map sequencer block height
 // to rollup block number for driving execution.
