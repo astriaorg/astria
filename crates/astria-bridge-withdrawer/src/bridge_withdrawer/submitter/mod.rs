@@ -300,7 +300,7 @@ async fn submit_tx(
 
     ensure!(check_tx.code.is_ok(), "check_tx failed: {}", check_tx.log);
 
-    let tx_response = wait_for_tx_inclusion(client, check_tx.hash)
+    let tx_response = wait_for_tx_inclusion(client, check_tx.hash, metrics)
         .await
         .wrap_err("failed waiting for tx inclusion")?;
 
@@ -317,6 +317,7 @@ async fn submit_tx(
 async fn wait_for_tx_inclusion(
     client: sequencer_client::HttpClient,
     tx_hash: tendermint::hash::Hash,
+    metrics: &'static Metrics,
 ) -> eyre::Result<tx::Response> {
     use sequencer_client::extension_trait::Error;
 
@@ -365,13 +366,16 @@ async fn wait_for_tx_inclusion(
                     sleep_millis =
                         std::cmp::min(sleep_millis.saturating_mul(2), MAX_POLL_INTERVAL_MILLIS);
                     log_if_due(error);
+                    metrics.increment_sequencer_get_tx_failure_count();
                 }
             }
         }
     };
-    time::timeout(Duration::from_secs(240), tx_fut())
+    let tx_result = time::timeout(Duration::from_secs(240), tx_fut())
         .await
-        .wrap_err("timed out waiting for tx inclusion")
+        .wrap_err("timed out waiting for tx inclusion")?;
+    metrics.record_sequencer_get_tx_failure_latency(start.elapsed());
+    Ok(tx_result)
 }
 
 #[instrument(skip_all, err)]
