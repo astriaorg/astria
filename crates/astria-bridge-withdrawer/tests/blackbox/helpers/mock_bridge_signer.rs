@@ -11,9 +11,9 @@ use astria_core::{
             FrostParticipantServiceServer,
         },
         GetVerifyingShareRequest,
-        RoundOneRequest,
+        ExecuteRoundOneRequest,
         RoundOneResponse,
-        RoundTwoRequest,
+        ExecuteRoundTwoRequest,
         RoundTwoResponse,
         VerifyingShare,
     },
@@ -122,7 +122,7 @@ impl FrostParticipantService for FrostParticipantServiceImpl {
 
     async fn execute_round_one(
         self: Arc<Self>,
-        _request: Request<RoundOneRequest>,
+        _request: Request<ExecuteRoundOneRequest>,
     ) -> Result<Response<RoundOneResponse>, Status> {
         let mut rng = rand_chacha::ChaChaRng::seed_from_u64(0);
         let (nonces, commitments) =
@@ -141,7 +141,7 @@ impl FrostParticipantService for FrostParticipantServiceImpl {
 
     async fn execute_round_two(
         self: Arc<Self>,
-        request: Request<RoundTwoRequest>,
+        request: Request<ExecuteRoundTwoRequest>,
     ) -> Result<Response<RoundTwoResponse>, Status> {
         let request = request.into_inner();
         let signing_commitments = request

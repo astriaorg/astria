@@ -11,6 +11,6 @@ import "astria/signer/v1/verifying_share.proto";
 
 service FrostParticipantService {
   rpc GetVerifyingShare(GetVerifyingShareRequest) returns (VerifyingShare) {}
-  rpc ExecuteRoundOne(RoundOneRequest) returns (RoundOneResponse) {}
-  rpc ExecuteRoundTwo(RoundTwoRequest) returns (RoundTwoResponse) {}
+  rpc ExecuteRoundOne(ExecuteRoundOneRequest) returns (RoundOneResponse) {}
+  rpc ExecuteRoundTwo(ExecuteRoundTwoRequest) returns (RoundTwoResponse) {}
 }

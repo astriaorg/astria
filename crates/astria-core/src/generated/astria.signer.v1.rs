@@ -25,9 +25,9 @@ impl ::prost::Name for GetVerifyingShareRequest {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RoundOneRequest {}
-impl ::prost::Name for RoundOneRequest {
-    const NAME: &'static str = "RoundOneRequest";
+pub struct ExecuteRoundOneRequest {}
+impl ::prost::Name for ExecuteRoundOneRequest {
+    const NAME: &'static str = "ExecuteRoundOneRequest";
     const PACKAGE: &'static str = "astria.signer.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.signer.v1.{}", Self::NAME)
@@ -52,7 +52,7 @@ impl ::prost::Name for RoundOneResponse {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RoundTwoRequest {
+pub struct ExecuteRoundTwoRequest {
     #[prost(message, repeated, tag = "1")]
     pub commitments: ::prost::alloc::vec::Vec<CommitmentWithIdentifier>,
     #[prost(bytes = "bytes", tag = "2")]
@@ -60,8 +60,8 @@ pub struct RoundTwoRequest {
     #[prost(uint32, tag = "3")]
     pub request_identifier: u32,
 }
-impl ::prost::Name for RoundTwoRequest {
-    const NAME: &'static str = "RoundTwoRequest";
+impl ::prost::Name for ExecuteRoundTwoRequest {
+    const NAME: &'static str = "ExecuteRoundTwoRequest";
     const PACKAGE: &'static str = "astria.signer.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.signer.v1.{}", Self::NAME)
@@ -214,7 +214,7 @@ pub mod frost_participant_service_client {
         }
         pub async fn execute_round_one(
             &mut self,
-            request: impl tonic::IntoRequest<super::RoundOneRequest>,
+            request: impl tonic::IntoRequest<super::ExecuteRoundOneRequest>,
         ) -> std::result::Result<
             tonic::Response<super::RoundOneResponse>,
             tonic::Status,
@@ -244,7 +244,7 @@ pub mod frost_participant_service_client {
         }
         pub async fn execute_round_two(
             &mut self,
-            request: impl tonic::IntoRequest<super::RoundTwoRequest>,
+            request: impl tonic::IntoRequest<super::ExecuteRoundTwoRequest>,
         ) -> std::result::Result<
             tonic::Response<super::RoundTwoResponse>,
             tonic::Status,
@@ -288,14 +288,14 @@ pub mod frost_participant_service_server {
         ) -> std::result::Result<tonic::Response<super::VerifyingShare>, tonic::Status>;
         async fn execute_round_one(
             self: std::sync::Arc<Self>,
-            request: tonic::Request<super::RoundOneRequest>,
+            request: tonic::Request<super::ExecuteRoundOneRequest>,
         ) -> std::result::Result<
             tonic::Response<super::RoundOneResponse>,
             tonic::Status,
         >;
         async fn execute_round_two(
             self: std::sync::Arc<Self>,
-            request: tonic::Request<super::RoundTwoRequest>,
+            request: tonic::Request<super::ExecuteRoundTwoRequest>,
         ) -> std::result::Result<
             tonic::Response<super::RoundTwoResponse>,
             tonic::Status,
@@ -436,7 +436,7 @@ pub mod frost_participant_service_server {
                     struct ExecuteRoundOneSvc<T: FrostParticipantService>(pub Arc<T>);
                     impl<
                         T: FrostParticipantService,
-                    > tonic::server::UnaryService<super::RoundOneRequest>
+                    > tonic::server::UnaryService<super::ExecuteRoundOneRequest>
                     for ExecuteRoundOneSvc<T> {
                         type Response = super::RoundOneResponse;
                         type Future = BoxFuture<
@@ -445,7 +445,7 @@ pub mod frost_participant_service_server {
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::RoundOneRequest>,
+                            request: tonic::Request<super::ExecuteRoundOneRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
@@ -486,7 +486,7 @@ pub mod frost_participant_service_server {
                     struct ExecuteRoundTwoSvc<T: FrostParticipantService>(pub Arc<T>);
                     impl<
                         T: FrostParticipantService,
-                    > tonic::server::UnaryService<super::RoundTwoRequest>
+                    > tonic::server::UnaryService<super::ExecuteRoundTwoRequest>
                     for ExecuteRoundTwoSvc<T> {
                         type Response = super::RoundTwoResponse;
                         type Future = BoxFuture<
@@ -495,7 +495,7 @@ pub mod frost_participant_service_server {
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::RoundTwoRequest>,
+                            request: tonic::Request<super::ExecuteRoundTwoRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
