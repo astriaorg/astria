@@ -80,6 +80,7 @@ genesis:
     #   balance: "333333333333333333"
 
   consensusParams:
+    appVersion: "1"
     blockMaxBytes: "1048576"
     blockMaxGas: "-1"
     maxAgeDuration: "1209600000000000"
@@ -148,7 +149,6 @@ sequencer:
     clientTimeout: 1000
     markets: []
     currencyPairGenesis: []
-
   metrics:
     enabled: false
   otel:
@@ -164,6 +164,13 @@ sequencer:
   optimisticBlockApis:
     # set to true to enable optimistic block APIs
     enabled: false
+  upgrades:
+    systemTest:
+      # If `false`, we're running a new network with code and configs incorporating
+      # the latest changes due to be provided via the next planned upgrade. If
+      # `true`, we're running a network similar to current mainnet/testnet, likely
+      # for testing the next planned upgrade.
+      enabled: false
 
 cometbft:
   config:
