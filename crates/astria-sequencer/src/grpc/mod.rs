@@ -6,7 +6,7 @@ use std::{
 use astria_core::{
     generated::{
         astria::sequencerblock::v1::sequencer_service_server::SequencerServiceServer,
-        connect::{
+        price_feed::{
             marketmap::v2::query_server::QueryServer as MarketMapQueryServer,
             oracle::v2::query_server::QueryServer as OracleQueryServer,
         },
@@ -41,8 +41,8 @@ use crate::{
     mempool::Mempool,
 };
 
-pub(crate) mod connect;
 pub(crate) mod optimistic;
+pub(crate) mod price_feed;
 pub(crate) mod sequencer;
 mod state_ext;
 pub(crate) mod storage;
@@ -114,8 +114,8 @@ pub(crate) async fn serve(
 
     let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
     let sequencer_api = SequencerServer::new(storage.clone(), mempool, upgrades);
-    let market_map_api = connect::SequencerServer::new(storage.clone());
-    let oracle_api = connect::SequencerServer::new(storage.clone());
+    let market_map_api = price_feed::SequencerServer::new(storage.clone());
+    let oracle_api = price_feed::SequencerServer::new(storage.clone());
     let cors_layer: CorsLayer = CorsLayer::permissive();
 
     let mut background_tasks = BackgroundTasks::new();

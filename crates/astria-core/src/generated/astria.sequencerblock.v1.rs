@@ -234,7 +234,7 @@ pub mod rollup_data {
         #[prost(message, tag = "2")]
         Deposit(super::Deposit),
         #[prost(message, tag = "3")]
-        OracleData(super::OracleData),
+        PriceFeedData(super::PriceFeedData),
     }
 }
 impl ::prost::Name for RollupData {
@@ -307,12 +307,12 @@ impl ::prost::Name for ExtendedCommitInfoWithProof {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct OracleData {
+pub struct PriceFeedData {
     #[prost(message, repeated, tag = "1")]
     pub prices: ::prost::alloc::vec::Vec<Price>,
 }
-impl ::prost::Name for OracleData {
-    const NAME: &'static str = "OracleData";
+impl ::prost::Name for PriceFeedData {
+    const NAME: &'static str = "PriceFeedData";
     const PACKAGE: &'static str = "astria.sequencerblock.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)

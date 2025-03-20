@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use astria_core::generated::connect::service::v2::oracle_client::OracleClient;
+use astria_core::generated::price_feed::service::v2::oracle_client::OracleClient;
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
@@ -62,7 +62,7 @@ use crate::{
     upgrades::UpgradesHandler,
 };
 
-const MAX_RETRIES_TO_CONNECT_TO_ORACLE_SIDECAR: u32 = 36;
+const MAX_RETRIES_TO_CONNECT_TO_PRICE_FEED_SIDECAR: u32 = 36;
 
 pub struct Sequencer;
 
@@ -217,15 +217,15 @@ impl Sequencer {
         }
 
         let mempool = Mempool::new(metrics, config.mempool_parked_max_tx_count);
-        let oracle_client = new_oracle_client(&config)
+        let price_feed_client = new_price_feed_client(&config)
             .await
-            .wrap_err("failed to create connected oracle client")?;
+            .wrap_err("failed to create connected price feed client")?;
         let upgrades = upgrades_handler.upgrades().clone();
         let app = App::new(
             snapshot,
             mempool.clone(),
             upgrades_handler,
-            crate::app::vote_extension::Handler::new(oracle_client),
+            crate::app::vote_extension::Handler::new(price_feed_client),
             metrics,
         )
         .await
@@ -370,64 +370,68 @@ fn spawn_signal_handler() -> SignalReceiver {
     }
 }
 
-/// Returns a new Connect oracle client or `Ok(None)` if `config.no_oracle` is true.
+/// Returns a new price feed client or `Ok(None)` if `config.no_price_feed` is true.
 ///
-/// If `config.no_oracle` is false, returns `Ok(Some(...))` as soon as a successful response is
-/// received from the oracle sidecar, or returns `Err` after a fixed number of failed re-attempts
-/// (roughly equivalent to 5 minutes total).
+/// If `config.no_price_feed` is false, returns `Ok(Some(...))` as soon as a successful response is
+/// received from the price feed sidecar, or returns `Err` after a fixed number of failed
+/// re-attempts (roughly equivalent to 5 minutes total).
 #[instrument(skip_all, err)]
-async fn new_oracle_client(config: &Config) -> Result<Option<OracleClient<Channel>>> {
-    if config.no_oracle {
+async fn new_price_feed_client(config: &Config) -> Result<Option<OracleClient<Channel>>> {
+    if config.no_price_feed {
         return Ok(None);
     }
     let uri: Uri = config
-        .oracle_grpc_addr
+        .price_feed_grpc_addr
         .parse()
-        .context("failed parsing oracle grpc address as Uri")?;
+        .context("failed parsing price feed grpc address as Uri")?;
     let endpoint = Endpoint::from(uri.clone()).timeout(Duration::from_millis(
-        config.oracle_client_timeout_milliseconds,
+        config.price_feed_client_timeout_milliseconds,
     ));
 
-    let retry_config = tryhard::RetryFutureConfig::new(MAX_RETRIES_TO_CONNECT_TO_ORACLE_SIDECAR)
-        .exponential_backoff(Duration::from_millis(100))
-        .max_delay(Duration::from_secs(10))
-        .on_retry(
-            |attempt, next_delay: Option<Duration>, error: &eyre::Report| {
-                let wait_duration = next_delay
-                    .map(telemetry::display::format_duration)
-                    .map(tracing::field::display);
-                warn!(
-                    error = error.as_ref() as &dyn std::error::Error,
-                    attempt,
-                    wait_duration,
-                    "failed to query oracle sidecar; retrying after backoff",
-                );
-                async {}
-            },
-        );
+    let retry_config =
+        tryhard::RetryFutureConfig::new(MAX_RETRIES_TO_CONNECT_TO_PRICE_FEED_SIDECAR)
+            .exponential_backoff(Duration::from_millis(100))
+            .max_delay(Duration::from_secs(10))
+            .on_retry(
+                |attempt, next_delay: Option<Duration>, error: &eyre::Report| {
+                    let wait_duration = next_delay
+                        .map(telemetry::display::format_duration)
+                        .map(tracing::field::display);
+                    warn!(
+                        error = error.as_ref() as &dyn std::error::Error,
+                        attempt,
+                        wait_duration,
+                        "failed to query price feed oracle sidecar; retrying after backoff",
+                    );
+                    async {}
+                },
+            );
 
-    let client = tryhard::retry_fn(|| connect_to_oracle(&endpoint, &uri))
+    let client = tryhard::retry_fn(|| connect_to_price_feed_sidecar(&endpoint, &uri))
         .with_config(retry_config)
         .await
         .wrap_err_with(|| {
             format!(
-                "failed to query oracle sidecar after {MAX_RETRIES_TO_CONNECT_TO_ORACLE_SIDECAR} \
-                 retries; giving up"
+                "failed to query price feed sidecar after \
+                 {MAX_RETRIES_TO_CONNECT_TO_PRICE_FEED_SIDECAR} retries; giving up"
             )
         })?;
     Ok(Some(client))
 }
 
 #[instrument(skip_all, err(level = tracing::Level::WARN))]
-async fn connect_to_oracle(endpoint: &Endpoint, uri: &Uri) -> Result<OracleClient<Channel>> {
-    let oracle_client = OracleClient::new(
+async fn connect_to_price_feed_sidecar(
+    endpoint: &Endpoint,
+    uri: &Uri,
+) -> Result<OracleClient<Channel>> {
+    let client = OracleClient::new(
         endpoint
             .connect()
             .await
-            .wrap_err("failed to connect to oracle sidecar")?,
+            .wrap_err("failed to connect to price feed sidecar")?,
     );
-    debug!(uri = %uri, "oracle sidecar is reachable");
-    Ok(oracle_client)
+    debug!(uri = %uri, "price feed sidecar is reachable");
+    Ok(client)
 }
 
 #[cfg(test)]
@@ -438,7 +442,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn should_wait_while_unable_to_connect() {
-        // We only care about `no_oracle` and `oracle_grpc_addr` values - the others can be
+        // We only care about `no_price_feed` and `price_feed_grpc_addr` values - the others can be
         // meaningless.
         let config = Config {
             abci_listen_url: AbciListenUrl::Unix(PathBuf::new()),
@@ -452,21 +456,21 @@ mod tests {
             pretty_print: true,
             upgrades_filepath: PathBuf::new(),
             cometbft_rpc_addr: String::new(),
-            no_oracle: false,
-            oracle_grpc_addr: "http://127.0.0.1:8081".to_string(),
-            oracle_client_timeout_milliseconds: 1,
+            no_price_feed: false,
+            price_feed_grpc_addr: "http://127.0.0.1:8081".to_string(),
+            price_feed_client_timeout_milliseconds: 1,
             mempool_parked_max_tx_count: 1,
             no_optimistic_blocks: false,
         };
 
         let start = tokio::time::Instant::now();
-        let error = new_oracle_client(&config).await.unwrap_err();
+        let error = new_price_feed_client(&config).await.unwrap_err();
         assert!(start.elapsed() > Duration::from_secs(300));
         assert_eq!(
             error.to_string(),
             format!(
-                "failed to query oracle sidecar after {MAX_RETRIES_TO_CONNECT_TO_ORACLE_SIDECAR} \
-                 retries; giving up"
+                "failed to query price feed sidecar after \
+                 {MAX_RETRIES_TO_CONNECT_TO_PRICE_FEED_SIDECAR} retries; giving up"
             )
         );
     }

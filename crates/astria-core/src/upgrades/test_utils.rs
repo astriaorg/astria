@@ -1,7 +1,7 @@
 use super::v1::Upgrades;
 use crate::{
     generated::upgrades::v1 as raw,
-    protocol::test_utils::dummy_connect_genesis,
+    protocol::test_utils::dummy_price_feed_genesis,
     Protobuf as _,
 };
 
@@ -36,8 +36,8 @@ impl UpgradesBuilder {
                     activation_height,
                     app_version: 2,
                 }),
-                connect_oracle_change: Some(raw::upgrade1::ConnectOracleChange {
-                    genesis: Some(dummy_connect_genesis().into_raw()),
+                price_feed_change: Some(raw::upgrade1::PriceFeedChange {
+                    genesis: Some(dummy_price_feed_genesis().into_raw()),
                 }),
                 validator_update_action_change: Some(raw::upgrade1::ValidatorUpdateActionChange {}),
             });

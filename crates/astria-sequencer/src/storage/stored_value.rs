@@ -20,8 +20,8 @@ pub(crate) enum StoredValue<'a> {
     App(crate::app::storage::Value<'a>),
     Grpc(crate::grpc::storage::Value<'a>),
     Upgrades(crate::upgrades::storage::Value<'a>),
-    ConnectMarketMap(crate::connect::market_map::storage::Value<'a>),
-    ConnectOracle(crate::connect::oracle::storage::Value<'a>),
+    PriceFeedMarketMap(crate::oracles::price_feed::market_map::storage::Value<'a>),
+    PriceFeedOracle(crate::oracles::price_feed::oracle::storage::Value<'a>),
 }
 
 impl StoredValue<'_> {

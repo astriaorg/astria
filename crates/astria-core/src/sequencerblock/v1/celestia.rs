@@ -18,7 +18,7 @@ use super::{
     RollupId,
 };
 use crate::{
-    protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping,
+    protocol::price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
     sequencerblock::v1::block::ExtendedCommitInfoError,
     upgrades::v1::{
         ChangeHash,

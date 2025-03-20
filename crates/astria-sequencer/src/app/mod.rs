@@ -25,8 +25,8 @@ use astria_core::{
     primitive::v1::TRANSACTION_ID_LEN,
     protocol::{
         abci::AbciErrorCode,
-        connect::v1::ExtendedCommitInfoWithCurrencyPairMapping,
         genesis::v1::GenesisAppState,
+        price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
         transaction::v1::{
             action::{
                 group::Group,
@@ -137,10 +137,6 @@ use crate::{
         StateWriteExt as _,
     },
     component::Component as _,
-    connect::{
-        market_map::component::MarketMapComponent,
-        oracle::component::OracleComponent,
-    },
     fees::{
         component::FeesComponent,
         StateReadExt as _,
@@ -152,6 +148,10 @@ use crate::{
         RemovalReason,
     },
     metrics::Metrics,
+    oracles::price_feed::{
+        market_map::component::MarketMapComponent,
+        oracle::component::OracleComponent,
+    },
     proposal::{
         block_size_constraints::BlockSizeConstraints,
         commitment::generate_rollup_datas_commitment,

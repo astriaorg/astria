@@ -1,5 +1,5 @@
 use astria_core::{
-    connect::{
+    oracles::price_feed::{
         oracle::v2::CurrencyPairState,
         types::v2::{
             CurrencyPair,
@@ -34,7 +34,7 @@ use crate::{
     address::StateReadExt as _,
     app::StateReadExt as _,
     authority::StateReadExt as _,
-    connect::{
+    oracles::price_feed::{
         market_map::state_ext::{
             StateReadExt as _,
             StateWriteExt as _,
@@ -268,7 +268,7 @@ async fn validate_signer_is_admin<S: StateRead>(state: S) -> Result<()> {
 #[cfg(test)]
 mod test {
     use astria_core::{
-        connect::{
+        oracles::price_feed::{
             market_map::v2::{
                 Market,
                 MarketMap,

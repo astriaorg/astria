@@ -125,7 +125,7 @@ impl serde::Serialize for Upgrade1 {
         if self.base_info.is_some() {
             len += 1;
         }
-        if self.connect_oracle_change.is_some() {
+        if self.price_feed_change.is_some() {
             len += 1;
         }
         if self.validator_update_action_change.is_some() {
@@ -135,8 +135,8 @@ impl serde::Serialize for Upgrade1 {
         if let Some(v) = self.base_info.as_ref() {
             struct_ser.serialize_field("baseInfo", v)?;
         }
-        if let Some(v) = self.connect_oracle_change.as_ref() {
-            struct_ser.serialize_field("connectOracleChange", v)?;
+        if let Some(v) = self.price_feed_change.as_ref() {
+            struct_ser.serialize_field("priceFeedChange", v)?;
         }
         if let Some(v) = self.validator_update_action_change.as_ref() {
             struct_ser.serialize_field("validatorUpdateActionChange", v)?;
@@ -153,8 +153,8 @@ impl<'de> serde::Deserialize<'de> for Upgrade1 {
         const FIELDS: &[&str] = &[
             "base_info",
             "baseInfo",
-            "connect_oracle_change",
-            "connectOracleChange",
+            "price_feed_change",
+            "priceFeedChange",
             "validator_update_action_change",
             "validatorUpdateActionChange",
         ];
@@ -162,7 +162,7 @@ impl<'de> serde::Deserialize<'de> for Upgrade1 {
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             BaseInfo,
-            ConnectOracleChange,
+            PriceFeedChange,
             ValidatorUpdateActionChange,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
@@ -186,7 +186,7 @@ impl<'de> serde::Deserialize<'de> for Upgrade1 {
                     {
                         match value {
                             "baseInfo" | "base_info" => Ok(GeneratedField::BaseInfo),
-                            "connectOracleChange" | "connect_oracle_change" => Ok(GeneratedField::ConnectOracleChange),
+                            "priceFeedChange" | "price_feed_change" => Ok(GeneratedField::PriceFeedChange),
                             "validatorUpdateActionChange" | "validator_update_action_change" => Ok(GeneratedField::ValidatorUpdateActionChange),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
@@ -208,7 +208,7 @@ impl<'de> serde::Deserialize<'de> for Upgrade1 {
                     V: serde::de::MapAccess<'de>,
             {
                 let mut base_info__ = None;
-                let mut connect_oracle_change__ = None;
+                let mut price_feed_change__ = None;
                 let mut validator_update_action_change__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
@@ -218,11 +218,11 @@ impl<'de> serde::Deserialize<'de> for Upgrade1 {
                             }
                             base_info__ = map_.next_value()?;
                         }
-                        GeneratedField::ConnectOracleChange => {
-                            if connect_oracle_change__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("connectOracleChange"));
+                        GeneratedField::PriceFeedChange => {
+                            if price_feed_change__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("priceFeedChange"));
                             }
-                            connect_oracle_change__ = map_.next_value()?;
+                            price_feed_change__ = map_.next_value()?;
                         }
                         GeneratedField::ValidatorUpdateActionChange => {
                             if validator_update_action_change__.is_some() {
@@ -234,7 +234,7 @@ impl<'de> serde::Deserialize<'de> for Upgrade1 {
                 }
                 Ok(Upgrade1 {
                     base_info: base_info__,
-                    connect_oracle_change: connect_oracle_change__,
+                    price_feed_change: price_feed_change__,
                     validator_update_action_change: validator_update_action_change__,
                 })
             }
@@ -242,7 +242,7 @@ impl<'de> serde::Deserialize<'de> for Upgrade1 {
         deserializer.deserialize_struct("astria.upgrades.v1.Upgrade1", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for upgrade1::ConnectOracleChange {
+impl serde::Serialize for upgrade1::PriceFeedChange {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -253,14 +253,14 @@ impl serde::Serialize for upgrade1::ConnectOracleChange {
         if self.genesis.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.upgrades.v1.Upgrade1.ConnectOracleChange", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.upgrades.v1.Upgrade1.PriceFeedChange", len)?;
         if let Some(v) = self.genesis.as_ref() {
             struct_ser.serialize_field("genesis", v)?;
         }
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for upgrade1::ConnectOracleChange {
+impl<'de> serde::Deserialize<'de> for upgrade1::PriceFeedChange {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -304,13 +304,13 @@ impl<'de> serde::Deserialize<'de> for upgrade1::ConnectOracleChange {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = upgrade1::ConnectOracleChange;
+            type Value = upgrade1::PriceFeedChange;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.upgrades.v1.Upgrade1.ConnectOracleChange")
+                formatter.write_str("struct astria.upgrades.v1.Upgrade1.PriceFeedChange")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<upgrade1::ConnectOracleChange, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<upgrade1::PriceFeedChange, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
@@ -325,12 +325,12 @@ impl<'de> serde::Deserialize<'de> for upgrade1::ConnectOracleChange {
                         }
                     }
                 }
-                Ok(upgrade1::ConnectOracleChange {
+                Ok(upgrade1::PriceFeedChange {
                     genesis: genesis__,
                 })
             }
         }
-        deserializer.deserialize_struct("astria.upgrades.v1.Upgrade1.ConnectOracleChange", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.upgrades.v1.Upgrade1.PriceFeedChange", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for upgrade1::ValidatorUpdateActionChange {

@@ -109,9 +109,9 @@ spec:
             limits:
               cpu: {{ .Values.resources.cometbft.limits.cpu }}
               memory: {{ .Values.resources.cometbft.limits.memory }}
-        - name: connect
-          image: "{{ include "connect.image" . }}"
-          imagePullPolicy: {{ .Values.images.connect.pullPolicy }}
+        - name: price-feed
+          image: "{{ include "priceFeed.image" . }}"
+          imagePullPolicy: {{ .Values.images.priceFeed.pullPolicy }}
           volumeMounts:
             - mountPath: /scripts
               name: cometbft-init-scripts-volume
@@ -120,12 +120,12 @@ spec:
           - "--market-map-endpoint"
           - "127.0.0.1:{{ .Values.ports.sequencerGrpc }}"
           - "--port"
-          - "{{ .Values.ports.oracleGrpc }}"
+          - "{{ .Values.ports.priceFeedGrpc }}"
           ports:
-            - containerPort: {{ .Values.ports.oracleGrpc }}
-              name: oracle-grpc
-            - containerPort: {{ .Values.ports.oracleMetrics }}
-              name: oracle-metric
+            - containerPort: {{ .Values.ports.priceFeedGrpc }}
+              name: price-feed-grpc
+            - containerPort: {{ .Values.ports.priceFeedMetrics }}
+              name: price-fd-metric
       volumes:
         - name: socket-volume
           emptyDir: {}

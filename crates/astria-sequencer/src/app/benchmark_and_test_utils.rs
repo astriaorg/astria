@@ -12,7 +12,7 @@ use astria_core::{
             AddressPrefixes,
             GenesisAppState,
         },
-        test_utils::dummy_connect_genesis,
+        test_utils::dummy_price_feed_genesis,
         transaction::v1::action::{
             BridgeLock,
             BridgeSudoChange,
@@ -121,7 +121,7 @@ pub(crate) fn proto_genesis_state(
         }),
         allowed_fee_assets: vec![nria().to_string()],
         fees: Some(default_fees().to_raw()),
-        connect: Some(dummy_connect_genesis().into_raw()),
+        price_feed: Some(dummy_price_feed_genesis().into_raw()),
     }
 }
 

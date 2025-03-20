@@ -42,7 +42,7 @@ images:
     repo: ghcr.io/astriaorg/sequencer
     pullPolicy: IfNotPresent
     tag: latest
-  connect:
+  priceFeed:
     repo: ghcr.io/skip-mev/connect-sidecar
     pullPolicy: IfNotPresent
     tag: v2
@@ -61,7 +61,7 @@ genesis:
     base: "astria"
     ibcCompat: "astriacompat"
   authoritySudoAddress: ""
-  oracle:
+  priceFeed:
     marketAdminAddress: "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
     marketAuthorities:
       - "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
@@ -143,7 +143,7 @@ sequencer:
   mempool:
     parked:
       maxTxCount: 200
-  oracle:
+  priceFeed:
     enabled: true
     clientTimeout: 1000
     markets: []
@@ -316,12 +316,12 @@ ports:
   cometbftRpc: 26657
   cometbftMetrics: 26660
   sequencerABCI: 26658
-  # note: the oracle sidecar also uses 8080 by default but can be changed with --port
+  # note: the price feed sidecar also uses 8080 by default but can be changed with --port
   sequencerGrpc: 8080
   relayerRpc: 2450
   sequencerMetrics: 9000
-  oracleGrpc: 8081
-  oracleMetrics: 8002
+  priceFeedGrpc: 8081
+  priceFeedMetrics: 8002
 
 # ServiceMonitor configuration
 serviceMonitor:

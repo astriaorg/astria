@@ -42,7 +42,7 @@ use crate::{
         StateReadExt as _,
         StateWriteExt,
     },
-    connect::{
+    oracles::price_feed::{
         market_map::component::MarketMapComponent,
         oracle::component::OracleComponent,
     },
@@ -191,7 +191,7 @@ impl UpgradesHandler {
             reason = "will become refutable once we have more than one upgrade variant"
         )]
         if let Upgrade::Upgrade1(upgrade_1) = upgrade {
-            let genesis_state = upgrade_1.connect_oracle_change().genesis();
+            let genesis_state = upgrade_1.price_feed_change().genesis();
             MarketMapComponent::handle_genesis(&mut state, genesis_state.market_map())
                 .wrap_err("failed to handle market map genesis")?;
             info!("handled market map genesis");
