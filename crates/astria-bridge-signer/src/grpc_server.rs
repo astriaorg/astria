@@ -6,9 +6,9 @@ use std::{
 use astria_core::generated::astria::signer::v1::{
     frost_participant_service_server::FrostParticipantService,
     GetVerifyingShareRequest,
-    RoundOneRequest,
+    ExecuteRoundOneRequest,
     RoundOneResponse,
-    RoundTwoRequest,
+    ExecuteRoundTwoRequest,
     RoundTwoResponse,
     VerifyingShare,
 };
@@ -107,7 +107,7 @@ impl FrostParticipantService for Server {
     #[instrument(skip_all)]
     async fn execute_round_one(
         self: Arc<Self>,
-        _request: Request<RoundOneRequest>,
+        _request: Request<ExecuteRoundOneRequest>,
     ) -> Result<Response<RoundOneResponse>, Status> {
         self.metrics.increment_part_1_request_count();
         let mut rng = OsRng;
@@ -133,7 +133,7 @@ impl FrostParticipantService for Server {
     #[instrument(skip_all)]
     async fn execute_round_two(
         self: Arc<Self>,
-        request: Request<RoundTwoRequest>,
+        request: Request<ExecuteRoundTwoRequest>,
     ) -> Result<Response<RoundTwoResponse>, Status> {
         self.metrics.increment_part_2_request_count();
         let request = request.into_inner();
