@@ -145,6 +145,14 @@ pub struct GenesisFees {
     pub validator_update: ::core::option::Option<
         super::super::fees::v1::ValidatorUpdateFeeComponents,
     >,
+    #[prost(message, optional, tag = "15")]
+    pub bridge_transfer: ::core::option::Option<
+        super::super::fees::v1::BridgeTransferFeeComponents,
+    >,
+    #[prost(message, optional, tag = "16")]
+    pub recover_ibc_client: ::core::option::Option<
+        super::super::fees::v1::RecoverIbcClientFeeComponents,
+    >,
 }
 impl ::prost::Name for GenesisFees {
     const NAME: &'static str = "GenesisFees";

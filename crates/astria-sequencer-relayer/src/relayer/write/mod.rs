@@ -436,7 +436,7 @@ async fn init_with_retry(client_builder: CelestiaClientBuilder) -> eyre::Result<
         .on_retry(
             |attempt: u32, next_delay: Option<Duration>, error: &BuilderError| {
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     parent: &span,
@@ -508,7 +508,7 @@ async fn submit_with_retry(
                 let _ = last_error_sender.send(Some(error.clone()));
 
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
 
                 warn!(

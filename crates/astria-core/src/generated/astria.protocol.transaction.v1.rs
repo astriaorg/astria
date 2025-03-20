@@ -3,7 +3,7 @@
 pub struct Action {
     #[prost(
         oneof = "action::Value",
-        tags = "1, 2, 11, 12, 13, 14, 21, 22, 50, 51, 52, 53, 55, 56"
+        tags = "1, 2, 11, 12, 13, 14, 15, 21, 22, 50, 51, 52, 53, 55, 56, 57"
     )]
     pub value: ::core::option::Option<action::Value>,
 }
@@ -26,6 +26,8 @@ pub mod action {
         BridgeUnlock(super::BridgeUnlock),
         #[prost(message, tag = "14")]
         BridgeSudoChange(super::BridgeSudoChange),
+        #[prost(message, tag = "15")]
+        BridgeTransfer(super::BridgeTransfer),
         /// IBC user actions are defined on 21-30
         #[prost(message, tag = "21")]
         Ibc(::penumbra_proto::core::component::ibc::v1::IbcRelay),
@@ -46,6 +48,8 @@ pub mod action {
         FeeChange(super::FeeChange),
         #[prost(message, tag = "56")]
         IbcSudoChange(super::IbcSudoChange),
+        #[prost(message, tag = "57")]
+        RecoverIbcClient(super::RecoverIbcClient),
     }
 }
 impl ::prost::Name for Action {
@@ -398,11 +402,52 @@ impl ::prost::Name for BridgeSudoChange {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BridgeTransfer {
+    /// the address of the bridge account to transfer to
+    #[prost(message, optional, tag = "1")]
+    pub to: ::core::option::Option<super::super::super::primitive::v1::Address>,
+    /// the amount to transfer
+    #[prost(message, optional, tag = "2")]
+    pub amount: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    /// the asset used to pay the transaction fee
+    #[prost(string, tag = "3")]
+    pub fee_asset: ::prost::alloc::string::String,
+    /// the address on the destination chain which
+    /// will receive the bridged funds
+    #[prost(string, tag = "4")]
+    pub destination_chain_address: ::prost::alloc::string::String,
+    /// the address of the bridge account to transfer from
+    #[prost(message, optional, tag = "5")]
+    pub bridge_address: ::core::option::Option<
+        super::super::super::primitive::v1::Address,
+    >,
+    /// The block number on the rollup that triggered this transfer.
+    #[prost(uint64, tag = "6")]
+    pub rollup_block_number: u64,
+    /// An identifier of the original rollup event, such as a transaction hash which
+    /// triggered a bridge unlock and is underlying event that led to this bridge
+    /// unlock. This can be utilized for tracing from the bridge back to
+    /// distinct rollup events.
+    ///
+    /// This field is of type `string` so that it can be formatted in the preferred
+    /// format of the rollup when targeting plain text encoding.
+    #[prost(string, tag = "7")]
+    pub rollup_withdrawal_event_id: ::prost::alloc::string::String,
+}
+impl ::prost::Name for BridgeTransfer {
+    const NAME: &'static str = "BridgeTransfer";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FeeChange {
     /// the new fee components values
     #[prost(
         oneof = "fee_change::FeeComponents",
-        tags = "1, 2, 3, 4, 5, 7, 6, 8, 9, 10, 11, 12, 13, 14"
+        tags = "1, 2, 3, 4, 5, 7, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16"
     )]
     pub fee_components: ::core::option::Option<fee_change::FeeComponents>,
 }
@@ -442,6 +487,10 @@ pub mod fee_change {
         Transfer(super::super::super::fees::v1::TransferFeeComponents),
         #[prost(message, tag = "14")]
         ValidatorUpdate(super::super::super::fees::v1::ValidatorUpdateFeeComponents),
+        #[prost(message, tag = "15")]
+        BridgeTransfer(super::super::super::fees::v1::BridgeTransferFeeComponents),
+        #[prost(message, tag = "16")]
+        RecoverIbcClient(super::super::super::fees::v1::RecoverIbcClientFeeComponents),
     }
 }
 impl ::prost::Name for FeeChange {
@@ -459,6 +508,34 @@ pub struct IbcSudoChange {
 }
 impl ::prost::Name for IbcSudoChange {
     const NAME: &'static str = "IbcSudoChange";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+    }
+}
+/// `RecoverIbcClient` represents a transaction that recovers an IBC client
+/// by updating the client located at `client_id` with the client
+/// located at `replacement_client_id`.
+///
+/// `client_id` must not be active, and `replacement_client_id` must be
+/// active.
+///
+/// This is based on <https://buf.build/cosmos/ibc/docs/main:ibc.core.client.v1#ibc.core.client.v1.MsgRecoverClient>
+/// Although the field names are different, the first two fields are
+/// still wire-compatible.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RecoverIbcClient {
+    /// the client identifier for the client to be updated
+    #[prost(string, tag = "1")]
+    pub client_id: ::prost::alloc::string::String,
+    /// the substitute client identifier for the client which will replace the subject
+    /// client
+    #[prost(string, tag = "2")]
+    pub replacement_client_id: ::prost::alloc::string::String,
+}
+impl ::prost::Name for RecoverIbcClient {
+    const NAME: &'static str = "RecoverIbcClient";
     const PACKAGE: &'static str = "astria.protocol.transaction.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)

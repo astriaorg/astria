@@ -9,10 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2025-03-06
+
 ### Changed
 
 - Update `idna` dependency to resolve cargo audit warning [#1869](https://github.com/astriaorg/astria/pull/1869).
-- Support FROST threshold signing using `astria-bridge-signer` nodes. [#1948](https://github.com/astriaorg/astria/pull/1948).
+- Support FROST threshold signing using signer nodes. [#1948](https://github.com/astriaorg/astria/pull/1948).
 
 ## [1.0.1] - 2024-11-01
 
@@ -110,7 +112,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release of EVM Withdrawer.
 
-[unreleased]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.1...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.2...HEAD
+[1.0.2]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.1...bridge-withdrawer-v1.0.2
 [1.0.1]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.0...bridge-withdrawer-v1.0.1
 [1.0.0]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.0-rc.2...bridge-withdrawer-v1.0.0
 [1.0.0-rc.2]: https://github.com/astriaorg/astria/compare/bridge-withdrawer-v1.0.0-rc.1...bridge-withdrawer-v1.0.0-rc.2

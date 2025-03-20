@@ -60,10 +60,9 @@ use super::{
 use crate::metrics::Metrics;
 
 mod builder;
-pub(crate) mod frost_signer;
-pub(crate) mod signer;
+mod signer;
 
-use crate::bridge_withdrawer::submitter::signer::Signer;
+pub(crate) use signer::Signer;
 
 pub(super) struct Submitter {
     shutdown_token: CancellationToken,
@@ -72,25 +71,36 @@ pub(super) struct Submitter {
     batches_rx: mpsc::Receiver<Batch>,
     sequencer_cometbft_client: sequencer_client::HttpClient,
     sequencer_grpc_client: SequencerServiceClient<Channel>,
-    signer: Arc<dyn Signer>,
+    signer: Signer,
     metrics: &'static Metrics,
 }
 
 impl Submitter {
+    pub(super) async fn initialize(&mut self) -> eyre::Result<String> {
+        let (startup_info, ()) = async move {
+            tokio::try_join!(self.startup_handle.get_info(), self.signer.initialize(),)
+        }
+        .await?;
+        Ok(startup_info.chain_id)
+    }
+
     pub(super) async fn run(mut self) -> eyre::Result<()> {
-        let sequencer_chain_id = select! {
-            () = self.shutdown_token.cancelled() => {
-                report_exit(Ok("submitter received shutdown signal while waiting for startup"));
-                return Ok(());
-            }
-
-            startup_info = self.startup_handle.get_info() => {
-                let startup::Info { chain_id, .. } = startup_info.wrap_err("submitter failed to get startup info")?;
-
-                self.state.set_submitter_ready();
-                chain_id
-            }
+        let sequencer_chain_id = if let Some(init_result) = self
+            .shutdown_token
+            .clone()
+            .run_until_cancelled(self.initialize())
+            .await
+        {
+            init_result.wrap_err(
+                "failed initializing task for submitting transactions to the Astria network",
+            )?
+        } else {
+            report_exit(Ok(
+                "submitter received shutdown signal while waiting for startup"
+            ));
+            return Ok(());
         };
+
         self.state.set_submitter_ready();
 
         let reason = loop {
@@ -180,7 +190,6 @@ impl Submitter {
             .wrap_err("failed to build unsigned transaction")?;
 
         // sign transaction
-        // TODO: how to handle failure?
         let signed = signer
             .sign(unsigned)
             .await
@@ -238,39 +247,6 @@ fn report_exit(reason: eyre::Result<&str>) {
     }
 }
 
-#[instrument(name = "sign_tx", skip_all, err)]
-async fn sign_tx(signer: Arc<dyn Signer>, body: TransactionBody) -> eyre::Result<Transaction> {
-    let span = Span::current();
-    let retry_config = tryhard::RetryFutureConfig::new(1024)
-        .exponential_backoff(Duration::from_millis(200))
-        .max_delay(Duration::from_secs(60))
-        .on_retry(
-            |attempt, next_delay: Option<Duration>, err: &eyre::Report| {
-                let wait_duration = next_delay
-                    .map(humantime::format_duration)
-                    .map(tracing::field::display);
-                warn!(
-                    parent: span.clone(),
-                    attempt,
-                    wait_duration,
-                    error = err.as_ref() as &dyn std::error::Error,
-                    "failed signingstart transaction body; retrying after backoff",
-                );
-                async move {}
-            },
-        );
-    let signed = tryhard::retry_fn(|| {
-        let body = body.clone();
-        let signer = signer.clone();
-        let span = info_span!(parent: span.clone(), "attempt sign");
-        async move { signer.sign(body).await }.instrument(span)
-    })
-    .with_config(retry_config)
-    .await
-    .wrap_err("failed to sign transaction after 1024 attempts")?;
-    Ok(signed)
-}
-
 /// Submits a transaction to the sequencer with exponential backoff.
 #[instrument(
     name = "submit_tx",
@@ -305,7 +281,7 @@ async fn submit_tx(
                 state.set_sequencer_connected(false);
 
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     parent: span.clone(),
@@ -366,7 +342,7 @@ pub(crate) async fn get_pending_nonce(
                 state.set_sequencer_connected(false);
 
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     error = err as &dyn std::error::Error,

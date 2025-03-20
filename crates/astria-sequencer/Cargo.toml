@@ -1,6 +1,6 @@
 [package]
 name = "astria-sequencer"
-version = "1.0.0"
+version = "2.0.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 rust-version = "1.83.0"
@@ -33,7 +33,7 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
 ] }
 
 borsh = { version = "1.5.1", features = ["bytes", "derive"] }
-cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "ac7abacc9bb09503d6fd6a396bc0b6850079084e", features = [
+cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "686fa5b53e8ad306736d2de61d1ffb6d11722e2b", features = [
   "metrics",
 ] }
 ibc-proto = { version = "0.41.0", features = ["server"] }
@@ -42,6 +42,7 @@ tower = "0.4"
 tower-abci = "0.12.0"
 tower-actor = "0.1.0"
 tower-http = { version = "0.4", features = ["cors"] }
+url = "2.5.4"
 
 async-trait = { workspace = true }
 base64 = { workspace = true }
@@ -50,6 +51,7 @@ divan = { workspace = true, optional = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 ibc-types = { workspace = true, features = ["with_serde"] }
+itertools = { workspace = true }
 penumbra-ibc = { workspace = true, features = ["component", "rpc"] }
 penumbra-proto = { workspace = true }
 penumbra-tower-trace = { workspace = true }
@@ -64,6 +66,7 @@ tendermint-proto = { workspace = true }
 tendermint = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt", "tracing"] }
+tokio-util = { workspace = true, features = ["rt"] }
 tonic = { workspace = true }
 tracing = { workspace = true }
 

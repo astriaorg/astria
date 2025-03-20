@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package astria.optimistic_execution.v1alpha1;
+
+import "astria/optimistic_execution/v1alpha1/base_block.proto";
+
+message ExecuteOptimisticBlockStreamRequest {
+  BaseBlock base_block = 1;
+}
