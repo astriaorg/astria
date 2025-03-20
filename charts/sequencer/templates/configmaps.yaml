@@ -5,7 +5,7 @@ metadata:
   namespace: {{ include "sequencer.namespace" . }}
 data:
   genesis.json: |
-    {{- tpl (.Files.Get "files/cometbft/config/genesis.json") $ | nindent 4 }}
+    {{- tpl (.Files.Get (tpl "files/cometbft/config/{{ .Values.global.network }}.genesis.json" .)) $ | nindent 4 }}
   config.toml: |
     {{- tpl (.Files.Get "files/cometbft/config/config.toml") $ | nindent 4 }}
 ---
@@ -71,8 +71,10 @@ data:
   ASTRIA_SEQUENCER_LOG: "info"
   ASTRIA_SEQUENCER_DB_FILEPATH: "/sequencer/penumbra.db"
   ASTRIA_SEQUENCER_MEMPOOL_PARKED_MAX_TX_COUNT: "{{ .Values.sequencer.mempool.parked.maxTxCount }}"
+  ASTRIA_SEQUENCER_ABCI_LISTEN_URL: "{{ include "sequencer.abci_url" . }}"
   # Socket address for GRPC server
   ASTRIA_SEQUENCER_GRPC_ADDR: "0.0.0.0:{{ .Values.ports.sequencerGrpc }}"
+  ASTRIA_SEQUENCER_NO_OPTIMISTIC_BLOCKS: "{{ not .Values.sequencer.optimisticBlockApis.enabled }}"
   ASTRIA_SEQUENCER_NO_METRICS: "{{ not .Values.sequencer.metrics.enabled }}"
   ASTRIA_SEQUENCER_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.sequencerMetrics }}"
   ASTRIA_SEQUENCER_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
@@ -86,11 +88,12 @@ data:
   OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.sequencer.otel.otlpHeaders }}"
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.sequencer.otel.traceHeaders }}"
   OTEL_SERVICE_NAME: "{{ tpl .Values.sequencer.otel.serviceName . }}"
-  {{- if not .Values.global.dev }}
-  ASTRIA_SEQUENCER_LISTEN_ADDR: "127.0.0.1:{{ .Values.ports.sequencerABCI }}"
+  # These values are used when we either explicitly set dev mode or running
+  # any image other than the current release version. These are generally
+  # variables which are being deleted in the future.
+  {{- if not (or .Values.global.dev (ne (include "sequencer.imageTag" .) .Chart.AppVersion)) }}
+  # These are variables which are added in newer releases and are not present in the current release.
   {{- else }}
-  ASTRIA_SEQUENCER_ABCI_LISTEN_URL: "{{ include "sequencer.abci_url" . }}"
-  ASTRIA_SEQUENCER_NO_OPTIMISTIC_BLOCKS: "{{ not .Values.sequencer.optimisticBlockApis.enabled }}"
   ASTRIA_SEQUENCER_UPGRADES_FILEPATH: "/sequencer-upgrades/upgrades.json"
   ASTRIA_SEQUENCER_COMETBFT_RPC_ADDR: "http://127.0.0.1:{{ .Values.ports.cometbftRpc }}"
   ASTRIA_SEQUENCER_NO_ORACLE: "{{ not .Values.sequencer.oracle.enabled }}"

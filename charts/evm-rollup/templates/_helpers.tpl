@@ -35,15 +35,15 @@ app: {{ include "rollup.appName" . }}
 The log level represented as a number
 */}}
 {{- define "rollup.logLevelNum" -}}
-{{- if eq .Values.config.logLevel "error" }}
+{{- if eq .Values.config.logLevel "error" -}}
 1
-{{- else if eq .Values.config.logLevel "warn" }}
+{{- else if eq .Values.config.logLevel "warn" -}}
 2
-{{- else if eq .Values.config.logLevel "info" }}
+{{- else if eq .Values.config.logLevel "info" -}}
 3
-{{- else if eq .Values.config.logLevel "debug" }}
+{{- else if eq .Values.config.logLevel "debug" -}}
 4
-{{- else if eq .Values.config.logLevel "trace" }}
+{{- else if eq .Values.config.logLevel "trace" -}}
 5
 {{- end }}
 {{- end }}
