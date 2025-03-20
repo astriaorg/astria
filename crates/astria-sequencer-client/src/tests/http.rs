@@ -414,7 +414,8 @@ async fn wait_for_tx_inclusion() {
 
     let response = timeout(Duration::from_millis(1000), response)
         .await
-        .expect("should have received a transaction response within 1000ms");
+        .expect("should have received a transaction response within 1000ms")
+        .unwrap();
 
     assert_eq!(response.tx_result.code, tx_server_response.tx_result.code);
     assert_eq!(response.tx_result.data, tx_server_response.tx_result.data);

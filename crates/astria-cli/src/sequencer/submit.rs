@@ -41,7 +41,10 @@ impl Command {
 
         ensure!(res.code.is_ok(), "failed to check tx: {}", res.log);
 
-        let tx_response = sequencer_client.wait_for_tx_inclusion(res.hash).await;
+        let tx_response = sequencer_client
+            .wait_for_tx_inclusion(res.hash)
+            .await
+            .wrap_err("failed to confirm transaction inclusion")?;
 
         ensure!(
             tx_response.tx_result.code.is_ok(),

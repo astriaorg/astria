@@ -674,7 +674,7 @@ pub trait SequencerClientExt: Client {
     async fn wait_for_tx_inclusion(
         &self,
         tx_hash: tendermint::hash::Hash,
-    ) -> tendermint_rpc::endpoint::tx::Response {
+    ) -> Result<tendermint_rpc::endpoint::tx::Response, Error> {
         use std::time::Duration;
 
         use tokio::time::Instant;
@@ -687,11 +687,13 @@ pub trait SequencerClientExt: Client {
         const START_LOGGING_DELAY: Duration = Duration::from_millis(2000);
         // The minimum duration between logging errors.
         const LOG_ERROR_INTERVAL: Duration = Duration::from_millis(2000);
+        // The maximum amount of time to wait for a transaction to be included.
+        const MAX_WAIT_TIME: Duration = Duration::from_secs(240);
 
         let start = Instant::now();
         let mut logged_at = start;
 
-        let mut log_if_due = |error: tendermint_rpc::Error| {
+        let mut log_if_due = |error: &tendermint_rpc::Error| {
             if start.elapsed() <= START_LOGGING_DELAY || logged_at.elapsed() <= LOG_ERROR_INTERVAL {
                 return;
             }
@@ -708,12 +710,18 @@ pub trait SequencerClientExt: Client {
         loop {
             tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
             match self.tx(tx_hash, false).await {
-                Ok(tx) => return tx,
+                Ok(tx) => return Ok(tx),
                 Err(error) => {
                     sleep_millis =
                         std::cmp::min(sleep_millis.saturating_mul(2), MAX_POLL_INTERVAL_MILLIS);
-                    log_if_due(error);
+                    log_if_due(&error);
                 }
+            }
+            if start.elapsed() > MAX_WAIT_TIME {
+                return Err(Error::tendermint_rpc(
+                    "tx",
+                    tendermint_rpc::Error::timeout(MAX_WAIT_TIME),
+                ));
             }
         }
     }
