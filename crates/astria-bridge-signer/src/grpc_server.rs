@@ -6,11 +6,11 @@ use std::{
 use astria_core::generated::astria::signer::v1::{
     frost_participant_service_server::FrostParticipantService,
     GetVerifyingShareRequest,
-    VerifyingShare,
     RoundOneRequest,
     RoundOneResponse,
     RoundTwoRequest,
     RoundTwoResponse,
+    VerifyingShare,
 };
 use astria_eyre::{
     eyre,
