@@ -10,12 +10,12 @@ images:
   geth:
     repo: ghcr.io/astriaorg/flame
     pullPolicy: IfNotPresent
-    tag: sha-457e1f9
-    devTag: sha-457e1f9
+    tag: 0.1.0
+    devTag: latest
   conductor:
     repo: ghcr.io/astriaorg/conductor
     pullPolicy: IfNotPresent
-    tag: 1.0.0
+    tag: 1.1.0
     devTag: latest
 
 

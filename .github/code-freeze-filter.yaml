@@ -3,16 +3,13 @@
 # in order to put an error on the given file if it is changed.
 
 # Please provide a reasoning for each component that is frozen.
+# Example entry for `conductor` commented out below:
 
-# Frozen for audit.
-conductor: &conductor
-  - crates/astria-conductor/src/**
-# Frozen for audit.
-sequencer-relayer: &sequencer-relayer
-  - crates/astria-sequencer-relayer/src/**
+# # Frozen for audit.
+freeze_file: &freeze_file
+  - .github/workflows/code-freeze.yml
 
 # if new components are added above update the list below to get better
 # gh pr level visibility into which files are frozen.
 changed:
-  - *conductor
-  - *sequencer-relayer
+  - *freeze_file

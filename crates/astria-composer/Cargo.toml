@@ -1,6 +1,6 @@
 [package]
 name = "astria-composer"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 rust-version = "1.83.0"
 license = "MIT OR Apache-2.0"
@@ -27,7 +27,6 @@ async-trait = { workspace = true }
 axum = { workspace = true }
 ethers = { workspace = true, features = ["ws"] }
 futures = { workspace = true }
-humantime = { workspace = true }
 hyper = { workspace = true }
 hex = { workspace = true }
 itertools = { workspace = true }
