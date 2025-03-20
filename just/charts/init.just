@@ -15,12 +15,12 @@ _default:
 [doc("
 Initializes a bridge account for the given rollup on the Sequencer chain.
 Usage:
-    $just init rollup-bridge <TAG> <ROLLUP_NAME> <EVM_DESTINATION_ADDRESS> <TRANSFER_AMOUNT>
-        defaults:
-          TAG: ''
-          ROLLUP_NAME: 'astria'
-          EVM_DESTINATION_ADDRESS: evm_destination_address (see 'defaults.just')
-          TRANSFER_AMOUNT: '10'
+  $just init rollup-bridge <TAG> <ROLLUP_NAME> <EVM_DESTINATION_ADDRESS> <TRANSFER_AMOUNT>
+    defaults:
+      TAG: ''
+      ROLLUP_NAME: 'astria'
+      EVM_DESTINATION_ADDRESS: evm_destination_address (see 'defaults.just')
+      TRANSFER_AMOUNT: '10'
 ")]
 rollup-bridge tag=defaultTag rollupName=defaultRollupName evmDestinationAddress=evm_destination_address transferAmount=sequencer_transfer_amount:
   #!/usr/bin/env bash
@@ -53,10 +53,10 @@ rollup-bridge tag=defaultTag rollupName=defaultRollupName evmDestinationAddress=
 [doc("
 Initializes an IBC bridge account for the given rollup on the Sequencer chain.
 Usage:
-    $just init ibc-bridge [privateKey] [asset] [feeAsset] <TAG> <ROLLUP_NAME>
-        defaults:
-          TAG: ''
-          ROLLUP_NAME: 'astria'
+  $just init ibc-bridge [privateKey] [asset] [feeAsset] <TAG> <ROLLUP_NAME>
+      defaults:
+        TAG: ''
+        ROLLUP_NAME: 'astria'
 ")]
 ibc-bridge privateKey asset feeAsset tag=defaultTag rollupName=defaultRollupName:
   @echo "Initializing IBC bridge accoung for rollup {{rollupName}} with asset {{asset}} \
