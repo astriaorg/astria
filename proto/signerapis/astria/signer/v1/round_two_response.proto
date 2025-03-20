@@ -3,5 +3,5 @@ syntax = 'proto3';
 package astria.signer.v1;
 
 message RoundTwoResponse {
-    bytes signature_share = 1;
+  bytes signature_share = 1;
 }

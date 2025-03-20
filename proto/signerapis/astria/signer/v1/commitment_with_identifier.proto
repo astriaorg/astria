@@ -3,6 +3,6 @@ syntax = 'proto3';
 package astria.signer.v1;
 
 message CommitmentWithIdentifier {
-    bytes commitment = 1;
-    bytes participant_identifier = 2;
+  bytes commitment = 1;
+  bytes participant_identifier = 2;
 }
