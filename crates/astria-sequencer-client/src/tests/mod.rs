@@ -1,2 +1,2 @@
 #[cfg(feature = "http")]
-mod http;
+pub(crate) mod http;

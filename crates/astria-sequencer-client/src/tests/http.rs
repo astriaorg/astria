@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    error::Error as _,
+    time::Duration,
+};
 
 use astria_core::{
     crypto::SigningKey,
@@ -31,6 +34,7 @@ use tendermint_rpc::{
     endpoint::tx,
     response::Wrapper,
     Id,
+    ResponseError,
 };
 use tokio::time::timeout;
 use wiremock::{
@@ -45,11 +49,13 @@ use wiremock::{
 };
 
 use crate::{
+    extension_trait::TendermintRpcError,
     tendermint_rpc::endpoint::broadcast::tx_sync,
     HttpClient,
     SequencerClientExt as _,
 };
 
+pub(crate) const TX_TIMEOUT_SECS: u64 = 1;
 const ALICE_ADDRESS_BYTES: [u8; 20] = hex!("1c0c490f1b5528d8173c5de46d131160e4b2c0c3");
 const BOB_ADDRESS_BYTES: [u8; 20] = hex!("34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a");
 const ASTRIA_ADDRESS_PREFIX: &str = "astria";
@@ -139,6 +145,20 @@ async fn register_tx_response(server: &MockServer, response: tx::Response) -> Mo
             .append_header("Content-Type", "application/json"),
     )
     .expect(1)
+    .mount_as_scoped(server)
+    .await
+}
+
+async fn register_tx_error_response(server: &MockServer, error: ResponseError) -> MockGuard {
+    let wrapper: Wrapper<tx::Response> = Wrapper::new_with_id(Id::Num(1), None, Some(error));
+    Mock::given(body_partial_json(json!({
+        "method": "tx"
+    })))
+    .respond_with(
+        ResponseTemplate::new(200)
+            .set_body_json(&wrapper)
+            .append_header("Content-Type", "application/json"),
+    )
     .mount_as_scoped(server)
     .await
 }
@@ -421,4 +441,37 @@ async fn wait_for_tx_inclusion() {
     assert_eq!(response.tx_result.data, tx_server_response.tx_result.data);
     assert_eq!(response.tx_result.log, tx_server_response.tx_result.log);
     assert_eq!(response.hash, tx_server_response.hash);
+}
+
+#[tokio::test]
+async fn wait_for_tx_inclusion_fails_if_times_out() {
+    let MockSequencer {
+        server,
+        client,
+    } = MockSequencer::start().await;
+    let err = ResponseError::new(0.into(), None);
+
+    let _tx_response_guard = register_tx_error_response(&server, err).await;
+
+    let response = client.wait_for_tx_inclusion(Hash::Sha256([0; 32]));
+
+    let error_rsp = timeout(Duration::from_millis(2000), response)
+        .await
+        .expect("should have received a transaction error response within 1500ms")
+        .unwrap_err();
+
+    let tendermint_err = error_rsp
+        .source()
+        .unwrap()
+        .downcast_ref::<TendermintRpcError>()
+        .unwrap();
+
+    assert_eq!(tendermint_err.rpc(), "tx");
+    let expected_tendermint_err =
+        tendermint_rpc::Error::timeout(Duration::from_secs(TX_TIMEOUT_SECS));
+    assert_eq!(tendermint_err.inner().0, expected_tendermint_err.0);
+    assert_eq!(
+        tendermint_err.inner().1.to_string(),
+        expected_tendermint_err.1.to_string()
+    );
 }

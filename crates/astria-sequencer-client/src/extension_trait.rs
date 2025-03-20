@@ -688,7 +688,12 @@ pub trait SequencerClientExt: Client {
         // The minimum duration between logging errors.
         const LOG_ERROR_INTERVAL: Duration = Duration::from_millis(2000);
         // The maximum amount of time to wait for a transaction to be included.
+        #[cfg(not(test))]
         const MAX_WAIT_TIME: Duration = Duration::from_secs(240);
+        #[cfg(test)]
+        const MAX_WAIT_TIME: Duration = Duration::from_secs(crate::tests::http::TX_TIMEOUT_SECS);
+
+        println!("max wait time: {}", MAX_WAIT_TIME.as_secs());
 
         let start = Instant::now();
         let mut logged_at = start;
