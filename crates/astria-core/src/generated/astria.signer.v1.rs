@@ -25,23 +25,6 @@ impl ::prost::Name for GetVerifyingShareRequest {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct VerifyingShare {
-    /// the verifying share (partial public key) of the participant.
-    /// this is used for the coordinator to determine the identifier of the participant.
-    /// TODO: do we need to verify this (ie. have the server send back a signed message
-    /// with the verifying share)?
-    #[prost(bytes = "bytes", tag = "1")]
-    pub verifying_share: ::prost::bytes::Bytes,
-}
-impl ::prost::Name for VerifyingShare {
-    const NAME: &'static str = "VerifyingShare";
-    const PACKAGE: &'static str = "astria.signer.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.signer.v1.{}", Self::NAME)
-    }
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RoundOneRequest {}
 impl ::prost::Name for RoundOneRequest {
     const NAME: &'static str = "RoundOneRequest";
@@ -92,6 +75,23 @@ pub struct RoundTwoResponse {
 }
 impl ::prost::Name for RoundTwoResponse {
     const NAME: &'static str = "RoundTwoResponse";
+    const PACKAGE: &'static str = "astria.signer.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.signer.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct VerifyingShare {
+    /// the verifying share (partial public key) of the participant.
+    /// this is used for the coordinator to determine the identifier of the participant.
+    /// TODO: do we need to verify this (ie. have the server send back a signed message
+    /// with the verifying share)?
+    #[prost(bytes = "bytes", tag = "1")]
+    pub verifying_share: ::prost::bytes::Bytes,
+}
+impl ::prost::Name for VerifyingShare {
+    const NAME: &'static str = "VerifyingShare";
     const PACKAGE: &'static str = "astria.signer.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.signer.v1.{}", Self::NAME)
