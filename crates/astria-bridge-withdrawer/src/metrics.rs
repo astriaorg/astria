@@ -19,7 +19,7 @@ pub struct Metrics {
     sequencer_submission_failure_count: Counter,
     sequencer_submission_latency: Histogram,
     sequencer_get_tx_failure_count: Counter,
-    sequencer_get_tx_failure_latency: Histogram,
+    sequencer_get_tx_latency: Histogram,
     batch_total_settled_value: Gauge,
 }
 
@@ -52,8 +52,8 @@ impl Metrics {
         self.sequencer_get_tx_failure_count.increment(1);
     }
 
-    pub(crate) fn record_sequencer_get_tx_failure_latency(&self, latency: Duration) {
-        self.sequencer_get_tx_failure_latency.record(latency);
+    pub(crate) fn record_sequencer_get_tx_latency(&self, latency: Duration) {
+        self.sequencer_get_tx_latency.record(latency);
     }
 
     pub(crate) fn set_batch_total_settled_value(&self, value: u128) {
@@ -114,9 +114,9 @@ impl metrics::Metrics for Metrics {
             )?
             .register()?;
 
-        let sequencer_get_tx_failure_latency = builder
+        let sequencer_get_tx_latency = builder
             .new_histogram_factory(
-                SEQUENCER_GET_TX_FAILURE_LATENCY,
+                SEQUENCER_GET_TX_LATENCY,
                 "The latency of getting a transaction from the sequencer",
             )?
             .register()?;
@@ -136,7 +136,7 @@ impl metrics::Metrics for Metrics {
             sequencer_submission_failure_count,
             sequencer_submission_latency,
             sequencer_get_tx_failure_count,
-            sequencer_get_tx_failure_latency,
+            sequencer_get_tx_latency,
             batch_total_settled_value,
         })
     }
@@ -150,7 +150,7 @@ metric_names!(const METRICS_NAMES:
     SEQUENCER_SUBMISSION_FAILURE_COUNT,
     SEQUENCER_SUBMISSION_LATENCY,
     SEQUENCER_GET_TX_FAILURE_COUNT,
-    SEQUENCER_GET_TX_FAILURE_LATENCY,
+    SEQUENCER_GET_TX_LATENCY,
     BATCH_TOTAL_SETTLED_VALUE,
 );
 
@@ -163,7 +163,7 @@ mod tests {
         NONCE_FETCH_FAILURE_COUNT,
         NONCE_FETCH_LATENCY,
         SEQUENCER_GET_TX_FAILURE_COUNT,
-        SEQUENCER_GET_TX_FAILURE_LATENCY,
+        SEQUENCER_GET_TX_LATENCY,
         SEQUENCER_SUBMISSION_FAILURE_COUNT,
         SEQUENCER_SUBMISSION_LATENCY,
     };
@@ -191,10 +191,7 @@ mod tests {
             SEQUENCER_GET_TX_FAILURE_COUNT,
             "sequencer_get_tx_failure_count",
         );
-        assert_const(
-            SEQUENCER_GET_TX_FAILURE_LATENCY,
-            "sequencer_get_tx_failure_latency",
-        );
+        assert_const(SEQUENCER_GET_TX_LATENCY, "sequencer_get_tx_latency");
         assert_const(BATCH_TOTAL_SETTLED_VALUE, "batch_total_settled_value");
     }
 }

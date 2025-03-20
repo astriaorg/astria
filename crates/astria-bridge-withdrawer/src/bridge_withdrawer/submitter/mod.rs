@@ -374,7 +374,7 @@ async fn wait_for_tx_inclusion(
     let tx_result = time::timeout(Duration::from_secs(240), tx_fut())
         .await
         .wrap_err("timed out waiting for tx inclusion")?;
-    metrics.record_sequencer_get_tx_failure_latency(start.elapsed());
+    metrics.record_sequencer_get_tx_latency(start.elapsed());
     Ok(tx_result)
 }
 
