@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-03-06
+
 ### Changed
 
 - Update `idna` dependency to resolve cargo audit warning [#1869](https://github.com/astriaorg/astria/pull/1869).
@@ -363,6 +365,7 @@ address [#721](https://github.com/astriaorg/astria/pull/721).
 - Initial release.
 
 [unreleased]: https://github.com/astriaorg/astria/compare/conductor-v1.0.0...HEAD
+[1.1.0]: https://github.com/astriaorg/astria/compare/conductor-v1.0.0...conductor-v1.1.0
 [1.0.0]: https://github.com/astriaorg/astria/compare/conductor-v1.0.0-rc.2...conductor-v1.0.0
 [1.0.0-rc.2]: https://github.com/astriaorg/astria/compare/conductor-v1.0.0-rc.1...conductor-v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/astriaorg/astria/compare/conductor-v0.20.1...conductor-v1.0.0-rc.1
