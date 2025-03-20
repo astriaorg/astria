@@ -652,8 +652,11 @@ mod test {
                 ),
             ],
         };
-        resp.fees.sort_by(|a: &(Denom, u128), b: &(Denom, u128)| a.0.cmp(&b.0));
-        expected.fees.sort_by(|a: &(Denom, u128), b: &(Denom, u128)| a.0.cmp(&b.0));
+        resp.fees
+            .sort_by(|a: &(Denom, u128), b: &(Denom, u128)| a.0.cmp(&b.0));
+        expected
+            .fees
+            .sort_by(|a: &(Denom, u128), b: &(Denom, u128)| a.0.cmp(&b.0));
 
         assert_eq!(resp, expected);
     }
