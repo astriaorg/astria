@@ -1,0 +1,61 @@
+syntax = "proto3";
+package connect.service.v2;
+
+import "connect/marketmap/v2/market.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/skip-mev/connect/v2/service/servers/oracle/types";
+
+// Oracle defines the gRPC oracle service.
+service Oracle {
+  // Prices defines a method for fetching the latest prices.
+  rpc Prices(QueryPricesRequest) returns (QueryPricesResponse) {
+    option (google.api.http) = {get: "/connect/oracle/v2/prices"};
+  }
+
+  // MarketMap defines a method for fetching the latest market map
+  // configuration.
+  rpc MarketMap(QueryMarketMapRequest) returns (QueryMarketMapResponse) {
+    option (google.api.http) = {get: "/connect/oracle/v2/marketmap"};
+  }
+
+  // Version defines a method for fetching the current version of the oracle
+  // service.
+  rpc Version(QueryVersionRequest) returns (QueryVersionResponse) {
+    option (google.api.http) = {get: "/connect/oracle/v2/version"};
+  }
+}
+
+// QueryPricesRequest defines the request type for the the Prices method.
+message QueryPricesRequest {}
+
+// QueryPricesResponse defines the response type for the Prices method.
+message QueryPricesResponse {
+  // Prices defines the list of prices.
+  map<string, string> prices = 1;
+
+  // Timestamp defines the timestamp of the prices.
+  google.protobuf.Timestamp timestamp = 2;
+
+  // Version defines the version of the oracle service that provided the prices.
+  string version = 3;
+}
+
+// QueryMarketMapRequest defines the request type for the MarketMap method.
+message QueryMarketMapRequest {}
+
+// QueryMarketMapResponse defines the response type for the MarketMap method.
+message QueryMarketMapResponse {
+  // MarketMap defines the current market map configuration.
+  connect.marketmap.v2.MarketMap market_map = 1;
+}
+
+// QueryVersionRequest defines the request type for the Version method.
+message QueryVersionRequest {}
+
+// QueryVersionResponse defines the response type for the Version method.
+message QueryVersionResponse {
+  // Version defines the current version of the oracle service.
+  string version = 1;
+}

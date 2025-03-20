@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 use astria_core::{
     crypto::SigningKey,
@@ -19,6 +22,8 @@ use astria_core::{
             TransactionBody,
         },
     },
+    sequencerblock::v1::block::Deposit,
+    Protobuf,
 };
 use bytes::Bytes;
 
@@ -175,4 +180,24 @@ impl MockTxBuilder {
 
         Arc::new(tx.sign(&self.signer))
     }
+}
+
+pub(crate) fn transactions_with_extended_commit_info_and_commitments(
+    txs: &[Transaction],
+    deposits: Option<HashMap<RollupId, Vec<Deposit>>>,
+) -> Vec<Bytes> {
+    use astria_core::protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping;
+    use prost::Message as _;
+
+    use crate::proposal::commitment::generate_rollup_datas_commitment;
+
+    let extended_commit_info =
+        ExtendedCommitInfoWithCurrencyPairMapping::empty(0u16.into()).into_raw();
+    let commitments = generate_rollup_datas_commitment(txs, deposits.unwrap_or_default());
+    let txs_with_commit_info: Vec<Bytes> = commitments
+        .into_iter()
+        .chain(std::iter::once(extended_commit_info.encode_to_vec().into()))
+        .chain(txs.iter().map(|tx| tx.to_raw().encode_to_vec().into()))
+        .collect();
+    txs_with_commit_info
 }

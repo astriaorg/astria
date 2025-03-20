@@ -19,7 +19,6 @@ use benchmark_and_test_utils::{
     ALICE_ADDRESS,
     CAROL_ADDRESS,
 };
-use prost::Message as _;
 use tendermint::{
     abci::{
         self,
@@ -42,7 +41,6 @@ use crate::{
         astria_address_from_hex_string,
         nria,
     },
-    proposal::commitment::generate_rollup_datas_commitment,
 };
 
 #[tokio::test]
@@ -79,7 +77,10 @@ async fn trigger_cleaning() {
     let prepare_args = abci::request::PrepareProposal {
         max_tx_bytes: 200_000,
         txs: vec![],
-        local_last_commit: None,
+        local_last_commit: Some(ExtendedCommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
         height: Height::default(),
         time: Time::now(),
@@ -97,19 +98,22 @@ async fn trigger_cleaning() {
     assert!(!app.recost_mempool, "flag should start out false");
 
     // trigger with process_proposal
-    let commitments = generate_rollup_datas_commitment(&[tx_trigger.clone()], HashMap::new());
+    let txs = transactions_with_extended_commit_info_and_commitments(&vec![tx_trigger], None);
     let process_proposal = abci::request::ProcessProposal {
         hash: Hash::try_from([99u8; 32].to_vec()).unwrap(),
         height: 1u32.into(),
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs: commitments.into_transactions(vec![tx_trigger.to_raw().encode_to_vec().into()]),
-        proposed_last_commit: None,
+        txs: txs.clone(),
+        proposed_last_commit: Some(CommitInfo {
+            votes: vec![],
+            round: Round::default(),
+        }),
         misbehavior: vec![],
     };
 
-    app.process_proposal(process_proposal.clone(), storage.clone())
+    app.process_proposal(process_proposal, storage.clone())
         .await
         .unwrap();
     assert!(app.recost_mempool, "flag should have been set");
@@ -117,14 +121,14 @@ async fn trigger_cleaning() {
     // trigger with finalize block
     app.recost_mempool = false;
     assert!(!app.recost_mempool, "flag should start out false");
-    let commitments = generate_rollup_datas_commitment(&[tx_trigger.clone()], HashMap::new());
+
     let finalize_block = abci::request::FinalizeBlock {
         hash: Hash::try_from([97u8; 32].to_vec()).unwrap(),
         height: 1u32.into(),
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs: commitments.into_transactions(vec![tx_trigger.to_raw().encode_to_vec().into()]),
+        txs,
         decided_last_commit: CommitInfo {
             votes: vec![],
             round: Round::default(),
@@ -132,7 +136,7 @@ async fn trigger_cleaning() {
         misbehavior: vec![],
     };
 
-    app.finalize_block(finalize_block.clone(), storage.clone())
+    app.finalize_block(finalize_block, storage.clone())
         .await
         .unwrap();
     assert!(app.recost_mempool, "flag should have been set");
@@ -170,7 +174,10 @@ async fn do_not_trigger_cleaning() {
     let prepare_args = abci::request::PrepareProposal {
         max_tx_bytes: 200_000,
         txs: vec![],
-        local_last_commit: None,
+        local_last_commit: Some(ExtendedCommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
         height: Height::default(),
         time: Time::now(),
@@ -266,7 +273,10 @@ async fn maintenance_recosting_promotes() {
     let prepare_args = abci::request::PrepareProposal {
         max_tx_bytes: 200_000,
         txs: vec![],
-        local_last_commit: None,
+        local_last_commit: Some(ExtendedCommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
         height: Height::default(),
         time: Time::now(),
@@ -280,8 +290,8 @@ async fn maintenance_recosting_promotes() {
 
     assert_eq!(
         res.txs.len(),
-        3,
-        "only one transaction should've been valid (besides 2 generated txs)"
+        4,
+        "only one transaction should've been valid (besides 3 generated txs)"
     );
     assert_eq!(
         app.mempool.len().await,
@@ -297,7 +307,10 @@ async fn maintenance_recosting_promotes() {
         next_validators_hash: Hash::default(),
         proposer_address: [1u8; 20].to_vec().try_into().unwrap(),
         txs: res.txs.clone(),
-        proposed_last_commit: None,
+        proposed_last_commit: Some(CommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
     };
     app.process_proposal(process_proposal, storage.clone())
@@ -335,7 +348,10 @@ async fn maintenance_recosting_promotes() {
     let prepare_args = abci::request::PrepareProposal {
         max_tx_bytes: 200_000,
         txs: vec![],
-        local_last_commit: None,
+        local_last_commit: Some(ExtendedCommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
         height: 2u8.into(),
         time: Time::now(),
@@ -349,8 +365,8 @@ async fn maintenance_recosting_promotes() {
 
     assert_eq!(
         res.txs.len(),
-        3,
-        "one transaction should've been valid (besides 2 generated txs)"
+        4,
+        "only one transaction should've been valid (besides 3 generated txs)"
     );
 
     // see transfer went through
@@ -441,7 +457,10 @@ async fn maintenance_funds_added_promotes() {
     let prepare_args = abci::request::PrepareProposal {
         max_tx_bytes: 200_000,
         txs: vec![],
-        local_last_commit: None,
+        local_last_commit: Some(ExtendedCommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
         height: Height::default(),
         time: Time::now(),
@@ -455,8 +474,8 @@ async fn maintenance_funds_added_promotes() {
 
     assert_eq!(
         res.txs.len(),
-        3,
-        "only one transactions should've been valid (besides 2 generated txs)"
+        4,
+        "only one transactions should've been valid (besides 3 generated txs)"
     );
 
     let hash = Hash::Sha256([97u8; 32]);
@@ -467,7 +486,10 @@ async fn maintenance_funds_added_promotes() {
         next_validators_hash: Hash::default(),
         proposer_address: [1u8; 20].to_vec().try_into().unwrap(),
         txs: res.txs.clone(),
-        proposed_last_commit: None,
+        proposed_last_commit: Some(CommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
     };
     app.process_proposal(process_proposal, storage.clone())
@@ -503,7 +525,10 @@ async fn maintenance_funds_added_promotes() {
     let prepare_args = abci::request::PrepareProposal {
         max_tx_bytes: 200_000,
         txs: vec![],
-        local_last_commit: None,
+        local_last_commit: Some(ExtendedCommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
         misbehavior: vec![],
         height: 2u8.into(),
         time: Time::now(),
@@ -517,8 +542,8 @@ async fn maintenance_funds_added_promotes() {
 
     assert_eq!(
         res.txs.len(),
-        3,
-        "only one transactions should've been valid (besides 2 generated txs)"
+        4,
+        "only one transactions should've been valid (besides 3 generated txs)"
     );
 
     // finalize with finalize block

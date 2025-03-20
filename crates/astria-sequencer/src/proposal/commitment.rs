@@ -22,16 +22,18 @@ pub(crate) struct GeneratedCommitments {
 impl GeneratedCommitments {
     /// The total size of the commitments in bytes.
     pub(crate) const TOTAL_SIZE: usize = 64;
+}
 
-    /// Converts the commitments plus external transaction data into a vector of bytes
-    /// which can be used as the block's transactions.
-    #[must_use]
-    pub(crate) fn into_transactions(self, mut tx_data: Vec<Bytes>) -> Vec<Bytes> {
-        let mut txs = Vec::with_capacity(tx_data.len().saturating_add(2));
-        txs.push(self.rollup_datas_root.to_vec().into());
-        txs.push(self.rollup_ids_root.to_vec().into());
-        txs.append(&mut tx_data);
-        txs
+impl IntoIterator for GeneratedCommitments {
+    type IntoIter = std::array::IntoIter<Self::Item, 2>;
+    type Item = Bytes;
+
+    fn into_iter(self) -> Self::IntoIter {
+        [
+            self.rollup_datas_root.to_vec().into(),
+            self.rollup_ids_root.to_vec().into(),
+        ]
+        .into_iter()
     }
 }
 

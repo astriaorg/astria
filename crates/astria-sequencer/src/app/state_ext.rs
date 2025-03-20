@@ -102,6 +102,21 @@ pub(crate) trait StateReadExt: StateRead {
             .and_then(|value| storage::StorageVersion::try_from(value).map(u64::from))
             .context("invalid storage version bytes")
     }
+
+    #[instrument(skip_all)]
+    async fn get_vote_extensions_enable_height(&self) -> Result<u64> {
+        let Some(bytes) = self
+            .nonverifiable_get_raw(keys::VOTE_EXTENSIONS_ENABLED_HEIGHT.as_bytes())
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read raw vote extensions enabled height from state")?
+        else {
+            bail!("vote extensions enabled height not found");
+        };
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::BlockHeight::try_from(value).map(u64::from))
+            .context("invalid vote extensions enabled height bytes")
+    }
 }
 
 impl<T: StateRead> StateReadExt for T {}
@@ -151,6 +166,15 @@ pub(crate) trait StateWriteExt: StateWrite {
             .serialize()
             .context("failed to serialize storage version")?;
         self.nonverifiable_put_raw(keys::storage_version_by_height(height).into_bytes(), bytes);
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    fn put_vote_extensions_enable_height(&mut self, height: u64) -> Result<()> {
+        let bytes = StoredValue::from(storage::BlockHeight::from(height))
+            .serialize()
+            .context("failed to serialize vote extensions enabled height")?;
+        self.nonverifiable_put_raw(keys::VOTE_EXTENSIONS_ENABLED_HEIGHT.into(), bytes);
         Ok(())
     }
 }
@@ -421,6 +445,46 @@ mod tests {
                 ),
             storage_version_update,
             "original but updated storage version was not what was expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn vote_extensions_enable_height() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // doesn't exist at first
+        let _ = state
+            .get_vote_extensions_enable_height()
+            .await
+            .expect_err("no vote extensions enable height should exist at first");
+
+        // can write new
+        let block_height_orig = 0;
+        state
+            .put_vote_extensions_enable_height(block_height_orig)
+            .unwrap();
+        assert_eq!(
+            state.get_vote_extensions_enable_height().await.expect(
+                "a vote extensions enable height was written and must exist inside the database"
+            ),
+            block_height_orig,
+            "stored vote extensions enable height was not what was expected"
+        );
+
+        // can rewrite with new value
+        let block_height_update = 1;
+        state
+            .put_vote_extensions_enable_height(block_height_update)
+            .unwrap();
+        assert_eq!(
+            state.get_vote_extensions_enable_height().await.expect(
+                "a new vote extensions enable height was written and must exist inside the \
+                 database"
+            ),
+            block_height_update,
+            "updated vote extensions enable height was not what was expected"
         );
     }
 }

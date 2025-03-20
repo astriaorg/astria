@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 use bytes::Bytes;
 use prost::Message as _;
+use tendermint::abci::types::ExtendedCommitInfo;
 
 use super::{
     group_rollup_data_submissions_in_signed_transaction_transactions_by_rollup_id,
@@ -17,7 +18,11 @@ use crate::{
     },
     protocol::transaction::v1::TransactionBody,
     sequencerblock::v1::{
-        block::Deposit,
+        block::{
+            self,
+            Deposit,
+            SequencerBlockBuilder,
+        },
         SequencerBlock,
     },
     Protobuf as _,
@@ -44,7 +49,7 @@ impl From<(i64, u32)> for UnixTimeStamp {
 /// If the proposer address is not set it will be generated from the signing key.
 #[derive(Default)]
 pub struct ConfigureSequencerBlock {
-    pub block_hash: Option<[u8; 32]>,
+    pub block_hash: Option<block::Hash>,
     pub chain_id: Option<String>,
     pub height: u32,
     pub proposer_address: Option<tendermint::account::Id>,
@@ -52,6 +57,7 @@ pub struct ConfigureSequencerBlock {
     pub sequence_data: Vec<(RollupId, Vec<u8>)>,
     pub deposits: Vec<Deposit>,
     pub unix_timestamp: UnixTimeStamp,
+    pub with_extended_commit_info: bool,
 }
 
 impl ConfigureSequencerBlock {
@@ -59,6 +65,7 @@ impl ConfigureSequencerBlock {
     #[must_use]
     #[expect(
         clippy::missing_panics_doc,
+        clippy::too_many_lines,
         reason = "This should only be used in tests, so everything here is unwrapped"
     )]
     pub fn make(self) -> SequencerBlock {
@@ -78,9 +85,10 @@ impl ConfigureSequencerBlock {
             sequence_data,
             unix_timestamp,
             deposits,
+            with_extended_commit_info,
         } = self;
 
-        let block_hash = block_hash.unwrap_or_default();
+        let block_hash = block_hash.unwrap_or_else(|| block::Hash::new([0; 32]));
         let chain_id = chain_id.unwrap_or_else(|| "test".to_string());
 
         let signing_key = signing_key.unwrap_or_else(|| SigningKey::new(rand::rngs::OsRng));
@@ -151,17 +159,36 @@ impl ConfigureSequencerBlock {
             rollup_transactions_tree.root().to_vec(),
             rollup_ids_root.to_vec(),
         ];
+
+        if with_extended_commit_info {
+            let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo =
+                ExtendedCommitInfo {
+                    round: 0u16.into(),
+                    votes: vec![],
+                }
+                .into();
+            let extended_commit_info_with_mapping = crate::generated::protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping {
+                extended_commit_info: Some(extended_commit_info.into()),
+                id_to_currency_pair: Vec::new(),
+            };
+            let extended_commit_info_bytes = extended_commit_info_with_mapping.encode_to_vec();
+            data.push(extended_commit_info_bytes);
+        }
+
         data.extend(txs.into_iter().map(|tx| tx.into_raw().encode_to_vec()));
         let data = data.into_iter().map(Bytes::from).collect();
-        SequencerBlock::try_from_block_info_and_data(
+
+        SequencerBlockBuilder {
             block_hash,
-            chain_id.try_into().unwrap(),
-            height.into(),
-            Time::from_unix_timestamp(unix_timestamp.secs, unix_timestamp.nanos).unwrap(),
+            chain_id: chain_id.try_into().unwrap(),
+            height: height.into(),
+            time: Time::from_unix_timestamp(unix_timestamp.secs, unix_timestamp.nanos).unwrap(),
             proposer_address,
             data,
-            deposits_map,
-        )
+            deposits: deposits_map,
+            with_extended_commit_info,
+        }
+        .try_build()
         .unwrap()
     }
 }

@@ -12,6 +12,8 @@
 //! [`buf`]: https://buf.build
 //! [`tools/protobuf-compiler`]: ../../../../tools/protobuf-compiler
 
+pub use astria::*;
+
 #[path = ""]
 pub mod astria_vendored {
     #[path = ""]
@@ -118,6 +120,11 @@ pub mod astria {
             pub mod v1;
         }
         #[path = ""]
+        pub mod connect {
+            #[path = "astria.protocol.connect.v1.rs"]
+            pub mod v1;
+        }
+        #[path = ""]
         pub mod fees {
             #[path = "astria.protocol.fees.v1.rs"]
             pub mod v1 {
@@ -221,6 +228,69 @@ pub mod celestia {
         mod _serde_impl {
             use super::*;
             include!("celestia.blob.v1.serde.rs");
+        }
+    }
+}
+
+#[path = ""]
+pub mod connect {
+    pub mod abci {
+        pub mod v2 {
+            include!("connect.abci.v2.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impl {
+                use super::*;
+                include!("connect.abci.v2.serde.rs");
+            }
+        }
+    }
+
+    pub mod marketmap {
+        pub mod v2 {
+            include!("connect.marketmap.v2.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impl {
+                use super::*;
+                include!("connect.marketmap.v2.serde.rs");
+            }
+        }
+    }
+
+    pub mod oracle {
+        pub mod v2 {
+            include!("connect.oracle.v2.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impl {
+                use super::*;
+                include!("connect.oracle.v2.serde.rs");
+            }
+        }
+    }
+
+    pub mod service {
+        pub mod v2 {
+            include!("connect.service.v2.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impl {
+                use super::*;
+                include!("connect.service.v2.serde.rs");
+            }
+        }
+    }
+
+    pub mod types {
+        pub mod v2 {
+            include!("connect.types.v2.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impl {
+                use super::*;
+                include!("connect.types.v2.serde.rs");
+            }
         }
     }
 }

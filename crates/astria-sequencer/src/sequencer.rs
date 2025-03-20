@@ -1,3 +1,6 @@
+use std::time::Duration;
+
+use astria_core::generated::connect::service::v2::oracle_client::OracleClient;
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
@@ -26,6 +29,11 @@ use tokio::{
     },
     task::JoinHandle,
 };
+use tonic::transport::{
+    Channel,
+    Endpoint,
+    Uri,
+};
 use tower_abci::v038::Server;
 use tracing::{
     debug,
@@ -34,10 +42,13 @@ use tracing::{
     info,
     info_span,
     instrument,
+    warn,
 };
 
 use crate::{
+    address::StateReadExt as _,
     app::App,
+    assets::StateReadExt as _,
     config::{
         AbciListenUrl,
         Config,
@@ -46,6 +57,8 @@ use crate::{
     metrics::Metrics,
     service,
 };
+
+const MAX_RETRIES_TO_CONNECT_TO_ORACLE_SIDECAR: u32 = 36;
 
 pub struct Sequencer;
 
@@ -137,11 +150,34 @@ impl Sequencer {
         .wrap_err("failed to load storage backing chain state")?;
         let snapshot = storage.latest_snapshot();
 
-        let mempool = Mempool::new(metrics, config.mempool_parked_max_tx_count);
+        // the native asset should be configurable only at genesis.
+        // the genesis state must include the native asset's base
+        // denomination, and it is set in storage during init_chain.
+        // on subsequent startups, we load the native asset from storage.
+        if storage.latest_version() != u64::MAX {
+            let _ = snapshot
+                .get_native_asset()
+                .await
+                .context("failed to query state for native asset")?;
+            let _ = snapshot
+                .get_base_prefix()
+                .await
+                .context("failed to query state for base prefix")?;
+        }
 
-        let app = App::new(snapshot, mempool.clone(), metrics)
+        let oracle_client = new_oracle_client(&config)
             .await
-            .wrap_err("failed to initialize app")?;
+            .wrap_err("failed to create connected oracle client")?;
+
+        let mempool = Mempool::new(metrics, config.mempool_parked_max_tx_count);
+        let app = App::new(
+            snapshot,
+            mempool.clone(),
+            crate::app::vote_extension::Handler::new(oracle_client),
+            metrics,
+        )
+        .await
+        .wrap_err("failed to initialize app")?;
 
         let event_bus_subscription = app.subscribe_to_events();
 
@@ -267,5 +303,105 @@ fn spawn_signal_handler() -> SignalReceiver {
 
     SignalReceiver {
         stop_rx,
+    }
+}
+
+/// Returns a new Connect oracle client or `Ok(None)` if `config.no_oracle` is true.
+///
+/// If `config.no_oracle` is false, returns `Ok(Some(...))` as soon as a successful response is
+/// received from the oracle sidecar, or returns `Err` after a fixed number of failed re-attempts
+/// (roughly equivalent to 5 minutes total).
+#[instrument(skip_all, err)]
+async fn new_oracle_client(config: &Config) -> Result<Option<OracleClient<Channel>>> {
+    if config.no_oracle {
+        return Ok(None);
+    }
+    let uri: Uri = config
+        .oracle_grpc_addr
+        .parse()
+        .context("failed parsing oracle grpc address as Uri")?;
+    let endpoint = Endpoint::from(uri.clone()).timeout(Duration::from_millis(
+        config.oracle_client_timeout_milliseconds,
+    ));
+
+    let retry_config = tryhard::RetryFutureConfig::new(MAX_RETRIES_TO_CONNECT_TO_ORACLE_SIDECAR)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(10))
+        .on_retry(
+            |attempt, next_delay: Option<Duration>, error: &eyre::Report| {
+                let wait_duration = next_delay
+                    .map(telemetry::display::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    error = error.as_ref() as &dyn std::error::Error,
+                    attempt,
+                    wait_duration,
+                    "failed to query oracle sidecar; retrying after backoff",
+                );
+                async {}
+            },
+        );
+
+    let client = tryhard::retry_fn(|| connect_to_oracle(&endpoint, &uri))
+        .with_config(retry_config)
+        .await
+        .wrap_err_with(|| {
+            format!(
+                "failed to query oracle sidecar after {MAX_RETRIES_TO_CONNECT_TO_ORACLE_SIDECAR} \
+                 retries; giving up"
+            )
+        })?;
+    Ok(Some(client))
+}
+
+#[instrument(skip_all, err(level = tracing::Level::WARN))]
+async fn connect_to_oracle(endpoint: &Endpoint, uri: &Uri) -> Result<OracleClient<Channel>> {
+    let oracle_client = OracleClient::new(
+        endpoint
+            .connect()
+            .await
+            .wrap_err("failed to connect to oracle sidecar")?,
+    );
+    debug!(uri = %uri, "oracle sidecar is reachable");
+    Ok(oracle_client)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+
+    #[tokio::test(start_paused = true)]
+    async fn should_wait_while_unable_to_connect() {
+        // We only care about `no_oracle` and `oracle_grpc_addr` values - the others can be
+        // meaningless.
+        let config = Config {
+            abci_listen_url: AbciListenUrl::Unix(PathBuf::new()),
+            db_filepath: "".into(),
+            log: String::new(),
+            grpc_addr: String::new(),
+            force_stdout: true,
+            no_otel: true,
+            no_metrics: true,
+            metrics_http_listener_addr: String::new(),
+            pretty_print: true,
+            no_oracle: false,
+            oracle_grpc_addr: "http://127.0.0.1:8081".to_string(),
+            oracle_client_timeout_milliseconds: 1,
+            mempool_parked_max_tx_count: 1,
+            no_optimistic_blocks: false,
+        };
+
+        let start = tokio::time::Instant::now();
+        let error = new_oracle_client(&config).await.unwrap_err();
+        assert!(start.elapsed() > Duration::from_secs(300));
+        assert_eq!(
+            error.to_string(),
+            format!(
+                "failed to query oracle sidecar after {MAX_RETRIES_TO_CONNECT_TO_ORACLE_SIDECAR} \
+                 retries; giving up"
+            )
+        );
     }
 }

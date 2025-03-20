@@ -11,6 +11,7 @@ use astria_core::protocol::{
         IbcSudoChange,
         Ics20Withdrawal,
         InitBridgeAccount,
+        PriceFeed,
         RecoverIbcClient,
         RollupDataSubmission,
         SudoAddressChange,
@@ -50,6 +51,7 @@ enum ValueImpl {
     SudoAddressChangeFees(FeeComponents),
     BridgeTransferFees(FeeComponents),
     RecoverIbcClientFees(FeeComponents),
+    PriceFeedFees(FeeComponents),
 }
 
 macro_rules! impl_from_for_fee_storage {
@@ -115,6 +117,7 @@ impl_from_for_fee_storage!(
     DomainFeeComponents<SudoAddressChange> => SudoAddressChangeFees,
     DomainFeeComponents<BridgeTransfer> => BridgeTransferFees,
     DomainFeeComponents<RecoverIbcClient> => RecoverIbcClientFees,
+    DomainFeeComponents<PriceFeed> => PriceFeedFees,
 );
 
 #[cfg(test)]

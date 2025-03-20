@@ -2,6 +2,7 @@ pub(in crate::app) const CHAIN_ID: &str = "app/chain_id";
 pub(in crate::app) const REVISION_NUMBER: &str = "app/revision_number";
 pub(in crate::app) const BLOCK_HEIGHT: &str = "app/block_height";
 pub(in crate::app) const BLOCK_TIMESTAMP: &str = "app/block_timestamp";
+pub(in crate::app) const VOTE_EXTENSIONS_ENABLED_HEIGHT: &str = "app/vote_extensions_enable_height";
 
 pub(in crate::app) fn storage_version_by_height(height: u64) -> String {
     format!("app/storage_version/{height}")

@@ -6,6 +6,9 @@ import "astria/primitive/v1/types.proto";
 import "astria/protocol/fees/v1/types.proto";
 import "astria_vendored/penumbra/core/component/ibc/v1/ibc.proto";
 import "astria_vendored/tendermint/abci/types.proto";
+import "connect/marketmap/v2/market.proto";
+import "connect/marketmap/v2/params.proto";
+import "connect/types/v2/currency_pair.proto";
 
 message Action {
   oneof value {
@@ -24,7 +27,7 @@ message Action {
     astria_vendored.penumbra.core.component.ibc.v1.IbcRelay ibc = 21;
     Ics20Withdrawal ics20_withdrawal = 22;
 
-    // POA sudo actions are defined on 50-60
+    // POA sudo actions are defined on 50-70
     SudoAddressChange sudo_address_change = 50;
     astria_vendored.tendermint.abci.ValidatorUpdate validator_update = 51;
     IbcRelayerChange ibc_relayer_change = 52;
@@ -32,6 +35,9 @@ message Action {
     FeeChange fee_change = 55;
     IbcSudoChange ibc_sudo_change = 56;
     RecoverIbcClient recover_ibc_client = 57;
+
+    // Price feed actions are defined on 71-80
+    PriceFeed price_feed = 71;
   }
 }
 
@@ -256,6 +262,7 @@ message FeeChange {
     astria.protocol.fees.v1.ValidatorUpdateFeeComponents validator_update = 14;
     astria.protocol.fees.v1.BridgeTransferFeeComponents bridge_transfer = 15;
     astria.protocol.fees.v1.RecoverIbcClientFeeComponents recover_ibc_client = 16;
+    astria.protocol.fees.v1.PriceFeedFeeComponents price_feed = 17;
   }
 }
 
@@ -279,4 +286,51 @@ message RecoverIbcClient {
   // the substitute client identifier for the client which will replace the subject
   // client
   string replacement_client_id = 2;
+}
+
+// A transaction that modifies the price feed oracle settings.
+message PriceFeed {
+  oneof value {
+    CurrencyPairsChange oracle = 1;
+    MarketMapChange market_map = 2;
+  }
+}
+
+// Add or remove currency pairs to/from the price feed oracle.
+message CurrencyPairsChange {
+  oneof value {
+    CurrencyPairs addition = 1;
+    CurrencyPairs removal = 2;
+  }
+}
+
+message CurrencyPairs {
+  repeated connect.types.v2.CurrencyPair pairs = 1;
+}
+
+message MarketMapChange {
+  oneof value {
+    ChangeMarkets markets = 1;
+    UpdateMarketMapParams params = 2;
+  }
+}
+
+// Either creates, updates existing, or removes markets.
+message ChangeMarkets {
+  oneof action {
+    Markets create = 1;
+    Markets update = 2;
+    Markets remove = 3;
+  }
+}
+
+// A list of markets for creation, updating, or removal.
+message Markets {
+  repeated connect.marketmap.v2.Market markets = 1;
+}
+
+// Updates the market map parameters.
+message UpdateMarketMapParams {
+  // Params defines the new parameters for the x/marketmap module.
+  connect.marketmap.v2.Params params = 1;
 }

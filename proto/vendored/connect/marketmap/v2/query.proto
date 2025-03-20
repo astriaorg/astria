@@ -1,0 +1,85 @@
+syntax = "proto3";
+package connect.marketmap.v2;
+
+import "connect/marketmap/v2/market.proto";
+import "connect/marketmap/v2/params.proto";
+import "connect/types/v2/currency_pair.proto";
+import "google/api/annotations.proto";
+
+option go_package = "github.com/skip-mev/connect/v2/x/marketmap/types";
+
+// Query is the query service for the x/marketmap module.
+service Query {
+  // MarketMap returns the full market map stored in the x/marketmap
+  // module.
+  rpc MarketMap(MarketMapRequest) returns (MarketMapResponse) {
+    option (google.api.http) = {get: "/connect/marketmap/v2/marketmap"};
+  }
+
+  // Market returns a market stored in the x/marketmap
+  // module.
+  rpc Market(MarketRequest) returns (MarketResponse) {
+    option (google.api.http) = {get: "/connect/marketmap/v2/market"};
+  }
+
+  // LastUpdated returns the last height the market map was updated at.
+  rpc LastUpdated(LastUpdatedRequest) returns (LastUpdatedResponse) {
+    option (google.api.http) = {get: "/connect/marketmap/v2/last_updated"};
+  }
+
+  // Params returns the current x/marketmap module parameters.
+  rpc Params(ParamsRequest) returns (ParamsResponse) {
+    option (google.api.http) = {get: "/connect/marketmap/v2/params"};
+  }
+}
+
+// MarketMapRequest is the query request for the MarketMap query.
+// It takes no arguments.
+message MarketMapRequest {}
+
+// MarketMapResponse is the query response for the MarketMap query.
+message MarketMapResponse {
+  // MarketMap defines the global set of market configurations for all providers
+  // and markets.
+  MarketMap market_map = 1;
+
+  // LastUpdated is the last block height that the market map was updated.
+  // This field can be used as an optimization for clients checking if there
+  // is a new update to the map.
+  uint64 last_updated = 2;
+
+  // ChainId is the chain identifier for the market map.
+  string chain_id = 3;
+}
+
+// MarketRequest is the query request for the Market query.
+// It takes the currency pair of the market as an argument.
+message MarketRequest {
+  // CurrencyPair is the currency pair associated with the market being
+  // requested.
+  connect.types.v2.CurrencyPair currency_pair = 1;
+}
+
+// MarketResponse is the query response for the Market query.
+message MarketResponse {
+  // Market is the configuration of a single market to be price-fetched for.
+  Market market = 1;
+}
+
+// ParamsRequest is the request type for the Query/Params RPC method.
+message ParamsRequest {}
+
+// ParamsResponse is the response type for the Query/Params RPC method.
+message ParamsResponse {
+  Params params = 1;
+}
+
+// LastUpdatedRequest is the request type for the Query/LastUpdated RPC
+// method.
+message LastUpdatedRequest {}
+
+// LastUpdatedResponse is the response type for the Query/LastUpdated RPC
+// method.
+message LastUpdatedResponse {
+  uint64 last_updated = 1;
+}

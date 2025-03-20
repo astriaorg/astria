@@ -17,16 +17,22 @@ mod tests_breaking_changes;
 #[cfg(test)]
 mod tests_execute_transaction;
 
+pub(crate) mod vote_extension;
+
 use std::{
     collections::VecDeque,
     sync::Arc,
 };
 
 use astria_core::{
-    generated::astria::protocol::transaction::v1 as raw,
+    generated::astria::protocol::{
+        connect::v1::ExtendedCommitInfoWithCurrencyPairMapping as RawExtendedCommitInfoWithCurrencyPairMapping,
+        transaction::v1 as raw,
+    },
     primitive::v1::TRANSACTION_ID_LEN,
     protocol::{
         abci::AbciErrorCode,
+        connect::v1::ExtendedCommitInfoWithCurrencyPairMapping,
         genesis::v1::GenesisAppState,
         transaction::v1::{
             action::{
@@ -37,7 +43,13 @@ use astria_core::{
             Transaction,
         },
     },
-    sequencerblock::v1::block::SequencerBlock,
+    sequencerblock::v1::{
+        block::{
+            self,
+            SequencerBlockBuilder,
+        },
+        SequencerBlock,
+    },
     Protobuf as _,
 };
 use astria_eyre::{
@@ -46,6 +58,7 @@ use astria_eyre::{
         bail,
         ensure,
         eyre,
+        ContextCompat as _,
         OptionExt as _,
         Result,
         WrapErr as _,
@@ -65,7 +78,10 @@ use sha2::{
     Digest as _,
     Sha256,
 };
-use telemetry::display::json;
+use telemetry::display::{
+    base64,
+    json,
+};
 use tendermint::{
     abci::{
         self,
@@ -83,6 +99,7 @@ use tracing::{
     info,
     instrument,
     trace,
+    warn,
     Level,
 };
 
@@ -109,6 +126,7 @@ use crate::{
             ExecutionState,
             ExecutionStateMachine,
         },
+        vote_extension::ProposalHandler,
     },
     assets::StateWriteExt as _,
     authority::{
@@ -124,6 +142,10 @@ use crate::{
         StateWriteExt as _,
     },
     component::Component as _,
+    connect::{
+        market_map::component::MarketMapComponent,
+        oracle::component::OracleComponent,
+    },
     fees::{
         component::FeesComponent,
         StateReadExt as _,
@@ -151,6 +173,27 @@ const EXECUTION_RESULTS_KEY: &str = "execution_results";
 // ephemeral store key for the cache of results of executing of transactions in `process_proposal`.
 // cleared at the end of the block.
 const POST_TRANSACTION_EXECUTION_RESULT_KEY: &str = "post_transaction_execution_result";
+
+// the number of non-external transactions expected at the start of the block
+// before vote extensions are enabled.
+//
+// consists of:
+// 1. rollup data root
+// 2. rollup IDs root
+const INJECTED_TRANSACTIONS_COUNT_BEFORE_VOTE_EXTENSIONS_ENABLED: usize = 2;
+
+// the number of non-external transactions expected at the start of the block
+// after vote extensions are enabled.
+//
+// consists of:
+// 1. rollup data root
+// 2. rollup IDs root
+// 3. encoded `ExtendedCommitInfo` for the previous block
+const INJECTED_TRANSACTIONS_COUNT_AFTER_VOTE_EXTENSIONS_ENABLED: usize = 3;
+
+// the height to set the `vote_extensions_enable_height` to in state if vote extensions are
+// disabled.
+const VOTE_EXTENSIONS_DISABLED_HEIGHT: u64 = u64::MAX;
 
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
@@ -202,6 +245,9 @@ pub(crate) struct App {
     // the sequencer event bus, used to send and receive events between components within the app
     event_bus: EventBus,
 
+    // used to create and verify vote extensions, if this is a validator node.
+    vote_extension_handler: vote_extension::Handler,
+
     metrics: &'static Metrics,
 }
 
@@ -210,6 +256,7 @@ impl App {
     pub(crate) async fn new(
         snapshot: Snapshot,
         mempool: Mempool,
+        vote_extension_handler: vote_extension::Handler,
         metrics: &'static Metrics,
     ) -> Result<Self> {
         debug!("initializing App instance");
@@ -238,6 +285,7 @@ impl App {
             write_batch: None,
             app_hash,
             event_bus,
+            vote_extension_handler,
             metrics,
         })
     }
@@ -253,6 +301,7 @@ impl App {
         genesis_state: GenesisAppState,
         genesis_validators: Vec<ValidatorUpdate>,
         chain_id: String,
+        vote_extensions_enable_height: u64,
     ) -> Result<AppHash> {
         let mut state_tx = self
             .state
@@ -282,6 +331,17 @@ impl App {
             .put_block_height(0)
             .wrap_err("failed to write block height to state")?;
 
+        // if `vote_extensions_enable_height` is 0, vote extensions are disabled.
+        // we set it to `u64::MAX` in state so checking if our current height is past
+        // the vote extensions enabled height will always be false.
+        let vote_extensions_enable_height = match vote_extensions_enable_height {
+            0 => VOTE_EXTENSIONS_DISABLED_HEIGHT,
+            _ => vote_extensions_enable_height,
+        };
+        state_tx
+            .put_vote_extensions_enable_height(vote_extensions_enable_height)
+            .wrap_err("failed to write vote extensions enabled height to state")?;
+
         // call init_chain on all components
         FeesComponent::init_chain(&mut state_tx, &genesis_state)
             .await
@@ -301,6 +361,15 @@ impl App {
         IbcComponent::init_chain(&mut state_tx, &genesis_state)
             .await
             .wrap_err("init_chain failed on IbcComponent")?;
+
+        if vote_extensions_enable_height != VOTE_EXTENSIONS_DISABLED_HEIGHT {
+            MarketMapComponent::init_chain(&mut state_tx, &genesis_state)
+                .await
+                .wrap_err("init_chain failed on MarketMapComponent")?;
+            OracleComponent::init_chain(&mut state_tx, &genesis_state)
+                .await
+                .wrap_err("init_chain failed on OracleComponent")?;
+        }
 
         state_tx.apply();
 
@@ -341,13 +410,78 @@ impl App {
         // Always reset when preparing a proposal.
         self.update_state_for_new_round(&storage);
 
-        let mut block_size_constraints = BlockSizeConstraints::new(
-            usize::try_from(prepare_proposal.max_tx_bytes)
-                .wrap_err("failed to convert max_tx_bytes to usize")?,
-        )
-        .wrap_err("failed to create block size constraints")?;
-
         let request = prepare_proposal.clone();
+        let vote_extensions_enable_height = self
+            .state
+            .get_vote_extensions_enable_height()
+            .await
+            .wrap_err("failed to get vote extensions enabled height")?;
+
+        let (max_tx_bytes, encoded_extended_commit_info) = if vote_extensions_enable_height
+            <= prepare_proposal.height.value()
+        {
+            // create the extended commit info from the local last commit
+            let Some(last_commit) = prepare_proposal.local_last_commit else {
+                bail!("local last commit is empty; this should not occur")
+            };
+
+            // if this fails, we shouldn't return an error, but instead leave
+            // the vote extensions empty in this block for liveness.
+            // it's not a critical error if the oracle values are not updated for a block.
+            //
+            // note that at the height where vote extensions are enabled, the `extended_commit_info`
+            // will always be empty, as there were no vote extensions for the previous block.
+            let round = last_commit.round;
+            let extended_commit_info = match ProposalHandler::prepare_proposal(
+                &self.state,
+                prepare_proposal.height.into(),
+                last_commit,
+            )
+            .await
+            {
+                Ok(info) => info,
+                Err(e) => {
+                    warn!(
+                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                        "failed to generate extended commit info"
+                    );
+                    ExtendedCommitInfoWithCurrencyPairMapping::empty(round)
+                }
+            };
+
+            let mut encoded_extended_commit_info = extended_commit_info.into_raw().encode_to_vec();
+            let max_tx_bytes = usize::try_from(prepare_proposal.max_tx_bytes)
+                .wrap_err("failed to convert max_tx_bytes to usize")?;
+
+            // adjust max block size to account for extended commit info
+            (
+                max_tx_bytes
+                    .checked_sub(encoded_extended_commit_info.len())
+                    .unwrap_or_else(|| {
+                        // zero the commit info if it's too large to fit in the block
+                        // for liveness.
+                        warn!(
+                            encoded_extended_commit_info_len = encoded_extended_commit_info.len(),
+                            max_tx_bytes,
+                            "extended commit info is too large to fit in block; not including in \
+                             block"
+                        );
+                        encoded_extended_commit_info.clear();
+                        max_tx_bytes
+                    }),
+                Some(encoded_extended_commit_info),
+            )
+        } else {
+            (
+                usize::try_from(prepare_proposal.max_tx_bytes)
+                    .wrap_err("failed to convert max_tx_bytes to usize")?,
+                None,
+            )
+        };
+
+        let mut block_size_constraints = BlockSizeConstraints::new(max_tx_bytes)
+            .wrap_err("failed to create block size constraints")?;
+
         let block_data = BlockData {
             misbehavior: prepare_proposal.misbehavior,
             height: prepare_proposal.height,
@@ -372,16 +506,24 @@ impl App {
         self.metrics.record_proposal_deposits(deposits.len());
 
         // generate commitment to sequence::Actions and deposits and commitment to the rollup IDs
-        // included in the block
-        let res = generate_rollup_datas_commitment(&signed_txs_included, deposits);
-        let txs = res.into_transactions(included_tx_bytes);
+        // included in the block, chain on the extended commit info if `Some`, and finally chain on
+        // the tx bytes.
+        let txs = generate_rollup_datas_commitment(&signed_txs_included, deposits)
+            .into_iter()
+            .chain(
+                encoded_extended_commit_info
+                    .map(bytes::Bytes::from)
+                    .into_iter(),
+            )
+            .chain(included_tx_bytes)
+            .collect();
 
         let response = abci::response::PrepareProposal {
             txs,
         };
         // Generate the prepared proposal fingerprint.
         self.execution_state
-            .set_prepared_proposal(request.clone(), response.clone())
+            .set_prepared_proposal(request, response.clone())
             .wrap_err("failed to set executed proposal fingerprint, this should not happen")?;
         Ok(response)
     }
@@ -389,7 +531,12 @@ impl App {
     /// Generates a commitment to the `sequence::Actions` in the block's transactions
     /// and ensures it matches the commitment created by the proposer, which
     /// should be the first transaction in the block.
-    #[instrument(name = "App::process_proposal", skip_all, err(level = Level::WARN))]
+    #[instrument(
+        name = "App::process_proposal",
+        skip_all,
+        fields(proposer=%base64(&process_proposal.proposer_address.as_bytes())),
+        err(level = Level::WARN)
+    )]
     pub(crate) async fn process_proposal(
         &mut self,
         process_proposal: abci::request::ProcessProposal,
@@ -462,7 +609,15 @@ impl App {
             tx_results
         } else {
             self.update_state_for_new_round(&storage);
+
             let mut txs = VecDeque::from(process_proposal.txs.clone());
+
+            let vote_extensions_enable_height = self
+                .state
+                .get_vote_extensions_enable_height()
+                .await
+                .wrap_err("failed to get vote extensions enabled height")?;
+
             let received_rollup_datas_root: [u8; 32] = txs
                 .pop_front()
                 .ok_or_eyre("no transaction commitment in proposal")?
@@ -476,6 +631,36 @@ impl App {
                 .to_vec()
                 .try_into()
                 .map_err(|_| eyre!("chain IDs commitment must be 32 bytes"))?;
+
+            if vote_extensions_enable_height <= process_proposal.height.value() {
+                let Some(last_commit) = process_proposal.proposed_last_commit else {
+                    bail!("proposed last commit is empty; this should not occur")
+                };
+
+                // if vote extensions are enabled, the third transaction in the block should be the
+                // extended commit info
+                let extended_commit_info_bytes = txs
+                    .pop_front()
+                    .wrap_err("no extended commit info in proposal")?;
+
+                // decode the extended commit info and validate it
+                let extended_commit_info = RawExtendedCommitInfoWithCurrencyPairMapping::decode(
+                    extended_commit_info_bytes.as_ref(),
+                )
+                .wrap_err("failed to decode extended commit info")?;
+                let extended_commit_info =
+                    ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(extended_commit_info)
+                        .wrap_err("failed to convert extended commit info from proto to native")?;
+
+                ProposalHandler::validate_proposal(
+                    &self.state,
+                    process_proposal.height.value(),
+                    &last_commit,
+                    &extended_commit_info,
+                )
+                .await
+                .wrap_err("failed to validate extended commit info")?;
+            }
 
             let expected_txs_len = txs.len();
 
@@ -753,6 +938,23 @@ impl App {
         Ok(())
     }
 
+    #[instrument(name = "App::extend_vote", skip_all)]
+    pub(crate) async fn extend_vote(
+        &mut self,
+        _extend_vote: abci::request::ExtendVote,
+    ) -> Result<abci::response::ExtendVote> {
+        self.vote_extension_handler.extend_vote(&self.state).await
+    }
+
+    pub(crate) async fn verify_vote_extension(
+        &mut self,
+        vote_extension: abci::request::VerifyVoteExtension,
+    ) -> Result<abci::response::VerifyVoteExtension> {
+        self.vote_extension_handler
+            .verify_vote_extension(&self.state, vote_extension)
+            .await
+    }
+
     /// updates the app state after transaction execution, and generates the resulting
     /// `SequencerBlock`.
     ///
@@ -802,28 +1004,50 @@ impl App {
             .put_deposits(&block_hash, deposits_in_this_block.clone())
             .wrap_err("failed to put deposits to state")?;
 
+        let vote_extensions_enable_height = self
+            .state
+            .get_vote_extensions_enable_height()
+            .await
+            .wrap_err("failed to get vote extensions enabled height")?;
+        let vote_extensions_enabled = vote_extensions_enable_height <= height.value();
+        let injected_txs_count = if vote_extensions_enabled {
+            INJECTED_TRANSACTIONS_COUNT_AFTER_VOTE_EXTENSIONS_ENABLED
+        } else {
+            INJECTED_TRANSACTIONS_COUNT_BEFORE_VOTE_EXTENSIONS_ENABLED
+        };
+
         // cometbft expects a result for every tx in the block, so we need to return a
         // tx result for the commitments, even though they're not actually user txs.
         //
         // the tx_results passed to this function only contain results for every user
-        // transaction, not the commitment, so its length is len(txs) - 2.
+        // transaction, not the commitment, so its length is len(txs) - 3.
         let mut finalize_block_tx_results: Vec<ExecTxResult> = Vec::with_capacity(txs.len());
-        finalize_block_tx_results.extend(std::iter::repeat(ExecTxResult::default()).take(2));
+        finalize_block_tx_results
+            .extend(std::iter::repeat(ExecTxResult::default()).take(injected_txs_count));
         finalize_block_tx_results.extend(tx_results);
 
-        let sequencer_block = SequencerBlock::try_from_block_info_and_data(
-            block_hash,
+        let sequencer_block = SequencerBlockBuilder {
+            block_hash: block::Hash::new(block_hash),
             chain_id,
             height,
             time,
             proposer_address,
-            txs,
-            deposits_in_this_block,
-        )
+            data: txs,
+            deposits: deposits_in_this_block,
+            with_extended_commit_info: vote_extensions_enabled,
+        }
+        .try_build()
         .wrap_err("failed to convert block info and data to SequencerBlock")?;
         state_tx
             .put_sequencer_block(sequencer_block.clone())
             .wrap_err("failed to write sequencer block to state")?;
+
+        handle_consensus_param_updates(
+            &mut state_tx,
+            end_block.consensus_param_updates.as_ref(),
+            vote_extensions_enable_height,
+        )
+        .wrap_err("failed to handle consensus param updates")?;
 
         let result = PostTransactionExecutionResult {
             events: end_block.events,
@@ -853,11 +1077,56 @@ impl App {
         finalize_block: abci::request::FinalizeBlock,
         storage: Storage,
     ) -> Result<abci::response::FinalizeBlock> {
-        ensure!(
-            finalize_block.txs.len() >= 2,
-            "block must contain at least two transactions: the rollup transactions commitment and
-             rollup IDs commitment"
-        );
+        let vote_extensions_enable_height = self
+            .state
+            .get_vote_extensions_enable_height()
+            .await
+            .wrap_err("failed to get vote extensions enabled height")?;
+        let (injected_transactions_count, mut events) =
+            if vote_extensions_enable_height <= finalize_block.height.value() {
+                ensure!(
+                    finalize_block.txs.len()
+                        >= INJECTED_TRANSACTIONS_COUNT_AFTER_VOTE_EXTENSIONS_ENABLED,
+                    "block must contain at least three transactions: the rollup transactions \
+                     commitment, rollup IDs commitment, and the extended commit info"
+                );
+
+                let extended_commit_info_bytes =
+                    finalize_block.txs.get(2).expect("asserted length above");
+                let extended_commit_info = RawExtendedCommitInfoWithCurrencyPairMapping::decode(
+                    extended_commit_info_bytes.as_ref(),
+                )
+                .wrap_err("failed to decode extended commit info")?;
+                let extended_commit_info =
+                    ExtendedCommitInfoWithCurrencyPairMapping::try_from_raw(extended_commit_info)
+                        .wrap_err("failed to convert extended commit info from proto to native")?;
+                let mut state_tx: StateDelta<Arc<StateDelta<Snapshot>>> =
+                    StateDelta::new(self.state.clone());
+                vote_extension::apply_prices_from_vote_extensions(
+                    &mut state_tx,
+                    extended_commit_info,
+                    finalize_block.time.into(),
+                    finalize_block.height.value(),
+                )
+                .await
+                .wrap_err("failed to apply prices from vote extensions")?;
+                let events = self.apply(state_tx);
+                (
+                    INJECTED_TRANSACTIONS_COUNT_AFTER_VOTE_EXTENSIONS_ENABLED,
+                    events,
+                )
+            } else {
+                ensure!(
+                    finalize_block.txs.len()
+                        >= INJECTED_TRANSACTIONS_COUNT_BEFORE_VOTE_EXTENSIONS_ENABLED,
+                    "block must contain at least two transactions: the rollup transactions \
+                     commitment and rollup IDs commitment"
+                );
+                (
+                    INJECTED_TRANSACTIONS_COUNT_BEFORE_VOTE_EXTENSIONS_ENABLED,
+                    vec![],
+                )
+            };
 
         // FIXME: refactor to avoid cloning the finalize block
         let finalize_block_arc = Arc::new(finalize_block.clone());
@@ -890,8 +1159,9 @@ impl App {
                 .wrap_err("failed to execute block")?;
 
             let mut tx_results = Vec::with_capacity(finalize_block.txs.len());
-            // skip the first two transactions, as they are the rollup data commitments
-            for tx in finalize_block.txs.iter().skip(2) {
+            // skip the first `injected_transactions_count` transactions, as they are injected
+            // transactions
+            for tx in finalize_block.txs.iter().skip(injected_transactions_count) {
                 let signed_tx = signed_transaction_from_bytes(tx)
                     .wrap_err("protocol error; only valid txs should be finalized")?;
 
@@ -946,8 +1216,9 @@ impl App {
             .prepare_commit(storage)
             .await
             .wrap_err("failed to prepare commit")?;
+        events.extend(post_transaction_execution_result.events);
         let finalize_block_response = abci::response::FinalizeBlock {
-            events: post_transaction_execution_result.events,
+            events,
             validator_updates: post_transaction_execution_result.validator_updates,
             consensus_param_updates: post_transaction_execution_result.consensus_param_updates,
             app_hash,
@@ -1024,6 +1295,12 @@ impl App {
         FeesComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .wrap_err("begin_block failed on FeesComponent")?;
+        MarketMapComponent::begin_block(&mut arc_state_tx, begin_block)
+            .await
+            .wrap_err("begin_block failed on MarketMapComponent")?;
+        OracleComponent::begin_block(&mut arc_state_tx, begin_block)
+            .await
+            .wrap_err("begin_block failed on OracleComponent")?;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1097,6 +1374,12 @@ impl App {
         IbcComponent::end_block(&mut arc_state_tx, &end_block)
             .await
             .wrap_err("end_block failed on IbcComponent")?;
+        MarketMapComponent::end_block(&mut arc_state_tx, &end_block)
+            .await
+            .wrap_err("end_block failed on MarketMapComponent")?;
+        OracleComponent::end_block(&mut arc_state_tx, &end_block)
+            .await
+            .wrap_err("end_block failed on OracleComponent")?;
 
         let mut state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1181,6 +1464,44 @@ impl App {
 
         events
     }
+}
+
+fn handle_consensus_param_updates(
+    state_tx: &mut StateDelta<Arc<StateDelta<Snapshot>>>,
+    consensus_param_updates: Option<&tendermint::consensus::Params>,
+    current_vote_extensions_enable_height: u64,
+) -> Result<()> {
+    if let Some(consensus_param_updates) = &consensus_param_updates {
+        if let Some(new_vote_extensions_enable_height) =
+            consensus_param_updates.abci.vote_extensions_enable_height
+        {
+            // if vote extensions are already enabled, they cannot be disabled,
+            // and the `vote_extensions_enable_height` cannot be changed.
+            if current_vote_extensions_enable_height != VOTE_EXTENSIONS_DISABLED_HEIGHT {
+                warn!(
+                    "vote extensions enable height already set to {}; ignoring update",
+                    current_vote_extensions_enable_height
+                );
+                return Ok(());
+            }
+
+            // vote extensions are currently disabled, so updating the enabled height to
+            // 0 (which also means disabling them) is a no-op.
+            if new_vote_extensions_enable_height.value() == 0 {
+                warn!("ignoring update to set vote extensions enable height to 0");
+                return Ok(());
+            }
+
+            // TODO: when we implement an action to activate vote extensions,
+            // we must ensure that the action *also* writes the necessary state
+            // as done in `MarketMapComponent::init_chain` and `OracleComponent::init_chain`.
+            state_tx
+                .put_vote_extensions_enable_height(new_vote_extensions_enable_height.value())
+                .wrap_err("failed to put vote extensions enable height")?;
+        }
+    }
+
+    Ok(())
 }
 
 // updates the mempool to reflect current state

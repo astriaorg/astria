@@ -4,6 +4,10 @@ pub use penumbra_ibc::params::IBCParameters;
 use penumbra_ibc::IbcRelay;
 
 use crate::{
+    connect::{
+        market_map,
+        oracle,
+    },
     generated::astria::protocol::genesis::v1 as raw,
     primitive::v1::{
         asset::{
@@ -32,6 +36,7 @@ use crate::{
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
+            PriceFeed,
             RecoverIbcClient,
             RollupDataSubmission,
             SudoAddressChange,
@@ -41,6 +46,122 @@ use crate::{
     },
     Protobuf,
 };
+
+#[derive(Clone, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Deserialize, serde::Serialize),
+    serde(try_from = "raw::ConnectGenesis", into = "raw::ConnectGenesis")
+)]
+pub struct ConnectGenesis {
+    market_map: market_map::v2::GenesisState,
+    oracle: oracle::v2::GenesisState,
+}
+
+impl ConnectGenesis {
+    #[must_use]
+    pub fn market_map(&self) -> &market_map::v2::GenesisState {
+        &self.market_map
+    }
+
+    #[must_use]
+    pub fn oracle(&self) -> &oracle::v2::GenesisState {
+        &self.oracle
+    }
+}
+
+impl Protobuf for ConnectGenesis {
+    type Error = ConnectGenesisError;
+    type Raw = raw::ConnectGenesis;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let Self::Raw {
+            market_map,
+            oracle,
+        } = raw;
+        let market_map = market_map
+            .as_ref()
+            .ok_or_else(|| Self::Error::field_not_set("market_map"))
+            .and_then(|market_map| {
+                market_map::v2::GenesisState::try_from_raw_ref(market_map)
+                    .map_err(Self::Error::market_map)
+            })?;
+        let oracle = oracle
+            .as_ref()
+            .ok_or_else(|| Self::Error::field_not_set("oracle"))
+            .and_then(|oracle| {
+                oracle::v2::GenesisState::try_from_raw_ref(oracle).map_err(Self::Error::oracle)
+            })?;
+        Ok(Self {
+            market_map,
+            oracle,
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let Self {
+            market_map,
+            oracle,
+        } = self;
+        Self::Raw {
+            market_map: Some(market_map.to_raw()),
+            oracle: Some(oracle.to_raw()),
+        }
+    }
+}
+
+impl TryFrom<raw::ConnectGenesis> for ConnectGenesis {
+    type Error = <Self as Protobuf>::Error;
+
+    fn try_from(value: raw::ConnectGenesis) -> Result<Self, Self::Error> {
+        Self::try_from_raw(value)
+    }
+}
+
+impl From<ConnectGenesis> for raw::ConnectGenesis {
+    fn from(value: ConnectGenesis) -> Self {
+        value.into_raw()
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct ConnectGenesisError(ConnectGenesisErrorKind);
+
+impl ConnectGenesisError {
+    fn field_not_set(name: &'static str) -> Self {
+        Self(ConnectGenesisErrorKind::FieldNotSet {
+            name,
+        })
+    }
+
+    fn market_map(source: market_map::v2::GenesisStateError) -> Self {
+        Self(ConnectGenesisErrorKind::MarketMap {
+            source,
+        })
+    }
+
+    fn oracle(source: oracle::v2::GenesisStateError) -> Self {
+        Self(ConnectGenesisErrorKind::Oracle {
+            source,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("failed ensuring invariants of {}", ConnectGenesis::full_name())]
+enum ConnectGenesisErrorKind {
+    #[error("field was not set: `{name}`")]
+    FieldNotSet { name: &'static str },
+    #[error("`market_map` field was invalid")]
+    MarketMap {
+        source: market_map::v2::GenesisStateError,
+    },
+    #[error("`oracle` field was invalid")]
+    Oracle {
+        source: oracle::v2::GenesisStateError,
+    },
+}
 
 /// The genesis state of Astria's Sequencer.
 ///
@@ -63,6 +184,7 @@ pub struct GenesisAppState {
     ibc_parameters: IBCParameters,
     allowed_fee_assets: Vec<asset::Denom>,
     fees: GenesisFees,
+    connect: Option<ConnectGenesis>,
 }
 
 impl GenesisAppState {
@@ -116,6 +238,11 @@ impl GenesisAppState {
         &self.fees
     }
 
+    #[must_use]
+    pub fn connect(&self) -> &Option<ConnectGenesis> {
+        &self.connect
+    }
+
     fn ensure_address_has_base_prefix(
         &self,
         address: &Address,
@@ -146,6 +273,26 @@ impl GenesisAppState {
         for (i, address) in self.ibc_relayer_addresses.iter().enumerate() {
             self.ensure_address_has_base_prefix(address, &format!(".ibc_relayer_addresses[{i}]"))?;
         }
+
+        if let Some(connect) = &self.connect {
+            for (i, address) in connect
+                .market_map
+                .params
+                .market_authorities
+                .iter()
+                .enumerate()
+            {
+                self.ensure_address_has_base_prefix(
+                    address,
+                    &format!(".market_map.params.market_authorities[{i}]"),
+                )?;
+            }
+            self.ensure_address_has_base_prefix(
+                &connect.market_map.params.admin,
+                ".market_map.params.admin",
+            )?;
+        }
+
         Ok(())
     }
 }
@@ -166,6 +313,7 @@ impl Protobuf for GenesisAppState {
             ibc_parameters,
             allowed_fee_assets,
             fees,
+            connect,
         } = raw;
         let address_prefixes = address_prefixes
             .as_ref()
@@ -227,6 +375,12 @@ impl Protobuf for GenesisAppState {
             .ok_or_else(|| Self::Error::field_not_set("fees"))
             .and_then(|fees| GenesisFees::try_from_raw_ref(fees).map_err(Self::Error::fees))?;
 
+        let connect = if let Some(connect) = connect {
+            Some(ConnectGenesis::try_from_raw_ref(connect).map_err(Self::Error::connect)?)
+        } else {
+            None
+        };
+
         let this = Self {
             address_prefixes,
             accounts,
@@ -238,6 +392,7 @@ impl Protobuf for GenesisAppState {
             ibc_parameters,
             allowed_fee_assets,
             fees,
+            connect,
         };
         this.ensure_all_addresses_have_base_prefix()
             .map_err(Self::Error::address_does_not_match_base)?;
@@ -256,6 +411,7 @@ impl Protobuf for GenesisAppState {
             ibc_parameters,
             allowed_fee_assets,
             fees,
+            connect,
         } = self;
         Self::Raw {
             address_prefixes: Some(address_prefixes.to_raw()),
@@ -270,6 +426,7 @@ impl Protobuf for GenesisAppState {
             ibc_parameters: Some(ibc_parameters.to_raw()),
             allowed_fee_assets: allowed_fee_assets.iter().map(ToString::to_string).collect(),
             fees: Some(fees.to_raw()),
+            connect: connect.as_ref().map(ConnectGenesis::to_raw),
         }
     }
 }
@@ -352,6 +509,12 @@ impl GenesisAppStateError {
             source,
         })
     }
+
+    fn connect(source: ConnectGenesisError) -> Self {
+        Self(GenesisAppStateErrorKind::Connect {
+            source,
+        })
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -379,6 +542,8 @@ enum GenesisAppStateErrorKind {
     FieldNotSet { name: &'static str },
     #[error("`native_asset_base_denomination` field was invalid")]
     NativeAssetBaseDenomination { source: ParseTracePrefixedError },
+    #[error("`connect` field was invalid")]
+    Connect { source: ConnectGenesisError },
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -597,6 +762,7 @@ pub struct GenesisFees {
     pub sudo_address_change: Option<FeeComponents<SudoAddressChange>>,
     pub ibc_sudo_change: Option<FeeComponents<IbcSudoChange>>,
     pub recover_ibc_client: Option<FeeComponents<RecoverIbcClient>>,
+    pub price_feed: Option<FeeComponents<PriceFeed>>,
 }
 
 impl Protobuf for GenesisFees {
@@ -625,6 +791,7 @@ impl Protobuf for GenesisFees {
             sudo_address_change,
             ibc_sudo_change,
             recover_ibc_client,
+            price_feed,
         } = raw;
         let rollup_data_submission = rollup_data_submission
             .clone()
@@ -723,6 +890,12 @@ impl Protobuf for GenesisFees {
             .transpose()
             .map_err(|e| FeesError::fee_components("recover_ibc_client", e))?;
 
+        let price_feed = price_feed
+            .clone()
+            .map(FeeComponents::<PriceFeed>::try_from_raw)
+            .transpose()
+            .map_err(|e| FeesError::fee_components("price_feed", e))?;
+
         Ok(Self {
             rollup_data_submission,
             transfer,
@@ -740,6 +913,7 @@ impl Protobuf for GenesisFees {
             sudo_address_change,
             ibc_sudo_change,
             recover_ibc_client,
+            price_feed,
         })
     }
 
@@ -761,6 +935,7 @@ impl Protobuf for GenesisFees {
             sudo_address_change,
             ibc_sudo_change,
             recover_ibc_client,
+            price_feed,
         } = self;
         Self::Raw {
             transfer: transfer.map(|act| FeeComponents::<Transfer>::to_raw(&act)),
@@ -790,6 +965,7 @@ impl Protobuf for GenesisFees {
                 .map(|act| FeeComponents::<IbcSudoChange>::to_raw(&act)),
             recover_ibc_client: recover_ibc_client
                 .map(|act| FeeComponents::<RecoverIbcClient>::to_raw(&act)),
+            price_feed: price_feed.map(|act| FeeComponents::<PriceFeed>::to_raw(&act)),
         }
     }
 }
@@ -827,8 +1003,19 @@ enum FeesErrorKind {
 
 #[cfg(test)]
 mod tests {
+    use indexmap::indexmap;
+
     use super::*;
-    use crate::primitive::v1::Address;
+    use crate::{
+        connect::{
+            market_map::v2::{
+                MarketMap,
+                Params,
+            },
+            types::v2::CurrencyPairId,
+        },
+        primitive::v1::Address,
+    };
 
     const ASTRIA_ADDRESS_PREFIX: &str = "astria";
 
@@ -864,7 +1051,84 @@ mod tests {
             .unwrap()
     }
 
+    fn genesis_state_markets() -> MarketMap {
+        use crate::connect::{
+            market_map::v2::{
+                Market,
+                MarketMap,
+                ProviderConfig,
+                Ticker,
+            },
+            types::v2::CurrencyPair,
+        };
+
+        let markets = indexmap! {
+            "ETH/USD".to_string() =>  Market {
+                ticker: Ticker {
+                    currency_pair: CurrencyPair::from_parts(
+                        "ETH".parse().unwrap(),
+                        "USD".parse().unwrap(),
+                    ),
+                    decimals: 8,
+                    min_provider_count: 3,
+                    enabled: true,
+                    metadata_json: String::new(),
+                },
+                provider_configs: vec![ProviderConfig {
+                    name: "coingecko_api".to_string(),
+                    off_chain_ticker: "ethereum/usd".to_string(),
+                    normalize_by_pair: Some(CurrencyPair::from_parts(
+                        "USDT".parse().unwrap(),
+                        "USD".parse().unwrap(),
+                    )),
+                    invert: false,
+                    metadata_json: String::new(),
+                }],
+            },
+        };
+
+        MarketMap {
+            markets,
+        }
+    }
+
+    fn genesis_fees() -> raw::GenesisFees {
+        raw::GenesisFees {
+            transfer: Some(FeeComponents::<Transfer>::new(12, 0).to_raw()),
+            rollup_data_submission: Some(
+                FeeComponents::<RollupDataSubmission>::new(32, 1).to_raw(),
+            ),
+            init_bridge_account: Some(FeeComponents::<InitBridgeAccount>::new(48, 0).to_raw()),
+            bridge_lock: Some(FeeComponents::<BridgeLock>::new(12, 1).to_raw()),
+            bridge_unlock: Some(FeeComponents::<BridgeUnlock>::new(12, 0).to_raw()),
+            bridge_transfer: Some(FeeComponents::<BridgeTransfer>::new(24, 0).to_raw()),
+            bridge_sudo_change: Some(FeeComponents::<BridgeSudoChange>::new(24, 0).to_raw()),
+            ics20_withdrawal: Some(FeeComponents::<Ics20Withdrawal>::new(24, 0).to_raw()),
+            ibc_relay: Some(FeeComponents::<IbcRelay>::new(0, 0).to_raw()),
+            validator_update: Some(FeeComponents::<ValidatorUpdate>::new(0, 0).to_raw()),
+            fee_asset_change: Some(FeeComponents::<FeeAssetChange>::new(0, 0).to_raw()),
+            fee_change: Some(FeeComponents::<FeeChange>::new(0, 0).to_raw()),
+            ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0).to_raw()),
+            sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0).to_raw()),
+            ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0).to_raw()),
+            recover_ibc_client: Some(FeeComponents::<RecoverIbcClient>::new(0, 0).to_raw()),
+            price_feed: Some(FeeComponents::<PriceFeed>::new(0, 0).to_raw()),
+        }
+    }
+
     fn proto_genesis_state() -> raw::GenesisAppState {
+        use crate::connect::{
+            oracle::v2::{
+                CurrencyPairGenesis,
+                QuotePrice,
+            },
+            types::v2::{
+                CurrencyPair,
+                CurrencyPairNonce,
+                Price,
+            },
+        };
+
         raw::GenesisAppState {
             accounts: vec![
                 raw::Account {
@@ -895,26 +1159,39 @@ mod tests {
                 outbound_ics20_transfers_enabled: true,
             }),
             allowed_fee_assets: vec!["nria".into()],
-            fees: Some(raw::GenesisFees {
-                transfer: Some(FeeComponents::<Transfer>::new(12, 0).to_raw()),
-                rollup_data_submission: Some(
-                    FeeComponents::<RollupDataSubmission>::new(32, 1).to_raw(),
-                ),
-                init_bridge_account: Some(FeeComponents::<InitBridgeAccount>::new(48, 0).to_raw()),
-                bridge_lock: Some(FeeComponents::<BridgeLock>::new(12, 1).to_raw()),
-                bridge_unlock: Some(FeeComponents::<BridgeUnlock>::new(12, 0).to_raw()),
-                bridge_transfer: Some(FeeComponents::<BridgeTransfer>::new(24, 0).to_raw()),
-                bridge_sudo_change: Some(FeeComponents::<BridgeSudoChange>::new(24, 0).to_raw()),
-                ics20_withdrawal: Some(FeeComponents::<Ics20Withdrawal>::new(24, 0).to_raw()),
-                ibc_relay: Some(FeeComponents::<IbcRelay>::new(0, 0).to_raw()),
-                validator_update: Some(FeeComponents::<ValidatorUpdate>::new(0, 0).to_raw()),
-                fee_asset_change: Some(FeeComponents::<FeeAssetChange>::new(0, 0).to_raw()),
-                fee_change: Some(FeeComponents::<FeeChange>::new(0, 0).to_raw()),
-                ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0).to_raw()),
-                sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0).to_raw()),
-                ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0).to_raw()),
-                recover_ibc_client: Some(FeeComponents::<RecoverIbcClient>::new(0, 0).to_raw()),
-            }),
+            fees: Some(genesis_fees()),
+            connect: Some(
+                ConnectGenesis {
+                    market_map: market_map::v2::GenesisState {
+                        market_map: genesis_state_markets(),
+                        last_updated: 0,
+                        params: Params {
+                            market_authorities: vec![alice(), bob()],
+                            admin: alice(),
+                        },
+                    },
+                    oracle: oracle::v2::GenesisState {
+                        currency_pair_genesis: vec![CurrencyPairGenesis {
+                            id: CurrencyPairId::new(1),
+                            nonce: CurrencyPairNonce::new(0),
+                            currency_pair_price: Some(QuotePrice {
+                                price: Price::new(3_138_872_234_i128),
+                                block_height: 0,
+                                block_timestamp: pbjson_types::Timestamp {
+                                    seconds: 1_720_122_395,
+                                    nanos: 0,
+                                },
+                            }),
+                            currency_pair: CurrencyPair::from_parts(
+                                "ETH".parse().unwrap(),
+                                "USD".parse().unwrap(),
+                            ),
+                        }],
+                        next_id: CurrencyPairId::new(1),
+                    },
+                }
+                .into_raw(),
+            ),
         }
     }
 
@@ -970,6 +1247,26 @@ mod tests {
                 ..proto_genesis_state()
             },
             ".ibc_relayer_addresses[1]",
+        );
+        assert_bad_prefix(
+            raw::GenesisAppState {
+                connect: {
+                    let mut connect = proto_genesis_state().connect;
+                    connect
+                        .as_mut()
+                        .unwrap()
+                        .market_map
+                        .as_mut()
+                        .unwrap()
+                        .params
+                        .as_mut()
+                        .unwrap()
+                        .market_authorities[0] = mallory().to_string();
+                    connect
+                },
+                ..proto_genesis_state()
+            },
+            ".market_map.params.market_authorities[0]",
         );
         assert_bad_prefix(
             raw::GenesisAppState {
