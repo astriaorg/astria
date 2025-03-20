@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/grpc/storage/values/mod.rs
+expression: "borsh_then_hex(&ValueImpl::BlockHash((&Hash::new([0; 32])).into()))"
+---
+010000000000000000000000000000000000000000000000000000000000000000

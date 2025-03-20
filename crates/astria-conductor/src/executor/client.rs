@@ -119,6 +119,7 @@ impl Client {
         prev_block_hash: Bytes,
         transactions: Vec<Bytes>,
         timestamp: Timestamp,
+        sequencer_block_hash: Bytes,
     ) -> eyre::Result<Block> {
         use prost::Message;
 
@@ -132,6 +133,7 @@ impl Client {
             prev_block_hash,
             transactions,
             timestamp: Some(timestamp),
+            sequencer_block_hash,
         };
         let response = tryhard::retry_fn(|| {
             let mut client = self.inner.clone();
@@ -231,7 +233,7 @@ impl tryhard::OnRetry<tonic::Status> for OnRetry {
         previous_error: &tonic::Status,
     ) -> Self::Future {
         let wait_duration = next_delay
-            .map(humantime::format_duration)
+            .map(telemetry::display::format_duration)
             .map(tracing::field::display);
         warn!(
             parent: self.parent.id(),

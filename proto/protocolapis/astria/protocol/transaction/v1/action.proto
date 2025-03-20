@@ -31,6 +31,7 @@ message Action {
     FeeAssetChange fee_asset_change = 53;
     FeeChange fee_change = 55;
     IbcSudoChange ibc_sudo_change = 56;
+    RecoverIbcClient recover_ibc_client = 57;
   }
 }
 
@@ -254,9 +255,28 @@ message FeeChange {
     astria.protocol.fees.v1.TransferFeeComponents transfer = 13;
     astria.protocol.fees.v1.ValidatorUpdateFeeComponents validator_update = 14;
     astria.protocol.fees.v1.BridgeTransferFeeComponents bridge_transfer = 15;
+    astria.protocol.fees.v1.RecoverIbcClientFeeComponents recover_ibc_client = 16;
   }
 }
 
 message IbcSudoChange {
   astria.primitive.v1.Address new_address = 1;
+}
+
+// `RecoverIbcClient` represents a transaction that recovers an IBC client
+// by updating the client located at `client_id` with the client
+// located at `replacement_client_id`.
+//
+// `client_id` must not be active, and `replacement_client_id` must be
+// active.
+//
+// This is based on https://buf.build/cosmos/ibc/docs/main:ibc.core.client.v1#ibc.core.client.v1.MsgRecoverClient
+// Although the field names are different, the first two fields are
+// still wire-compatible.
+message RecoverIbcClient {
+  // the client identifier for the client to be updated
+  string client_id = 1;
+  // the substitute client identifier for the client which will replace the subject
+  // client
+  string replacement_client_id = 2;
 }

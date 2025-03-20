@@ -60,10 +60,12 @@ use crate::{
             proto_genesis_state,
             BOB_ADDRESS,
             CAROL_ADDRESS,
+            JUDY_ADDRESS,
         },
         test_utils::{
             get_alice_signing_key,
             get_bridge_signing_key,
+            get_judy_signing_key,
             initialize_app,
         },
     },
@@ -179,14 +181,20 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 
     let alice = get_alice_signing_key();
     let bridge = get_bridge_signing_key();
+    let bridge_withdrawer = get_judy_signing_key();
     let bridge_address = astria_address(&bridge.address_bytes());
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let carol_address = astria_address_from_hex_string(CAROL_ADDRESS);
+    let bridge_withdrawer_address = astria_address_from_hex_string(JUDY_ADDRESS);
 
     let accounts = {
         let mut acc = default_genesis_accounts();
         acc.push(Account {
             address: bridge_address,
+            balance: 1_000_000_000,
+        });
+        acc.push(Account {
+            address: bridge_withdrawer_address,
             balance: 1_000_000_000,
         });
         acc.into_iter().map(Protobuf::into_raw).collect()
@@ -300,7 +308,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             asset: nria().into(),
             fee_asset: nria().into(),
             sudo_address: None,
-            withdrawer_address: None,
+            withdrawer_address: Some(bridge_withdrawer_address),
         }
         .into()])
         .chain_id("test")
@@ -324,18 +332,17 @@ async fn app_execute_transaction_with_every_action_snapshot() {
                 amount: 10,
                 fee_asset: nria().into(),
                 memo: String::new(),
-                bridge_address: astria_address(&bridge.address_bytes()),
+                bridge_address,
                 rollup_block_number: 1,
                 rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
             }
             .into(),
         ])
-        .nonce(1)
         .chain_id("test")
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx_bridge_bundleable.sign(&bridge));
+    let signed_tx = Arc::new(tx_bridge_bundleable.sign(&bridge_withdrawer));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let tx_bridge = TransactionBody::builder()
@@ -346,7 +353,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             fee_asset: nria().into(),
         }
         .into()])
-        .nonce(2)
+        .nonce(1)
         .chain_id("test")
         .try_build()
         .unwrap();
