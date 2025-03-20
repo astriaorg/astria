@@ -6,11 +6,11 @@ use std::{
 use astria_core::generated::astria::signer::v1::{
     frost_participant_service_server::FrostParticipantService,
     GetVerifyingShareRequest,
-    GetVerifyingShareResponse,
-    Part1Request,
-    Part1Response,
-    Part2Request,
-    Part2Response,
+    VerifyingShare,
+    RoundOneRequest,
+    RoundOneResponse,
+    RoundTwoRequest,
+    RoundTwoResponse,
 };
 use astria_eyre::{
     eyre,
@@ -91,7 +91,7 @@ impl FrostParticipantService for Server {
     async fn get_verifying_share(
         self: Arc<Self>,
         _request: Request<GetVerifyingShareRequest>,
-    ) -> Result<Response<GetVerifyingShareResponse>, Status> {
+    ) -> Result<Response<VerifyingShare>, Status> {
         let verifying_share = self
             .secret_package
             .verifying_share()
@@ -99,16 +99,16 @@ impl FrostParticipantService for Server {
             .serialize()
             .map_err(|e| Status::internal(format!("failed to serialize verifying share: {e}")))?
             .into();
-        Ok(Response::new(GetVerifyingShareResponse {
+        Ok(Response::new(VerifyingShare {
             verifying_share,
         }))
     }
 
     #[instrument(skip_all)]
-    async fn part1(
+    async fn execute_round_one(
         self: Arc<Self>,
-        _request: Request<Part1Request>,
-    ) -> Result<Response<Part1Response>, Status> {
+        _request: Request<RoundOneRequest>,
+    ) -> Result<Response<RoundOneResponse>, Status> {
         self.metrics.increment_part_1_request_count();
         let mut rng = OsRng;
         let (nonces, commitments) =
@@ -124,17 +124,17 @@ impl FrostParticipantService for Server {
             .request_id_to_nonces
             .insert(request_identifier, nonces);
         debug!(request_identifier, "generated part 1 response");
-        Ok(Response::new(Part1Response {
+        Ok(Response::new(RoundOneResponse {
             request_identifier,
             commitment,
         }))
     }
 
     #[instrument(skip_all)]
-    async fn part2(
+    async fn execute_round_two(
         self: Arc<Self>,
-        request: Request<Part2Request>,
-    ) -> Result<Response<Part2Response>, Status> {
+        request: Request<RoundTwoRequest>,
+    ) -> Result<Response<RoundTwoResponse>, Status> {
         self.metrics.increment_part_2_request_count();
         let request = request.into_inner();
         let mut state = self.state.lock().await;
@@ -174,7 +174,7 @@ impl FrostParticipantService for Server {
                 .into();
         debug!(request.request_identifier, "generated part 2 response");
 
-        Ok(Response::new(Part2Response {
+        Ok(Response::new(RoundTwoResponse {
             signature_share,
         }))
     }
