@@ -61,6 +61,7 @@ use tracing::{
     instrument,
     warn,
     Instrument as _,
+    Level,
     Span,
 };
 
@@ -320,7 +321,7 @@ async fn submit_tx(
     Ok((check_tx, tx_response))
 }
 
-#[instrument(fields(%tx_hash), skip_all, ret)]
+#[instrument(fields(%tx_hash), skip_all, err(level = Level::WARN))]
 async fn wait_for_tx_inclusion(
     client: sequencer_client::HttpClient,
     tx_hash: tendermint::hash::Hash,
@@ -387,12 +388,13 @@ async fn wait_for_tx_inclusion(
         .await
     };
 
-    let tx_res = time::timeout(Duration::from_secs(240), tx_fut)
+    let tx_rsp = time::timeout(Duration::from_secs(240), tx_fut)
         .await
         .wrap_err("timed out waiting for tx inclusion")?
-        .wrap_err("failed to get tx");
+        .wrap_err("failed to get tx")?;
     metrics.record_sequencer_get_tx_latency(start.elapsed());
-    tx_res
+    debug!(tx_hash = %tx_rsp.hash, inclusion_height = %tx_rsp.height, "transaction inclusion confirmed");
+    Ok(tx_rsp)
 }
 
 #[instrument(skip_all, err)]

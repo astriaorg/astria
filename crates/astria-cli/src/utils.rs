@@ -34,6 +34,7 @@ use tracing::{
     instrument,
     warn,
     Instrument as _,
+    Level,
     Span,
 };
 
@@ -109,7 +110,7 @@ pub(crate) fn address_from_signing_key(
     Ok(from_address)
 }
 
-#[instrument(fields(%tx_hash), skip_all, ret)]
+#[instrument(fields(%tx_hash), skip_all, err(level = Level::WARN))]
 pub(crate) async fn wait_for_tx_inclusion(
     client: HttpClient,
     tx_hash: tendermint::hash::Hash,
@@ -174,8 +175,11 @@ pub(crate) async fn wait_for_tx_inclusion(
         .await
     };
 
-    time::timeout(Duration::from_secs(240), tx_fut)
+    let tx_rsp = time::timeout(Duration::from_secs(240), tx_fut)
         .await
         .wrap_err("timed out waiting for tx inclusion")?
-        .wrap_err("failed to get tx")
+        .wrap_err("failed to get tx")?;
+
+    debug!(tx_hash = %tx_rsp.hash, inclusion_height = %tx_rsp.height, "transaction inclusion confirmed");
+    Ok(tx_rsp)
 }
