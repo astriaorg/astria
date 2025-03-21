@@ -124,8 +124,8 @@ impl<'tcx> LateLintPass<'tcx> for AliasTraitImports {
                     Node::Item(Item {
                         kind: ItemKind::Fn(..),
                         ..
-                    }) => {} /* If the parent is a function, the trait cannot be a re-export and
-                              * this check is skipped */
+                    }) => {} // If the parent is a function, the trait cannot be a re-export and
+                    // this check is skipped
                     _ => {
                         // Check if this is a re-export, ignore if it is
                         let visibility = cx.tcx.visibility(item.owner_id.to_def_id());
@@ -186,14 +186,12 @@ impl<'tcx> LateLintPass<'tcx> for AliasTraitImports {
 
                 // These are the only possible parents for a `Use` item
                 let found = match parent {
-                    Node::Crate(module) => find_in_mod(module, trait_name, hir_map),
-                    Node::Item(item) => find_in_item(item, trait_name, hir_map),
-                    Node::Block(block) => find_in_block(block, trait_name, hir_map),
-                    Node::Stmt(stmt) => find_in_stmt(stmt, trait_name, hir_map),
-                    Node::TraitItem(trait_item) => {
-                        find_in_trait_item(trait_item, trait_name, hir_map)
-                    }
-                    Node::ImplItem(impl_item) => find_in_impl_item(impl_item, trait_name, hir_map),
+                    Node::Crate(module) => module.find(trait_name, &hir_map),
+                    Node::Item(item) => item.find(trait_name, &hir_map),
+                    Node::Block(block) => block.find(trait_name, &hir_map),
+                    Node::Stmt(stmt) => stmt.find(trait_name, &hir_map),
+                    Node::TraitItem(trait_item) => trait_item.find(trait_name, &hir_map),
+                    Node::ImplItem(impl_item) => impl_item.find(trait_name, &hir_map),
                     _ => panic!("unexpected parent of `Use` item"),
                 };
 
@@ -224,402 +222,401 @@ impl<'tcx> LateLintPass<'tcx> for AliasTraitImports {
     }
 }
 
-fn find_in_mod(module: &'_ Mod<'_>, trait_name: Symbol, hir: Map) -> bool {
-    module
-        .item_ids
-        .iter()
-        .any(|item_id| find_in_item(hir.item(*item_id), trait_name, hir))
+trait FindTrait {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool;
 }
 
-fn find_in_item(item: &'_ Item<'_>, trait_name: Symbol, hir: Map) -> bool {
-    match item.kind {
-        ItemKind::Mod(module) => find_in_mod(module, trait_name, hir),
-        ItemKind::Fn(sig, generics, body_id) => {
-            find_in_fn_sig(sig, trait_name, hir)
-                || find_in_generics(generics, trait_name, hir)
-                || find_in_body(hir.body(body_id), trait_name, hir)
-        }
-        ItemKind::Static(ty, _, body_id) => {
-            find_in_ty(ty, trait_name, hir) || find_in_body(hir.body(body_id), trait_name, hir)
-        }
-        ItemKind::Const(ty, generics, body_id) => {
-            find_in_ty(ty, trait_name, hir)
-                || find_in_generics(generics, trait_name, hir)
-                || find_in_body(hir.body(body_id), trait_name, hir)
-        }
-        ItemKind::TyAlias(ty, generics) => {
-            find_in_ty(ty, trait_name, hir) || find_in_generics(generics, trait_name, hir)
-        }
-        ItemKind::Enum(_, generics) | ItemKind::Union(_, generics) => {
-            find_in_generics(generics, trait_name, hir)
-        }
-        ItemKind::Struct(variant_data, generics) => {
-            find_in_variant_data(variant_data, trait_name, hir)
-                || find_in_generics(generics, trait_name, hir)
-        }
-        ItemKind::Trait(_, _, generics, generic_bounds, trait_item_refs) => {
-            find_in_generics(generics, trait_name, hir)
-                || find_in_generic_bounds(generic_bounds, trait_name, hir)
-                || trait_item_refs.iter().any(|trait_item_ref| {
-                    find_in_trait_item(hir.trait_item(trait_item_ref.id), trait_name, hir)
-                })
-        }
-        ItemKind::TraitAlias(generics, generic_bounds) => {
-            find_in_generics(generics, trait_name, hir)
-                || find_in_generic_bounds(generic_bounds, trait_name, hir)
-        }
-        ItemKind::Impl(impl_statement) => {
-            impl_statement
-                .items
-                .iter()
-                .any(|item| find_in_impl_item(hir.impl_item(item.id), trait_name, hir))
-                || find_in_generics(impl_statement.generics, trait_name, hir)
-                || impl_statement.of_trait.as_ref().map_or(false, |trait_ref| {
-                    find_in_trait_ref(trait_ref, trait_name, hir)
-                })
-        }
-        ItemKind::OpaqueTy(opaque_ty) => {
-            find_in_generics(opaque_ty.generics, trait_name, hir)
-                || find_in_generic_bounds(opaque_ty.bounds, trait_name, hir)
-        }
-        ItemKind::ExternCrate(_)
-        | ItemKind::Use(..)
-        | ItemKind::Macro(..)
-        | ItemKind::ForeignMod {
-            abi: _,
-            items: _,
-        }
-        | ItemKind::GlobalAsm(_) => false,
+impl<T: ?Sized + FindTrait> FindTrait for &T {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        (*self).find(trait_name, hir)
     }
 }
 
-fn find_in_variant_data(variant_data: VariantData, trait_name: Symbol, hir: Map) -> bool {
-    match variant_data {
-        VariantData::Struct {
-            fields, ..
-        } => fields
+impl FindTrait for Mod<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        self.item_ids
             .iter()
-            .any(|field| find_in_ty(field.ty, trait_name, hir)),
-        VariantData::Tuple(fields, ..) => fields
-            .iter()
-            .any(|field| find_in_ty(field.ty, trait_name, hir)),
-        VariantData::Unit(..) => false,
+            .any(|item_id| hir.item(*item_id).find(trait_name, hir))
     }
 }
 
-fn find_in_body(body: &'_ Body<'_>, trait_name: Symbol, hir: Map) -> bool {
-    body.params
-        .iter()
-        .any(|param| find_in_pat(param.pat, trait_name, hir))
-        || find_in_expr(body.value, trait_name, hir)
-}
-
-fn find_in_trait_item(trait_item: &'_ TraitItem<'_>, trait_name: Symbol, hir: Map) -> bool {
-    find_in_generics(trait_item.generics, trait_name, hir)
-        || match trait_item.kind {
-            TraitItemKind::Const(ty, _) => find_in_ty(ty, trait_name, hir),
-            TraitItemKind::Fn(fn_sig, trait_fn) => {
-                find_in_fn_sig(fn_sig, trait_name, hir)
-                    || find_in_trait_fn(trait_fn, trait_name, hir)
+impl FindTrait for Item<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        match self.kind {
+            ItemKind::Mod(module) => module.find(trait_name, hir),
+            ItemKind::Fn(sig, generics, body_id) => {
+                sig.find(trait_name, hir)
+                    || generics.find(trait_name, hir)
+                    || hir.body(body_id).find(trait_name, hir)
             }
-            TraitItemKind::Type(bounds, ty) => {
-                find_in_generic_bounds(bounds, trait_name, hir)
-                    || ty.map_or(false, |ty| find_in_ty(ty, trait_name, hir))
+            ItemKind::Static(ty, _, body_id) => {
+                ty.find(trait_name, hir) || hir.body(body_id).find(trait_name, hir)
             }
-        }
-}
-
-fn find_in_trait_fn(trait_fn: TraitFn, trait_name: Symbol, hir: Map) -> bool {
-    match trait_fn {
-        TraitFn::Required(idents) => idents.iter().any(|ident| ident.name == trait_name),
-        TraitFn::Provided(body_id) => find_in_body(hir.body(body_id), trait_name, hir),
-    }
-}
-
-fn find_in_impl_item(impl_item: &'_ ImplItem<'_>, trait_name: Symbol, hir: Map) -> bool {
-    find_in_generics(impl_item.generics, trait_name, hir)
-        || match impl_item.kind {
-            ImplItemKind::Const(ty, _) | ImplItemKind::Type(ty) => find_in_ty(ty, trait_name, hir),
-            ImplItemKind::Fn(fn_sig, body_id) => {
-                find_in_fn_sig(fn_sig, trait_name, hir)
-                    || find_in_body(hir.body(body_id), trait_name, hir)
+            ItemKind::Const(ty, generics, body_id) => {
+                ty.find(trait_name, hir)
+                    || generics.find(trait_name, hir)
+                    || hir.body(body_id).find(trait_name, hir)
             }
-        }
-}
-
-fn find_in_fn_sig(fn_sig: FnSig, trait_name: Symbol, hir: Map) -> bool {
-    find_in_fn_decl(fn_sig.decl, trait_name, hir)
-}
-
-fn find_in_fn_decl(fn_decl: &'_ FnDecl<'_>, trait_name: Symbol, hir: Map) -> bool {
-    fn_decl
-        .inputs
-        .iter()
-        .any(|input| find_in_ty(input, trait_name, hir))
-        || match fn_decl.output {
-            FnRetTy::Return(ty) => find_in_ty(ty, trait_name, hir),
-            FnRetTy::DefaultReturn(_) => false,
-        }
-}
-
-fn find_in_block(block: &'_ Block<'_>, trait_name: Symbol, hir: Map) -> bool {
-    block
-        .stmts
-        .iter()
-        .any(|stmt| find_in_stmt(stmt, trait_name, hir))
-        || block
-            .expr
-            .map_or(false, |expr| find_in_expr(expr, trait_name, hir))
-}
-
-fn find_in_stmt(stmt: &'_ Stmt<'_>, trait_name: Symbol, hir: Map) -> bool {
-    match stmt.kind {
-        StmtKind::Let(let_stmt) => find_in_let_stmt(let_stmt, trait_name, hir),
-        StmtKind::Item(item) => find_in_item(hir.item(item), trait_name, hir),
-        StmtKind::Expr(expr) | StmtKind::Semi(expr) => find_in_expr(expr, trait_name, hir),
-    }
-}
-
-fn find_in_expr(expr: &'_ Expr<'_>, trait_name: Symbol, hir: Map) -> bool {
-    match expr.kind {
-        ExprKind::Path(qpath) => find_in_qpath(qpath, trait_name, hir),
-        ExprKind::Call(expr, exprs) => {
-            find_in_expr(expr, trait_name, hir)
-                || exprs.iter().any(|expr| find_in_expr(expr, trait_name, hir))
-        }
-        ExprKind::MethodCall(path_segment, expr, exprs, _) => {
-            find_in_path_segment(path_segment, trait_name, hir)
-                || find_in_expr(expr, trait_name, hir)
-                || exprs.iter().any(|expr| find_in_expr(expr, trait_name, hir))
-        }
-        ExprKind::Struct(qpath, fields, _) => {
-            find_in_qpath(*qpath, trait_name, hir)
-                || fields
+            ItemKind::TyAlias(ty, generics) => {
+                ty.find(trait_name, hir) || generics.find(trait_name, hir)
+            }
+            ItemKind::Enum(_, generics) | ItemKind::Union(_, generics) => {
+                generics.find(trait_name, hir)
+            }
+            ItemKind::Struct(variant_data, generics) => {
+                variant_data.find(trait_name, hir) || generics.find(trait_name, hir)
+            }
+            ItemKind::Trait(_, _, generics, generic_bounds, trait_item_refs) => {
+                generics.find(trait_name, hir)
+                    || generic_bounds.find(trait_name, hir)
+                    || trait_item_refs.iter().any(|trait_item_ref| {
+                        hir.trait_item(trait_item_ref.id).find(trait_name, hir)
+                    })
+            }
+            ItemKind::TraitAlias(generics, generic_bounds) => {
+                generics.find(trait_name, hir) || generic_bounds.find(trait_name, hir)
+            }
+            ItemKind::Impl(impl_statement) => {
+                impl_statement
+                    .items
                     .iter()
-                    .any(|field| find_in_expr(field.expr, trait_name, hir))
+                    .any(|item| hir.impl_item(item.id).find(trait_name, hir))
+                    || impl_statement.generics.find(trait_name, hir)
+                    || impl_statement
+                        .of_trait
+                        .as_ref()
+                        .map_or(false, |trait_ref| trait_ref.find(trait_name, hir))
+            }
+            ItemKind::OpaqueTy(opaque_ty) => {
+                opaque_ty.generics.find(trait_name, hir) || opaque_ty.bounds.find(trait_name, hir)
+            }
+            ItemKind::ExternCrate(_)
+            | ItemKind::Use(..)
+            | ItemKind::Macro(..)
+            | ItemKind::ForeignMod {
+                abi: _,
+                items: _,
+            }
+            | ItemKind::GlobalAsm(_) => false,
         }
-        ExprKind::Field(expr, _) => find_in_expr(expr, trait_name, hir),
-        ExprKind::Cast(expr, ty) | ExprKind::Type(expr, ty) => {
-            find_in_expr(expr, trait_name, hir) || find_in_ty(ty, trait_name, hir)
-        }
-        ExprKind::Block(block, _) => find_in_block(block, trait_name, hir),
-        ExprKind::Closure(closure) => find_in_closure(closure, trait_name, hir),
-        ExprKind::DropTemps(expr) => find_in_expr(expr, trait_name, hir),
-        ExprKind::AddrOf(_, _, expr) => find_in_expr(expr, trait_name, hir),
-        ExprKind::Tup(exprs) | ExprKind::Array(exprs) => {
-            exprs.iter().any(|expr| find_in_expr(expr, trait_name, hir))
-        }
-        ExprKind::If(cond, then, els) => {
-            find_in_expr(cond, trait_name, hir)
-                || find_in_expr(then, trait_name, hir)
-                || els.map_or(false, |els| find_in_expr(els, trait_name, hir))
-        }
-        ExprKind::Match(expr, arms, _) => {
-            find_in_expr(expr, trait_name, hir)
-                || arms.iter().any(|arm| find_in_arm(arm, trait_name, hir))
-        }
-        _ => false,
     }
 }
 
-fn find_in_arm(arm: &'_ Arm<'_>, trait_name: Symbol, hir: Map) -> bool {
-    find_in_pat(arm.pat, trait_name, hir)
-        || arm
-            .guard
-            .map_or(false, |guard| find_in_expr(guard, trait_name, hir))
-        || find_in_expr(arm.body, trait_name, hir)
-}
-
-fn find_in_closure(closure: &'_ Closure<'_>, trait_name: Symbol, hir: Map) -> bool {
-    find_in_fn_decl(closure.fn_decl, trait_name, hir)
-        || find_in_generic_params(closure.bound_generic_params, trait_name, hir)
-        || find_in_body(hir.body(closure.body), trait_name, hir)
-}
-
-fn find_in_let_stmt(let_stmt: &'_ LetStmt<'_>, trait_name: Symbol, hir: Map) -> bool {
-    let_stmt
-        .ty
-        .map_or(false, |ty| find_in_ty(ty, trait_name, hir))
-        || let_stmt
-            .init
-            .map_or(false, |expr| find_in_expr(expr, trait_name, hir))
-        || let_stmt
-            .els
-            .map_or(false, |els| find_in_block(els, trait_name, hir))
-        || find_in_pat(let_stmt.pat, trait_name, hir)
-}
-
-fn find_in_pat(pat: &'_ Pat<'_>, trait_name: Symbol, hir: Map) -> bool {
-    match pat.kind {
-        PatKind::Path(qpath) => find_in_qpath(qpath, trait_name, hir),
-        PatKind::Struct(qpath, fields, _) => {
-            find_in_qpath(qpath, trait_name, hir)
-                || fields
-                    .iter()
-                    .any(|field| find_in_pat(field.pat, trait_name, hir))
+impl FindTrait for VariantData<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        match self {
+            VariantData::Struct {
+                fields, ..
+            } => fields.iter().any(|field| field.ty.find(trait_name, hir)),
+            VariantData::Tuple(fields, ..) => {
+                fields.iter().any(|field| field.ty.find(trait_name, hir))
+            }
+            VariantData::Unit(..) => false,
         }
-        PatKind::TupleStruct(qpath, pats, _) => {
-            find_in_qpath(qpath, trait_name, hir)
-                || pats.iter().any(|pat| find_in_pat(pat, trait_name, hir))
-        }
-        PatKind::Or(pats) => pats.iter().any(|pat| find_in_pat(pat, trait_name, hir)),
-        PatKind::Tuple(pats, _) => pats.iter().any(|pat| find_in_pat(pat, trait_name, hir)),
-        PatKind::Box(pat) => find_in_pat(pat, trait_name, hir),
-        PatKind::Wild
-        | PatKind::Lit(_)
-        | PatKind::Range(..)
-        | PatKind::Binding(..)
-        | PatKind::Never
-        | PatKind::Ref(..)
-        | PatKind::Deref(_)
-        | PatKind::Slice(..)
-        | PatKind::Err(_) => false,
     }
 }
 
-fn find_in_qpath(qpath: QPath, trait_name: Symbol, hir: Map) -> bool {
-    match qpath {
-        QPath::Resolved(ty, path) => {
-            find_in_path(path, trait_name, hir)
-                || ty.map_or(false, |ty| find_in_ty(ty, trait_name, hir))
-        }
-        QPath::TypeRelative(ty, path_segment) => {
-            find_in_ty(ty, trait_name, hir) || find_in_path_segment(path_segment, trait_name, hir)
-        }
-        QPath::LangItem(..) => false,
-    }
-}
-
-fn find_in_generics(generics: &'_ Generics<'_>, trait_name: Symbol, hir: Map) -> bool {
-    find_in_generic_params(generics.params, trait_name, hir)
-        || generics
-            .predicates
+impl FindTrait for Body<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        self.params
             .iter()
-            .any(|predicate| find_in_where_predicate(predicate, trait_name, hir))
-}
-
-fn find_in_where_predicate(
-    where_predicate: &'_ WherePredicate<'_>,
-    trait_name: Symbol,
-    hir: Map,
-) -> bool {
-    match where_predicate {
-        WherePredicate::BoundPredicate(predicate) => {
-            find_in_generic_params(predicate.bound_generic_params, trait_name, hir)
-                || find_in_ty(predicate.bounded_ty, trait_name, hir)
-                || find_in_generic_bounds(predicate.bounds, trait_name, hir)
-        }
-        WherePredicate::RegionPredicate(_) | WherePredicate::EqPredicate(_) => false,
+            .any(|param| param.pat.find(trait_name, hir))
+            || self.value.find(trait_name, hir)
     }
 }
 
-fn find_in_ty(ty: &'_ Ty<'_>, trait_name: Symbol, hir: Map) -> bool {
-    match ty.kind {
-        TyKind::TraitObject(trait_refs, ..) => trait_refs
-            .iter()
-            .any(|(poly_trait_ref, _)| find_in_poly_trait_ref(poly_trait_ref, trait_name, hir)),
-        TyKind::OpaqueDef(item_id, ..) => hir.item(item_id).ident.name == trait_name,
-        TyKind::Path(qpath) => match qpath {
+impl FindTrait for TraitItem<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        self.generics.find(trait_name, hir)
+            || match self.kind {
+                TraitItemKind::Const(ty, _) => ty.find(trait_name, hir),
+                TraitItemKind::Fn(fn_sig, trait_fn) => {
+                    fn_sig.find(trait_name, hir) || trait_fn.find(trait_name, hir)
+                }
+                TraitItemKind::Type(bounds, ty) => {
+                    bounds.find(trait_name, hir) || ty.map_or(false, |ty| ty.find(trait_name, hir))
+                }
+            }
+    }
+}
+
+impl FindTrait for TraitFn<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        match self {
+            TraitFn::Required(idents) => idents.iter().any(|ident| ident.name == trait_name),
+            TraitFn::Provided(body_id) => hir.body(*body_id).find(trait_name, hir),
+        }
+    }
+}
+
+impl FindTrait for ImplItem<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        self.generics.find(trait_name, hir)
+            || match self.kind {
+                ImplItemKind::Const(ty, _) | ImplItemKind::Type(ty) => ty.find(trait_name, hir),
+                ImplItemKind::Fn(fn_sig, body_id) => {
+                    fn_sig.find(trait_name, hir) || hir.body(body_id).find(trait_name, hir)
+                }
+            }
+    }
+}
+
+impl FindTrait for FnSig<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        self.decl.find(trait_name, hir)
+    }
+}
+
+impl FindTrait for FnDecl<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        self.inputs.iter().any(|input| input.find(trait_name, hir))
+            || match self.output {
+                FnRetTy::Return(ty) => ty.find(trait_name, hir),
+                FnRetTy::DefaultReturn(_) => false,
+            }
+    }
+}
+
+impl FindTrait for Block<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        self.stmts.iter().any(|stmt| stmt.find(trait_name, hir))
+            || self.expr.map_or(false, |expr| expr.find(trait_name, hir))
+    }
+}
+
+impl FindTrait for Stmt<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        match self.kind {
+            StmtKind::Let(let_stmt) => let_stmt.find(trait_name, hir),
+            StmtKind::Item(item) => hir.item(item).find(trait_name, hir),
+            StmtKind::Expr(expr) | StmtKind::Semi(expr) => expr.find(trait_name, hir),
+        }
+    }
+}
+
+impl FindTrait for Expr<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        match self.kind {
+            ExprKind::Path(qpath) => qpath.find(trait_name, hir),
+            ExprKind::Call(expr, exprs) => {
+                expr.find(trait_name, hir) || exprs.iter().any(|expr| expr.find(trait_name, hir))
+            }
+            ExprKind::MethodCall(path_segment, expr, exprs, _) => {
+                path_segment.find(trait_name, hir)
+                    || expr.find(trait_name, hir)
+                    || exprs.iter().any(|expr| expr.find(trait_name, hir))
+            }
+            ExprKind::Struct(qpath, fields, _) => {
+                qpath.find(trait_name, hir)
+                    || fields.iter().any(|field| field.expr.find(trait_name, hir))
+            }
+            ExprKind::Field(expr, _) => expr.find(trait_name, hir),
+            ExprKind::Cast(expr, ty) | ExprKind::Type(expr, ty) => {
+                expr.find(trait_name, hir) || ty.find(trait_name, hir)
+            }
+            ExprKind::Block(block, _) => block.find(trait_name, hir),
+            ExprKind::Closure(closure) => closure.find(trait_name, hir),
+            ExprKind::DropTemps(expr) => expr.find(trait_name, hir),
+            ExprKind::AddrOf(_, _, expr) => expr.find(trait_name, hir),
+            ExprKind::Tup(exprs) | ExprKind::Array(exprs) => {
+                exprs.iter().any(|expr| expr.find(trait_name, hir))
+            }
+            ExprKind::If(cond, then, els) => {
+                cond.find(trait_name, hir)
+                    || then.find(trait_name, hir)
+                    || els.map_or(false, |els| els.find(trait_name, hir))
+            }
+            ExprKind::Match(expr, arms, _) => {
+                expr.find(trait_name, hir) || arms.iter().any(|arm| arm.find(trait_name, hir))
+            }
+            _ => false,
+        }
+    }
+}
+
+impl FindTrait for Arm<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        self.pat.find(trait_name, hir)
+            || self
+                .guard
+                .map_or(false, |guard| guard.find(trait_name, hir))
+            || self.body.find(trait_name, hir)
+    }
+}
+
+impl FindTrait for Closure<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        self.fn_decl.find(trait_name, hir)
+            || self.bound_generic_params.find(trait_name, hir)
+            || hir.body(self.body).find(trait_name, hir)
+    }
+}
+
+impl FindTrait for LetStmt<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        self.ty.map_or(false, |ty| ty.find(trait_name, hir))
+            || self.init.map_or(false, |expr| expr.find(trait_name, hir))
+            || self.els.map_or(false, |els| els.find(trait_name, hir))
+            || self.pat.find(trait_name, hir)
+    }
+}
+
+impl FindTrait for Pat<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        match self.kind {
+            PatKind::Path(qpath) => qpath.find(trait_name, hir),
+            PatKind::Struct(qpath, fields, _) => {
+                qpath.find(trait_name, hir)
+                    || fields.iter().any(|field| field.pat.find(trait_name, hir))
+            }
+            PatKind::TupleStruct(qpath, pats, _) => {
+                qpath.find(trait_name, hir) || pats.iter().any(|pat| pat.find(trait_name, hir))
+            }
+            PatKind::Or(pats) => pats.iter().any(|pat| pat.find(trait_name, hir)),
+            PatKind::Tuple(pats, _) => pats.iter().any(|pat| pat.find(trait_name, hir)),
+            PatKind::Box(pat) => pat.find(trait_name, hir),
+            PatKind::Wild
+            | PatKind::Lit(_)
+            | PatKind::Range(..)
+            | PatKind::Binding(..)
+            | PatKind::Never
+            | PatKind::Ref(..)
+            | PatKind::Deref(_)
+            | PatKind::Slice(..)
+            | PatKind::Err(_) => false,
+        }
+    }
+}
+
+impl FindTrait for QPath<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        match self {
             QPath::Resolved(ty, path) => {
-                find_in_path(path, trait_name, hir)
-                    || ty.map_or(false, |ty| find_in_ty(ty, trait_name, hir))
+                path.find(trait_name, hir) || ty.map_or(false, |ty| ty.find(trait_name, hir))
             }
             QPath::TypeRelative(ty, path_segment) => {
-                find_in_ty(ty, trait_name, hir)
-                    || find_in_path_segment(path_segment, trait_name, hir)
+                ty.find(trait_name, hir) || path_segment.find(trait_name, hir)
             }
             QPath::LangItem(..) => false,
-        },
-        TyKind::Slice(ty) | TyKind::Array(ty, _) => find_in_ty(ty, trait_name, hir),
-        TyKind::Ptr(mut_ty) | TyKind::Ref(_, mut_ty) => find_in_ty(mut_ty.ty, trait_name, hir),
-        TyKind::Tup(tys) => tys.iter().any(|ty| find_in_ty(ty, trait_name, hir)),
-        TyKind::InferDelegation(..)
-        | TyKind::Never
-        | TyKind::AnonAdt(_)
-        | TyKind::Typeof(_)
-        | TyKind::Infer
-        | TyKind::Err(_)
-        | TyKind::BareFn(_)
-        | TyKind::Pat(..) => false,
-    }
-}
-
-fn find_in_generic_bounds(
-    generic_bounds: &'_ [GenericBound<'_>],
-    trait_name: Symbol,
-    hir: Map,
-) -> bool {
-    generic_bounds.iter().any(|bound| match bound {
-        GenericBound::Trait(poly_trait_ref, _modifier) => {
-            find_in_poly_trait_ref(poly_trait_ref, trait_name, hir)
         }
-        GenericBound::Outlives(_) | GenericBound::Use(..) => false,
-    })
-}
-
-fn find_in_generic_params(
-    generic_params: &'_ [GenericParam<'_>],
-    trait_name: Symbol,
-    hir: Map,
-) -> bool {
-    generic_params
-        .iter()
-        .any(|generic_param| find_in_generic_param(generic_param, trait_name, hir))
-}
-
-fn find_in_generic_param(
-    generic_param: &'_ GenericParam<'_>,
-    trait_name: Symbol,
-    hir: Map,
-) -> bool {
-    match generic_param.kind {
-        GenericParamKind::Type {
-            default,
-            synthetic: _,
-        } => default.map_or(false, |ty| find_in_ty(ty, trait_name, hir)),
-        GenericParamKind::Const {
-            ty,
-            default: _,
-            is_host_effect: _,
-            synthetic: _,
-        } => find_in_ty(ty, trait_name, hir),
-        GenericParamKind::Lifetime {
-            kind: _,
-        } => false,
     }
 }
 
-fn find_in_poly_trait_ref(
-    poly_trait_ref: &'_ PolyTraitRef<'_>,
-    trait_name: Symbol,
-    hir: Map,
-) -> bool {
-    find_in_generic_params(poly_trait_ref.bound_generic_params, trait_name, hir)
-        || find_in_trait_ref(&poly_trait_ref.trait_ref, trait_name, hir)
+impl FindTrait for Generics<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        self.params.find(trait_name, hir)
+            || self
+                .predicates
+                .iter()
+                .any(|predicate| predicate.find(trait_name, hir))
+    }
 }
 
-fn find_in_trait_ref(trait_ref: &'_ TraitRef<'_>, trait_name: Symbol, hir: Map) -> bool {
-    find_in_path(trait_ref.path, trait_name, hir)
+impl FindTrait for WherePredicate<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        match self {
+            WherePredicate::BoundPredicate(predicate) => {
+                predicate.bound_generic_params.find(trait_name, hir)
+                    || predicate.bounded_ty.find(trait_name, hir)
+                    || predicate.bounds.find(trait_name, hir)
+            }
+            WherePredicate::RegionPredicate(_) | WherePredicate::EqPredicate(_) => false,
+        }
+    }
 }
 
-fn find_in_path(path: &'_ Path<'_>, trait_name: Symbol, hir: Map) -> bool {
-    path.segments
-        .iter()
-        .any(|segment| find_in_path_segment(segment, trait_name, hir))
+impl FindTrait for Ty<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        match self.kind {
+            TyKind::TraitObject(trait_refs, ..) => trait_refs
+                .iter()
+                .any(|(poly_trait_ref, _)| poly_trait_ref.find(trait_name, hir)),
+            TyKind::OpaqueDef(item_id, ..) => hir.item(item_id).ident.name == trait_name,
+            TyKind::Path(qpath) => qpath.find(trait_name, hir),
+            TyKind::Slice(ty) | TyKind::Array(ty, _) => ty.find(trait_name, hir),
+            TyKind::Ptr(mut_ty) | TyKind::Ref(_, mut_ty) => mut_ty.ty.find(trait_name, hir),
+            TyKind::Tup(tys) => tys.iter().any(|ty| ty.find(trait_name, hir)),
+            TyKind::InferDelegation(..)
+            | TyKind::Never
+            | TyKind::AnonAdt(_)
+            | TyKind::Typeof(_)
+            | TyKind::Infer
+            | TyKind::Err(_)
+            | TyKind::BareFn(_)
+            | TyKind::Pat(..) => false,
+        }
+    }
 }
 
-fn find_in_generic_args(generic_args: &'_ GenericArgs<'_>, trait_name: Symbol, hir: Map) -> bool {
-    generic_args.args.iter().any(|arg| match arg {
-        GenericArg::Type(ty) => find_in_ty(ty, trait_name, hir),
-        GenericArg::Lifetime(_) | GenericArg::Const(_) | GenericArg::Infer(_) => false,
-    })
+impl FindTrait for [GenericBound<'_>] {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        self.iter().any(|bound| match bound {
+            GenericBound::Trait(poly_trait_ref, _modifier) => poly_trait_ref.find(trait_name, hir),
+            GenericBound::Outlives(_) | GenericBound::Use(..) => false,
+        })
+    }
 }
 
-fn find_in_path_segment(path_segment: &'_ PathSegment<'_>, trait_name: Symbol, hir: Map) -> bool {
-    path_segment
-        .args
-        .map_or(false, |args| find_in_generic_args(args, trait_name, hir))
-        || path_segment.ident.name == trait_name
+impl FindTrait for [GenericParam<'_>] {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        self.iter()
+            .any(|generic_param| generic_param.find(trait_name, hir))
+    }
+}
+
+impl FindTrait for GenericParam<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        match self.kind {
+            GenericParamKind::Type {
+                default,
+                synthetic: _,
+            } => default.map_or(false, |ty| ty.find(trait_name, hir)),
+            GenericParamKind::Const {
+                ty,
+                default: _,
+                is_host_effect: _,
+                synthetic: _,
+            } => ty.find(trait_name, hir),
+            GenericParamKind::Lifetime {
+                kind: _,
+            } => false,
+        }
+    }
+}
+
+impl FindTrait for PolyTraitRef<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        self.bound_generic_params.find(trait_name, hir) || self.trait_ref.find(trait_name, hir)
+    }
+}
+
+impl FindTrait for TraitRef<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        self.path.find(trait_name, hir)
+    }
+}
+
+impl FindTrait for Path<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        self.segments
+            .iter()
+            .any(|segment| segment.find(trait_name, hir))
+    }
+}
+
+impl FindTrait for GenericArgs<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        self.args.iter().any(|arg| match arg {
+            GenericArg::Type(ty) => ty.find(trait_name, hir),
+            GenericArg::Lifetime(_) | GenericArg::Const(_) | GenericArg::Infer(_) => false,
+        })
+    }
+}
+
+impl FindTrait for PathSegment<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        self.args.map_or(false, |args| args.find(trait_name, hir)) || self.ident.name == trait_name
+    }
 }
 
 #[test]
