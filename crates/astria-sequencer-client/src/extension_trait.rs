@@ -76,7 +76,6 @@ use tendermint_rpc::{
     Client,
     SubscriptionClient,
 };
-use tracing::instrument;
 
 #[cfg(feature = "http")]
 impl SequencerClientExt for HttpClient {}
@@ -658,23 +657,5 @@ pub trait SequencerClientExt: Client {
         self.broadcast_tx_sync(tx_bytes)
             .await
             .map_err(|e| Error::tendermint_rpc("broadcast_tx_sync", e))
-    }
-
-    /// Attempts to obtain the given transaction from the Sequencer node by its hash.
-    ///
-    /// # Errors
-    ///
-    /// - If the transaction was not failed. This can happen for one of 3 reasons:
-    ///   - The transaction is pending.
-    ///   - The transaction failed execution.
-    ///   - The transaction failed to be submitted.
-    #[instrument(skip_all)]
-    async fn get_tx(
-        &self,
-        tx_hash: tendermint::hash::Hash,
-    ) -> Result<tendermint_rpc::endpoint::tx::Response, Error> {
-        self.tx(tx_hash, false)
-            .await
-            .map_err(|e| Error::tendermint_rpc("tx", e))
     }
 }

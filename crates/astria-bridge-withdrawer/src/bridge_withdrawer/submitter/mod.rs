@@ -26,9 +26,12 @@ use astria_eyre::eyre::{
 pub(crate) use builder::Builder;
 pub(super) use builder::Handle;
 use sequencer_client::{
-    tendermint_rpc::endpoint::{
-        broadcast::tx_sync,
-        tx,
+    tendermint_rpc::{
+        endpoint::{
+            broadcast::tx_sync,
+            tx,
+        },
+        Client as _,
     },
     Address,
     SequencerClientExt,
@@ -38,7 +41,10 @@ use signer::SequencerKey;
 use state::State;
 use tokio::{
     select,
-    sync::mpsc,
+    sync::{
+        mpsc,
+        Mutex,
+    },
     time::{
         self,
         Instant,
@@ -48,6 +54,7 @@ use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 use tracing::{
     debug,
+    debug_span,
     error,
     info,
     info_span,
@@ -313,69 +320,79 @@ async fn submit_tx(
     Ok((check_tx, tx_response))
 }
 
-#[instrument(skip_all)]
+#[instrument(fields(%tx_hash), skip_all, ret)]
 async fn wait_for_tx_inclusion(
     client: sequencer_client::HttpClient,
     tx_hash: tendermint::hash::Hash,
     metrics: &'static Metrics,
 ) -> eyre::Result<tx::Response> {
-    use sequencer_client::extension_trait::Error;
-
-    // The min seconds to sleep after receiving a GetTx response and sending the next request.
-    const MIN_POLL_INTERVAL_MILLIS: u64 = 100;
-    // The max seconds to sleep after receiving a GetTx response and sending the next request.
-    const MAX_POLL_INTERVAL_MILLIS: u64 = 2000;
-    // How long to wait after starting `confirm_submission` before starting to log at the warn
-    // level.
+    // The min duration to sleep after receiving a GetTx response and sending the next request.
+    const MIN_POLL_INTERVAL: Duration = Duration::from_millis(100);
+    // The max duration to sleep after receiving a GetTx response and sending the next request.
+    const MAX_POLL_INTERVAL: Duration = Duration::from_millis(2000);
+    // How long to wait before starting to log at the warn level.
     const START_WARNING_DELAY: Duration = Duration::from_millis(2000);
     // The minimum duration between logging errors.
     const LOG_ERROR_INTERVAL: Duration = Duration::from_millis(2000);
 
     let start = Instant::now();
-    let mut logged_at = start;
+    let logged_at = Arc::new(Mutex::new(start));
 
-    let mut log_if_due = |error: Error| {
+    let log_if_due = |logged_at: Arc<Mutex<Instant>>, error: String| async move {
+        let mut logged_at = logged_at.lock().await;
         if logged_at.elapsed() <= LOG_ERROR_INTERVAL {
             return;
         }
+        *logged_at = Instant::now();
         if start.elapsed() < START_WARNING_DELAY {
             debug! {
-                %error,
+                error,
                 %tx_hash,
                 elapsed_seconds = start.elapsed().as_secs_f32(),
                 "waiting to confirm transaction inclusion"
             }
         } else {
             warn!(
-                %error,
+                error,
                 %tx_hash,
                 elapsed_seconds = start.elapsed().as_secs_f32(),
                 "waiting to confirm transaction inclusion"
             );
         }
-        logged_at = Instant::now();
     };
 
-    let mut sleep_millis = MIN_POLL_INTERVAL_MILLIS;
-    let tx_fut = || async move {
-        loop {
-            tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
-            match client.get_tx(tx_hash).await {
-                Ok(tx) => return tx,
-                Err(error) => {
-                    sleep_millis =
-                        std::cmp::min(sleep_millis.saturating_mul(2), MAX_POLL_INTERVAL_MILLIS);
-                    log_if_due(error);
-                    metrics.increment_sequencer_get_tx_failure_count();
+    let retry_config = tryhard::RetryFutureConfig::new(1024)
+        .exponential_backoff(MIN_POLL_INTERVAL)
+        .max_delay(MAX_POLL_INTERVAL);
+
+    let tx_fut = async move {
+        tryhard::retry_fn(|| {
+            let client = client.clone();
+            let logged_at = logged_at.clone();
+            let attempt_span = debug_span!("attempt get_tx");
+            attempt_span.follows_from(Span::current());
+            async move {
+                match client.tx(tx_hash, false).await {
+                    Ok(tx) => Ok(tx),
+                    Err(error) => {
+                        metrics.increment_sequencer_get_tx_failure_count();
+                        log_if_due(logged_at, error.to_string()).await;
+                        Err(error)
+                    }
                 }
             }
-        }
-    };
-    let tx_result = time::timeout(Duration::from_secs(240), tx_fut())
+            .instrument(attempt_span)
+        })
+        .with_config(retry_config)
         .await
-        .wrap_err("timed out waiting for tx inclusion")?;
+    };
+
+    let tx_res = time::timeout(Duration::from_secs(240), tx_fut)
+        .await
+        .wrap_err("timed out waiting for tx inclusion")?
+        .wrap_err("failed to get tx");
     metrics.record_sequencer_get_tx_latency(start.elapsed());
-    Ok(tx_result)
+    tx_res
 }
 
 #[instrument(skip_all, err)]

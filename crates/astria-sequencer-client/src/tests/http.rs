@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use astria_core::{
     crypto::SigningKey,
     generated::astria::protocol::{
@@ -17,22 +15,11 @@ use astria_core::{
 use hex_literal::hex;
 use prost::bytes::Bytes;
 use serde_json::json;
-use tendermint::{
-    abci::{
-        self,
-        Code,
-    },
-    block::Height,
-    merkle,
-    tx::Proof,
-    Hash,
-};
+use tendermint::Hash;
 use tendermint_rpc::{
-    endpoint::tx,
     response::Wrapper,
     Id,
 };
-use tokio::time::timeout;
 use wiremock::{
     matchers::{
         body_partial_json,
@@ -117,21 +104,6 @@ async fn register_broadcast_tx_sync_response(
     let wrapper = Wrapper::new_with_id(Id::Num(1), Some(response), None);
     Mock::given(body_partial_json(json!({
         "method": "broadcast_tx_sync"
-    })))
-    .respond_with(
-        ResponseTemplate::new(200)
-            .set_body_json(&wrapper)
-            .append_header("Content-Type", "application/json"),
-    )
-    .expect(1)
-    .mount_as_scoped(server)
-    .await
-}
-
-async fn register_tx_response(server: &MockServer, response: tx::Response) -> MockGuard {
-    let wrapper = Wrapper::new_with_id(Id::Num(1), Some(response), None);
-    Mock::given(body_partial_json(json!({
-        "method": "tx"
     })))
     .respond_with(
         ResponseTemplate::new(200)
@@ -371,54 +343,4 @@ async fn submit_tx_sync() {
     assert_eq!(response.data, server_response.data);
     assert_eq!(response.log, server_response.log);
     assert_eq!(response.hash, server_response.hash);
-}
-
-#[tokio::test]
-async fn get_tx() {
-    let MockSequencer {
-        server,
-        client,
-    } = MockSequencer::start().await;
-    let proof = Proof {
-        root_hash: Hash::Sha256([0; 32]),
-        data: vec![1, 2, 3, 4],
-        proof: merkle::Proof {
-            total: 1,
-            index: 1,
-            leaf_hash: Hash::Sha256([0; 32]),
-            aunts: vec![],
-        },
-    };
-
-    let tx_server_response = tx::Response {
-        hash: Hash::Sha256([0; 32]),
-        height: Height::try_from(1u64).unwrap(),
-        index: 1,
-        tx_result: abci::types::ExecTxResult {
-            code: Code::default(),
-            data: Bytes::from(vec![1, 2, 3, 4]),
-            log: "ethan was here".to_string(),
-            info: String::new(),
-            gas_wanted: 0,
-            gas_used: 0,
-            events: vec![],
-            codespace: String::new(),
-        },
-        tx: vec![],
-        proof: Some(proof),
-    };
-
-    let _tx_response_guard = register_tx_response(&server, tx_server_response.clone()).await;
-
-    let response = client.get_tx(tx_server_response.hash);
-
-    let response = timeout(Duration::from_millis(1000), response)
-        .await
-        .expect("should have received a transaction response within 1000ms")
-        .unwrap();
-
-    assert_eq!(response.tx_result.code, tx_server_response.tx_result.code);
-    assert_eq!(response.tx_result.data, tx_server_response.tx_result.data);
-    assert_eq!(response.tx_result.log, tx_server_response.tx_result.log);
-    assert_eq!(response.hash, tx_server_response.hash);
 }
