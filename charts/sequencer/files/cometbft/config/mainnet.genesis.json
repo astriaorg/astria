@@ -1,0 +1,227 @@
+{
+  "genesis_time": "2024-10-25T21:20:00Z",
+  "chain_id": "astria",
+  "initial_height": "1",
+  "consensus_params": {
+    "block": {
+      "max_bytes": "1048576",
+      "max_gas": "-1"
+    },
+    "evidence": {
+      "max_age_num_blocks": "4000000",
+      "max_age_duration": "1209600000000000",
+      "max_bytes": "1048576"
+    },
+    "validator": {
+      "pub_key_types": [
+        "ed25519"
+      ]
+    },
+    "version": {
+      "app": "0"
+    },
+    "abci": {
+      "vote_extensions_enable_height": "0"
+    }
+  },
+  "validators": [
+    {
+      "address": "63FD0CE49F485F167A8B94B9E80DBBD351FA9F98",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "8rPKInUBqFKv7Wie/O4G9P6wHWccMfifpeU/BlhFaHw="
+      },
+      "power": "100",
+      "name": "astria0"
+    },
+    {
+      "address": "4E72A7432B5C0FAEC21CF251535781723A8248A7",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "IzGYindOUk15ZL6bh6j8+fjSRgjeoL93txgA9ETfFXI="
+      },
+      "power": "100",
+      "name": "astria1"
+    },
+    {
+      "address": "47BD55BC6E3CA4A8519C372744AEE40C9340B8B4",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "S9VKKZgwdtiWWll3PT1yn+xgqZLci+MMtPmH2wuux+w="
+      },
+      "power": "100",
+      "name": "astria2"
+    },
+    {
+      "address": "3A7E64DFA6E11958B5A0903EA4C3D5A8E662C503",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "XntgAVoWJS7SE7hSw9OHyHBrP50+l8mZc/ctaQWIseQ="
+      },
+      "power": "100",
+      "name": "astria3"
+    },
+    {
+      "address": "8F6D2388C4C068A0217F75E914C3FBA8E28079B7",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "S4vhA0z7Gw5p3Yszwnlm+BdXELSOeRH4/jBL2r55zo8="
+      },
+      "power": "25",
+      "name": "Nodes.Guru"
+    },
+    {
+      "address": "3CB3760D29B485C711D27D5AC5CE6B4AF048263D",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "KA/DKcILRpYVybz9ZHh784yZr9WvvCHRKzy+Av9KlUg="
+      },
+      "power": "25",
+      "name": "Qubelabs"
+    },
+    {
+      "address": "19685F5CFF69B64EF6C50E8BB4BA506DB1E1BB5C",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "jqnJZ1Op4TPiNTHNVFyvXtdRuObhDhnl1cKyH/FO3kY="
+      },
+      "power": "25",
+      "name": "DSRV"
+    },
+    {
+      "address": "816B7C75D3C43D5F700D67975F020D938AF882F9",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "IdsrfKarwcDa0ToNrDfRXPByuYdlwSDxvwJlJM0mc9A="
+      },
+      "power": "25",
+      "name": "Nocturnal Labs"
+    },
+    {
+      "address": "4E8AD81B9361FBF6DBC853514F1B259A75B2D5C0",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "hCbuIHcC8Ivufr1hR/cPUPetS0snT9fSzgMQgWKZx9c="
+      },
+      "power": "25",
+      "name": "P-OPS Team"
+    },
+    {
+      "address": "666CBCE466D0DECDBBB3982AF747B74E0BD44030",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "gyhVdvDyxSV2XH0jby1vnmQitPowjm/pn1CDVprre2c="
+      },
+      "power": "25",
+      "name": "Tessellated"
+    },
+    {
+      "address": "4FBB2E3BF3B5DDD7FCD5C4A028336F680098A1FB",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "GLN47O9Iea9yKR9m8FMpZ180KL52Ht1i3yO9xu760Ew="
+      },
+      "power": "25",
+      "name": "P2P.ORG - P2P Validator"
+    }
+  ],
+  "app_hash": "",
+  "app_state": {
+    "fees": {
+      "fee_change": {
+        "base": {
+          "lo": 0
+        },
+        "multiplier": {
+          "lo": 0
+        }
+      },
+      "bridge_sudo_change": {
+        "base": {
+          "lo": 1000000
+        },
+        "multiplier": {
+          "lo": 0
+        }
+      },
+      "fee_asset_change": {
+        "base": {
+          "lo": 0
+        },
+        "multiplier": {
+          "lo": 0
+        }
+      },
+      "ibc_relay": {
+        "base": {
+          "lo": 0
+        },
+        "multiplier": {
+          "lo": 0
+        }
+      },
+      "ibc_relayer_change": {
+        "base": {
+          "lo": 0
+        },
+        "multiplier": {
+          "lo": 0
+        }
+      },
+      "ibc_sudo_change": {
+        "base": {
+          "lo": 0
+        },
+        "multiplier": {
+          "lo": 0
+        }
+      },
+      "init_bridge_account": {
+        "base": {
+          "lo": 10000000
+        },
+        "multiplier": {
+          "lo": 0
+        }
+      },
+      "sudo_address_change": {
+        "base": {
+          "lo": 0
+        },
+        "multiplier": {
+          "lo": 0
+        }
+      },
+      "validator_update": {
+        "base": {
+          "lo": 0
+        },
+        "multiplier": {
+          "lo": 0
+        }
+      }
+    },
+    "allowed_fee_assets": [],
+    "ibc_parameters": {
+      "ibc_enabled": true,
+      "inbound_ics20_transfers_enabled": true,
+      "outbound_ics20_transfers_enabled": true
+    },
+    "address_prefixes": {
+      "base": "astria",
+      "ibcCompat": "astriacompat"
+    },
+    "accounts": [],
+    "authority_sudo_address": {
+      "bech32m": "astria1f7d96l29kz22q2tcwrpg925dxt7z8jtsjgs9uh"
+    },
+    "ibc_sudo_address": {
+      "bech32m": "astria1v70qrgnua42f4x3kl40d60ae2zftftmqe4c7gy"
+    },
+    "ibc_relayer_addresses": [
+      {
+        "bech32m": "astria1pz0txxwcenc98vx6alnprcef46kyrvrya8cs8p"
+      }
+    ]
+  }
+}

@@ -509,6 +509,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "astria-auctioneer"
+version = "0.0.1"
+dependencies = [
+ "astria-build-info",
+ "astria-config",
+ "astria-core",
+ "astria-eyre",
+ "astria-sequencer-client",
+ "astria-telemetry",
+ "base64 0.21.7",
+ "bytes",
+ "futures",
+ "hex",
+ "http 0.2.12",
+ "http-body 0.4.6",
+ "hyper 0.14.32",
+ "itertools 0.12.1",
+ "pbjson-types",
+ "pin-project-lite",
+ "prost",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-stream",
+ "tokio-util 0.7.13",
+ "tonic 0.10.2",
+ "tower 0.5.2",
+ "tower-http",
+ "tracing",
+ "tryhard",
+]
+
+[[package]]
 name = "astria-bridge-contracts"
 version = "0.1.0"
 dependencies = [
@@ -527,7 +561,7 @@ dependencies = [
 
 [[package]]
 name = "astria-bridge-withdrawer"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "astria-bridge-contracts",
  "astria-build-info",
@@ -539,14 +573,18 @@ dependencies = [
  "astria-telemetry",
  "axum",
  "ethers",
+ "frost-ed25519",
  "futures",
  "hex",
  "http 0.2.12",
- "humantime",
  "hyper 0.14.32",
  "ibc-types",
+ "itertools 0.12.1",
+ "pbjson-types",
  "pin-project-lite",
  "prost",
+ "rand 0.8.5",
+ "rand_chacha 0.3.1",
  "reqwest",
  "serde",
  "serde_json",
@@ -573,7 +611,7 @@ dependencies = [
 
 [[package]]
 name = "astria-cli"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "astria-bridge-contracts",
  "astria-core",
@@ -585,8 +623,8 @@ dependencies = [
  "frost-ed25519",
  "futures",
  "hex",
- "humantime",
  "ibc-types",
+ "jiff",
  "pbjson-types",
  "prost",
  "rand 0.8.5",
@@ -605,7 +643,7 @@ dependencies = [
 
 [[package]]
 name = "astria-composer"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "astria-build-info",
  "astria-config",
@@ -620,7 +658,6 @@ dependencies = [
  "ethers",
  "futures",
  "hex",
- "humantime",
  "hyper 0.14.32",
  "insta",
  "itertools 0.12.1",
@@ -649,7 +686,7 @@ dependencies = [
 
 [[package]]
 name = "astria-conductor"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "astria-build-info",
  "astria-config",
@@ -670,7 +707,6 @@ dependencies = [
  "futures-bounded",
  "hex",
  "http 0.2.12",
- "humantime",
  "indexmap 2.7.1",
  "insta",
  "itertools 0.12.1",
@@ -692,7 +728,7 @@ dependencies = [
  "tokio-stream",
  "tokio-util 0.7.13",
  "tonic 0.10.2",
- "tower",
+ "tower 0.4.13",
  "tracing",
  "tryhard",
  "wiremock",
@@ -831,7 +867,7 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "assert-json-diff",
  "astria-build-info",
@@ -851,6 +887,7 @@ dependencies = [
  "ibc-proto",
  "ibc-types",
  "insta",
+ "itertools 0.12.1",
  "maplit",
  "matchit",
  "penumbra-ibc",
@@ -868,12 +905,14 @@ dependencies = [
  "tendermint-proto",
  "thiserror 1.0.69",
  "tokio",
+ "tokio-util 0.7.13",
  "tonic 0.10.2",
- "tower",
+ "tower 0.4.13",
  "tower-abci",
  "tower-actor",
  "tower-http",
  "tracing",
+ "url",
 ]
 
 [[package]]
@@ -887,7 +926,6 @@ dependencies = [
  "futures-util",
  "hex",
  "hex-literal",
- "humantime",
  "prost",
  "regex",
  "serde",
@@ -906,7 +944,7 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer-relayer"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "assert-json-diff",
  "astria-build-info",
@@ -927,12 +965,11 @@ dependencies = [
  "futures",
  "hex",
  "http 0.2.12",
- "humantime",
- "humantime-serde",
  "hyper 0.14.32",
  "isahc",
  "itertools 0.12.1",
  "itoa",
+ "jiff",
  "k256",
  "pbjson-types",
  "pin-project-lite",
@@ -953,7 +990,7 @@ dependencies = [
  "tokio-test",
  "tokio-util 0.7.13",
  "tonic 0.10.2",
- "tower",
+ "tower 0.4.13",
  "tracing",
  "tryhard",
  "wiremock",
@@ -990,6 +1027,7 @@ dependencies = [
  "base64-serde",
  "const_format",
  "itertools 0.12.1",
+ "jiff",
  "metrics 0.23.0",
  "metrics-exporter-prometheus",
  "opentelemetry",
@@ -1177,9 +1215,9 @@ dependencies = [
  "serde_json",
  "serde_path_to_error",
  "serde_urlencoded",
- "sync_wrapper",
+ "sync_wrapper 0.1.2",
  "tokio",
- "tower",
+ "tower 0.4.13",
  "tower-layer",
  "tower-service",
 ]
@@ -1897,8 +1935,8 @@ dependencies = [
 
 [[package]]
 name = "cnidarium"
-version = "0.80.9"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ac7abacc9bb09503d6fd6a396bc0b6850079084e#ac7abacc9bb09503d6fd6a396bc0b6850079084e"
+version = "0.80.10"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=686fa5b53e8ad306736d2de61d1ffb6d11722e2b#686fa5b53e8ad306736d2de61d1ffb6d11722e2b"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1926,8 +1964,8 @@ dependencies = [
 
 [[package]]
 name = "cnidarium-component"
-version = "0.80.9"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ac7abacc9bb09503d6fd6a396bc0b6850079084e#ac7abacc9bb09503d6fd6a396bc0b6850079084e"
+version = "0.80.10"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=686fa5b53e8ad306736d2de61d1ffb6d11722e2b#686fa5b53e8ad306736d2de61d1ffb6d11722e2b"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2471,8 +2509,8 @@ dependencies = [
 
 [[package]]
 name = "decaf377-fmd"
-version = "0.80.9"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ac7abacc9bb09503d6fd6a396bc0b6850079084e#ac7abacc9bb09503d6fd6a396bc0b6850079084e"
+version = "0.80.10"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=686fa5b53e8ad306736d2de61d1ffb6d11722e2b#686fa5b53e8ad306736d2de61d1ffb6d11722e2b"
 dependencies = [
  "ark-ff 0.4.2",
  "ark-serialize 0.4.2",
@@ -2485,8 +2523,8 @@ dependencies = [
 
 [[package]]
 name = "decaf377-ka"
-version = "0.80.9"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ac7abacc9bb09503d6fd6a396bc0b6850079084e#ac7abacc9bb09503d6fd6a396bc0b6850079084e"
+version = "0.80.10"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=686fa5b53e8ad306736d2de61d1ffb6d11722e2b#686fa5b53e8ad306736d2de61d1ffb6d11722e2b"
 dependencies = [
  "ark-ff 0.4.2",
  "decaf377",
@@ -2935,14 +2973,14 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
-version = "0.11.6"
+version = "0.11.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcaee3d8e3cfc3fd92428d477bc97fc29ec8716d180c0d74c643bb26166660e0"
+checksum = "c3716d7a920fb4fac5d84e9d4bce8ceb321e9414b4409da61b07b75c1e3d0697"
 dependencies = [
  "anstream",
  "anstyle",
  "env_filter",
- "humantime",
+ "jiff",
  "log",
 ]
 
@@ -2978,7 +3016,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33d852cb9b869c2a9b3df2f71a3074817f01e1844f839a144f5fcef059a4eb5d"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4051,22 +4089,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
 
 [[package]]
-name = "humantime"
-version = "2.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
-
-[[package]]
-name = "humantime-serde"
-version = "1.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57a3db5ea5923d99402c94e9feb261dc5ee9b4efa158b0315f788cf549cc200c"
-dependencies = [
- "humantime",
- "serde",
-]
-
-[[package]]
 name = "hyper"
 version = "0.14.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4866,6 +4888,47 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d75a2a4b1b190afb6f5425f10f6a8f959d2ea0b9c2b1d79553551850539e4674"
 
 [[package]]
+name = "jiff"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d699bc6dfc879fb1bf9bdff0d4c56f0884fc6f0d0eb0fba397a6d00cd9a6b85e"
+dependencies = [
+ "jiff-static",
+ "jiff-tzdb-platform",
+ "log",
+ "portable-atomic",
+ "portable-atomic-util",
+ "serde",
+ "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "jiff-static"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d16e75759ee0aa64c57a56acbf43916987b20c77373cb7e808979e02b93c9f9"
+dependencies = [
+ "proc-macro2 1.0.93",
+ "quote",
+ "syn 2.0.98",
+]
+
+[[package]]
+name = "jiff-tzdb"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "962e1dfe9b2d75a84536cf5bf5eaaa4319aa7906c7160134a22883ac316d5f31"
+
+[[package]]
+name = "jiff-tzdb-platform"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a63c62e404e7b92979d2792352d885a7f8f83fd1d0d31eea582d77b2ceca697e"
+dependencies = [
+ "jiff-tzdb",
+]
+
+[[package]]
 name = "jmt"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4982,7 +5045,7 @@ dependencies = [
  "serde_json",
  "thiserror 1.0.69",
  "tokio",
- "tower",
+ "tower 0.4.13",
  "tracing",
  "url",
 ]
@@ -5019,7 +5082,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util 0.7.13",
- "tower",
+ "tower 0.4.13",
  "tracing",
 ]
 
@@ -5985,8 +6048,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-asset"
-version = "0.80.9"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ac7abacc9bb09503d6fd6a396bc0b6850079084e#ac7abacc9bb09503d6fd6a396bc0b6850079084e"
+version = "0.80.10"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=686fa5b53e8ad306736d2de61d1ffb6d11722e2b#686fa5b53e8ad306736d2de61d1ffb6d11722e2b"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -6024,8 +6087,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-ibc"
-version = "0.80.9"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ac7abacc9bb09503d6fd6a396bc0b6850079084e#ac7abacc9bb09503d6fd6a396bc0b6850079084e"
+version = "0.80.10"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=686fa5b53e8ad306736d2de61d1ffb6d11722e2b#686fa5b53e8ad306736d2de61d1ffb6d11722e2b"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -6055,14 +6118,14 @@ dependencies = [
  "tendermint-light-client-verifier",
  "time",
  "tonic 0.10.2",
- "tower",
+ "tower 0.4.13",
  "tracing",
 ]
 
 [[package]]
 name = "penumbra-keys"
-version = "0.80.9"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ac7abacc9bb09503d6fd6a396bc0b6850079084e#ac7abacc9bb09503d6fd6a396bc0b6850079084e"
+version = "0.80.10"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=686fa5b53e8ad306736d2de61d1ffb6d11722e2b#686fa5b53e8ad306736d2de61d1ffb6d11722e2b"
 dependencies = [
  "aes",
  "anyhow",
@@ -6105,8 +6168,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-num"
-version = "0.80.9"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ac7abacc9bb09503d6fd6a396bc0b6850079084e#ac7abacc9bb09503d6fd6a396bc0b6850079084e"
+version = "0.80.10"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=686fa5b53e8ad306736d2de61d1ffb6d11722e2b#686fa5b53e8ad306736d2de61d1ffb6d11722e2b"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -6141,8 +6204,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-proto"
-version = "0.80.9"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ac7abacc9bb09503d6fd6a396bc0b6850079084e#ac7abacc9bb09503d6fd6a396bc0b6850079084e"
+version = "0.80.10"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=686fa5b53e8ad306736d2de61d1ffb6d11722e2b#686fa5b53e8ad306736d2de61d1ffb6d11722e2b"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6170,8 +6233,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-sct"
-version = "0.80.9"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ac7abacc9bb09503d6fd6a396bc0b6850079084e#ac7abacc9bb09503d6fd6a396bc0b6850079084e"
+version = "0.80.10"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=686fa5b53e8ad306736d2de61d1ffb6d11722e2b#686fa5b53e8ad306736d2de61d1ffb6d11722e2b"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -6206,8 +6269,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-tct"
-version = "0.80.9"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ac7abacc9bb09503d6fd6a396bc0b6850079084e#ac7abacc9bb09503d6fd6a396bc0b6850079084e"
+version = "0.80.10"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=686fa5b53e8ad306736d2de61d1ffb6d11722e2b#686fa5b53e8ad306736d2de61d1ffb6d11722e2b"
 dependencies = [
  "ark-ed-on-bls12-377",
  "ark-ff 0.4.2",
@@ -6235,8 +6298,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-tower-trace"
-version = "0.80.9"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ac7abacc9bb09503d6fd6a396bc0b6850079084e#ac7abacc9bb09503d6fd6a396bc0b6850079084e"
+version = "0.80.10"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=686fa5b53e8ad306736d2de61d1ffb6d11722e2b#686fa5b53e8ad306736d2de61d1ffb6d11722e2b"
 dependencies = [
  "futures",
  "hex",
@@ -6250,15 +6313,15 @@ dependencies = [
  "tokio-stream",
  "tokio-util 0.7.13",
  "tonic 0.10.2",
- "tower",
+ "tower 0.4.13",
  "tower-service",
  "tracing",
 ]
 
 [[package]]
 name = "penumbra-txhash"
-version = "0.80.9"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ac7abacc9bb09503d6fd6a396bc0b6850079084e#ac7abacc9bb09503d6fd6a396bc0b6850079084e"
+version = "0.80.10"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=686fa5b53e8ad306736d2de61d1ffb6d11722e2b#686fa5b53e8ad306736d2de61d1ffb6d11722e2b"
 dependencies = [
  "anyhow",
  "blake2b_simd 1.0.3",
@@ -6386,6 +6449,15 @@ name = "portable-atomic"
 version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "350e9b48cbc6b0e028b0473b114454c6316e57336ee184ceab6e53f72c178b3e"
+
+[[package]]
+name = "portable-atomic-util"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d8a2f0d8d040d7848a709caf78912debcc3f33ee4b3cac47d73d1e1069e83507"
+dependencies = [
+ "portable-atomic",
+]
 
 [[package]]
 name = "poseidon-parameters"
@@ -6892,7 +6964,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
- "sync_wrapper",
+ "sync_wrapper 0.1.2",
  "system-configuration",
  "tokio",
  "tokio-rustls",
@@ -7132,7 +7204,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -7856,6 +7928,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2047c6ded9c721764247e62cd3b03c09ffc529b2ba5b10ec482ae507a4a70160"
 
 [[package]]
+name = "sync_wrapper"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0bf256ce5efdfa370213c1dabab5935a12e49f2c58d15e9eac2870d3b4f27263"
+
+[[package]]
 name = "synstructure"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7910,7 +7988,7 @@ dependencies = [
  "getrandom 0.3.1",
  "once_cell",
  "rustix",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -8271,6 +8349,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util 0.7.13",
 ]
 
 [[package]]
@@ -8421,7 +8500,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tokio-stream",
- "tower",
+ "tower 0.4.13",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -8449,7 +8528,7 @@ dependencies = [
  "prost",
  "tokio",
  "tokio-stream",
- "tower",
+ "tower 0.4.13",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -8503,6 +8582,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "tower"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d039ad9159c98b70ecfd540b2573b97f7f52c3e8d9f8ad57a24b916a536975f9"
+dependencies = [
+ "futures-core",
+ "futures-util",
+ "pin-project-lite",
+ "sync_wrapper 1.0.2",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
 name = "tower-abci"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8517,7 +8610,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util 0.6.10",
- "tower",
+ "tower 0.4.13",
  "tracing",
 ]
 
@@ -8532,7 +8625,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tokio-util 0.7.13",
- "tower",
+ "tower 0.4.13",
  "tracing",
 ]
 
@@ -8552,6 +8645,7 @@ dependencies = [
  "pin-project-lite",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -9131,7 +9225,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

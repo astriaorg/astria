@@ -1,0 +1,11 @@
+syntax = 'proto3';
+
+package astria.signer.v1;
+
+import "astria/signer/v1/commitment_with_identifier.proto";
+
+message ExecuteRoundTwoRequest {
+  repeated CommitmentWithIdentifier commitments = 1;
+  bytes message = 2;
+  uint32 request_identifier = 3;
+}

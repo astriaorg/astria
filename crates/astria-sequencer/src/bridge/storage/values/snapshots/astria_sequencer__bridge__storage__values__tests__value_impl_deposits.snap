@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/bridge/storage/values/mod.rs
+expression: "borsh_then_hex(&ValueImpl::Deposits(Vec::<DomainDeposit>::new().iter().into()))"
+---
+0400000000

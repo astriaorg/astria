@@ -51,10 +51,6 @@ use super::{
     block_verifier,
     convert::ConvertedBlobs,
 };
-use crate::executor::{
-    self,
-    StateIsInit,
-};
 
 pub(super) struct VerifiedBlobs {
     celestia_height: u64,
@@ -99,7 +95,7 @@ struct VerificationTaskKey {
 pub(super) async fn verify_metadata(
     blob_verifier: Arc<BlobVerifier>,
     converted_blobs: ConvertedBlobs,
-    mut executor: executor::Handle<StateIsInit>,
+    rollup_state: crate::executor::StateReceiver,
 ) -> VerifiedBlobs {
     let (celestia_height, header_blobs, rollup_blobs) = converted_blobs.into_parts();
 
@@ -107,7 +103,7 @@ pub(super) async fn verify_metadata(
     let mut verified_header_blobs = HashMap::with_capacity(header_blobs.len());
 
     let next_expected_firm_sequencer_height =
-        executor.next_expected_firm_sequencer_height().value();
+        rollup_state.next_expected_firm_sequencer_height().value();
 
     for (index, blob) in header_blobs.into_iter().enumerate() {
         if blob.height().value() < next_expected_firm_sequencer_height {
@@ -311,7 +307,7 @@ async fn fetch_commit_with_retry(
         .on_retry(
             |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     attempt,
@@ -347,7 +343,7 @@ async fn fetch_validators_with_retry(
         .on_retry(
             |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     attempt,

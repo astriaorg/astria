@@ -13,6 +13,7 @@ use super::{
     ActionName as _,
     BridgeLock,
     BridgeSudoChange,
+    BridgeTransfer,
     BridgeUnlock,
     FeeAssetChange,
     FeeChange,
@@ -20,6 +21,7 @@ use super::{
     IbcSudoChange,
     Ics20Withdrawal,
     InitBridgeAccount,
+    RecoverIbcClient,
     RollupDataSubmission,
     SudoAddressChange,
     Transfer,
@@ -51,10 +53,12 @@ impl_belong_to_group!(
     (BridgeLock, Group::BundleableGeneral),
     (BridgeUnlock, Group::BundleableGeneral),
     (BridgeSudoChange, Group::UnbundleableGeneral),
+    (BridgeTransfer, Group::BundleableGeneral),
     (FeeChange, Group::BundleableSudo),
     (FeeAssetChange, Group::BundleableSudo),
     (IbcRelay, Group::BundleableGeneral),
     (IbcSudoChange, Group::UnbundleableSudo),
+    (RecoverIbcClient, Group::BundleableSudo),
 );
 
 impl Action {
@@ -70,10 +74,12 @@ impl Action {
             Action::BridgeLock(_) => BridgeLock::GROUP,
             Action::BridgeUnlock(_) => BridgeUnlock::GROUP,
             Action::BridgeSudoChange(_) => BridgeSudoChange::GROUP,
+            Action::BridgeTransfer(_) => BridgeTransfer::GROUP,
             Action::FeeChange(_) => FeeChange::GROUP,
             Action::FeeAssetChange(_) => FeeAssetChange::GROUP,
             Action::Ibc(_) => IbcRelay::GROUP,
             Action::IbcSudoChange(_) => IbcSudoChange::GROUP,
+            Action::RecoverIbcClient(_) => RecoverIbcClient::GROUP,
         }
     }
 }

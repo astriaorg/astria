@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "rollup.name" . }}-conductor-env
+  namespace: {{ include "rollup.namespace" . }}
+data:
+  ASTRIA_CONDUCTOR_LOG: "astria_conductor={{ .Values.config.logLevel }}"
+  ASTRIA_CONDUCTOR_CELESTIA_NODE_HTTP_URL: "{{ .Values.config.celestia.rpc }}"
+  ASTRIA_CONDUCTOR_EXPECTED_CELESTIA_CHAIN_ID: "{{ tpl .Values.config.conductor.celestiaChainId . }}"
+  ASTRIA_CONDUCTOR_CELESTIA_BEARER_TOKEN: "{{ .Values.config.celestia.token }}"
+  ASTRIA_CONDUCTOR_CELESTIA_BLOCK_TIME_MS: "{{ .Values.config.conductor.celestiaBlockTimeMs }}"
+  ASTRIA_CONDUCTOR_EXECUTION_RPC_URL: "http://127.0.0.1:{{ .Values.ports.executionGRPC }}"
+  ASTRIA_CONDUCTOR_EXECUTION_COMMIT_LEVEL: "{{ .Values.config.conductor.executionCommitLevel }}"
+  ASTRIA_CONDUCTOR_SEQUENCER_GRPC_URL: "{{ tpl .Values.config.conductor.sequencerGrpc . }}"
+  ASTRIA_CONDUCTOR_SEQUENCER_COMETBFT_URL: "{{ tpl .Values.config.conductor.sequencerRpc . }}"
+  ASTRIA_CONDUCTOR_EXPECTED_SEQUENCER_CHAIN_ID: "{{ tpl .Values.config.conductor.sequencerChainId . }}"
+  ASTRIA_CONDUCTOR_SEQUENCER_BLOCK_TIME_MS: "{{ .Values.config.conductor.sequencerBlockTimeMs }}"
+  ASTRIA_CONDUCTOR_NO_METRICS: "{{ not .Values.metrics.enabled }}"
+  ASTRIA_CONDUCTOR_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.conductorMetrics }}"
+  ASTRIA_CONDUCTOR_SEQUENCER_REQUESTS_PER_SECOND: "{{ .Values.config.conductor.sequencerRequestsPerSecond }}"
+  ASTRIA_CONDUCTOR_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
+  ASTRIA_CONDUCTOR_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
+  NO_COLOR: "{{ .Values.global.useTTY }}"
+  ASTRIA_CONDUCTOR_NO_OTEL: "{{ not .Values.otel.enabled }}"
+  ASTRIA_CONDUCTOR_NO_CELESTIA_AUTH: "{{ not .Values.config.celestia.token }}"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "{{ tpl .Values.otel.endpoint . }}"
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "{{ tpl .Values.otel.tracesEndpoint . }}"
+  OTEL_EXPORTER_OTLP_TRACES_TIMEOUT: "{{ tpl .Values.otel.tracesTimeout . }}"
+  OTEL_EXPORTER_OTLP_TRACES_COMPRESSION: "{{ tpl .Values.otel.tracesCompression . }}"
+  OTEL_EXPORTER_OTLP_HEADERS: "{{ tpl .Values.otel.otlpHeaders . }}"
+  OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ tpl .Values.otel.traceHeaders .}}"
+  OTEL_SERVICE_NAME: "{{ tpl .Values.otel.serviceNamePrefix . }}-conductor"
+  {{- if not .Values.global.dev }}
+  {{- else }}
+  {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "rollup.name" . }}-geth-env
+  namespace: {{ include "rollup.namespace" .  }}
+data:
+  home_dir: '{{ include "rollup.gethHomeDir" .  }}'
+  data_dir: '{{ include "rollup.gethDataDir" .  }}'
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "rollup.name" . }}-executor-scripts
+  namespace: {{ include "rollup.namespace" .  }}
+data:
+  geth-genesis.json: |
+    {{- tpl (.Files.Get "files/genesis/geth-genesis.json") $ | nindent 4 }}
+  init-geth.sh: |
+    {{- tpl (.Files.Get "files/scripts/init-geth.sh") $ | nindent 4 }}
+---

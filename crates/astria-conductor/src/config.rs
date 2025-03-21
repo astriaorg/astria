@@ -95,6 +95,16 @@ pub struct Config {
     pub pretty_print: bool,
 }
 
+impl Config {
+    pub(crate) fn is_with_firm(&self) -> bool {
+        self.execution_commit_level.is_with_firm()
+    }
+
+    pub(crate) fn is_with_soft(&self) -> bool {
+        self.execution_commit_level.is_with_soft()
+    }
+}
+
 impl config::Config for Config {
     const PREFIX: &'static str = "ASTRIA_CONDUCTOR_";
 }

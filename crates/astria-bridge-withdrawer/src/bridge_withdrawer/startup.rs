@@ -400,7 +400,7 @@ async fn wait_for_empty_mempool(
         .on_retry(
             |attempt: u32, next_delay: Option<Duration>, error: &eyre::Report| {
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     error = error.as_ref() as &dyn std::error::Error,
@@ -562,7 +562,7 @@ async fn get_latest_nonce(
                 state.set_sequencer_connected(false);
 
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     parent: span.clone(),
@@ -600,7 +600,7 @@ fn make_cometbft_retry_config(
         .on_retry(
             move |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     attempt,
@@ -631,7 +631,7 @@ fn make_cometbft_ext_retry_config(
                   next_delay: Option<Duration>,
                   error: &sequencer_client::extension_trait::Error| {
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     attempt,

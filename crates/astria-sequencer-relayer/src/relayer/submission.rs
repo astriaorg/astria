@@ -80,7 +80,7 @@ enum State {
         sequencer_height: SequencerHeight,
         last_submission: CompletedSubmission,
         blob_tx_hash: BlobTxHash,
-        #[serde(with = "humantime_serde")]
+        #[serde(with = "as_rfc_3339")]
         at: SystemTime,
     },
 }
@@ -456,12 +456,12 @@ impl SubmissionStateAtStartup {
     }
 }
 
+/// Logic to serialize sequencer heights as number, deserialize numbers as sequencer heights.
+///
+/// This is unfortunately necessary because the [`serde::Serialize`], [`serde::Deserialize`]
+/// implementations for [`tendermint::block::Height`] write the integer as a string, probably
+/// due to tendermint's/cometbft's go-legacy.
 mod as_number {
-    //! Logic to serialize sequencer heights as number, deserialize numbers as sequencer heights.
-    //!
-    //! This is unfortunately necessary because the [`serde::Serialize`], [`serde::Deserialize`]
-    //! implementations for [`tendermint::block::Height`] write the integer as a string, probably
-    //! due to tendermint's/cometbft's go-legacy.
     use serde::{
         Deserialize as _,
         Deserializer,
@@ -487,6 +487,35 @@ mod as_number {
     {
         let height = u64::deserialize(deserializer)?;
         SequencerHeight::try_from(height).map_err(serde::de::Error::custom)
+    }
+}
+
+/// Logic to (de)serialize `SystemTime` as an RFC-3339 formatted string.
+mod as_rfc_3339 {
+    use std::time::SystemTime;
+
+    use jiff::Timestamp;
+    use serde::{
+        Deserialize as _,
+        Deserializer,
+        Serialize as _,
+        Serializer,
+    };
+
+    pub(super) fn serialize<S>(instant: &SystemTime, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let timestamp = Timestamp::try_from(*instant).map_err(serde::ser::Error::custom)?;
+        timestamp.serialize(serializer)
+    }
+
+    pub(super) fn deserialize<'de, D>(deserializer: D) -> Result<SystemTime, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let timestamp = Timestamp::deserialize(deserializer)?;
+        Ok(SystemTime::from(timestamp))
     }
 }
 

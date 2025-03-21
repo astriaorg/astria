@@ -30,6 +30,11 @@ message Block {
   bytes parent_block_hash = 3;
   // Timestamp on the block, standardized to google protobuf standard.
   google.protobuf.Timestamp timestamp = 4;
+  // The hash of the sequencer block from which this block was derived.
+  //
+  // (Optional) This field will only be utilized if the execution node stores
+  // this data in blocks during `ExecuteBlock`.
+  bytes sequencer_block_hash = 5;
 }
 
 // Fields which are indexed for finding blocks on a blockchain.
@@ -70,6 +75,11 @@ message ExecuteBlockRequest {
   repeated astria.sequencerblock.v1.RollupData transactions = 2;
   // Timestamp to be used for new block.
   google.protobuf.Timestamp timestamp = 3;
+  // The hash of the sequencer block from which the transactions and timestamp
+  // are derived.
+  //
+  // Utilizing this field is optional for the execution node.
+  bytes sequencer_block_hash = 4;
 }
 
 // The CommitmentState holds the block at each stage of sequencer commitment

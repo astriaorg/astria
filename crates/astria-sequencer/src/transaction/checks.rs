@@ -77,6 +77,18 @@ pub(crate) async fn get_total_transaction_cost<S: StateRead>(
             .await
             .context("failed to get fees for transaction")?;
 
+    add_total_transfers_for_transaction(tx, state, &mut cost_by_asset)
+        .await
+        .context("failed to add total transfers for transaction")?;
+
+    Ok(cost_by_asset)
+}
+
+async fn add_total_transfers_for_transaction<S: StateRead>(
+    tx: &Transaction,
+    state: &S,
+    cost_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
+) -> Result<()> {
     // add values transferred within the tx to the cost
     for action in tx.actions() {
         match action {
@@ -108,6 +120,16 @@ pub(crate) async fn get_total_transaction_cost<S: StateRead>(
                     .and_modify(|amt| *amt = amt.saturating_add(act.amount))
                     .or_insert(act.amount);
             }
+            Action::BridgeTransfer(act) => {
+                let asset = state
+                    .get_bridge_account_ibc_asset(&act.bridge_address)
+                    .await
+                    .wrap_err("failed to get bridge account asset id")?;
+                cost_by_asset
+                    .entry(asset)
+                    .and_modify(|amt| *amt = amt.saturating_add(act.amount))
+                    .or_insert(act.amount);
+            }
             Action::ValidatorUpdate(_)
             | Action::SudoAddressChange(_)
             | Action::IbcSudoChange(_)
@@ -117,13 +139,14 @@ pub(crate) async fn get_total_transaction_cost<S: StateRead>(
             | Action::Ibc(_)
             | Action::IbcRelayerChange(_)
             | Action::FeeAssetChange(_)
-            | Action::FeeChange(_) => {
+            | Action::FeeChange(_)
+            | Action::RecoverIbcClient(_) => {
                 continue;
             }
         }
     }
 
-    Ok(cost_by_asset)
+    Ok(())
 }
 
 #[cfg(test)]

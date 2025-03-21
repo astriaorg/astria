@@ -87,3 +87,194 @@ impl ActionHandler for InitBridgeAccount {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use astria_core::primitive::v1::{
+        asset::Denom,
+        RollupId,
+        TransactionId,
+    };
+
+    use super::*;
+    use crate::{
+        accounts::AddressBytes as _,
+        address::StateWriteExt as _,
+        benchmark_and_test_utils::{
+            assert_eyre_error,
+            astria_address,
+            nria,
+            ASTRIA_PREFIX,
+        },
+        transaction::{
+            StateWriteExt as _,
+            TransactionContext,
+        },
+    };
+
+    #[tokio::test]
+    async fn init_bridge_account_executes_as_expected() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = cnidarium::StateDelta::new(snapshot);
+
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        let bridge_address = astria_address(&[1; 20]);
+        let sudo_address = astria_address(&[2; 20]);
+        let withdrawer_address = astria_address(&[3; 20]);
+        let rollup_id = RollupId::new([1; 32]);
+        let asset = Denom::from(nria());
+
+        state.put_transaction_context(TransactionContext {
+            address_bytes: *bridge_address.address_bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+
+        let action = InitBridgeAccount {
+            rollup_id,
+            asset: asset.clone(),
+            fee_asset: asset.clone(),
+            sudo_address: Some(sudo_address),
+            withdrawer_address: Some(withdrawer_address),
+        };
+
+        action.check_and_execute(&mut state).await.unwrap();
+
+        assert_eq!(
+            state
+                .get_bridge_account_rollup_id(&bridge_address)
+                .await
+                .unwrap(),
+            Some(rollup_id)
+        );
+        assert_eq!(
+            state
+                .get_bridge_account_ibc_asset(&bridge_address)
+                .await
+                .unwrap(),
+            asset.to_ibc_prefixed()
+        );
+        assert_eq!(
+            state
+                .get_bridge_account_sudo_address(&bridge_address)
+                .await
+                .unwrap(),
+            Some(*sudo_address.address_bytes())
+        );
+        assert_eq!(
+            state
+                .get_bridge_account_withdrawer_address(&bridge_address)
+                .await
+                .unwrap(),
+            Some(*withdrawer_address.address_bytes())
+        );
+    }
+
+    #[tokio::test]
+    async fn init_bridge_account_fails_if_withdrawer_address_is_not_base_prefixed() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = cnidarium::StateDelta::new(snapshot);
+
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        let bridge_address = astria_address(&[1; 20]);
+        let different_prefix = "different_prefix";
+        let withdrawer_address = Address::builder()
+            .prefix(different_prefix)
+            .array([0; 20])
+            .try_build()
+            .unwrap();
+
+        state.put_transaction_context(TransactionContext {
+            address_bytes: *bridge_address.address_bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+
+        let action = InitBridgeAccount {
+            rollup_id: RollupId::new([1; 32]),
+            asset: nria().into(),
+            fee_asset: nria().into(),
+            sudo_address: None,
+            withdrawer_address: Some(withdrawer_address),
+        };
+
+        assert_eyre_error(
+            &action.check_and_execute(&mut state).await.unwrap_err(),
+            &format!(
+                "address has prefix `{different_prefix}` but only `{ASTRIA_PREFIX}` is permitted"
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn init_bridge_account_fails_if_sudo_address_is_not_prefixed() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = cnidarium::StateDelta::new(snapshot);
+
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        let bridge_address = astria_address(&[1; 20]);
+        let different_prefix = "different_prefix";
+        let sudo_address = Address::builder()
+            .prefix(different_prefix)
+            .array([0; 20])
+            .try_build()
+            .unwrap();
+
+        state.put_transaction_context(TransactionContext {
+            address_bytes: *bridge_address.address_bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+
+        let action = InitBridgeAccount {
+            rollup_id: RollupId::new([1; 32]),
+            asset: nria().into(),
+            fee_asset: nria().into(),
+            sudo_address: Some(sudo_address),
+            withdrawer_address: None,
+        };
+
+        assert_eyre_error(
+            &action.check_and_execute(&mut state).await.unwrap_err(),
+            &format!(
+                "address has prefix `{different_prefix}` but only `{ASTRIA_PREFIX}` is permitted"
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn init_bridge_account_fails_if_bridge_account_already_exists() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = cnidarium::StateDelta::new(snapshot);
+
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+        let bridge_address = astria_address(&[1; 20]);
+        let rollup_id = RollupId::new([1; 32]);
+
+        state.put_transaction_context(TransactionContext {
+            address_bytes: *bridge_address.address_bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+        state
+            .put_bridge_account_rollup_id(&bridge_address, rollup_id)
+            .unwrap();
+
+        let action = InitBridgeAccount {
+            rollup_id,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+            sudo_address: None,
+            withdrawer_address: None,
+        };
+
+        assert_eyre_error(
+            &action.check_and_execute(&mut state).await.unwrap_err(),
+            "bridge account already exists",
+        );
+    }
+}

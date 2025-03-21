@@ -9,7 +9,10 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use async_trait::async_trait;
-use cnidarium::StateWrite;
+use cnidarium::{
+    StateRead,
+    StateWrite,
+};
 use tracing::{
     instrument,
     Level,
@@ -26,7 +29,6 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::StateReadExt as _,
 };
 
 #[async_trait]
@@ -53,37 +55,20 @@ impl ActionHandler for BridgeUnlock {
 
     #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        let from = state
-            .get_transaction_context()
-            .expect("transaction source must be present in state when executing an action")
-            .address_bytes();
-        state
-            .ensure_base_prefix(&self.to)
+        check_bridge_unlock(self, &state).await?;
+
+        if state
+            .is_a_bridge_account(&self.to)
             .await
-            .wrap_err("failed check for base prefix of destination address")?;
-        state
-            .ensure_base_prefix(&self.bridge_address)
-            .await
-            .wrap_err("failed check for base prefix of bridge address")?;
+            .wrap_err("failed to check if `to` address is a bridge account")?
+        {
+            bail!("bridge accounts cannot receive bridge unlocks");
+        }
 
         let asset = state
             .get_bridge_account_ibc_asset(&self.bridge_address)
             .await
             .wrap_err("failed to get bridge's asset id, must be a bridge account")?;
-
-        // check that the sender of this tx is the authorized withdrawer for the bridge account
-        let Some(withdrawer_address) = state
-            .get_bridge_account_withdrawer_address(&self.bridge_address)
-            .await
-            .wrap_err("failed to get bridge account withdrawer address")?
-        else {
-            bail!("bridge account does not have an associated withdrawer address");
-        };
-
-        ensure!(
-            withdrawer_address == from,
-            "unauthorized to unlock bridge account",
-        );
 
         let transfer_action = Transfer {
             to: self.to,
@@ -107,17 +92,31 @@ impl ActionHandler for BridgeUnlock {
     }
 }
 
+pub(super) async fn check_bridge_unlock<S: StateRead>(
+    bridge_unlock: &BridgeUnlock,
+    state: &S,
+) -> Result<()> {
+    state
+        .ensure_base_prefix(&bridge_unlock.to)
+        .await
+        .wrap_err("failed check for base prefix of destination address")?;
+    state
+        .ensure_base_prefix(&bridge_unlock.bridge_address)
+        .await
+        .wrap_err("failed check for base prefix of bridge address")?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use astria_core::{
         primitive::v1::{
+            Address,
             RollupId,
             TransactionId,
         },
-        protocol::{
-            fees::v1::FeeComponents,
-            transaction::v1::action::BridgeUnlock,
-        },
+        protocol::transaction::v1::action::BridgeUnlock,
     };
     use cnidarium::StateDelta;
 
@@ -131,10 +130,10 @@ mod tests {
         benchmark_and_test_utils::{
             assert_eyre_error,
             astria_address,
+            nria,
             ASTRIA_PREFIX,
         },
         bridge::StateWriteExt as _,
-        fees::StateWriteExt as _,
         transaction::{
             StateWriteExt as _,
             TransactionContext,
@@ -162,6 +161,15 @@ mod tests {
         state
             .put_bridge_account_ibc_asset(&bridge_address, &asset)
             .unwrap();
+        state
+            .put_account_balance(&bridge_address, &asset, 1000)
+            .unwrap();
+        state
+            .put_bridge_account_rollup_id(
+                &bridge_address,
+                RollupId::from_unhashed_bytes(b"test_rollup_id"),
+            )
+            .unwrap();
 
         let bridge_unlock = BridgeUnlock {
             to: to_address,
@@ -173,10 +181,9 @@ mod tests {
             rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
         };
 
-        // invalid sender, doesn't match action's `from`, should fail
         assert_eyre_error(
             &bridge_unlock.check_and_execute(state).await.unwrap_err(),
-            "bridge account does not have an associated withdrawer address",
+            "bridge account must have a withdrawer address set",
         );
     }
 
@@ -205,6 +212,15 @@ mod tests {
         state
             .put_bridge_account_ibc_asset(&bridge_address, &asset)
             .unwrap();
+        state
+            .put_account_balance(&bridge_address, &asset, 1000)
+            .unwrap();
+        state
+            .put_bridge_account_rollup_id(
+                &bridge_address,
+                RollupId::from_unhashed_bytes(b"test_rollup_id"),
+            )
+            .unwrap();
 
         let bridge_unlock = BridgeUnlock {
             to: to_address,
@@ -219,7 +235,7 @@ mod tests {
         // invalid sender, doesn't match action's bridge account's withdrawer, should fail
         assert_eyre_error(
             &bridge_unlock.check_and_execute(state).await.unwrap_err(),
-            "unauthorized to unlock bridge account",
+            "signer is not the authorized withdrawer for the bridge account",
         );
     }
 
@@ -238,12 +254,7 @@ mod tests {
         state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         let asset = test_asset();
-        let transfer_fee = 10;
         let transfer_amount = 100;
-        state
-            .put_fees(FeeComponents::<BridgeUnlock>::new(transfer_fee, 0))
-            .unwrap();
-
         let to_address = astria_address(&[2; 20]);
         let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
 
@@ -256,10 +267,8 @@ mod tests {
         state
             .put_bridge_account_withdrawer_address(&bridge_address, bridge_address)
             .unwrap();
-        state.put_allowed_fee_asset(&asset).unwrap();
-        // Put plenty of balance
         state
-            .put_account_balance(&bridge_address, &asset, 3 * transfer_amount)
+            .put_account_balance(&bridge_address, &asset, 2 * transfer_amount)
             .unwrap();
 
         let bridge_unlock_first = BridgeUnlock {
@@ -288,5 +297,149 @@ mod tests {
                 .unwrap_err(),
             "withdrawal event already processed",
         );
+    }
+
+    #[tokio::test]
+    async fn bridge_unlock_fails_if_destination_address_is_not_base_prefixed() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        state.put_transaction_context(TransactionContext {
+            address_bytes: [1; 20],
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+
+        // Put different base prefix into state
+        let different_prefix = "different_prefix";
+        state.put_base_prefix(different_prefix.to_string()).unwrap();
+
+        let bridge_lock_action = BridgeUnlock {
+            to: astria_address(&[0; 20]), // not base prefixed
+            amount: 1,
+            fee_asset: nria().into(),
+            memo: String::new(),
+            bridge_address: astria_address(&[1; 20]),
+            rollup_block_number: 1,
+            rollup_withdrawal_event_id: "rollup_withdrawal_event_id".to_string(),
+        };
+
+        assert_eyre_error(
+            &bridge_lock_action
+                .check_and_execute(&mut state)
+                .await
+                .unwrap_err(),
+            &format!(
+                "address has prefix `{ASTRIA_PREFIX}` but only `{different_prefix}` is permitted"
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn bridge_unlock_fails_if_bridge_address_is_not_base_prefixed() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        state.put_transaction_context(TransactionContext {
+            address_bytes: [1; 20],
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+
+        // Construct non base-prefixed bridge address
+        let different_prefix = "different_prefix";
+        let bridge_address = Address::builder()
+            .array([1; 20])
+            .prefix(different_prefix)
+            .try_build()
+            .unwrap();
+
+        let bridge_lock_action = BridgeUnlock {
+            to: astria_address(&[0; 20]),
+            amount: 1,
+            fee_asset: nria().into(),
+            memo: String::new(),
+            bridge_address,
+            rollup_block_number: 1,
+            rollup_withdrawal_event_id: "rollup_withdrawal_event_id".to_string(),
+        };
+
+        assert_eyre_error(
+            &bridge_lock_action
+                .check_and_execute(&mut state)
+                .await
+                .unwrap_err(),
+            &format!(
+                "address has prefix `{different_prefix}` but only `{ASTRIA_PREFIX}` is permitted",
+            ),
+        );
+    }
+
+    #[tokio::test]
+    async fn bridge_unlock_fails_if_bridge_address_is_not_a_bridge_account() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let bridge_address = astria_address(&[1; 20]);
+        state.put_transaction_context(TransactionContext {
+            address_bytes: bridge_address.bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+
+        // No rollup ID or asset associated with `bridge_address` in state
+
+        let action = BridgeUnlock {
+            to: astria_address(&[2; 20]),
+            amount: 100,
+            fee_asset: nria().into(),
+            memo: String::new(),
+            bridge_address,
+            rollup_block_number: 1,
+            rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
+        };
+
+        assert_eyre_error(
+            &action.check_and_execute(&mut state).await.unwrap_err(),
+            "failed to get bridge's asset id, must be a bridge account",
+        );
+    }
+
+    #[tokio::test]
+    async fn bridge_unlock_fails_if_to_address_is_bridge_account() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let to_address = astria_address(&[2; 20]);
+        let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
+
+        state
+            .put_bridge_account_rollup_id(&to_address, rollup_id)
+            .unwrap();
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+
+        let bridge_unlock = BridgeUnlock {
+            to: to_address,
+            amount: 100,
+            fee_asset: test_asset().clone(),
+            memo: String::new(),
+            bridge_address: astria_address(&[1; 20]),
+            rollup_block_number: 1,
+            rollup_withdrawal_event_id: "a-rollup-defined-hash".to_string(),
+        };
+
+        let err = bridge_unlock
+            .check_and_execute(&mut state)
+            .await
+            .unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("bridge accounts cannot receive bridge unlocks"));
     }
 }

@@ -86,7 +86,15 @@ indicated by `prev_block_hash`. The following should be respected:
 - `prev_block_hash` MUST match hash of the `SOFT` commitment state block, return
   `FAILED_PRECONDITION` otherwise.
 - If block headers have timestamps, created block MUST have matching timestamp
-- The CommitmentState is NOT modified by the execution of the block.
+- The `CommitmentState` is NOT modified by the execution of the block.
+- It is up to the execution node if it includes the `sequencer_block_hash`
+  provided as a part of the block. If utilized the server MUST throw an
+  `INVALID_ARGUMENT` error if the `sequencer_block_hash` is not included in the
+  request.\
+  \
+  This field is an addition to the original API, running old versions of the
+  client which excluded it would otherwise create non-deterministic blocks
+  between nodes running different API client software.
 
 ### GetBlock
 
