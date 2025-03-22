@@ -20,7 +20,7 @@ pub struct Config {
     pub sequencer_cometbft_endpoint: String,
     // The chain id of the sequencer chain.
     pub sequencer_chain_id: String,
-    // Set to false to disable frost threshold signing.
+    // Set to true to disable frost threshold signing.
     pub no_frost_threshold_signing: bool,
     // The path to the private key used to sign transactions submitted to the sequencer.
     // Only used if `no_frost_threshold_signing` is true.
