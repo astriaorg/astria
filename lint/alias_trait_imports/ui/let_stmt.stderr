@@ -1,11 +1,11 @@
-warning: imported but unmentioned trait `Write` should be imported `as _`
+warning: Trait `Write` is imported but not explicitly used. Consider `Write as _`.
   --> $DIR/let_stmt.rs:4:5
    |
 LL |     use std::fmt::Write;
    |     ^^^^^^^^^^^^^^^^^^^^
    |
    = note: `#[warn(alias_trait_imports)]` on by default
-help: consider importing the trait `as _` to avoid namespace pollution
+help: Consider importing the trait `as _` to avoid namespace pollution: `Write as _`
    |
 LL |     use std::fmt::Write as _;
    |

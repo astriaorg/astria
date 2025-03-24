@@ -121,15 +121,13 @@ impl<'tcx> LateLintPass<'tcx> for AliasTraitImports {
                     .expect("parent of `Use` item should be a local item");
                 // If the parent is a function, the trait cannot be a re-export and the visibility
                 // check is skipped
-                if matches!(
+                if !matches!(
                     parent,
                     Node::Item(Item {
                         kind: ItemKind::Fn(..),
                         ..
                     })
                 ) {
-                    return;
-                } else {
                     // Check if this is a re-export, ignore if it is
                     let visibility = cx.tcx.visibility(item.owner_id.to_def_id());
                     let Visibility::Restricted(restricted_id) = visibility else {
