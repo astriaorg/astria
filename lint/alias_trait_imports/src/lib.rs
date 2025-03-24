@@ -58,7 +58,6 @@ use rustc_lint::{
     LintContext as _,
 };
 use rustc_middle::{
-    bug,
     hir::map::Map,
     ty::Visibility,
 };
@@ -120,34 +119,31 @@ impl<'tcx> LateLintPass<'tcx> for AliasTraitImports {
                 let parent = hir_map
                     .get_if_local(parent_def_id.into())
                     .expect("parent of `Use` item should be a local item");
-                match parent {
+                // If the parent is a function, the trait cannot be a re-export and the visibility
+                // check is skipped
+                if matches!(
+                    parent,
                     Node::Item(Item {
                         kind: ItemKind::Fn(..),
                         ..
-                    }) => {} // If the parent is a function, the trait cannot be a re-export and
-                    // this check is skipped
-                    _ => {
-                        // Check if this is a re-export, ignore if it is
-                        let visibility = cx.tcx.visibility(item.owner_id.to_def_id());
-                        match visibility {
-                            Visibility::Restricted(restricted_id) => {
-                                if cx.tcx.def_path_hash(restricted_id)
-                                    != cx.tcx.def_path_hash(parent_def_id)
-                                {
-                                    return; // If the visibility is higher, this is a re-export
-                                }
-                            }
-                            Visibility::Public => {
-                                return;
-                            }
-                        }
+                    })
+                ) {
+                    return;
+                } else {
+                    // Check if this is a re-export, ignore if it is
+                    let visibility = cx.tcx.visibility(item.owner_id.to_def_id());
+                    let Visibility::Restricted(restricted_id) = visibility else {
+                        return;
+                    };
+                    if cx.tcx.def_path_hash(restricted_id) != cx.tcx.def_path_hash(parent_def_id) {
+                        return; // If the visibility is higher, this is a re-export
                     }
                 }
 
                 // `span_snippet` is used to determine trait name, check for aliasing, and provide
                 // suggestion if lint is triggered
                 let Ok(mut span_snippet) = cx.sess().source_map().span_to_snippet(item.span) else {
-                    bug!("failed to extract source text from `Use` item")
+                    panic!("failed to extract source text from `Use` item")
                 };
 
                 // If trait is already aliased `as _`, ignore
@@ -209,10 +205,13 @@ impl<'tcx> LateLintPass<'tcx> for AliasTraitImports {
                         ALIAS_TRAIT_IMPORTS,
                         item.span,
                         format!(
-                            "imported but unmentioned trait `{trait_name}` should be imported `as \
-                             _`",
+                            "Trait `{trait_name}` is imported but not explicitly used. Consider \
+                             `{trait_name} as _`.",
                         ),
-                        "consider importing the trait `as _` to avoid namespace pollution",
+                        format!(
+                            "Consider importing the trait `as _` to avoid namespace pollution: \
+                             `{trait_name} as _`"
+                        ),
                         sugg,
                         rustc_errors::Applicability::MachineApplicable,
                     );
@@ -236,7 +235,8 @@ impl FindTrait for Mod<'_> {
     fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
         self.item_ids
             .iter()
-            .any(|item_id| hir.item(*item_id).find(trait_name, hir))
+            .map(|item_id| hir.item(*item_id))
+            .any(|item| item.find(trait_name, hir))
     }
 }
 
@@ -269,9 +269,10 @@ impl FindTrait for Item<'_> {
             ItemKind::Trait(_, _, generics, generic_bounds, trait_item_refs) => {
                 generics.find(trait_name, hir)
                     || generic_bounds.find(trait_name, hir)
-                    || trait_item_refs.iter().any(|trait_item_ref| {
-                        hir.trait_item(trait_item_ref.id).find(trait_name, hir)
-                    })
+                    || trait_item_refs
+                        .iter()
+                        .map(|trait_item_ref| hir.trait_item(trait_item_ref.id))
+                        .any(|trait_item| trait_item.find(trait_name, hir))
             }
             ItemKind::TraitAlias(generics, generic_bounds) => {
                 generics.find(trait_name, hir) || generic_bounds.find(trait_name, hir)
@@ -280,7 +281,8 @@ impl FindTrait for Item<'_> {
                 impl_statement
                     .items
                     .iter()
-                    .any(|item| hir.impl_item(item.id).find(trait_name, hir))
+                    .map(|impl_item_ref| hir.impl_item(impl_item_ref.id))
+                    .any(|impl_item| impl_item.find(trait_name, hir))
                     || impl_statement.generics.find(trait_name, hir)
                     || impl_statement
                         .of_trait
@@ -514,13 +516,12 @@ impl FindTrait for Generics<'_> {
 
 impl FindTrait for WherePredicate<'_> {
     fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
-        match self {
-            WherePredicate::BoundPredicate(predicate) => {
-                predicate.bound_generic_params.find(trait_name, hir)
-                    || predicate.bounded_ty.find(trait_name, hir)
-                    || predicate.bounds.find(trait_name, hir)
-            }
-            WherePredicate::RegionPredicate(_) | WherePredicate::EqPredicate(_) => false,
+        if let WherePredicate::BoundPredicate(predicate) = self {
+            predicate.bound_generic_params.find(trait_name, hir)
+                || predicate.bounded_ty.find(trait_name, hir)
+                || predicate.bounds.find(trait_name, hir)
+        } else {
+            false
         }
     }
 }
@@ -550,9 +551,12 @@ impl FindTrait for Ty<'_> {
 
 impl FindTrait for [GenericBound<'_>] {
     fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
-        self.iter().any(|bound| match bound {
-            GenericBound::Trait(poly_trait_ref, _modifier) => poly_trait_ref.find(trait_name, hir),
-            GenericBound::Outlives(_) | GenericBound::Use(..) => false,
+        self.iter().any(|bound| {
+            if let GenericBound::Trait(poly_trait_ref, _modifier) = bound {
+                poly_trait_ref.find(trait_name, hir)
+            } else {
+                false
+            }
         })
     }
 }
@@ -606,9 +610,12 @@ impl FindTrait for Path<'_> {
 
 impl FindTrait for GenericArgs<'_> {
     fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
-        self.args.iter().any(|arg| match arg {
-            GenericArg::Type(ty) => ty.find(trait_name, hir),
-            GenericArg::Lifetime(_) | GenericArg::Const(_) | GenericArg::Infer(_) => false,
+        self.args.iter().any(|arg| {
+            if let GenericArg::Type(ty) = arg {
+                ty.find(trait_name, hir)
+            } else {
+                false
+            }
         })
     }
 }
