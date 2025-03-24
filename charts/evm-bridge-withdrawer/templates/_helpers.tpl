@@ -13,7 +13,16 @@ Namepsace to deploy elements into.
 application name to deploy elements into.
 */}}
 {{- define "evm-bridge-withdrawer.appName" -}}
-evm-bridge-withdrawer-{{ .Values.global.serviceName }}
+evm-bridge-withdrawer-{{ .Values.config.assetName }}
+{{- end }}
+
+{{/*
+Signer endpoints config string
+*/}}
+{{- define "evm-bridge-withdrawer.frostParticipantEndpoints" }}
+{{- range $index, $element := $.Values.config.frostParticipantEndpoints }}
+{{- if $index }},{{- end }}{{- $element }}
+{{- end }}
 {{- end }}
 
 {{/*

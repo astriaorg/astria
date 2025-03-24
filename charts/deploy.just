@@ -164,8 +164,19 @@ deploy-bridge-withdrawer:
 delete-bridge-withdrawer:
   @just delete chart evm-bridge-withdrawer astria-dev-cluster
 
+signerName := "signer1"
+deploy-bridge-signer name=signerName:
+  helm install {{name}}-bridge-signer-chart charts/bridge-signer \
+    -f dev/values/signers/values-all.yaml \
+    -f dev/values/signers/{{name}}.yaml \
+    -n astria-signer-{{name}} --create-namespace \
+
+deploy-bridge-signers: (deploy-bridge-signer "signer1") (deploy-bridge-signer "signer2")
+delete-bridge-signer name=signerName:
+  @just delete chart {{name}}-bridge-signer astria-signer-{{name}}
+
 wait-for-bridge-withdrawer:
-  kubectl wait -n astria-dev-cluster deployment evm-bridge-withdrawer-local --for=condition=Available=True --timeout=600s
+  kubectl wait -n astria-dev-cluster deployment evm-bridge-withdrawer-nria --for=condition=Available=True --timeout=600s
 
 defaultHypAgentConfig         := ""
 defaultHypRelayerPrivateKey   := ""
@@ -262,6 +273,7 @@ init-rollup-bridge tag=defaultTag rollupName=defaultRollupName evmDestinationAdd
     --private-key {{sequencer_bridge_pkey}} \
     --sequencer.chain-id {{sequencer_chain_id}} \
     --sequencer-url {{sequencer_rpc_url}} \
+    --withdrawer-address astria1w2lxx9p02u7u934ljl060wannqm40g3y089lmh \
     --fee-asset=$FEE_ASSET --asset=$ASSET || exit 1
   docker run --rm --network host $IMAGE sequencer bridge-lock {{sequencer_bridge_address}} \
     --amount $TRANSFER_AMOUNT \

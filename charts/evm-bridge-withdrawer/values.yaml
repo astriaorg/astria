@@ -3,7 +3,6 @@
 # Declare variables to be passed into your templates.
 global:
   namespaceOverride: ""
-  serviceName: "local"
   replicaCount: 1
   useTTY: true
   dev: false
@@ -11,12 +10,14 @@ global:
 # sequencer core images
 images:
   evmBridgeWithdrawer:
-    repo: ghcr.io/astriaorg/evm-bridge-withdrawer
+    repo: ghcr.io/astriaorg/bridge-withdrawer
     pullPolicy: IfNotPresent
     tag: 1.0.3
-    devTag: latest
+    devTag: local
 
 config:
+  logLevel: "trace"
+  assetName: "nria"
   sequencerGrpcEndpoint: ""
   sequencerCometbftEndpoint: ""
   sequencerChainId: ""
@@ -28,15 +29,26 @@ config:
   rollupAssetDenom: ""
   evmContractAddress: "0x"
   evmRpcEndpoint: ""
-  noFrostThresholdSigning: "true"
+  frostThresholdSigning: false
   frostMinSigners: "0"
-  frostPublicKeyPackagePath: ""
-  frostParticipantEndpoints: ""
+  frostParticipantEndpoints: 
+    # - "http://120.0.0.1:9000"
+  frostPubKeyPackage:
+    filename: "pubkey.json"
+    devContent:
+      header:
+        version: 0
+        ciphersuite: "FROST-ED25519-SHA512-v1"
+      verifying_shares:
+        "0100000000000000000000000000000000000000000000000000000000000000": ""
+        "0200000000000000000000000000000000000000000000000000000000000000": ""
+      verifying_key: ""
   sequencerPrivateKey:
     devContent: ""
     secret:
       filename: "key.hex"
       resourceName: "projects/$PROJECT_ID/secrets/celestiaPrivateKey/versions/latest"
+
 ports:
   healthAPI: 2450
   metrics: 9000

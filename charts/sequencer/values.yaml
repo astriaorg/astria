@@ -41,7 +41,7 @@ images:
   sequencer:
     repo: ghcr.io/astriaorg/sequencer
     pullPolicy: IfNotPresent
-    tag: latest
+    tag: local
 
 # Moniker is used for the cometbft node name, and various chart names.
 # This must be set.
@@ -150,7 +150,7 @@ sequencer:
 cometbft:
   config:
     # Log configurations
-    logLevel: "info"
+    logLevel: "debug"
     logFormat: "plain"
     # Grpc server configuration
     grpc:
