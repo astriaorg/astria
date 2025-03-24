@@ -14,7 +14,7 @@ images:
   geth:
     repo: ghcr.io/astriaorg/astria-geth
     pullPolicy: IfNotPresent
-    tag: pr-59
+    tag: pr-78
   conductor:
     repo: ghcr.io/astriaorg/conductor
     pullPolicy: IfNotPresent
