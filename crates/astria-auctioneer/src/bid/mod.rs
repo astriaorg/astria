@@ -23,7 +23,7 @@ use astria_eyre::eyre::{
 use bytes::Bytes;
 use prost::{
     Message as _,
-    Name,
+    Name as _,
 };
 
 use crate::sequencer_key::SequencerKey;

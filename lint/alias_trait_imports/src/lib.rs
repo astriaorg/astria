@@ -531,7 +531,7 @@ impl FindTrait for Ty<'_> {
             TyKind::TraitObject(trait_refs, ..) => trait_refs
                 .iter()
                 .any(|(poly_trait_ref, _)| poly_trait_ref.find(trait_name, hir)),
-            TyKind::OpaqueDef(item_id, ..) => hir.item(item_id).ident.name == trait_name,
+            TyKind::OpaqueDef(item_id, ..) => hir.item(item_id).find(trait_name, hir),
             TyKind::Path(qpath) => qpath.find(trait_name, hir),
             TyKind::Slice(ty) | TyKind::Array(ty, _) => ty.find(trait_name, hir),
             TyKind::Ptr(mut_ty) | TyKind::Ref(_, mut_ty) => mut_ty.ty.find(trait_name, hir),

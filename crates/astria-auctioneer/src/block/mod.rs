@@ -13,12 +13,12 @@ use astria_core::{
         },
         RollupTransactions,
     },
-    Protobuf,
+    Protobuf as _,
 };
 use astria_eyre::eyre::{
     self,
     eyre,
-    Context,
+    Context as _,
 };
 use bytes::Bytes;
 use prost::Message as _;

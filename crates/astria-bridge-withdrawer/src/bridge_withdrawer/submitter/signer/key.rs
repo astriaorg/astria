@@ -18,7 +18,7 @@ use astria_eyre::eyre::{
     self,
     bail,
     eyre,
-    Context,
+    Context as _,
 };
 
 #[derive(Debug, Clone)]
