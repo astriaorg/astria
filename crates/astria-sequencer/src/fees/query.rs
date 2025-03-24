@@ -559,3 +559,105 @@ struct FeeComponent {
     base: u128,
     multiplier: u128,
 }
+
+#[cfg(test)]
+mod test {
+    use astria_core::{
+        generated::astria::protocol::fees::v1::TransactionFeeResponse as RawTransactionFeeResponse,
+        primitive::v1::RollupId,
+        protocol::fees::v1::TransactionFeeResponse,
+    };
+
+    use super::*;
+    use crate::{
+        app::StateWriteExt as _,
+        assets::StateWriteExt as _,
+        benchmark_and_test_utils::astria_address,
+        fees::StateWriteExt as _,
+    };
+
+    #[tokio::test]
+    async fn transaction_fee_request_ok() {
+        let asset_a: Denom = "test-asset-a".parse().unwrap();
+        let asset_b: Denom = "test-asset-b".parse().unwrap();
+        let action_a = Transfer {
+            to: astria_address([1u8; 20].as_slice()),
+            amount: 100,
+            asset: asset_a.clone(),
+            fee_asset: asset_a.clone(),
+        };
+        let action_b = RollupDataSubmission {
+            data: vec![1, 2, 3].into(),
+            rollup_id: RollupId::from_unhashed_bytes(b"rollupid"),
+            fee_asset: asset_b.clone(),
+        };
+        let chain_id = "test-1";
+
+        let body = TransactionBody::builder()
+            .actions(vec![action_a.clone().into(), action_b.clone().into()])
+            .chain_id(chain_id)
+            .nonce(0)
+            .try_build()
+            .unwrap();
+
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = cnidarium::StateDelta::new(snapshot);
+
+        let transfer_base_fee = 10;
+        let transfer_multiplier = 1;
+        let rollup_data_submission_base_fee = 20;
+        let rollup_data_submission_multiplier = 2;
+        state
+            .put_fees::<Transfer>(FeeComponents::new(transfer_base_fee, transfer_multiplier))
+            .unwrap();
+        state
+            .put_fees::<RollupDataSubmission>(FeeComponents::new(
+                rollup_data_submission_base_fee,
+                rollup_data_submission_multiplier,
+            ))
+            .unwrap();
+        state.put_block_height(1).unwrap();
+        state
+            .put_ibc_asset(asset_a.clone().unwrap_trace_prefixed())
+            .unwrap();
+        state
+            .put_ibc_asset(asset_b.clone().unwrap_trace_prefixed())
+            .unwrap();
+        storage.commit(state).await.unwrap();
+
+        let query = request::Query {
+            data: body.into_raw().encode_to_vec().into(),
+            path: "path".to_string(),
+            height: 0u32.into(),
+            prove: false,
+        };
+
+        let resp = transaction_fee_request(storage.clone(), query, vec![]).await;
+        assert_eq!(resp.code, 0.into(), "{}", resp.log);
+
+        let proto = RawTransactionFeeResponse::decode(&*resp.value).unwrap();
+        let mut resp = TransactionFeeResponse::try_from_raw(proto).unwrap();
+        let mut expected = TransactionFeeResponse {
+            height: 1,
+            fees: vec![
+                (
+                    asset_a,
+                    transfer_base_fee + transfer_multiplier * action_a.variable_component(),
+                ),
+                (
+                    asset_b,
+                    rollup_data_submission_base_fee
+                        + rollup_data_submission_multiplier * action_b.variable_component(),
+                ),
+            ],
+        };
+        resp.fees
+            .sort_by(|a: &(Denom, u128), b: &(Denom, u128)| a.0.cmp(&b.0));
+        expected
+            .fees
+            .sort_by(|a: &(Denom, u128), b: &(Denom, u128)| a.0.cmp(&b.0));
+
+        assert_eq!(resp, expected);
+    }
+}

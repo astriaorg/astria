@@ -179,7 +179,7 @@ pub struct RecoverIbcClientFeeComponents {
     pub multiplier: u128,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransactionFeeResponse {
     pub height: u64,
     pub fees: Vec<(asset::Denom, u128)>,
