@@ -12,6 +12,7 @@ use rustc_hir::{
         DefKind,
         Res,
     },
+    def_id::DefId,
     Arm,
     Block,
     Body,
@@ -49,6 +50,7 @@ use rustc_hir::{
     Ty,
     TyKind,
     UseKind,
+    UsePath,
     VariantData,
     WherePredicate,
 };
@@ -100,83 +102,37 @@ dylint_linting::declare_late_lint! {
 impl<'tcx> LateLintPass<'tcx> for AliasTraitImports {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         // Ignore generated files
-        let file_name = cx.sess().source_map().span_to_filename(item.span);
-        if let FileName::Real(path) = file_name {
-            if path
-                .to_string_lossy(FileNameDisplayPreference::Local)
-                .contains("crates/astria-core/src/generated")
-            {
-                return;
-            }
+        if is_generated_file(cx, item.span) {
+            return;
         }
 
         let hir_map = cx.tcx.hir();
         if let ItemKind::Use(path, UseKind::Single) = item.kind {
             // Check if the import is a trait
             if let Res::Def(DefKind::Trait, _) = path.res[0] {
-                // Check if the trait is a re-export, ignoring if it is
                 let parent_def_id = hir_map.get_parent_item(item.hir_id()).to_def_id();
-                let parent = hir_map
-                    .get_if_local(parent_def_id.into())
-                    .expect("parent of `Use` item should be a local item");
-                // If the parent is a function, the trait cannot be a re-export and the visibility
-                // check is skipped
-                if !matches!(
-                    parent,
-                    Node::Item(Item {
-                        kind: ItemKind::Fn(..),
-                        ..
-                    })
-                ) {
-                    // Check if this is a re-export, ignore if it is
-                    let visibility = cx.tcx.visibility(item.owner_id.to_def_id());
-                    let Visibility::Restricted(restricted_id) = visibility else {
+                let parent = match hir_map.get_if_local(parent_def_id.into()) {
+                    Some(node) => node,
+                    None => {
+                        log_error(cx, "parent of `Use` item not local".to_string());
                         return;
-                    };
-                    if cx.tcx.def_path_hash(restricted_id) != cx.tcx.def_path_hash(parent_def_id) {
-                        return; // If the visibility is higher, this is a re-export
                     }
-                }
-
-                // `span_snippet` is used to determine trait name, check for aliasing, and provide
-                // suggestion if lint is triggered
-                let Ok(mut span_snippet) = cx.sess().source_map().span_to_snippet(item.span) else {
-                    panic!("failed to extract source text from `Use` item")
                 };
 
-                // If trait is already aliased `as _`, ignore
-                if span_snippet.contains(" as _") {
+                // Check if this is a re-export - ignore if it is
+                if is_reexport(cx, item, parent_def_id, parent) {
                     return;
                 }
 
-                // Extract trait name
-                let mut trait_name = match path.segments.last() {
-                    Some(segment) if segment.ident.name != kw::Underscore => segment.ident.name,
-                    None | Some(_) => return,
+                // Extract trait information and check if it's already aliased
+                let (trait_name, span_snippet) = match extract_trait_info(cx, item, path) {
+                    Ok(Some((name, snippet))) => (name, snippet),
+                    Ok(None) => return, // Trait already aliased `as _`
+                    Err(err) => {
+                        log_error(cx, err);
+                        return;
+                    }
                 };
-
-                // If the trait is aliased as something other than `_`, assign `trait_name` to alias
-                // and trim the alias from the span snippet for correct lint
-                // suggestion
-                if trait_name != item.ident.name && span_snippet.contains(" as ") {
-                    let mut semicolon_suffix = false;
-                    let mut suffix_to_strip = format!(" as {}", item.ident.name);
-                    if span_snippet.ends_with(';') {
-                        semicolon_suffix = true;
-                        suffix_to_strip.push(';');
-                    }
-                    span_snippet = span_snippet
-                        .strip_suffix(&suffix_to_strip)
-                        .expect(&format!(
-                            "aliased trait import should have the suffix \"{trait_name} as {}\"",
-                            item.ident.name
-                        ))
-                        .to_string();
-                    trait_name = item.ident.name;
-                    if semicolon_suffix {
-                        span_snippet.push(';');
-                    }
-                }
 
                 // These are the only possible parents for a `Use` item
                 let found = match parent {
@@ -186,37 +142,154 @@ impl<'tcx> LateLintPass<'tcx> for AliasTraitImports {
                     Node::Stmt(stmt) => stmt.find(trait_name, &hir_map),
                     Node::TraitItem(trait_item) => trait_item.find(trait_name, &hir_map),
                     Node::ImplItem(impl_item) => impl_item.find(trait_name, &hir_map),
-                    _ => panic!("unexpected parent of `Use` item"),
+                    _ => {
+                        log_error(cx, "unexpected parent of `Use` item".to_string());
+                        return;
+                    }
                 };
 
                 // Check if the trait name is explicitly used
                 if !found {
-                    // Semicolons are included in the span snippet, so they must be handled
-                    // accordingly, whereas commas are not
-                    let sugg = if span_snippet.ends_with(';') {
-                        format!("{} as _;", span_snippet.strip_suffix(';').unwrap())
-                    } else {
-                        format!("{span_snippet} as _")
-                    };
-                    span_lint_and_sugg(
-                        cx,
-                        ALIAS_TRAIT_IMPORTS,
-                        item.span,
-                        format!(
-                            "Trait `{trait_name}` is imported but not explicitly used. Consider \
-                             `{trait_name} as _`.",
-                        ),
-                        format!(
-                            "Consider importing the trait `as _` to avoid namespace pollution: \
-                             `{trait_name} as _`"
-                        ),
-                        sugg,
-                        rustc_errors::Applicability::MachineApplicable,
-                    );
+                    suggest_alias(cx, item, trait_name, span_snippet);
                 }
             }
         }
     }
+}
+
+fn log_error(cx: &LateContext<'_>, msg: String) {
+    cx.sess().dcx().warn(msg);
+}
+
+// Checks if a file is generated
+fn is_generated_file(cx: &LateContext<'_>, span: rustc_span::Span) -> bool {
+    let file_name = cx.sess().source_map().span_to_filename(span);
+    if let FileName::Real(path) = file_name {
+        path.to_string_lossy(FileNameDisplayPreference::Local)
+            .contains("crates/astria-core/src/generated")
+    } else {
+        false
+    }
+}
+
+// Checks if import is a re-export
+fn is_reexport<'tcx>(
+    cx: &LateContext<'tcx>,
+    item: &'tcx Item<'tcx>,
+    parent_def_id: DefId,
+    parent: Node<'tcx>,
+) -> bool {
+    // If the parent is a function, the trait cannot be a re-export and the visibility
+    // check is skipped
+    if matches!(
+        parent,
+        Node::Item(Item {
+            kind: ItemKind::Fn(..),
+            ..
+        })
+    ) {
+        return false;
+    }
+
+    // Check if this is a re-export
+    let visibility = cx.tcx.visibility(item.owner_id.to_def_id());
+    match visibility {
+        Visibility::Restricted(restricted_id) => {
+            cx.tcx.def_path_hash(restricted_id) != cx.tcx.def_path_hash(parent_def_id)
+        }
+        _ => true, // If the visibility is public, this is a re-export
+    }
+}
+
+// Extract trait name and span snippet
+fn extract_trait_info<'tcx>(
+    cx: &LateContext<'tcx>,
+    item: &'tcx Item<'tcx>,
+    path: &'tcx UsePath<'tcx>,
+) -> Result<Option<(Symbol, String)>, String> {
+    // Get the snippet for the import
+    let span_snippet = match cx.sess().source_map().span_to_snippet(item.span) {
+        Ok(snippet) => snippet,
+        Err(err) => {
+            return Err(format!(
+                "Failed to extract source text from `Use` item at {:?}.\n
+                Error: {:?}",
+                item.span, err
+            ));
+        }
+    };
+
+    // If trait is already aliased `as _`, ignore
+    if span_snippet.contains(" as _") {
+        return Ok(None);
+    }
+
+    // Extract trait name
+    let trait_name = match path.segments.last() {
+        Some(segment) if segment.ident.name != kw::Underscore => segment.ident.name,
+        Some(_) => return Ok(None),
+        None => {
+            return Err(format!(
+                "Failed to extract trait name from `Use` item at {:?}.",
+                item.span
+            ));
+        }
+    };
+
+    // If the trait is aliased as something other than `_`, assign `trait_name` to alias
+    // and trim the alias from the span snippet for correct lint suggestion
+    let mut result_trait_name = trait_name;
+    let mut result_snippet = span_snippet.clone();
+
+    if trait_name != item.ident.name && span_snippet.contains(" as ") {
+        let mut semicolon_suffix = false;
+        let mut suffix_to_strip = format!(" as {}", item.ident.name);
+        if span_snippet.ends_with(';') {
+            semicolon_suffix = true;
+            suffix_to_strip.push(';');
+        }
+
+        if let Some(stripped) = span_snippet.strip_suffix(&suffix_to_strip) {
+            result_snippet = stripped.to_string();
+            result_trait_name = item.ident.name;
+            if semicolon_suffix {
+                result_snippet.push(';');
+            }
+        } else {
+            return Err(format!(
+                "Failed to strip suffix '{}' from '{}'",
+                suffix_to_strip, span_snippet
+            ));
+        }
+    }
+
+    Ok(Some((result_trait_name, result_snippet)))
+}
+
+// Create and provide suggestion
+fn suggest_alias(cx: &LateContext<'_>, item: &Item<'_>, trait_name: Symbol, span_snippet: String) {
+    // Semicolons are included in the span snippet, so they must be handled accordingly
+    let sugg = if span_snippet.ends_with(';') {
+        format!("{} as _;", span_snippet.strip_suffix(';').unwrap())
+    } else {
+        // Commas are not included in span snippet
+        format!("{span_snippet} as _")
+    };
+
+    span_lint_and_sugg(
+        cx,
+        ALIAS_TRAIT_IMPORTS,
+        item.span,
+        format!(
+            "Trait `{trait_name}` is imported but not explicitly used. Consider `{trait_name} as \
+             _`.",
+        ),
+        format!(
+            "Consider importing the trait `as _` to avoid namespace pollution: `{trait_name} as _`"
+        ),
+        sugg,
+        rustc_errors::Applicability::MachineApplicable,
+    );
 }
 
 trait FindTrait {
@@ -233,85 +306,78 @@ impl FindTrait for Mod<'_> {
     fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
         self.item_ids
             .iter()
-            .map(|item_id| hir.item(*item_id))
-            .any(|item| item.find(trait_name, hir))
+            .any(|item_id| hir.item(*item_id).find(trait_name, hir))
     }
 }
 
 impl FindTrait for Item<'_> {
     fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        use ItemKind::*;
         match self.kind {
-            ItemKind::Mod(module) => module.find(trait_name, hir),
-            ItemKind::Fn(sig, generics, body_id) => {
+            Mod(module) => module.find(trait_name, hir),
+            Fn(sig, generics, body_id) => {
                 sig.find(trait_name, hir)
                     || generics.find(trait_name, hir)
                     || hir.body(body_id).find(trait_name, hir)
             }
-            ItemKind::Static(ty, _, body_id) => {
+            Static(ty, _, body_id) => {
                 ty.find(trait_name, hir) || hir.body(body_id).find(trait_name, hir)
             }
-            ItemKind::Const(ty, generics, body_id) => {
+            Const(ty, generics, body_id) => {
                 ty.find(trait_name, hir)
                     || generics.find(trait_name, hir)
                     || hir.body(body_id).find(trait_name, hir)
             }
-            ItemKind::TyAlias(ty, generics) => {
-                ty.find(trait_name, hir) || generics.find(trait_name, hir)
-            }
-            ItemKind::Enum(_, generics) | ItemKind::Union(_, generics) => {
-                generics.find(trait_name, hir)
-            }
-            ItemKind::Struct(variant_data, generics) => {
+            TyAlias(ty, generics) => ty.find(trait_name, hir) || generics.find(trait_name, hir),
+            Enum(_, generics) | Union(_, generics) => generics.find(trait_name, hir),
+            Struct(variant_data, generics) => {
                 variant_data.find(trait_name, hir) || generics.find(trait_name, hir)
             }
-            ItemKind::Trait(_, _, generics, generic_bounds, trait_item_refs) => {
+            Trait(_, _, generics, generic_bounds, trait_item_refs) => {
                 generics.find(trait_name, hir)
                     || generic_bounds.find(trait_name, hir)
-                    || trait_item_refs
-                        .iter()
-                        .map(|trait_item_ref| hir.trait_item(trait_item_ref.id))
-                        .any(|trait_item| trait_item.find(trait_name, hir))
+                    || trait_item_refs.iter().any(|trait_item_ref| {
+                        hir.trait_item(trait_item_ref.id).find(trait_name, hir)
+                    })
             }
-            ItemKind::TraitAlias(generics, generic_bounds) => {
+            TraitAlias(generics, generic_bounds) => {
                 generics.find(trait_name, hir) || generic_bounds.find(trait_name, hir)
             }
-            ItemKind::Impl(impl_statement) => {
+            Impl(impl_statement) => {
                 impl_statement
                     .items
                     .iter()
-                    .map(|impl_item_ref| hir.impl_item(impl_item_ref.id))
-                    .any(|impl_item| impl_item.find(trait_name, hir))
+                    .any(|impl_item_ref| hir.impl_item(impl_item_ref.id).find(trait_name, hir))
                     || impl_statement.generics.find(trait_name, hir)
                     || impl_statement
                         .of_trait
                         .as_ref()
                         .map_or(false, |trait_ref| trait_ref.find(trait_name, hir))
             }
-            ItemKind::OpaqueTy(opaque_ty) => {
+            OpaqueTy(opaque_ty) => {
                 opaque_ty.generics.find(trait_name, hir) || opaque_ty.bounds.find(trait_name, hir)
             }
-            ItemKind::ExternCrate(_)
-            | ItemKind::Use(..)
-            | ItemKind::Macro(..)
-            | ItemKind::ForeignMod {
+            ExternCrate(_)
+            | Use(..)
+            | Macro(..)
+            | ForeignMod {
                 abi: _,
                 items: _,
             }
-            | ItemKind::GlobalAsm(_) => false,
+            | GlobalAsm(_) => false,
         }
     }
 }
 
 impl FindTrait for VariantData<'_> {
     fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        use VariantData::*;
         match self {
-            VariantData::Struct {
+            Struct {
                 fields, ..
             } => fields.iter().any(|field| field.ty.find(trait_name, hir)),
-            VariantData::Tuple(fields, ..) => {
-                fields.iter().any(|field| field.ty.find(trait_name, hir))
-            }
-            VariantData::Unit(..) => false,
+            Tuple(fields, ..) => fields.iter().any(|field| field.ty.find(trait_name, hir)),
+            Unit(..) => false,
         }
     }
 }
@@ -327,13 +393,14 @@ impl FindTrait for Body<'_> {
 
 impl FindTrait for TraitItem<'_> {
     fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        use TraitItemKind::*;
         self.generics.find(trait_name, hir)
             || match self.kind {
-                TraitItemKind::Const(ty, _) => ty.find(trait_name, hir),
-                TraitItemKind::Fn(fn_sig, trait_fn) => {
+                Const(ty, _) => ty.find(trait_name, hir),
+                Fn(fn_sig, trait_fn) => {
                     fn_sig.find(trait_name, hir) || trait_fn.find(trait_name, hir)
                 }
-                TraitItemKind::Type(bounds, ty) => {
+                Type(bounds, ty) => {
                     bounds.find(trait_name, hir) || ty.map_or(false, |ty| ty.find(trait_name, hir))
                 }
             }
@@ -342,19 +409,21 @@ impl FindTrait for TraitItem<'_> {
 
 impl FindTrait for TraitFn<'_> {
     fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        use TraitFn::*;
         match self {
-            TraitFn::Required(idents) => idents.iter().any(|ident| ident.name == trait_name),
-            TraitFn::Provided(body_id) => hir.body(*body_id).find(trait_name, hir),
+            Required(idents) => idents.iter().any(|ident| ident.name == trait_name),
+            Provided(body_id) => hir.body(*body_id).find(trait_name, hir),
         }
     }
 }
 
 impl FindTrait for ImplItem<'_> {
     fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        use ImplItemKind::*;
         self.generics.find(trait_name, hir)
             || match self.kind {
-                ImplItemKind::Const(ty, _) | ImplItemKind::Type(ty) => ty.find(trait_name, hir),
-                ImplItemKind::Fn(fn_sig, body_id) => {
+                Const(ty, _) | Type(ty) => ty.find(trait_name, hir),
+                Fn(fn_sig, body_id) => {
                     fn_sig.find(trait_name, hir) || hir.body(body_id).find(trait_name, hir)
                 }
             }
@@ -369,10 +438,11 @@ impl FindTrait for FnSig<'_> {
 
 impl FindTrait for FnDecl<'_> {
     fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        use FnRetTy::*;
         self.inputs.iter().any(|input| input.find(trait_name, hir))
             || match self.output {
-                FnRetTy::Return(ty) => ty.find(trait_name, hir),
-                FnRetTy::DefaultReturn(_) => false,
+                Return(ty) => ty.find(trait_name, hir),
+                DefaultReturn(_) => false,
             }
     }
 }
@@ -386,47 +456,47 @@ impl FindTrait for Block<'_> {
 
 impl FindTrait for Stmt<'_> {
     fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        use StmtKind::*;
         match self.kind {
-            StmtKind::Let(let_stmt) => let_stmt.find(trait_name, hir),
-            StmtKind::Item(item) => hir.item(item).find(trait_name, hir),
-            StmtKind::Expr(expr) | StmtKind::Semi(expr) => expr.find(trait_name, hir),
+            Let(let_stmt) => let_stmt.find(trait_name, hir),
+            Item(item) => hir.item(item).find(trait_name, hir),
+            Expr(expr) | Semi(expr) => expr.find(trait_name, hir),
         }
     }
 }
 
 impl FindTrait for Expr<'_> {
     fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        use ExprKind::*;
         match self.kind {
-            ExprKind::Path(qpath) => qpath.find(trait_name, hir),
-            ExprKind::Call(expr, exprs) => {
+            Path(qpath) => qpath.find(trait_name, hir),
+            Call(expr, exprs) => {
                 expr.find(trait_name, hir) || exprs.iter().any(|expr| expr.find(trait_name, hir))
             }
-            ExprKind::MethodCall(path_segment, expr, exprs, _) => {
+            MethodCall(path_segment, expr, exprs, _) => {
                 path_segment.find(trait_name, hir)
                     || expr.find(trait_name, hir)
                     || exprs.iter().any(|expr| expr.find(trait_name, hir))
             }
-            ExprKind::Struct(qpath, fields, _) => {
+            Struct(qpath, fields, _) => {
                 qpath.find(trait_name, hir)
                     || fields.iter().any(|field| field.expr.find(trait_name, hir))
             }
-            ExprKind::Field(expr, _) => expr.find(trait_name, hir),
-            ExprKind::Cast(expr, ty) | ExprKind::Type(expr, ty) => {
+            Field(expr, _) => expr.find(trait_name, hir),
+            Cast(expr, ty) | Type(expr, ty) => {
                 expr.find(trait_name, hir) || ty.find(trait_name, hir)
             }
-            ExprKind::Block(block, _) => block.find(trait_name, hir),
-            ExprKind::Closure(closure) => closure.find(trait_name, hir),
-            ExprKind::DropTemps(expr) => expr.find(trait_name, hir),
-            ExprKind::AddrOf(_, _, expr) => expr.find(trait_name, hir),
-            ExprKind::Tup(exprs) | ExprKind::Array(exprs) => {
-                exprs.iter().any(|expr| expr.find(trait_name, hir))
-            }
-            ExprKind::If(cond, then, els) => {
+            Block(block, _) => block.find(trait_name, hir),
+            Closure(closure) => closure.find(trait_name, hir),
+            DropTemps(expr) => expr.find(trait_name, hir),
+            AddrOf(_, _, expr) => expr.find(trait_name, hir),
+            Tup(exprs) | Array(exprs) => exprs.iter().any(|expr| expr.find(trait_name, hir)),
+            If(cond, then, els) => {
                 cond.find(trait_name, hir)
                     || then.find(trait_name, hir)
                     || els.map_or(false, |els| els.find(trait_name, hir))
             }
-            ExprKind::Match(expr, arms, _) => {
+            Match(expr, arms, _) => {
                 expr.find(trait_name, hir) || arms.iter().any(|arm| arm.find(trait_name, hir))
             }
             _ => false,
@@ -463,41 +533,36 @@ impl FindTrait for LetStmt<'_> {
 
 impl FindTrait for Pat<'_> {
     fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        use PatKind::*;
         match self.kind {
-            PatKind::Path(qpath) => qpath.find(trait_name, hir),
-            PatKind::Struct(qpath, fields, _) => {
+            Path(qpath) => qpath.find(trait_name, hir),
+            Struct(qpath, fields, _) => {
                 qpath.find(trait_name, hir)
                     || fields.iter().any(|field| field.pat.find(trait_name, hir))
             }
-            PatKind::TupleStruct(qpath, pats, _) => {
+            TupleStruct(qpath, pats, _) => {
                 qpath.find(trait_name, hir) || pats.iter().any(|pat| pat.find(trait_name, hir))
             }
-            PatKind::Or(pats) => pats.iter().any(|pat| pat.find(trait_name, hir)),
-            PatKind::Tuple(pats, _) => pats.iter().any(|pat| pat.find(trait_name, hir)),
-            PatKind::Box(pat) => pat.find(trait_name, hir),
-            PatKind::Wild
-            | PatKind::Lit(_)
-            | PatKind::Range(..)
-            | PatKind::Binding(..)
-            | PatKind::Never
-            | PatKind::Ref(..)
-            | PatKind::Deref(_)
-            | PatKind::Slice(..)
-            | PatKind::Err(_) => false,
+            Or(pats) => pats.iter().any(|pat| pat.find(trait_name, hir)),
+            Tuple(pats, _) => pats.iter().any(|pat| pat.find(trait_name, hir)),
+            Box(pat) => pat.find(trait_name, hir),
+            Wild | Lit(_) | Range(..) | Binding(..) | Never | Ref(..) | Deref(_) | Slice(..)
+            | Err(_) => false,
         }
     }
 }
 
 impl FindTrait for QPath<'_> {
     fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        use QPath::*;
         match self {
-            QPath::Resolved(ty, path) => {
+            Resolved(ty, path) => {
                 path.find(trait_name, hir) || ty.map_or(false, |ty| ty.find(trait_name, hir))
             }
-            QPath::TypeRelative(ty, path_segment) => {
+            TypeRelative(ty, path_segment) => {
                 ty.find(trait_name, hir) || path_segment.find(trait_name, hir)
             }
-            QPath::LangItem(..) => false,
+            LangItem(..) => false,
         }
     }
 }
@@ -526,23 +591,18 @@ impl FindTrait for WherePredicate<'_> {
 
 impl FindTrait for Ty<'_> {
     fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        use TyKind::*;
         match self.kind {
-            TyKind::TraitObject(trait_refs, ..) => trait_refs
+            TraitObject(trait_refs, ..) => trait_refs
                 .iter()
                 .any(|(poly_trait_ref, _)| poly_trait_ref.find(trait_name, hir)),
-            TyKind::OpaqueDef(item_id, ..) => hir.item(item_id).find(trait_name, hir),
-            TyKind::Path(qpath) => qpath.find(trait_name, hir),
-            TyKind::Slice(ty) | TyKind::Array(ty, _) => ty.find(trait_name, hir),
-            TyKind::Ptr(mut_ty) | TyKind::Ref(_, mut_ty) => mut_ty.ty.find(trait_name, hir),
-            TyKind::Tup(tys) => tys.iter().any(|ty| ty.find(trait_name, hir)),
-            TyKind::InferDelegation(..)
-            | TyKind::Never
-            | TyKind::AnonAdt(_)
-            | TyKind::Typeof(_)
-            | TyKind::Infer
-            | TyKind::Err(_)
-            | TyKind::BareFn(_)
-            | TyKind::Pat(..) => false,
+            OpaqueDef(item_id, ..) => hir.item(item_id).find(trait_name, hir),
+            Path(qpath) => qpath.find(trait_name, hir),
+            Slice(ty) | Array(ty, _) => ty.find(trait_name, hir),
+            Ptr(mut_ty) | Ref(_, mut_ty) => mut_ty.ty.find(trait_name, hir),
+            Tup(tys) => tys.iter().any(|ty| ty.find(trait_name, hir)),
+            InferDelegation(..) | Never | AnonAdt(_) | Typeof(_) | Infer | Err(_) | BareFn(_)
+            | Pat(..) => false,
         }
     }
 }
@@ -568,18 +628,19 @@ impl FindTrait for [GenericParam<'_>] {
 
 impl FindTrait for GenericParam<'_> {
     fn find(&self, trait_name: Symbol, hir: &Map) -> bool {
+        use GenericParamKind::*;
         match self.kind {
-            GenericParamKind::Type {
+            Type {
                 default,
                 synthetic: _,
             } => default.map_or(false, |ty| ty.find(trait_name, hir)),
-            GenericParamKind::Const {
+            Const {
                 ty,
                 default: _,
                 is_host_effect: _,
                 synthetic: _,
             } => ty.find(trait_name, hir),
-            GenericParamKind::Lifetime {
+            Lifetime {
                 kind: _,
             } => false,
         }
