@@ -747,7 +747,7 @@ impl App {
             .await
             .wrap_err("failed to get chain ID from state")?;
 
-        let (validator_updates, events) = self.end_block().await?;
+        let (validator_updates, events) = self.end_block(height).await?;
 
         // get deposits for this block from state's ephemeral cache and put them to storage.
         let mut state_tx = StateDelta::new(self.state.clone());
@@ -1027,21 +1027,24 @@ impl App {
     }
 
     #[instrument(name = "App::end_block", skip_all, err(level = Level::WARN))]
-    async fn end_block(&mut self) -> Result<(Vec<tendermint::validator::Update>, Vec<Event>)> {
+    async fn end_block(
+        &mut self,
+        height: tendermint::block::Height,
+    ) -> Result<(Vec<tendermint::validator::Update>, Vec<Event>)> {
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
 
         // call end_block on all components
-        AccountsComponent::end_block(&mut arc_state_tx)
+        AccountsComponent::end_block(&mut arc_state_tx, height)
             .await
             .wrap_err("end_block failed on AccountsComponent")?;
-        AuthorityComponent::end_block(&mut arc_state_tx)
+        AuthorityComponent::end_block(&mut arc_state_tx, height)
             .await
             .wrap_err("end_block failed on AuthorityComponent")?;
-        FeesComponent::end_block(&mut arc_state_tx)
+        FeesComponent::end_block(&mut arc_state_tx, height)
             .await
             .wrap_err("end_block failed on FeesComponent")?;
-        IbcComponent::end_block(&mut arc_state_tx)
+        IbcComponent::end_block(&mut arc_state_tx, height)
             .await
             .wrap_err("end_block failed on IbcComponent")?;
 

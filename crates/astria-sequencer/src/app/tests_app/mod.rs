@@ -857,7 +857,7 @@ async fn app_end_block_validator_updates() {
         .unwrap();
     app.apply(state_tx);
 
-    let (returned_validator_updates, _) = app.end_block().await.unwrap();
+    let (returned_validator_updates, _) = app.end_block(1u32.into()).await.unwrap();
     // we only assert length here as the ordering of the updates is not guaranteed
     // and validator::Update does not implement Ord
     assert_eq!(returned_validator_updates.len(), validator_updates.len());

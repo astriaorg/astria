@@ -68,6 +68,8 @@ impl Component for IbcComponent {
         state: &mut Arc<S>,
         prepare_state_info: &PrepareStateInfo,
     ) -> Result<()> {
+        // Only fields used currently are: `app_hash`, `chain_id`, `height`, `next_validators_hash`,
+        // and `time`
         let begin_block: abci::request::BeginBlock = abci::request::BeginBlock {
             hash: Hash::default(),
             byzantine_validators: prepare_state_info.byzantine_validators.clone(),
@@ -100,8 +102,17 @@ impl Component for IbcComponent {
     }
 
     #[instrument(name = "IbcComponent::end_block", skip_all, er(level = Level::WARN))]
-    async fn end_block<S: StateWriteExt + 'static>(_state: &mut Arc<S>) -> Result<()> {
-        // There is no need to call `Ibc::end_block`. It is a no-op.
+    async fn end_block<S: StateWriteExt + 'static>(
+        state: &mut Arc<S>,
+        height: tendermint::block::Height,
+    ) -> Result<()> {
+        Ibc::end_block(
+            state,
+            &abci::request::EndBlock {
+                height: height.into(),
+            },
+        )
+        .await;
         Ok(())
     }
 }

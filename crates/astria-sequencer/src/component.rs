@@ -63,5 +63,8 @@ pub(crate) trait Component {
     /// called, `state.get_mut().is_some()`, i.e., the `Arc` is not shared.  The
     /// implementor MUST ensure that any clones of the `Arc` are dropped before
     /// it returns, so that `state.get_mut().is_some()` on completion.
-    async fn end_block<S: StateWrite + 'static>(state: &mut Arc<S>) -> Result<()>;
+    async fn end_block<S: StateWrite + 'static>(
+        state: &mut Arc<S>,
+        height: tendermint::block::Height,
+    ) -> Result<()>;
 }

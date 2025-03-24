@@ -75,6 +75,7 @@ impl Component for AuthorityComponent {
     #[instrument(name = "AuthorityComponent::end_block", skip_all, err(level = Level::WARN))]
     async fn end_block<S: StateWriteExt + StateReadExt + 'static>(
         state: &mut Arc<S>,
+        _height: tendermint::block::Height,
     ) -> Result<()> {
         // update validator set
         let validator_updates = state

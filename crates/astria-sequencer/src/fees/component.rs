@@ -152,7 +152,10 @@ impl Component for FeesComponent {
     }
 
     #[instrument(name = "FeesComponent::end_block", skip_all)]
-    async fn end_block<S: fees::StateWriteExt + 'static>(state: &mut Arc<S>) -> Result<()> {
+    async fn end_block<S: fees::StateWriteExt + 'static>(
+        state: &mut Arc<S>,
+        _height: tendermint::block::Height,
+    ) -> Result<()> {
         // gather block fees and transfer them to sudo
         let fees = state.get_block_fees();
         let sudo_address = state

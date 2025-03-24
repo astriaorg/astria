@@ -56,7 +56,10 @@ impl Component for AccountsComponent {
     }
 
     #[instrument(name = "AccountsComponent::end_block", skip_all)]
-    async fn end_block<S: accounts::StateWriteExt + 'static>(_state: &mut Arc<S>) -> Result<()> {
+    async fn end_block<S: accounts::StateWriteExt + 'static>(
+        _state: &mut Arc<S>,
+        _height: tendermint::block::Height,
+    ) -> Result<()> {
         Ok(())
     }
 }
