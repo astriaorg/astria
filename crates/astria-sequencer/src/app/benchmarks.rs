@@ -17,8 +17,10 @@ use cnidarium::Storage;
 use crate::{
     app::{
         benchmark_and_test_utils::{
+            initialize_app_with_storage,
             mock_balances,
             mock_tx_cost,
+            proto_genesis_state,
         },
         App,
     },
@@ -65,16 +67,12 @@ impl Fixture {
                 accounts,
                 authority_sudo_address: first_address.clone(),
                 ibc_sudo_address: first_address.clone(),
-                ..crate::app::benchmark_and_test_utils::proto_genesis_state()
+                ..proto_genesis_state()
             },
         )
         .unwrap();
 
-        let (app, storage) = crate::app::benchmark_and_test_utils::initialize_app_with_storage(
-            Some(genesis_state),
-            vec![],
-        )
-        .await;
+        let (app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;
 
         let mock_balances = mock_balances(0, 0);
         let mock_tx_cost = mock_tx_cost(0, 0, 0);
