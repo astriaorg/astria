@@ -276,7 +276,6 @@ fn is_source(source_port: &PortId, source_channel: &ChannelId, asset: &Denom) ->
 mod tests {
     use astria_core::{
         primitive::v1::{
-            Address,
             RollupId,
             TransactionId,
         },
@@ -513,82 +512,6 @@ mod tests {
                 .await
                 .unwrap_err(),
             "bridge address must have a withdrawer address set",
-        );
-    }
-
-    #[tokio::test]
-    async fn ics20_withdrawal_fails_if_return_address_is_not_base_prefixed() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-        state.put_transaction_context(TransactionContext {
-            address_bytes: [0; 20],
-            transaction_id: TransactionId::new([0; 32]),
-            position_in_transaction: 0,
-        });
-
-        let action = action::Ics20Withdrawal {
-            amount: 1,
-            denom: nria().into(),
-            bridge_address: None,
-            destination_chain_address: "test".to_string(),
-            return_address: Address::builder()
-                .prefix("different_prefix")
-                .array([0; 20])
-                .try_build()
-                .unwrap(),
-            timeout_height: Height::new(1, 1).unwrap(),
-            timeout_time: 1,
-            source_channel: "channel-0".to_string().parse().unwrap(),
-            fee_asset: nria().into(),
-            memo: String::new(),
-            use_compat_address: false,
-        };
-
-        assert_eyre_error(
-            &action.check_and_execute(&mut state).await.unwrap_err(),
-            "failed to verify that return address has permitted base prefix",
-        );
-    }
-
-    #[tokio::test]
-    async fn ics20_withdrawal_fails_if_bridge_address_is_not_base_prefixed() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-        state.put_transaction_context(TransactionContext {
-            address_bytes: [0; 20],
-            transaction_id: TransactionId::new([0; 32]),
-            position_in_transaction: 0,
-        });
-
-        let action = action::Ics20Withdrawal {
-            amount: 1,
-            denom: nria().into(),
-            bridge_address: Some(
-                Address::builder()
-                    .prefix("different_prefix")
-                    .array([0; 20])
-                    .try_build()
-                    .unwrap(),
-            ),
-            destination_chain_address: "test".to_string(),
-            return_address: astria_address(&[0; 20]),
-            timeout_height: Height::new(1, 1).unwrap(),
-            timeout_time: 1,
-            source_channel: "channel-0".to_string().parse().unwrap(),
-            fee_asset: nria().into(),
-            memo: String::new(),
-            use_compat_address: false,
-        };
-
-        assert_eyre_error(
-            &action.check_and_execute(&mut state).await.unwrap_err(),
-            "failed to verify that bridge address address has permitted base prefix",
         );
     }
 

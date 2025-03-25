@@ -13,7 +13,6 @@ use tracing::{
 
 use crate::{
     action_handler::ActionHandler,
-    address::StateReadExt as _,
     authority::StateReadExt as _,
     ibc::StateWriteExt as _,
     transaction::StateReadExt as _,
@@ -31,10 +30,6 @@ impl ActionHandler for IbcSudoChange {
             .get_transaction_context()
             .expect("transaction source must be present in state when executing an action")
             .address_bytes();
-        state
-            .ensure_base_prefix(&self.new_address)
-            .await
-            .wrap_err("desired new ibc sudo address has an unsupported prefix")?;
         // ensure signer is the valid `sudo` key in state
         let sudo_address = state
             .get_sudo_address()
@@ -102,34 +97,6 @@ mod tests {
         assert_eq!(
             state.get_ibc_sudo_address().await.unwrap(),
             *new_ibc_sudo_address.address_bytes()
-        );
-    }
-
-    #[tokio::test]
-    async fn ibc_sudo_change_fails_if_new_address_is_not_base_prefixed() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = cnidarium::StateDelta::new(snapshot);
-
-        let new_ibc_sudo_address = astria_address(&[1; 20]);
-
-        let different_prefix = "different_prefix";
-        state.put_base_prefix(different_prefix.to_string()).unwrap();
-        state.put_transaction_context(TransactionContext {
-            address_bytes: [2; 20],
-            transaction_id: TransactionId::new([0; 32]),
-            position_in_transaction: 0,
-        });
-
-        let action = IbcSudoChange {
-            new_address: new_ibc_sudo_address,
-        };
-
-        assert_eyre_error(
-            &action.check_and_execute(state).await.unwrap_err(),
-            &format!(
-                "address has prefix `{ASTRIA_PREFIX}` but only `{different_prefix}` is permitted"
-            ),
         );
     }
 
