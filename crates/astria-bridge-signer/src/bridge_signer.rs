@@ -31,7 +31,6 @@ use crate::{
     Config,
     Metrics,
     Server,
-    Verifier,
 };
 
 const GRPC_SERVER_SHUTDOWN_DURATION: Duration = Duration::from_secs(5);
@@ -53,11 +52,12 @@ pub struct BridgeSigner {
 impl BridgeSigner {
     #[instrument(skip_all, err)]
     pub fn from_config(cfg: Config, metrics: &'static Metrics) -> eyre::Result<Self> {
-        let verifier = Verifier::new(cfg.rollup_rpc_endpoint)
-            .wrap_err("failed initializing bridge signer verifier")?;
-
-        let server = Server::new(cfg.frost_secret_key_package_path, verifier, metrics)
-            .wrap_err("failed initializing bridge signer gRPC server")?;
+        let server = Server::new(
+            cfg.frost_secret_key_package_path,
+            cfg.rollup_rpc_endpoint,
+            metrics,
+        )
+        .wrap_err("failed initializing bridge signer gRPC server")?;
 
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
 

@@ -64,9 +64,12 @@ impl Server {
     /// - If the secret key package cannot be deserialized.
     pub fn new(
         secret_key_package_path: String,
-        verifier: Verifier,
+        rollup_rpc_endpoint: String,
         metrics: &'static Metrics,
     ) -> eyre::Result<Self> {
+        let verifier = Verifier::new(rollup_rpc_endpoint)
+            .wrap_err("failed initializing bridge signer verifier")?;
+
         let secret_package = serde_json::from_slice::<frost_ed25519::keys::KeyPackage>(
             &std::fs::read(secret_key_package_path)
                 .wrap_err("failed to read secret key package file")?,
