@@ -24,7 +24,7 @@ use astria_eyre::eyre::{
     bail,
     ensure,
     eyre,
-    OptionExt,
+    OptionExt as _,
     WrapErr as _,
 };
 use ethers::{

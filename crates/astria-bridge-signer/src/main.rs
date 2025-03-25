@@ -1,22 +1,12 @@
 use std::process::ExitCode;
 
 use astria_bridge_signer::{
+    BridgeSigner,
     Config,
-    Server,
-    Verifier,
     BUILD_INFO,
 };
-use astria_core::generated::astria::signer::v1::frost_participant_service_server::FrostParticipantServiceServer;
 use astria_eyre::eyre::WrapErr as _;
-use futures::TryFutureExt as _;
-use tokio::signal::unix::{
-    signal,
-    SignalKind,
-};
-use tracing::{
-    error,
-    info,
-};
+use tracing::info;
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -24,7 +14,13 @@ async fn main() -> ExitCode {
 
     eprintln!("{}", telemetry::display::json(&BUILD_INFO));
 
-    let cfg: Config = config::get().expect("failed to read configuration");
+    let cfg: Config = match config::get() {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            eprintln!("failed to read configuration: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
     eprintln!("{}", telemetry::display::json(&cfg),);
 
     let mut telemetry_conf = telemetry::configure()
@@ -51,50 +47,21 @@ async fn main() -> ExitCode {
 
     info!(
         config = serde_json::to_string(&cfg).expect("serializing to a string cannot fail"),
-        "initializing bridge withdrawer"
+        "initializing bridge signer"
     );
 
-    let verifier = match Verifier::new(cfg.rollup_rpc_endpoint) {
-        Err(error) => {
-            error!(%error, "failed initializing bridge signer verifier");
+    let bridge_signer = match BridgeSigner::from_config(cfg, &metrics) {
+        Ok(bridge_signer) => bridge_signer,
+        Err(e) => {
+            eprintln!("initializing bridge signer failed: {e}");
             return ExitCode::FAILURE;
         }
-        Ok(verifier) => verifier,
     };
 
-    let server = match Server::new(cfg.frost_secret_key_package_path, verifier, metrics) {
-        Err(error) => {
-            error!(%error, "failed initializing bridge signer gRPC server");
-            return ExitCode::FAILURE;
-        }
-        Ok(server) => server,
-    };
+    if let Err(e) = bridge_signer.run_until_stopped().await {
+        eprintln!("bridge signer failed: {e}");
+        return ExitCode::FAILURE;
+    }
 
-    let mut sigterm = signal(SignalKind::terminate())
-        .expect("setting a SIGTERM listener should always work on Unix");
-    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
-    let grpc_server =
-        tonic::transport::Server::builder().add_service(FrostParticipantServiceServer::new(server));
-
-    let grpc_addr: std::net::SocketAddr = match cfg.grpc_endpoint.parse() {
-        Err(error) => {
-            error!(%error, "failed to parse grpc endpoint");
-            return ExitCode::FAILURE;
-        }
-        Ok(addr) => addr,
-    };
-    info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
-    tokio::task::spawn(
-        grpc_server.serve_with_shutdown(grpc_addr, shutdown_rx.unwrap_or_else(|_| ())),
-    );
-
-    tokio::select!(
-        _ = sigterm.recv() => {
-            info!("received SIGTERM, issuing shutdown to all services");
-            let _  = shutdown_tx.send(());
-        }
-    );
-
-    info!("bridge signer stopped");
     ExitCode::SUCCESS
 }
