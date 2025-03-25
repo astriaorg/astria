@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package astria.optimistic_execution.v1alpha1;
 
-import "astria/sequencerblock/v1/block.proto";
+import "astria/sequencerblock/v1/rollup_data.proto";
 import "google/protobuf/timestamp.proto";
 
 // The "BaseBlock" is the information needed to simulate bundles on top of

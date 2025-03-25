@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package astria.execution.v1alpha2;
+
+import "astria/execution/v1alpha2/block.proto";
+
+// The list of blocks in response to BatchGetBlocks.
+message BatchGetBlocksResponse {
+  repeated Block blocks = 1;
+}

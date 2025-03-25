@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package astria.sequencerblock.v1;
+
+import "astria/primitive/v1/address.proto";
+import "astria/primitive/v1/rollup_id.proto";
+import "astria/primitive/v1/transaction_id.proto";
+import "astria/primitive/v1/uint128.proto";
+
+// `Deposit` represents a deposit from the sequencer
+// to a rollup.
+//
+// A `Deposit` is similar to an emitted event, in that the sequencer application detects
+// transfers to bridge accounts and the corresponding rollup ID and includes a `Deposit`
+// corresponding to that within the respective rollup's data.
+//
+// A `Deposit` notifies a rollup that funds were locked to some account on the sequencer,
+// however it's up to the rollup what to do with that info.
+message Deposit {
+  // the address the funds were locked in on the sequencer.
+  // this is required as initializing an account as a bridge account
+  // is permissionless, so the rollup consensus needs to know and enshrine
+  // which accounts it accepts as valid bridge accounts.
+  astria.primitive.v1.Address bridge_address = 1;
+  // the rollup_id which the funds are being deposited to
+  astria.primitive.v1.RollupId rollup_id = 2;
+  astria.primitive.v1.Uint128 amount = 3;
+  string asset = 4;
+  // the address on the destination chain which
+  // will receive the bridged funds
+  string destination_chain_address = 5;
+  // the transaction ID of the source action for the deposit, consisting
+  // of the transaction hash.
+  astria.primitive.v1.TransactionId source_transaction_id = 6;
+  // index of the deposit's source action within its transaction
+  uint64 source_action_index = 7;
+}

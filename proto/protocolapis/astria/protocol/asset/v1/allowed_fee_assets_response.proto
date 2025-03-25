@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package astria.protocol.asset.v1;
+
+// A response containing the allowed fee assets.
+message AllowedFeeAssetsResponse {
+  uint64 height = 1;
+  repeated string fee_assets = 2;
+}

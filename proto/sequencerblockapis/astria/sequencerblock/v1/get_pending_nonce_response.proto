@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package astria.sequencerblock.v1;
+
+message GetPendingNonceResponse {
+  // The pending nonce for the given account.
+  uint32 inner = 1;
+}

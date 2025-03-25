@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package astria.optimistic_execution.v1alpha1;
 
-import "astria/execution/v1/execution.proto";
+import "astria/execution/v1/block.proto";
 
 message ExecuteOptimisticBlockStreamResponse {
   // Metadata identifying the block resulting from executing a block. Includes number, hash,
