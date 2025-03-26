@@ -2,9 +2,9 @@
 
 set -o errexit -o nounset
 
-SNAPSHOT_PATH="{{ tpl .Values.config.geth.snapshot.create.storage.path $ }}"
+SNAPSHOT_PATH="{{ tpl .Values.geth.snapshot.create.storage.path $ }}"
 SNAPSHOT_FILE="{{ include "rollup.name" . }}-snapshot-$(date +%Y-%m-%d-%T).tar.gz"
-RETENTION_COUNT="{{ .Values.config.geth.snapshot.create.retentionCount }}"
+RETENTION_COUNT="{{ .Values.geth.snapshot.create.retentionCount }}"
 
 echo "💿 Creating snapshot at $SNAPSHOT_FILE"
 
@@ -17,11 +17,11 @@ tar -zcvf $SNAPSHOT_PATH/$SNAPSHOT_FILE \
 
 echo "📦 Snapshot created successfully"
 
-{{- if .Values.config.geth.snapshot.create.storage.upload.enabled }}
-echo "⬆️ Uploading snapshot to {{ .Values.config.geth.snapshot.create.storage.upload.destination }}"
+{{- if .Values.geth.snapshot.create.storage.upload.enabled }}
+echo "⬆️ Uploading snapshot to {{ .Values.geth.snapshot.create.storage.upload.destination }}"
 rclone copy -vv \
   $SNAPSHOT_PATH/$SNAPSHOT_FILE \
-  {{ .Values.config.geth.snapshot.create.storage.upload.destination }}
+  {{ .Values.geth.snapshot.create.storage.upload.destination }}
 {{- end }}
 
 echo "🧹 Cleaning up old snapshots (keeping last $RETENTION_COUNT)"
