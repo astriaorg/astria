@@ -22,8 +22,8 @@ pub(super) struct Command {
     // the secrecy crate with specialized `Debug` and `Drop` implementations
     // that overwrite the key on drop and don't reveal it when printing.
     private_key: String,
-    // Optionally, the authorized withdrawer address for this account.
-    // If unset, the sender address will be used.
+    /// The authorized withdrawer address for this account.
+    /// If unset, the sender address will be used.
     #[arg(long)]
     withdrawer_address: Option<String>,
     /// The url of the Sequencer node
