@@ -61,7 +61,7 @@ evm-rollup:
     ## Standard Eth Genesis config values
     # Configuration of Eth forks, setting to 0 will enable from height,
     # left as is these forks will not activate.
-    cancunTime: 0"
+    cancunTime: "0"
     pragueTime: ""
     verkleTime: ""
     # Can configure the genesis allocs for the chain
@@ -154,7 +154,7 @@ evm-bridge-withdrawer:
     evmContractAddress: "0xA58639fB5458e65E4fA917FF951C390292C24A15"
     sequencerPrivateKey:
       devContent: "dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0"
-    frostThresholdSigning: true
+    frostThresholdSigning: false
     frostMinSigners: "2"
     frostParticipantEndpoints:
       - "http://bridge-signer-service.astria-signer-signer1.svc.cluster.local:9001"

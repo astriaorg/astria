@@ -10,14 +10,15 @@ global:
 # sequencer core images
 images:
   evmBridgeWithdrawer:
-    repo: ghcr.io/astriaorg/bridge-withdrawer
+    repo: ghcr.io/astriaorg/evm-bridge-withdrawer
     pullPolicy: IfNotPresent
     tag: 1.0.3
-    devTag: local
+    devTag: latest
+
+name: "local"
 
 config:
   logLevel: "trace"
-  assetName: "nria"
   sequencerGrpcEndpoint: ""
   sequencerCometbftEndpoint: ""
   sequencerChainId: ""
