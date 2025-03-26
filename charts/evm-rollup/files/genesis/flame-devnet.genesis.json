@@ -57,11 +57,6 @@
       },
       "eip_param_set": {
         "height": 342000,
-        "sequencer": {
-          "chainId": "astria-dusk-11",
-          "addressPrefix": "astria",
-          "stopHeight": 1596149
-        },
         "eip1559Params": {
           "baseFeeChangeDenominator": 250,
           "elasticityMultiplier": 6,
