@@ -66,13 +66,12 @@ spec:
         - name: geth
           command: [ "geth" ]
           args:
-            {{- range $arg := .Values.geth.flags }}
+            {{- range $name, $arg := .Values.geth.flags }}
             {{- $noCondition := not (hasKey $arg "condition") }}
             {{- if or ($noCondition) (eq (tpl $arg.condition $) "true") }}
-            - --{{ $arg.name }}{{ if $arg.value }}={{ tpl $arg.value $ }}{{ end }}
+            - --{{ $name }}{{ if $arg.value }}={{ tpl $arg.value $ }}{{ end }}
             {{- end }}
             {{- end }}
-            - --verbosity={{ printf "%s" (include "rollup.logLevelNum" .) }}
           image: {{ include "rollup.image" . }}
           imagePullPolicy: {{ .Values.images.geth.pullPolicy }}
           volumeMounts:

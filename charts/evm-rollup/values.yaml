@@ -138,64 +138,64 @@ geth:
           # rclone destination to upload the snapshot to (in the form of remote:path)
           destination: ""
   flags:
-    - name: datadir
+    datadir:
       value: '{{ include "rollup.gethDataDir" . }}'
-    - name: networkid
+    networkid:
       value: "{{ tpl .Values.genesis.chainId . }}"
-    - name: http
-    - name: http.addr
+    http: {}
+    http.addr:
       value: 0.0.0.0
-    - name: http.port
+    http.port:
       value: "{{ .Values.ports.jsonRPC }}"
-    - name: http.corsdomain
+    http.corsdomain:
       value: "*"
-    - name: http.vhosts
+    http.vhosts:
       value: "*"
-    - name: http.api
+    http.api:
       value: eth,net,web3,debug,txpool
-    - name: ws
-    - name: ws.addr
+    ws: {}
+    ws.addr:
       value: 0.0.0.0
-    - name: ws.port
+    ws.port:
       value: "{{ .Values.ports.wsRPC }}"
-    - name: ws.origins
+    ws.origins:
       value: "*"
-    - name: grpc
-    - name: grpc.addr
+    grpc: {}
+    grpc.addr:
       value: 0.0.0.0
-    - name: grpc.port
+    grpc.port:
       value: "{{ .Values.ports.executionGRPC }}"
-    - name: db.engine
+    db.engine:
       value: pebble  # Can be set to 'pebble' or 'leveldb'
-    - name: maxpeers
+    maxpeers:
       value: "0"
-    - name: rpc.gascap
+    rpc.gascap:
       value: "{{ .Values.genesis.gasLimit }}"
-    - name: rpc.txfeecap
+    rpc.txfeecap:
       value: "0"
-    - name: gcmode
+    gcmode:
       value: "{{- if .Values.geth.archiveNode -}} archive {{- else -}} full {{- end }}"
-    - name: state.scheme
+    state.scheme:
       value: "{{- if .Values.geth.archiveNode -}} hash {{- else -}} path {{- end }}"
-    - name: history.transactions
+    history.transactions:
       value: "{{- if .Values.geth.archiveNode -}} 0 {{- else -}} 2350000 {{- end }}"
-    - name: history.state
+    history.state:
       value: "{{- if .Values.geth.archiveNode -}} 0 {{- else -}} 540000 {{- end }}"
-    - name: metrics
+    metrics:
       condition: "{{ .Values.metrics.enabled }}"
-    - name: metrics.addr
+    metrics.addr:
       value: 0.0.0.0
       condition: "{{ .Values.metrics.enabled }}"
-    - name: metrics.port
+    metrics.port:
       value: "{{ .Values.ports.metrics }}"
       condition: "{{ .Values.metrics.enabled }}"
-    - name: txpool.nolocals
+    txpool.nolocals:
       value: "true"
-    - name: verbosity
+    verbosity:
       value: "{{ .Values.geth.logLevel }}"
-    - name: "log.vmodule"
+    log.vmodule:
       value: "{{ range $index, $module := .Values.geth.moduleLogLevels }}{{- if $index }},{{- end }}{{- $module.module }}={{- $module.level }}{{- end }}"
-    - name: "log.debug"
+    log.debug:
       condition: "{{ gt (int .Values.geth.logLevel) 3 }}"
 
 conductor:
