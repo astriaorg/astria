@@ -33,3 +33,15 @@ pub struct Config {
 impl config::Config for Config {
     const PREFIX: &'static str = "ASTRIA_BRIDGE_SIGNER_";
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Config;
+
+    const EXAMPLE_ENV: &str = include_str!("../local.env.example");
+
+    #[test]
+    fn example_env_config_is_up_to_date() {
+        config::tests::example_env_config_is_up_to_date::<Config>(EXAMPLE_ENV);
+    }
+}
