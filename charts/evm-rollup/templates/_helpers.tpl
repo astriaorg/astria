@@ -16,9 +16,9 @@ files/genesis/{{ include "rollup.type" . }}.genesis.json
 
 {{- define "rollup.networkId" }}
 {{- $rollupType := (include "rollup.type" . ) -}}
-{{- if eq $rollupType "flame-mainnet" -}}"253368190"
-{{- else if eq $rollupType "flame-testnet" -}}"16604737732183"
-{{- else if eq $rollupType "flame-devnet" -}}"912559"
+{{- if eq $rollupType "flame-mainnet" -}}253368190
+{{- else if eq $rollupType "flame-testnet" -}}16604737732183
+{{- else if eq $rollupType "flame-devnet" -}}912559
 {{- else -}}{{ tpl .Values.genesis.chainId . }}
 {{- end -}}
 {{- end }}
