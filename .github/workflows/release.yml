@@ -106,6 +106,14 @@ jobs:
       package-name: 'bridge-withdrawer'
       display-name: 'EVM Bridge Withdrawer'
 
+  bridge-signer:
+    needs: run_checker
+    if: needs.run_checker.outputs.run_release_services == 'true'
+    uses: ./.github/workflows/reusable-release-cargo.yml
+    with:
+      package-name: 'bridge-signer'
+      display-name: 'EVM Bridge Signer'
+
   auctioneer:
     needs: run_checker
     if: needs.run_checker.outputs.run_release_services == 'true'
