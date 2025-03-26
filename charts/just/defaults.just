@@ -27,4 +27,6 @@ sequencer_bridge_address  := "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
 sequencer_bridge_pkey     := "dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0"
 sequencer_chain_id        := "sequencer-test-chain-0"
 
+signerName := "signer1"
+
 cli_image := "ghcr.io/astriaorg/astria-cli"

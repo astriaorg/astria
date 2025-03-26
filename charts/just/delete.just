@@ -137,6 +137,21 @@ Deletes local EVM bridge-withdrawer deployment.
 ")]
 bridge-withdrawer: (delete-chart "evm-bridge-withdrawer")
 
+# Delete Bridge Signer
+###########################
+[doc("
+Deletes local bridge-signer deployment.
+")]
+bridge-signer name=signerName:
+  @just delete::delete-chart {{name}}-bridge-signer astria-signer-{{name}}
+
+# Delete Bridge Signers
+####################
+[doc("
+Deletes all bridge signers deployed by 'deploy::bridge-signers' ( signer[1..2]
+in 'dev/values/signers').
+")]
+bridge-signers: (bridge-signer "signer1") (bridge-signer "signer2")
 
 # Delete Hyperlane Agents
 ##########################

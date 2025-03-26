@@ -217,6 +217,26 @@ bridge-withdrawer:
   @echo "Waiting for bridge-withdrawer to become ready..."
   @just deploy::wait-for-bridge-withdrawer
 
+# Deploy Bridge Signer
+[doc("
+Deploys local Bridge Signer.
+")]
+bridge-signer name=signerName:
+  @echo "Deploying bridge signer '{{name}}'..."
+  @helm install {{name}}-bridge-signer-chart ../../charts/bridge-signer \
+    -f ../../dev/values/signers/values-all.yaml \
+    -f ../../dev/values/signers/{{name}}.yaml \
+    -n astria-signer-{{name}} --create-namespace \
+
+# Deploy Signers
+####################
+[doc("
+Deploys two bridge signers defined at '../../dev/values/signers/signer[1..2].yml'.
+")]
+bridge-signers:
+  @echo "Deploying signers..."
+  @just deploy bridge-signer "signer1"
+  @just deploy bridge-signer "signer2"
 
 # FIXME: This deployment currently fails
 # Deploy Hyperlane Agents

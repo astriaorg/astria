@@ -9,8 +9,8 @@ images:
   bridgeSigner:
     repo: ghcr.io/astriaorg/bridge-signer
     pullPolicy: IfNotPresent
-    tag: local
-    devTag: local
+    tag: pr-2057
+    devTag: pr-2057
 
 config:
   signerName: "signer1"

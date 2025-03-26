@@ -3,13 +3,6 @@ global:
   useTTY: true
   dev: true
 
-images:
-  bridgeSigner:
-    repo: ghcr.io/astriaorg/bridge-signer
-    pullPolicy: IfNotPresent
-    tag: local
-    devTag: local
-
 config:
   logLevel: "debug"
   evmRpcEndpoint: "http://astria-evm-service.astria-dev-cluster.svc.cluster.local:8545"
