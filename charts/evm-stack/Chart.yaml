@@ -42,7 +42,7 @@ dependencies:
     repository: "file://../evm-faucet"
     condition: evm-faucet.enabled
   - name: evm-bridge-withdrawer
-    version: 1.0.3
+    version: 1.0.4
     repository: "file://../evm-bridge-withdrawer"
     condition: evm-bridge-withdrawer.enabled
   - name: postgresql

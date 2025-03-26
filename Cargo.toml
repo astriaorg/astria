@@ -34,6 +34,7 @@ default-members = [
   "crates/astria-auctioneer",
   "crates/astria-bridge-contracts",
   "crates/astria-bridge-withdrawer",
+  "crates/astria-bridge-signer",
   "crates/astria-build-info",
   "crates/astria-cli",
   "crates/astria-composer",
