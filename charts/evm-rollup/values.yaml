@@ -140,8 +140,6 @@ geth:
   flags:
     datadir:
       value: '{{ include "rollup.gethDataDir" . }}'
-    networkid:
-      value: "{{ tpl .Values.genesis.chainId . }}"
     http: {}
     http.addr:
       value: 0.0.0.0

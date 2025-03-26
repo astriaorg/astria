@@ -66,6 +66,7 @@ spec:
         - name: geth
           command: [ "geth" ]
           args:
+            - --networkid={{ include "rollup.networkId" . }}
             {{- range $name, $arg := .Values.geth.flags }}
             {{- $noCondition := not (hasKey $arg "condition") }}
             {{- if or ($noCondition) (eq (tpl $arg.condition $) "true") }}

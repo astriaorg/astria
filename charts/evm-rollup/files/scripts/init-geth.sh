@@ -7,7 +7,7 @@ if [ ! -d "$data_dir/" ]; then
 
   cp /scripts/geth-genesis.json $home_dir/genesis.json
 
-  exec geth \
+  exec geth --networkid={{ include "rollup.networkId" . }} \
     {{- range $name, $arg := .Values.geth.flags -}}
     {{- $noCondition := not (hasKey $arg "condition") }}
     {{- if or ($noCondition) (eq (tpl $arg.condition $) "true") }}

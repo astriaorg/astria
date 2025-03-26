@@ -14,6 +14,15 @@ Namepsace to deploy elements into.
 files/genesis/{{ include "rollup.type" . }}.genesis.json
 {{- end -}}
 
+{{- define "rollup.networkId" }}
+{{- $rollupType := (include "rollup.type" . ) -}}
+{{- if eq $rollupType "flame-mainnet" -}}"253368190"
+{{- else if eq $rollupType "flame-testnet" -}}"16604737732183"
+{{- else if eq $rollupType "flame-devnet" -}}"912559"
+{{- else -}}{{ tpl .Values.genesis.chainId . }}
+{{- end -}}
+{{- end }}
+
 {{- define "rollup.tags.geth" -}}
 {{- $rollupType := (include "rollup.type" . ) -}}
 {{- if or (eq $rollupType "custom") .Values.global.dev -}}{{ .Values.images.geth.tag }}
