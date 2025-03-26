@@ -48,7 +48,8 @@ fn main() {
         Err(e) => {
             panic!(
                 "failed creating file descriptor set from protobuf: failed to invoke buf (path: \
-                 {buf:?}): {e:?}"
+                 buf,
+                 e
             );
         }
         Ok(output) => output,
