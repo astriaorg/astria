@@ -19,7 +19,7 @@ files/genesis/{{ include "rollup.type" . }}.genesis.json
 {{- if or (eq $rollupType "custom") .Values.global.dev -}}{{ .Values.images.geth.tag }}
 {{- else if eq $rollupType "flame-mainnet" -}}1.1.0
 {{- else if eq $rollupType "flame-testnet" -}}1.1.0
-{{- else if eq $rollupType "flame-devnet" -}}1.1.0
+{{- else if eq $rollupType "flame-devnet" -}}sha-651756f
 {{- end -}}
 {{- end }}
 
@@ -28,7 +28,7 @@ files/genesis/{{ include "rollup.type" . }}.genesis.json
 {{- if or (eq $rollupType "custom") .Values.global.dev -}}{{ .Values.images.conductor.tag }}
 {{- else if eq $rollupType "flame-mainnet" -}}1.1.0
 {{- else if eq $rollupType "flame-testnet" -}}1.1.0
-{{- else if eq $rollupType "flame-devnet" -}}1.1.0
+{{- else if eq $rollupType "flame-devnet" -}}pr-2006
 {{- end -}}
 {{- end }}
 
@@ -37,7 +37,7 @@ files/genesis/{{ include "rollup.type" . }}.genesis.json
 {{- $rollupName := (include "rollup.name" . ) -}}
 {{- if eq $rollupName "flame" -}}flame-mainnet
 {{- else if eq $rollupName "flame-dawn-1" -}}flame-testnet
-{{- else if eq $rollupName "astria-dusk-11-nria-evm"}}flame-devnet
+{{- else if eq $rollupName "flame-dusk-11"}}flame-devnet
 {{- else -}}custom
 {{- end -}}
 {{- end }}
