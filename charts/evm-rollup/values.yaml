@@ -18,7 +18,7 @@ images:
   conductor:
     repo: ghcr.io/astriaorg/conductor
     pullPolicy: IfNotPresent
-    tag: latest
+    tag: pr-2006
   snapshot:
     repo: rclone/rclone
     pullPolicy: IfNotPresent
