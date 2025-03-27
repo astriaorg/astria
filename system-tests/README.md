@@ -66,15 +66,16 @@ are as per the `latest` tag:
 
 ```shell
 # If previously run, clean up
-just clean
-sudo rm -r /tmp/astria
+just clean-helm
 
 # Set up the test environment
-just deploy cluster
+just deploy cluster # only needs to be run first time
 just deploy upgrade-test
 
 # Run the test
 just run-upgrade-test
+
+
 ```
 
 This invokes the `sequencer_upgrade_test.py` script with the args
@@ -84,11 +85,10 @@ To run the upgrade test using local builds:
 
 ```shell
 # If previously run, clean up
-just clean
-sudo rm -r /tmp/astria
+just clean-helm
 
 # Set up the test environment
-just deploy cluster
+just deploy cluster # only needs to be run first time
 cargo check
 just docker-build-and-load astria-sequencer-relayer
 just docker-build-and-load astria-sequencer

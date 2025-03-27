@@ -21,9 +21,9 @@ from helpers.utils import update_chart_dependencies, check_change_infos
 
 # The number of sequencer validator nodes to use in the test.
 NUM_NODES = 5
-# A map of upgrade name to sequencer image to use for running BEFORE the given upgrade is executed.
+# A map of upgrade name to sequencer, relayer image to use for running BEFORE the given upgrade is executed.
 PRE_UPGRADE_IMAGE_TAGS = {
-    "upgrade1": "pr-1751"
+    "upgrade1": ("2.0.0", "1.0.1"),
 }
 EVM_DESTINATION_ADDRESS = "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
 ACCOUNT = "astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504"
@@ -52,7 +52,7 @@ upgrade_name = args["upgrade_name"].lower()
 print("################################################################################")
 print("Running sequencer upgrade test")
 print(f"  * upgraded container image tag: {upgrade_image_tag}")
-print(f"  * pre-upgrade container image tag: {PRE_UPGRADE_IMAGE_TAGS[upgrade_name]}")
+print(f"  * pre-upgrade container image tags: {PRE_UPGRADE_IMAGE_TAGS[upgrade_name]}")
 print(f"  * upgrade name: {upgrade_name}")
 print("################################################################################")
 
@@ -70,8 +70,10 @@ nodes = [SequencerController(f"node{i}") for i in range(NUM_NODES - 1)]
 evm = EvmController()
 print(f"starting {len(nodes)} sequencers and the evm rollup")
 executor = concurrent.futures.ThreadPoolExecutor(NUM_NODES + 1)
+
 deploy_sequencer_fn = lambda seq_node: seq_node.deploy_sequencer(
-    PRE_UPGRADE_IMAGE_TAGS[upgrade_name],
+    PRE_UPGRADE_IMAGE_TAGS[upgrade_name][0],
+    PRE_UPGRADE_IMAGE_TAGS[upgrade_name][1],
     # Enabled for all but sequencer 2.
     enable_price_feed=(seq_node.name != "node2"),
     upgrade_name=upgrade_name,
@@ -138,6 +140,7 @@ print(f"not upgrading {missed_upgrade_node.name} until the rest have executed th
 for node in nodes:
     node.stage_upgrade(
         upgrade_image_tag,
+        upgrade_image_tag,
         enable_price_feed=(node.name != "node2"),
         upgrade_name=upgrade_name,
         activation_height=upgrade_activation_height,
@@ -164,6 +167,7 @@ print(f"{missed_upgrade_node.name} lagging as expected; now upgrading")
 # Now stage the upgrade on this lagging node and ensure it catches up.
 missed_upgrade_node.stage_upgrade(
     upgrade_image_tag,
+    upgrade_image_tag,
     enable_price_feed=True,
     upgrade_name=upgrade_name,
     activation_height=upgrade_activation_height
@@ -180,6 +184,7 @@ nodes.append(missed_upgrade_node)
 new_node = SequencerController(f"node{NUM_NODES - 1}")
 print(f"starting a new sequencer")
 new_node.deploy_sequencer(
+    upgrade_image_tag,
     upgrade_image_tag,
     upgrade_name=upgrade_name,
     upgrade_activation_height=upgrade_activation_height

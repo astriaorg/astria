@@ -44,7 +44,8 @@ deploy-cluster namespace=defaultNamespace enableHubble=hubbleEnabled:
   helm install cilium cilium/cilium --version 1.15.5 \
       -f ./dev/values/cilium.yml \
       {{ if enableHubble == "true" { '--set hubble.enabled=true --set hubble.relay.enabled=true --set hubble.ui.enabled=true --set hubble.ui.ingress.enabled=true' } else { '' } }} \
-      --namespace kube-system
+      --namespace kube-system \
+      --labels core=true
   kubectl create namespace {{namespace}}
 
 deploy-metrics-server:
@@ -184,8 +185,15 @@ delete-hyperlane-agents rollupName=defaultRollupName:
 clean:
   kind delete cluster --name astria-dev-cluster
 
+clean-helm:
+  helm ls -a --all-namespaces -l core!=true | awk 'NR > 1 { print  "-n "$2, $1}' | xargs -L1 helm uninstall
+  just clean-persisted-data
+
 clean-persisted-data:
-  rm -r /tmp/astria
+  rm -rf /tmp/astria/celestia-data/*
+  rm -rf /tmp/astria/sequencer-data/*
+  rm -rf /tmp/astria/sequencer-relayer-data/*
+  rm -rf /tmp/astria/rollup-data/*
 
 deploy-local-metrics:
   kubectl apply -f kubernetes/metrics-server-local.yml

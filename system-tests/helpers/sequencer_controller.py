@@ -35,7 +35,8 @@ class SequencerController:
 
     def deploy_sequencer(
             self,
-            image_tag,
+            sequencer_image_tag,
+            relayer_image_tag,
             enable_price_feed=True,
             upgrade_name=None,
             upgrade_activation_height=None,
@@ -55,7 +56,8 @@ class SequencerController:
         """
         args = self._helm_args(
             "install",
-            image_tag,
+            sequencer_image_tag,
+            relayer_image_tag,
             enable_price_feed,
             upgrade_name,
             upgrade_activation_height
@@ -65,7 +67,7 @@ class SequencerController:
         self._ensure_reported_name_matches_assigned_name()
         print(f"{self.name}: running")
 
-    def stage_upgrade(self, image_tag, enable_price_feed, upgrade_name, activation_height):
+    def stage_upgrade(self, sequencer_image_tag, relayer_image_tag, enable_price_feed, upgrade_name, activation_height):
         """
         Updates the sequencer and sequencer-relayer in the cluster.
 
@@ -82,7 +84,8 @@ class SequencerController:
         # for sequencer and sequencer-relayer.
         args = self._helm_args(
             "upgrade",
-            image_tag,
+            sequencer_image_tag,
+            relayer_image_tag,
             enable_price_feed=enable_price_feed,
             upgrade_name=upgrade_name,
             upgrade_activation_height=activation_height
@@ -277,7 +280,8 @@ class SequencerController:
     def _helm_args(
             self,
             subcommand,
-            image_tag,
+            sequencer_image_tag,
+            relayer_image_tag,
             enable_price_feed,
             upgrade_name,
             upgrade_activation_height,
@@ -290,8 +294,8 @@ class SequencerController:
             "charts/sequencer",
             "--values=dev/values/validators/all.yml",
             f"--values=dev/values/validators/{self.name}.yml",
-            f"--set=images.sequencer.tag={image_tag}",
-            f"--set=sequencer-relayer.images.sequencerRelayer.tag={image_tag}",
+            f"--set=images.sequencer.tag={sequencer_image_tag}",
+            f"--set=sequencer-relayer.images.sequencerRelayer.tag={relayer_image_tag}",
             f"--set=sequencer.priceFeed.enabled={enable_price_feed}",
             "--set=sequencer.abciUDS=false",
         ]
@@ -300,21 +304,23 @@ class SequencerController:
         if upgrade_name:
             # This is an upgrade test: set `upgradeTest` so as to provide an upgrades.json file
             # and genesis.json without upgraded configs.  Also enable persistent storage.
-            args.append("--set=sequencer.upgrades.systemTest.enabled=true")
             args.append("--set=storage.enabled=true")
             args.append("--set=sequencer-relayer.storage.enabled=true")
+            args.append(f"--values=dev/values/validators/{upgrade_name}.upgrades.yml")
             # If we know the activation height of the upgrade, add it to the relevant upgrade's
             # settings for inclusion in the upgrades.json file.
             if upgrade_activation_height:
-                args.append("--set=sequencer.upgrades.systemTest.bootstrapping=false")
                 args.append(
-                    f"--set=sequencer.upgrades.{upgrade_name}.activationHeight={upgrade_activation_height}"
+                    f"--set=upgrades.{upgrade_name}.baseInfo.activationHeight={upgrade_activation_height}"
                 )
             else:
-                # Otherwise, if no activation height is provided, exclude the entire upgrade from
-                # the upgrades.json file.
-                args.append("--set=sequencer.upgrades.systemTest.bootstrapping=true")
-                args.append(f"--set=sequencer.upgrades.{upgrade_name}.included=false")
+                # Otherwise, if no activation height is provided, we will simply omit the upgrade
+                # details from the upgrades.json file.
+                args.append(f"--set=upgrades.{upgrade_name}.enabled=false")
+        elif enable_price_feed:
+            # If we're not upgrading, and the price feed is enabled, enable it in the
+            # genesis.json file.
+            args.append("--values=dev/values/validators/priceFeed.genesis.yml")
         return args
 
     def _wait_for_deploy(self, timeout_secs):
