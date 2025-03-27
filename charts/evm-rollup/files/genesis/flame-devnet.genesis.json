@@ -69,6 +69,11 @@
           "chainId": "astria-dusk-11",
           "addressPrefix": "astria",
           "startHeight": 12820441
+        },
+        "celestia": {
+          "chainId": "mocha-4",
+          "startHeight": 5251710,
+          "searchHeightMaxLookAhead": 15000
         }
       }
     }
