@@ -30,11 +30,6 @@ metadata:
 data:
   init-cometbft.sh: |
     {{- tpl (.Files.Get "files/scripts/init-cometbft.sh") $ | nindent 4 }}
-  {{- if not .Values.global.dev }}
-  {{- else }}
-  markets.json: |
-    {{- tpl (.Files.Get "files/scripts/markets.json") $ | nindent 4 }}
-  {{- end }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -43,7 +38,7 @@ metadata:
   namespace: {{ include "sequencer.namespace" . }}
 data:
   upgrades.json: |
-    {{- tpl (.Files.Get "files/upgrades/upgrades.json") $ | nindent 4 }}
+    {{- tpl (.Files.Get (tpl "files/upgrades/{{ .Values.global.network }}.upgrades.json" .)) $ | nindent 4 }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -100,4 +95,3 @@ data:
   ASTRIA_SEQUENCER_PRICE_FEED_GRPC_ADDR: "http://127.0.0.1:{{ .Values.ports.priceFeedGrpc }}"
   ASTRIA_SEQUENCER_PRICE_FEED_CLIENT_TIMEOUT_MILLISECONDS: "{{ .Values.sequencer.priceFeed.clientTimeout }}"
   {{- end }}
----

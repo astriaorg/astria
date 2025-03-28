@@ -1,5 +1,5 @@
-# Override value example for second validator from main chart
-moniker: 'node1'
+# Override value example for fifth validator from main chart
+moniker: 'node4'
 genesis:
   # Nodes 0, 1, and 2 each have power 10 so nodes 3 and 4 can be made faulty without affecting the
   # supermajority.
@@ -25,21 +25,20 @@ genesis:
       address: BBDCE84B76B80E1B785E74B0E8D640BF6D2BD0A5
       pubKey: +bN9J/273RCm3zyTBSOql9VLlNcO6J37Wf0xtX0JVnw=
 
-# Values for CometBFT node configuration
 cometbft:
   secrets:
     nodeKey:
       devContent:
         priv_key:
-          value: YhbLhsKYUexcVOPBHUS6nNy7AOjVX0DxvIQW0mZBHwjbGbIgGlfuzuswG+uetk5zhPHYZMMCz77fa5/B/KP0lw==
+          value: sYBe1tcxEOKiUGtnGwb3j7Pd9SrWXDUy+XvLWywDSrvgWvO6DUss1iW7+CQtBP4iDOHekYHkonyDDyreypmfbw==
     privValidatorKey:
       devContent:
-        address: E82D827830B163D5179291FB27BB58E605DF2FA2
+        address: BBDCE84B76B80E1B785E74B0E8D640BF6D2BD0A5
         pub_key:
-          value: NDE9F44v3l4irmkZxNmrZkywoGmggLlaBo5rE/Cis8M=
+          value: +bN9J/273RCm3zyTBSOql9VLlNcO6J37Wf0xtX0JVnw=
         priv_key:
-          value: q7D76sa0vCTcmXdHUqtVmRHV1tt9f2Ctvb8a1ijZMwA0MT0Xji/eXiKuaRnE2atmTLCgaaCAuVoGjmsT8KKzww==
-
+          value: LOj69hxi6kCrx7VTd9dE+us47YQNYTjtXxRb6r3nYaL5s30n/bvdEKbfPJMFI6qX1UuU1w7onftZ/TG1fQlWfA==
+  # Values for CometBFT node configuration
   config:
     p2p:
       persistentPeers:

@@ -120,13 +120,12 @@
       {{ include "sequencer.address" $value }}
       {{- end }}
     ]
-    {{- if not .Values.global.dev }}
-    {{- else }},
+    {{- if and .Values.global.dev .Values.genesis.priceFeed }},
     "price_feed": {
       "marketMap": {
         "marketMap": {
           "markets": {
-            {{- range $index, $market := .Values.sequencer.priceFeed.markets }}
+            {{- range $index, $market := .Values.genesis.priceFeed.markets }}
             {{- if $index }},{{- end }}
             "{{ $market.name }}": {
               "providerConfigs": [
@@ -169,7 +168,7 @@
       },
       "oracle": {
         "currencyPairGenesis": [
-          {{- range $index, $genesis := .Values.sequencer.priceFeed.currencyPairGenesis }}
+          {{- range $index, $genesis := .Values.genesis.priceFeed.currencyPairGenesis }}
           {{- if $index }},{{- end }}
           {
             "currencyPair": {
@@ -186,10 +185,10 @@
           }
           {{- end }}
         ],
-        "nextId": "{{ .Values.sequencer.priceFeed.nextId }}"
+        "nextId": "{{ .Values.genesis.priceFeed.nextId }}"
       }
     }
-    {{- end}}
+    {{- end }}
   },
   "chain_id": "{{ .Values.genesis.chainId }}",
   "consensus_params": {
@@ -207,11 +206,13 @@
         "ed25519"
       ]
     },
-    "version": {
-      "app": "0"
-    },
+    {{- if and .Values.global.dev (not .Values.sequencer.upgrades.systemTest.enabled) }}
     "abci": {
       "vote_extensions_enable_height": "{{ .Values.genesis.consensusParams.voteExtensionsEnableHeight }}"
+    },
+    {{- end }}
+    "version": {
+      "app": "{{ .Values.genesis.consensusParams.appVersion }}"
     }
   },
   "genesis_time": "{{ .Values.genesis.genesisTime }}",
