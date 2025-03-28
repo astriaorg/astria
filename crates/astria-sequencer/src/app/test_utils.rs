@@ -174,7 +174,7 @@ pub(crate) fn transactions_with_extended_commit_info_and_commitments(
     txs: &[Arc<Transaction>],
     deposits: Option<HashMap<RollupId, Vec<Deposit>>>,
 ) -> Vec<Bytes> {
-    use astria_core::protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping;
+    use astria_core::protocol::price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping;
     use prost::Message as _;
 
     use crate::proposal::commitment::generate_rollup_datas_commitment;

@@ -5,7 +5,8 @@ use std::{
 };
 
 use astria_core::{
-    connect::{
+    crypto::SigningKey,
+    oracles::price_feed::{
         market_map::v2::{
             Market,
             MarketMap,
@@ -13,7 +14,6 @@ use astria_core::{
         },
         types::v2::CurrencyPair,
     },
-    crypto::SigningKey,
     primitive::v1::{
         asset,
         Address,
@@ -86,18 +86,18 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    connect::{
+    fees::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
+    ibc::StateReadExt as _,
+    oracles::price_feed::{
         market_map::state_ext::{
             StateReadExt as _,
             StateWriteExt as _,
         },
         oracle::state_ext::StateReadExt,
     },
-    fees::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
-    ibc::StateReadExt as _,
     test_utils::{
         calculate_rollup_data_submission_fee_from_state,
         example_ticker_from_currency_pair,

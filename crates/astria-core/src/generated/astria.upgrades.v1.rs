@@ -39,7 +39,7 @@ pub struct Upgrade1 {
     #[prost(message, optional, tag = "1")]
     pub base_info: ::core::option::Option<BaseUpgradeInfo>,
     #[prost(message, optional, tag = "2")]
-    pub connect_oracle_change: ::core::option::Option<upgrade1::ConnectOracleChange>,
+    pub price_feed_change: ::core::option::Option<upgrade1::PriceFeedChange>,
     #[prost(message, optional, tag = "3")]
     pub validator_update_action_change: ::core::option::Option<
         upgrade1::ValidatorUpdateActionChange,
@@ -49,15 +49,15 @@ pub struct Upgrade1 {
 pub mod upgrade1 {
     #[allow(clippy::derive_partial_eq_without_eq)]
     #[derive(Clone, PartialEq, ::prost::Message)]
-    pub struct ConnectOracleChange {
-        /// The Connect oracle genesis data.
+    pub struct PriceFeedChange {
+        /// The price feed genesis data.
         #[prost(message, optional, tag = "1")]
         pub genesis: ::core::option::Option<
-            super::super::super::protocol::genesis::v1::ConnectGenesis,
+            super::super::super::protocol::genesis::v1::PriceFeedGenesis,
         >,
     }
-    impl ::prost::Name for ConnectOracleChange {
-        const NAME: &'static str = "ConnectOracleChange";
+    impl ::prost::Name for PriceFeedChange {
+        const NAME: &'static str = "PriceFeedChange";
         const PACKAGE: &'static str = "astria.upgrades.v1";
         fn full_name() -> ::prost::alloc::string::String {
             ::prost::alloc::format!("astria.upgrades.v1.Upgrade1.{}", Self::NAME)

@@ -149,7 +149,7 @@ message RollupData {
   oneof value {
     bytes sequenced_data = 1;
     Deposit deposit = 2;
-    OracleData oracle_data = 3;
+    PriceFeedData price_feed_data = 3;
   }
 }
 
@@ -175,7 +175,7 @@ message ExtendedCommitInfoWithProof {
   astria.primitive.v1.Proof proof = 2;
 }
 
-message OracleData {
+message PriceFeedData {
   repeated Price prices = 1;
 }
 

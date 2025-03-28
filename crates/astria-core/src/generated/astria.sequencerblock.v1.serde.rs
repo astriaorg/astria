@@ -1488,97 +1488,6 @@ impl<'de> serde::Deserialize<'de> for get_upgrades_info_response::ChangeInfo {
         deserializer.deserialize_struct("astria.sequencerblock.v1.GetUpgradesInfoResponse.ChangeInfo", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for OracleData {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if !self.prices.is_empty() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1.OracleData", len)?;
-        if !self.prices.is_empty() {
-            struct_ser.serialize_field("prices", &self.prices)?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for OracleData {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "prices",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            Prices,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "prices" => Ok(GeneratedField::Prices),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = OracleData;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.sequencerblock.v1.OracleData")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<OracleData, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut prices__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::Prices => {
-                            if prices__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("prices"));
-                            }
-                            prices__ = Some(map_.next_value()?);
-                        }
-                    }
-                }
-                Ok(OracleData {
-                    prices: prices__.unwrap_or_default(),
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.sequencerblock.v1.OracleData", FIELDS, GeneratedVisitor)
-    }
-}
 impl serde::Serialize for Price {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -1708,6 +1617,97 @@ impl<'de> serde::Deserialize<'de> for Price {
         deserializer.deserialize_struct("astria.sequencerblock.v1.Price", FIELDS, GeneratedVisitor)
     }
 }
+impl serde::Serialize for PriceFeedData {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.prices.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1.PriceFeedData", len)?;
+        if !self.prices.is_empty() {
+            struct_ser.serialize_field("prices", &self.prices)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for PriceFeedData {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "prices",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Prices,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "prices" => Ok(GeneratedField::Prices),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = PriceFeedData;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.sequencerblock.v1.PriceFeedData")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<PriceFeedData, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut prices__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Prices => {
+                            if prices__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("prices"));
+                            }
+                            prices__ = Some(map_.next_value()?);
+                        }
+                    }
+                }
+                Ok(PriceFeedData {
+                    prices: prices__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.sequencerblock.v1.PriceFeedData", FIELDS, GeneratedVisitor)
+    }
+}
 impl serde::Serialize for RollupData {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -1729,8 +1729,8 @@ impl serde::Serialize for RollupData {
                 rollup_data::Value::Deposit(v) => {
                     struct_ser.serialize_field("deposit", v)?;
                 }
-                rollup_data::Value::OracleData(v) => {
-                    struct_ser.serialize_field("oracleData", v)?;
+                rollup_data::Value::PriceFeedData(v) => {
+                    struct_ser.serialize_field("priceFeedData", v)?;
                 }
             }
         }
@@ -1747,15 +1747,15 @@ impl<'de> serde::Deserialize<'de> for RollupData {
             "sequenced_data",
             "sequencedData",
             "deposit",
-            "oracle_data",
-            "oracleData",
+            "price_feed_data",
+            "priceFeedData",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             SequencedData,
             Deposit,
-            OracleData,
+            PriceFeedData,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -1779,7 +1779,7 @@ impl<'de> serde::Deserialize<'de> for RollupData {
                         match value {
                             "sequencedData" | "sequenced_data" => Ok(GeneratedField::SequencedData),
                             "deposit" => Ok(GeneratedField::Deposit),
-                            "oracleData" | "oracle_data" => Ok(GeneratedField::OracleData),
+                            "priceFeedData" | "price_feed_data" => Ok(GeneratedField::PriceFeedData),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -1815,11 +1815,11 @@ impl<'de> serde::Deserialize<'de> for RollupData {
                             value__ = map_.next_value::<::std::option::Option<_>>()?.map(rollup_data::Value::Deposit)
 ;
                         }
-                        GeneratedField::OracleData => {
+                        GeneratedField::PriceFeedData => {
                             if value__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("oracleData"));
+                                return Err(serde::de::Error::duplicate_field("priceFeedData"));
                             }
-                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(rollup_data::Value::OracleData)
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(rollup_data::Value::PriceFeedData)
 ;
                         }
                     }

@@ -322,7 +322,7 @@ mod tests {
     }
 
     fn make_test_extended_commit_info_bytes() -> Vec<u8> {
-        use astria_core::generated::protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping;
+        use astria_core::generated::protocol::price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping;
 
         let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo =
             tendermint::abci::types::ExtendedCommitInfo {

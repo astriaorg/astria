@@ -16,7 +16,7 @@ use std::{
 };
 
 use astria_core::{
-    connect::{
+    oracles::price_feed::{
         market_map::v2::{
             Market,
             Params,

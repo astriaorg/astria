@@ -4,7 +4,7 @@ mod upgrades;
 use std::collections::HashMap;
 
 use astria_core::{
-    connect::types::v2::{
+    oracles::price_feed::types::v2::{
         CurrencyPair,
         CurrencyPairId,
         CurrencyPairNonce,
@@ -15,8 +15,8 @@ use astria_core::{
         TransactionId,
     },
     protocol::{
-        connect::v1::CurrencyPairInfo,
         genesis::v1::Account,
+        price_feed::v1::CurrencyPairInfo,
         transaction::v1::{
             action::{
                 BridgeLock,
@@ -89,8 +89,8 @@ use crate::{
         verification_key,
     },
     bridge::StateWriteExt as _,
-    connect::oracle::state_ext::StateWriteExt,
     fees::StateReadExt as _,
+    oracles::price_feed::oracle::state_ext::StateWriteExt,
 };
 
 fn default_tendermint_header() -> Header {
@@ -1149,12 +1149,12 @@ async fn app_proposal_fingerprint_triggers_update() {
 #[tokio::test]
 async fn app_oracle_price_update_events_in_finalize_block() {
     use astria_core::{
-        connect::{
+        generated::price_feed::abci::v2::OracleVoteExtension as RawOracleVoteExtension,
+        oracles::price_feed::{
             oracle::v2::CurrencyPairState,
             types::v2::Price,
         },
-        generated::connect::abci::v2::OracleVoteExtension as RawOracleVoteExtension,
-        protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping,
+        protocol::price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
     };
     use prost::Message as _;
     use tendermint::{

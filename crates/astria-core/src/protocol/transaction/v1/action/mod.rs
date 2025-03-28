@@ -11,7 +11,7 @@ use prost::Name as _;
 
 use super::raw;
 use crate::{
-    connect::{
+    oracles::price_feed::{
         market_map::v2::{
             Market,
             MarketError,
