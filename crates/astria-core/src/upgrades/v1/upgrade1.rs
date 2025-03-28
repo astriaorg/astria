@@ -223,3 +223,37 @@ enum ErrorKind {
     #[error("`price_feed_change.genesis` field was invalid")]
     PriceFeedGenesis { source: PriceFeedGenesisError },
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        protocol::test_utils::dummy_price_feed_genesis,
+        upgrades::v1::change::DeterministicSerialize,
+    };
+
+    #[test]
+    fn serialized_price_feed_change_should_not_change() {
+        let price_feed_change = PriceFeedChange {
+            activation_height: 10,
+            app_version: 2,
+            genesis: Arc::new(dummy_price_feed_genesis()),
+        };
+        let serialized_price_feed_change = hex::encode(price_feed_change.to_vec());
+        insta::assert_snapshot!("price_feed_change", serialized_price_feed_change);
+    }
+
+    #[test]
+    fn serialized_validator_update_action_change_should_not_change() {
+        let validator_update_action_change = ValidatorUpdateActionChange {
+            activation_height: 10,
+            app_version: 2,
+        };
+        let serialized_validator_update_action_change =
+            hex::encode(validator_update_action_change.to_vec());
+        insta::assert_snapshot!(
+            "validator_update_action_change",
+            serialized_validator_update_action_change
+        );
+    }
+}

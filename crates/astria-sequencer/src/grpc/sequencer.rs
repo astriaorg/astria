@@ -265,6 +265,15 @@ impl SequencerService for SequencerServer {
             Status::internal(format!("failed to get block height from storage: {e:#}"))
         })?;
         let mut response = GetUpgradesInfoResponse::default();
+        // NOTE: the upgrades being added to the `response.applied` collection here have all been
+        // verified as having been executed and added to verifiable storage during startup of the
+        // sequencer. The ones added to `response.scheduled` can legitimately vary from sequencer to
+        // sequencer depending upon what the operator has staged for upcoming upgrades. At the
+        // activation point of scheduled upgrades, consensus must be reached on the contents of the
+        // upgrade.  Assuming consensus is reached on the state changes caused by executing the
+        // upgrade, any peer with varying upgrade details will produce a different state root hash
+        // during finalize block at the activation height and will from there be stuck in a crash
+        // loop.
         for change in self.upgrades.iter().flat_map(Upgrade::changes) {
             let change_info = change.info().to_raw();
             if change_info.activation_height <= current_block_height {
