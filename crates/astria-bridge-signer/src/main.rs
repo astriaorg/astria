@@ -50,7 +50,7 @@ async fn main() -> ExitCode {
         "initializing bridge signer"
     );
 
-    let bridge_signer = match BridgeSigner::from_config(cfg, &metrics) {
+    let bridge_signer = match BridgeSigner::from_config(cfg, metrics) {
         Ok(bridge_signer) => bridge_signer,
         Err(e) => {
             eprintln!("initializing bridge signer failed: {e}");

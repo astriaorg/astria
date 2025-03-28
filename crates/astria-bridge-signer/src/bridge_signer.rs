@@ -85,6 +85,15 @@ impl BridgeSigner {
         })
     }
 
+    /// Runs the [`BridgeSigner`] until a shutdown signal is received.
+    ///
+    /// # Errors
+    /// - If the gRPC server exits unexpectedly.
+    /// - If the gRPC server exits with an error.
+    ///
+    /// # Panics
+    /// - If the gRPC server handle is not set. This should only happen if attempting to call after
+    ///   the bridge signer has been shut down.
     pub async fn run_until_stopped(mut self) -> eyre::Result<()> {
         tokio::select!(
             res = self.grpc_server_handle.handle.as_mut().expect("gRPC server handle must be set at this point") => {
@@ -115,7 +124,7 @@ impl BridgeSigner {
                 Err(_) => error!("gRPC server failed to shut down in time"),
             }
         } else {
-            info!("shutdown called but gRPC server handle is not present. This should not happen")
+            info!("shutdown called but gRPC server handle is not present. This should not happen");
         }
     }
 }
@@ -133,18 +142,14 @@ fn spawn_signal_handler() -> SignalReceiver {
         let mut sigterm = signal(SignalKind::terminate()).expect(
             "setting a SIGTERM listener should always work on unix; is this running on unix?",
         );
-        loop {
-            select! {
-                _ = sigint.recv() => {
-                    info!("received SIGINT");
-                    let _ = stop_tx.send(());
-                    break;
-                }
-                _ = sigterm.recv() => {
-                    info!("received SIGTERM");
-                    let _ = stop_tx.send(());
-                    break;
-                }
+        select! {
+            _ = sigint.recv() => {
+                info!("received SIGINT");
+                let _ = stop_tx.send(());
+            }
+            _ = sigterm.recv() => {
+                info!("received SIGTERM");
+                let _ = stop_tx.send(());
             }
         }
     });
