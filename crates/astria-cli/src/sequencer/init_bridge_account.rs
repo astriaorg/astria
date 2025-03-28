@@ -27,6 +27,8 @@ pub(super) struct Command {
     private_key: String,
     /// The authorized withdrawer address for this account.
     /// If unset, the sender address will be used.
+    /// Should be an astria-prefixed bech32m address.
+    /// Ex: "astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr"
     #[arg(long)]
     withdrawer_address: Option<Address>,
     /// The url of the Sequencer node
