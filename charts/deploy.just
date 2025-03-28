@@ -241,7 +241,11 @@ deploy-smoke-cli tag=defaultTag:
   @just wait-for-dev-rollup > /dev/null
   @sleep 10
 
-deploy-upgrade-test:
+export PYTHONPATH := "${PYTHONPATH}:system-tests/helpers/generated"
+generate-system-test-protos:
+  buf generate --template system-tests/buf.gen.yaml
+
+deploy-upgrade-test: generate-system-test-protos
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
   @just wait-for-ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
@@ -416,6 +420,7 @@ run-upgrade-test tag=default_docker_tag:
   if [ -d "system-tests/.venv" ]; then
     echo "Found Python virtual environment, activating it..."
     source system-tests/.venv/bin/activate
+    uv pip install -r system-tests/requirements.txt
   fi
   python3 system-tests/sequencer_upgrade_test.py \
     --image-tag {{ if tag != '' { tag } else { 'latest' } }} \

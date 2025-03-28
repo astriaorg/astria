@@ -6,8 +6,8 @@ from .utils import (
     wait_for_statefulset_rollout,
     Retryer,
 )
-from .proto.generated.service_pb2 import GetSequencerBlockRequest, GetUpgradesInfoRequest
-from .proto.generated.service_pb2_grpc import SequencerServiceStub
+from .generated.astria.sequencerblock.v1.service_pb2 import GetSequencerBlockRequest, GetUpgradesInfoRequest
+from .generated.astria.sequencerblock.v1.service_pb2_grpc import SequencerServiceStub
 
 class SequencerController:
     """

@@ -74,8 +74,6 @@ just deploy upgrade-test
 
 # Run the test
 just run-upgrade-test
-
-
 ```
 
 This invokes the `sequencer_upgrade_test.py` script with the args

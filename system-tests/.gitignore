@@ -14,3 +14,6 @@ pip-delete-this-directory.txt
 dist/
 build/
 *.egg-info/
+
+# Generated Protobuf
+helpers/generated/
