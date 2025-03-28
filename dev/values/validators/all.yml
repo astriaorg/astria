@@ -42,78 +42,26 @@ sequencer:
   optimisticBlockApis:
     # set to true to enable optimistic block APIs
     enabled: false
-  upgrades:
-    upgrade1:
-      activationHeight: 60
-      appVersion: 2
-    systemTest:
-      # If `false`, we're running a new network with code and configs incorporating
-      # the latest changes due to be provided via the next planned upgrade. If
-      # `true`, we're running a network similar to current mainnet/testnet, likely
-      # for testing the next planned upgrade.
-      enabled: false
-      # Only effective if `systemTest.enabled` is true. If `bootstrapping` is true, upgrades.json
-      # will not contain the latest upgrade, to allow bootstrapping a test network without the
-      # latest upgrade staged.
-      bootstrapping: false
   priceFeed:
     enabled: true
     metrics:
       enabled: true
-    markets:
-      - name: "BTC/USD"
-        providerConfigs:
-          - name: "coingecko_api"
-            offChainTicker: "bitcoin/usd"
-        ticker:
-          currencyPair:
-            Base: "BTC"
-            Quote: "USD"
-          decimals: "5"
-          enabled: true
-          minProviderCount: "1"
-      - name: "ETH/USD"
-        providerConfigs:
-          - name: "coingecko_api"
-            offChainTicker: "ethereum/usd"
-        ticker:
-          currencyPair:
-            Base: "ETH"
-            Quote: "USD"
-          decimals: "6"
-          enabled: true
-          minProviderCount: "1"
-    currencyPairGenesis:
-      - currencyPair:
-          Base: "BTC"
-          Quote: "USD"
-        currencyPairPrice:
-          blockTimestamp: "2024-07-04T19:46:35+00:00"
-          price: "5834065777"
-      - currencyPair:
-          Base: "ETH"
-          Quote: "USD"
-        currencyPairPrice:
-          blockTimestamp: "2024-07-04T19:46:35+00:00"
-          price: "3138872234"
-        id: "1"
-    nextId: "2"
 
 resources:
   cometbft:
     requests:
-      cpu: 1000m
-      memory: 500Mi
+      cpu: 300m
+      memory: 100Mi
     limits:
-      cpu: 1000m
-      memory: 500Mi
+      cpu: 300m
+      memory: 100Mi
   sequencer:
     requests:
-      cpu: 1000m
-      memory: 500Mi
+      cpu: 100m
+      memory: 100Mi
     limits:
-      cpu: 1000m
-      memory: 500Mi
+      cpu: 100m
+      memory: 100Mi
 
 storage:
   enabled: false

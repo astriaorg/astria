@@ -120,12 +120,12 @@
       {{ include "sequencer.address" $value }}
       {{- end }}
     ]
-    {{- if and .Values.global.dev (not .Values.sequencer.upgrades.systemTest.enabled) }},
+    {{- if and .Values.global.dev .Values.genesis.priceFeed }},
     "price_feed": {
       "marketMap": {
         "marketMap": {
           "markets": {
-            {{- range $index, $market := .Values.sequencer.priceFeed.markets }}
+            {{- range $index, $market := .Values.genesis.priceFeed.markets }}
             {{- if $index }},{{- end }}
             "{{ $market.name }}": {
               "providerConfigs": [
@@ -168,7 +168,7 @@
       },
       "oracle": {
         "currencyPairGenesis": [
-          {{- range $index, $genesis := .Values.sequencer.priceFeed.currencyPairGenesis }}
+          {{- range $index, $genesis := .Values.genesis.priceFeed.currencyPairGenesis }}
           {{- if $index }},{{- end }}
           {
             "currencyPair": {
@@ -185,10 +185,10 @@
           }
           {{- end }}
         ],
-        "nextId": "{{ .Values.sequencer.priceFeed.nextId }}"
+        "nextId": "{{ .Values.genesis.priceFeed.nextId }}"
       }
     }
-    {{- end}}
+    {{- end }}
   },
   "chain_id": "{{ .Values.genesis.chainId }}",
   "consensus_params": {
