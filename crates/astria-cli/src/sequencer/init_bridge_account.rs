@@ -1,5 +1,8 @@
 use astria_core::{
-    primitive::v1::asset,
+    primitive::v1::{
+        asset,
+        Address,
+    },
     protocol::transaction::v1::{
         action::InitBridgeAccount,
         Action,
@@ -25,7 +28,7 @@ pub(super) struct Command {
     /// The authorized withdrawer address for this account.
     /// If unset, the sender address will be used.
     #[arg(long)]
-    withdrawer_address: Option<String>,
+    withdrawer_address: Option<Address>,
     /// The url of the Sequencer node
     #[arg(long, env = "SEQUENCER_URL")]
     sequencer_url: String,
@@ -46,20 +49,7 @@ pub(super) struct Command {
 
 impl Command {
     pub(super) async fn run(self) -> eyre::Result<()> {
-        use astria_core::primitive::v1::{
-            Address,
-            RollupId,
-        };
-
-        let withdrawer_address = self
-            .withdrawer_address
-            .map(|address| {
-                address
-                    .parse::<Address>()
-                    .wrap_err("failed to parse withdrawer address")
-            })
-            .transpose()
-            .wrap_err("failed to parse withdrawer address")?;
+        use astria_core::primitive::v1::RollupId;
 
         let rollup_id = RollupId::from_unhashed_bytes(self.rollup_name.as_bytes());
         let res = crate::utils::submit_transaction(
@@ -72,7 +62,7 @@ impl Command {
                 asset: self.asset.clone(),
                 fee_asset: self.fee_asset.clone(),
                 sudo_address: None,
-                withdrawer_address,
+                withdrawer_address: self.withdrawer_address,
             }),
         )
         .await
