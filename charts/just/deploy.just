@@ -24,7 +24,7 @@ all: cluster ingress-controller astria-local astrotrek (deploy-chart "sequencer-
 [doc("
 Deploys local Sequencer and Celestia instance.
 Usage:
-  $just deploy astria-local <NAMESPACE> (default: 'astria-dev-cluster')
+  just deploy astria-local <NAMESPACE> (default: 'astria-dev-cluster')
 ")]
 astria-local namespace=defaultNamespace: (deploy-chart "celestia-local" namespace) (sequencer)
 
@@ -35,7 +35,7 @@ hubbleEnabled := "false"
 [doc("
 Deploys a local Kubernetes cluster.
 Usage:
-  $just deploy cluster <NAMESPACE> <ENABLE_HUBBLE> (defaults: 'astria-dev-cluster', 'false')
+  just deploy cluster <NAMESPACE> <ENABLE_HUBBLE> (defaults: 'astria-dev-cluster', 'false')
 ")]
 cluster namespace=defaultNamespace enableHubble=hubbleEnabled:
   @kind create cluster --image kindest/node:v1.28.9 --config ../../dev/kubernetes/kind-cluster-config.yml
@@ -75,7 +75,7 @@ ingress-controller:
 [doc("
 Deploys a local graph node.
 Usage:
-  $just deploy graph-node <NAMESPACE> (default: 'astria-dev-cluster')
+  just deploy graph-node <NAMESPACE> (default: 'astria-dev-cluster')
 ")]
 graph-node namespace=defaultNamespace: (deploy-chart "graph-node" namespace)
 
@@ -96,7 +96,7 @@ secrets-store:
 [doc("
 Deploys a local Sequencer node from 'dev/values/validators' and awaits its readiness.
 Usage:
-  $just deploy sequencer <NAME> (default: 'single')
+  just deploy sequencer <NAME> (default: 'single')
 ")]
 sequencer name=validatorName:
   @echo "Deploying sequencer '{{name}}'..."
@@ -159,7 +159,7 @@ to be ready. Local Sequencer and Celestia networks must be running before deploy
 the rollup.
 Note: default values file can be found in `helm/rollup/values.yaml`
 Usage:
-  $just deploy rollup <ROLLUP_NAME> <NETWORK_ID> (defaults: 'astria', '')
+  just deploy rollup <ROLLUP_NAME> <NETWORK_ID> (defaults: 'astria', '')
 ")]
 rollup rollupName=defaultRollupName networkId=defaultNetworkId:
   @echo "Deploying rollup '{{rollupName}}'..."
@@ -179,7 +179,7 @@ rollup rollupName=defaultRollupName networkId=defaultNetworkId:
 Deploys local Flame instance and awaits its readiness. Local Sequencer and Celestia
 networks must be running before deploying the rollup.
 Usage:
-  $just deploy flame-dev-rollup <ROLLUP_NAME> <NETWORK_ID> (defaults: 'astria', '')
+  just deploy flame-dev-rollup <ROLLUP_NAME> <NETWORK_ID> (defaults: 'astria', '')
 ")]
 flame-dev-rollup rollupName=defaultRollupName networkId=defaultNetworkId:
   @echo "Deploying Flame rollup '{{rollupName}}'..."
@@ -227,7 +227,7 @@ bridge-withdrawer:
 [doc("
 Deploys local Hyperlane agents.
 Usage:
-  $just deploy hyperlane-agents <ROLLUP_NAME> <AGENT_CONFIG> <RELAYER_PRIVATE_KEY> <VALIDATOR_PRIVATE_KEY>
+  just deploy hyperlane-agents <ROLLUP_NAME> <AGENT_CONFIG> <RELAYER_PRIVATE_KEY> <VALIDATOR_PRIVATE_KEY>
   (defaults: 'astria', '', '', '')
 ")]
 hyperlane-agents rollupName=defaultRollupName agentConfig=defaultHypAgentConfig relayerPrivateKey=defaultHypRelayerPrivateKey validatorPrivateKey=defaultHypValidatorPrivateKey:
@@ -245,7 +245,7 @@ hyperlane-agents rollupName=defaultRollupName agentConfig=defaultHypAgentConfig 
 Deploys all components necessary for local end-to-end (including rollup and Celestia)
 smoke test and awaits their readiness.
 Usage:
-  $just deploy smoke-test <TAG> (default: '')
+  just deploy smoke-test <TAG> (default: '')
 ")]
 smoke-test tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
@@ -273,7 +273,7 @@ smoke-test tag=defaultTag:
 Deploys all components necessary for local end-to-end smoke test without EVM Bridge
 Withdrawer and awaits their readiness.
 Usage:
-  $just deploy smoke-cli <TAG> (default: '')
+  just deploy smoke-cli <TAG> (default: '')
 ")]
 smoke-cli tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
@@ -301,7 +301,7 @@ smoke-cli tag=defaultTag:
 Deploys all components necessary for smoke test via IBC transactions and awaits
 their readiness.
 Usage:
-  $just deploy ibc-test <TAG> (default: '')
+  just deploy ibc-test <TAG> (default: '')
 ")]
 ibc-test tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
@@ -332,7 +332,7 @@ ibc-test tag=defaultTag:
 Deploys all components necessary for IBC test with no native asset defined and awaits
 their readiness.
 Usage:
-  $just deploy ibc-test-without-native <TAG> (default: '')
+  just deploy ibc-test-without-native <TAG> (default: '')
 ")]
 ibc-test-without-native tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
@@ -356,7 +356,7 @@ ibc-test-without-native tag=defaultTag:
 Deploys all components necessary for IBC test with a timeout on receipt of a refund
 and awaits their readiness.
 Usage:
-  $just deploy ibc-test-timeout-refund <TAG> (default: '')
+  just deploy ibc-test-timeout-refund <TAG> (default: '')
 ")]
 ibc-test-timeout-refund tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null

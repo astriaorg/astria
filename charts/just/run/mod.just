@@ -1,7 +1,7 @@
 import '../defaults.just'
 import '../evm.just'
 
-[doc("Run recipes for IBC testing. Use '$just --list run ibc-test' for more info.")]
+[doc("Run recipes for IBC testing. Use 'just --list run ibc-test' for more info.")]
 mod ibc-test
 
 
@@ -40,7 +40,7 @@ bridge_tx_hash := "0x326c3910da4c96c5a40ba1505fc338164b659729f2f975ccb07e8794c96
 Runs end-to-end test of Astria stack and EVM rollup, including bridge in/out and
 TX finalization.
 Usage:
-  $just run smoke-test <TAG> (default: '')
+  just run smoke-test <TAG> (default: '')
 ")]
 smoke-test tag=defaultTag:
   #!/usr/bin/env bash
@@ -143,7 +143,7 @@ evm_contract_address := "0xA58639fB5458e65E4fA917FF951C390292C24A15"
 Runs end-to-end smoke test of Astria stack (minus Bridge-Withdrawer) and EVM rollup,
 including bridge in/out and TX finalization.
 Usage:
-  $just run smoke-cli <TAG> (default: '')
+  just run smoke-cli <TAG> (default: '')
 ")]
 smoke-cli tag=defaultTag:
   #!/usr/bin/env bash

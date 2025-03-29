@@ -27,7 +27,7 @@ all:
 [doc("
 Deletes local Sequencer and Celestia deployments.
 Usage:
-  $just delete astria-local <NAMESPACE> (default: 'astria-dev-cluster')
+  just delete astria-local <NAMESPACE> (default: 'astria-dev-cluster')
 ")]
 astria-local namespace=defaultNamespace: (delete-chart "celestia-local" namespace) (sequencer)
 
@@ -37,7 +37,7 @@ astria-local namespace=defaultNamespace: (delete-chart "celestia-local" namespac
 [doc("
 Deletes local graph node.
 Usage:
-  $just delete graph-node <NAMESPACE> (default: 'astria-dev-cluster')
+  just delete graph-node <NAMESPACE> (default: 'astria-dev-cluster')
 ")]
 graph-node namespace=defaultNamespace: (delete-chart "graph-node" namespace)
 
@@ -47,7 +47,7 @@ graph-node namespace=defaultNamespace: (delete-chart "graph-node" namespace)
 [doc("
 Deletes graph node persisted volumes.
 Usage:
-  $just delete graph-node-pvc <NAMESPACE> (default: 'astria-dev-cluster')
+  just delete graph-node-pvc <NAMESPACE> (default: 'astria-dev-cluster')
 ")]
 graph-node-pvc namespace=defaultNamespace:
   @kubectl delete pvc -n namespace \
@@ -87,7 +87,7 @@ hermes-local: (delete-chart "hermes-local")
 [doc("
 Deletes local Sequencer deployment.
 Usage:
-  $just delete sequencer <NAME> (default: 'single')
+  just delete sequencer <NAME> (default: 'single')
 ")]
 sequencer name=validatorName:
   @just delete::delete-chart {{name}}-sequencer astria-validator-{{name}}
@@ -106,7 +106,7 @@ sequencers: (sequencer "node0") (sequencer "node1") (sequencer "node2") (sequenc
 [doc("
 Deletes local EVM rollup stack deployment.
 Usage:
-  $just delete rollup <ROLLUP_NAME> (default: 'astria')
+  just delete rollup <ROLLUP_NAME> (default: 'astria')
 ")]
 rollup rollupName=defaultRollupName:
   @just delete::delete-chart {{rollupName}}-chain
@@ -117,7 +117,7 @@ rollup rollupName=defaultRollupName:
 [doc("
 Deletes local Flame rollup deployment.
 Usage:
-  $just delete flame-dev-rollup <ROLLUP_NAME> (default: 'astria')
+  just delete flame-dev-rollup <ROLLUP_NAME> (default: 'astria')
 ")]
 flame-dev-rollup rollupName=defaultRollupName: (rollup rollupName)
 
@@ -143,7 +143,7 @@ bridge-withdrawer: (delete-chart "evm-bridge-withdrawer")
 [doc("
 Deletes Hyperlane agents on a locally running rollup.
 Usage:
-  $just delete hyperlane-agents <ROLLUP_NAME> (default: 'astria')
+  just delete hyperlane-agents <ROLLUP_NAME> (default: 'astria')
 ")]
 hyperlane-agents rollupName=defaultRollupName:
   @just delete::delete-chart {{rollupName}}-hyperlane-agents
