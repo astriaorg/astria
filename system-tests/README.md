@@ -73,7 +73,7 @@ just deploy cluster # only needs to be run first time
 just deploy upgrade-test
 
 # Run the test
-just run-upgrade-test
+just run upgrade-test
 ```
 
 This invokes the `sequencer_upgrade_test.py` script with the args
@@ -97,7 +97,7 @@ just docker-build-and-load astria-bridge-withdrawer
 just deploy upgrade-test
 
 # Run the test
-just run-upgrade-test local
+just run upgrade-test local
 ```
 
 This invokes the `sequencer_upgrade_test.py` script with the args

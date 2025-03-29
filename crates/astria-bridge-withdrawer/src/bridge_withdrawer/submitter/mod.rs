@@ -34,7 +34,6 @@ use sequencer_client::{
     SequencerClientExt,
     Transaction,
 };
-use signer::SequencerKey;
 use state::State;
 use tokio::{
     select,
@@ -61,7 +60,9 @@ use super::{
 use crate::metrics::Metrics;
 
 mod builder;
-pub(crate) mod signer;
+mod signer;
+
+pub(crate) use signer::Signer;
 
 pub(super) struct Submitter {
     shutdown_token: CancellationToken,
@@ -70,25 +71,36 @@ pub(super) struct Submitter {
     batches_rx: mpsc::Receiver<Batch>,
     sequencer_cometbft_client: sequencer_client::HttpClient,
     sequencer_grpc_client: SequencerServiceClient<Channel>,
-    signer: SequencerKey,
+    signer: Signer,
     metrics: &'static Metrics,
 }
 
 impl Submitter {
+    pub(super) async fn initialize(&mut self) -> eyre::Result<String> {
+        let (startup_info, ()) = async move {
+            tokio::try_join!(self.startup_handle.get_info(), self.signer.initialize(),)
+        }
+        .await?;
+        Ok(startup_info.chain_id)
+    }
+
     pub(super) async fn run(mut self) -> eyre::Result<()> {
-        let sequencer_chain_id = select! {
-            () = self.shutdown_token.cancelled() => {
-                report_exit(Ok("submitter received shutdown signal while waiting for startup"));
-                return Ok(());
-            }
-
-            startup_info = self.startup_handle.get_info() => {
-                let startup::Info { chain_id, .. } = startup_info.wrap_err("submitter failed to get startup info")?;
-
-                self.state.set_submitter_ready();
-                chain_id
-            }
+        let sequencer_chain_id = if let Some(init_result) = self
+            .shutdown_token
+            .clone()
+            .run_until_cancelled(self.initialize())
+            .await
+        {
+            init_result.wrap_err(
+                "failed initializing task for submitting transactions to the Astria network",
+            )?
+        } else {
+            report_exit(Ok(
+                "submitter received shutdown signal while waiting for startup"
+            ));
+            return Ok(());
         };
+
         self.state.set_submitter_ready();
 
         let reason = loop {
@@ -178,7 +190,10 @@ impl Submitter {
             .wrap_err("failed to build unsigned transaction")?;
 
         // sign transaction
-        let signed = unsigned.sign(signer.signing_key());
+        let signed = signer
+            .sign(unsigned)
+            .await
+            .wrap_err("failed to sign transaction")?;
         debug!(transaction_id = %&signed.id(), "signed transaction");
 
         // submit transaction and handle response
