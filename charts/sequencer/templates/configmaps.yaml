@@ -30,11 +30,15 @@ metadata:
 data:
   init-cometbft.sh: |
     {{- tpl (.Files.Get "files/scripts/init-cometbft.sh") $ | nindent 4 }}
-  {{- if not .Values.global.dev }}
-  {{- else }}
-  markets.json: |
-    {{- tpl (.Files.Get "files/scripts/markets.json") $ | nindent 4 }}
-  {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.moniker }}-sequencer-upgrades
+  namespace: {{ include "sequencer.namespace" . }}
+data:
+  upgrades.json: |
+    {{- tpl (.Files.Get (tpl "files/upgrades/{{ .Values.global.network }}.upgrades.json" .)) $ | nindent 4 }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -85,8 +89,9 @@ data:
   {{- if not (or .Values.global.dev (ne (include "sequencer.imageTag" .) .Chart.AppVersion)) }}
   # These are variables which are added in newer releases and are not present in the current release.
   {{- else }}
-  ASTRIA_SEQUENCER_NO_ORACLE: "{{ not .Values.sequencer.oracle.enabled }}"
-  ASTRIA_SEQUENCER_ORACLE_GRPC_ADDR: "http://127.0.0.1:{{ .Values.ports.oracleGrpc }}"
-  ASTRIA_SEQUENCER_ORACLE_CLIENT_TIMEOUT_MILLISECONDS: "{{ .Values.sequencer.oracle.clientTimeout }}"
+  ASTRIA_SEQUENCER_UPGRADES_FILEPATH: "/sequencer-upgrades/upgrades.json"
+  ASTRIA_SEQUENCER_COMETBFT_RPC_ADDR: "http://127.0.0.1:{{ .Values.ports.cometbftRpc }}"
+  ASTRIA_SEQUENCER_NO_PRICE_FEED: "{{ not .Values.sequencer.priceFeed.enabled }}"
+  ASTRIA_SEQUENCER_PRICE_FEED_GRPC_ADDR: "http://127.0.0.1:{{ .Values.ports.priceFeedGrpc }}"
+  ASTRIA_SEQUENCER_PRICE_FEED_CLIENT_TIMEOUT_MILLISECONDS: "{{ .Values.sequencer.priceFeed.clientTimeout }}"
   {{- end }}
----

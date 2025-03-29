@@ -28,7 +28,7 @@ pub struct GenesisAppState {
     #[prost(message, optional, tag = "10")]
     pub fees: ::core::option::Option<GenesisFees>,
     #[prost(message, optional, tag = "11")]
-    pub connect: ::core::option::Option<ConnectGenesis>,
+    pub price_feed: ::core::option::Option<PriceFeedGenesis>,
 }
 impl ::prost::Name for GenesisAppState {
     const NAME: &'static str = "GenesisAppState";
@@ -169,7 +169,7 @@ impl ::prost::Name for GenesisFees {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ConnectGenesis {
+pub struct PriceFeedGenesis {
     #[prost(message, optional, tag = "1")]
     pub market_map: ::core::option::Option<
         super::super::super::super::connect::marketmap::v2::GenesisState,
@@ -179,8 +179,8 @@ pub struct ConnectGenesis {
         super::super::super::super::connect::oracle::v2::GenesisState,
     >,
 }
-impl ::prost::Name for ConnectGenesis {
-    const NAME: &'static str = "ConnectGenesis";
+impl ::prost::Name for PriceFeedGenesis {
+    const NAME: &'static str = "PriceFeedGenesis";
     const PACKAGE: &'static str = "astria.protocol.genesis.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.protocol.genesis.v1.{}", Self::NAME)

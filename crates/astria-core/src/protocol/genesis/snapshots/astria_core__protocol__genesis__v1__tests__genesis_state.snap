@@ -147,7 +147,7 @@ expression: genesis_state()
       "multiplier": {}
     }
   },
-  "connect": {
+  "priceFeed": {
     "marketMap": {
       "marketMap": {
         "markets": {

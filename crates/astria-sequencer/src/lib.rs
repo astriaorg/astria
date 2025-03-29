@@ -12,12 +12,12 @@ pub(crate) mod bridge;
 mod build_info;
 pub(crate) mod component;
 pub mod config;
-pub(crate) mod connect;
 pub(crate) mod fees;
 pub(crate) mod grpc;
 pub(crate) mod ibc;
 mod mempool;
 pub(crate) mod metrics;
+pub(crate) mod oracles;
 pub(crate) mod proposal;
 mod sequencer;
 pub(crate) mod service;
@@ -25,6 +25,7 @@ pub(crate) mod storage;
 #[cfg(test)]
 pub(crate) mod test_utils;
 pub(crate) mod transaction;
+pub(crate) mod upgrades;
 mod utils;
 
 pub use build_info::BUILD_INFO;

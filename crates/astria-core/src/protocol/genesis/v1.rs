@@ -1,14 +1,15 @@
 use std::convert::Infallible;
 
+use borsh::BorshSerialize;
 pub use penumbra_ibc::params::IBCParameters;
 use penumbra_ibc::IbcRelay;
 
 use crate::{
-    connect::{
+    generated::astria::protocol::genesis::v1 as raw,
+    oracles::price_feed::{
         market_map,
         oracle,
     },
-    generated::astria::protocol::genesis::v1 as raw,
     primitive::v1::{
         asset::{
             self,
@@ -47,18 +48,13 @@ use crate::{
     Protobuf,
 };
 
-#[derive(Clone, Debug)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Deserialize, serde::Serialize),
-    serde(try_from = "raw::ConnectGenesis", into = "raw::ConnectGenesis")
-)]
-pub struct ConnectGenesis {
+#[derive(Clone, Debug, BorshSerialize)]
+pub struct PriceFeedGenesis {
     market_map: market_map::v2::GenesisState,
     oracle: oracle::v2::GenesisState,
 }
 
-impl ConnectGenesis {
+impl PriceFeedGenesis {
     #[must_use]
     pub fn market_map(&self) -> &market_map::v2::GenesisState {
         &self.market_map
@@ -70,9 +66,9 @@ impl ConnectGenesis {
     }
 }
 
-impl Protobuf for ConnectGenesis {
-    type Error = ConnectGenesisError;
-    type Raw = raw::ConnectGenesis;
+impl Protobuf for PriceFeedGenesis {
+    type Error = PriceFeedGenesisError;
+    type Raw = raw::PriceFeedGenesis;
 
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let Self::Raw {
@@ -110,47 +106,47 @@ impl Protobuf for ConnectGenesis {
     }
 }
 
-impl TryFrom<raw::ConnectGenesis> for ConnectGenesis {
+impl TryFrom<raw::PriceFeedGenesis> for PriceFeedGenesis {
     type Error = <Self as Protobuf>::Error;
 
-    fn try_from(value: raw::ConnectGenesis) -> Result<Self, Self::Error> {
+    fn try_from(value: raw::PriceFeedGenesis) -> Result<Self, Self::Error> {
         Self::try_from_raw(value)
     }
 }
 
-impl From<ConnectGenesis> for raw::ConnectGenesis {
-    fn from(value: ConnectGenesis) -> Self {
+impl From<PriceFeedGenesis> for raw::PriceFeedGenesis {
+    fn from(value: PriceFeedGenesis) -> Self {
         value.into_raw()
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct ConnectGenesisError(ConnectGenesisErrorKind);
+pub struct PriceFeedGenesisError(PriceFeedGenesisErrorKind);
 
-impl ConnectGenesisError {
+impl PriceFeedGenesisError {
     fn field_not_set(name: &'static str) -> Self {
-        Self(ConnectGenesisErrorKind::FieldNotSet {
+        Self(PriceFeedGenesisErrorKind::FieldNotSet {
             name,
         })
     }
 
     fn market_map(source: market_map::v2::GenesisStateError) -> Self {
-        Self(ConnectGenesisErrorKind::MarketMap {
+        Self(PriceFeedGenesisErrorKind::MarketMap {
             source,
         })
     }
 
     fn oracle(source: oracle::v2::GenesisStateError) -> Self {
-        Self(ConnectGenesisErrorKind::Oracle {
+        Self(PriceFeedGenesisErrorKind::Oracle {
             source,
         })
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("failed ensuring invariants of {}", ConnectGenesis::full_name())]
-enum ConnectGenesisErrorKind {
+#[error("failed ensuring invariants of {}", PriceFeedGenesis::full_name())]
+enum PriceFeedGenesisErrorKind {
     #[error("field was not set: `{name}`")]
     FieldNotSet { name: &'static str },
     #[error("`market_map` field was invalid")]
@@ -184,7 +180,7 @@ pub struct GenesisAppState {
     ibc_parameters: IBCParameters,
     allowed_fee_assets: Vec<asset::Denom>,
     fees: GenesisFees,
-    connect: Option<ConnectGenesis>,
+    price_feed: Option<PriceFeedGenesis>,
 }
 
 impl GenesisAppState {
@@ -239,8 +235,8 @@ impl GenesisAppState {
     }
 
     #[must_use]
-    pub fn connect(&self) -> &Option<ConnectGenesis> {
-        &self.connect
+    pub fn price_feed(&self) -> &Option<PriceFeedGenesis> {
+        &self.price_feed
     }
 
     fn ensure_address_has_base_prefix(
@@ -274,8 +270,8 @@ impl GenesisAppState {
             self.ensure_address_has_base_prefix(address, &format!(".ibc_relayer_addresses[{i}]"))?;
         }
 
-        if let Some(connect) = &self.connect {
-            for (i, address) in connect
+        if let Some(price_feed) = &self.price_feed {
+            for (i, address) in price_feed
                 .market_map
                 .params
                 .market_authorities
@@ -288,7 +284,7 @@ impl GenesisAppState {
                 )?;
             }
             self.ensure_address_has_base_prefix(
-                &connect.market_map.params.admin,
+                &price_feed.market_map.params.admin,
                 ".market_map.params.admin",
             )?;
         }
@@ -313,7 +309,7 @@ impl Protobuf for GenesisAppState {
             ibc_parameters,
             allowed_fee_assets,
             fees,
-            connect,
+            price_feed,
         } = raw;
         let address_prefixes = address_prefixes
             .as_ref()
@@ -375,8 +371,8 @@ impl Protobuf for GenesisAppState {
             .ok_or_else(|| Self::Error::field_not_set("fees"))
             .and_then(|fees| GenesisFees::try_from_raw_ref(fees).map_err(Self::Error::fees))?;
 
-        let connect = if let Some(connect) = connect {
-            Some(ConnectGenesis::try_from_raw_ref(connect).map_err(Self::Error::connect)?)
+        let price_feed = if let Some(price_feed) = price_feed {
+            Some(PriceFeedGenesis::try_from_raw_ref(price_feed).map_err(Self::Error::price_feed)?)
         } else {
             None
         };
@@ -392,7 +388,7 @@ impl Protobuf for GenesisAppState {
             ibc_parameters,
             allowed_fee_assets,
             fees,
-            connect,
+            price_feed,
         };
         this.ensure_all_addresses_have_base_prefix()
             .map_err(Self::Error::address_does_not_match_base)?;
@@ -411,7 +407,7 @@ impl Protobuf for GenesisAppState {
             ibc_parameters,
             allowed_fee_assets,
             fees,
-            connect,
+            price_feed,
         } = self;
         Self::Raw {
             address_prefixes: Some(address_prefixes.to_raw()),
@@ -426,7 +422,7 @@ impl Protobuf for GenesisAppState {
             ibc_parameters: Some(ibc_parameters.to_raw()),
             allowed_fee_assets: allowed_fee_assets.iter().map(ToString::to_string).collect(),
             fees: Some(fees.to_raw()),
-            connect: connect.as_ref().map(ConnectGenesis::to_raw),
+            price_feed: price_feed.as_ref().map(PriceFeedGenesis::to_raw),
         }
     }
 }
@@ -510,8 +506,8 @@ impl GenesisAppStateError {
         })
     }
 
-    fn connect(source: ConnectGenesisError) -> Self {
-        Self(GenesisAppStateErrorKind::Connect {
+    fn price_feed(source: PriceFeedGenesisError) -> Self {
+        Self(GenesisAppStateErrorKind::PriceFeed {
             source,
         })
     }
@@ -542,8 +538,8 @@ enum GenesisAppStateErrorKind {
     FieldNotSet { name: &'static str },
     #[error("`native_asset_base_denomination` field was invalid")]
     NativeAssetBaseDenomination { source: ParseTracePrefixedError },
-    #[error("`connect` field was invalid")]
-    Connect { source: ConnectGenesisError },
+    #[error("`price_feed` field was invalid")]
+    PriceFeed { source: PriceFeedGenesisError },
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1007,7 +1003,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        connect::{
+        oracles::price_feed::{
             market_map::v2::{
                 MarketMap,
                 Params,
@@ -1052,7 +1048,7 @@ mod tests {
     }
 
     fn genesis_state_markets() -> MarketMap {
-        use crate::connect::{
+        use crate::oracles::price_feed::{
             market_map::v2::{
                 Market,
                 MarketMap,
@@ -1117,7 +1113,7 @@ mod tests {
     }
 
     fn proto_genesis_state() -> raw::GenesisAppState {
-        use crate::connect::{
+        use crate::oracles::price_feed::{
             oracle::v2::{
                 CurrencyPairGenesis,
                 QuotePrice,
@@ -1160,8 +1156,8 @@ mod tests {
             }),
             allowed_fee_assets: vec!["nria".into()],
             fees: Some(genesis_fees()),
-            connect: Some(
-                ConnectGenesis {
+            price_feed: Some(
+                PriceFeedGenesis {
                     market_map: market_map::v2::GenesisState {
                         market_map: genesis_state_markets(),
                         last_updated: 0,
@@ -1250,9 +1246,9 @@ mod tests {
         );
         assert_bad_prefix(
             raw::GenesisAppState {
-                connect: {
-                    let mut connect = proto_genesis_state().connect;
-                    connect
+                price_feed: {
+                    let mut price_feed = proto_genesis_state().price_feed;
+                    price_feed
                         .as_mut()
                         .unwrap()
                         .market_map
@@ -1262,7 +1258,7 @@ mod tests {
                         .as_mut()
                         .unwrap()
                         .market_authorities[0] = mallory().to_string();
-                    connect
+                    price_feed
                 },
                 ..proto_genesis_state()
             },

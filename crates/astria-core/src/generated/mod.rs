@@ -120,8 +120,8 @@ pub mod astria {
             pub mod v1;
         }
         #[path = ""]
-        pub mod connect {
-            #[path = "astria.protocol.connect.v1.rs"]
+        pub mod price_feed {
+            #[path = "astria.protocol.price_feed.v1.rs"]
             pub mod v1;
         }
         #[path = ""]
@@ -216,6 +216,19 @@ pub mod astria {
         #[path = "astria.composer.v1.rs"]
         pub mod v1;
     }
+
+    #[path = ""]
+    pub mod upgrades {
+        pub mod v1 {
+            include!("astria.upgrades.v1.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impl {
+                use super::*;
+                include!("astria.upgrades.v1.serde.rs");
+            }
+        }
+    }
 }
 
 #[path = ""]
@@ -232,8 +245,10 @@ pub mod celestia {
     }
 }
 
+use price_feed as connect;
+
 #[path = ""]
-pub mod connect {
+pub mod price_feed {
     pub mod abci {
         pub mod v2 {
             include!("connect.abci.v2.rs");

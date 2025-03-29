@@ -1,10 +1,12 @@
 use std::{
+    collections::HashSet,
     str::FromStr,
     sync::Arc,
 };
 
 use astria_core::{
-    connect::{
+    crypto::SigningKey,
+    oracles::price_feed::{
         market_map::v2::{
             Market,
             MarketMap,
@@ -12,7 +14,6 @@ use astria_core::{
         },
         types::v2::CurrencyPair,
     },
-    crypto::SigningKey,
     primitive::v1::{
         asset,
         Address,
@@ -61,14 +62,13 @@ use crate::{
     },
     app::{
         benchmark_and_test_utils::{
+            AppInitializer,
             ALICE_ADDRESS,
             BOB_ADDRESS,
             CAROL_ADDRESS,
         },
-        test_utils::{
-            get_bridge_signing_key,
-            initialize_app,
-        },
+        test_utils::get_bridge_signing_key,
+        App,
         InvalidNonce,
     },
     authority::{
@@ -86,18 +86,18 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    connect::{
+    fees::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
+    ibc::StateReadExt as _,
+    oracles::price_feed::{
         market_map::state_ext::{
             StateReadExt as _,
             StateWriteExt as _,
         },
         oracle::state_ext::StateReadExt,
     },
-    fees::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
-    ibc::StateReadExt as _,
     test_utils::{
         calculate_rollup_data_submission_fee_from_state,
         example_ticker_from_currency_pair,
@@ -136,9 +136,17 @@ fn test_asset() -> asset::Denom {
     "test".parse().unwrap()
 }
 
+async fn initialize_app(genesis_state: Option<GenesisAppState>) -> App {
+    let mut app_initializer = AppInitializer::new();
+    if let Some(genesis_state) = genesis_state {
+        app_initializer = app_initializer.with_genesis_state(genesis_state);
+    }
+    app_initializer.init().await.0
+}
+
 #[tokio::test]
 async fn app_execute_transaction_transfer() {
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     // transfer funds from Alice to Bob
     let alice = get_alice_signing_key();
@@ -192,7 +200,7 @@ async fn app_execute_transaction_transfer() {
 async fn app_execute_transaction_transfer_not_native_token() {
     use crate::accounts::StateWriteExt as _;
 
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     // create some asset to be transferred and update Alice's balance of it
     let value = 333_333;
@@ -270,7 +278,7 @@ async fn app_execute_transaction_transfer_not_native_token() {
 async fn app_execute_transaction_transfer_balance_too_low_for_fee() {
     use rand::rngs::OsRng;
 
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     // create a new key; will have 0 balance
     let keypair = SigningKey::new(OsRng);
@@ -301,7 +309,7 @@ async fn app_execute_transaction_transfer_balance_too_low_for_fee() {
 
 #[tokio::test]
 async fn app_execute_transaction_sequence() {
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx
         .put_fees(FeeComponents::<RollupDataSubmission>::new(0, 1))
@@ -342,7 +350,7 @@ async fn app_execute_transaction_sequence() {
 
 #[tokio::test]
 async fn app_execute_transaction_invalid_fee_asset() {
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     let alice = get_alice_signing_key();
     let data = Bytes::from_static(b"hello world");
@@ -367,7 +375,7 @@ async fn app_execute_transaction_validator_update() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
 
-    let mut app = initialize_app(Some(genesis_state()), vec![]).await;
+    let mut app = initialize_app(Some(genesis_state())).await;
 
     let update = ValidatorUpdate {
         power: 100,
@@ -400,7 +408,7 @@ async fn app_execute_transaction_ibc_relayer_change_addition() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
 
-    let mut app = initialize_app(Some(genesis_state()), vec![]).await;
+    let mut app = initialize_app(Some(genesis_state())).await;
 
     let tx = TransactionBody::builder()
         .actions(vec![Action::IbcRelayerChange(IbcRelayerChange::Addition(
@@ -431,7 +439,7 @@ async fn app_execute_transaction_ibc_relayer_change_deletion() {
     }
     .try_into()
     .unwrap();
-    let mut app = initialize_app(Some(genesis_state), vec![]).await;
+    let mut app = initialize_app(Some(genesis_state)).await;
 
     let tx = TransactionBody::builder()
         .actions(vec![IbcRelayerChange::Removal(alice_address).into()])
@@ -461,7 +469,7 @@ async fn app_execute_transaction_ibc_relayer_change_invalid() {
     }
     .try_into()
     .unwrap();
-    let mut app = initialize_app(Some(genesis_state), vec![]).await;
+    let mut app = initialize_app(Some(genesis_state)).await;
 
     let tx = TransactionBody::builder()
         .actions(vec![IbcRelayerChange::Removal(alice_address).into()])
@@ -478,7 +486,7 @@ async fn app_execute_transaction_sudo_address_change() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
 
-    let mut app = initialize_app(Some(genesis_state()), vec![]).await;
+    let mut app = initialize_app(Some(genesis_state())).await;
 
     let new_address = astria_address_from_hex_string(BOB_ADDRESS);
     let tx = TransactionBody::builder()
@@ -518,7 +526,7 @@ async fn app_execute_transaction_sudo_address_change_error() {
     }
     .try_into()
     .unwrap();
-    let mut app = initialize_app(Some(genesis_state), vec![]).await;
+    let mut app = initialize_app(Some(genesis_state)).await;
     let tx = TransactionBody::builder()
         .actions(vec![Action::SudoAddressChange(SudoAddressChange {
             new_address: alice_address,
@@ -544,7 +552,7 @@ async fn app_execute_transaction_fee_asset_change_addition() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
 
-    let mut app = initialize_app(Some(genesis_state()), vec![]).await;
+    let mut app = initialize_app(Some(genesis_state())).await;
 
     let tx = TransactionBody::builder()
         .actions(vec![Action::FeeAssetChange(FeeAssetChange::Addition(
@@ -578,7 +586,7 @@ async fn app_execute_transaction_fee_asset_change_removal() {
     }
     .try_into()
     .unwrap();
-    let mut app = initialize_app(Some(genesis_state), vec![]).await;
+    let mut app = initialize_app(Some(genesis_state)).await;
 
     let tx = TransactionBody::builder()
         .actions(vec![Action::FeeAssetChange(FeeAssetChange::Removal(
@@ -604,7 +612,7 @@ async fn app_execute_transaction_fee_asset_change_invalid() {
 
     let alice = get_alice_signing_key();
 
-    let mut app = initialize_app(Some(genesis_state()), vec![]).await;
+    let mut app = initialize_app(Some(genesis_state())).await;
 
     let tx = TransactionBody::builder()
         .actions(vec![Action::FeeAssetChange(FeeAssetChange::Removal(
@@ -631,7 +639,7 @@ async fn app_execute_transaction_init_bridge_account_ok() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
 
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
     let mut state_tx = StateDelta::new(app.state.clone());
     let fee = 12; // arbitrary
     state_tx
@@ -695,7 +703,7 @@ async fn app_execute_transaction_init_bridge_account_account_already_registered(
     use astria_core::protocol::transaction::v1::action::InitBridgeAccount;
 
     let alice = get_alice_signing_key();
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
     let action = InitBridgeAccount {
@@ -736,7 +744,7 @@ async fn app_execute_transaction_init_bridge_account_account_already_registered(
 async fn app_execute_transaction_bridge_lock_action_ok() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -807,7 +815,7 @@ async fn app_execute_transaction_bridge_lock_action_invalid_for_eoa() {
     use astria_core::protocol::transaction::v1::action::BridgeLock;
 
     let alice = get_alice_signing_key();
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     // don't actually register this address as a bridge address
     let bridge_address = astria_address(&[99; 20]);
@@ -832,7 +840,7 @@ async fn app_execute_transaction_bridge_lock_action_invalid_for_eoa() {
 
 #[tokio::test]
 async fn app_execute_transaction_invalid_nonce() {
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
@@ -880,7 +888,7 @@ async fn app_execute_transaction_invalid_nonce() {
 
 #[tokio::test]
 async fn app_execute_transaction_invalid_chain_id() {
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
@@ -927,7 +935,7 @@ async fn app_execute_transaction_invalid_chain_id() {
 async fn app_stateful_check_fails_insufficient_total_balance() {
     use rand::rngs::OsRng;
 
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     let alice = get_alice_signing_key();
 
@@ -1009,7 +1017,7 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
 
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
     let mut state_tx = StateDelta::new(app.state.clone());
 
     let bridge = get_bridge_signing_key();
@@ -1098,7 +1106,7 @@ async fn app_execute_transaction_bridge_lock_unlock_action_ok() {
 async fn app_execute_transaction_action_index_correctly_increments() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -1147,7 +1155,7 @@ async fn app_execute_transaction_action_index_correctly_increments() {
 
 #[tokio::test]
 async fn transaction_execution_records_deposit_event() {
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
     let mut state_tx = app
         .state
         .try_begin_transaction()
@@ -1201,7 +1209,7 @@ async fn transaction_execution_records_deposit_event() {
 async fn app_execute_transaction_ibc_sudo_change() {
     let alice = get_alice_signing_key();
 
-    let mut app = initialize_app(Some(genesis_state()), vec![]).await;
+    let mut app = initialize_app(Some(genesis_state())).await;
 
     let new_address = astria_address_from_hex_string(BOB_ADDRESS);
 
@@ -1238,7 +1246,7 @@ async fn app_execute_transaction_ibc_sudo_change_error() {
     }
     .try_into()
     .unwrap();
-    let mut app = initialize_app(Some(genesis_state), vec![]).await;
+    let mut app = initialize_app(Some(genesis_state)).await;
 
     let tx = TransactionBody::builder()
         .actions(vec![Action::IbcSudoChange(IbcSudoChange {
@@ -1260,7 +1268,7 @@ async fn app_execute_transaction_ibc_sudo_change_error() {
 
 #[tokio::test]
 async fn transaction_execution_records_fee_event() {
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     // transfer funds from Alice to Bob
     let alice = get_alice_signing_key();
@@ -1290,7 +1298,7 @@ async fn transaction_execution_records_fee_event() {
 
 #[tokio::test]
 async fn ensure_all_event_attributes_are_indexed() {
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
     let mut state_tx = StateDelta::new(app.state.clone());
 
     let alice = get_alice_signing_key();
@@ -1342,11 +1350,19 @@ async fn ensure_all_event_attributes_are_indexed() {
 #[tokio::test]
 async fn test_app_execute_transaction_add_and_remove_currency_pairs() {
     let alice = get_alice_signing_key();
-    let alice_address = astria_address(&alice.address_bytes());
 
-    let mut app = initialize_app(Some(genesis_state()), vec![]).await;
+    let mut app = initialize_app(Some(genesis_state())).await;
 
+    // The default test genesis state contains two currency pairs: BTC/USD and ETH/USD. We'll use a
+    // different one:
     let currency_pair = CurrencyPair::from_str("TIA/USD").unwrap();
+    let default_currency_pairs = app
+        .state
+        .currency_pairs()
+        .map(Result::unwrap)
+        .collect::<HashSet<_>>()
+        .await;
+    assert!(!default_currency_pairs.contains(&currency_pair));
 
     let tx = TransactionBody::builder()
         .actions(vec![PriceFeed::Oracle(CurrencyPairsChange::Addition(
@@ -1359,15 +1375,15 @@ async fn test_app_execute_transaction_add_and_remove_currency_pairs() {
 
     let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
-    assert_eq!(
-        app.state.get_account_nonce(&alice_address).await.unwrap(),
-        1
-    );
 
-    let currency_pairs: Vec<astria_eyre::eyre::Result<CurrencyPair>> =
-        app.state.currency_pairs().collect().await;
-    assert_eq!(currency_pairs.len(), 1);
-    assert_eq!(currency_pairs[0].as_ref().unwrap(), &currency_pair);
+    let currency_pairs = app
+        .state
+        .currency_pairs()
+        .map(Result::unwrap)
+        .collect::<HashSet<_>>()
+        .await;
+    assert_eq!(currency_pairs.len(), default_currency_pairs.len() + 1);
+    assert!(currency_pairs.contains(&currency_pair));
 
     let tx = TransactionBody::builder()
         .actions(vec![PriceFeed::Oracle(CurrencyPairsChange::Removal(vec![
@@ -1381,23 +1397,21 @@ async fn test_app_execute_transaction_add_and_remove_currency_pairs() {
 
     let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
-    assert_eq!(
-        app.state.get_account_nonce(&alice_address).await.unwrap(),
-        2
-    );
 
-    let currency_pairs: Vec<astria_eyre::eyre::Result<CurrencyPair>> =
-        app.state.currency_pairs().collect().await;
-    assert_eq!(currency_pairs.len(), 0);
+    let currency_pairs = app
+        .state
+        .currency_pairs()
+        .map(Result::unwrap)
+        .collect::<HashSet<_>>()
+        .await;
+    assert_eq!(currency_pairs, default_currency_pairs);
 }
 
 #[tokio::test]
 async fn create_markets_executes_as_expected() {
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(Some(genesis_state())).await;
 
-    let alice_signing_key = get_alice_signing_key();
-
-    let ticker_1 = example_ticker_with_metadata("create market 1".to_string());
+    let ticker_1 = example_ticker_from_currency_pair("USDC", "BTC", "create market 1".to_string());
     let market_1 = Market {
         ticker: ticker_1.clone(),
         provider_configs: vec![],
@@ -1408,6 +1422,15 @@ async fn create_markets_executes_as_expected() {
         ticker: ticker_2.clone(),
         provider_configs: vec![],
     };
+
+    // Assert these pairs don't exist in the current market map.
+    let market_map_before = app.state.get_market_map().await.unwrap().unwrap();
+    assert!(!market_map_before
+        .markets
+        .contains_key(&ticker_1.currency_pair.to_string()));
+    assert!(!market_map_before
+        .markets
+        .contains_key(&ticker_2.currency_pair.to_string()));
 
     let create_markets_action =
         PriceFeed::MarketMap(MarketMapChange::Markets(ChangeMarkets::Create(vec![
@@ -1421,11 +1444,14 @@ async fn create_markets_executes_as_expected() {
         .try_build()
         .unwrap();
 
-    let signed_tx = Arc::new(tx.sign(&alice_signing_key));
+    let signed_tx = Arc::new(tx.sign(&get_alice_signing_key()));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let market_map = app.state.get_market_map().await.unwrap().unwrap();
-    assert_eq!(market_map.markets.len(), 2);
+    assert_eq!(
+        market_map.markets.len(),
+        market_map_before.markets.len() + 2
+    );
     assert_eq!(
         market_map.markets.get(&ticker_1.currency_pair.to_string()),
         Some(&market_1)
@@ -1438,7 +1464,7 @@ async fn create_markets_executes_as_expected() {
 
 #[tokio::test]
 async fn update_markets_executes_as_expected() {
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(Some(genesis_state())).await;
     let mut state_tx = StateDelta::new(app.state.clone());
 
     let alice_signing_key = get_alice_signing_key();
@@ -1507,7 +1533,7 @@ async fn update_markets_executes_as_expected() {
 
 #[tokio::test]
 async fn remove_markets_executes_as_expected() {
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(Some(genesis_state())).await;
     let mut state_tx = StateDelta::new(app.state.clone());
 
     let alice_signing_key = get_alice_signing_key();
@@ -1568,7 +1594,7 @@ async fn remove_markets_executes_as_expected() {
 
 #[tokio::test]
 async fn update_market_map_params_executes_as_expected() {
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(Some(genesis_state())).await;
     let mut state_tx = StateDelta::new(app.state.clone());
 
     let alice_signing_key = get_alice_signing_key();

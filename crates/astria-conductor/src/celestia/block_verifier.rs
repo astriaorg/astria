@@ -226,6 +226,7 @@ mod tests {
         sequencerblock::v1::{
             block::{
                 self,
+                ExtendedCommitInfoWithProof,
                 SequencerBlockHeader,
             },
             celestia::UncheckedSubmittedMetadata,
@@ -321,7 +322,7 @@ mod tests {
     }
 
     fn make_test_extended_commit_info_bytes() -> Vec<u8> {
-        use astria_core::generated::protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping;
+        use astria_core::generated::protocol::price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping;
 
         let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo =
             tendermint::abci::types::ExtendedCommitInfo {
@@ -351,6 +352,10 @@ mod tests {
         let rollup_transactions_proof = tree.construct_proof(0).unwrap();
         let rollup_ids_proof = tree.construct_proof(1).unwrap();
         let extended_commit_info_proof = tree.construct_proof(2).unwrap();
+        let extended_commit_info_with_proof = ExtendedCommitInfoWithProof::unchecked_from_parts(
+            extended_commit_info.into(),
+            extended_commit_info_proof,
+        );
 
         let (validator_set, proposer_address, commit) =
             make_test_validator_set_and_commit(1, "test-chain".try_into().unwrap());
@@ -374,8 +379,8 @@ mod tests {
             rollup_ids: vec![],
             rollup_transactions_proof,
             rollup_ids_proof,
-            extended_commit_info: Some(extended_commit_info.into()),
-            extended_commit_info_proof: Some(extended_commit_info_proof),
+            upgrade_change_hashes: vec![],
+            extended_commit_info_with_proof: Some(extended_commit_info_with_proof),
         }
         .try_into_celestia_sequencer_blob()
         .unwrap();
@@ -404,6 +409,10 @@ mod tests {
         let rollup_transactions_proof = tree.construct_proof(0).unwrap();
         let rollup_ids_proof = tree.construct_proof(1).unwrap();
         let extended_commit_info_proof = tree.construct_proof(2).unwrap();
+        let extended_commit_info_with_proof = ExtendedCommitInfoWithProof::unchecked_from_parts(
+            extended_commit_info.into(),
+            extended_commit_info_proof,
+        );
 
         let (validator_set, proposer_address, commit) =
             make_test_validator_set_and_commit(1, "test-chain".try_into().unwrap());
@@ -427,8 +436,8 @@ mod tests {
             rollup_ids: vec![rollup_id],
             rollup_transactions_proof,
             rollup_ids_proof,
-            extended_commit_info: Some(extended_commit_info.into()),
-            extended_commit_info_proof: Some(extended_commit_info_proof),
+            upgrade_change_hashes: vec![],
+            extended_commit_info_with_proof: Some(extended_commit_info_with_proof),
         }
         .try_into_celestia_sequencer_blob()
         .unwrap();

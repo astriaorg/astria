@@ -1,8 +1,17 @@
 //! Utilities to create objects used in various tests of the Astria codebase.
+#![expect(clippy::missing_panics_doc, reason = "these are test-only functions")]
 
-use std::collections::HashMap;
+use std::{
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    sync::Arc,
+};
 
+use astria_core_address::Address;
 use bytes::Bytes;
+use indexmap::IndexMap;
 use prost::Message as _;
 use tendermint::abci::types::ExtendedCommitInfo;
 
@@ -12,18 +21,50 @@ use super::{
 };
 use crate::{
     crypto::SigningKey,
+    generated::{
+        price_feed::{
+            marketmap::v2::{
+                GenesisState as RawMarketMapGenesisState,
+                Market as RawMarket,
+                MarketMap as RawMarketMap,
+                Params as RawMarketMapParams,
+                ProviderConfig as RawProviderConfig,
+                Ticker as RawTicker,
+            },
+            oracle::v2::{
+                CurrencyPairGenesis as RawCurrencyPairGenesis,
+                GenesisState as RawOracleGenesisState,
+                QuotePrice as RawQuotePrice,
+            },
+            types::v2::CurrencyPair as RawCurrencyPair,
+        },
+        protocol::genesis::v1::PriceFeedGenesis as RawPriceFeedGenesis,
+    },
     primitive::v1::{
         derive_merkle_tree_from_rollup_txs,
         RollupId,
     },
-    protocol::transaction::v1::TransactionBody,
+    protocol::{
+        genesis::v1::PriceFeedGenesis,
+        price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
+        transaction::v1::TransactionBody,
+    },
     sequencerblock::v1::{
         block::{
             self,
             Deposit,
+            ExpandedBlockData,
             SequencerBlockBuilder,
         },
+        DataItem,
         SequencerBlock,
+    },
+    upgrades::{
+        test_utils::UpgradesBuilder,
+        v1::{
+            Change,
+            ChangeHash,
+        },
     },
     Protobuf as _,
 };
@@ -47,7 +88,6 @@ impl From<(i64, u32)> for UnixTimeStamp {
 /// proposer address.
 ///
 /// If the proposer address is not set it will be generated from the signing key.
-#[derive(Default)]
 pub struct ConfigureSequencerBlock {
     pub block_hash: Option<block::Hash>,
     pub chain_id: Option<String>,
@@ -57,7 +97,27 @@ pub struct ConfigureSequencerBlock {
     pub sequence_data: Vec<(RollupId, Vec<u8>)>,
     pub deposits: Vec<Deposit>,
     pub unix_timestamp: UnixTimeStamp,
+    pub use_data_items: bool,
+    pub with_upgrade_1: bool,
     pub with_extended_commit_info: bool,
+}
+
+impl Default for ConfigureSequencerBlock {
+    fn default() -> Self {
+        Self {
+            block_hash: None,
+            chain_id: None,
+            height: 0,
+            proposer_address: None,
+            signing_key: None,
+            sequence_data: vec![],
+            deposits: vec![],
+            unix_timestamp: UnixTimeStamp::default(),
+            use_data_items: true,
+            with_upgrade_1: true,
+            with_extended_commit_info: true,
+        }
+    }
 }
 
 impl ConfigureSequencerBlock {
@@ -85,6 +145,8 @@ impl ConfigureSequencerBlock {
             sequence_data,
             unix_timestamp,
             deposits,
+            use_data_items,
+            with_upgrade_1,
             with_extended_commit_info,
         } = self;
 
@@ -122,7 +184,7 @@ impl ConfigureSequencerBlock {
                     "should be able to build transaction body since only rollup data submission \
                      actions are contained",
                 );
-            vec![body.sign(&signing_key)]
+            vec![Arc::new(body.sign(&signing_key))]
         };
         let mut deposits_map: HashMap<RollupId, Vec<Deposit>> = HashMap::new();
         for deposit in deposits {
@@ -155,28 +217,38 @@ impl ConfigureSequencerBlock {
                 .map(|rollup_id| rollup_id.as_ref().to_vec()),
         )
         .root();
-        let mut data = vec![
-            rollup_transactions_tree.root().to_vec(),
-            rollup_ids_root.to_vec(),
-        ];
 
-        if with_extended_commit_info {
-            let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo =
-                ExtendedCommitInfo {
-                    round: 0u16.into(),
-                    votes: vec![],
-                }
-                .into();
-            let extended_commit_info_with_mapping = crate::generated::protocol::connect::v1::ExtendedCommitInfoWithCurrencyPairMapping {
-                extended_commit_info: Some(extended_commit_info.into()),
-                id_to_currency_pair: Vec::new(),
-            };
-            let extended_commit_info_bytes = extended_commit_info_with_mapping.encode_to_vec();
-            data.push(extended_commit_info_bytes);
+        let mut data = if use_data_items {
+            vec![
+                DataItem::RollupTransactionsRoot(rollup_transactions_tree.root()).encode(),
+                DataItem::RollupIdsRoot(rollup_ids_root).encode(),
+            ]
+        } else {
+            vec![
+                rollup_transactions_tree.root().to_vec().into(),
+                rollup_ids_root.to_vec().into(),
+            ]
+        };
+
+        if with_upgrade_1 {
+            assert!(
+                use_data_items,
+                "can't include upgrade 1 and also use legacy form of data/txns"
+            );
+            data.push(upgrade_change_hashes_bytes());
         }
 
-        data.extend(txs.into_iter().map(|tx| tx.into_raw().encode_to_vec()));
-        let data = data.into_iter().map(Bytes::from).collect();
+        if with_extended_commit_info {
+            assert!(
+                use_data_items,
+                "can't include upgrade 1 and also include extended commit info"
+            );
+            data.push(minimal_extended_commit_info_bytes());
+        }
+
+        data.extend(txs.into_iter().map(|tx| tx.to_raw().encode_to_vec().into()));
+        let expanded_block_data =
+            ExpandedBlockData::new_from_typed_data(&data, with_extended_commit_info).unwrap();
 
         SequencerBlockBuilder {
             block_hash,
@@ -184,11 +256,165 @@ impl ConfigureSequencerBlock {
             height: height.into(),
             time: Time::from_unix_timestamp(unix_timestamp.secs, unix_timestamp.nanos).unwrap(),
             proposer_address,
-            data,
+            expanded_block_data,
             deposits: deposits_map,
-            with_extended_commit_info,
         }
         .try_build()
         .unwrap()
     }
+}
+
+/// Returns the change hashes of `Upgrade1`.
+pub fn upgrade_change_hashes() -> Vec<ChangeHash> {
+    let upgrades = UpgradesBuilder::new().build();
+    upgrades
+        .upgrade_1()
+        .unwrap()
+        .changes()
+        .map(Change::calculate_hash)
+        .collect()
+}
+
+#[must_use]
+pub fn upgrade_change_hashes_bytes() -> Bytes {
+    DataItem::UpgradeChangeHashes(upgrade_change_hashes()).encode()
+}
+
+#[must_use]
+pub fn minimal_extended_commit_info() -> ExtendedCommitInfoWithCurrencyPairMapping {
+    let extended_commit_info = ExtendedCommitInfo {
+        round: 0u16.into(),
+        votes: vec![],
+    };
+    ExtendedCommitInfoWithCurrencyPairMapping {
+        extended_commit_info,
+        id_to_currency_pair: IndexMap::new(),
+    }
+}
+
+#[must_use]
+pub fn minimal_extended_commit_info_bytes() -> Bytes {
+    DataItem::ExtendedCommitInfo(
+        minimal_extended_commit_info()
+            .into_raw()
+            .encode_to_vec()
+            .into(),
+    )
+    .encode()
+}
+
+#[must_use]
+pub fn dummy_price_feed_genesis() -> PriceFeedGenesis {
+    let mut markets = BTreeMap::new();
+    markets.insert(
+        "BTC/USD".to_string(),
+        RawMarket {
+            ticker: Some(RawTicker {
+                currency_pair: Some(RawCurrencyPair {
+                    base: "BTC".to_string(),
+                    quote: "USD".to_string(),
+                }),
+                decimals: 8,
+                min_provider_count: 1,
+                enabled: true,
+                metadata_json: String::new(),
+            }),
+            provider_configs: vec![RawProviderConfig {
+                name: "coingecko_api".to_string(),
+                off_chain_ticker: "bitcoin/usd".to_string(),
+                normalize_by_pair: None,
+                invert: false,
+                metadata_json: String::new(),
+            }],
+        },
+    );
+    markets.insert(
+        "ETH/USD".to_string(),
+        RawMarket {
+            ticker: Some(RawTicker {
+                currency_pair: Some(RawCurrencyPair {
+                    base: "ETH".to_string(),
+                    quote: "USD".to_string(),
+                }),
+                decimals: 8,
+                min_provider_count: 1,
+                enabled: true,
+                metadata_json: String::new(),
+            }),
+            provider_configs: vec![RawProviderConfig {
+                name: "coingecko_api".to_string(),
+                off_chain_ticker: "ethereum/usd".to_string(),
+                normalize_by_pair: None,
+                invert: false,
+                metadata_json: String::new(),
+            }],
+        },
+    );
+
+    let price_feed_genesis = RawPriceFeedGenesis {
+        market_map: Some(RawMarketMapGenesisState {
+            market_map: Some(RawMarketMap {
+                markets,
+            }),
+            last_updated: 0,
+            params: Some(RawMarketMapParams {
+                market_authorities: vec![alice().to_string(), bob().to_string()],
+                admin: alice().to_string(),
+            }),
+        }),
+        oracle: Some(RawOracleGenesisState {
+            currency_pair_genesis: vec![
+                RawCurrencyPairGenesis {
+                    id: 0,
+                    nonce: 0,
+                    currency_pair_price: Some(RawQuotePrice {
+                        price: 5_834_065_777_u128.to_string(),
+                        block_height: 0,
+                        block_timestamp: Some(pbjson_types::Timestamp {
+                            seconds: 1_720_122_395,
+                            nanos: 0,
+                        }),
+                    }),
+                    currency_pair: Some(RawCurrencyPair {
+                        base: "BTC".to_string(),
+                        quote: "USD".to_string(),
+                    }),
+                },
+                RawCurrencyPairGenesis {
+                    id: 1,
+                    nonce: 0,
+                    currency_pair_price: Some(RawQuotePrice {
+                        price: 3_138_872_234_u128.to_string(),
+                        block_height: 0,
+                        block_timestamp: Some(pbjson_types::Timestamp {
+                            seconds: 1_720_122_395,
+                            nanos: 0,
+                        }),
+                    }),
+                    currency_pair: Some(RawCurrencyPair {
+                        base: "ETH".to_string(),
+                        quote: "USD".to_string(),
+                    }),
+                },
+            ],
+            next_id: 2,
+        }),
+    };
+    PriceFeedGenesis::try_from_raw(price_feed_genesis).unwrap()
+}
+
+fn alice() -> Address {
+    Address::builder()
+        .prefix("astria")
+        .slice(hex::decode("1c0c490f1b5528d8173c5de46d131160e4b2c0c3").unwrap())
+        .try_build()
+        .unwrap()
+}
+
+fn bob() -> Address {
+    Address::builder()
+        .prefix("astria")
+        .slice(hex::decode("34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a").unwrap())
+        .try_build()
+        .unwrap()
 }

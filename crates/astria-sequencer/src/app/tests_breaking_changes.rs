@@ -16,7 +16,7 @@ use std::{
 };
 
 use astria_core::{
-    connect::{
+    oracles::price_feed::{
         market_map::v2::{
             Market,
             Params,
@@ -66,8 +66,8 @@ use crate::{
     app::{
         benchmark_and_test_utils::{
             default_genesis_accounts,
-            initialize_app_with_storage,
             proto_genesis_state,
+            AppInitializer,
             ALICE_ADDRESS,
             BOB_ADDRESS,
             CAROL_ADDRESS,
@@ -77,7 +77,6 @@ use crate::{
             get_alice_signing_key,
             get_bridge_signing_key,
             get_judy_signing_key,
-            initialize_app,
             transactions_with_extended_commit_info_and_commitments,
         },
     },
@@ -94,14 +93,14 @@ use crate::{
 
 #[tokio::test]
 async fn app_genesis_snapshot() {
-    let app = initialize_app(None, vec![]).await;
+    let (app, _storage) = AppInitializer::new().init().await;
     insta::assert_json_snapshot!("app_hash_at_genesis", app.app_hash.as_bytes());
 }
 
 #[tokio::test]
 async fn app_finalize_block_snapshot() {
     let alice = get_alice_signing_key();
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = AppInitializer::new().init().await;
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -119,7 +118,7 @@ async fn app_finalize_block_snapshot() {
     // the state changes must be committed, as `finalize_block` will execute the
     // changes on the latest snapshot, not the app's `StateDelta`.
     app.prepare_commit(storage.clone()).await.unwrap();
-    app.commit(storage.clone()).await;
+    app.commit(storage.clone()).await.unwrap();
 
     let amount = 100;
     let lock_action = BridgeLock {
@@ -156,14 +155,16 @@ async fn app_finalize_block_snapshot() {
 
     let timestamp = Time::unix_epoch();
     let block_hash = Hash::try_from([99u8; 32].to_vec()).unwrap();
+    let height = tendermint::block::Height::from(2_u8);
     let finalize_block = abci::request::FinalizeBlock {
         hash: block_hash,
-        height: 1u32.into(),
+        height,
         time: timestamp,
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
         txs: transactions_with_extended_commit_info_and_commitments(
-            &vec![signed_tx],
+            height,
+            &[Arc::new(signed_tx)],
             Some(deposits),
         ),
         decided_last_commit: CommitInfo {
@@ -176,7 +177,7 @@ async fn app_finalize_block_snapshot() {
     app.finalize_block(finalize_block.clone(), storage.clone())
         .await
         .unwrap();
-    app.commit(storage.clone()).await;
+    app.commit(storage.clone()).await.unwrap();
     insta::assert_json_snapshot!("app_hash_finalize_block", app.app_hash.as_bytes());
 }
 
@@ -236,7 +237,10 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     }
     .try_into()
     .unwrap();
-    let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;
+    let (mut app, storage) = AppInitializer::new()
+        .with_genesis_state(genesis_state)
+        .init()
+        .await;
 
     // setup for ValidatorUpdate action
     let update = ValidatorUpdate {
@@ -434,7 +438,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     app.end_block(1, &sudo_address).await.unwrap();
 
     app.prepare_commit(storage.clone()).await.unwrap();
-    app.commit(storage.clone()).await;
+    app.commit(storage.clone()).await.unwrap();
 
     insta::assert_json_snapshot!("app_hash_execute_every_action", app.app_hash.as_bytes());
 }

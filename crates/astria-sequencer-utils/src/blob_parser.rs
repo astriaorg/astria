@@ -16,7 +16,7 @@ use astria_core::{
     generated::astria::sequencerblock::v1::{
         rollup_data::Value as RawRollupDataValue,
         Deposit as RawDeposit,
-        OracleData as RawOracleData,
+        PriceFeedData as RawPriceFeedData,
         RollupData as RawRollupData,
         SubmittedMetadata as RawSubmittedMetadata,
         SubmittedMetadataList as RawSubmittedMetadataList,
@@ -28,8 +28,8 @@ use astria_core::{
         block::{
             Deposit,
             DepositError,
-            OracleData,
-            OracleDataError,
+            PriceFeedData,
+            PriceFeedDataError,
             SequencerBlockHeader,
         },
         celestia::{
@@ -569,17 +569,17 @@ impl Display for PrintableDeposit {
 }
 
 #[derive(Serialize, Debug)]
-struct PrintableOracleData {
+struct PrintablePriceFeedData {
     prices: Vec<(String, i128, u8)>,
 }
 
-impl TryFrom<&RawOracleData> for PrintableOracleData {
-    type Error = OracleDataError;
+impl TryFrom<&RawPriceFeedData> for PrintablePriceFeedData {
+    type Error = PriceFeedDataError;
 
-    fn try_from(value: &RawOracleData) -> Result<Self, Self::Error> {
-        let oracle_data = OracleData::try_from_raw(value.clone())?;
-        Ok(PrintableOracleData {
-            prices: oracle_data
+    fn try_from(value: &RawPriceFeedData) -> Result<Self, Self::Error> {
+        let price_feed_data = PriceFeedData::try_from_raw(value.clone())?;
+        Ok(PrintablePriceFeedData {
+            prices: price_feed_data
                 .prices()
                 .iter()
                 .map(|price| {
@@ -594,7 +594,7 @@ impl TryFrom<&RawOracleData> for PrintableOracleData {
     }
 }
 
-impl Display for PrintableOracleData {
+impl Display for PrintablePriceFeedData {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         for (currency_pair, price, decimals) in &self.prices {
             colored_label_ln(f, "price")?;
@@ -613,8 +613,8 @@ enum RollupDataDetails {
     Transaction(RollupTransaction),
     #[serde(rename = "deposit")]
     Deposit(PrintableDeposit),
-    #[serde(rename = "oracle_data")]
-    OracleData(PrintableOracleData),
+    #[serde(rename = "price_feed_data")]
+    PriceFeedData(PrintablePriceFeedData),
     /// Tx doesn't decode as `RawRollupData`.  Wrapped value is base-64-encoded input data.
     #[serde(rename = "not_tx_or_deposit")]
     NotTxOrDeposit(String),
@@ -629,10 +629,11 @@ enum RollupDataDetails {
     /// Wrapped value is decoding error and the debug contents of the raw (protobuf) deposit.
     #[serde(rename = "unparseable_deposit")]
     UnparseableDeposit(String),
-    /// Tx parses as `RawRollupData::OracleData`, but its value doesn't decode as a `OracleData`.
-    /// Wrapped value is decoding error and the debug contents of the raw (protobuf) oracle data.
-    #[serde(rename = "unparseable_oracle_data")]
-    UnparseableOracleData(String),
+    /// Tx parses as `RawRollupData::PriceFeedData`, but its value doesn't decode as a
+    /// `PriceFeedData`. Wrapped value is decoding error and the debug contents of the raw
+    /// (protobuf) price feed data.
+    #[serde(rename = "unparseable_price_feed_data")]
+    UnparseablePriceFeedData(String),
 }
 
 impl From<&Vec<u8>> for RollupDataDetails {
@@ -656,13 +657,13 @@ impl From<&Vec<u8>> for RollupDataDetails {
                     }
                 }
             }
-            Some(RawRollupDataValue::OracleData(raw_oracle_data)) => {
-                match PrintableOracleData::try_from(&raw_oracle_data) {
-                    Ok(printable_oracle_data) => {
-                        RollupDataDetails::OracleData(printable_oracle_data)
+            Some(RawRollupDataValue::PriceFeedData(raw_price_feed_data)) => {
+                match PrintablePriceFeedData::try_from(&raw_price_feed_data) {
+                    Ok(printable_price_feed_data) => {
+                        RollupDataDetails::PriceFeedData(printable_price_feed_data)
                     }
-                    Err(error) => RollupDataDetails::UnparseableOracleData(format!(
-                        "{raw_oracle_data:?}: {error}"
+                    Err(error) => RollupDataDetails::UnparseablePriceFeedData(format!(
+                        "{raw_price_feed_data:?}: {error}"
                     )),
                 }
             }
@@ -681,7 +682,7 @@ impl Display for RollupDataDetails {
                 colored_label_ln(f, "deposit")?;
                 write!(indent(f), "{deposit}")
             }
-            RollupDataDetails::OracleData(oracle_data) => {
+            RollupDataDetails::PriceFeedData(oracle_data) => {
                 colored_label_ln(f, "oracle data")?;
                 write!(indent(f), "{oracle_data}")
             }
@@ -695,8 +696,8 @@ impl Display for RollupDataDetails {
             RollupDataDetails::UnparseableDeposit(error) => {
                 colored(f, "unparseable deposit", error)
             }
-            RollupDataDetails::UnparseableOracleData(error) => {
-                colored(f, "unparseable oracle data", error)
+            RollupDataDetails::UnparseablePriceFeedData(error) => {
+                colored(f, "unparseable price feed data", error)
             }
         }
     }

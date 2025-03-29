@@ -41,7 +41,7 @@ _crate_short_name crate quiet="":
   set -eu
   case {{crate}} in
     astria-auctioneer) short_name=auctioneer ;;
-    astria-bridge-withdrawer) short_name=bridge-withdrawer ;;
+    astria-bridge-withdrawer) short_name=evm-bridge-withdrawer ;;
     astria-cli) short_name=astria-cli ;;
     astria-composer) short_name=composer ;;
     astria-conductor) short_name=conductor ;;
@@ -155,3 +155,4 @@ _lint-proto:
   buf breaking proto/sequencerblockapis --against 'buf.build/astria/sequencerblock-apis'
   buf breaking proto/protocolapis --against 'buf.build/astria/protocol-apis'
   buf breaking proto/composerapis --against 'buf.build/astria/composer-apis'
+  buf breaking proto/upgrades --against 'buf.build/astria/upgrades'

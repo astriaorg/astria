@@ -1,7 +1,15 @@
 use std::collections::HashSet;
 
 use astria_core::{
-    connect::{
+    crypto::Signature,
+    generated::price_feed::{
+        abci::v2::OracleVoteExtension as RawOracleVoteExtension,
+        service::v2::{
+            oracle_client::OracleClient,
+            QueryPricesRequest,
+        },
+    },
+    oracles::price_feed::{
         abci::v2::OracleVoteExtension,
         oracle::v2::QuotePrice,
         service::v2::QueryPricesResponse,
@@ -10,15 +18,7 @@ use astria_core::{
             Price,
         },
     },
-    crypto::Signature,
-    generated::connect::{
-        abci::v2::OracleVoteExtension as RawOracleVoteExtension,
-        service::v2::{
-            oracle_client::OracleClient,
-            QueryPricesRequest,
-        },
-    },
-    protocol::connect::v1::{
+    protocol::price_feed::v1::{
         CurrencyPairInfo,
         ExtendedCommitInfoWithCurrencyPairMapping,
     },
@@ -61,7 +61,7 @@ use crate::{
     address::StateReadExt as _,
     app::state_ext::StateReadExt,
     authority::StateReadExt as _,
-    connect::oracle::{
+    oracles::price_feed::oracle::{
         currency_pair_strategy::DefaultCurrencyPairStrategy,
         state_ext::StateWriteExt,
     },
@@ -71,7 +71,7 @@ use crate::{
 const MAXIMUM_PRICE_BYTE_LEN: usize = 33;
 
 pub(crate) struct Handler {
-    // gRPC client for the connect oracle sidecar.
+    // gRPC client for the price feed oracle sidecar.
     oracle_client: Option<OracleClient<Channel>>,
 }
 
@@ -176,7 +176,7 @@ async fn transform_oracle_service_prices<S: StateReadExt>(
     state: &S,
     rsp: QueryPricesResponse,
 ) -> Result<OracleVoteExtension> {
-    use astria_core::connect::types::v2::CurrencyPairId;
+    use astria_core::oracles::price_feed::types::v2::CurrencyPairId;
 
     let strategy_prices = rsp.prices.into_iter().map(|(currency_pair, price)| async move {
         DefaultCurrencyPairStrategy::id(state, &currency_pair).await
@@ -328,7 +328,7 @@ async fn get_id_to_currency_pair<S: StateReadExt>(
     state: &S,
     all_ids: HashSet<u64>,
 ) -> Result<IndexMap<CurrencyPairId, CurrencyPairInfo>> {
-    use crate::connect::market_map::state_ext::StateReadExt as _;
+    use crate::oracles::price_feed::market_map::state_ext::StateReadExt as _;
     let market_map = state
         .get_market_map()
         .await
@@ -576,7 +576,7 @@ fn validate_extended_commit_against_last_commit(
 
 pub(super) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
     state: &mut S,
-    extended_commit_info: ExtendedCommitInfoWithCurrencyPairMapping,
+    extended_commit_info: &ExtendedCommitInfoWithCurrencyPairMapping,
     timestamp: Timestamp,
     height: u64,
 ) -> Result<()> {
@@ -585,9 +585,9 @@ pub(super) async fn apply_prices_from_vote_extensions<S: StateWriteExt>(
         id_to_currency_pair,
     } = extended_commit_info;
 
-    let prices = astria_core::connect::utils::calculate_prices_from_vote_extensions(
+    let prices = astria_core::oracles::price_feed::utils::calculate_prices_from_vote_extensions(
         extended_commit_info,
-        &id_to_currency_pair,
+        id_to_currency_pair,
     )
     .wrap_err("failed to calculate prices from vote extensions")?;
     for price in prices {
@@ -629,7 +629,8 @@ mod test {
     };
 
     use astria_core::{
-        connect::{
+        crypto::SigningKey,
+        oracles::price_feed::{
             market_map::v2::{
                 Market,
                 MarketMap,
@@ -642,7 +643,6 @@ mod test {
                 CurrencyPairNonce,
             },
         },
-        crypto::SigningKey,
         protocol::transaction::v1::action::ValidatorUpdate,
         Timestamp,
     };
@@ -666,7 +666,7 @@ mod test {
             StateWriteExt as _,
             ValidatorSet,
         },
-        connect::market_map::state_ext::StateWriteExt as _,
+        oracles::price_feed::market_map::state_ext::StateWriteExt as _,
     };
 
     const CHAIN_ID: &str = "test-0";

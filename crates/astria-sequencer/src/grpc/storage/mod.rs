@@ -9,4 +9,5 @@ pub(super) use values::{
     RollupIds,
     RollupTransactions,
     SequencerBlockHeader,
+    UpgradeChangeHashes,
 };

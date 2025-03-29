@@ -18,7 +18,7 @@ message GenesisAppState {
   IbcParameters ibc_parameters = 8;
   repeated string allowed_fee_assets = 9;
   GenesisFees fees = 10;
-  ConnectGenesis connect = 11;
+  PriceFeedGenesis price_feed = 11;
 }
 
 message Account {
@@ -64,7 +64,7 @@ message GenesisFees {
   astria.protocol.fees.v1.PriceFeedFeeComponents price_feed = 17;
 }
 
-message ConnectGenesis {
+message PriceFeedGenesis {
   connect.marketmap.v2.GenesisState market_map = 1;
   connect.oracle.v2.GenesisState oracle = 2;
 }
