@@ -244,6 +244,15 @@ impl ::prost::Name for RollupData {
         ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
     }
 }
+/// Wraps the initial elements of the `txs` field of CometBFT requests/responses like
+/// `PrepareProposal` and `FinalizeBlock`.
+///
+/// These special elements always appear before all the actual rollup txs in a defined order.
+///
+/// Rollup txs are not included in this enum as wrapping them would cause them to be indexed under
+/// a different hash from their original one by CometBFT, making it difficult for clients to
+/// identify their txs and meaning they would not be cleared out of the CometBFT mempool when added
+/// to a block.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DataItem {
