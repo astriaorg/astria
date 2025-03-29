@@ -5,6 +5,10 @@ import '../evm.just'
 mod ibc-test
 
 
+# Set the working directory for all recipes to the project's root.
+set working-directory := "../../../"
+
+
 _default_run:
   @just --list run
 
@@ -255,7 +259,7 @@ not the image to run before the upgrade executes.
 Usage:
   just run upgrade-test <TAG> (default: 'local')
 ")]
-run-upgrade-test tag=defaultDockerTag:
+upgrade-test tag=defaultDockerTag:
   #!/usr/bin/env bash
   if [ -d "system-tests/.venv" ]; then
     echo "Found Python virtual environment, activating it..."
