@@ -169,8 +169,8 @@ rollup rollupName=defaultRollupName networkId=defaultNetworkId:
   @echo "Deploying rollup '{{rollupName}}'..."
   @helm dependency update charts/evm-stack > /dev/null
   @helm install \
-    {{ if rollupName          != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
-    {{ if networkId           != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
+    {{ if rollupName != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
+    {{ if networkId != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
     -f dev/values/rollup/dev.yaml \
     {{rollupName}}-chain-chart charts/evm-stack --namespace astria-dev-cluster
   @echo "Waiting for rollup to become ready..."
@@ -189,8 +189,8 @@ flame-dev-rollup rollupName=defaultRollupName networkId=defaultNetworkId:
   @echo "Deploying Flame rollup '{{rollupName}}'..."
   @helm dependency update charts/evm-stack > /dev/null
   @helm install \
-    {{ if rollupName          != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
-    {{ if networkId           != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
+    {{ if rollupName != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
+    {{ if networkId != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
     -f dev/values/rollup/flame-dev.yaml \
     {{rollupName}}-chain-chart charts/evm-stack --namespace astria-dev-cluster
   @echo "Waiting for rollup to become ready..."
@@ -290,12 +290,14 @@ smoke-cli tag=defaultTag:
     -f dev/values/validators/single.yml \
     {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
+  @just deploy::wait-for-sequencer
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart charts/evm-stack -f dev/values/rollup/dev.yaml \
       {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=#', '#', tag) } else { '' } }} \
       --set blockscout-stack.enabled=false \
       --set postgresql.enabled=false \
       --set evm-bridge-withdrawer.enabled=false \
       --set evm-faucet.enabled=false > /dev/null
+  @just deploy::wait-for-rollup {{defaultRollupName}} "false"
   @sleep 10
 
 

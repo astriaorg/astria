@@ -122,7 +122,7 @@ default tag=defaultTag:
 [doc("
 Test IBC transfer from Celestia to Rollup with no native asset.
 Usage:
-  just run ibc-test-without-native <TAG> (default: '')
+  just run ibc-test without-native <TAG> (default: '')
 ")]
 without-native tag=defaultTag:
   #!/usr/bin/env bash
@@ -166,7 +166,7 @@ evm_contract_address := "0xA58639fB5458e65E4fA917FF951C390292C24A15"
 [doc("
 Test IBC transfers between the Rollup and Celestia with a refund timeout.
 Usage:
-  just run ibc-test-refund-timeout <TAG> (default: '')
+  just run ibc-test refund-timeout <TAG> (default: '')
 ")]
 timeout-refund tag=defaultTag:
   #!/usr/bin/env bash
