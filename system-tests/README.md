@@ -97,7 +97,7 @@ just docker-build-and-load astria-bridge-withdrawer
 just deploy upgrade-test
 
 # Run the test
-just run-upgrade-test local
+just run upgrade-test local
 ```
 
 This invokes the `sequencer_upgrade_test.py` script with the args
