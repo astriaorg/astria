@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package astria.sequencerblock.v1alpha1;
+
+import "astria/sequencerblock/v1alpha1/submitted_rollup_data.proto";
+
+// A sequence of `astria.sequencerblock.v1alpha1.SubmittedRollupData` submitted to Celestia.
+message SubmittedRollupDataList {
+  repeated SubmittedRollupData entries = 1;
+}

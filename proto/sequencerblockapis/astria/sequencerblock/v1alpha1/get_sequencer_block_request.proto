@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package astria.sequencerblock.v1alpha1;
+
+import "google/api/field_behavior.proto";
+
+message GetSequencerBlockRequest {
+  // The height of the block to retrieve.
+  uint64 height = 1 [(google.api.field_behavior) = REQUIRED];
+}
