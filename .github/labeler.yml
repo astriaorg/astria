@@ -39,3 +39,7 @@ documentation:
   - changed-files:
     - any-glob-to-any-file:
       - 'specs/**'
+bridge-signer:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'crates/astria-bridge-signer/**'

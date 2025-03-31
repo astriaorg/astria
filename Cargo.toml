@@ -33,6 +33,7 @@ members = [
 default-members = [
   "crates/astria-auctioneer",
   "crates/astria-bridge-contracts",
+  "crates/astria-bridge-signer",
   "crates/astria-bridge-withdrawer",
   "crates/astria-bridge-signer",
   "crates/astria-build-info",
