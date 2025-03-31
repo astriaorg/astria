@@ -10,13 +10,15 @@ homepage = "https://astria.org"
 
 [dependencies]
 http = "0.2.9"
+frost-ed25519 = { version = "2.1.0" }
 
 axum = { workspace = true }
 futures = { workspace = true }
-hex = { workspace = true }
+hex.workspace = true
 ethers = { workspace = true, features = ["ws"] }
 hyper = { workspace = true }
 ibc-types = { workspace = true }
+pbjson-types = { workspace = true }
 pin-project-lite = { workspace = true }
 prost = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
@@ -46,6 +48,7 @@ sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequ
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
   "display",
 ] }
+itertools.workspace = true
 
 [dev-dependencies]
 astria-core = { path = "../astria-core", features = ["server", "test-utils"] }
@@ -53,11 +56,14 @@ astria-grpc-mock = { path = "../astria-grpc-mock" }
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
+rand = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 tempfile = { workspace = true }
 tendermint-rpc = { workspace = true }
 tokio-stream = { workspace = true, features = ["net"] }
 wiremock = { workspace = true }
+
+rand_chacha = "0.3.1"
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }

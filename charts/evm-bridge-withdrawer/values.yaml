@@ -13,7 +13,7 @@ images:
   evmBridgeWithdrawer:
     repo: ghcr.io/astriaorg/evm-bridge-withdrawer
     pullPolicy: IfNotPresent
-    tag: 1.0.2
+    tag: 1.0.3
     devTag: latest
 
 config:
@@ -28,6 +28,10 @@ config:
   rollupAssetDenom: ""
   evmContractAddress: "0x"
   evmRpcEndpoint: ""
+  noFrostThresholdSigning: "true"
+  frostMinSigners: "0"
+  frostPublicKeyPackagePath: ""
+  frostParticipantEndpoints: ""
   sequencerPrivateKey:
     devContent: ""
     secret:
