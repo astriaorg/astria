@@ -96,9 +96,18 @@ impl Verifier {
                     );
                 }
                 (Action::Ics20Withdrawal(actual), Action::Ics20Withdrawal(expected)) => {
+                    // Timeout times will never be the same, since they are calculated based on when
+                    // the action is received
+                    let mut actual_without_timeout = actual.clone();
+                    actual_without_timeout.timeout_time = 0;
+                    let mut expected_without_timeout = expected.clone();
+                    expected_without_timeout.timeout_time = 0;
                     ensure!(
-                        actual == expected,
-                        "actual ics20 withdrawal action does not match expected"
+                        actual_without_timeout == expected_without_timeout,
+                        "actual ics20 withdrawal action with timeout time removed does not match \
+                         expected with timeout removed\n
+                        actual: {actual:?}\n
+                        expected: {expected:?}"
                     );
                 }
                 _ => return Err(eyre::eyre!("action type does not match expected type")),
