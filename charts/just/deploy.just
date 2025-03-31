@@ -410,7 +410,7 @@ wait-for-sequencer:
 
 [private]
 wait-for-celestia-local:
-  @kubectl rollout status --watch deployment/celestia-local-chart -n astria-dev-cluster --timeout=600s > /dev/null
+  @kubectl rollout status --watch statefulset/celestia-local -n astria-dev-cluster --timeout=600s > /dev/null
 
 [private]
 wait-for-bridge-withdrawer:
