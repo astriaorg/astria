@@ -38,6 +38,11 @@ use ethers::{
 };
 use prost::Message as _;
 
+enum GetterConfiguration<'a> {
+    SequencerWithdrawal,
+    Ics20Withdrawal(&'a Denom),
+}
+
 pub struct Verifier {
     provider: Arc<Provider<Http>>,
 }
@@ -116,6 +121,7 @@ impl Verifier {
             act.bridge_address,
             act.fee_asset.clone(),
             act.rollup_block_number,
+            GetterConfiguration::SequencerWithdrawal,
         )
         .await
         .wrap_err("failed to get expected actions from bridge unlock tx info")?;
@@ -140,6 +146,7 @@ impl Verifier {
             bridge_address,
             act.fee_asset.clone(),
             memo.rollup_block_number,
+            GetterConfiguration::Ics20Withdrawal(&act.denom),
         )
         .await
         .wrap_err("failed to get expected actions from ics20 withdrawal tx info")?;
@@ -154,6 +161,7 @@ async fn get_expected_actions_from_tx_info(
     bridge_address: Address,
     fee_asset: Denom,
     rollup_block_number: u64,
+    getter_configuration: GetterConfiguration<'_>,
 ) -> eyre::Result<Vec<Action>> {
     let tx = provider
         .get_transaction_receipt(tx_hash)
@@ -169,20 +177,31 @@ async fn get_expected_actions_from_tx_info(
         contract_address,
         provider.clone(),
     );
-    let sequencer_asset_str = contract
-        .base_chain_asset_denomination()
-        .await
-        .wrap_err("failed to get base chain asset denomination")?;
-    let sequencer_asset = Denom::from_str(&sequencer_asset_str)
-        .wrap_err("failed to parse base chain asset denomination")?;
 
-    let getter = astria_bridge_contracts::GetWithdrawalActionsBuilder::new()
+    let mut getter_builder = astria_bridge_contracts::GetWithdrawalActionsBuilder::new()
         .provider(provider.clone())
         .contract_address(contract_address)
         .bridge_address(bridge_address)
         .fee_asset(fee_asset)
-        .sequencer_asset_to_withdraw(sequencer_asset)
-        .use_compat_address(false)
+        .use_compat_address(false);
+
+    match getter_configuration {
+        GetterConfiguration::SequencerWithdrawal => {
+            let sequencer_asset_str = contract
+                .base_chain_asset_denomination()
+                .await
+                .wrap_err("failed to get base chain asset denomination")?;
+            let sequencer_asset = Denom::from_str(&sequencer_asset_str)
+                .wrap_err("failed to parse base chain asset denomination")?;
+            getter_builder = getter_builder.set_sequencer_asset_to_withdraw(Some(sequencer_asset));
+        }
+        GetterConfiguration::Ics20Withdrawal(denom) => {
+            getter_builder =
+                getter_builder.set_ics20_asset_to_withdraw(denom.as_trace_prefixed().cloned());
+        }
+    }
+
+    let getter = getter_builder
         .try_build()
         .await
         .wrap_err("failed to build getter")?;
