@@ -283,12 +283,14 @@ smoke-cli tag=defaultTag:
     -f ../../dev/values/validators/single.yml \
     {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
+  @just deploy::wait-for-sequencer
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ../../charts/evm-stack -f ../../dev/values/rollup/dev.yaml \
       {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=#', '#', tag) } else { '' } }} \
       --set blockscout-stack.enabled=false \
       --set postgresql.enabled=false \
       --set evm-bridge-withdrawer.enabled=false \
       --set evm-faucet.enabled=false > /dev/null
+  @just deploy::wait-for-rollup {{defaultRollupName}} "false"
   @sleep 10
 
 
@@ -408,7 +410,7 @@ wait-for-sequencer:
 
 [private]
 wait-for-celestia-local:
-  @kubectl rollout status --watch deployment/celestia-local-chart -n astria-dev-cluster --timeout=600s > /dev/null
+  @kubectl rollout status --watch statefulset/celestia-local -n astria-dev-cluster --timeout=600s > /dev/null
 
 [private]
 wait-for-bridge-withdrawer:
