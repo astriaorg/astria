@@ -50,7 +50,7 @@ serviceMonitor:
   additionalLabels:
     release: kube-prometheus-stack
 
-alerting: # TODO: fix this
+alerting:
   enabled: false
   interval: ""
   additionalLabels:

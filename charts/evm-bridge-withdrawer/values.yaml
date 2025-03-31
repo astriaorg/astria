@@ -32,7 +32,7 @@ config:
   evmRpcEndpoint: ""
   frostThresholdSigning: false
   frostMinSigners: "0"
-  frostParticipantEndpoints: 
+  frostParticipantEndpoints:
     # - "http://120.0.0.1:9000"
   frostPubKeyPackage:
     filename: "pubkey.json"
