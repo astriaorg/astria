@@ -54,7 +54,7 @@ metadata:
   name: {{ .Values.moniker }}-sequencer-env
   namespace: {{ include "sequencer.namespace" . }}
 data:
-  ASTRIA_SEQUENCER_LOG: "astria_sequencer=debug"
+  ASTRIA_SEQUENCER_LOG: "info"
   ASTRIA_SEQUENCER_DB_FILEPATH: "/sequencer/penumbra.db"
   ASTRIA_SEQUENCER_MEMPOOL_PARKED_MAX_TX_COUNT: "{{ .Values.sequencer.mempool.parked.maxTxCount }}"
   ASTRIA_SEQUENCER_ABCI_LISTEN_URL: "{{ include "sequencer.abci_url" . }}"

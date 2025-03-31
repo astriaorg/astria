@@ -150,7 +150,7 @@ sequencer:
 cometbft:
   config:
     # Log configurations
-    logLevel: "debug"
+    logLevel: "info"
     logFormat: "plain"
     # Grpc server configuration
     grpc:
