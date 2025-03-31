@@ -19,7 +19,10 @@ mod tests_execute_transaction;
 
 pub(crate) mod vote_extension;
 
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::Instant,
+};
 
 use astria_core::{
     primitive::v1::TRANSACTION_ID_LEN,
@@ -1082,16 +1085,30 @@ impl App {
         &mut self,
         _extend_vote: abci::request::ExtendVote,
     ) -> Result<abci::response::ExtendVote> {
-        self.vote_extension_handler.extend_vote(&self.state).await
+        let start = Instant::now();
+        let result = self.vote_extension_handler.extend_vote(&self.state).await;
+        if result.is_ok() {
+            self.metrics
+                .record_extend_vote_duration_seconds(start.elapsed());
+        } else {
+            self.metrics.increment_extend_vote_failure_count();
+        }
+        result
     }
 
+    #[instrument(name = "App::extend_vote", skip_all)]
     pub(crate) async fn verify_vote_extension(
         &mut self,
         vote_extension: abci::request::VerifyVoteExtension,
     ) -> Result<abci::response::VerifyVoteExtension> {
-        self.vote_extension_handler
+        let result = self
+            .vote_extension_handler
             .verify_vote_extension(&self.state, vote_extension)
-            .await
+            .await;
+        if result.is_err() {
+            self.metrics.increment_verify_vote_extension_failure_count();
+        }
+        result
     }
 
     /// updates the app state after transaction execution, and generates the resulting
@@ -1233,6 +1250,11 @@ impl App {
             &expanded_block_data.extended_commit_info_with_proof
         {
             let extended_commit_info = extended_commit_info_with_proof.extended_commit_info();
+            self.metrics.record_extended_commit_info_bytes(
+                extended_commit_info_with_proof
+                    .encoded_extended_commit_info()
+                    .len(),
+            );
             let mut state_tx: StateDelta<Arc<StateDelta<Snapshot>>> =
                 StateDelta::new(self.state.clone());
             vote_extension::apply_prices_from_vote_extensions(
