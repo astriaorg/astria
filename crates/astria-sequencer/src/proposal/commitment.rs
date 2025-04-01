@@ -19,8 +19,8 @@ use bytes::Bytes;
 
 /// Wrapper for values returned by [`generate_rollup_datas_commitment`].
 // NOTE: The generic arg can be removed when we no longer support running a network where the raw
-//       txs are not encoded `DataItem`s, i.e. after `Upgrade1`. This is not needed for syncing to
-//       a network with such legacy blocks, since it's only used via prepare-/process-proposal.
+//       txs are not encoded `DataItem`s, i.e. after `Aspen`. This is not needed for syncing to a
+//       network with such legacy blocks, since it's only used via prepare-/process-proposal.
 pub(crate) struct GeneratedCommitments<const USES_DATA_ITEM_ENUM: bool> {
     pub(crate) rollup_datas_root: [u8; 32],
     pub(crate) rollup_ids_root: [u8; 32],

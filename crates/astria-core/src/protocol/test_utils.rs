@@ -98,7 +98,7 @@ pub struct ConfigureSequencerBlock {
     pub deposits: Vec<Deposit>,
     pub unix_timestamp: UnixTimeStamp,
     pub use_data_items: bool,
-    pub with_upgrade_1: bool,
+    pub with_aspen: bool,
     pub with_extended_commit_info: bool,
 }
 
@@ -114,7 +114,7 @@ impl Default for ConfigureSequencerBlock {
             deposits: vec![],
             unix_timestamp: UnixTimeStamp::default(),
             use_data_items: true,
-            with_upgrade_1: true,
+            with_aspen: true,
             with_extended_commit_info: true,
         }
     }
@@ -146,7 +146,7 @@ impl ConfigureSequencerBlock {
             unix_timestamp,
             deposits,
             use_data_items,
-            with_upgrade_1,
+            with_aspen,
             with_extended_commit_info,
         } = self;
 
@@ -230,10 +230,10 @@ impl ConfigureSequencerBlock {
             ]
         };
 
-        if with_upgrade_1 {
+        if with_aspen {
             assert!(
                 use_data_items,
-                "can't include upgrade 1 and also use legacy form of data/txns"
+                "can't include aspen upgrade and also use legacy form of data/txns"
             );
             data.push(upgrade_change_hashes_bytes());
         }
@@ -241,7 +241,7 @@ impl ConfigureSequencerBlock {
         if with_extended_commit_info {
             assert!(
                 use_data_items,
-                "can't include upgrade 1 and also include extended commit info"
+                "can't include aspen upgrade and also include extended commit info"
             );
             data.push(minimal_extended_commit_info_bytes());
         }
@@ -264,11 +264,11 @@ impl ConfigureSequencerBlock {
     }
 }
 
-/// Returns the change hashes of `Upgrade1`.
+/// Returns the change hashes of `Aspen`.
 pub fn upgrade_change_hashes() -> Vec<ChangeHash> {
     let upgrades = UpgradesBuilder::new().build();
     upgrades
-        .upgrade_1()
+        .aspen()
         .unwrap()
         .changes()
         .map(Change::calculate_hash)

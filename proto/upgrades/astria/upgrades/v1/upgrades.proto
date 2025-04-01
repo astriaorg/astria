@@ -6,7 +6,7 @@ import "astria/protocol/genesis/v1/types.proto";
 
 // A JSON-encoded form of this message is used as the upgrades file for the Sequencer.
 message Upgrades {
-  Upgrade1 upgrade_1 = 1;
+  Aspen aspen = 1;
 }
 
 // Info specific to a given upgrade.
@@ -19,8 +19,8 @@ message BaseUpgradeInfo {
   uint64 app_version = 2;
 }
 
-// Upgrade 1 of the Sequencer network.
-message Upgrade1 {
+// Aspen upgrade of the Sequencer network.
+message Aspen {
   message PriceFeedChange {
     // The price feed genesis data.
     astria.protocol.genesis.v1.PriceFeedGenesis genesis = 1;

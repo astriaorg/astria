@@ -268,4 +268,4 @@ upgrade-test tag=defaultDockerTag:
   fi
   python3 system-tests/sequencer_upgrade_test.py \
     --image-tag {{ if tag != '' { tag } else { 'latest' } }} \
-    --upgrade-name "upgrade1"
+    --upgrade-name "aspen"

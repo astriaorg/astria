@@ -143,7 +143,7 @@ genesis:
     #   pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
 
 upgrades:
-  upgrade1:
+  aspen:
     enabled: false
     # baseInfo:
     #   activationHeight: 60

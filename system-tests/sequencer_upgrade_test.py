@@ -12,7 +12,7 @@ For details on running the test, see the README.md file in `/system-tests`.
 
 import argparse
 import concurrent
-import sequencer_upgrade_1_checks
+import aspen_upgrade_checks
 from concurrent.futures import FIRST_EXCEPTION
 from helpers.astria_cli import Cli
 from helpers.evm_controller import EvmController
@@ -23,7 +23,7 @@ from helpers.utils import update_chart_dependencies, check_change_infos
 NUM_NODES = 5
 # A map of upgrade name to sequencer, relayer image to use for running BEFORE the given upgrade is executed.
 PRE_UPGRADE_IMAGE_TAGS = {
-    "upgrade1": ("2.0.0", "1.0.1"),
+    "aspen": ("2.0.0", "1.0.1"),
 }
 EVM_DESTINATION_ADDRESS = "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
 ACCOUNT = "astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504"
@@ -42,7 +42,7 @@ parser.add_argument(
 parser.add_argument(
     "-n", "--upgrade-name",
     help="The name of the upgrade to apply.",
-    choices=("upgrade1",),
+    choices=("aspen",),
     required=True
 )
 args = vars(parser.parse_args())
@@ -110,8 +110,8 @@ for node in nodes[1:]:
 
 # Run pre-upgrade checks specific to this upgrade.
 print(f"running pre-upgrade checks specific to {upgrade_name}")
-if upgrade_name == "upgrade1":
-    sequencer_upgrade_1_checks.assert_pre_upgrade_conditions(nodes)
+if upgrade_name == "aspen":
+    aspen_upgrade_checks.assert_pre_upgrade_conditions(nodes)
 print(f"passed {upgrade_name}-specific pre-upgrade checks")
 
 print("app version before upgrade:", app_version_before)
@@ -237,8 +237,8 @@ print("upgrade change infos reported correctly")
 
 # Run post-upgrade checks specific to this upgrade.
 print(f"running post-upgrade checks specific to {upgrade_name}")
-if upgrade_name == "upgrade1":
-    sequencer_upgrade_1_checks.assert_post_upgrade_conditions(nodes, upgrade_activation_height)
+if upgrade_name == "aspen":
+    aspen_upgrade_checks.assert_post_upgrade_conditions(nodes, upgrade_activation_height)
 print(f"passed {upgrade_name}-specific post-upgrade checks")
 
 # Perform a bridge out.

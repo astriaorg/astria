@@ -190,8 +190,8 @@ impl UpgradesHandler {
             irrefutable_let_patterns,
             reason = "will become refutable once we have more than one upgrade variant"
         )]
-        if let Upgrade::Upgrade1(upgrade_1) = upgrade {
-            let genesis_state = upgrade_1.price_feed_change().genesis();
+        if let Upgrade::Aspen(aspen) = upgrade {
+            let genesis_state = aspen.price_feed_change().genesis();
             MarketMapComponent::handle_genesis(&mut state, genesis_state.market_map())
                 .wrap_err("failed to handle market map genesis")?;
             info!("handled market map genesis");
@@ -246,7 +246,7 @@ impl UpgradesHandler {
             irrefutable_let_patterns,
             reason = "will become refutable once we have more than one upgrade variant"
         )]
-        if let Upgrade::Upgrade1(_) = upgrade {
+        if let Upgrade::Aspen(_) = upgrade {
             set_vote_extensions_enable_height_to_next_block_height(block_height, &mut params);
         }
 
@@ -262,7 +262,7 @@ impl UpgradesHandler {
         state: S,
         block_height: u64,
     ) -> Result<tendermint::consensus::Params> {
-        // First try in our own storage. Should succeed for all upgrades after `Upgrade1`.
+        // First try in our own storage. Should succeed for all upgrades after `Aspen`.
         if let Some(params) = state
             .get_consensus_params()
             .await
@@ -280,7 +280,7 @@ impl UpgradesHandler {
 
         // As a last resort, fall back to hard-coded values as per Astria Mainnet and Testnet
         // initial settings. This will be needed if the sequencer wasn't upgraded before the
-        // activation point for `Upgrade1`. In that case, `CometBFT` will not start until the
+        // activation point for `Aspen`. In that case, `CometBFT` will not start until the
         // sequencer handles `FinalizeBlock` for the block at the activation height. However, the
         // sequencer can't handle that request as it calls through to here, resulting in a chicken-
         // and-egg scenario. If these hard-coded values are invalid, then `FinalizeBlock` will fail.

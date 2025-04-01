@@ -1,5 +1,5 @@
 upgrades:
-  upgrade1:
+  aspen:
     enabled: true
     baseInfo:
       activationHeight: 60

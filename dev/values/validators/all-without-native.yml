@@ -22,7 +22,7 @@ genesis:
 
 sequencer:
   upgrades:
-    upgrade1:
+    aspen:
       activationHeight: 60
       appVersion: 2
     systemTest:

@@ -16,7 +16,7 @@ mod tests {
     #[test]
     fn keys_should_not_change() {
         insta::assert_snapshot!(change(
-            &UpgradeName::new("upgrade_1"),
+            &UpgradeName::new("aspen"),
             &ChangeName::new("change_1")
         ));
     }
@@ -24,7 +24,7 @@ mod tests {
     #[test]
     fn keys_should_have_component_prefix() {
         assert!(
-            change(&UpgradeName::new("upgrade_1"), &ChangeName::new("change_1"))
+            change(&UpgradeName::new("aspen"), &ChangeName::new("change_1"))
                 .starts_with(COMPONENT_PREFIX)
         );
     }
