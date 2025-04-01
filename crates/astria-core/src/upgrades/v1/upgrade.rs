@@ -1,47 +1,47 @@
 use super::{
+    Aspen,
     Change,
-    Upgrade1,
     UpgradeName,
 };
 
 /// An enum of the closed set of all possible upgrades.
 #[derive(Clone, Debug)]
 pub enum Upgrade {
-    Upgrade1(Upgrade1),
+    Aspen(Aspen),
 }
 
 impl Upgrade {
     #[must_use]
     pub fn activation_height(&self) -> u64 {
         match self {
-            Upgrade::Upgrade1(upgrade_1) => upgrade_1.activation_height(),
+            Upgrade::Aspen(aspen) => aspen.activation_height(),
         }
     }
 
     #[must_use]
     pub fn app_version(&self) -> u64 {
         match self {
-            Upgrade::Upgrade1(upgrade_1) => upgrade_1.app_version(),
+            Upgrade::Aspen(aspen) => aspen.app_version(),
         }
     }
 
     #[must_use]
     pub fn shutdown_required(&self) -> bool {
         match self {
-            Upgrade::Upgrade1(_) => false,
+            Upgrade::Aspen(_) => false,
         }
     }
 
     #[must_use]
     pub fn name(&self) -> UpgradeName {
         match self {
-            Upgrade::Upgrade1(_) => Upgrade1::NAME.clone(),
+            Upgrade::Aspen(_) => Aspen::NAME.clone(),
         }
     }
 
     pub fn changes(&self) -> impl Iterator<Item = &'_ dyn Change> {
         match self {
-            Upgrade::Upgrade1(upgrade_1) => upgrade_1.changes(),
+            Upgrade::Aspen(aspen) => aspen.changes(),
         }
     }
 }

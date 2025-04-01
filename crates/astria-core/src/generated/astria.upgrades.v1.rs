@@ -3,7 +3,7 @@
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Upgrades {
     #[prost(message, optional, tag = "1")]
-    pub upgrade_1: ::core::option::Option<Upgrade1>,
+    pub aspen: ::core::option::Option<Aspen>,
 }
 impl ::prost::Name for Upgrades {
     const NAME: &'static str = "Upgrades";
@@ -32,21 +32,21 @@ impl ::prost::Name for BaseUpgradeInfo {
         ::prost::alloc::format!("astria.upgrades.v1.{}", Self::NAME)
     }
 }
-/// Upgrade 1 of the Sequencer network.
+/// Aspen upgrade of the Sequencer network.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Upgrade1 {
+pub struct Aspen {
     #[prost(message, optional, tag = "1")]
     pub base_info: ::core::option::Option<BaseUpgradeInfo>,
     #[prost(message, optional, tag = "2")]
-    pub price_feed_change: ::core::option::Option<upgrade1::PriceFeedChange>,
+    pub price_feed_change: ::core::option::Option<aspen::PriceFeedChange>,
     #[prost(message, optional, tag = "3")]
     pub validator_update_action_change: ::core::option::Option<
-        upgrade1::ValidatorUpdateActionChange,
+        aspen::ValidatorUpdateActionChange,
     >,
 }
-/// Nested message and enum types in `Upgrade1`.
-pub mod upgrade1 {
+/// Nested message and enum types in `Aspen`.
+pub mod aspen {
     #[allow(clippy::derive_partial_eq_without_eq)]
     #[derive(Clone, PartialEq, ::prost::Message)]
     pub struct PriceFeedChange {
@@ -60,7 +60,7 @@ pub mod upgrade1 {
         const NAME: &'static str = "PriceFeedChange";
         const PACKAGE: &'static str = "astria.upgrades.v1";
         fn full_name() -> ::prost::alloc::string::String {
-            ::prost::alloc::format!("astria.upgrades.v1.Upgrade1.{}", Self::NAME)
+            ::prost::alloc::format!("astria.upgrades.v1.Aspen.{}", Self::NAME)
         }
     }
     #[allow(clippy::derive_partial_eq_without_eq)]
@@ -70,12 +70,12 @@ pub mod upgrade1 {
         const NAME: &'static str = "ValidatorUpdateActionChange";
         const PACKAGE: &'static str = "astria.upgrades.v1";
         fn full_name() -> ::prost::alloc::string::String {
-            ::prost::alloc::format!("astria.upgrades.v1.Upgrade1.{}", Self::NAME)
+            ::prost::alloc::format!("astria.upgrades.v1.Aspen.{}", Self::NAME)
         }
     }
 }
-impl ::prost::Name for Upgrade1 {
-    const NAME: &'static str = "Upgrade1";
+impl ::prost::Name for Aspen {
+    const NAME: &'static str = "Aspen";
     const PACKAGE: &'static str = "astria.upgrades.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.upgrades.v1.{}", Self::NAME)

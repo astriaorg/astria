@@ -549,7 +549,7 @@ mod tests {
             block_hash: Some(block_hash),
             height,
             deposits,
-            with_upgrade_1: true,
+            with_aspen: true,
             with_extended_commit_info: true,
             ..Default::default()
         }

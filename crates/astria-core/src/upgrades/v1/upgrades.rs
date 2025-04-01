@@ -7,9 +7,9 @@ use std::{
 };
 
 use super::{
-    upgrade1,
+    aspen,
+    Aspen,
     Upgrade,
-    Upgrade1,
     UpgradeName,
 };
 use crate::{
@@ -48,11 +48,11 @@ impl Upgrades {
         let mut upgrades = BTreeMap::new();
 
         if let Some(upgrade) = raw
-            .upgrade_1
-            .map(|raw_upgrade_1| {
-                Upgrade1::try_from_raw(raw_upgrade_1)
-                    .map(Upgrade::Upgrade1)
-                    .map_err(|source| Error::convert_upgrade_1(source, path.to_path_buf()))
+            .aspen
+            .map(|raw_aspen| {
+                Aspen::try_from_raw(raw_aspen)
+                    .map(Upgrade::Aspen)
+                    .map_err(|source| Error::convert_aspen(source, path.to_path_buf()))
             })
             .transpose()?
         {
@@ -76,19 +76,19 @@ impl Upgrades {
     /// Returns an error if encoding fails.
     pub fn to_json_pretty(&self) -> Result<String, Error> {
         let raw_upgrades = RawUpgrades {
-            upgrade_1: self.upgrade_1().map(Upgrade1::to_raw),
+            aspen: self.aspen().map(Aspen::to_raw),
         };
         serde_json::to_string_pretty(&raw_upgrades).map_err(Error::json_encode)
     }
 
     #[must_use]
-    pub fn upgrade_1(&self) -> Option<&Upgrade1> {
+    pub fn aspen(&self) -> Option<&Aspen> {
         #[expect(
             clippy::unnecessary_find_map,
             reason = "we'll want `find_map` once we have more than one `Upgrade` variant"
         )]
         self.0.iter().find_map(|upgrade| match upgrade {
-            Upgrade::Upgrade1(upgrade_1) => Some(upgrade_1),
+            Upgrade::Aspen(aspen) => Some(aspen),
         })
     }
 
@@ -151,8 +151,8 @@ impl Error {
         })
     }
 
-    fn convert_upgrade_1(source: upgrade1::Error, path: PathBuf) -> Self {
-        Self(ErrorKind::ConvertUpgrade1 {
+    fn convert_aspen(source: aspen::Error, path: PathBuf) -> Self {
+        Self(ErrorKind::ConvertAspen {
             source,
             path,
         })
@@ -186,9 +186,6 @@ enum ErrorKind {
         second_upgrade: UpgradeName,
     },
 
-    #[error("error converting `upgrade_1` in `{}`", .path.display())]
-    ConvertUpgrade1 {
-        source: upgrade1::Error,
-        path: PathBuf,
-    },
+    #[error("error converting `aspen` in `{}`", .path.display())]
+    ConvertAspen { source: aspen::Error, path: PathBuf },
 }
