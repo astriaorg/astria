@@ -21,6 +21,7 @@ serde_json = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["macros", "signal"] }
 tonic = { workspace = true }
+wiremock = { workspace = true }
 
 astria-bridge-contracts = { path = "../astria-bridge-contracts", features = [
   "tracing",
@@ -37,6 +38,9 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
+astria-core = { path = "../astria-core", features = ["serde", "server", "client"] }
+ibc-types = { workspace = true }
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }
+
