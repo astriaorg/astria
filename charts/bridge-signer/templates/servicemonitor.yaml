@@ -1,0 +1,27 @@
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "bridge-signer.appName" . }}-metrics
+  labels:
+    {{- with .Values.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  jobLabel: bridge-signer-metrics
+  namespaceSelector:
+    matchNames:
+      - {{ include "bridge-signer.namespace" . }}
+  selector:
+    matchLabels:
+      {{ include "bridge-signer.selectorLabels" . }}
+  endpoints:
+    - port: signer-metric
+      path: /
+      {{- with .Values.serviceMonitor.interval }}
+      interval: {{ . }}
+      {{- end }}
+      {{- with .Values.serviceMonitor.scrapeTimeout  }}
+      scrapeTimeout: {{ . }}
+      {{- end }}
+{{- end }}

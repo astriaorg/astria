@@ -7,6 +7,7 @@ global:
   dev: true
 
 config:
+  logLevel: "debug"
   sequencerCometbftEndpoint: "http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657"
   sequencerChainId: "sequencer-test-chain-0"
   minExpectedFeeAssetBalance: "0"
@@ -18,6 +19,21 @@ config:
   sequencerPrivateKey:
     devContent: "dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0"
   sequencerGrpcEndpoint: "http://node0-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080"
+  frostThresholdSigning: false
+  frostMinSigners: "2"
+  frostParticipantEndpoints:
+    - "http://bridge-signer-service.astria-signer1.svc.cluster.local:9001"
+    - "http://bridge-signer-service.astria-signer2.svc.cluster.local:9001"
+  frostPubKeyPackage:
+    filename: "pubkey.json"
+    devContent:
+      header:
+        version: 0
+        ciphersuite: "FROST-ED25519-SHA512-v1"
+      verifying_shares:
+        "0100000000000000000000000000000000000000000000000000000000000000": "bd209bd0c47806fee2db29bde0b705f6a191602f0307e8d959d74f189ae92e9e"
+        "0200000000000000000000000000000000000000000000000000000000000000": "0a677e1c6ad0c1906bf6ac53810b29efcb9ca9e7ab50fe9fca3ae49e613b922f"
+      verifying_key: "ecbe5e2fbaaf23f14ca43f34d71ad733c57afcadeb5782809af48a3da17b9b69"
 
 metrics:
   enabled: false
