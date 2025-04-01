@@ -70,14 +70,14 @@ impl TestBridgeSigner {
         let metrics = Box::leak(Box::new(metrics));
 
         let signer = BridgeSigner::from_config(cfg.clone(), metrics)
-            .expect("failed to create BridgeSigner from test config");
+            .expect("creating BridgeSigner from test config should succeed");
 
         // Wait for signer to become ready before connecting the client. TODO: health endpoint?
         sleep(Duration::from_millis(500)).await;
         let frost_client =
             FrostParticipantServiceClient::connect(format!("http://{}", cfg.grpc_endpoint))
                 .await
-                .expect("failed to connect to FrostParticipantServiceClient");
+                .expect("connecting to FrostParticipantServiceClient should succeed");
 
         tokio::spawn(signer.run_until_stopped());
         Self {

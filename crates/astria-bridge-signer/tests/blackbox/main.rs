@@ -1,5 +1,3 @@
-mod helpers;
-
 use astria_core::{
     generated::astria::signer::v1::CommitmentWithIdentifier,
     protocol::transaction::v1::TransactionBody,
@@ -13,6 +11,8 @@ use helpers::{
 use tonic::Code;
 
 use crate::helpers::test_bridge_signer::TestBridgeSigner;
+
+mod helpers;
 
 const SIGNER_ID: u16 = 1;
 const NON_SIGNER_ID: u16 = 2;
