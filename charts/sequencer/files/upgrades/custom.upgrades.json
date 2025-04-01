@@ -1,7 +1,7 @@
 {
-  {{- with .Values.upgrades.upgrade1 }}
+  {{- with .Values.upgrades.aspen }}
   {{- if .enabled }}
-  "upgrade1": {
+  "aspen": {
     "baseInfo": {
       "activationHeight": "{{ .baseInfo.activationHeight }}",
       "appVersion": "{{ .baseInfo.appVersion }}"

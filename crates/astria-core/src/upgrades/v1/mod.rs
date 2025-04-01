@@ -1,4 +1,6 @@
 #[cfg(feature = "serde")]
+pub use aspen::Aspen;
+#[cfg(feature = "serde")]
 pub use change::Change;
 pub use change_hash::{
     ChangeHash,
@@ -11,12 +13,12 @@ pub use change_name::ChangeName;
 #[cfg(feature = "serde")]
 pub use upgrade::Upgrade;
 #[cfg(feature = "serde")]
-pub use upgrade1::Upgrade1;
-#[cfg(feature = "serde")]
 pub use upgrade_name::UpgradeName;
 #[cfg(feature = "serde")]
 pub use upgrades::Upgrades;
 
+#[cfg(feature = "serde")]
+pub mod aspen;
 #[cfg(feature = "serde")]
 mod change;
 mod change_hash;
@@ -26,8 +28,6 @@ mod change_info;
 mod change_name;
 #[cfg(feature = "serde")]
 mod upgrade;
-#[cfg(feature = "serde")]
-pub mod upgrade1;
 #[cfg(feature = "serde")]
 mod upgrade_name;
 #[cfg(feature = "serde")]

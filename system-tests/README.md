@@ -77,7 +77,7 @@ just run upgrade-test
 ```
 
 This invokes the `sequencer_upgrade_test.py` script with the args
-`--image-tag latest` and `--upgrade-name upgrade1`.
+`--image-tag latest` and `--upgrade-name aspen`.
 
 To run the upgrade test using local builds:
 
@@ -101,4 +101,4 @@ just run upgrade-test local
 ```
 
 This invokes the `sequencer_upgrade_test.py` script with the args
-`--image-tag local` and `--upgrade-name upgrade1`.
+`--image-tag local` and `--upgrade-name aspen`.

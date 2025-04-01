@@ -1,5 +1,5 @@
 """
-This module contains checks specific to `Upgrade1`.
+This module contains checks specific to `Aspen`.
 """
 
 def assert_pre_upgrade_conditions(nodes):

@@ -1586,19 +1586,19 @@ impl App {
     /// `txs` field of `response::PrepareProposal`, and hence also `request::ProcessProposal` and
     /// `request::FinalizeBlock`.
     ///
-    /// This behavior was introduced in `Upgrade1`.  If `Upgrade1` is not included in the upgrades
+    /// This behavior was introduced in `Aspen`.  If `Aspen` is not included in the upgrades
     /// files, the assumption is that this network uses `DataItem`s from genesis onwards.
     ///
     /// Returns `true` if and only if:
-    /// - `Upgrade1` is in upgrades and `block_height` is greater than or equal to its activation
+    /// - `Aspen` is in upgrades and `block_height` is greater than or equal to its activation
     ///   height, or
-    /// - `Upgrade1` is not in upgrades.
+    /// - `Aspen` is not in upgrades.
     fn uses_data_item_enum(&self, block_height: tendermint::block::Height) -> bool {
         self.upgrades_handler
             .upgrades()
-            .upgrade_1()
-            .map_or(true, |upgrade_1| {
-                block_height.value() >= upgrade_1.activation_height()
+            .aspen()
+            .map_or(true, |aspen| {
+                block_height.value() >= aspen.activation_height()
             })
     }
 

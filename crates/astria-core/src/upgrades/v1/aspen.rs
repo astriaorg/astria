@@ -9,12 +9,12 @@ use super::{
 };
 use crate::{
     generated::upgrades::v1::{
-        upgrade1::{
+        aspen::{
             PriceFeedChange as RawPriceFeedChange,
             ValidatorUpdateActionChange as RawValidatorUpdateActionChange,
         },
+        Aspen as RawAspen,
         BaseUpgradeInfo as RawBaseUpgradeInfo,
-        Upgrade1 as RawUpgrade1,
     },
     protocol::genesis::v1::{
         PriceFeedGenesis,
@@ -24,15 +24,15 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
-pub struct Upgrade1 {
+pub struct Aspen {
     activation_height: u64,
     app_version: u64,
     price_feed_change: PriceFeedChange,
     validator_update_action_change: ValidatorUpdateActionChange,
 }
 
-impl Upgrade1 {
-    pub const NAME: UpgradeName = UpgradeName::new("upgrade_1");
+impl Aspen {
+    pub const NAME: UpgradeName = UpgradeName::new("aspen");
 
     #[must_use]
     pub fn activation_height(&self) -> u64 {
@@ -61,9 +61,9 @@ impl Upgrade1 {
     }
 }
 
-impl Protobuf for Upgrade1 {
+impl Protobuf for Aspen {
     type Error = Error;
-    type Raw = RawUpgrade1;
+    type Raw = RawAspen;
 
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let RawBaseUpgradeInfo {
@@ -119,7 +119,7 @@ impl Protobuf for Upgrade1 {
         let price_feed_change = Some(RawPriceFeedChange {
             genesis: Some(self.price_feed_change.genesis.to_raw()),
         });
-        RawUpgrade1 {
+        RawAspen {
             base_info,
             price_feed_change,
             validator_update_action_change: Some(RawValidatorUpdateActionChange {}),

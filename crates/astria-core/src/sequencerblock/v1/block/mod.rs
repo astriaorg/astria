@@ -1481,7 +1481,7 @@ pub struct ExpandedBlockData {
 
 impl ExpandedBlockData {
     /// Constructs a new `ExpandedBlockData` from `data`, expecting the entries to be in the
-    /// pre-upgrade1 form of two raw `[u8; 32]` hashes followed by the raw bytes of rollup txs.
+    /// pre-aspen-upgrade form of two raw `[u8; 32]` hashes followed by the raw bytes of rollup txs.
     ///
     /// # Errors
     ///
@@ -1537,7 +1537,7 @@ impl ExpandedBlockData {
     }
 
     /// Constructs a new `ExpandedBlockData` from `data`, expecting the entries to be in the
-    /// post-upgrade1 form of protobuf-encoded `DataItem`s.
+    /// post-aspen-upgrade form of protobuf-encoded `DataItem`s.
     ///
     /// The expected order is:
     ///   - `RollupTransactionsRoot`

@@ -314,7 +314,7 @@ impl Node {
         let (app, storage) = AppInitializer::new()
             .with_genesis_validators(initial_validator_set)
             .with_vote_extensions_enable_height(0_u8)
-            .with_upgrades(UpgradesBuilder::new().set_upgrade_1(Some(100)).build())
+            .with_upgrades(UpgradesBuilder::new().set_aspen(Some(100)).build())
             .init()
             .await;
         Self {
@@ -360,7 +360,7 @@ impl Node {
     }
 }
 
-/// Runs the abci calls for the execution of blocks at heights 99 through 102, where `Upgrade1` is
+/// Runs the abci calls for the execution of blocks at heights 99 through 102, where `Aspen` is
 /// scheduled to activate at height 100.
 ///
 /// There are three `App` instances, representing three separate nodes on the network.  The first
@@ -368,7 +368,7 @@ impl Node {
 /// is a non-validating node, e.g. a validator that is syncing, or a "full node".
 #[tokio::test]
 async fn should_upgrade() {
-    // Initialize `App`s with vote extensions disabled and with `Upgrade1` scheduled.
+    // Initialize `App`s with vote extensions disabled and with `Aspen` scheduled.
     let proposer = &mut Node::new(PROPOSER_SEED).await;
     let validator = &mut Node::new(VALIDATOR_SEED).await;
     let non_validator = &mut Node::new(NON_VALIDATOR_SEED).await;
