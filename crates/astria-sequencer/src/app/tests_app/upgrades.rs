@@ -304,10 +304,12 @@ impl Node {
             ValidatorUpdate {
                 power: 10,
                 verification_key: SigningKey::from(PROPOSER_SEED).verification_key(),
+                name: "test".to_string(),
             },
             ValidatorUpdate {
                 power: 10,
                 verification_key: SigningKey::from(VALIDATOR_SEED).verification_key(),
+                name: "test".to_string(),
             },
         ];
 

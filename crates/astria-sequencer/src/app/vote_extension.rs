@@ -839,14 +839,17 @@ mod test {
                 ValidatorUpdate {
                     power: signer_a.power.into(),
                     verification_key: signer_a.signing_key.verification_key(),
+                    name: "signer_a".to_string(),
                 },
                 ValidatorUpdate {
                     power: signer_b.power.into(),
                     verification_key: signer_b.signing_key.verification_key(),
+                    name: "signer_b".to_string(),
                 },
                 ValidatorUpdate {
                     power: signer_c.power.into(),
                     verification_key: signer_c.signing_key.verification_key(),
+                    name: "signer_c".to_string(),
                 },
             ]);
             state.put_validator_set(validator_set).unwrap();
