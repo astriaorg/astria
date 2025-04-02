@@ -49,6 +49,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{
     error,
     info,
+    info_span,
     instrument,
     warn,
 };
@@ -57,7 +58,6 @@ use crate::{
     collectors::EXECUTOR_SEND_TIMEOUT,
     executor::{
         self,
-        Handle,
     },
     metrics::Metrics,
     utils::report_exit_reason,
@@ -160,106 +160,146 @@ impl Geth {
         use futures::stream::StreamExt as _;
 
         let Self {
-            rollup_id,
-            executor_handle,
-            status,
-            url,
-            shutdown_token,
-            chain_name,
+            ref status,
+            ref url,
+            ref shutdown_token,
+            ref chain_name,
             metrics,
-            fee_asset,
+            ..
         } = self;
 
-        let txs_received_counter = txs_received_counter(metrics, &chain_name);
-        let txs_dropped_counter = txs_dropped_counter(metrics, &chain_name);
+        let txs_received_counter = txs_received_counter(metrics, chain_name);
+        let txs_dropped_counter = txs_dropped_counter(metrics, chain_name);
 
-        let client = connect_to_geth_node(url)
+        let client = connect_to_geth_node(url.clone())
             .await
             .wrap_err("failed to connect to geth node")?;
 
-        let mut tx_stream = client
-            .subscribe_full_pending_txs()
+        // Get current pending transactions, since the subscription will only return new ones
+        let cur_pending_txs = client
+            .txpool_content()
             .await
-            .wrap_err("failed to subscribe eth client to full pending transactions")?;
+            .wrap_err("failed to get current tx pool")?
+            .pending
+            .into_iter()
+            .flat_map(|(_account, txs)| txs.into_values())
+            .collect::<Vec<_>>();
 
-        status.send_modify(|status| status.is_connected = true);
+        let send_cur_pending_txs = async {
+            let _ = info_span!("Geth::run_until_stopped::send_cur_pending_txs").enter();
+            if cur_pending_txs.is_empty() {
+                info!("no pending transactions in tx pool");
+            } else {
+                info!(
+                    num_pending_txs = cur_pending_txs.len(),
+                    "found existing pending transactions in tx pool, sending to executor before \
+                     subscribing to new ones",
+                );
+            }
+            for tx in cur_pending_txs {
+                txs_received_counter.increment(1);
 
-        let reason = loop {
+                self.forward_geth_tx(&tx, &txs_dropped_counter).await?;
+            }
+            Ok(())
+        };
+
+        let reason = 'outer: {
+            // Process all existing pending transactions before those received via subscription
             select! {
                 biased;
                 () = shutdown_token.cancelled() => {
-                    break Ok("shutdown signal received");
+                    break 'outer Ok("shutdown signal received");
                 },
-                tx_res = tx_stream.next() => {
-                    if let Some(tx) = tx_res {
-                        let tx_hash = tx.hash;
-                        let data = tx.rlp().to_vec();
-                        let seq_action = RollupDataSubmission {
-                            rollup_id,
-                            data: data.into(),
-                            fee_asset: fee_asset.clone(),
-                        };
+                send_pending_txs_res = send_cur_pending_txs => {
+                    if let Err(err) = send_pending_txs_res {
+                        break 'outer Err(err);
+                    }
+            }};
 
-                        txs_received_counter.increment(1);
+            let mut tx_stream = client
+                .subscribe_full_pending_txs()
+                .await
+                .wrap_err("failed to subscribe eth client to full pending transactions")?;
 
-                        if let Err(err) = forward_geth_tx(
-                            &executor_handle,
-                            seq_action,
-                            tx_hash,
-                            &txs_dropped_counter,
-                        ).await {
-                            break Err(err);
+            status.send_modify(|status| status.is_connected = true);
+
+            let inner_reason = 'inner: loop {
+                select! {
+                    biased;
+                    () = shutdown_token.cancelled() => {
+                        break 'inner Ok("shutdown signal received");
+                    },
+                    tx_res = tx_stream.next() => {
+                        if let Some(tx) = tx_res {
+                            txs_received_counter.increment(1);
+
+                            if let Err(err) = self.forward_geth_tx(
+                                &tx,
+                                &txs_dropped_counter,
+                            ).await {
+                                break 'inner Err(err);
+                            }
+
+                        } else {
+                            break 'inner Err(eyre!("geth tx stream ended"));
                         }
-
-                    } else {
-                        break Err(eyre!("geth tx stream ended"));
                     }
                 }
-            }
+            };
+
+            status.send_modify(|status| status.is_connected = false);
+
+            // if the loop exits with an error, we can still proceed with unsubscribing the WSS
+            // stream as we could have exited due to an error in sending messages via the executor
+            // channel.
+            unsubscribe_from_rollup(&tx_stream).await;
+            inner_reason
         };
 
         report_exit_reason(reason.as_deref());
 
-        status.send_modify(|status| status.is_connected = false);
-
-        // if the loop exits with an error, we can still proceed with unsubscribing the WSS
-        // stream as we could have exited due to an error in sending messages via the executor
-        // channel.
-        unsubscribe_from_rollup(&tx_stream).await;
-
         reason.map(|_| ())
     }
-}
 
-#[instrument(skip_all)]
-async fn forward_geth_tx(
-    executor_handle: &Handle,
-    seq_action: RollupDataSubmission,
-    tx_hash: ethers::types::H256,
-    txs_dropped_counter: &Counter,
-) -> eyre::Result<()> {
-    match executor_handle
-        .send_timeout(seq_action, EXECUTOR_SEND_TIMEOUT)
-        .await
-    {
-        Ok(()) => Ok(()),
-        Err(SendTimeoutError::Timeout(_seq_action)) => {
-            warn!(
-                transaction.hash = %tx_hash,
-                timeout_ms = EXECUTOR_SEND_TIMEOUT.as_millis(),
-                "timed out sending new transaction to executor; dropping tx",
-            );
-            txs_dropped_counter.increment(1);
-            Ok(())
-        }
-        Err(SendTimeoutError::Closed(_seq_action)) => {
-            warn!(
-                transaction.hash = %tx_hash,
-                "executor channel closed while sending transaction; dropping transaction \
-                    and exiting event loop"
-            );
-            txs_dropped_counter.increment(1);
-            Err(eyre!("executor channel closed while sending transaction"))
+    #[instrument(skip_all)]
+    async fn forward_geth_tx(
+        &self,
+        tx: &Transaction,
+        txs_dropped_counter: &Counter,
+    ) -> eyre::Result<()> {
+        let tx_hash = tx.hash;
+        let data = tx.rlp().to_vec();
+        let seq_action = RollupDataSubmission {
+            rollup_id: self.rollup_id,
+            data: data.into(),
+            fee_asset: self.fee_asset.clone(),
+        };
+
+        match self
+            .executor_handle
+            .send_timeout(seq_action, EXECUTOR_SEND_TIMEOUT)
+            .await
+        {
+            Ok(()) => Ok(()),
+            Err(SendTimeoutError::Timeout(_seq_action)) => {
+                warn!(
+                    transaction.hash = %tx_hash,
+                    timeout_ms = EXECUTOR_SEND_TIMEOUT.as_millis(),
+                    "timed out sending new transaction to executor; dropping tx",
+                );
+                txs_dropped_counter.increment(1);
+                Ok(())
+            }
+            Err(SendTimeoutError::Closed(_seq_action)) => {
+                warn!(
+                    transaction.hash = %tx_hash,
+                    "executor channel closed while sending transaction; dropping transaction \
+                        and exiting event loop"
+                );
+                txs_dropped_counter.increment(1);
+                Err(eyre!("executor channel closed while sending transaction"))
+            }
         }
     }
 }
