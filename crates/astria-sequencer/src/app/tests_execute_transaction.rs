@@ -1353,7 +1353,7 @@ async fn app_execute_transaction_validator_update_with_name() {
     let alice = get_alice_signing_key();
     let alice_address = astria_address(&alice.address_bytes());
 
-    let mut app = initialize_app(Some(genesis_state()), vec![]).await;
+    let mut app = initialize_app(Some(genesis_state())).await;
     let verification_key = crate::benchmark_and_test_utils::verification_key(1);
 
     let validator_update_fees = FeeComponents::<ValidatorUpdate>::new(0, 0);

@@ -1179,6 +1179,7 @@ async fn app_oracle_price_update_events_in_finalize_block() {
     let initial_validator_set = vec![ValidatorUpdate {
         power: 100,
         verification_key: alice_signing_key.verification_key(),
+        name: "test".to_string(),
     }];
     let (mut app, storage) = AppInitializer::new()
         .with_genesis_validators(initial_validator_set)
