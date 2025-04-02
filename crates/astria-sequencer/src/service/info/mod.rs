@@ -59,6 +59,8 @@ const TRANSACTION_FEE: &str = "transaction/fee";
 
 const FEES_COMPONENTS: &str = "fees/components";
 
+const VALIDATOR_NAME: &str = "authority/validator_name/:address";
+
 impl Info {
     pub(crate) fn new(storage: Storage) -> Result<Self> {
         let mut query_router = abci_query_router::Router::new();
@@ -81,6 +83,10 @@ impl Info {
         )?;
         query_router.insert(TRANSACTION_FEE, crate::fees::query::transaction_fee_request)?;
         query_router.insert(FEES_COMPONENTS, crate::fees::query::components)?;
+        query_router.insert(
+            VALIDATOR_NAME,
+            crate::authority::query::validator_name_request,
+        )?;
         Ok(Self {
             storage,
             query_router,
@@ -218,7 +224,12 @@ mod tests {
         },
         app::StateWriteExt as _,
         assets::StateWriteExt as _,
-        benchmark_and_test_utils::nria,
+        authority::StateWriteExt as _,
+        benchmark_and_test_utils::{
+            astria_address,
+            nria,
+            verification_key,
+        },
         fees::{
             StateReadExt as _,
             StateWriteExt as _,
@@ -557,5 +568,56 @@ mod tests {
         state
             .put_fees(FeeComponents::<ValidatorUpdate>::new(14, 14))
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn handle_validator_name_query() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let mut state = StateDelta::new(storage.latest_snapshot());
+        let verification_key = verification_key(1);
+        let height = 0u32;
+        let power = 100;
+
+        let validator_update = ValidatorUpdate {
+            verification_key: verification_key.clone(),
+            power,
+            name: "validator_name".to_string(),
+        };
+
+        state
+            .put_validator_name(
+                verification_key.address_bytes(),
+                validator_update.name.clone(),
+            )
+            .unwrap();
+
+        storage.commit(state).await.unwrap();
+
+        let info_request = InfoRequest::Query(request::Query {
+            path: format!(
+                "authority/validator_name/{}",
+                astria_address(verification_key.address_bytes())
+            ),
+            data: vec![].into(),
+            height: height.into(),
+            prove: false,
+        });
+
+        let response = {
+            let storage = (*storage).clone();
+            let info_service = Info::new(storage).unwrap();
+            info_service
+                .handle_info_request(info_request)
+                .await
+                .unwrap()
+        };
+        let query_response = match response {
+            InfoResponse::Query(query) => query,
+            other => panic!("expected InfoResponse::Query, got {other:?}"),
+        };
+        assert!(query_response.code.is_ok());
+
+        let validator_name_resp = String::from_utf8(query_response.value.to_vec()).unwrap();
+        assert_eq!(validator_name_resp, validator_update.name);
     }
 }

@@ -31,6 +31,7 @@ pub(crate) struct Value<'a>(ValueImpl<'a>);
 enum ValueImpl<'a> {
     AddressBytes(AddressBytes<'a>),
     ValidatorSet(ValidatorSet<'a>),
+    ValidatorName(ValidatorName<'a>),
 }
 
 #[derive(BorshSerialize, BorshDeserialize)]
@@ -127,6 +128,7 @@ impl<'a> From<ValidatorSet<'a>> for DomainValidatorSet {
                     verification_key: astria_core::crypto::VerificationKey::from(
                         update.verification_key,
                     ),
+                    name: String::new(),
                 };
                 (key, validator_update)
             })
@@ -151,6 +153,41 @@ impl<'a> TryFrom<crate::storage::StoredValue<'a>> for ValidatorSet<'a> {
             bail!("authority stored value type mismatch: expected validator set, found {value:?}");
         };
         Ok(validator_set)
+    }
+}
+
+#[derive(Debug, BorshSerialize, BorshDeserialize)]
+pub(in crate::authority) struct ValidatorName<'a>(Cow<'a, str>);
+
+impl<'a> From<&'a str> for ValidatorName<'a> {
+    fn from(value: &'a str) -> Self {
+        ValidatorName(Cow::Borrowed(value))
+    }
+}
+
+impl<'a> From<ValidatorName<'a>> for String {
+    fn from(value: ValidatorName<'a>) -> Self {
+        value.0.into_owned()
+    }
+}
+
+impl<'a> From<ValidatorName<'a>> for crate::storage::StoredValue<'a> {
+    fn from(validator_name: ValidatorName<'a>) -> Self {
+        crate::storage::StoredValue::Authority(Value(ValueImpl::ValidatorName(validator_name)))
+    }
+}
+
+impl<'a> TryFrom<crate::storage::StoredValue<'a>> for ValidatorName<'a> {
+    type Error = astria_eyre::eyre::Error;
+
+    fn try_from(value: crate::storage::StoredValue<'a>) -> Result<Self, Self::Error> {
+        let crate::storage::StoredValue::Authority(Value(ValueImpl::ValidatorName(
+            validator_names,
+        ))) = value
+        else {
+            bail!("authority stored value type mismatch: expected validator name, found {value:?}");
+        };
+        Ok(validator_names)
     }
 }
 

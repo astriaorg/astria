@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/authority/storage/keys.rs
+expression: VALIDATOR_NAMES
+---
+authority/validator_names

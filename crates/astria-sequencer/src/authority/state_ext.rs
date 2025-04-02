@@ -31,6 +31,10 @@ use crate::{
     storage::StoredValue,
 };
 
+fn validator_name(key: &[u8]) -> String {
+    format!("{}/{}", keys::VALIDATOR_NAMES_PREFIX, hex::encode(key))
+}
+
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all, err(level = Level::WARN))]
@@ -80,6 +84,24 @@ pub(crate) trait StateReadExt: StateRead {
             .and_then(|value| storage::ValidatorSet::try_from(value).map(ValidatorSet::from))
             .wrap_err("invalid validator update bytes")
     }
+
+    #[instrument(skip_all)]
+    async fn get_validator_name(&self, validator: &[u8]) -> Result<Option<String>> {
+        let Some(bytes) = self
+            .get_raw(&validator_name(validator))
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw validator name from state")?
+        else {
+            return Ok(None);
+        };
+        Some(
+            StoredValue::deserialize(&bytes)
+                .and_then(|value| storage::ValidatorName::try_from(value).map(String::from))
+                .wrap_err("invalid validator name bytes"),
+        )
+        .transpose()
+    }
 }
 
 impl<T: StateRead> StateReadExt for T {}
@@ -116,6 +138,20 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip_all)]
     fn clear_validator_updates(&mut self) {
         self.nonverifiable_delete(keys::VALIDATOR_UPDATES.into());
+    }
+
+    #[instrument(skip_all)]
+    fn remove_validator_name(&mut self, validator: &[u8]) {
+        self.delete(validator_name(validator));
+    }
+
+    #[instrument(skip_all)]
+    fn put_validator_name(&mut self, validator: &[u8], name: String) -> Result<()> {
+        let bytes = StoredValue::from(storage::ValidatorName::from(name.as_str()))
+            .serialize()
+            .wrap_err("failed to serialize validator names")?;
+        self.put_raw(validator_name(validator), bytes);
+        Ok(())
     }
 }
 
@@ -204,6 +240,7 @@ mod tests {
         let initial = vec![ValidatorUpdate {
             power: 10,
             verification_key: verification_key(1),
+            name: String::new(),
         }];
         let initial_validator_set = ValidatorSet::new_from_updates(initial);
 
@@ -224,6 +261,7 @@ mod tests {
         let updates = vec![ValidatorUpdate {
             power: 20,
             verification_key: verification_key(2),
+            name: String::new(),
         }];
         let updated_validator_set = ValidatorSet::new_from_updates(updates);
         state
@@ -267,10 +305,12 @@ mod tests {
             ValidatorUpdate {
                 power: 10,
                 verification_key: verification_key(1),
+                name: String::new(),
             },
             ValidatorUpdate {
                 power: 0,
                 verification_key: verification_key(2),
+                name: String::new(),
             },
         ];
         let mut validator_set_updates = ValidatorSet::new_from_updates(updates);
@@ -293,10 +333,12 @@ mod tests {
             ValidatorUpdate {
                 power: 22,
                 verification_key: verification_key(1),
+                name: String::new(),
             },
             ValidatorUpdate {
                 power: 10,
                 verification_key: verification_key(3),
+                name: String::new(),
             },
         ];
 
@@ -326,6 +368,7 @@ mod tests {
         let updates = vec![ValidatorUpdate {
             power: 10,
             verification_key: verification_key(1),
+            name: String::new(),
         }];
         let validator_set_updates = ValidatorSet::new_from_updates(updates);
 
@@ -373,14 +416,17 @@ mod tests {
             ValidatorUpdate {
                 power: 1,
                 verification_key: verification_key(0),
+                name: "test0".to_string(),
             },
             ValidatorUpdate {
                 power: 2,
                 verification_key: verification_key(1),
+                name: "test1".to_string(),
             },
             ValidatorUpdate {
                 power: 3,
                 verification_key: verification_key(2),
+                name: "test2".to_string(),
             },
         ];
         let mut initial_validator_set = ValidatorSet::new_from_updates(initial);
@@ -390,10 +436,12 @@ mod tests {
             ValidatorUpdate {
                 power: 5,
                 verification_key: verification_key(0),
+                name: "test0".to_string(),
             },
             ValidatorUpdate {
                 power: 0,
                 verification_key: verification_key(1),
+                name: "test1".to_string(),
             },
         ];
 
@@ -407,10 +455,12 @@ mod tests {
             ValidatorUpdate {
                 power: 5,
                 verification_key: verification_key(0),
+                name: "test0".to_string(),
             },
             ValidatorUpdate {
                 power: 3,
                 verification_key: verification_key(2),
+                name: "test2".to_string(),
             },
         ];
         let validator_set_endstate = ValidatorSet::new_from_updates(updates);
@@ -419,6 +469,50 @@ mod tests {
         assert_eq!(
             initial_validator_set, validator_set_endstate,
             "validator set apply updates did not behave as expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn put_and_get_validator_names() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let validator_address = &[0; ADDRESS_LEN];
+        let validator_name = "ethan_was_here".to_string();
+
+        // returns empty validator names if none in state
+        assert_eq!(
+            state.get_validator_name(validator_address).await.unwrap(),
+            None
+        );
+
+        // can write new
+        state
+            .put_validator_name(validator_address, validator_name.clone())
+            .expect("writing initial validator should not fail");
+        assert_eq!(
+            state
+                .get_validator_name(validator_address)
+                .await
+                .expect("validator name was written and must exist inside the database"),
+            Some(validator_name),
+            "stored validator name was not what was expected"
+        );
+
+        // can update
+        let validator_address_2 = &[1; ADDRESS_LEN];
+        let validator_name_2 = "ethan_was_here_again".to_string();
+        state
+            .put_validator_name(validator_address_2, validator_name_2.clone())
+            .expect("writing update validator set should not fail");
+        assert_eq!(
+            state
+                .get_validator_name(validator_address_2)
+                .await
+                .expect("validator name was written and must exist inside the database"),
+            Some(validator_name_2),
+            "stored validator name was not what was expected"
         );
     }
 }

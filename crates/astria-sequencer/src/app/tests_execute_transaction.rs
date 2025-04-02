@@ -378,6 +378,7 @@ async fn app_execute_transaction_validator_update() {
     let mut app = initialize_app(Some(genesis_state())).await;
 
     let update = ValidatorUpdate {
+        name: String::new(),
         power: 100,
         verification_key: verification_key(1),
     };
@@ -1345,6 +1346,59 @@ async fn ensure_all_event_attributes_are_indexed() {
                 attribute.key,
             );
         });
+}
+
+#[tokio::test]
+async fn app_execute_transaction_validator_update_with_name() {
+    let alice = get_alice_signing_key();
+    let alice_address = astria_address(&alice.address_bytes());
+
+    let mut app = initialize_app(Some(genesis_state()), vec![]).await;
+    let verification_key = crate::benchmark_and_test_utils::verification_key(1);
+
+    let validator_update_fees = FeeComponents::<ValidatorUpdate>::new(0, 0);
+
+    let mut state_tx = StateDelta::new(app.state.clone());
+    state_tx.put_fees(validator_update_fees).unwrap();
+    app.apply(state_tx);
+
+    let update = ValidatorUpdate {
+        name: "test".to_string(),
+        power: 100,
+        verification_key: verification_key.clone(),
+    };
+
+    let update_without_name = ValidatorUpdate {
+        name: String::new(),
+        power: update.power,
+        verification_key: update.verification_key.clone(),
+    };
+
+    let tx = TransactionBody::builder()
+        .actions(vec![Action::ValidatorUpdate(update.clone())])
+        .chain_id("test")
+        .try_build()
+        .unwrap();
+
+    let signed_tx = Arc::new(tx.sign(&alice));
+    app.execute_transaction(signed_tx).await.unwrap();
+    assert_eq!(
+        app.state.get_account_nonce(&alice_address).await.unwrap(),
+        1
+    );
+
+    let validator_updates = app.state.get_validator_updates().await.unwrap();
+    assert_eq!(validator_updates.len(), 1);
+    assert_eq!(
+        validator_updates.get(&verification_key),
+        Some(&update_without_name)
+    );
+    let validator_name = app
+        .state
+        .get_validator_name(verification_key.address_bytes())
+        .await
+        .unwrap();
+    assert_eq!(validator_name, Some(update.name));
 }
 
 #[tokio::test]

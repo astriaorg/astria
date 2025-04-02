@@ -172,10 +172,12 @@ async fn app_begin_block_remove_byzantine_validators() {
 
     let initial_validator_set = vec![
         ValidatorUpdate {
+            name: "test1".to_string(),
             power: 100u32,
             verification_key: verification_key(1),
         },
         ValidatorUpdate {
+            name: "test2".to_string(),
             power: 1u32,
             verification_key: verification_key(2),
         },
@@ -888,10 +890,12 @@ async fn app_process_proposal_transaction_fails_to_execute_fails() {
 async fn app_end_block_validator_updates() {
     let initial_validator_set = vec![
         ValidatorUpdate {
+            name: "test1".to_string(),
             power: 100,
             verification_key: verification_key(1),
         },
         ValidatorUpdate {
+            name: "test2".to_string(),
             power: 1,
             verification_key: verification_key(2),
         },
@@ -905,14 +909,17 @@ async fn app_end_block_validator_updates() {
 
     let validator_updates = vec![
         ValidatorUpdate {
+            name: "test0".to_string(),
             power: 0,
             verification_key: verification_key(0),
         },
         ValidatorUpdate {
+            name: "test1".to_string(),
             power: 100,
             verification_key: verification_key(1),
         },
         ValidatorUpdate {
+            name: "test2".to_string(),
             power: 100,
             verification_key: verification_key(2),
         },

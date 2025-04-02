@@ -63,10 +63,23 @@ impl ActionHandler for ValidatorUpdate {
             .get_validator_updates()
             .await
             .wrap_err("failed getting validator updates from state")?;
-        validator_updates.push_update(self.clone());
+        validator_updates.insert(self.clone());
         state
             .put_validator_updates(validator_updates)
             .wrap_err("failed to put validator updates in state")?;
+
+        // TODO: add logic here to only update after certain height
+        match self.power {
+            0 => {
+                state.remove_validator_name(self.verification_key.address_bytes());
+            }
+            _ => {
+                state
+                    .put_validator_name(self.verification_key.address_bytes(), self.name.clone())
+                    .wrap_err("failed to put validator name in state")?;
+            }
+        }
+
         Ok(())
     }
 }
