@@ -25,7 +25,10 @@
 //!
 //! ```
 //! # tokio_test::block_on( async {
-//! use std::time::Duration;
+//! use std::{
+//!     collections::BTreeMap,
+//!     time::Duration,
+//! };
 //!
 //! use astria_test_utils::mock::Geth;
 //! use ethers::{
@@ -35,15 +38,18 @@
 //!         StreamExt as _,
 //!         Ws,
 //!     },
-//!     types::Transaction,
+//!     types::{
+//!         Transaction,
+//!         H160,
+//!     },
 //! };
 //!
 //! println!("connecting!!");
 //! let mut pending_txs = BTreeMap::new();
 //! let mut account_txs = BTreeMap::new();
-//! account_txs.insert("0", Transaction::default());
+//! account_txs.insert("0".to_string(), Transaction::default());
 //! pending_txs.insert(H160::zero(), account_txs);
-//! let mock_geth = Geth::spawn_with_pending_txs(pending_txs).await;
+//! let mock_geth = Geth::spawn_with_pending_txs(pending_txs.clone()).await;
 //! let server_addr = mock_geth.local_addr();
 //!
 //! let geth_client = Provider::<Ws>::connect(format!("ws://{server_addr}"))

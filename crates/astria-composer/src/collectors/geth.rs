@@ -13,7 +13,10 @@
 //! { "id": 1, "jsonrpc": "2.0", "method": "eth_subscribe", "params": ["newPendingTransactions"] }
 //! ```
 
-use std::time::Duration;
+use std::{
+    collections::BTreeMap,
+    time::Duration,
+};
 
 use astria_core::{
     primitive::v1::{
@@ -37,6 +40,7 @@ use ethers::{
     },
     types::Transaction,
 };
+use itertools::Itertools as _;
 use telemetry::metrics::Counter;
 use tokio::{
     select,
@@ -175,14 +179,16 @@ impl Geth {
             .await
             .wrap_err("failed to connect to geth node")?;
 
-        // Get current pending transactions, since the subscription will only return new ones
+        // Get current pending transactions, since the subscription will only return new ones.
+        // Sorted deterministically by nonce.
         let cur_pending_txs = client
             .txpool_content()
             .await
             .wrap_err("failed to get current tx pool")?
             .pending
-            .into_iter()
-            .flat_map(|(_account, txs)| txs.into_values())
+            .into_values()
+            .flat_map(BTreeMap::into_values)
+            .sorted_by_key(|tx| tx.nonce)
             .collect::<Vec<_>>();
 
         let send_cur_pending_txs = async {
