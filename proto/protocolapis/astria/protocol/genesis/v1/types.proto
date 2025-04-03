@@ -4,6 +4,8 @@ package astria.protocol.genesis.v1;
 
 import "astria/primitive/v1/types.proto";
 import "astria/protocol/fees/v1/types.proto";
+import "connect/marketmap/v2/genesis.proto";
+import "connect/oracle/v2/genesis.proto";
 
 message GenesisAppState {
   string chain_id = 1;
@@ -16,6 +18,7 @@ message GenesisAppState {
   IbcParameters ibc_parameters = 8;
   repeated string allowed_fee_assets = 9;
   GenesisFees fees = 10;
+  PriceFeedGenesis price_feed = 11;
 }
 
 message Account {
@@ -58,4 +61,10 @@ message GenesisFees {
   astria.protocol.fees.v1.ValidatorUpdateFeeComponents validator_update = 14;
   astria.protocol.fees.v1.BridgeTransferFeeComponents bridge_transfer = 15;
   astria.protocol.fees.v1.RecoverIbcClientFeeComponents recover_ibc_client = 16;
+  astria.protocol.fees.v1.PriceFeedFeeComponents price_feed = 17;
+}
+
+message PriceFeedGenesis {
+  connect.marketmap.v2.GenesisState market_map = 1;
+  connect.oracle.v2.GenesisState oracle = 2;
 }

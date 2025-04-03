@@ -1,8 +1,12 @@
 import '../defaults.just'
 import '../evm.just'
 
-[doc("Run recipes for IBC testing. Use '$just --list run ibc-test' for more info.")]
+[doc("Run recipes for IBC testing. Use 'just --list run ibc-test' for more info.")]
 mod ibc-test
+
+
+# Set the working directory for all recipes to the project's root.
+set working-directory := "../../../"
 
 
 _default_run:
@@ -40,7 +44,7 @@ bridge_tx_hash := "0x326c3910da4c96c5a40ba1505fc338164b659729f2f975ccb07e8794c96
 Runs end-to-end test of Astria stack and EVM rollup, including bridge in/out and
 TX finalization.
 Usage:
-  $just run smoke-test <TAG> (default: '')
+  just run smoke-test <TAG> (default: '')
 ")]
 smoke-test tag=defaultTag:
   #!/usr/bin/env bash
@@ -143,7 +147,7 @@ evm_contract_address := "0xA58639fB5458e65E4fA917FF951C390292C24A15"
 Runs end-to-end smoke test of Astria stack (minus Bridge-Withdrawer) and EVM rollup,
 including bridge in/out and TX finalization.
 Usage:
-  $just run smoke-cli <TAG> (default: '')
+  just run smoke-cli <TAG> (default: '')
 ")]
 smoke-cli tag=defaultTag:
   #!/usr/bin/env bash
@@ -243,3 +247,25 @@ smoke-cli tag=defaultTag:
   fi
 
   exit 0
+
+
+# Run Upgrade Test
+###################
+export PYTHONPATH := "${PYTHONPATH}:system-tests/helpers/generated"
+[doc("
+Runs the sequencer upgrade test in the `system-tests` folder.
+<TAG> is the tag specifying the sequencer image to run to EXECUTE the upgrade,
+not the image to run before the upgrade executes.
+Usage:
+  just run upgrade-test <TAG> (default: 'local')
+")]
+upgrade-test tag=defaultDockerTag:
+  #!/usr/bin/env bash
+  if [ -d "system-tests/.venv" ]; then
+    echo "Found Python virtual environment, activating it..."
+    source system-tests/.venv/bin/activate
+    uv pip install -r system-tests/requirements.txt
+  fi
+  python3 system-tests/sequencer_upgrade_test.py \
+    --image-tag {{ if tag != '' { tag } else { 'latest' } }} \
+    --upgrade-name "aspen"

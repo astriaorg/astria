@@ -62,6 +62,8 @@ modules:
       ignore_only:
         PACKAGE_VERSION_SUFFIX:
           - proto/protocolapis/astria_vendored/tendermint
+        ENUM_ZERO_VALUE_SUFFIX:
+          - proto/protocolapis/astria_vendored/tendermint
       disallow_comment_ignores: true
     breaking:
       use:
@@ -85,6 +87,22 @@ modules:
       ignore_unstable_packages: true
   - path: proto/signerapis
     name: buf.build/astria/signer-apis
+    lint:
+      use:
+        - BASIC
+        - ENUM_VALUE_PREFIX
+        - ENUM_ZERO_VALUE_SUFFIX
+        - FILE_LOWER_SNAKE_CASE
+        - PACKAGE_VERSION_SUFFIX
+        - RPC_REQUEST_STANDARD_NAME
+        - SERVICE_SUFFIX
+      disallow_comment_ignores: true
+    breaking:
+      use:
+        - WIRE_JSON
+      ignore_unstable_packages: true
+  - path: proto/upgrades
+    name: buf.build/astria/upgrades
     lint:
       use:
         - BASIC

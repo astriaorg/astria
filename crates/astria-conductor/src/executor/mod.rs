@@ -9,10 +9,13 @@ use astria_core::{
         CommitmentState,
     },
     primitive::v1::RollupId,
+    protocol::price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
     sequencerblock::v1::block::{
         self,
         FilteredSequencerBlock,
         FilteredSequencerBlockParts,
+        PriceFeedData,
+        RollupData,
     },
 };
 use astria_eyre::eyre::{
@@ -652,9 +655,12 @@ impl ExecutableBlock {
             block_hash,
             header,
             transactions,
+            extended_commit_info,
             ..
         } = block;
         let timestamp = convert_tendermint_time_to_protobuf_timestamp(header.time());
+        let transactions =
+            insert_price_feed_data_into_transactions_if_exists(transactions, extended_commit_info);
         Self {
             hash: block_hash,
             height: header.height(),
@@ -664,6 +670,7 @@ impl ExecutableBlock {
     }
 
     fn from_sequencer(block: FilteredSequencerBlock, id: RollupId) -> Self {
+        let extended_commit_info = block.extended_commit_info().cloned();
         let FilteredSequencerBlockParts {
             block_hash,
             header,
@@ -676,12 +683,43 @@ impl ExecutableBlock {
             .swap_remove(&id)
             .map(|txs| txs.transactions().to_vec())
             .unwrap_or_default();
+
+        let transactions =
+            insert_price_feed_data_into_transactions_if_exists(transactions, extended_commit_info);
         Self {
             hash: block_hash,
             height,
             timestamp,
             transactions,
         }
+    }
+}
+
+fn insert_price_feed_data_into_transactions_if_exists(
+    transactions: Vec<Bytes>,
+    extended_commit_info: Option<ExtendedCommitInfoWithCurrencyPairMapping>,
+) -> Vec<Bytes> {
+    use prost::Message as _;
+
+    if let Some(extended_commit_info) = extended_commit_info {
+        let Ok(prices) =
+            astria_core::oracles::price_feed::utils::calculate_prices_from_vote_extensions(
+                &extended_commit_info.extended_commit_info,
+                &extended_commit_info.id_to_currency_pair,
+            )
+        else {
+            debug!(
+                "failed to calculate prices from vote extensions; continuing without price feed \
+                 data"
+            );
+            return transactions;
+        };
+        let rollup_data = RollupData::PriceFeedData(Box::new(PriceFeedData::new(prices)));
+        std::iter::once(rollup_data.into_raw().encode_to_vec().into())
+            .chain(transactions)
+            .collect()
+    } else {
+        transactions
     }
 }
 

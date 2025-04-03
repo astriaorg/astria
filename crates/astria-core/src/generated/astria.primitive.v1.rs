@@ -1,4 +1,4 @@
-/// A 128 bit unsigned integer encoded in protobuf.,
+/// A 128 bit unsigned integer encoded in protobuf.
 ///
 /// Protobuf does not support integers larger than 64 bits,
 /// so this message encodes a u128 by splitting it into its
@@ -20,6 +20,32 @@ pub struct Uint128 {
 }
 impl ::prost::Name for Uint128 {
     const NAME: &'static str = "Uint128";
+    const PACKAGE: &'static str = "astria.primitive.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.primitive.v1.{}", Self::NAME)
+    }
+}
+/// A 128 bit signed integer encoded in protobuf.
+///
+/// Protobuf does not support integers larger than 64 bits,
+/// so this message encodes a i128 by splitting it into its
+/// upper 64 and lower 64 bits, each encoded as a uint64.
+///
+/// A native i128 x can then be constructed by casting both
+/// integers to i128, left shifting hi by 64 positions and
+/// adding lo:
+///
+/// x = (hi as i128) << 64 + (lo as i128)
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Int128 {
+    #[prost(uint64, tag = "1")]
+    pub lo: u64,
+    #[prost(uint64, tag = "2")]
+    pub hi: u64,
+}
+impl ::prost::Name for Int128 {
+    const NAME: &'static str = "Int128";
     const PACKAGE: &'static str = "astria.primitive.v1";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.primitive.v1.{}", Self::NAME)

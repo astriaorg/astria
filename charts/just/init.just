@@ -53,7 +53,7 @@ rollup-bridge tag=defaultTag rollupName=defaultRollupName evmDestinationAddress=
 [doc("
 Initializes an IBC bridge account for the given rollup on the Sequencer chain.
 Usage:
-  $just init ibc-bridge [privateKey] [asset] [feeAsset] <TAG> <ROLLUP_NAME>
+  just init ibc-bridge [privateKey] [asset] [feeAsset] <TAG> <ROLLUP_NAME>
       defaults:
         TAG: ''
         ROLLUP_NAME: 'astria'

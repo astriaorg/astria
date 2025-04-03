@@ -5,10 +5,29 @@ use std::{
 };
 
 use astria_core::{
-    generated::astria::protocol::genesis::v1::{
-        AddressPrefixes,
-        GenesisFees,
-        IbcParameters,
+    generated::{
+        astria::protocol::genesis::v1::{
+            AddressPrefixes,
+            GenesisFees,
+            IbcParameters,
+        },
+        price_feed::{
+            marketmap::{
+                self,
+                v2::{
+                    Market,
+                    MarketMap,
+                },
+            },
+            oracle::{
+                self,
+                v2::{
+                    CurrencyPairGenesis,
+                    QuotePrice,
+                },
+            },
+            types::v2::CurrencyPair,
+        },
     },
     primitive::v1::Address,
     protocol::{
@@ -28,6 +47,7 @@ use astria_core::{
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
+            PriceFeed,
             RecoverIbcClient,
             RollupDataSubmission,
             SudoAddressChange,
@@ -69,6 +89,60 @@ fn charlie() -> Address {
         .unwrap()
 }
 
+fn genesis_state_markets() -> MarketMap {
+    use astria_core::generated::price_feed::marketmap::v2::{
+        ProviderConfig,
+        Ticker,
+    };
+    use maplit::{
+        btreemap,
+        convert_args,
+    };
+    let markets = convert_args!(btreemap!(
+        "BTC/USD" => Market {
+            ticker: Some(Ticker {
+                currency_pair: Some(CurrencyPair {
+                    base: "BTC".to_string(),
+                    quote: "USD".to_string(),
+                }),
+                decimals: 8,
+                min_provider_count: 1,
+                enabled: true,
+                metadata_json: String::new(),
+            }),
+            provider_configs: vec![ProviderConfig {
+                name: "coingecko_api".to_string(),
+                off_chain_ticker: "bitcoin/usd".to_string(),
+                normalize_by_pair: None,
+                invert: false,
+                metadata_json: String::new(),
+            }],
+        },
+        "ETH/USD" => Market {
+            ticker: Some(Ticker {
+                currency_pair: Some(CurrencyPair {
+                    base: "ETH".to_string(),
+                    quote: "USD".to_string(),
+                }),
+                decimals: 8,
+                min_provider_count: 1,
+                enabled: true,
+                metadata_json: String::new(),
+            }),
+            provider_configs: vec![ProviderConfig {
+                name: "coingecko_api".to_string(),
+                off_chain_ticker: "ethereum/usd".to_string(),
+                normalize_by_pair: None,
+                invert: false,
+                metadata_json: String::new(),
+            }],
+        },
+    ));
+    MarketMap {
+        markets,
+    }
+}
+
 fn accounts() -> Vec<Account> {
     vec![
         Account {
@@ -98,7 +172,7 @@ fn proto_genesis_state() -> astria_core::generated::astria::protocol::genesis::v
         accounts: accounts().into_iter().map(Protobuf::into_raw).collect(),
         address_prefixes: Some(address_prefixes()),
         authority_sudo_address: Some(alice().to_raw()),
-        chain_id: "test-1".into(),
+        chain_id: "test".into(),
         ibc_sudo_address: Some(alice().to_raw()),
         ibc_relayer_addresses: vec![alice().to_raw(), bob().to_raw()],
         native_asset_base_denomination: "nria".parse().unwrap(),
@@ -108,6 +182,57 @@ fn proto_genesis_state() -> astria_core::generated::astria::protocol::genesis::v
             outbound_ics20_transfers_enabled: true,
         }),
         allowed_fee_assets: vec!["nria".parse().unwrap()],
+        price_feed: Some(
+            astria_core::generated::protocol::genesis::v1::PriceFeedGenesis {
+                market_map: Some(
+                    astria_core::generated::price_feed::marketmap::v2::GenesisState {
+                        market_map: Some(genesis_state_markets()),
+                        last_updated: 0,
+                        params: Some(marketmap::v2::Params {
+                            market_authorities: vec![alice().to_string(), bob().to_string()],
+                            admin: alice().to_string(),
+                        }),
+                    },
+                ),
+                oracle: Some(oracle::v2::GenesisState {
+                    currency_pair_genesis: vec![
+                        CurrencyPairGenesis {
+                            id: 0,
+                            nonce: 0,
+                            currency_pair_price: Some(QuotePrice {
+                                price: 5_834_065_777_u128.to_string(),
+                                block_height: 0,
+                                block_timestamp: Some(pbjson_types::Timestamp {
+                                    seconds: 1_720_122_395,
+                                    nanos: 0,
+                                }),
+                            }),
+                            currency_pair: Some(CurrencyPair {
+                                base: "BTC".to_string(),
+                                quote: "USD".to_string(),
+                            }),
+                        },
+                        CurrencyPairGenesis {
+                            id: 1,
+                            nonce: 0,
+                            currency_pair_price: Some(QuotePrice {
+                                price: 3_138_872_234_u128.to_string(),
+                                block_height: 0,
+                                block_timestamp: Some(pbjson_types::Timestamp {
+                                    seconds: 1_720_122_395,
+                                    nanos: 0,
+                                }),
+                            }),
+                            currency_pair: Some(CurrencyPair {
+                                base: "ETH".to_string(),
+                                quote: "USD".to_string(),
+                            }),
+                        },
+                    ],
+                    next_id: 2,
+                }),
+            },
+        ),
         fees: Some(GenesisFees {
             transfer: Some(FeeComponents::<Transfer>::new(12, 0).to_raw()),
             rollup_data_submission: Some(
@@ -127,6 +252,7 @@ fn proto_genesis_state() -> astria_core::generated::astria::protocol::genesis::v
             sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0).to_raw()),
             ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0).to_raw()),
             recover_ibc_client: Some(FeeComponents::<RecoverIbcClient>::new(0, 0).to_raw()),
+            price_feed: Some(FeeComponents::<PriceFeed>::new(0, 0).to_raw()),
         }),
     }
 }

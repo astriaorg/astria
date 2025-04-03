@@ -12,6 +12,7 @@ use astria_core::{
             AddressPrefixes,
             GenesisAppState,
         },
+        test_utils::dummy_price_feed_genesis,
         transaction::v1::action::{
             BridgeLock,
             BridgeSudoChange,
@@ -23,6 +24,7 @@ use astria_core::{
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
+            PriceFeed,
             RecoverIbcClient,
             RollupDataSubmission,
             SudoAddressChange,
@@ -30,6 +32,7 @@ use astria_core::{
             ValidatorUpdate,
         },
     },
+    upgrades::v1::Upgrades,
     Protobuf,
 };
 use astria_eyre::eyre::WrapErr as _;
@@ -90,6 +93,7 @@ pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1::GenesisFees 
         sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0)),
         ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0)),
         recover_ibc_client: Some(FeeComponents::<RecoverIbcClient>::new(0, 0)),
+        price_feed: Some(FeeComponents::<PriceFeed>::new(0, 0)),
     }
 }
 
@@ -106,7 +110,7 @@ pub(crate) fn proto_genesis_state(
             .map(Protobuf::into_raw)
             .collect(),
         authority_sudo_address: Some(astria_address_from_hex_string(JUDY_ADDRESS).to_raw()),
-        chain_id: "test-1".to_string(),
+        chain_id: "test".to_string(),
         ibc_sudo_address: Some(astria_address_from_hex_string(TED_ADDRESS).to_raw()),
         ibc_relayer_addresses: vec![],
         native_asset_base_denomination: nria().to_string(),
@@ -117,38 +121,118 @@ pub(crate) fn proto_genesis_state(
         }),
         allowed_fee_assets: vec![nria().to_string()],
         fees: Some(default_fees().to_raw()),
+        price_feed: Some(dummy_price_feed_genesis().into_raw()),
     }
 }
 
-pub(crate) fn genesis_state() -> GenesisAppState {
+pub(crate) fn get_test_genesis_state() -> GenesisAppState {
     proto_genesis_state().try_into().unwrap()
 }
 
-pub(crate) async fn initialize_app_with_storage(
+pub(crate) fn default_consensus_params() -> tendermint::consensus::Params {
+    tendermint::consensus::Params {
+        block: tendermint::block::Size {
+            max_bytes: 22_020_096,
+            max_gas: -1,
+            time_iota_ms: 1000,
+        },
+        evidence: tendermint::evidence::Params {
+            max_age_num_blocks: 100_000,
+            max_age_duration: tendermint::evidence::Duration(std::time::Duration::from_secs(
+                172_800_000_000_000,
+            )),
+            max_bytes: 1_048_576,
+        },
+        validator: tendermint::consensus::params::ValidatorParams {
+            pub_key_types: vec![tendermint::public_key::Algorithm::Ed25519],
+        },
+        version: Some(tendermint::consensus::params::VersionParams {
+            app: 0,
+        }),
+        abci: tendermint::consensus::params::AbciParams {
+            vote_extensions_enable_height: Some(tendermint::block::Height::from(1_u8)),
+        },
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct AppInitializer {
     genesis_state: Option<GenesisAppState>,
     genesis_validators: Vec<ValidatorUpdate>,
-) -> (App, Storage) {
-    let storage = cnidarium::TempStorage::new()
+    upgrades: Option<Upgrades>,
+    consensus_params: Option<tendermint::consensus::Params>,
+}
+
+impl AppInitializer {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    pub(crate) fn with_genesis_state(mut self, state: GenesisAppState) -> Self {
+        self.genesis_state = Some(state);
+        self
+    }
+
+    #[cfg_attr(not(test), expect(dead_code, reason = "not used in benchmarks"))]
+    pub(crate) fn with_genesis_validators(
+        mut self,
+        genesis_validators: Vec<ValidatorUpdate>,
+    ) -> Self {
+        self.genesis_validators = genesis_validators;
+        self
+    }
+
+    #[cfg_attr(not(test), expect(dead_code, reason = "not used in benchmarks"))]
+    pub(crate) fn with_upgrades(mut self, upgrades: Upgrades) -> Self {
+        self.upgrades = Some(upgrades);
+        self
+    }
+
+    #[cfg_attr(not(test), expect(dead_code, reason = "not used in benchmarks"))]
+    pub(crate) fn with_vote_extensions_enable_height<T: Into<tendermint::block::Height>>(
+        mut self,
+        vote_extensions_enable_height: T,
+    ) -> Self {
+        let mut consensus_params = self
+            .consensus_params
+            .unwrap_or_else(default_consensus_params);
+        consensus_params.abci.vote_extensions_enable_height =
+            Some(vote_extensions_enable_height.into());
+        self.consensus_params = Some(consensus_params);
+        self
+    }
+
+    pub(crate) async fn init(self) -> (App, Storage) {
+        let storage = cnidarium::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+        let upgrades_handler = self.upgrades.unwrap_or_default().into();
+        let ve_handler = crate::app::vote_extension::Handler::new(None);
+        let mut app = App::new(snapshot, mempool, upgrades_handler, ve_handler, metrics)
+            .await
+            .unwrap();
+
+        let genesis_state = self.genesis_state.unwrap_or_else(get_test_genesis_state);
+        let consensus_params = self
+            .consensus_params
+            .unwrap_or_else(default_consensus_params);
+
+        app.init_chain(
+            storage.clone(),
+            genesis_state,
+            self.genesis_validators,
+            "test".to_string(),
+            consensus_params,
+        )
         .await
-        .expect("failed to create temp storage backing chain state");
-    let snapshot = storage.latest_snapshot();
-    let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-    let mempool = Mempool::new(metrics, 100);
-    let mut app = App::new(snapshot, mempool, metrics).await.unwrap();
+        .unwrap();
+        app.commit(storage.clone()).await.unwrap();
 
-    let genesis_state = genesis_state.unwrap_or_else(self::genesis_state);
-
-    app.init_chain(
-        storage.clone(),
-        genesis_state,
-        genesis_validators,
-        "test".to_string(),
-    )
-    .await
-    .unwrap();
-    app.commit(storage.clone()).await;
-
-    (app, storage.clone())
+        (app, storage.clone())
+    }
 }
 
 pub(crate) fn default_genesis_accounts() -> Vec<Account> {
@@ -370,6 +454,12 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
     state
         .put_fees(recover_ibc_client_fees)
         .wrap_err("failed to initiate recover ibc client fee components")
+        .unwrap();
+
+    let price_feed_fees = FeeComponents::<PriceFeed>::new(0, 0);
+    state
+        .put_fees(price_feed_fees)
+        .wrap_err("failed to initiate price feed fee components")
         .unwrap();
 
     // put denoms as allowed fee asset

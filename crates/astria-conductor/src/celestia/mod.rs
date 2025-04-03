@@ -6,6 +6,7 @@ use std::{
 
 use astria_core::{
     primitive::v1::RollupId,
+    protocol::price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
     sequencerblock::v1::block::{
         self,
         SequencerBlockHeader,
@@ -102,6 +103,7 @@ pub(crate) struct ReconstructedBlock {
     pub(crate) block_hash: block::Hash,
     pub(crate) header: SequencerBlockHeader,
     pub(crate) transactions: Vec<Bytes>,
+    pub(crate) extended_commit_info: Option<ExtendedCommitInfoWithCurrencyPairMapping>,
 }
 
 impl ReconstructedBlock {

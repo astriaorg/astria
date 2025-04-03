@@ -1,6 +1,9 @@
 use std::num::NonZeroU32;
 
-use astria_core::Protobuf as _;
+use astria_core::{
+    upgrades::v1::Upgrades,
+    Protobuf as _,
+};
 use prost::Message as _;
 use telemetry::Metrics;
 use tendermint::{
@@ -13,7 +16,10 @@ use tendermint::{
 
 use crate::{
     app::{
-        benchmark_and_test_utils::genesis_state,
+        benchmark_and_test_utils::{
+            default_consensus_params,
+            get_test_genesis_state,
+        },
         test_utils::MockTxBuilder,
         App,
     },
@@ -31,13 +37,27 @@ async fn future_nonces_are_accepted() {
 
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
     let mut mempool = Mempool::new(metrics, 100);
-    let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
-    let genesis_state = genesis_state();
+    let ve_handler = crate::app::vote_extension::Handler::new(None);
+    let mut app = App::new(
+        snapshot,
+        mempool.clone(),
+        Upgrades::default().into(),
+        ve_handler,
+        metrics,
+    )
+    .await
+    .unwrap();
 
-    app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
-        .await
-        .unwrap();
-    app.commit(storage.clone()).await;
+    app.init_chain(
+        storage.clone(),
+        get_test_genesis_state(),
+        vec![],
+        "test".to_string(),
+        default_consensus_params(),
+    )
+    .await
+    .unwrap();
+    app.commit(storage.clone()).await.unwrap();
 
     let the_future_nonce = 10;
     let tx = MockTxBuilder::new().nonce(the_future_nonce).build();
@@ -61,13 +81,27 @@ async fn rechecks_pass() {
 
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
     let mut mempool = Mempool::new(metrics, 100);
-    let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
-    let genesis_state = genesis_state();
+    let ve_handler = crate::app::vote_extension::Handler::new(None);
+    let mut app = App::new(
+        snapshot,
+        mempool.clone(),
+        Upgrades::default().into(),
+        ve_handler,
+        metrics,
+    )
+    .await
+    .unwrap();
 
-    app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
-        .await
-        .unwrap();
-    app.commit(storage.clone()).await;
+    app.init_chain(
+        storage.clone(),
+        get_test_genesis_state(),
+        vec![],
+        "test".to_string(),
+        default_consensus_params(),
+    )
+    .await
+    .unwrap();
+    app.commit(storage.clone()).await.unwrap();
 
     let tx = MockTxBuilder::new().nonce(0).build();
     let req = CheckTx {
@@ -99,13 +133,27 @@ async fn can_reinsert_after_recheck_fail() {
 
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
     let mut mempool = Mempool::new(metrics, 100);
-    let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
-    let genesis_state = genesis_state();
+    let ve_handler = crate::app::vote_extension::Handler::new(None);
+    let mut app = App::new(
+        snapshot,
+        mempool.clone(),
+        Upgrades::default().into(),
+        ve_handler,
+        metrics,
+    )
+    .await
+    .unwrap();
 
-    app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
-        .await
-        .unwrap();
-    app.commit(storage.clone()).await;
+    app.init_chain(
+        storage.clone(),
+        get_test_genesis_state(),
+        vec![],
+        "test".to_string(),
+        default_consensus_params(),
+    )
+    .await
+    .unwrap();
+    app.commit(storage.clone()).await.unwrap();
 
     let tx = MockTxBuilder::new().nonce(0).build();
     let req = CheckTx {
@@ -147,13 +195,27 @@ async fn recheck_adds_non_tracked_tx() {
 
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
     let mut mempool = Mempool::new(metrics, 100);
-    let mut app = App::new(snapshot, mempool.clone(), metrics).await.unwrap();
-    let genesis_state = genesis_state();
+    let ve_handler = crate::app::vote_extension::Handler::new(None);
+    let mut app = App::new(
+        snapshot,
+        mempool.clone(),
+        Upgrades::default().into(),
+        ve_handler,
+        metrics,
+    )
+    .await
+    .unwrap();
 
-    app.init_chain(storage.clone(), genesis_state, vec![], "test".to_string())
-        .await
-        .unwrap();
-    app.commit(storage.clone()).await;
+    app.init_chain(
+        storage.clone(),
+        get_test_genesis_state(),
+        vec![],
+        "test".to_string(),
+        default_consensus_params(),
+    )
+    .await
+    .unwrap();
+    app.commit(storage.clone()).await.unwrap();
 
     let tx = MockTxBuilder::new().nonce(0).build();
     let req = CheckTx {

@@ -40,7 +40,9 @@
         "astriaEIP1559Params": {{ toPrettyJson .Values.genesis.eip1559Params | indent 8 | trim }},
         "astriaSequencerAddressPrefix": "{{ .Values.genesis.sequencerAddressPrefix }}"
         {{- if not .Values.global.dev }}
-        {{- else }}
+        {{- else }},
+        "astriaOracleCallerAddress": "{{ .Values.genesis.astriaOracleCallerAddress }}",
+        "astriaOracleContractAddress": "{{ .Values.genesis.astriaOracleContractAddress }}"
         {{- end }}
     },
     "difficulty": "0",

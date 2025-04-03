@@ -3,7 +3,16 @@ use std::{
     time::Duration,
 };
 
-use astria_core::generated::astria::sequencerblock::v1::sequencer_service_server::SequencerServiceServer;
+use astria_core::{
+    generated::{
+        astria::sequencerblock::v1::sequencer_service_server::SequencerServiceServer,
+        price_feed::{
+            marketmap::v2::query_server::QueryServer as MarketMapQueryServer,
+            oracle::v2::query_server::QueryServer as OracleQueryServer,
+        },
+    },
+    upgrades::v1::Upgrades,
+};
 use astria_eyre::eyre;
 pub(crate) use state_ext::{
     StateReadExt,
@@ -33,6 +42,7 @@ use crate::{
 };
 
 pub(crate) mod optimistic;
+pub(crate) mod price_feed;
 pub(crate) mod sequencer;
 mod state_ext;
 pub(crate) mod storage;
@@ -88,6 +98,7 @@ impl BackgroundTasks {
 pub(crate) async fn serve(
     storage: cnidarium::Storage,
     mempool: Mempool,
+    upgrades: Upgrades,
     grpc_addr: std::net::SocketAddr,
     no_optimistic_blocks: bool,
     event_bus_subscription: EventBusSubscription,
@@ -102,7 +113,9 @@ pub(crate) async fn serve(
     use tower_http::cors::CorsLayer;
 
     let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
-    let sequencer_api = SequencerServer::new(storage.clone(), mempool);
+    let sequencer_api = SequencerServer::new(storage.clone(), mempool, upgrades);
+    let market_map_api = price_feed::SequencerServer::new(storage.clone());
+    let oracle_api = price_feed::SequencerServer::new(storage.clone());
     let cors_layer: CorsLayer = CorsLayer::permissive();
 
     let mut background_tasks = BackgroundTasks::new();
@@ -139,7 +152,9 @@ pub(crate) async fn serve(
         .add_service(ChannelQueryServer::new(ibc.clone()))
         .add_service(ConnectionQueryServer::new(ibc.clone()))
         .add_service(SequencerServiceServer::new(sequencer_api))
-        .add_optional_service(optimistic_block_service);
+        .add_optional_service(optimistic_block_service)
+        .add_service(MarketMapQueryServer::new(market_map_api))
+        .add_service(OracleQueryServer::new(oracle_api));
 
     info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
 

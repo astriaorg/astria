@@ -60,6 +60,14 @@ genesis:
     #   senderAddress: "0x0000000000000000000000000000000000000000"
     #   assetPrecision: 9
 
+  ## Native oracle configuration
+
+  # address from which injected oracle transactions are called from;
+  # must not have a known private key for mainnet
+  astriaOracleCallerAddress: "0x0000000000000000000000000000000000000088"
+  # address where the oracle contract is deployed at (at genesis)
+  # must match the `alloc` genesis field
+  astriaOracleContractAddress: "0x0000000000000000000000000000000000000089"
 
   ## Fee configuration
 
@@ -183,7 +191,6 @@ config:
         condition: "{{ .Values.metrics.enabled }}"
       - name: txpool.nolocals
         value: "true"
-
 
   conductor:
     # Determines what will drive block execution, options are:

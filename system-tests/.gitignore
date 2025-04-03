@@ -1,0 +1,19 @@
+# Virtual environment
+.venv/
+venv/
+
+# Python specific
+*.py[cod]
+*$py.class
+*.so
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Generated Protobuf
+helpers/generated/

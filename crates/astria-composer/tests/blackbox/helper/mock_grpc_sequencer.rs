@@ -5,17 +5,23 @@ use std::{
 
 use astria_core::{
     self,
-    generated::astria::sequencerblock::v1::{
-        sequencer_service_server::{
-            SequencerService,
-            SequencerServiceServer,
+    generated::{
+        astria::sequencerblock::v1::{
+            sequencer_service_server::{
+                SequencerService,
+                SequencerServiceServer,
+            },
+            FilteredSequencerBlock as RawFilteredSequencerBlock,
+            GetFilteredSequencerBlockRequest,
+            GetPendingNonceRequest,
+            GetPendingNonceResponse,
+            GetSequencerBlockRequest,
+            SequencerBlock as RawSequencerBlock,
         },
-        FilteredSequencerBlock as RawFilteredSequencerBlock,
-        GetFilteredSequencerBlockRequest,
-        GetPendingNonceRequest,
-        GetPendingNonceResponse,
-        GetSequencerBlockRequest,
-        SequencerBlock as RawSequencerBlock,
+        sequencerblock::v1::{
+            GetUpgradesInfoRequest,
+            GetUpgradesInfoResponse,
+        },
     },
 };
 use astria_eyre::eyre::{
@@ -119,5 +125,12 @@ impl SequencerService for SequencerServiceImpl {
         self.0
             .handle_request(GET_PENDING_NONCE_GRPC_NAME, request)
             .await
+    }
+
+    async fn get_upgrades_info(
+        self: Arc<Self>,
+        _request: Request<GetUpgradesInfoRequest>,
+    ) -> Result<Response<GetUpgradesInfoResponse>, Status> {
+        unimplemented!()
     }
 }

@@ -7,6 +7,7 @@ genesis:
   addressPrefixes:
     base: "astria"
   authoritySudoAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
+  marketAdminAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
   nativeAssetBaseDenomination: nria
   allowedFeeAssets:
     - nria
@@ -41,22 +42,26 @@ sequencer:
   optimisticBlockApis:
     # set to true to enable optimistic block APIs
     enabled: false
+  priceFeed:
+    enabled: true
+    metrics:
+      enabled: true
 
 resources:
   cometbft:
     requests:
-      cpu: 1000m
-      memory: 500Mi
+      cpu: 300m
+      memory: 100Mi
     limits:
-      cpu: 1000m
-      memory: 500Mi
+      cpu: 300m
+      memory: 100Mi
   sequencer:
     requests:
-      cpu: 1000m
-      memory: 500Mi
+      cpu: 100m
+      memory: 100Mi
     limits:
-      cpu: 1000m
-      memory: 500Mi
+      cpu: 100m
+      memory: 100Mi
 
 storage:
   enabled: false

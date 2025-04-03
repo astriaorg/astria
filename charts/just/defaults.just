@@ -2,11 +2,12 @@
 ## Shared Default Values ##
 ###########################
 
-defaultNamespace   := "astria-dev-cluster"
-defaultRollupName  := "astria"
-defaultPrivateKey  := ""
-defaultNetworkId   := ""
-defaultTag         := ""
+defaultNamespace  := "astria-dev-cluster"
+defaultRollupName := "astria"
+defaultPrivateKey := ""
+defaultNetworkId  := ""
+defaultTag        := ""
+defaultDockerTag  := "local"
 
 defaultSequencerStartBlock := ""
 

@@ -74,4 +74,10 @@ message SubmittedMetadata {
   // The proof that the rollup IDs are included in sequencer block.
   // Corresponds to `astria.sequencerblock.v1.SequencerBlock.rollup_ids_proof`.
   astria.primitive.v1.Proof rollup_ids_proof = 5;
+  // The SHA256 digests of all upgrade changes applied during this block, if an upgrade was
+  // activated at this height.
+  repeated bytes upgrade_change_hashes = 6;
+  // The extended commit info with proof for the block, if vote extensions were enabled at this
+  // height.
+  optional astria.sequencerblock.v1.ExtendedCommitInfoWithProof extended_commit_info_with_proof = 7;
 }

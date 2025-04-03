@@ -1,4 +1,14 @@
+use std::str::FromStr as _;
+
 use astria_core::{
+    oracles::price_feed::{
+        market_map::v2::Ticker,
+        types::v2::{
+            Base,
+            CurrencyPair,
+            Quote,
+        },
+    },
     primitive::v1::{
         Address,
         Bech32,
@@ -50,4 +60,34 @@ pub(crate) async fn calculate_rollup_data_submission_fee_from_state<
 
 pub(crate) fn borsh_then_hex<T: borsh::BorshSerialize>(item: &T) -> String {
     hex::encode(borsh::to_vec(item).unwrap())
+}
+
+pub(crate) fn example_ticker_with_metadata(metadata: String) -> Ticker {
+    Ticker {
+        currency_pair: CurrencyPair::from_parts(
+            Base::from_str("BTC").unwrap(),
+            Quote::from_str("USD").unwrap(),
+        ),
+        decimals: 2,
+        min_provider_count: 2,
+        enabled: true,
+        metadata_json: metadata,
+    }
+}
+
+pub(crate) fn example_ticker_from_currency_pair(
+    base: &str,
+    quote: &str,
+    metadata: String,
+) -> Ticker {
+    Ticker {
+        currency_pair: CurrencyPair::from_parts(
+            Base::from_str(base).unwrap(),
+            Quote::from_str(quote).unwrap(),
+        ),
+        decimals: 2,
+        min_provider_count: 2,
+        enabled: true,
+        metadata_json: metadata,
+    }
 }

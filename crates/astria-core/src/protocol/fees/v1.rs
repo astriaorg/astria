@@ -24,6 +24,7 @@ use crate::{
         IbcSudoChange,
         Ics20Withdrawal,
         InitBridgeAccount,
+        PriceFeed,
         RecoverIbcClient,
         RollupDataSubmission,
         SudoAddressChange,
@@ -112,6 +113,7 @@ impl_protobuf_for_fee_components!(
     FeeComponents<SudoAddressChange> => raw::SudoAddressChangeFeeComponents,
     FeeComponents<IbcSudoChange> => raw::IbcSudoChangeFeeComponents,
     FeeComponents<RecoverIbcClient> => raw::RecoverIbcClientFeeComponents,
+    FeeComponents<PriceFeed> => raw::PriceFeedFeeComponents,
 );
 
 pub struct FeeComponents<T: ?Sized> {
