@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::Address,
@@ -8,6 +10,7 @@ use astria_core::{
 };
 use astria_sequencer_client::{
     tendermint_rpc::endpoint::tx::Response,
+    Client as _,
     HttpClient,
     SequencerClientExt as _,
 };
@@ -16,6 +19,23 @@ use color_eyre::eyre::{
     ensure,
     eyre,
     WrapErr as _,
+};
+use tokio::{
+    sync::Mutex,
+    time::{
+        self,
+        Duration,
+        Instant,
+    },
+};
+use tracing::{
+    debug,
+    debug_span,
+    instrument,
+    warn,
+    Instrument as _,
+    Level,
+    Span,
 };
 
 pub(crate) async fn submit_transaction(
@@ -52,7 +72,9 @@ pub(crate) async fn submit_transaction(
 
     ensure!(res.code.is_ok(), "failed to check tx: {}", res.log);
 
-    let tx_response = sequencer_client.wait_for_tx_inclusion(res.hash).await;
+    let tx_response = wait_for_tx_inclusion(sequencer_client, res.hash)
+        .await
+        .wrap_err("failed waiting for tx inclusion")?;
 
     ensure!(
         tx_response.tx_result.code.is_ok(),
@@ -86,4 +108,78 @@ pub(crate) fn address_from_signing_key(
 
     // Return the generated address
     Ok(from_address)
+}
+
+#[instrument(fields(%tx_hash), skip_all, err(level = Level::WARN))]
+pub(crate) async fn wait_for_tx_inclusion(
+    client: HttpClient,
+    tx_hash: tendermint::hash::Hash,
+) -> eyre::Result<Response> {
+    // The min duration to sleep after receiving a GetTx response and sending the next request.
+    const MIN_POLL_INTERVAL: Duration = Duration::from_millis(100);
+    // The max duration to sleep after receiving a GetTx response and sending the next request.
+    const MAX_POLL_INTERVAL: Duration = Duration::from_millis(2000);
+    // How long to wait before starting to log at the warn level.
+    const START_WARNING_DELAY: Duration = Duration::from_millis(2000);
+    // The minimum duration between logging errors.
+    const LOG_ERROR_INTERVAL: Duration = Duration::from_millis(2000);
+
+    let start = Instant::now();
+    let logged_at = Arc::new(Mutex::new(start));
+
+    let log_if_due = |logged_at: Arc<Mutex<Instant>>, error: String| async move {
+        let mut logged_at = logged_at.lock().await;
+        if logged_at.elapsed() <= LOG_ERROR_INTERVAL {
+            return;
+        }
+        *logged_at = Instant::now();
+        if start.elapsed() < START_WARNING_DELAY {
+            debug! {
+                error,
+                %tx_hash,
+                elapsed_seconds = start.elapsed().as_secs_f32(),
+                "waiting to confirm transaction inclusion"
+            }
+        } else {
+            warn!(
+                error,
+                %tx_hash,
+                elapsed_seconds = start.elapsed().as_secs_f32(),
+                "waiting to confirm transaction inclusion"
+            );
+        }
+    };
+
+    let retry_config = tryhard::RetryFutureConfig::new(1024)
+        .exponential_backoff(MIN_POLL_INTERVAL)
+        .max_delay(MAX_POLL_INTERVAL);
+
+    let tx_fut = async move {
+        tryhard::retry_fn(|| {
+            let client = client.clone();
+            let logged_at = logged_at.clone();
+            let attempt_span = debug_span!("attempt get_tx");
+            attempt_span.follows_from(Span::current());
+            async move {
+                match client.tx(tx_hash, false).await {
+                    Ok(tx) => Ok(tx),
+                    Err(error) => {
+                        log_if_due(logged_at, error.to_string()).await;
+                        Err(error)
+                    }
+                }
+            }
+            .instrument(attempt_span)
+        })
+        .with_config(retry_config)
+        .await
+    };
+
+    let tx_rsp = time::timeout(Duration::from_secs(240), tx_fut)
+        .await
+        .wrap_err("timed out waiting for tx inclusion")?
+        .wrap_err("failed to get tx")?;
+
+    debug!(tx_hash = %tx_rsp.hash, inclusion_height = %tx_rsp.height, "transaction inclusion confirmed");
+    Ok(tx_rsp)
 }
