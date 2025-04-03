@@ -74,6 +74,10 @@ impl<T> BlockCache<T> {
             cache: self,
         }
     }
+
+    pub(crate) fn next_height_to_pop(&self) -> u64 {
+        self.next_height
+    }
 }
 
 impl<T: GetSequencerHeight> BlockCache<T> {
