@@ -29,6 +29,7 @@ use crate::{
         StateWriteExt as _,
     },
     action_handler::ActionHandler,
+    address::address_check::AddressCheck,
     app::StateReadExt as _,
     bridge::{
         StateReadExt as _,
@@ -297,10 +298,11 @@ impl ActionHandler for Transaction {
 
 async fn check_execute_and_pay_fees<'a, T, S>(action: &T, mut state: S) -> Result<()>
 where
-    T: ActionHandler + FeeHandler + Sync,
+    T: ActionHandler + FeeHandler + AddressCheck + Sync,
     FeeComponents<T>: TryFrom<StoredValue<'a>, Error = Report>,
     S: StateWrite,
 {
+    action.check_addresses(&state).await?;
     action.check_and_execute(&mut state).await?;
     action.check_and_pay_fees(&mut state).await?;
     Ok(())
