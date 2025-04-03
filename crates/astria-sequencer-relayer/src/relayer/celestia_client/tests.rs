@@ -70,7 +70,7 @@ fn new_msg_pay_for_blobs_should_fail_for_large_blob() {
 }
 
 #[test]
-fn account_from_good_response_should_succeed() {
+fn account_from_good_query_account_response_should_succeed() {
     let base_account = BaseAccount {
         address: "address".to_string(),
         pub_key: None,
@@ -90,7 +90,7 @@ fn account_from_good_response_should_succeed() {
 }
 
 #[test]
-fn account_from_bad_response_should_fail() {
+fn account_from_bad_query_account_response_should_fail() {
     // Should return `FailedToGetAccountInfo` if outer response is an error.
     let error = account_from_response(Err(Status::internal(""))).unwrap_err();
     #[expect(
@@ -155,7 +155,7 @@ fn account_from_bad_response_should_fail() {
 }
 
 #[test]
-fn min_gas_price_from_good_response_should_succeed() {
+fn min_gas_price_from_good_min_gas_price_response_should_succeed() {
     let min_gas_price = 1234.56_f64;
     let response = Response::new(MinGasPriceResponse {
         minimum_gas_price: format!("{min_gas_price}utia"),
@@ -171,7 +171,7 @@ fn min_gas_price_from_good_response_should_succeed() {
 }
 
 #[test]
-fn min_gas_price_from_bad_response_should_fail() {
+fn min_gas_price_from_bad_min_gas_price_response_should_fail() {
     // Should return `FailedToGetMinGasPrice` if outer response is an error.
     let error = min_gas_price_from_response(Err(Status::internal(""))).unwrap_err();
     #[expect(
@@ -231,11 +231,6 @@ impl TxResponseBuilder {
         Self::default()
     }
 
-    fn with_height(mut self, height: i64) -> Self {
-        self.height = height;
-        self
-    }
-
     fn with_tx_hash<T: AsRef<str>>(mut self, tx_hash: T) -> Self {
         self.tx_hash = tx_hash.as_ref().to_string();
         self
@@ -276,7 +271,7 @@ impl TxResponseBuilder {
 }
 
 #[test]
-fn tx_hash_from_good_response_should_succeed() {
+fn tx_hash_from_good_broadcast_tx_response_should_succeed() {
     let tx_hash = "abc";
     let tx_response = TxResponseBuilder::new().with_tx_hash(tx_hash).build();
     let response = Response::new(BroadcastTxResponse {
@@ -288,7 +283,7 @@ fn tx_hash_from_good_response_should_succeed() {
 }
 
 #[test]
-fn tx_hash_from_bad_response_should_fail() {
+fn tx_hash_from_bad_broadcast_tx_response_should_fail() {
     // Should return `FailedToBroadcastTx` if outer response is an error.
     let error = lowercase_hex_encoded_tx_hash_from_response(Err(Status::internal(""))).unwrap_err();
     #[expect(
@@ -342,112 +337,6 @@ fn tx_hash_from_bad_response_should_fail() {
         }
         _ => panic!("expected `BroadcastTxResponseErrorCode` error, but got {error:?}"),
     }
-}
-
-#[test]
-fn block_height_from_good_response_should_succeed() {
-    let height = 9;
-    let tx_response = TxResponseBuilder::new().with_height(height).build();
-    let response = Response::new(GetTxResponse {
-        tx: None,
-        tx_response: Some(tx_response),
-    });
-
-    let extracted_height = block_height_from_response(Ok(response)).unwrap();
-    assert_eq!(Some(u64::try_from(height).unwrap()), extracted_height);
-}
-
-#[test]
-fn block_height_from_bad_response_should_fail() {
-    // Should return `FailedToGetTx` if outer response is an error other than `NotFound`.
-    let error = block_height_from_response(Err(Status::internal(""))).unwrap_err();
-    #[expect(
-        clippy::manual_assert,
-        reason = "`assert!(matches!(..))` provides poor feedback on failure"
-    )]
-    if !matches!(error, TrySubmitError::FailedToGetTx(_)) {
-        panic!("expected `Error::FailedToGetTx`, got {error:?}");
-    }
-
-    // Should return `EmptyGetTxResponse` if the inner response's `tx_response` is `None`.
-    let response = Ok(Response::new(GetTxResponse {
-        tx: None,
-        tx_response: None,
-    }));
-    let error = block_height_from_response(response).unwrap_err();
-    #[expect(
-        clippy::manual_assert,
-        reason = "`assert!(matches!(..))` provides poor feedback on failure"
-    )]
-    if !matches!(error, TrySubmitError::EmptyGetTxResponse) {
-        panic!("expected `Error::EmptyGetTxResponse`, got {error:?}");
-    }
-
-    // Should return `GetTxResponseErrorCode` if the inner response's `tx_response.code` is not 0.
-    let tx_hash = "abc";
-    let code = 9;
-    let namespace = "def";
-    let log = "ghi";
-    let tx_response = TxResponseBuilder::new()
-        .with_tx_hash(tx_hash)
-        .with_code(code)
-        .with_codespace(namespace)
-        .with_raw_log(log)
-        .build();
-    let response = Ok(Response::new(GetTxResponse {
-        tx: None,
-        tx_response: Some(tx_response),
-    }));
-    let error = block_height_from_response(response).unwrap_err();
-    match error {
-        TrySubmitError::GetTxResponseErrorCode {
-            tx_hash: received_tx_hash,
-            code: received_code,
-            namespace: received_namespace,
-            log: received_log,
-        } => {
-            assert_eq!(tx_hash, received_tx_hash,);
-            assert_eq!(code, received_code,);
-            assert_eq!(namespace, received_namespace,);
-            assert_eq!(log, received_log,);
-        }
-        _ => panic!("expected `GetTxResponseErrorCode` error, but got {error:?}"),
-    }
-}
-
-#[test]
-fn block_height_from_response_with_negative_height_should_fail() {
-    let height = -9;
-    let tx_response = TxResponseBuilder::new().with_height(height).build();
-    let response = Response::new(GetTxResponse {
-        tx: None,
-        tx_response: Some(tx_response),
-    });
-
-    let error = block_height_from_response(Ok(response)).unwrap_err();
-    match error {
-        TrySubmitError::GetTxResponseNegativeBlockHeight(received_height) => {
-            assert_eq!(height, received_height);
-        }
-        _ => panic!("expected `GetTxResponseErrorCode` error, but got {error:?}"),
-    }
-}
-
-#[test]
-fn block_height_from_pending_response_should_return_none() {
-    // Should return `None` if outer response is a `NotFound` error.
-    let maybe_height = block_height_from_response(Err(Status::not_found(""))).unwrap();
-    assert!(maybe_height.is_none());
-
-    // Should return `None` if the height is 0.
-    let tx_response = TxResponseBuilder::new().with_height(0).build();
-    let response = Response::new(GetTxResponse {
-        tx: None,
-        tx_response: Some(tx_response),
-    });
-
-    let maybe_height = block_height_from_response(Ok(response)).unwrap();
-    assert!(maybe_height.is_none());
 }
 
 #[test]
