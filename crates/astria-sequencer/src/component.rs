@@ -3,7 +3,23 @@ use std::sync::Arc;
 use astria_eyre::eyre::Result;
 use async_trait::async_trait;
 use cnidarium::StateWrite;
-use tendermint::abci;
+use tendermint::{
+    abci::types,
+    block,
+    chain,
+    AppHash,
+    Hash,
+    Time,
+};
+
+pub(crate) struct PrepareStateInfo {
+    pub(crate) app_hash: AppHash,
+    pub(crate) byzantine_validators: Vec<types::Misbehavior>,
+    pub(crate) chain_id: chain::Id,
+    pub(crate) height: block::Height,
+    pub(crate) next_validators_hash: Hash,
+    pub(crate) time: Time,
+}
 
 /// A component of the Sequencer application.
 /// Based off Penumbra's [`Component`], but with modifications.
@@ -20,8 +36,7 @@ pub(crate) trait Component {
     /// be empty.
     async fn init_chain<S: StateWrite>(state: S, app_state: &Self::AppState) -> Result<()>;
 
-    /// Begins a new block, optionally inspecting the ABCI
-    /// [`BeginBlock`](abci::request::BeginBlock) request.
+    /// Makes necessary state changes for the given component at the start of the block.
     ///
     /// # Invariants
     ///
@@ -32,12 +47,11 @@ pub(crate) trait Component {
     /// it returns, so that `state.get_mut().is_some()` on completion.
     async fn begin_block<S: StateWrite + 'static>(
         state: &mut Arc<S>,
-        begin_block: &abci::request::BeginBlock,
+        prepare_state_info: &PrepareStateInfo,
     ) -> Result<()>;
 
-    /// Ends the block, optionally inspecting the ABCI
-    /// [`EndBlock`](abci::request::EndBlock) request, and performing any batch
-    /// processing.
+    /// Handles necessary state changes for the given component after transaction execution, ending
+    /// the block.
     ///
     /// # Invariants
     ///
@@ -51,6 +65,6 @@ pub(crate) trait Component {
     /// it returns, so that `state.get_mut().is_some()` on completion.
     async fn end_block<S: StateWrite + 'static>(
         state: &mut Arc<S>,
-        end_block: &abci::request::EndBlock,
+        height: tendermint::block::Height,
     ) -> Result<()>;
 }

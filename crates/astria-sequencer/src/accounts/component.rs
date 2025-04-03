@@ -6,16 +6,15 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
-use tendermint::abci::request::{
-    BeginBlock,
-    EndBlock,
-};
 use tracing::instrument;
 
 use crate::{
     accounts,
     assets,
-    component::Component,
+    component::{
+        Component,
+        PrepareStateInfo,
+    },
 };
 
 #[derive(Default)]
@@ -51,7 +50,7 @@ impl Component for AccountsComponent {
     #[instrument(name = "AccountsComponent::begin_block", skip_all)]
     async fn begin_block<S: accounts::StateWriteExt + 'static>(
         _state: &mut Arc<S>,
-        _begin_block: &BeginBlock,
+        _prepare_state_info: &PrepareStateInfo,
     ) -> Result<()> {
         Ok(())
     }
@@ -59,7 +58,7 @@ impl Component for AccountsComponent {
     #[instrument(name = "AccountsComponent::end_block", skip_all)]
     async fn end_block<S: accounts::StateWriteExt + 'static>(
         _state: &mut Arc<S>,
-        _end_block: &EndBlock,
+        _height: tendermint::block::Height,
     ) -> Result<()> {
         Ok(())
     }
