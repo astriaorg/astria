@@ -206,7 +206,7 @@
         "ed25519"
       ]
     },
-    {{- if and .Values.global.dev (not .Values.sequencer.upgrades.systemTest.enabled) }}
+    {{- if and .Values.global.dev .Values.genesis.priceFeed }}
     "abci": {
       "vote_extensions_enable_height": "{{ .Values.genesis.consensusParams.voteExtensionsEnableHeight }}"
     },
