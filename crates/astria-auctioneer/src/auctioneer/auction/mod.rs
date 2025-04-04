@@ -14,6 +14,7 @@ use astria_eyre::eyre::{
     eyre,
     WrapErr as _,
 };
+use bytes::Bytes;
 use futures::{
     Future,
     FutureExt as _,
@@ -47,7 +48,7 @@ use worker::Worker;
 ///
 /// Currently the same as the proposed sequencer block.
 #[derive(Hash, Eq, PartialEq, Clone, Copy, Debug)]
-pub(super) struct Id([u8; 32]);
+pub(crate) struct Id([u8; 32]);
 
 impl Id {
     pub(super) fn from_sequencer_block_hash(block_hash: &block::Hash) -> Self {
@@ -65,6 +66,33 @@ impl std::fmt::Display for Id {
     }
 }
 
+/// A channel to send bids directly to a running auction.
+#[derive(Clone)]
+pub(crate) struct Bidpipe {
+    pub(crate) auction_id: Id,
+    pub(crate) optimistic_block_hash: RollupBlockHash,
+    pub(crate) sequencer_block_hash: block::Hash,
+    // TODO: this will be a u64 with executionapis v2
+    pub(crate) optimistic_block_number: u32,
+    to_auction: mpsc::UnboundedSender<Arc<Bid>>,
+}
+
+impl Bidpipe {
+    pub(crate) fn send(
+        &self,
+        fee: u64,
+        transactions: Vec<Bytes>,
+    ) -> Result<(), mpsc::error::SendError<Arc<Bid>>> {
+        // TODO: report the error in some way
+        self.to_auction.send(Arc::new(Bid {
+            fee,
+            transactions,
+            rollup_parent_block_hash: self.optimistic_block_hash.clone(),
+            sequencer_parent_block_hash: self.sequencer_block_hash,
+        }))
+    }
+}
+
 /// The frontend to interact with a running auction.
 pub(super) struct Auction {
     /// The idenfifier of the current auction.
@@ -75,8 +103,6 @@ pub(super) struct Auction {
     height: u64,
     /// The hash of the rollup block that was executed and on which all bids will based.
     hash_of_executed_block_on_rollup: Option<RollupBlockHash>,
-    /// A oneshot channel to trigger the running auction to start accepting bids.
-    start_bids: Option<oneshot::Sender<()>>,
     /// A oneshot channel to trigger the running auction to start its auction timer.
     start_timer: Option<oneshot::Sender<()>>,
     /// A channel to forward bids from Auctioneer's stream connected to its Rollup to the
@@ -135,7 +161,11 @@ impl Auction {
     pub(in crate::auctioneer) fn start_bids(
         &mut self,
         block: crate::block::Executed,
-    ) -> eyre::Result<()> {
+    ) -> eyre::Result<Bidpipe> {
+        if self.hash_of_executed_block_on_rollup.is_some() {
+            bail!("a previous executed block already triggered the auction to start bids");
+        }
+
         ensure!(
             &self.block_hash == block.sequencer_block_hash(),
             "executed block does not match auction; auction.block_hash = `{}`, \
@@ -144,20 +174,18 @@ impl Auction {
             block.sequencer_block_hash(),
         );
 
-        if let Some(start_bids) = self.start_bids.take() {
-            start_bids.send(()).map_err(|()| {
-                eyre!("the auction worker's start bids channel was already dropped")
-            })?;
-        } else {
-            bail!("a previous executed block already triggered the auction to start bids");
-        }
-
         let prev_block = self
             .hash_of_executed_block_on_rollup
             .replace(block.rollup_block_hash());
         debug_assert!(prev_block.is_none());
 
-        Ok(())
+        Ok(Bidpipe {
+            auction_id: self.id,
+            optimistic_block_hash: block.rollup_block_hash(),
+            optimistic_block_number: block.rollup_block_number(),
+            sequencer_block_hash: *block.sequencer_block_hash(),
+            to_auction: self.bids.clone(),
+        })
     }
 
     // TODO: Use a refinement type for the parente rollup block hash

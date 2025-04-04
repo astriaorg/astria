@@ -71,14 +71,14 @@ impl Display for RollupBlockHash {
 #[derive(Debug, Clone)]
 pub(crate) struct Bid {
     /// The fee that will be charged for this bid.
-    fee: u64,
+    pub(crate) fee: u64,
     /// The byte list of transactions fto be included.
-    transactions: Vec<Bytes>,
+    pub(crate) transactions: Vec<Bytes>,
     /// The hash of the rollup block that this bid is based on.
-    rollup_parent_block_hash: RollupBlockHash,
+    pub(crate) rollup_parent_block_hash: RollupBlockHash,
     /// The hash of the sequencer block used to derive the rollup block that this bid is based
     /// on.
-    sequencer_parent_block_hash: block::Hash,
+    pub(crate) sequencer_parent_block_hash: block::Hash,
 }
 
 impl Bid {

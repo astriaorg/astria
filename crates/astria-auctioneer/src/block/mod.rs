@@ -131,4 +131,8 @@ impl Executed {
     pub(crate) fn rollup_block_hash(&self) -> RollupBlockHash {
         RollupBlockHash::new(self.block.hash().clone())
     }
+
+    pub(crate) fn rollup_block_number(&self) -> u32 {
+        self.block.number()
+    }
 }
