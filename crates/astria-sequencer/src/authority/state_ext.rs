@@ -1,6 +1,17 @@
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    pin::Pin,
+    task::{
+        ready,
+        Context,
+        Poll,
+    },
+};
 
-use astria_core::primitive::v1::ADDRESS_LEN;
+use astria_core::{
+    primitive::v1::ADDRESS_LEN,
+    protocol::transaction::v1::action::ValidatorUpdate,
+};
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
@@ -14,6 +25,8 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
+use futures::Stream;
+use pin_project_lite::pin_project;
 use tracing::{
     instrument,
     Level,
@@ -31,8 +44,40 @@ use crate::{
     storage::StoredValue,
 };
 
-fn validator_name(key: &[u8]) -> String {
-    format!("{}/{}", keys::VALIDATOR_NAMES_PREFIX, hex::encode(key))
+fn validator_key(address: &[u8]) -> String {
+    format!("{}/{}", keys::VALIDATOR_PREFIX, hex::encode(address))
+}
+
+pin_project! {
+    /// A stream of all validator updates
+    pub(crate) struct ValidatorStream<St> {
+        #[pin]
+        underlying: St,
+    }
+}
+
+impl<St> Stream for ValidatorStream<St>
+where
+    St: Stream<Item = astria_eyre::anyhow::Result<(String, Vec<u8>)>>,
+{
+    type Item = Result<ValidatorUpdate>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+        let (_, bytes) = match ready!(this.underlying.as_mut().poll_next(cx)) {
+            Some(Ok(tup)) => tup,
+            Some(Err(err)) => {
+                return Poll::Ready(Some(Err(
+                    anyhow_to_eyre(err).wrap_err("failed reading from state")
+                )));
+            }
+            None => return Poll::Ready(None),
+        };
+        let update = StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::ValidatorInfoV1::try_from(value).map(ValidatorUpdate::from))
+            .context("invalid validator info bytes")?;
+        Poll::Ready(Some(Ok(update)))
+    }
 }
 
 #[async_trait]
@@ -54,23 +99,7 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all, err(level = Level::WARN))]
-    async fn get_validator_set(&self) -> Result<ValidatorSet> {
-        let Some(bytes) = self
-            .get_raw(keys::VALIDATOR_SET)
-            .await
-            .map_err(anyhow_to_eyre)
-            .wrap_err("failed reading raw validator set from state")?
-        else {
-            // return error because validator set must be set
-            bail!("validator set not found")
-        };
-        StoredValue::deserialize(&bytes)
-            .and_then(|value| storage::ValidatorSet::try_from(value).map(ValidatorSet::from))
-            .wrap_err("invalid validator set bytes")
-    }
-
-    #[instrument(skip_all, err(level = Level::WARN))]
-    async fn get_validator_updates(&self) -> Result<ValidatorSet> {
+    async fn get_block_validator_updates(&self) -> Result<ValidatorSet> {
         let Some(bytes) = self
             .nonverifiable_get_raw(keys::VALIDATOR_UPDATES.as_bytes())
             .await
@@ -86,21 +115,62 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_validator_name(&self, validator: &[u8]) -> Result<Option<String>> {
+    async fn get_validator(&self, validator: &[u8]) -> Result<Option<ValidatorUpdate>> {
         let Some(bytes) = self
-            .get_raw(&validator_name(validator))
+            .get_raw(&validator_key(validator))
             .await
             .map_err(anyhow_to_eyre)
-            .wrap_err("failed reading raw validator name from state")?
+            .wrap_err("failed reading raw validator info from state")?
         else {
             return Ok(None);
         };
         Some(
             StoredValue::deserialize(&bytes)
-                .and_then(|value| storage::ValidatorName::try_from(value).map(String::from))
-                .wrap_err("invalid validator name bytes"),
+                .and_then(|value| {
+                    storage::ValidatorInfoV1::try_from(value).map(ValidatorUpdate::from)
+                })
+                .wrap_err("invalid validator info bytes"),
         )
         .transpose()
+    }
+
+    #[instrument(skip_all)]
+    async fn get_validator_count(&self) -> Result<u64> {
+        let Some(bytes) = self
+            .nonverifiable_get_raw(keys::VALIDATOR_COUNT.as_bytes())
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw validator count from state")?
+        else {
+            bail!("validator count not found in state");
+        };
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::ValidatorCount::try_from(value).map(u64::from))
+            .wrap_err("invalid validator count bytes")
+    }
+
+    #[instrument(skip_all)]
+    fn get_validators(&self) -> ValidatorStream<Self::PrefixRawStream> {
+        ValidatorStream {
+            underlying: self.prefix_raw(keys::VALIDATOR_PREFIX),
+        }
+    }
+
+    /// Deprecated as of Aspen upgrade
+    #[instrument(skip_all, err(level = Level::WARN))]
+    async fn _pre_aspen_get_validator_set(&self) -> Result<ValidatorSet> {
+        let Some(bytes) = self
+            .get_raw(keys::_PRE_ASPEN_VALIDATOR_SET)
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw validator set from state")?
+        else {
+            // return error because validator set must be set
+            bail!("validator set not found")
+        };
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| storage::ValidatorSet::try_from(value).map(ValidatorSet::from))
+            .wrap_err("invalid validator set bytes")
     }
 }
 
@@ -118,16 +188,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_validator_set(&mut self, validator_set: ValidatorSet) -> Result<()> {
-        let bytes = StoredValue::from(storage::ValidatorSet::from(&validator_set))
-            .serialize()
-            .wrap_err("failed to serialize validator set")?;
-        self.put_raw(keys::VALIDATOR_SET.to_string(), bytes);
-        Ok(())
-    }
-
-    #[instrument(skip_all)]
-    fn put_validator_updates(&mut self, validator_updates: ValidatorSet) -> Result<()> {
+    fn put_block_validator_updates(&mut self, validator_updates: ValidatorSet) -> Result<()> {
         let bytes = StoredValue::from(storage::ValidatorSet::from(&validator_updates))
             .serialize()
             .wrap_err("failed to serialize validator updates")?;
@@ -136,21 +197,60 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn clear_validator_updates(&mut self) {
+    fn clear_block_validator_updates(&mut self) {
         self.nonverifiable_delete(keys::VALIDATOR_UPDATES.into());
     }
 
     #[instrument(skip_all)]
-    fn remove_validator_name(&mut self, validator: &[u8]) {
-        self.delete(validator_name(validator));
+    async fn checked_remove_validator(&mut self, validator_address: &[u8]) -> Result<Option<()>> {
+        if self
+            .get_raw(&validator_key(validator_address))
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw validator info from state")?
+            .is_none()
+        {
+            return Ok(None);
+        };
+        self.delete(validator_key(validator_address));
+        Ok(Some(()))
     }
 
     #[instrument(skip_all)]
-    fn put_validator_name(&mut self, validator: &[u8], name: String) -> Result<()> {
-        let bytes = StoredValue::from(storage::ValidatorName::from(name.as_str()))
+    fn put_validator(&mut self, validator: &ValidatorUpdate) -> Result<()> {
+        let bytes = StoredValue::from(storage::ValidatorInfoV1::from(validator))
             .serialize()
-            .wrap_err("failed to serialize validator names")?;
-        self.put_raw(validator_name(validator), bytes);
+            .wrap_err("failed to serialize validator update")?;
+        self.put_raw(
+            validator_key(validator.verification_key.address_bytes()),
+            bytes,
+        );
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    fn put_validator_count(&mut self, count: u64) -> Result<()> {
+        let bytes = StoredValue::from(storage::ValidatorCount::from(count))
+            .serialize()
+            .wrap_err("failed to serialize validator count")?;
+        self.nonverifiable_put_raw(keys::VALIDATOR_COUNT.as_bytes().to_vec(), bytes);
+        Ok(())
+    }
+
+    /// Deprecated as of Aspen upgrade
+    #[instrument(skip_all)]
+    fn _pre_aspen_put_validator_set(&mut self, validator_set: ValidatorSet) -> Result<()> {
+        let bytes = StoredValue::from(storage::ValidatorSet::from(&validator_set))
+            .serialize()
+            .wrap_err("failed to serialize validator set")?;
+        self.put_raw(keys::_PRE_ASPEN_VALIDATOR_SET.to_string(), bytes);
+        Ok(())
+    }
+
+    /// Should only be called ONCE, at Aspen upgrade
+    #[instrument(skip_all)]
+    fn _aspen_upgrade_remove_validator_set(&mut self) -> Result<()> {
+        self.delete(keys::_PRE_ASPEN_VALIDATOR_SET.to_string());
         Ok(())
     }
 }
@@ -161,15 +261,10 @@ impl<T: StateWrite> StateWriteExt for T {}
 mod tests {
     use astria_core::protocol::transaction::v1::action::ValidatorUpdate;
     use cnidarium::StateDelta;
+    use futures::TryStreamExt as _;
 
     use super::*;
-    use crate::{
-        address::StateWriteExt as _,
-        benchmark_and_test_utils::{
-            verification_key,
-            ASTRIA_PREFIX,
-        },
-    };
+    use crate::benchmark_and_test_utils::verification_key;
 
     fn empty_validator_set() -> ValidatorSet {
         ValidatorSet::new_from_updates(vec![])
@@ -180,8 +275,6 @@ mod tests {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
-
-        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
 
         // doesn't exist at first
         let _ = state
@@ -219,20 +312,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn validator_set_uninitialized_fails() {
+    async fn pre_aspen_validator_set_uninitialized_fails() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
 
         // doesn't exist at first
         let _ = state
-            .get_validator_set()
+            ._pre_aspen_get_validator_set()
             .await
             .expect_err("no validator set should exist at first");
     }
 
     #[tokio::test]
-    async fn put_validator_set() {
+    async fn put_get_and_remove_pre_aspen_validator_set() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
@@ -246,11 +339,11 @@ mod tests {
 
         // can write new
         state
-            .put_validator_set(initial_validator_set.clone())
+            ._pre_aspen_put_validator_set(initial_validator_set.clone())
             .expect("writing initial validator set should not fail");
         assert_eq!(
             state
-                .get_validator_set()
+                ._pre_aspen_get_validator_set()
                 .await
                 .expect("a validator set was written and must exist inside the database"),
             initial_validator_set,
@@ -265,20 +358,29 @@ mod tests {
         }];
         let updated_validator_set = ValidatorSet::new_from_updates(updates);
         state
-            .put_validator_set(updated_validator_set.clone())
+            ._pre_aspen_put_validator_set(updated_validator_set.clone())
             .expect("writing update validator set should not fail");
         assert_eq!(
             state
-                .get_validator_set()
+                ._pre_aspen_get_validator_set()
                 .await
                 .expect("a validator set was written and must exist inside the database"),
             updated_validator_set,
             "stored validator set was not what was expected"
         );
+
+        // can remove
+        state
+            ._aspen_upgrade_remove_validator_set()
+            .expect("removing validator set should not fail");
+        let _ = state
+            ._pre_aspen_get_validator_set()
+            .await
+            .expect_err("no validator set should exist at first");
     }
 
     #[tokio::test]
-    async fn get_validator_updates_empty() {
+    async fn get_block_validator_updates_empty() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let state = StateDelta::new(snapshot);
@@ -286,7 +388,7 @@ mod tests {
         // querying for empty validator set is ok
         assert_eq!(
             state
-                .get_validator_updates()
+                .get_block_validator_updates()
                 .await
                 .expect("if no updates have been written return empty set"),
             empty_validator_set(),
@@ -295,7 +397,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn put_validator_updates() {
+    async fn put_block_validator_updates() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
@@ -317,11 +419,11 @@ mod tests {
 
         // put validator updates
         state
-            .put_validator_updates(validator_set_updates.clone())
+            .put_block_validator_updates(validator_set_updates.clone())
             .expect("writing update validator set should not fail");
         assert_eq!(
             state
-                .get_validator_updates()
+                .get_block_validator_updates()
                 .await
                 .expect("an update validator set was written and must exist inside the database"),
             validator_set_updates,
@@ -346,11 +448,11 @@ mod tests {
 
         // write different updates
         state
-            .put_validator_updates(validator_set_updates.clone())
+            .put_block_validator_updates(validator_set_updates.clone())
             .expect("writing update validator set should not fail");
         assert_eq!(
             state
-                .get_validator_updates()
+                .get_block_validator_updates()
                 .await
                 .expect("an update validator set was written and must exist inside the database"),
             validator_set_updates,
@@ -359,7 +461,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn clear_validator_updates() {
+    async fn clear_block_validator_updates() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
@@ -374,11 +476,11 @@ mod tests {
 
         // put validator updates
         state
-            .put_validator_updates(validator_set_updates.clone())
+            .put_block_validator_updates(validator_set_updates.clone())
             .expect("writing update validator set should not fail");
         assert_eq!(
             state
-                .get_validator_updates()
+                .get_block_validator_updates()
                 .await
                 .expect("an update validator set was written and must exist inside the database"),
             validator_set_updates,
@@ -386,12 +488,12 @@ mod tests {
         );
 
         // clear updates
-        state.clear_validator_updates();
+        state.clear_block_validator_updates();
 
         // check that clear worked
         assert_eq!(
             state
-                .get_validator_updates()
+                .get_block_validator_updates()
                 .await
                 .expect("if no updates have been written return empty set"),
             empty_validator_set(),
@@ -400,17 +502,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn clear_validator_updates_empty_ok() {
+    async fn clear_block_validator_updates_empty_ok() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
         // able to clear non-existent updates with no error
-        state.clear_validator_updates();
+        state.clear_block_validator_updates();
     }
 
     #[tokio::test]
-    async fn execute_validator_updates() {
+    async fn execute_pre_aspen_validator_updates() {
         // create initial validator set
         let initial = vec![
             ValidatorUpdate {
@@ -472,47 +574,174 @@ mod tests {
         );
     }
 
+    // TODO: Add tests for new validator methods
     #[tokio::test]
-    async fn put_and_get_validator_names() {
+    async fn validator_count_round_trip() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let validator_address = &[0; ADDRESS_LEN];
-        let validator_name = "ethan_was_here".to_string();
+        // doesn't exist at first
+        let _ = state
+            .get_validator_count()
+            .await
+            .expect_err("no sudo address should exist at first");
 
-        // returns empty validator names if none in state
+        // can write new
+        let mut count_expected = 8;
+        state
+            .put_validator_count(count_expected)
+            .expect("writing validator count should not fail");
         assert_eq!(
-            state.get_validator_name(validator_address).await.unwrap(),
-            None
+            state
+                .get_validator_count()
+                .await
+                .expect("a validator count was written and must exist inside the database"),
+            count_expected,
+            "stored validator count was not what was expected"
+        );
+
+        // can rewrite with new value
+        count_expected = 7;
+        state
+            .put_validator_count(count_expected)
+            .expect("writing validator count should not fail");
+        assert_eq!(
+            state
+                .get_validator_count()
+                .await
+                .expect("a new validator count was written and must exist inside the database"),
+            count_expected,
+            "updated validator count was not what was expected"
+        );
+    }
+
+    #[expect(
+        clippy::too_many_lines,
+        reason = "I think test length is warranted to test full functionality without splitting \
+                  into many confusingly similar tests"
+    )]
+    #[tokio::test]
+    async fn validator_round_trip() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let validator_1 = ValidatorUpdate {
+            power: 10,
+            verification_key: verification_key(1),
+            name: "test1".to_string(),
+        };
+        let mut validator_2 = ValidatorUpdate {
+            power: 20,
+            verification_key: verification_key(2),
+            name: "test2".to_string(),
+        };
+
+        // No validator returns `None`
+        assert!(
+            state
+                .get_validator(validator_1.verification_key.address_bytes())
+                .await
+                .unwrap()
+                .is_none(),
+            "validator should not exist yet"
+        );
+        assert!(
+            state
+                .get_validator(validator_2.verification_key.address_bytes())
+                .await
+                .unwrap()
+                .is_none(),
+            "validator should not exist yet"
         );
 
         // can write new
         state
-            .put_validator_name(validator_address, validator_name.clone())
-            .expect("writing initial validator should not fail");
+            .put_validator(&validator_1)
+            .expect("writing validator 1 should not fail");
+        state
+            .put_validator(&validator_2)
+            .expect("writing validator 2 should not fail");
+
+        // check that both validators exist
         assert_eq!(
             state
-                .get_validator_name(validator_address)
+                .get_validator(validator_1.verification_key.address_bytes())
                 .await
-                .expect("validator name was written and must exist inside the database"),
-            Some(validator_name),
-            "stored validator name was not what was expected"
+                .expect("a validator was written and must exist inside the database"),
+            Some(validator_1.clone()),
+            "stored validator 1 was not what was expected"
+        );
+        assert_eq!(
+            state
+                .get_validator(validator_2.verification_key.address_bytes())
+                .await
+                .expect("a validator was written and must exist inside the database"),
+            Some(validator_2.clone()),
+            "stored validator 2 was not what was expected"
         );
 
-        // can update
-        let validator_address_2 = &[1; ADDRESS_LEN];
-        let validator_name_2 = "ethan_was_here_again".to_string();
+        // can rewrite with new value
+        validator_2.power = 30;
         state
-            .put_validator_name(validator_address_2, validator_name_2.clone())
-            .expect("writing update validator set should not fail");
+            .put_validator(&validator_2)
+            .expect("writing validator 2 should not fail");
         assert_eq!(
             state
-                .get_validator_name(validator_address_2)
+                .get_validator(validator_2.verification_key.address_bytes())
                 .await
-                .expect("validator name was written and must exist inside the database"),
-            Some(validator_name_2),
-            "stored validator name was not what was expected"
+                .expect("a new validator 2 was written and must exist inside the database"),
+            Some(validator_2.clone()),
+            "updated validator 2 was not what was expected"
+        );
+
+        // validator stream works as expected
+        let mut validators = state
+            .get_validators()
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap();
+        assert_eq!(
+            validators.len(),
+            2,
+            "validator stream should return 2 validators"
+        );
+        assert!(
+            validators.contains(&validator_1),
+            "validator stream should contain validator 1"
+        );
+        assert!(
+            validators.contains(&validator_2),
+            "validator stream should contain validator 2"
+        );
+
+        // remove validator works as expected
+        state
+            .checked_remove_validator(validator_1.verification_key.address_bytes())
+            .await
+            .expect("removing validator 1 should not fail");
+        assert!(
+            state
+                .get_validator(validator_1.verification_key.address_bytes())
+                .await
+                .unwrap()
+                .is_none(),
+            "validator 1 should not exist anymore"
+        );
+        validators = state
+            .get_validators()
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap();
+        assert_eq!(
+            validators.len(),
+            1,
+            "validator stream should return 1 validator"
+        );
+        assert_eq!(
+            validators[0], validator_2,
+            "validator stream should contain validator 2"
         );
     }
 }

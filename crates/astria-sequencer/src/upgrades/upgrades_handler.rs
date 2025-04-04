@@ -41,6 +41,7 @@ use crate::{
         StateReadExt,
         StateWriteExt,
     },
+    authority::component::AuthorityComponent,
     oracles::price_feed::{
         market_map::component::MarketMapComponent,
         oracle::component::OracleComponent,
@@ -167,7 +168,7 @@ impl UpgradesHandler {
     /// storage.
     ///
     /// Returns an empty `Vec` if no upgrade was executed.
-    pub(crate) fn execute_upgrade_if_due<S: StateWrite>(
+    pub(crate) async fn execute_upgrade_if_due<S: StateWrite>(
         &mut self,
         mut state: S,
         block_height: tendermint::block::Height,
@@ -200,9 +201,13 @@ impl UpgradesHandler {
             MarketMapComponent::handle_genesis(&mut state, genesis_state.market_map())
                 .wrap_err("failed to handle market map genesis")?;
             info!("handled market map genesis");
-            OracleComponent::handle_genesis(state, genesis_state.oracle())
+            OracleComponent::handle_genesis(&mut state, genesis_state.oracle())
                 .wrap_err("failed to handle oracle genesis")?;
             info!("handled oracle genesis");
+            AuthorityComponent::handle_aspen_upgrade(&mut state)
+                .await
+                .wrap_err("failed to handle authority component aspen upgrade")?;
+            info!("handled authority component aspen upgrade");
         }
 
         Ok(change_hashes)
