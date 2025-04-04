@@ -10,6 +10,7 @@ use super::{
 use crate::{
     generated::upgrades::v1::{
         aspen::{
+            IbcAcknowledgementFailureChange as RawIbcAcknowledgementFailureChange,
             PriceFeedChange as RawPriceFeedChange,
             ValidatorUpdateActionChange as RawValidatorUpdateActionChange,
         },
@@ -29,6 +30,7 @@ pub struct Aspen {
     app_version: u64,
     price_feed_change: PriceFeedChange,
     validator_update_action_change: ValidatorUpdateActionChange,
+    ibc_acknowledgement_failure_change: IbcAcknowledgementFailureChange,
 }
 
 impl Aspen {
@@ -52,6 +54,11 @@ impl Aspen {
     #[must_use]
     pub fn validator_update_action_change(&self) -> &ValidatorUpdateActionChange {
         &self.validator_update_action_change
+    }
+
+    #[must_use]
+    pub fn ibc_acknowledgement_failure_change(&self) -> &IbcAcknowledgementFailureChange {
+        &self.ibc_acknowledgement_failure_change
     }
 
     pub fn changes(&self) -> impl Iterator<Item = &'_ dyn Change> {
@@ -92,6 +99,10 @@ impl Protobuf for Aspen {
             return Err(Error::no_validator_update_action_change());
         }
 
+        if raw.validator_update_action_change.is_none() {
+            return Err(Error::no_validator_update_action_change());
+        }
+
         let price_feed_change = PriceFeedChange {
             activation_height,
             app_version,
@@ -103,11 +114,17 @@ impl Protobuf for Aspen {
             app_version,
         };
 
+        let ibc_acknowledgement_failure_change = IbcAcknowledgementFailureChange {
+            activation_height,
+            app_version,
+        };
+
         Ok(Self {
             activation_height,
             app_version,
             price_feed_change,
             validator_update_action_change,
+            ibc_acknowledgement_failure_change,
         })
     }
 
@@ -123,6 +140,7 @@ impl Protobuf for Aspen {
             base_info,
             price_feed_change,
             validator_update_action_change: Some(RawValidatorUpdateActionChange {}),
+            ibc_acknowledgement_failure_change: Some(RawIbcAcknowledgementFailureChange {}),
         }
     }
 }
@@ -174,6 +192,31 @@ impl ValidatorUpdateActionChange {
 }
 
 impl Change for ValidatorUpdateActionChange {
+    fn name(&self) -> ChangeName {
+        Self::NAME.clone()
+    }
+
+    fn activation_height(&self) -> u64 {
+        self.activation_height
+    }
+
+    fn app_version(&self) -> u64 {
+        self.app_version
+    }
+}
+
+/// This change introduces new sequencer `Action`s to support updating the validator set.
+#[derive(Clone, Debug, BorshSerialize)]
+pub struct IbcAcknowledgementFailureChange {
+    activation_height: u64,
+    app_version: u64,
+}
+
+impl IbcAcknowledgementFailureChange {
+    pub const NAME: ChangeName = ChangeName::new("ibc_acknowledgement_failure_change");
+}
+
+impl Change for IbcAcknowledgementFailureChange {
     fn name(&self) -> ChangeName {
         Self::NAME.clone()
     }
@@ -254,6 +297,20 @@ mod tests {
         insta::assert_snapshot!(
             "validator_update_action_change",
             serialized_validator_update_action_change
+        );
+    }
+
+    #[test]
+    fn serialized_ibc_acknowledgement_failure_chainge_should_not_change() {
+        let ibc_acknowledgement_failure_chainge = IbcAcknowledgementFailureChange {
+            activation_height: 10,
+            app_version: 2,
+        };
+        let serialized_ibc_acknowledgement_failure_chainge =
+            hex::encode(validator_update_action_change.to_vec());
+        insta::assert_snapshot!(
+            "ibc_acknowledgement_failure_chainge",
+            serialized_ibc_acknowledgement_failure_chainge
         );
     }
 }
