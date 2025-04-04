@@ -42,10 +42,10 @@ use tracing::{
 
 use super::{
     allocation_rule::FirstPrice,
+    BidWithNotify,
     Summary,
 };
 use crate::{
-    bid::Bid,
     sequencer_channel::SequencerChannel,
     sequencer_key::SequencerKey,
 };
@@ -56,10 +56,9 @@ pub(super) struct Worker {
     /// The sequencer's ABCI client, used for submitting transactions
     pub(super) sequencer_abci_client: sequencer_client::HttpClient,
     pub(super) sequencer_channel: SequencerChannel,
-    pub(super) start_bids: Option<oneshot::Receiver<()>>,
     pub(super) start_timer: Option<oneshot::Receiver<()>>,
     /// Channel for receiving new bids.
-    pub(super) bids: tokio::sync::mpsc::UnboundedReceiver<Arc<Bid>>,
+    pub(super) bids: tokio::sync::mpsc::UnboundedReceiver<BidWithNotify>,
     /// The time between receiving a block commitment
     pub(super) latency_margin: Duration,
     /// The ID of the auction
@@ -133,8 +132,12 @@ impl Worker {
             None => return Err(Error::NoNonce),
         };
 
+        let BidWithNotify {
+            inner: winning_bid,
+            notify,
+        } = winner;
         // TODO: report the pending nonce that we ended up using.
-        let transaction = Arc::unwrap_or_clone(winner)
+        let transaction = Arc::unwrap_or_clone(winning_bid)
             .into_transaction_body(
                 pending_nonce,
                 self.rollup_id,
@@ -173,6 +176,7 @@ impl Worker {
                     {
                         Ok(response) => {
                             self.metrics.record_auction_winner_submission_success_latency(submission_start.elapsed());
+                            notify.notify_waiters();
                             Ok(Summary::Submitted { nonce_used: pending_nonce, response, })
                         }
                         Err(err) => {
@@ -189,7 +193,6 @@ impl Worker {
         let mut latency_margin_timer = pin!(None::<Sleep>);
         // TODO: do we want to make this configurable to allow for more complex allocation rules?
         let mut allocation_rule = FirstPrice::new();
-        let mut auction_is_open = false;
 
         let mut nonce_fetch = None;
 
@@ -206,6 +209,7 @@ impl Worker {
                         .unwrap()
                         .await
                 }, if latency_margin_timer.is_some() => {
+                    self.bids.close();
                     info!("timer is up; bids left unprocessed: {}", self.bids.len());
 
                     self.metrics.record_bids_per_auction_dropped_histogram(self.bids.len());
@@ -213,25 +217,13 @@ impl Worker {
 
                     let winner = allocation_rule.take_winner();
                     if let Some(winner) = &winner {
-                        self.metrics.record_auction_winning_bid_histogram(winner.bid());
+                        self.metrics.record_auction_winning_bid_histogram(winner.bid().amount());
                     }
 
                     break Ok(AuctionItems {
                         winner,
                         nonce_fetch,
                     })
-                }
-
-                Ok(()) = async {
-                    self.start_bids.as_mut().unwrap().await
-                }, if self.start_bids.is_some() => {
-                    let mut channel = self
-                        .start_bids
-                        .take()
-                        .expect("inside an arm that that checks start_bids == Some");
-                    channel.close();
-                    // TODO: if the timer is already running, report how much time is left for the bids
-                    auction_is_open = true;
                 }
 
                 Ok(()) = async {
@@ -242,13 +234,6 @@ impl Worker {
                         .take()
                         .expect("inside an arm that checks start_timer == Some");
                     channel.close();
-                    if !auction_is_open {
-                        info!(
-                            "received signal to start the auction timer before signal to start \
-                            processing bids; that's ok but eats into the time allotment of the \
-                            auction"
-                        );
-                    }
 
                     latency_margin_timer.set(Some(sleep(self.latency_margin)));
                     nonce_fetch = Some(spawn_aborting(get_pending_nonce(
@@ -262,8 +247,8 @@ impl Worker {
                 }
 
                 // TODO: this is an unbounded channel. Can we process multiple bids at a time?
-                Some(bid) = self.bids.recv(), if auction_is_open => {
-                    allocation_rule.bid(&bid);
+                Some(bid) = self.bids.recv() => {
+                    allocation_rule.bid(bid);
                 }
 
                 else => {
@@ -306,7 +291,7 @@ where
 }
 
 struct AuctionItems {
-    winner: Option<Arc<Bid>>,
+    winner: Option<BidWithNotify>,
     nonce_fetch: Option<AbortJoinHandle<u32>>,
 }
 

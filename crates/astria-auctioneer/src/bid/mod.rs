@@ -16,10 +16,6 @@ use astria_core::{
     },
     sequencerblock::v1::block,
 };
-use astria_eyre::eyre::{
-    self,
-    WrapErr as _,
-};
 use bytes::Bytes;
 use prost::{
     Message as _,
@@ -71,38 +67,21 @@ impl Display for RollupBlockHash {
 #[derive(Debug, Clone)]
 pub(crate) struct Bid {
     /// The fee that will be charged for this bid.
-    fee: u64,
+    // TODO: the protobuf is u64. We should probably also make it u128.
+    pub(crate) fee: u128,
     /// The byte list of transactions fto be included.
-    transactions: Vec<Bytes>,
+    pub(crate) transactions: Vec<Bytes>,
     /// The hash of the rollup block that this bid is based on.
-    rollup_parent_block_hash: RollupBlockHash,
+    pub(crate) rollup_parent_block_hash: RollupBlockHash,
     /// The hash of the sequencer block used to derive the rollup block that this bid is based
     /// on.
-    sequencer_parent_block_hash: block::Hash,
+    pub(crate) sequencer_parent_block_hash: block::Hash,
 }
 
 impl Bid {
-    pub(crate) fn try_from_raw(raw: raw::Bid) -> eyre::Result<Self> {
-        let raw::Bid {
-            fee,
-            transactions,
-            sequencer_parent_block_hash,
-            rollup_parent_block_hash,
-        } = raw;
-        Ok(Self {
-            fee,
-            transactions,
-            rollup_parent_block_hash: rollup_parent_block_hash.into(),
-            sequencer_parent_block_hash: sequencer_parent_block_hash
-                .as_ref()
-                .try_into()
-                .wrap_err("invalid field .sequencer_parent_block_hash")?,
-        })
-    }
-
     fn into_raw(self) -> raw::Bid {
         raw::Bid {
-            fee: self.fee,
+            fee: self.fee.try_into().unwrap_or(u64::MAX),
             transactions: self.transactions,
             sequencer_parent_block_hash: Bytes::copy_from_slice(
                 self.sequencer_parent_block_hash.as_bytes(),
@@ -137,16 +116,8 @@ impl Bid {
             .expect("failed to build transaction body")
     }
 
-    pub(crate) fn bid(&self) -> u64 {
+    pub(crate) fn amount(&self) -> u128 {
         self.fee
-    }
-
-    pub(crate) fn rollup_parent_block_hash(&self) -> &RollupBlockHash {
-        &self.rollup_parent_block_hash
-    }
-
-    pub(crate) fn sequencer_parent_block_hash(&self) -> &block::Hash {
-        &self.sequencer_parent_block_hash
     }
 }
 

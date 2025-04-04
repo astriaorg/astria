@@ -52,7 +52,6 @@ impl Factory {
         let height = block.height().into();
 
         // TODO: get the capacities from config or something instead of using a magic number
-        let (start_bids_tx, start_bids_rx) = oneshot::channel();
         let (start_timer_tx, start_timer_rx) = oneshot::channel();
         let (bids_tx, bids_rx) = mpsc::unbounded_channel();
 
@@ -60,7 +59,6 @@ impl Factory {
         let auction = Worker {
             sequencer_abci_client: self.sequencer_abci_client.clone(),
             sequencer_channel: self.sequencer_channel.clone(),
-            start_bids: Some(start_bids_rx),
             start_timer: Some(start_timer_rx),
             bids: bids_rx,
             latency_margin: self.latency_margin,
@@ -79,13 +77,11 @@ impl Factory {
             block_hash,
             height,
             hash_of_executed_block_on_rollup: None,
-            start_bids: Some(start_bids_tx),
             start_timer: Some(start_timer_tx),
             bids: bids_tx,
             cancellation_token,
             worker: tokio::task::spawn(auction.run()),
             metrics: self.metrics,
-            started_at: std::time::Instant::now(),
         }
     }
 

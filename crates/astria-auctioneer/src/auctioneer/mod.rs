@@ -1,6 +1,6 @@
 //! The Astria Auctioneer business logic.
 use std::{
-    sync::Arc,
+    future::Future,
     time::Duration,
 };
 
@@ -18,24 +18,26 @@ use astria_eyre::eyre::{
 };
 use futures::{
     stream::FuturesUnordered,
+    FutureExt as _,
     StreamExt as _,
 };
-use tokio::select;
+use tokio::{
+    select,
+    sync::watch,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::{
     error,
     field,
     info,
     instrument,
+    warn,
     Level,
     Span,
 };
 
 use crate::{
-    rollup_channel::{
-        BidStream,
-        ExecuteOptimisticBlockStream,
-    },
+    rollup_channel::ExecuteOptimisticBlockStream,
     sequencer_channel::{
         BlockCommitmentStream,
         ProposedBlockStream,
@@ -44,20 +46,108 @@ use crate::{
     Config,
 };
 
-mod auction;
+pub(crate) mod auction;
+pub(crate) use auction::Bidpipe;
+
+struct AuctionWithPipe {
+    auction: Option<auction::Auction>,
+    bid_pipe: watch::Sender<Option<auction::Bidpipe>>,
+}
+
+impl AuctionWithPipe {
+    fn new() -> Self {
+        Self {
+            auction: None,
+            bid_pipe: watch::channel(None).0,
+        }
+    }
+
+    fn abort(self) {
+        self.auction.as_ref().map(auction::Auction::abort);
+    }
+
+    fn close_pipe(&mut self) {
+        self.bid_pipe.send_replace(None);
+    }
+
+    fn replace(&mut self, new: auction::Auction) -> Option<auction::Auction> {
+        let old = self.auction.replace(new);
+        old.as_ref().map(auction::Auction::cancel);
+        self.close_pipe();
+        old
+    }
+
+    #[instrument(skip_all)]
+    fn start_bids(&mut self, executed_block: crate::block::Executed) -> eyre::Result<()> {
+        if let Some(running_auction) = &mut self.auction {
+            let bid_pipe = running_auction.start_bids(executed_block)?;
+            self.bid_pipe.send_replace(Some(bid_pipe));
+            info!(
+                auction_id = %running_auction.id(),
+                "set auction to start processing bids based on executed block",
+            );
+        } else {
+            info!(
+                "received an executed block but did not set auction to start processing bids \
+                 because no auction was running"
+            );
+        }
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    fn start_timer(&mut self, block_commitment: SequencerBlockCommit) -> eyre::Result<()> {
+        if let Some(auction) = &mut self.auction {
+            auction
+                .start_timer(block_commitment)
+                .wrap_err("failed to start timer")?;
+            info!(auction_id = %auction.id(), "started auction timer");
+        } else {
+            info!(
+                "received a block commitment but did not start auction timer because no auction \
+                 was running"
+            );
+        }
+        Ok(())
+    }
+
+    fn subscribe(&self) -> watch::Receiver<Option<auction::Bidpipe>> {
+        self.bid_pipe.subscribe()
+    }
+}
+
+impl Future for AuctionWithPipe {
+    type Output = Option<(auction::Id, Result<auction::Summary, auction::Error>)>;
+
+    fn poll(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        let Some(auct) = self.auction.as_mut() else {
+            return std::task::Poll::Ready(None);
+        };
+        let res = std::task::ready!(auct.poll_unpin(cx));
+        // The task ran to completion; this fuses it.
+        let _ = self.auction.take();
+        let _ = self.close_pipe();
+        std::task::Poll::Ready(Some(res))
+    }
+}
 
 /// The implementation of the auctioneer business logic.
 pub(super) struct Auctioneer {
     auction_factory: auction::Factory,
     block_commitments: BlockCommitmentStream,
-    bids: BidStream,
     cancelled_auctions: FuturesUnordered<auction::Auction>,
     metrics: &'static crate::Metrics,
     executed_blocks: ExecuteOptimisticBlockStream,
-    running_auction: Option<auction::Auction>,
+    jsonrpc_server: tokio::task::JoinHandle<eyre::Result<()>>,
+    orderpool: crate::orderpool::Orderpool,
+    running_auction: AuctionWithPipe,
     proposed_blocks: ProposedBlockStream,
     rollup_id: RollupId,
     shutdown_token: CancellationToken,
+    config: Config,
 }
 
 impl Auctioneer {
@@ -72,13 +162,15 @@ impl Auctioneer {
             sequencer_abci_endpoint,
             latency_margin_ms,
             rollup_grpc_endpoint,
+            rollup_ethereum_rpc_endpoint,
             rollup_id,
             sequencer_chain_id,
             sequencer_private_key_path,
             sequencer_address_prefix,
             fee_asset_denomination,
+            jsonrpc_listen_addr,
             ..
-        } = config;
+        } = config.clone();
 
         let rollup_id = RollupId::from_unhashed_bytes(rollup_id);
         let rollup_channel = crate::rollup_channel::open(&rollup_grpc_endpoint)?;
@@ -108,17 +200,36 @@ impl Auctioneer {
             metrics,
         };
 
+        // TODO: spawn the orderpool here.
+        let running_auction = AuctionWithPipe::new();
+        let orderpool = crate::orderpool::Orderpool::spawn(
+            shutdown_token.child_token(),
+            running_auction.subscribe(),
+            rollup_ethereum_rpc_endpoint,
+        );
+
+        let jsonrpc_server = crate::jsonrpc_server::Builder {
+            endpoint: jsonrpc_listen_addr,
+            cancellation_token: shutdown_token.child_token(),
+            to_orderpool: orderpool.sender().clone(),
+        }
+        .start();
+
         Ok(Self {
             auction_factory,
+
             block_commitments: sequencer_channel.open_get_block_commitment_stream(),
-            bids: rollup_channel.open_bid_stream(),
             cancelled_auctions: FuturesUnordered::new(),
             executed_blocks: rollup_channel.open_execute_optimistic_block_stream(),
+            jsonrpc_server,
             metrics,
+            orderpool,
             proposed_blocks: sequencer_channel.open_get_proposed_block_stream(rollup_id),
             rollup_id,
-            running_auction: None,
+            running_auction,
             shutdown_token,
+
+            config,
         })
     }
 
@@ -132,6 +243,7 @@ impl Auctioneer {
                     biased;
 
                     () = self.shutdown_token.clone().cancelled_owned() => {
+                        self.orderpool.cancel();
                         break Ok("received shutdown signal");
                     },
 
@@ -164,17 +276,20 @@ impl Auctioneer {
                 let _ = self.handle_executed_block(res);
             }
 
-            (id, res) = async { self.running_auction.as_mut().unwrap().await }, if self.running_auction.is_some() => {
+            Some((id, res)) = &mut self.running_auction => {
                 let _ = self.handle_completed_auction(id, res);
             }
 
-            Some(res) = self.bids.next() => {
-                let _ = self.handle_bids(res);
+            Some((id, res)) = self.cancelled_auctions.next() => {
+                let _ = self.handle_cancelled_auction(id, res);
             }
 
-             Some((id, res)) = self.cancelled_auctions.next() => {
-                 let _ = self.handle_cancelled_auction(id, res);
-             }
+            _res = &mut self.orderpool => {todo!("orderpool went down; exit hard")}
+
+            res = &mut self.jsonrpc_server => {
+                self.handle_jsonrpc_server_exited(res);
+            }
+
         );
         Ok(())
     }
@@ -196,7 +311,6 @@ impl Auctioneer {
         {
             self.auction_factory.set_last_successful_nonce(*nonce_used);
         }
-        let _ = self.running_auction.take();
         res
     }
 
@@ -229,7 +343,6 @@ impl Auctioneer {
         info!(auction_id = %new_auction.id(), "started new auction");
 
         if let Some(old_auction) = self.running_auction.replace(new_auction) {
-            old_auction.cancel();
             self.metrics.increment_auctions_cancelled_count();
             info!(auction_id = %old_auction.id(), "cancelled running auction");
             self.cancelled_auctions.push(old_auction);
@@ -256,18 +369,7 @@ impl Auctioneer {
         Span::current().record("block_hash", field::display(block_commitment.block_hash()));
 
         self.metrics.increment_block_commitments_received_counter();
-
-        if let Some(running_auction) = &mut self.running_auction {
-            running_auction
-                .start_timer(block_commitment)
-                .wrap_err("failed to start timer")?;
-            info!(auction_id = %running_auction.id(), "started auction timer");
-        } else {
-            info!(
-                "received a block commitment but did not start auction timer because no auction \
-                 was running"
-            );
-        }
+        self.running_auction.start_timer(block_commitment)?;
 
         Ok(())
     }
@@ -285,52 +387,31 @@ impl Auctioneer {
 
         self.metrics.increment_executed_blocks_received_counter();
 
-        if let Some(running_auction) = &mut self.running_auction {
-            running_auction
-                .start_bids(executed_block)
-                .wrap_err("failed to start processing bids")?;
-            info!(
-                auction_id = %running_auction.id(),
-                "set auction to start processing bids based on executed block",
-            );
-        } else {
-            info!(
-                "received an executed block but did not set auction to start processing bids \
-                 because no auction was running"
-            );
-        }
-        Ok(())
-    }
-
-    #[instrument(skip_all, fields(block_hash = field::Empty), err)]
-    fn handle_bids(&mut self, bid: eyre::Result<crate::bid::Bid>) -> eyre::Result<()> {
-        let bid = Arc::new(bid.wrap_err("received problematic bid")?);
-        Span::current().record(
-            "block_hash",
-            field::display(bid.sequencer_parent_block_hash()),
-        );
-
-        self.metrics.increment_auction_bids_received_counter();
-
-        if let Some(running_auction) = &mut self.running_auction {
-            running_auction
-                .forward_bid_to_auction(bid)
-                .wrap_err("failed to forward bid to auction")?;
-            info!(
-                auction_id = %running_auction.id(),
-                "forwarded bid auction"
-            );
-        } else {
-            info!(
-                "received a bid but did not forward it to the auction because no auction was \
-                 running",
-            );
-        }
+        self.running_auction.start_bids(executed_block)?;
         Ok(())
     }
 
     #[instrument(skip_all)]
-    async fn shutdown(mut self, reason: eyre::Result<&'static str>) -> eyre::Result<()> {
+    fn handle_jsonrpc_server_exited(
+        &mut self,
+        ret: Result<eyre::Result<()>, tokio::task::JoinError>,
+    ) {
+        match ret {
+            Ok(Ok(())) => warn!("jsonrpc server exited unexpectedly"),
+            Ok(Err(error)) => warn!(%error, "jsonrpc server exited with error"),
+            Err(error) => warn!(%error, "jsonrpc server panicked"),
+        }
+        self.jsonrpc_server = crate::jsonrpc_server::Builder {
+            cancellation_token: self.shutdown_token.child_token(),
+            endpoint: self.config.jsonrpc_listen_addr.clone(),
+            to_orderpool: self.orderpool.sender().clone(),
+        }
+        .start();
+        info!("spawned new jsonrpc server")
+    }
+
+    #[instrument(skip_all)]
+    async fn shutdown(self, reason: eyre::Result<&'static str>) -> eyre::Result<()> {
         const WAIT_BEFORE_ABORT: Duration = Duration::from_secs(25);
 
         // Necessary if we got here because of another reason than receiving an external
@@ -345,9 +426,7 @@ impl Auctioneer {
             Ok(reason) => info!(%reason, message),
             Err(reason) => error!(%reason, message),
         };
-        if let Some(running_auction) = self.running_auction.take() {
-            running_auction.abort();
-        }
+        self.running_auction.abort();
         reason.map(|_| ())
     }
 }

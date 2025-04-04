@@ -133,4 +133,8 @@ impl Executed {
         let bytes = self.block_metadata.hash().to_string().into_bytes().into();
         RollupBlockHash::new(bytes)
     }
+
+    pub(crate) fn rollup_block_number(&self) -> u64 {
+        self.block_metadata.number()
+    }
 }

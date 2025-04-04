@@ -21,7 +21,7 @@ bytes = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 hyper = { workspace = true }
-itertools = { workspace = true }
+itertools.workspace = true
 pbjson-types = { workspace = true }
 prost = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
@@ -44,6 +44,20 @@ http = { workspace = true }
 pin-project-lite = "0.2.15"
 tower = { workspace = true, features = ["util"] }
 tower-http = { workspace = true, features = ["map-response-body", "trace"] }
+alloy-consensus = "0.13.0"
+alloy-eips = "0.13.0"
+alloy-primitives = { version = "0.8.22", features = ["serde"] }
+alloy-provider = "0.13.0"
+alloy-rlp = "0.3.11"
+serde_with = "3.12.0"
+uuid = { version = "1.6.1", features = ["serde", "v5", "v4"] }
+gxhash = "3.5.0"
+indexmap.workspace = true
+jsonrpsee = { version = "0.24.9", features = ["server"] }
+papaya = "0.2.1"
+alloy-rpc-types-eth = "0.13.0"
+alloy = "0.13.0"
+jiff = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
 config = { package = "astria-config", path = "../astria-config", features = [
