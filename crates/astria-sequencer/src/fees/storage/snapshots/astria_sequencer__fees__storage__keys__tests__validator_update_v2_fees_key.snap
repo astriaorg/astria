@@ -1,5 +1,0 @@
----
-source: crates/astria-sequencer/src/fees/storage/keys.rs
-expression: VALIDATOR_UPDATE_V2
----
-fees/validator_update_v2
