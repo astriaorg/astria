@@ -800,7 +800,7 @@ impl<'de> serde::Deserialize<'de> for BridgeTransfer {
                             if rollup_block_number__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("rollupBlockNumber"));
                             }
-                            rollup_block_number__ =
+                            rollup_block_number__ = 
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
@@ -1001,7 +1001,7 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlock {
                             if rollup_block_number__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("rollupBlockNumber"));
                             }
-                            rollup_block_number__ =
+                            rollup_block_number__ = 
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
@@ -1871,7 +1871,7 @@ impl<'de> serde::Deserialize<'de> for IbcHeight {
                             if revision_number__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("revisionNumber"));
                             }
-                            revision_number__ =
+                            revision_number__ = 
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
@@ -1879,7 +1879,7 @@ impl<'de> serde::Deserialize<'de> for IbcHeight {
                             if revision_height__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("revisionHeight"));
                             }
-                            revision_height__ =
+                            revision_height__ = 
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
@@ -2314,7 +2314,7 @@ impl<'de> serde::Deserialize<'de> for Ics20Withdrawal {
                             if timeout_time__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("timeoutTime"));
                             }
-                            timeout_time__ =
+                            timeout_time__ = 
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
@@ -3060,7 +3060,7 @@ impl<'de> serde::Deserialize<'de> for RollupDataSubmission {
                             if data__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("data"));
                             }
-                            data__ =
+                            data__ = 
                                 Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
                             ;
                         }
@@ -3278,7 +3278,7 @@ impl<'de> serde::Deserialize<'de> for Transaction {
                             if signature__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("signature"));
                             }
-                            signature__ =
+                            signature__ = 
                                 Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
                             ;
                         }
@@ -3286,7 +3286,7 @@ impl<'de> serde::Deserialize<'de> for Transaction {
                             if public_key__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("publicKey"));
                             }
-                            public_key__ =
+                            public_key__ = 
                                 Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
                             ;
                         }
@@ -3506,7 +3506,7 @@ impl<'de> serde::Deserialize<'de> for TransactionParams {
                             if nonce__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("nonce"));
                             }
-                            nonce__ =
+                            nonce__ = 
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
@@ -3670,6 +3670,97 @@ impl<'de> serde::Deserialize<'de> for Transfer {
         deserializer.deserialize_struct("astria.protocol.transaction.v1.Transfer", FIELDS, GeneratedVisitor)
     }
 }
+impl serde::Serialize for UpdateMarketMapParams {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.params.is_some() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.UpdateMarketMapParams", len)?;
+        if let Some(v) = self.params.as_ref() {
+            struct_ser.serialize_field("params", v)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for UpdateMarketMapParams {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "params",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Params,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "params" => Ok(GeneratedField::Params),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = UpdateMarketMapParams;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transaction.v1.UpdateMarketMapParams")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<UpdateMarketMapParams, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut params__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Params => {
+                            if params__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("params"));
+                            }
+                            params__ = map_.next_value()?;
+                        }
+                    }
+                }
+                Ok(UpdateMarketMapParams {
+                    params: params__,
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transaction.v1.UpdateMarketMapParams", FIELDS, GeneratedVisitor)
+    }
+}
 impl serde::Serialize for ValidatorUpdate {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -3777,7 +3868,7 @@ impl<'de> serde::Deserialize<'de> for ValidatorUpdate {
                             if power__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("power"));
                             }
-                            power__ =
+                            power__ = 
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
@@ -3797,96 +3888,5 @@ impl<'de> serde::Deserialize<'de> for ValidatorUpdate {
             }
         }
         deserializer.deserialize_struct("astria.protocol.transaction.v1.ValidatorUpdate", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for UpdateMarketMapParams {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if self.params.is_some() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.UpdateMarketMapParams", len)?;
-        if let Some(v) = self.params.as_ref() {
-            struct_ser.serialize_field("params", v)?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for UpdateMarketMapParams {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "params",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            Params,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "params" => Ok(GeneratedField::Params),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = UpdateMarketMapParams;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.protocol.transaction.v1.UpdateMarketMapParams")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<UpdateMarketMapParams, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut params__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::Params => {
-                            if params__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("params"));
-                            }
-                            params__ = map_.next_value()?;
-                        }
-                    }
-                }
-                Ok(UpdateMarketMapParams {
-                    params: params__,
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.protocol.transaction.v1.UpdateMarketMapParams", FIELDS, GeneratedVisitor)
     }
 }
