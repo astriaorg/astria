@@ -378,6 +378,7 @@ async fn app_execute_transaction_validator_update() {
     let mut app = initialize_app(Some(genesis_state())).await;
 
     let update = ValidatorUpdate {
+        name: String::new(),
         power: 100,
         verification_key: verification_key(1),
     };
@@ -395,7 +396,7 @@ async fn app_execute_transaction_validator_update() {
         1
     );
 
-    let validator_updates = app.state.get_validator_updates().await.unwrap();
+    let validator_updates = app.state.get_block_validator_updates().await.unwrap();
     assert_eq!(validator_updates.len(), 1);
     assert_eq!(
         validator_updates.get(verification_key(1).address_bytes()),
