@@ -10,10 +10,7 @@ use tendermint::abci::{
     Code,
 };
 
-use crate::{
-    accounts::AddressBytes,
-    authority::state_ext::StateReadExt as _,
-};
+use crate::authority::state_ext::StateReadExt as _;
 
 pub(crate) async fn validator_name_request(
     storage: Storage,
@@ -27,12 +24,12 @@ pub(crate) async fn validator_name_request(
 
     let snapshot = storage.latest_snapshot();
 
-    match snapshot.get_validator_name(address.as_bytes()).await {
-        Ok(Some(name)) => {
+    match snapshot.get_validator(address.as_bytes()).await {
+        Ok(Some(validator)) => {
             return response::Query {
                 code: Code::Ok,
                 key: request.path.clone().into_bytes().into(),
-                value: name.clone().into_bytes().into(),
+                value: validator.name.clone().into_bytes().into(),
                 ..response::Query::default()
             };
         }
@@ -41,34 +38,22 @@ pub(crate) async fn validator_name_request(
             return error_query_response(
                 Some(err),
                 AbciErrorCode::INTERNAL_ERROR,
-                "failed to get validator names",
+                "failed to get validator",
             );
         }
     };
 
-    let validator_set = match snapshot.get_validator_set().await {
-        Ok(validator_set) => validator_set,
-        Err(err) => {
-            return error_query_response(
-                Some(err),
-                AbciErrorCode::INTERNAL_ERROR,
-                "failed to get validator set",
-            );
-        }
-    };
-
-    if validator_set.get(address.address_bytes()).is_none() {
-        error_query_response(
+    match snapshot._pre_aspen_get_validator_set().await {
+        Ok(_) => error_query_response(
+            None,
+            AbciErrorCode::BAD_REQUEST,
+            "validator names are only supported post Aspen upgrade",
+        ),
+        Err(_) => error_query_response(
             None,
             AbciErrorCode::VALUE_NOT_FOUND,
-            "validator address not found in validator set",
-        )
-    } else {
-        error_query_response(
-            None,
-            AbciErrorCode::VALUE_NOT_FOUND,
-            "validator address exists but does not have a name",
-        )
+            "provided address is not a validator",
+        ),
     }
 }
 
@@ -154,9 +139,7 @@ mod tests {
             verification_key,
         };
 
-        state
-            .put_validator_name(&key_address_bytes, update_with_name.name)
-            .unwrap();
+        state.put_validator(&update_with_name).unwrap();
         storage.commit(state).await.unwrap();
 
         let query = request::Query {
@@ -177,12 +160,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn validator_name_request_fails_if_not_in_validator_set() {
+    async fn validator_name_request_fails_if_not_a_validator() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        let verification_key = verification_key(1);
 
         let query = request::Query {
             data: vec![].into(),
@@ -197,59 +176,29 @@ mod tests {
             astria_address(&[0u8; 20]).to_string(),
         )];
 
-        let inner_update = ValidatorUpdate {
-            power: 100,
-            verification_key,
-            name: "test".to_string(),
-        };
-
         let rsp = validator_name_request(storage.clone(), query.clone(), params.clone()).await;
-        assert_eq!(
-            rsp.code.value(),
-            u32::from(AbciErrorCode::INTERNAL_ERROR.value()),
-            "{}",
-            rsp.log
-        );
-        let err_msg = "failed to get validator set: validator set not found";
-        assert_eq!(rsp.log, err_msg);
-
-        let inner_validator_map = BTreeMap::new();
-        let mut validator_set = ValidatorSet::new(inner_validator_map);
-        assert_eq!(validator_set.len(), 0);
-        validator_set.insert(inner_update);
-        state.put_validator_set(validator_set).unwrap();
-        storage.commit(state).await.unwrap();
-
-        let rsp = validator_name_request(storage.clone(), query, params).await;
         assert_eq!(
             rsp.code.value(),
             u32::from(AbciErrorCode::VALUE_NOT_FOUND.value()),
             "{}",
             rsp.log
         );
-        let err_msg = "validator address not found in validator set";
+        let err_msg = "provided address is not a validator";
         assert_eq!(rsp.log, err_msg);
     }
 
     #[tokio::test]
-    async fn validator_name_request_fails_if_validator_has_no_name() {
+    async fn validator_name_request_fails_if_pre_aspen() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
         let verification_key = verification_key(1);
         let key_address_bytes = *verification_key.clone().address_bytes();
-        let inner_update = ValidatorUpdate {
-            power: 100,
-            verification_key,
-            name: "test".to_string(),
-        };
 
-        let inner_validator_map = BTreeMap::new();
-        let mut validator_set = ValidatorSet::new(inner_validator_map);
-        assert_eq!(validator_set.len(), 0);
-        validator_set.insert(inner_update);
-        state.put_validator_set(validator_set).unwrap();
+        state
+            ._pre_aspen_put_validator_set(ValidatorSet::new(BTreeMap::new()))
+            .unwrap();
         storage.commit(state).await.unwrap();
 
         let query = request::Query {
@@ -258,19 +207,19 @@ mod tests {
             height: 0u32.into(),
             prove: false,
         };
-
         let params = vec![(
             "address".to_string(),
             astria_address(&key_address_bytes).to_string(),
         )];
-        let rsp = validator_name_request(storage.clone(), query, params).await;
+
+        let rsp = validator_name_request(storage.clone(), query.clone(), params.clone()).await;
         assert_eq!(
             rsp.code.value(),
-            u32::from(AbciErrorCode::VALUE_NOT_FOUND.value()),
+            u32::from(AbciErrorCode::BAD_REQUEST.value()),
             "{}",
             rsp.log
         );
-        let err_msg = "validator address exists but does not have a name";
+        let err_msg = "validator names are only supported post Aspen upgrade";
         assert_eq!(rsp.log, err_msg);
     }
 }

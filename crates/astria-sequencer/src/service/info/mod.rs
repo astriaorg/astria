@@ -584,12 +584,7 @@ mod tests {
             name: "validator_name".to_string(),
         };
 
-        state
-            .put_validator_name(
-                verification_key.address_bytes(),
-                validator_update.name.clone(),
-            )
-            .unwrap();
+        state.put_validator(&validator_update).unwrap();
 
         storage.commit(state).await.unwrap();
 

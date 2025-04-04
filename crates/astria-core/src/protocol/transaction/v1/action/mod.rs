@@ -305,6 +305,12 @@ impl From<PriceFeed> for Action {
     }
 }
 
+impl From<ValidatorUpdate> for Action {
+    fn from(value: ValidatorUpdate) -> Self {
+        Self::ValidatorUpdate(value)
+    }
+}
+
 impl From<Action> for raw::Action {
     fn from(value: Action) -> Self {
         value.into_raw()
