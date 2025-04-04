@@ -284,6 +284,15 @@ pub(crate) trait StateWriteExt: StateWrite {
             .serialize()
             .context("failed to serialize withdrawal event block height")?;
         self.put_raw(key, bytes);
+        let abci_event = tendermint::abci::Event::new(
+            "tx.withdrawal",
+            [
+                ("bridgeAddress", address.to_string()),
+                ("rollupWithdrawalEventId", withdrawal_event_id),
+                ("rollupBlockNum", block_num.to_string()),
+            ],
+        );
+        self.record(abci_event);
         Ok(())
     }
 
