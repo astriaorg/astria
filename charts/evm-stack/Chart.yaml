@@ -30,7 +30,7 @@ dependencies:
     repository: "file://../flame-rollup"
     condition: flame-rollup.enabled
   - name: composer
-    version: 1.0.1
+    version: 1.0.2
     repository: "file://../composer"
     condition: composer.enabled
   - name: auctioneer
