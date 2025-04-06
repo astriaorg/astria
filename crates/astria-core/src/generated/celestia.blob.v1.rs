@@ -311,9 +311,7 @@ pub mod query_server {
                 }
                 _ => {
                     Box::pin(async move {
-                        let mut response = http::Response::new(
-                            tonic::body::BoxBody::default(),
-                        );
+                        let mut response = http::Response::new(empty_body());
                         let headers = response.headers_mut();
                         headers
                             .insert(

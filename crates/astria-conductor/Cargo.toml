@@ -47,7 +47,8 @@ thiserror = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
 tokio-util = { workspace = true, features = ["rt"] }
 tonic = { workspace = true, features = ["tls", "tls-roots"] }
-tower = { workspace = true, features = ["buffer", "limit"] }
+# tower = { workspace = true, features = ["buffer", "limit"] }
+tower = { version = "0.5.2", features = ["buffer", "limit"] }
 tracing = { workspace = true, features = ["valuable"] }
 tryhard = { workspace = true }
 
