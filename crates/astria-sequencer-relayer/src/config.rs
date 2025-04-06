@@ -18,11 +18,6 @@ use serde::{
     Serialize,
 };
 
-#[expect(
-    clippy::struct_excessive_bools,
-    reason = "this is used as a container for deserialization. Making this a builder-pattern is \
-              not actionable"
-)]
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 /// The single config for creating an astria-sequencer-relayer service.
 pub struct Config {

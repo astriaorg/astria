@@ -117,11 +117,11 @@ impl SequencerRelayer {
         let shutdown = select!(
             o = &mut api_task => {
                 report_exit("api server", o);
-                Shutdown { api_task: None, relayer_task: Some(relayer_task), api_shutdown_token, shutdown_handle }
+                Shutdown { api_task: None, relayer_task: Some(relayer_task), api_shutdown_token, handle: shutdown_handle }
             }
             o = &mut relayer_task => {
                 report_exit("relayer worker", o);
-                Shutdown { api_task: Some(api_task), relayer_task: None, api_shutdown_token, shutdown_handle }
+                Shutdown { api_task: Some(api_task), relayer_task: None, api_shutdown_token, handle: shutdown_handle }
             }
 
         );
@@ -203,7 +203,7 @@ struct Shutdown {
     api_task: Option<JoinHandle<eyre::Result<()>>>,
     api_shutdown_token: CancellationToken,
     relayer_task: Option<JoinHandle<eyre::Result<()>>>,
-    shutdown_handle: ShutdownHandle,
+    handle: ShutdownHandle,
 }
 
 impl Shutdown {
@@ -213,9 +213,9 @@ impl Shutdown {
             api_task,
             api_shutdown_token,
             relayer_task,
-            shutdown_handle,
+            handle,
         } = self;
-        shutdown_handle.shutdown();
+        handle.shutdown();
         // Giving relayer 25 seconds to shutdown because Kubernetes issues a SIGKILL after 30.
         if let Some(mut relayer_task) = relayer_task {
             info!("waiting for relayer task to shut down");
