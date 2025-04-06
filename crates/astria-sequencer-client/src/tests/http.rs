@@ -182,7 +182,7 @@ async fn get_latest_nonce() {
     let _guard = register_abci_query_response(
         &server,
         &format!("accounts/nonce/{}", alice_address()),
-        expected_response.clone(),
+        expected_response,
     )
     .await;
 
