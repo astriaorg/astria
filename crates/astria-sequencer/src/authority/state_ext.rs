@@ -49,7 +49,7 @@ fn validator_key(address: &[u8]) -> String {
 }
 
 pin_project! {
-    /// A stream of all validator updates
+    /// A stream of all existing validators in state.
     pub(crate) struct ValidatorStream<St> {
         #[pin]
         underlying: St,
@@ -114,7 +114,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid validator update bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_validator(&self, validator: &[u8]) -> Result<Option<ValidatorUpdate>> {
         let Some(bytes) = self
             .get_raw(&validator_key(validator))
@@ -134,7 +134,7 @@ pub(crate) trait StateReadExt: StateRead {
         .transpose()
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_validator_count(&self) -> Result<u64> {
         let Some(bytes) = self
             .nonverifiable_get_raw(keys::VALIDATOR_COUNT.as_bytes())
@@ -574,7 +574,6 @@ mod tests {
         );
     }
 
-    // TODO: Add tests for new validator methods
     #[tokio::test]
     async fn validator_count_round_trip() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
@@ -585,7 +584,7 @@ mod tests {
         let _ = state
             .get_validator_count()
             .await
-            .expect_err("no sudo address should exist at first");
+            .expect_err("no validator count should exist at first");
 
         // can write new
         let mut count_expected = 8;

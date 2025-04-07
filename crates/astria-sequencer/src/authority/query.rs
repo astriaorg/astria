@@ -33,7 +33,7 @@ pub(crate) async fn validator_name_request(
                 ..response::Query::default()
             };
         }
-        Ok(None) => {}
+        Ok(None) => {} // Don't return immediately, more specific error provided below
         Err(err) => {
             return error_query_response(
                 Some(err),
@@ -114,7 +114,7 @@ mod tests {
     use crate::{
         authority::{
             query::validator_name_request,
-            StateWriteExt,
+            StateWriteExt as _,
             ValidatorSet,
         },
         benchmark_and_test_utils::{
