@@ -42,8 +42,8 @@ tokio-stream = { workspace = true, features = ["sync"] }
 
 http = { workspace = true }
 pin-project-lite = "0.2.15"
-tower = { version = "0.5.2", features = ["util"] }
-tower-http = { version = "0.6.2", features = ["map-response-body", "trace"] }
+tower = { workspace = true, features = ["util"] }
+tower-http = { workspace = true, features = ["map-response-body", "trace"] }
 
 [dev-dependencies]
 config = { package = "astria-config", path = "../astria-config", features = [
