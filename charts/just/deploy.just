@@ -108,6 +108,7 @@ sequencer name=validatorName:
   @helm install \
     -f dev/values/validators/all.yml \
     -f dev/values/validators/{{name}}.yml \
+    -f dev/values/validators/aspen.upgrade.yml \
     -n astria-validator-{{name}} --create-namespace \
     {{name}}-sequencer-chart charts/sequencer
   @echo "Waiting for sequencer to become ready..."
@@ -260,6 +261,7 @@ smoke-test tag=defaultTag:
     -n astria-validator-single single-sequencer-chart charts/sequencer \
     -f dev/values/validators/all.yml \
     -f dev/values/validators/single.yml \
+    -f dev/values/validators/aspen.upgrade.yml \
     {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
   @just deploy::wait-for-sequencer
@@ -288,6 +290,7 @@ smoke-cli tag=defaultTag:
     -n astria-validator-single single-sequencer-chart charts/sequencer \
     -f dev/values/validators/all.yml \
     -f dev/values/validators/single.yml \
+    -f dev/values/validators/aspen.upgrade.yml \
     {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
   @just deploy::wait-for-sequencer
@@ -318,6 +321,7 @@ ibc-test tag=defaultTag:
     -n astria-validator-single single-sequencer-chart charts/sequencer \
     -f dev/values/validators/all.yml \
     -f dev/values/validators/single.yml \
+    -f dev/values/validators/aspen.upgrade.yml \
     {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart charts/evm-stack \
@@ -349,6 +353,7 @@ ibc-test-without-native tag=defaultTag:
     -n astria-validator-single single-sequencer-chart charts/sequencer \
     -f dev/values/validators/all-without-native.yml \
     -f dev/values/validators/single.yml \
+    -f dev/values/validators/aspen.upgrade.yml \
     {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
   @echo "Deploying Hermes..."
@@ -374,6 +379,7 @@ ibc-test-timeout-refund tag=defaultTag:
     -n astria-validator-single single-sequencer-chart charts/sequencer \
     -f dev/values/validators/all.yml \
     -f dev/values/validators/single.yml \
+    -f dev/values/validators/aspen.upgrade.yml \
     {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart charts/evm-stack \

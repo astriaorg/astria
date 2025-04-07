@@ -306,7 +306,7 @@ class SequencerController:
             # and genesis.json without upgraded configs.  Also enable persistent storage.
             args.append("--set=storage.enabled=true")
             args.append("--set=sequencer-relayer.storage.enabled=true")
-            args.append(f"--values=dev/values/validators/{upgrade_name}.upgrades.yml")
+            args.append(f"--values=dev/values/validators/{upgrade_name}.upgrade.yml")
             # If we know the activation height of the upgrade, add it to the relevant upgrade's
             # settings for inclusion in the upgrades.json file.
             if upgrade_activation_height:

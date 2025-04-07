@@ -25,10 +25,7 @@ use tendermint::{
         types::CommitInfo,
     },
     account,
-    block::{
-        Height,
-        Round,
-    },
+    block::Round,
     Hash,
     Time,
 };
@@ -50,6 +47,7 @@ use crate::{
 async fn trigger_cleaning() {
     // check that cleaning is triggered by the prepare, process, and finalize block flows
     let (mut app, storage) = AppInitializer::new().init().await;
+    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
 
     // create tx which will cause mempool cleaning flag to be set
     let tx_trigger = TransactionBody::builder()
@@ -83,7 +81,7 @@ async fn trigger_cleaning() {
             round: 0u16.into(),
         }),
         misbehavior: vec![],
-        height: Height::default(),
+        height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: account::Id::new([1u8; 20]),
@@ -99,7 +97,6 @@ async fn trigger_cleaning() {
     assert!(!app.recost_mempool, "flag should start out false");
 
     // trigger with process_proposal
-    let height = tendermint::block::Height::from(2_u8);
     let txs = transactions_with_extended_commit_info_and_commitments(
         height,
         &[Arc::new(tx_trigger)],
@@ -151,6 +148,7 @@ async fn trigger_cleaning() {
 #[tokio::test]
 async fn do_not_trigger_cleaning() {
     let (mut app, storage) = AppInitializer::new().init().await;
+    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
 
     // create tx which will fail execution and not trigger flag
     // (wrong sudo signer)
@@ -183,7 +181,7 @@ async fn do_not_trigger_cleaning() {
             round: 0u16.into(),
         }),
         misbehavior: vec![],
-        height: Height::default(),
+        height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: account::Id::new([1u8; 20]),
@@ -219,6 +217,7 @@ async fn maintenance_recosting_promotes() {
         .with_genesis_state(only_alice_funds_genesis_state.try_into().unwrap())
         .init()
         .await;
+    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
 
     // create tx which will not be included in block due to
     // having insufficient funds (transaction will be recosted to enable)
@@ -271,7 +270,6 @@ async fn maintenance_recosting_promotes() {
     assert_eq!(app.mempool.len().await, 2, "two txs in mempool");
 
     // create block with prepare_proposal
-    let height = tendermint::block::Height::from(2_u8);
     let prepare_args = abci::request::PrepareProposal {
         max_tx_bytes: 200_000,
         txs: vec![],
@@ -400,6 +398,7 @@ async fn maintenance_funds_added_promotes() {
         .with_genesis_state(only_alice_funds_genesis_state.try_into().unwrap())
         .init()
         .await;
+    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
 
     // create tx that will not be included in block due to
     // having no funds (will be sent transfer to then enable)
@@ -454,7 +453,6 @@ async fn maintenance_funds_added_promotes() {
         .unwrap();
 
     // create block with prepare_proposal
-    let height = tendermint::block::Height::from(2_u8);
     let prepare_args = abci::request::PrepareProposal {
         max_tx_bytes: 200_000,
         txs: vec![],

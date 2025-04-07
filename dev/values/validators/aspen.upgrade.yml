@@ -2,7 +2,7 @@ upgrades:
   aspen:
     enabled: true
     baseInfo:
-      activationHeight: 60
+      activationHeight: 1
       appVersion: 2
     priceFeed:
       nextId: "2"

@@ -16,10 +16,7 @@ use tendermint::{
 
 use crate::{
     app::{
-        benchmark_and_test_utils::{
-            default_consensus_params,
-            get_test_genesis_state,
-        },
+        benchmark_and_test_utils::get_test_genesis_state,
         test_utils::MockTxBuilder,
         App,
     },
@@ -53,7 +50,6 @@ async fn future_nonces_are_accepted() {
         get_test_genesis_state(),
         vec![],
         "test".to_string(),
-        default_consensus_params(),
     )
     .await
     .unwrap();
@@ -97,7 +93,6 @@ async fn rechecks_pass() {
         get_test_genesis_state(),
         vec![],
         "test".to_string(),
-        default_consensus_params(),
     )
     .await
     .unwrap();
@@ -149,7 +144,6 @@ async fn can_reinsert_after_recheck_fail() {
         get_test_genesis_state(),
         vec![],
         "test".to_string(),
-        default_consensus_params(),
     )
     .await
     .unwrap();
@@ -211,7 +205,6 @@ async fn recheck_adds_non_tracked_tx() {
         get_test_genesis_state(),
         vec![],
         "test".to_string(),
-        default_consensus_params(),
     )
     .await
     .unwrap();

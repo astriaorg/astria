@@ -146,57 +146,5 @@ expression: genesis_state()
       "base": {},
       "multiplier": {}
     }
-  },
-  "priceFeed": {
-    "marketMap": {
-      "marketMap": {
-        "markets": {
-          "ETH/USD": {
-            "ticker": {
-              "currencyPair": {
-                "Base": "ETH",
-                "Quote": "USD"
-              },
-              "decimals": "8",
-              "minProviderCount": "3",
-              "enabled": true
-            },
-            "providerConfigs": [
-              {
-                "name": "coingecko_api",
-                "offChainTicker": "ethereum/usd",
-                "normalizeByPair": {
-                  "Base": "USDT",
-                  "Quote": "USD"
-                }
-              }
-            ]
-          }
-        }
-      },
-      "params": {
-        "marketAuthorities": [
-          "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm",
-          "astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z"
-        ],
-        "admin": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
-      }
-    },
-    "oracle": {
-      "currencyPairGenesis": [
-        {
-          "currencyPair": {
-            "Base": "ETH",
-            "Quote": "USD"
-          },
-          "currencyPairPrice": {
-            "price": "3138872234",
-            "blockTimestamp": "2024-07-04T19:46:35+00:00"
-          },
-          "id": "1"
-        }
-      ],
-      "nextId": "1"
-    }
   }
 }
