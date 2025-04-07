@@ -191,7 +191,6 @@ impl Consensus {
                         "failed converting cometbft genesis validators to astria validators",
                     )?,
                 init_chain.chain_id,
-                init_chain.consensus_params.clone(),
             )
             .await
             .wrap_err("failed to call init_chain")?;
@@ -291,6 +290,10 @@ mod tests {
             SigningKey,
             VerificationKey,
         },
+        generated::astria::protocol::genesis::v1::{
+            Account as RawAccount,
+            GenesisAppState as RawGenesisAppState,
+        },
         primitive::v1::RollupId,
         protocol::transaction::v1::{
             action::RollupDataSubmission,
@@ -298,12 +301,10 @@ mod tests {
             TransactionBody,
         },
         sequencerblock::v1::DataItem,
-        upgrades::v1::Upgrades,
         Protobuf as _,
     };
     use bytes::Bytes;
     use rand::rngs::OsRng;
-    use telemetry::Metrics as _;
     use tendermint::{
         abci::types::{
             CommitInfo,
@@ -318,17 +319,21 @@ mod tests {
     use crate::{
         app::{
             benchmark_and_test_utils::{
-                default_consensus_params,
                 mock_balances,
                 mock_tx_cost,
+                proto_genesis_state,
+                AppInitializer,
             },
-            test_utils::transactions_with_extended_commit_info_and_commitments,
+            test_utils::{
+                run_until_aspen_applied,
+                transactions_with_extended_commit_info_and_commitments,
+            },
         },
+        benchmark_and_test_utils::astria_address,
         mempool::Mempool,
-        metrics::Metrics,
     };
 
-    const BLOCK_HEIGHT: u8 = 2;
+    const BLOCK_HEIGHT: u8 = 100;
 
     fn make_unsigned_tx() -> TransactionBody {
         TransactionBody::builder()
@@ -374,6 +379,34 @@ mod tests {
             time: Time::now(),
             proposer_address: Id::from_str("0CDA3F47EF3C4906693B170EF650EB968C5F4B2C").unwrap(),
         }
+    }
+
+    async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
+        let accounts = funded_key
+            .into_iter()
+            .map(|funded_key| RawAccount {
+                address: Some(astria_address(funded_key.address_bytes()).to_raw()),
+                balance: Some(10u128.pow(19).into()),
+            })
+            .collect();
+        let genesis_state = RawGenesisAppState {
+            accounts,
+            ..proto_genesis_state()
+        }
+        .try_into()
+        .unwrap();
+
+        let (mut app, storage) = AppInitializer::new()
+            .with_genesis_state(genesis_state)
+            .init()
+            .await;
+        let _ = run_until_aspen_applied(&mut app, storage.clone()).await;
+
+        let (_tx, rx) = mpsc::channel(1);
+        let cancellation_token = tokio_util::sync::CancellationToken::new();
+        let mempool = app.mempool();
+        let consensus = Consensus::new(storage.clone(), app, rx, cancellation_token);
+        (consensus, mempool)
     }
 
     #[tokio::test]
@@ -520,60 +553,6 @@ mod tests {
             .handle_process_proposal(process_proposal)
             .await
             .unwrap();
-    }
-
-    async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
-        let accounts = if let Some(funded_key) = funded_key {
-            vec![
-                astria_core::generated::astria::protocol::genesis::v1::Account {
-                    address: Some(
-                        crate::benchmark_and_test_utils::astria_address(funded_key.address_bytes())
-                            .to_raw(),
-                    ),
-                    balance: Some(10u128.pow(19).into()),
-                },
-            ]
-        } else {
-            vec![]
-        };
-        let genesis_state = {
-            let mut state = crate::app::benchmark_and_test_utils::proto_genesis_state();
-            state.accounts = accounts;
-            state
-        }
-        .try_into()
-        .unwrap();
-
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
-        let mut app = App::new(
-            snapshot,
-            mempool.clone(),
-            Upgrades::default().into(),
-            crate::app::vote_extension::Handler::new(None),
-            metrics,
-        )
-        .await
-        .unwrap();
-        app.init_chain(
-            storage.clone(),
-            genesis_state,
-            vec![],
-            "test".to_string(),
-            default_consensus_params(),
-        )
-        .await
-        .unwrap();
-        app.commit(storage.clone()).await.unwrap();
-
-        let (_tx, rx) = mpsc::channel(1);
-        let cancellation_token = tokio_util::sync::CancellationToken::new();
-        (
-            Consensus::new(storage.clone(), app, rx, cancellation_token),
-            mempool,
-        )
     }
 
     #[tokio::test]

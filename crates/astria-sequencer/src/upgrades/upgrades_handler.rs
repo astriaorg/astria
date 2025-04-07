@@ -41,10 +41,7 @@ use crate::{
         StateReadExt,
         StateWriteExt,
     },
-    oracles::price_feed::{
-        market_map::component::MarketMapComponent,
-        oracle::component::OracleComponent,
-    },
+    oracles::price_feed,
 };
 
 pub(crate) struct UpgradesHandler {
@@ -167,7 +164,7 @@ impl UpgradesHandler {
     /// storage.
     ///
     /// Returns an empty `Vec` if no upgrade was executed.
-    pub(crate) fn execute_upgrade_if_due<S: StateWrite>(
+    pub(crate) async fn execute_upgrade_if_due<S: StateWrite>(
         &mut self,
         mut state: S,
         block_height: tendermint::block::Height,
@@ -196,11 +193,13 @@ impl UpgradesHandler {
             reason = "will become refutable once we have more than one upgrade variant"
         )]
         if let Upgrade::Aspen(aspen) = upgrade {
-            let genesis_state = aspen.price_feed_change().genesis();
-            MarketMapComponent::handle_genesis(&mut state, genesis_state.market_map())
+            let market_map_genesis = aspen.price_feed_change().market_map_genesis();
+            price_feed::market_map::handle_genesis(&mut state, market_map_genesis.as_ref())
+                .await
                 .wrap_err("failed to handle market map genesis")?;
             info!("handled market map genesis");
-            OracleComponent::handle_genesis(state, genesis_state.oracle())
+            let oracle_genesis = aspen.price_feed_change().oracle_genesis();
+            price_feed::oracle::handle_genesis(&mut state, oracle_genesis.as_ref())
                 .wrap_err("failed to handle oracle genesis")?;
             info!("handled oracle genesis");
         }
