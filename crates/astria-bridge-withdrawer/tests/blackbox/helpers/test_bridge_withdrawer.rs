@@ -96,6 +96,7 @@ static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
     } else {
         telemetry::configure()
             .set_no_otel(true)
+            .set_stdout_writer(std::io::sink)
             .try_init::<Metrics>(&())
             .unwrap();
     }

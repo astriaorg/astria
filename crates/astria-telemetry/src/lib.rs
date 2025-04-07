@@ -34,7 +34,11 @@ use tracing_subscriber::{
         LevelFilter,
         ParseError,
     },
-    fmt::format::FmtSpan,
+    fmt::{
+        format::FmtSpan,
+        writer::BoxMakeWriter,
+        MakeWriter,
+    },
     layer::SubscriberExt as _,
     util::{
         SubscriberInitExt as _,
@@ -95,6 +99,7 @@ pub struct Config {
     filter_directives: String,
     force_stdout: bool,
     no_otel: bool,
+    stdout_writer: BoxMakeWriter,
     metrics_config_builder: Option<metrics::ConfigBuilder>,
 }
 
@@ -105,6 +110,7 @@ impl Config {
             filter_directives: String::new(),
             force_stdout: false,
             no_otel: false,
+            stdout_writer: BoxMakeWriter::new(std::io::stdout),
             metrics_config_builder: None,
         }
     }
@@ -138,6 +144,15 @@ impl Config {
         self
     }
 
+    #[must_use = "telemetry must be initialized to be useful"]
+    pub fn set_stdout_writer<M>(mut self, stdout_writer: M) -> Self
+    where
+        M: for<'a> MakeWriter<'a> + Send + Sync + 'static,
+    {
+        self.stdout_writer = BoxMakeWriter::new(stdout_writer);
+        self
+    }
+
     /// Initialize telemetry, consuming the config.
     ///
     /// # Errors
@@ -148,6 +163,7 @@ impl Config {
             filter_directives,
             force_stdout,
             no_otel,
+            stdout_writer,
             metrics_config_builder,
         } = self;
 
@@ -180,7 +196,8 @@ impl Config {
             formatter = Some(
                 tracing_subscriber::fmt::layer()
                     .compact()
-                    .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE),
+                    .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
+                    .with_writer(stdout_writer),
             );
         }
         let tracer_provider = tracer_provider.build();

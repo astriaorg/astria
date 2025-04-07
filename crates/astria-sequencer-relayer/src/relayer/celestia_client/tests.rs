@@ -57,6 +57,7 @@ fn new_msg_pay_for_blobs_should_fail_for_large_blob() {
         share_version: 0,
         commitment: Commitment::new([0; 32]),
         index: None,
+        signer: None,
     };
     let error = new_msg_pay_for_blobs(&[blob], Bech32Address("a".to_string())).unwrap_err();
 
