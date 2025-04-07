@@ -48,7 +48,7 @@ impl Command {
         let validator_update = ValidatorUpdate {
             power: self.power,
             verification_key,
-            name: self.name.unwrap_or(String::new()),
+            name: self.name.unwrap_or_default(),
         };
 
         let res = submit_transaction(
