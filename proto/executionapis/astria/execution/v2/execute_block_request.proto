@@ -2,7 +2,7 @@ syntax = 'proto3';
 
 package astria.execution.v2;
 
-import "astria/sequencerblock/v1/block.proto";
+import "astria/sequencerblock/v1/rollup_data.proto";
 import "google/protobuf/timestamp.proto";
 
 // ExecuteBlockRequest contains all the information needed to create a new rollup

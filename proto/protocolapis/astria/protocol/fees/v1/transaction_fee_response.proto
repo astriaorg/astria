@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package astria.protocol.fees.v1;
+
+import "astria/protocol/fees/v1/transaction_fee.proto";
+
+// Response to a transaction fee ABCI query.
+message TransactionFeeResponse {
+  uint64 height = 2;
+  repeated astria.protocol.fees.v1.TransactionFee fees = 3;
+}

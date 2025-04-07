@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package astria.sequencerblock.optimistic.v1alpha1;
+
+import "astria/sequencerblock/v1/filtered_sequencer_block.proto";
+
+message GetOptimisticBlockStreamResponse {
+  // The optimistic Sequencer block that is being streamed, filtered for the provided rollup id.
+  astria.sequencerblock.v1.FilteredSequencerBlock block = 1;
+}

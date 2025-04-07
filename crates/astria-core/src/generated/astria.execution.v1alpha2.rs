@@ -1,22 +1,38 @@
-/// GenesisInfo contains the information needed to start a rollup chain.
-///
-/// This information is used to determine which sequencer & celestia data to
-/// use from the Astria & Celestia networks.
+/// Fields which are indexed for finding blocks on a blockchain.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GenesisInfo {
-    /// The rollup_id is the unique identifier for the rollup chain.
-    #[prost(message, optional, tag = "1")]
-    pub rollup_id: ::core::option::Option<super::super::primitive::v1::RollupId>,
-    /// The first block height of sequencer chain to use for rollup transactions.
-    #[prost(uint32, tag = "2")]
-    pub sequencer_genesis_block_height: u32,
-    /// The allowed variance in celestia for sequencer blocks to have been posted.
-    #[prost(uint64, tag = "4")]
-    pub celestia_block_variance: u64,
+pub struct BlockIdentifier {
+    #[prost(oneof = "block_identifier::Identifier", tags = "1, 2")]
+    pub identifier: ::core::option::Option<block_identifier::Identifier>,
 }
-impl ::prost::Name for GenesisInfo {
-    const NAME: &'static str = "GenesisInfo";
+/// Nested message and enum types in `BlockIdentifier`.
+pub mod block_identifier {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Identifier {
+        #[prost(uint32, tag = "1")]
+        BlockNumber(u32),
+        #[prost(bytes, tag = "2")]
+        BlockHash(::prost::bytes::Bytes),
+    }
+}
+impl ::prost::Name for BlockIdentifier {
+    const NAME: &'static str = "BlockIdentifier";
+    const PACKAGE: &'static str = "astria.execution.v1alpha2";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v1alpha2.{}", Self::NAME)
+    }
+}
+/// Used in BatchGetBlocks, will find all or none based on the list of
+/// identifiers.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BatchGetBlocksRequest {
+    #[prost(message, repeated, tag = "1")]
+    pub identifiers: ::prost::alloc::vec::Vec<BlockIdentifier>,
+}
+impl ::prost::Name for BatchGetBlocksRequest {
+    const NAME: &'static str = "BatchGetBlocksRequest";
     const PACKAGE: &'static str = "astria.execution.v1alpha2";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.execution.v1alpha2.{}", Self::NAME)
@@ -47,70 +63,6 @@ impl ::prost::Name for Block {
         ::prost::alloc::format!("astria.execution.v1alpha2.{}", Self::NAME)
     }
 }
-/// Fields which are indexed for finding blocks on a blockchain.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct BlockIdentifier {
-    #[prost(oneof = "block_identifier::Identifier", tags = "1, 2")]
-    pub identifier: ::core::option::Option<block_identifier::Identifier>,
-}
-/// Nested message and enum types in `BlockIdentifier`.
-pub mod block_identifier {
-    #[allow(clippy::derive_partial_eq_without_eq)]
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum Identifier {
-        #[prost(uint32, tag = "1")]
-        BlockNumber(u32),
-        #[prost(bytes, tag = "2")]
-        BlockHash(::prost::bytes::Bytes),
-    }
-}
-impl ::prost::Name for BlockIdentifier {
-    const NAME: &'static str = "BlockIdentifier";
-    const PACKAGE: &'static str = "astria.execution.v1alpha2";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.execution.v1alpha2.{}", Self::NAME)
-    }
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetGenesisInfoRequest {}
-impl ::prost::Name for GetGenesisInfoRequest {
-    const NAME: &'static str = "GetGenesisInfoRequest";
-    const PACKAGE: &'static str = "astria.execution.v1alpha2";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.execution.v1alpha2.{}", Self::NAME)
-    }
-}
-/// Used in GetBlock to find a single block.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetBlockRequest {
-    #[prost(message, optional, tag = "1")]
-    pub identifier: ::core::option::Option<BlockIdentifier>,
-}
-impl ::prost::Name for GetBlockRequest {
-    const NAME: &'static str = "GetBlockRequest";
-    const PACKAGE: &'static str = "astria.execution.v1alpha2";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.execution.v1alpha2.{}", Self::NAME)
-    }
-}
-/// Used in BatchGetBlocks, will find all or none based on the list of
-/// identifiers.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct BatchGetBlocksRequest {
-    #[prost(message, repeated, tag = "1")]
-    pub identifiers: ::prost::alloc::vec::Vec<BlockIdentifier>,
-}
-impl ::prost::Name for BatchGetBlocksRequest {
-    const NAME: &'static str = "BatchGetBlocksRequest";
-    const PACKAGE: &'static str = "astria.execution.v1alpha2";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.execution.v1alpha2.{}", Self::NAME)
-    }
-}
 /// The list of blocks in response to BatchGetBlocks.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -120,33 +72,6 @@ pub struct BatchGetBlocksResponse {
 }
 impl ::prost::Name for BatchGetBlocksResponse {
     const NAME: &'static str = "BatchGetBlocksResponse";
-    const PACKAGE: &'static str = "astria.execution.v1alpha2";
-    fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.execution.v1alpha2.{}", Self::NAME)
-    }
-}
-/// ExecuteBlockRequest contains all the information needed to create a new rollup
-/// block.
-///
-/// This information comes from previous rollup blocks, as well as from sequencer
-/// blocks.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ExecuteBlockRequest {
-    /// The hash of previous block, which new block will be created on top of.
-    #[prost(bytes = "bytes", tag = "1")]
-    pub prev_block_hash: ::prost::bytes::Bytes,
-    /// List of transactions to include in the new block.
-    #[prost(message, repeated, tag = "2")]
-    pub transactions: ::prost::alloc::vec::Vec<
-        super::super::sequencerblock::v1alpha1::RollupData,
-    >,
-    /// Timestamp to be used for new block.
-    #[prost(message, optional, tag = "3")]
-    pub timestamp: ::core::option::Option<::pbjson_types::Timestamp>,
-}
-impl ::prost::Name for ExecuteBlockRequest {
-    const NAME: &'static str = "ExecuteBlockRequest";
     const PACKAGE: &'static str = "astria.execution.v1alpha2";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.execution.v1alpha2.{}", Self::NAME)
@@ -180,12 +105,87 @@ impl ::prost::Name for CommitmentState {
         ::prost::alloc::format!("astria.execution.v1alpha2.{}", Self::NAME)
     }
 }
+/// ExecuteBlockRequest contains all the information needed to create a new rollup
+/// block.
+///
+/// This information comes from previous rollup blocks, as well as from sequencer
+/// blocks.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ExecuteBlockRequest {
+    /// The hash of previous block, which new block will be created on top of.
+    #[prost(bytes = "bytes", tag = "1")]
+    pub prev_block_hash: ::prost::bytes::Bytes,
+    /// List of transactions to include in the new block.
+    #[prost(message, repeated, tag = "2")]
+    pub transactions: ::prost::alloc::vec::Vec<
+        super::super::sequencerblock::v1alpha1::RollupData,
+    >,
+    /// Timestamp to be used for new block.
+    #[prost(message, optional, tag = "3")]
+    pub timestamp: ::core::option::Option<::pbjson_types::Timestamp>,
+}
+impl ::prost::Name for ExecuteBlockRequest {
+    const NAME: &'static str = "ExecuteBlockRequest";
+    const PACKAGE: &'static str = "astria.execution.v1alpha2";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v1alpha2.{}", Self::NAME)
+    }
+}
+/// GenesisInfo contains the information needed to start a rollup chain.
+///
+/// This information is used to determine which sequencer & celestia data to
+/// use from the Astria & Celestia networks.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GenesisInfo {
+    /// The rollup_id is the unique identifier for the rollup chain.
+    #[prost(message, optional, tag = "1")]
+    pub rollup_id: ::core::option::Option<super::super::primitive::v1::RollupId>,
+    /// The first block height of sequencer chain to use for rollup transactions.
+    #[prost(uint32, tag = "2")]
+    pub sequencer_genesis_block_height: u32,
+    /// The allowed variance in celestia for sequencer blocks to have been posted.
+    #[prost(uint64, tag = "4")]
+    pub celestia_block_variance: u64,
+}
+impl ::prost::Name for GenesisInfo {
+    const NAME: &'static str = "GenesisInfo";
+    const PACKAGE: &'static str = "astria.execution.v1alpha2";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v1alpha2.{}", Self::NAME)
+    }
+}
+/// Used in GetBlock to find a single block.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetBlockRequest {
+    #[prost(message, optional, tag = "1")]
+    pub identifier: ::core::option::Option<BlockIdentifier>,
+}
+impl ::prost::Name for GetBlockRequest {
+    const NAME: &'static str = "GetBlockRequest";
+    const PACKAGE: &'static str = "astria.execution.v1alpha2";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v1alpha2.{}", Self::NAME)
+    }
+}
 /// There is only one CommitmentState object, so the request is empty.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetCommitmentStateRequest {}
 impl ::prost::Name for GetCommitmentStateRequest {
     const NAME: &'static str = "GetCommitmentStateRequest";
+    const PACKAGE: &'static str = "astria.execution.v1alpha2";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.execution.v1alpha2.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetGenesisInfoRequest {}
+impl ::prost::Name for GetGenesisInfoRequest {
+    const NAME: &'static str = "GetGenesisInfoRequest";
     const PACKAGE: &'static str = "astria.execution.v1alpha2";
     fn full_name() -> ::prost::alloc::string::String {
         ::prost::alloc::format!("astria.execution.v1alpha2.{}", Self::NAME)

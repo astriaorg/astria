@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package astria.protocol.transaction.v1alpha1;
+
+import "astria/primitive/v1/address.proto";
+
+message IbcSudoChange {
+  astria.primitive.v1.Address new_address = 1;
+}
