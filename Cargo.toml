@@ -110,8 +110,9 @@ tokio-stream = { version = "0.1.17" }
 tokio-test = "0.4.4"
 tokio-util = "0.7.14"
 tonic = "0.12.3"
-tracing = "0.1"
 tower = { version = "0.5.2", default-features = false }
+tower-http = { version = "0.6.2", default-features = false }
+tracing = "0.1"
 tryhard = "0.5.1"
 which = "4.4.0"
 wiremock = "0.5"
