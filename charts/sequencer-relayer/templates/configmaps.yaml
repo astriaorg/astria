@@ -28,7 +28,7 @@ data:
   ASTRIA_SEQUENCER_RELAYER_SEQUENCER_CHAIN_ID: "{{ include "sequencer-relayer.sequencerChainId" . }}"
   ASTRIA_SEQUENCER_RELAYER_CELESTIA_CHAIN_ID: "{{ include "sequencer-relayer.celestiaChainId" . }}"
   {{- if not .Values.global.dev }}
-    ASTRIA_SEQUENCER_RELAYER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
+  ASTRIA_SEQUENCER_RELAYER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   {{- else }}
   {{- end }}
 ---
