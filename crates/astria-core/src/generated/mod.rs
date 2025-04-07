@@ -55,6 +55,15 @@ pub mod astria {
 
     #[path = ""]
     pub mod execution {
+        pub mod v1 {
+            include!("astria.execution.v1.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impl {
+                use super::*;
+                include!("astria.execution.v1.serde.rs");
+            }
+        }
         pub mod v2 {
             include!("astria.execution.v2.rs");
 

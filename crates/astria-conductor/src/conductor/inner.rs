@@ -24,8 +24,8 @@ use tracing::{
 use crate::{
     executor::{
         self,
+        ExitStatus as ExecutorExitStatus,
     },
-    state::State,
     Config,
     Metrics,
 };
@@ -48,16 +48,16 @@ impl std::fmt::Display for RestartOrShutdown {
     }
 }
 
-pub(crate) enum ExitReason {
+pub(crate) enum ConductorExitReason {
     ShutdownSignalReceived,
-    ChannelsClosed(Box<State>),
+    ExecutorExited(ExecutorExitStatus),
 }
 
-impl std::fmt::Display for ExitReason {
+impl std::fmt::Display for ConductorExitReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ExitReason::ShutdownSignalReceived => f.write_str("shutdown signal received"),
-            ExitReason::ChannelsClosed(_) => f.write_str("all channels closed"),
+            ConductorExitReason::ShutdownSignalReceived => f.write_str("shutdown signal received"),
+            ConductorExitReason::ExecutorExited(_) => f.write_str("executor exited unexpectedly"),
         }
     }
 }
@@ -69,7 +69,7 @@ pub(super) struct Inner {
 
     config: Config,
 
-    executor: Option<JoinHandle<eyre::Result<ExitReason>>>,
+    executor: Option<JoinHandle<eyre::Result<ExecutorExitStatus>>>,
 }
 
 impl Inner {
@@ -110,14 +110,14 @@ impl Inner {
             biased;
 
             () = self.shutdown_token.cancelled() => {
-                Ok(ExitReason::ShutdownSignalReceived)
+                Ok(ConductorExitReason::ShutdownSignalReceived)
             },
 
             res = self.executor.as_mut().expect("task must always be set at this point") => {
                 // XXX: must Option::take the JoinHandle to avoid polling it in the shutdown logic.
                 self.executor.take();
                 match res {
-                    Ok(Ok(exit_reason)) => Ok(exit_reason),
+                    Ok(Ok(exit_reason)) => Ok(ConductorExitReason::ExecutorExited(exit_reason)),
                     Ok(Err(err)) => Err(err.wrap_err("executor exited with error")),
                     Err(err) => Err(Report::new(err).wrap_err("executor panicked")),
                 }
@@ -135,7 +135,7 @@ impl Inner {
     #[instrument(skip_all, err, ret(Display))]
     async fn restart_or_shutdown(
         mut self,
-        exit_reason: eyre::Result<ExitReason>,
+        exit_reason: eyre::Result<ConductorExitReason>,
     ) -> eyre::Result<RestartOrShutdown> {
         let restart_or_shutdown = 'decide_restart: {
             if self.shutdown_token.is_cancelled() {
@@ -191,9 +191,9 @@ fn should_restart_despite_error(err: &eyre::Report) -> bool {
 
 fn should_restart_or_shutdown(
     config: &Config,
-    reason: &ExitReason,
+    reason: &ConductorExitReason,
 ) -> eyre::Result<RestartOrShutdown> {
-    let ExitReason::ChannelsClosed(status) = reason else {
+    let ConductorExitReason::ExecutorExited(ExecutorExitStatus::Unexpected(status)) = reason else {
         return Ok(RestartOrShutdown::Shutdown);
     };
 
@@ -251,8 +251,9 @@ mod tests {
 
     use super::RestartOrShutdown;
     use crate::{
-        conductor::ExitReason,
+        conductor::inner::ConductorExitReason,
         config::CommitLevel,
+        executor::ExitStatus as ExecutorExitStatus,
         state::State,
         test_utils::{
             make_commitment_state,
@@ -305,7 +306,9 @@ mod tests {
         assert_eq!(
             &super::should_restart_or_shutdown(
                 config,
-                &ExitReason::ChannelsClosed(Box::new(state))
+                &ConductorExitReason::ExecutorExited(ExecutorExitStatus::Unexpected(Box::new(
+                    state
+                )))
             )
             .unwrap(),
             restart_or_shutdown,

@@ -10,7 +10,6 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
-pub(crate) use inner::ExitReason;
 use inner::{
     Inner,
     RestartOrShutdown,

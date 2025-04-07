@@ -75,6 +75,9 @@ impl<T> BlockCache<T> {
         }
     }
 
+    /// Returns the next block height that will be popped from the cache.
+    ///
+    /// Note, this does not pop the next block, nor does it advance the height.
     pub(crate) fn next_height_to_pop(&self) -> u64 {
         self.next_height
     }

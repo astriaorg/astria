@@ -51,7 +51,6 @@ use tracing::{
 
 use crate::{
     celestia::ReconstructedBlock,
-    conductor::ExitReason,
     config::CommitLevel,
     metrics::Metrics,
     state::{
@@ -71,6 +70,20 @@ mod tests;
 pub(super) use client::Client;
 
 type CelestiaHeight = u64;
+
+pub(crate) enum ExitStatus {
+    ShutdownSignalReceived,
+    Unexpected(Box<State>),
+}
+
+impl std::fmt::Display for ExitStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ExitStatus::ShutdownSignalReceived => f.write_str("shutdown signal received"),
+            ExitStatus::Unexpected(_) => f.write_str("executor exited unexpectedly"),
+        }
+    }
+}
 
 pub(crate) struct Executor {
     config: crate::Config,
@@ -101,7 +114,7 @@ impl std::fmt::Display for ReaderKind {
 }
 
 impl Executor {
-    pub(crate) async fn run_until_stopped(self) -> eyre::Result<ExitReason> {
+    pub(crate) async fn run_until_stopped(self) -> eyre::Result<ExitStatus> {
         let initialized = select!(
             biased;
 
@@ -109,7 +122,7 @@ impl Executor {
                 info_span!("shutdown signal on init").in_scope(|| {
                     info!("received shutdown signal while initializing executor; cancelling initialization");
                 });
-                return Ok(ExitReason::ShutdownSignalReceived);
+                return Ok(ExitStatus::ShutdownSignalReceived);
             }
             res = self.init() => {
                 res.wrap_err("initialization failed")?
@@ -131,6 +144,12 @@ impl Executor {
             .wrap_err("failed constructing sequencer cometbft RPC client")?;
 
         let reader_cancellation_token = self.shutdown.child_token();
+
+        // Creating a channel with a buffer size of 0 will panic, so we perform the check here.
+        ensure!(
+            state.celestia_search_height_max_look_ahead() > 0,
+            "celestia search height max look ahead must be greater than 0"
+        );
 
         let (firm_blocks_tx, firm_blocks_rx) = tokio::sync::mpsc::channel(16);
         let (soft_blocks_tx, soft_blocks_rx) = tokio::sync::mpsc::channel(
@@ -262,12 +281,12 @@ struct Initialized {
 }
 
 impl Initialized {
-    async fn run(mut self) -> eyre::Result<ExitReason> {
+    async fn run(mut self) -> eyre::Result<ExitStatus> {
         let reason = select!(
             biased;
 
             () = self.shutdown.clone().cancelled_owned() => {
-                Ok(ExitReason::ShutdownSignalReceived)
+                Ok(ExitStatus::ShutdownSignalReceived)
             }
 
             res = self.run_event_loop() => {
@@ -279,7 +298,7 @@ impl Initialized {
         reason
     }
 
-    async fn run_event_loop(&mut self) -> eyre::Result<ExitReason> {
+    async fn run_event_loop(&mut self) -> eyre::Result<ExitStatus> {
         loop {
             select!(
                 biased;
@@ -308,7 +327,7 @@ impl Initialized {
                     self.handle_task_exit(task, res)?;
                 }
 
-                else => break Ok(ExitReason::ChannelsClosed(Box::new(self.state.get().clone())))
+                else => break Ok(ExitStatus::Unexpected(Box::new(self.state.get().clone())))
             );
         }
     }
@@ -680,7 +699,7 @@ impl Initialized {
     }
 
     #[instrument(skip_all)]
-    async fn shutdown(mut self, reason: &eyre::Result<ExitReason>) {
+    async fn shutdown(mut self, reason: &eyre::Result<ExitStatus>) {
         let message = "shutting down";
         match &reason {
             Ok(reason) => {
