@@ -18,11 +18,13 @@ use cnidarium::{
     StateWrite,
 };
 use tracing::{
+    debug,
     instrument,
     Level,
 };
 
 use crate::{
+    accounts::AddressBytes as _,
     action_handler::ActionHandler,
     authority::{
         StateReadExt as _,
@@ -85,6 +87,7 @@ impl ActionHandler for ValidatorUpdate {
                     .wrap_err("failed to remove validator")?
                     .ok_or_eyre("cannot remove a non-existing validator")?;
                 state.put_validator_count(validator_count.saturating_sub(1))?;
+                debug!(address = %self.verification_key.display_address(), "removed validator");
             } else {
                 if state
                     .get_validator(self.verification_key.address_bytes())
@@ -99,6 +102,7 @@ impl ActionHandler for ValidatorUpdate {
                 state
                     .put_validator(self)
                     .wrap_err("failed to put validator in state")?;
+                debug!(address = %self.verification_key.display_address(), power = self.power, "added validator");
             }
         }
 
@@ -131,11 +135,10 @@ mod tests {
         primitive::v1::TransactionId,
         upgrades::test_utils::UpgradesBuilder,
     };
-    use futures::TryStreamExt;
+    use futures::TryStreamExt as _;
 
     use super::*;
     use crate::{
-        accounts::AddressBytes as _,
         authority::ValidatorSet,
         benchmark_and_test_utils::{
             assert_eyre_error,
@@ -145,7 +148,7 @@ mod tests {
             StateWriteExt as _,
             TransactionContext,
         },
-        upgrades::StateWriteExt,
+        upgrades::StateWriteExt as _,
     };
 
     #[tokio::test]
@@ -375,13 +378,13 @@ mod tests {
             .unwrap()
             .expect("validator should be present");
         assert_eq!(validator_update, action);
-        let validator_updates = state
+        let validators = state
             .get_validators()
-            .try_collect::<Vec<ValidatorUpdate>>()
+            .try_collect::<Vec<_>>()
             .await
             .unwrap();
-        assert_eq!(validator_updates.len(), 1);
-        assert_eq!(validator_updates[0], action);
+        assert_eq!(validators.len(), 1);
+        assert_eq!(validators[0], action);
 
         // Check validator count
         let validator_count = state.get_validator_count().await.unwrap();
@@ -449,7 +452,7 @@ mod tests {
         assert_eq!(
             state
                 .get_validators()
-                .try_collect::<Vec<ValidatorUpdate>>()
+                .try_collect::<Vec<_>>()
                 .await
                 .unwrap()
                 .len(),
@@ -489,13 +492,13 @@ mod tests {
                 .unwrap(),
             validator_update_2
         );
-        let validator_updates = state
+        let validators = state
             .get_validators()
-            .try_collect::<Vec<ValidatorUpdate>>()
+            .try_collect::<Vec<_>>()
             .await
             .unwrap();
-        assert_eq!(validator_updates.len(), 1);
-        assert_eq!(validator_updates[0], validator_update_2);
+        assert_eq!(validators.len(), 1);
+        assert_eq!(validators[0], validator_update_2);
 
         // Check validator count
         let validator_count = state.get_validator_count().await.unwrap();
@@ -567,15 +570,10 @@ mod tests {
             position_in_transaction: 0,
         });
 
-        let validator_update_1 = ValidatorUpdate {
-            verification_key: VerificationKey::try_from([1; 32]).unwrap(),
-            power: 100,
-            name: String::new(),
-        };
         state.put_validator_count(1).unwrap();
 
         let action = ValidatorUpdate {
-            verification_key: validator_update_1.verification_key,
+            verification_key: VerificationKey::try_from([1; 32]).unwrap(),
             power: 0,
             name: String::new(),
         };
@@ -637,12 +635,21 @@ mod tests {
         );
 
         // Check stored validator
-        let validator_update = state
+        let validator = state
             .get_validator(action.verification_key.address_bytes())
             .await
             .unwrap()
             .expect("validator should be present");
-        assert_eq!(validator_update, action);
+        assert_eq!(validator, action);
+
+        // Check state validators
+        let validators = state
+            .get_validators()
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap();
+        assert_eq!(validators.len(), 1);
+        assert_eq!(validators[0], action);
 
         // Check validator count
         let validator_count = state.get_validator_count().await.unwrap();

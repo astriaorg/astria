@@ -252,7 +252,7 @@ class SequencerController:
         """
         Queries the sequencer's JSON-RPC server via ABCI for a given validator's name.
 
-        Exits the process on error.
+        Propagates error as exception.
         """
         try:
             response = self._try_send_json_rpc_request_with_retry("abci_query", ("path", f"authority/validator_name/{self.address}"))

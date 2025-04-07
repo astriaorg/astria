@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add validator name to validator update action [#2089](https://github.com/astriaorg/astria/pull/2089)
+- Add support for `ValidatorUpdate` action with names post `Aspen` upgrade [#2089](https://github.com/astriaorg/astria/pull/2089).
 - Provide support for upgrading the sequencer network [#2085](https://github.com/astriaorg/astria/pull/2085).
 - Implement first sequencer upgrade, named `Aspen` [#2085](https://github.com/astriaorg/astria/pull/2085).
 - Add endpoint to sequencer gRPC service at `/v1/sequencer/upgrades` which
