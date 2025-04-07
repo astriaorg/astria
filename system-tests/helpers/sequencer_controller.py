@@ -1,3 +1,4 @@
+import base64
 import grpc
 import requests
 from .utils import (
@@ -17,7 +18,7 @@ class SequencerController:
     servers.
     """
 
-    def __init__(self, node_name):
+    def __init__(self, node_name, address):
         self.name = node_name
         if node_name == "node0":
             self.namespace = "astria-dev-cluster"
@@ -28,6 +29,7 @@ class SequencerController:
             self.rpc_url = f"http://rpc.sequencer-{node_name}.localdev.me"
             self.grpc_url = f"grpc.sequencer-{node_name}.localdev.me:80"
         self.last_block_height_before_restart = None
+        self.address = address
 
     # ===========================================================
     # Methods managing and querying the sequencer's k8s container
@@ -245,6 +247,22 @@ class SequencerController:
             return int(response["response"]["app_version"])
         except Exception as error:
             raise SystemExit(f"{self.name}: failed to get current app version: {error}")
+
+    def get_validator_name(self):
+        """
+        Queries the sequencer's JSON-RPC server via ABCI for a given validator's name.
+
+        Exits the process on error.
+        """
+        try:
+            response = self._try_send_json_rpc_request_with_retry("abci_query", ("path", f"authority/validator_name/{self.address}"))
+            if response["response"]["code"] != 0:
+                raise Exception(
+                    f"{self.name}: validator name returned bad code {response['response']['log']}"
+                )
+            return base64.b64decode(response["response"]["value"]).decode("utf-8")
+        except Exception as error:
+            raise Exception(f"{self.name}: failed to get validator name: {error}")
 
     # =======================================
     # Methods calling sequencer's gRPC server

@@ -28,6 +28,13 @@ PRE_UPGRADE_IMAGE_TAGS = {
 EVM_DESTINATION_ADDRESS = "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
 ACCOUNT = "astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504"
 BRIDGE_TX_HASH = "0x326c3910da4c96c5a40ba1505fc338164b659729f2f975ccb07e8794c96b66f6"
+VALIDATOR_ADDRESSES = [
+    "astria1py0ywasutrz8g560f4q54ugy5m90jrpzdja7vs",
+    "astria1aqkcy7psk93a29ujj8aj0w6cucza7taz48guf3",
+    "astria13stmhhrux5xg832szc693lym0fd4ffjwkzyuth",
+    "astria1jtsd309u6a78egrje6pnwsu006agztdaxzzter",
+    "astria1h0wwsjmkhq8pk7z7wjcw34jqhakjh599yhlmxc",
+]
 
 parser = argparse.ArgumentParser(prog="upgrade_test", description="Runs the sequencer upgrade test.")
 parser.add_argument(
@@ -66,7 +73,7 @@ for chart in ("sequencer", "evm-stack"):
 #
 # Disable the price feed on sequencer 2 to ensure the oracle still works on all nodes as long as a
 # supermajority are participating.
-nodes = [SequencerController(f"node{i}") for i in range(NUM_NODES - 1)]
+nodes = [SequencerController(f"node{i}", VALIDATOR_ADDRESSES[i]) for i in range(NUM_NODES - 1)]
 evm = EvmController()
 print(f"starting {len(nodes)} sequencers and the evm rollup")
 executor = concurrent.futures.ThreadPoolExecutor(NUM_NODES + 1)
@@ -181,7 +188,7 @@ print(f"{missed_upgrade_node.name} has caught up")
 nodes.append(missed_upgrade_node)
 
 # Start a fifth sequencer validator now that the upgrade has happened.
-new_node = SequencerController(f"node{NUM_NODES - 1}")
+new_node = SequencerController(f"node{NUM_NODES - 1}", VALIDATOR_ADDRESSES[NUM_NODES - 1])
 print(f"starting a new sequencer")
 new_node.deploy_sequencer(
     upgrade_image_tag,
@@ -235,10 +242,14 @@ for node in nodes[1:]:
         )
 print("upgrade change infos reported correctly")
 
+# Submit validator updates with names for all validators
+for node in nodes:
+    cli.validator_update(node.name)
+
 # Run post-upgrade checks specific to this upgrade.
 print(f"running post-upgrade checks specific to {upgrade_name}")
 if upgrade_name == "aspen":
-    aspen_upgrade_checks.assert_post_upgrade_conditions(nodes, upgrade_activation_height)
+    aspen_upgrade_checks.assert_post_upgrade_conditions(nodes, upgrade_activation_height, ["node0", "node1", "node2", "node3", "node4"])
 print(f"passed {upgrade_name}-specific post-upgrade checks")
 
 # Perform a bridge out.
