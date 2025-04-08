@@ -24,6 +24,7 @@ impl serde::Serialize for CommitmentState {
         }
         if self.lowest_celestia_search_height != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("lowestCelestiaSearchHeight", ToString::to_string(&self.lowest_celestia_search_height).as_str())?;
         }
         struct_ser.end()
@@ -470,6 +471,7 @@ impl serde::Serialize for ExecutedBlockIdentifier {
             match v {
                 executed_block_identifier::Identifier::Number(v) => {
                     #[allow(clippy::needless_borrow)]
+                    #[allow(clippy::needless_borrows_for_generic_args)]
                     struct_ser.serialize_field("number", ToString::to_string(&v).as_str())?;
                 }
                 executed_block_identifier::Identifier::Hash(v) => {
@@ -588,6 +590,7 @@ impl serde::Serialize for ExecutedBlockMetadata {
         let mut struct_ser = serializer.serialize_struct("astria.execution.v2.ExecutedBlockMetadata", len)?;
         if self.number != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("number", ToString::to_string(&self.number).as_str())?;
         }
         if !self.hash.is_empty() {
@@ -889,10 +892,12 @@ impl serde::Serialize for ExecutionSessionParameters {
         }
         if self.rollup_start_block_number != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("rollupStartBlockNumber", ToString::to_string(&self.rollup_start_block_number).as_str())?;
         }
         if self.rollup_end_block_number != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("rollupEndBlockNumber", ToString::to_string(&self.rollup_end_block_number).as_str())?;
         }
         if !self.sequencer_chain_id.is_empty() {
@@ -900,6 +905,7 @@ impl serde::Serialize for ExecutionSessionParameters {
         }
         if self.sequencer_start_block_height != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("sequencerStartBlockHeight", ToString::to_string(&self.sequencer_start_block_height).as_str())?;
         }
         if !self.celestia_chain_id.is_empty() {
@@ -907,6 +913,7 @@ impl serde::Serialize for ExecutionSessionParameters {
         }
         if self.celestia_search_height_max_look_ahead != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("celestiaSearchHeightMaxLookAhead", ToString::to_string(&self.celestia_search_height_max_look_ahead).as_str())?;
         }
         struct_ser.end()

@@ -63,9 +63,7 @@ static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
         println!("initializing telemetry");
         let _ = telemetry::configure()
             .set_no_otel(true)
-            .set_stdout_writer(std::io::stdout)
             .set_force_stdout(true)
-            .set_pretty_print(true)
             .set_filter_directives(&filter_directives)
             .try_init::<Metrics>(&())
             .unwrap();
@@ -531,7 +529,6 @@ pub(crate) fn make_config() -> Config {
         no_otel: false,
         no_metrics: true,
         metrics_http_listener_addr: String::new(),
-        pretty_print: false,
     }
 }
 
@@ -592,11 +589,21 @@ pub fn make_blobs(heights: &[u32]) -> Blobs {
 
     let raw_header_list = ::prost::Message::encode_to_vec(&header_list);
     let head_list_compressed = compress_bytes(&raw_header_list).unwrap();
-    let header = Blob::new(sequencer_namespace(), head_list_compressed).unwrap();
+    let header = Blob::new(
+        sequencer_namespace(),
+        head_list_compressed,
+        celestia_types::AppVersion::V3,
+    )
+    .unwrap();
 
     let raw_rollup_data_list = ::prost::Message::encode_to_vec(&rollup_data_list);
     let rollup_data_list_compressed = compress_bytes(&raw_rollup_data_list).unwrap();
-    let rollup = Blob::new(rollup_namespace(), rollup_data_list_compressed).unwrap();
+    let rollup = Blob::new(
+        rollup_namespace(),
+        rollup_data_list_compressed,
+        celestia_types::AppVersion::V3,
+    )
+    .unwrap();
 
     Blobs {
         header,

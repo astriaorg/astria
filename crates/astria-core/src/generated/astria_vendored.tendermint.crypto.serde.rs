@@ -14,10 +14,12 @@ impl serde::Serialize for PublicKey {
             match v {
                 public_key::Sum::Ed25519(v) => {
                     #[allow(clippy::needless_borrow)]
+                    #[allow(clippy::needless_borrows_for_generic_args)]
                     struct_ser.serialize_field("ed25519", pbjson::private::base64::encode(&v).as_str())?;
                 }
                 public_key::Sum::Secp256k1(v) => {
                     #[allow(clippy::needless_borrow)]
+                    #[allow(clippy::needless_borrows_for_generic_args)]
                     struct_ser.serialize_field("secp256k1", pbjson::private::base64::encode(&v).as_str())?;
                 }
             }

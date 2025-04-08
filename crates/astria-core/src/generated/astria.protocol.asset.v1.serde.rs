@@ -15,6 +15,7 @@ impl serde::Serialize for AllowedFeeAssetsResponse {
         let mut struct_ser = serializer.serialize_struct("astria.protocol.asset.v1.AllowedFeeAssetsResponse", len)?;
         if self.height != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
         }
         if !self.fee_assets.is_empty() {
@@ -127,6 +128,7 @@ impl serde::Serialize for DenomResponse {
         let mut struct_ser = serializer.serialize_struct("astria.protocol.asset.v1.DenomResponse", len)?;
         if self.height != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
         }
         if !self.denom.is_empty() {

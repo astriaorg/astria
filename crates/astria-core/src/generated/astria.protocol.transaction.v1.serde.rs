@@ -657,6 +657,7 @@ impl serde::Serialize for BridgeTransfer {
         }
         if self.rollup_block_number != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("rollupBlockNumber", ToString::to_string(&self.rollup_block_number).as_str())?;
         }
         if !self.rollup_withdrawal_event_id.is_empty() {
@@ -858,6 +859,7 @@ impl serde::Serialize for BridgeUnlock {
         }
         if self.rollup_block_number != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("rollupBlockNumber", ToString::to_string(&self.rollup_block_number).as_str())?;
         }
         if !self.rollup_withdrawal_event_id.is_empty() {
@@ -1441,10 +1443,12 @@ impl serde::Serialize for IbcHeight {
         let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.IbcHeight", len)?;
         if self.revision_number != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("revisionNumber", ToString::to_string(&self.revision_number).as_str())?;
         }
         if self.revision_height != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("revisionHeight", ToString::to_string(&self.revision_height).as_str())?;
         }
         struct_ser.end()
@@ -1800,6 +1804,7 @@ impl serde::Serialize for Ics20Withdrawal {
         }
         if self.timeout_time != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("timeoutTime", ToString::to_string(&self.timeout_time).as_str())?;
         }
         if !self.source_channel.is_empty() {
@@ -2309,6 +2314,7 @@ impl serde::Serialize for RollupDataSubmission {
         }
         if !self.data.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("data", pbjson::private::base64::encode(&self.data).as_str())?;
         }
         if !self.fee_asset.is_empty() {
@@ -2528,10 +2534,12 @@ impl serde::Serialize for Transaction {
         let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.Transaction", len)?;
         if !self.signature.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("signature", pbjson::private::base64::encode(&self.signature).as_str())?;
         }
         if !self.public_key.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("publicKey", pbjson::private::base64::encode(&self.public_key).as_str())?;
         }
         if let Some(v) = self.body.as_ref() {

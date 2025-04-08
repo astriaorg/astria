@@ -17,7 +17,6 @@ keywords = ["astria", "grpc", "rpc", "blockchain", "execution", "protobuf"]
 
 [dependencies]
 brotli = { version = "5.0.0", optional = true }
-celestia-types = { version = "0.1.1", optional = true }
 pbjson = { version = "0.6.0", optional = true }
 
 astria-core-address = { path = "../astria-core-address" }
@@ -26,7 +25,7 @@ astria-core-crypto = { path = "../astria-core-crypto" }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
 
 bytes = { workspace = true }
-celestia-tendermint = { workspace = true }
+celestia-types = { workspace = true, optional = true }
 hex = { workspace = true }
 ibc-types = { workspace = true }
 indexmap = { workspace = true }

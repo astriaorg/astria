@@ -60,12 +60,11 @@ libraries = [{ path = "lint/tracing_debug_field" }]
 
 [workspace.dependencies]
 async-trait = "0.1.52"
-axum = "0.6.16"
+axum = "0.7.9"
 base64 = "0.21"
 base64-serde = "0.7.0"
 bytes = "1"
-celestia-tendermint = "0.32.1"
-celestia-types = "0.1.1"
+celestia-types = "0.11.0"
 clap = "4.5.4"
 const_format = "0.2.32"
 divan = "0.1.14"
@@ -73,42 +72,46 @@ ethers = { version = "2.0.11", default-features = false }
 futures = "0.3"
 hex = "0.4"
 hex-literal = "0.4.1"
-hyper = "0.14"
-ibc-types = "0.12"
+http = "1.2.0"
+hyper = "1.6.0"
+ibc-types = "0.15.0"
 indexmap = "2.1.0"
 insta = "1.36.1"
 itertools = "0.12.1"
 itoa = "1.0.10"
 jiff = "0.2.4"
-jsonrpsee = { version = "0.20" }
-pbjson-types = "0.6"
+jsonrpsee = "0.24.8"
+pbjson-types = "0.7.0"
+
 # Note that when updating the penumbra versions, vendored types in `proto/sequencerapis/astria_vendored` may need to be updated as well.
-penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "686fa5b53e8ad306736d2de61d1ffb6d11722e2b", default-features = false }
-penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "686fa5b53e8ad306736d2de61d1ffb6d11722e2b" }
-penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "686fa5b53e8ad306736d2de61d1ffb6d11722e2b" }
+penumbra-ibc = { package = "penumbra-sdk-ibc", version = "1.3.1", default-features = false }
+penumbra-proto = { package = "penumbra-sdk-proto", version = "1.3.1" }
+
 pin-project-lite = "0.2.13"
-prost = "0.12"
+prost = "0.13.4"
 rand = "0.8.5"
 regex = "1.9"
 # disable default features and explicitly enable rustls-tls to ensure openssl is disabled
 # in the entire workspace
-reqwest = { version = "0.11", default-features = false, features = [
+reqwest = { version = "0.12.12", default-features = false, features = [
   "rustls-tls",
 ] }
 serde = "1"
 serde_json = "1"
 sha2 = "0.10"
 tempfile = "3.6.0"
-tendermint = "0.34.0"
-tendermint-config = "0.34.0"
-tendermint-proto = "0.34.0"
-tendermint-rpc = "0.34.0"
+tendermint = "0.40.2"
+tendermint-config = "0.40.2"
+tendermint-proto = "0.40.2"
+tendermint-rpc = "0.40.2"
 thiserror = "1"
-tokio = "1.28"
-tokio-stream = { version = "0.1.14" }
-tokio-test = "0.4.2"
-tokio-util = "0.7.13"
-tonic = "0.10"
+tokio = { version = "1.44.2", default-features = false }
+tokio-stream = { version = "0.1.17" }
+tokio-test = "0.4.4"
+tokio-util = "0.7.14"
+tonic = "0.12.3"
+tower = { version = "0.5.2", default-features = false }
+tower-http = { version = "0.6.2", default-features = false }
 tracing = "0.1"
 tryhard = "0.5.1"
 which = "4.4.0"
