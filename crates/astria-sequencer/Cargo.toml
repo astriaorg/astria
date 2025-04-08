@@ -52,7 +52,6 @@ futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 ibc-types = { workspace = true, features = ["with_serde"] }
 indexmap = { workspace = true }
-isahc = { workspace = true, features = ["json"] }
 itertools = { workspace = true }
 penumbra-ibc = { workspace = true, features = ["component", "rpc"] }
 penumbra-proto = { workspace = true }
@@ -60,6 +59,7 @@ pin-project-lite = { workspace = true }
 prost = { workspace = true }
 rand = { workspace = true }
 regex = { workspace = true }
+reqwest = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
