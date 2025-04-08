@@ -211,10 +211,12 @@ impl serde::Serialize for ExtendedVoteInfo {
         }
         if !self.vote_extension.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("voteExtension", pbjson::private::base64::encode(&self.vote_extension).as_str())?;
         }
         if !self.extension_signature.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("extensionSignature", pbjson::private::base64::encode(&self.extension_signature).as_str())?;
         }
         if self.block_id_flag != 0 {
@@ -355,10 +357,12 @@ impl serde::Serialize for Validator {
         let mut struct_ser = serializer.serialize_struct("astria_vendored.tendermint.abci.Validator", len)?;
         if !self.address.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("address", pbjson::private::base64::encode(&self.address).as_str())?;
         }
         if self.power != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("power", ToString::to_string(&self.power).as_str())?;
         }
         struct_ser.end()
@@ -472,6 +476,7 @@ impl serde::Serialize for ValidatorUpdate {
         }
         if self.power != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("power", ToString::to_string(&self.power).as_str())?;
         }
         struct_ser.end()

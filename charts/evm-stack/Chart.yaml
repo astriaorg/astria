@@ -31,7 +31,7 @@ dependencies:
     repository: "file://../flame-rollup"
     condition: flame-rollup.enabled
   - name: composer
-    version: 1.0.1
+    version: 1.0.2
     repository: "file://../composer"
     condition: composer.enabled
   - name: auctioneer
@@ -43,7 +43,7 @@ dependencies:
     repository: "file://../evm-faucet"
     condition: evm-faucet.enabled
   - name: evm-bridge-withdrawer
-    version: 1.0.3
+    version: 1.0.4
     repository: "file://../evm-bridge-withdrawer"
     condition: evm-bridge-withdrawer.enabled
   - name: postgresql

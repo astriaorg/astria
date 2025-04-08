@@ -305,10 +305,12 @@ impl serde::Serialize for BaseUpgradeInfo {
         let mut struct_ser = serializer.serialize_struct("astria.upgrades.v1.BaseUpgradeInfo", len)?;
         if self.activation_height != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("activationHeight", ToString::to_string(&self.activation_height).as_str())?;
         }
         if self.app_version != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("appVersion", ToString::to_string(&self.app_version).as_str())?;
         }
         struct_ser.end()

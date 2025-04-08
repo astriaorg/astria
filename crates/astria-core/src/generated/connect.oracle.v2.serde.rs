@@ -27,10 +27,12 @@ impl serde::Serialize for CurrencyPairGenesis {
         }
         if self.nonce != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("nonce", ToString::to_string(&self.nonce).as_str())?;
         }
         if self.id != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("id", ToString::to_string(&self.id).as_str())?;
         }
         struct_ser.end()
@@ -171,10 +173,12 @@ impl serde::Serialize for CurrencyPairState {
         }
         if self.nonce != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("nonce", ToString::to_string(&self.nonce).as_str())?;
         }
         if self.id != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("id", ToString::to_string(&self.id).as_str())?;
         }
         struct_ser.end()
@@ -299,6 +303,7 @@ impl serde::Serialize for GenesisState {
         }
         if self.next_id != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("nextId", ToString::to_string(&self.next_id).as_str())?;
         }
         struct_ser.end()
@@ -839,14 +844,17 @@ impl serde::Serialize for GetPriceResponse {
         }
         if self.nonce != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("nonce", ToString::to_string(&self.nonce).as_str())?;
         }
         if self.decimals != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("decimals", ToString::to_string(&self.decimals).as_str())?;
         }
         if self.id != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("id", ToString::to_string(&self.id).as_str())?;
         }
         struct_ser.end()
@@ -1173,6 +1181,7 @@ impl serde::Serialize for QuotePrice {
         }
         if self.block_height != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("blockHeight", ToString::to_string(&self.block_height).as_str())?;
         }
         struct_ser.end()

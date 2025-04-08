@@ -21,7 +21,6 @@ data:
   ASTRIA_BRIDGE_WITHDRAWER_NO_METRICS: "{{ not .Values.metrics.enabled }}"
   ASTRIA_BRIDGE_WITHDRAWER_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.metrics }}"
   ASTRIA_BRIDGE_WITHDRAWER_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
-  ASTRIA_BRIDGE_WITHDRAWER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   ASTRIA_BRIDGE_WITHDRAWER_NO_OTEL: "{{ not .Values.otel.enabled }}"
 
   NO_COLOR: "{{ .Values.global.useTTY }}"
@@ -33,6 +32,7 @@ data:
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ tpl .Values.otel.traceHeaders . }}"
   OTEL_SERVICE_NAME: "{{ tpl .Values.otel.serviceName . }}"
   {{- if not .Values.global.dev }}
+  ASTRIA_BRIDGE_WITHDRAWER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   {{- else }}
   ASTRIA_BRIDGE_WITHDRAWER_NO_FROST_THRESHOLD_SIGNING: "{{ .Values.config.noFrostThresholdSigning }}"
   ASTRIA_BRIDGE_WITHDRAWER_FROST_MIN_SIGNERS: "{{ .Values.config.frostMinSigners }}"

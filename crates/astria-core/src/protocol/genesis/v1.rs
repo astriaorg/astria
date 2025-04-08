@@ -765,10 +765,7 @@ impl Protobuf for GenesisFees {
     type Error = FeesError;
     type Raw = raw::GenesisFees;
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "barring use of a macro, all lines are necessary"
-    )]
+    #[expect(clippy::too_many_lines, reason = "there are a lot of fee variants")]
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let Self::Raw {
             rollup_data_submission,
@@ -790,104 +787,86 @@ impl Protobuf for GenesisFees {
             price_feed,
         } = raw;
         let rollup_data_submission = rollup_data_submission
-            .clone()
             .map(FeeComponents::<RollupDataSubmission>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("rollup_data_submission", e))?;
 
         let transfer = transfer
-            .clone()
             .map(FeeComponents::<Transfer>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("transfer", e))?;
 
         let ics20_withdrawal = ics20_withdrawal
-            .clone()
             .map(FeeComponents::<Ics20Withdrawal>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("ics20_withdrawal", e))?;
 
         let init_bridge_account = init_bridge_account
-            .clone()
             .map(FeeComponents::<InitBridgeAccount>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("init_bridge_account", e))?;
 
         let bridge_lock = bridge_lock
-            .clone()
             .map(FeeComponents::<BridgeLock>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("bridge_lock", e))?;
 
         let bridge_unlock = bridge_unlock
-            .clone()
             .map(FeeComponents::<BridgeUnlock>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("bridge_unlock", e))?;
 
         let bridge_transfer = bridge_transfer
-            .clone()
             .map(FeeComponents::<BridgeTransfer>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("bridge_transfer", e))?;
 
         let bridge_sudo_change = bridge_sudo_change
-            .clone()
             .map(FeeComponents::<BridgeSudoChange>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("bridge_sudo_change", e))?;
 
         let ibc_relay = ibc_relay
-            .clone()
             .map(FeeComponents::<IbcRelay>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("ibc_relay", e))?;
 
         let validator_update = validator_update
-            .clone()
             .map(FeeComponents::<ValidatorUpdate>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("validator_update", e))?;
 
         let fee_asset_change = fee_asset_change
-            .clone()
             .map(FeeComponents::<FeeAssetChange>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("fee_asset_change", e))?;
 
         let fee_change = FeeComponents::<FeeChange>::try_from_raw(
-            fee_change
-                .clone()
-                .ok_or_else(|| Self::Error::field_not_set("fee_change"))?,
+            fee_change.ok_or_else(|| Self::Error::field_not_set("fee_change"))?,
         )
         .map_err(|e| FeesError::fee_components("fee_change", e))?;
 
         let ibc_relayer_change = ibc_relayer_change
-            .clone()
             .map(FeeComponents::<IbcRelayerChange>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("ibc_relayer_change", e))?;
 
         let sudo_address_change = sudo_address_change
-            .clone()
             .map(FeeComponents::<SudoAddressChange>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("sudo_address_change", e))?;
 
         let ibc_sudo_change = ibc_sudo_change
-            .clone()
             .map(FeeComponents::<IbcSudoChange>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("ibc_sudo_change", e))?;
 
         let recover_ibc_client = recover_ibc_client
-            .clone()
             .map(FeeComponents::<RecoverIbcClient>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("recover_ibc_client", e))?;
 
         let price_feed = price_feed
-            .clone()
             .map(FeeComponents::<PriceFeed>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("price_feed", e))?;

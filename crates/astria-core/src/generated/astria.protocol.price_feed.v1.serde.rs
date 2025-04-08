@@ -128,6 +128,7 @@ impl serde::Serialize for IdWithCurrencyPair {
         let mut struct_ser = serializer.serialize_struct("astria.protocol.price_feed.v1.IdWithCurrencyPair", len)?;
         if self.id != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("id", ToString::to_string(&self.id).as_str())?;
         }
         if let Some(v) = self.currency_pair.as_ref() {
@@ -135,6 +136,7 @@ impl serde::Serialize for IdWithCurrencyPair {
         }
         if self.decimals != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("decimals", ToString::to_string(&self.decimals).as_str())?;
         }
         struct_ser.end()

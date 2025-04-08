@@ -21,6 +21,7 @@ impl serde::Serialize for GenesisState {
         }
         if self.last_updated != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("lastUpdated", ToString::to_string(&self.last_updated).as_str())?;
         }
         if let Some(v) = self.params.as_ref() {
@@ -213,6 +214,7 @@ impl serde::Serialize for LastUpdatedResponse {
         let mut struct_ser = serializer.serialize_struct("connect.marketmap.v2.LastUpdatedResponse", len)?;
         if self.last_updated != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("lastUpdated", ToString::to_string(&self.last_updated).as_str())?;
         }
         struct_ser.end()
@@ -590,6 +592,7 @@ impl serde::Serialize for MarketMapResponse {
         }
         if self.last_updated != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("lastUpdated", ToString::to_string(&self.last_updated).as_str())?;
         }
         if !self.chain_id.is_empty() {
@@ -1343,10 +1346,12 @@ impl serde::Serialize for Ticker {
         }
         if self.decimals != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("decimals", ToString::to_string(&self.decimals).as_str())?;
         }
         if self.min_provider_count != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("minProviderCount", ToString::to_string(&self.min_provider_count).as_str())?;
         }
         if self.enabled {
