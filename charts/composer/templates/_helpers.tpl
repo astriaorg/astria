@@ -42,8 +42,6 @@ Single entry of rollup names
 {{- end -}}
 {{- end }}
 
-{{- define "composer.rollupGenesisFile" }}
-
 {{/*
 Rollup config string
 */}}
