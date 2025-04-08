@@ -100,10 +100,10 @@ serde = "1"
 serde_json = "1"
 sha2 = "0.10"
 tempfile = "3.6.0"
-tendermint = "0.40.2"
-tendermint-config = "0.40.2"
-tendermint-proto = "0.40.2"
-tendermint-rpc = "0.40.2"
+tendermint = "0.40.3"
+tendermint-config = "0.40.3"
+tendermint-proto = "0.40.3"
+tendermint-rpc = "0.40.3"
 thiserror = "1"
 tokio = { version = "1.44.2", default-features = false }
 tokio-stream = { version = "0.1.17" }
@@ -116,3 +116,9 @@ tracing = "0.1"
 tryhard = "0.5.1"
 which = "4.4.0"
 wiremock = "0.5"
+
+[patch.crates-io]
+tendermint = { version = "0.40.2", git = "https://github.com/informalsystems/tendermint-rs", rev = "refs/pull/1497/head" }
+tendermint-config = { version = "0.40.2", git = "https://github.com/informalsystems/tendermint-rs", rev = "refs/pull/1497/head" }
+tendermint-proto = { version = "0.40.2", git = "https://github.com/informalsystems/tendermint-rs", rev = "refs/pull/1497/head" }
+tendermint-rpc = { version = "0.40.2", git = "https://github.com/informalsystems/tendermint-rs", rev = "refs/pull/1497/head" }
