@@ -257,7 +257,7 @@ smoke-test tag=defaultTag:
     --create-namespace > /dev/null
   @just deploy::wait-for-sequencer
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ../../charts/evm-stack -f ../../dev/values/rollup/dev.yaml \
-    {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
+    {{ if tag != '' { replace('--set evm-rollup.images.conductor.tag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
     --set blockscout-stack.enabled=false \
     --set postgresql.enabled=false \
     --set evm-faucet.enabled=false > /dev/null
@@ -282,11 +282,11 @@ evm-rollup-restart-test tag=defaultTag:
     -n astria-validator-single single-sequencer-chart ../../charts/sequencer \
     -f ../../dev/values/validators/all.yml \
     -f ../../dev/values/validators/single.yml \
-    {{ if tag != '' { replace('--set images.sequencer.devTag=# --set sequencer-relayer.images.sequencerRelayer.devTag=#', '#', tag) } else { '' } }} \
+    {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
   @just deploy::wait-for-sequencer
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ../../charts/evm-stack -f ../../dev/values/rollup/evm-restart-test.yaml \
-    {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
+    {{ if tag != '' { replace('--set evm-rollup.images.conductor.tag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
     --set blockscout-stack.enabled=false \
     --set postgresql.enabled=false \
     --set evm-faucet.enabled=false > /dev/null
@@ -313,7 +313,7 @@ smoke-cli tag=defaultTag:
     {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ../../charts/evm-stack -f ../../dev/values/rollup/dev.yaml \
-      {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=#', '#', tag) } else { '' } }} \
+      {{ if tag != '' { replace('--set evm-rollup.images.conductor.tag=# --set composer.images.composer.devTag=#', '#', tag) } else { '' } }} \
       --set blockscout-stack.enabled=false \
       --set postgresql.enabled=false \
       --set evm-bridge-withdrawer.enabled=false \
@@ -343,7 +343,7 @@ ibc-test tag=defaultTag:
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ../../charts/evm-stack \
     -f ../../dev/values/rollup/dev.yaml \
     -f ../../dev/values/rollup/ibc-bridge-test.yaml \
-    {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
+    {{ if tag != '' { replace('--set evm-rollup.images.conductor.tag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
     --set blockscout-stack.enabled=false \
     --set postgresql.enabled=false \
     --set evm-faucet.enabled=false > /dev/null
@@ -399,7 +399,7 @@ ibc-test-timeout-refund tag=defaultTag:
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ../../charts/evm-stack \
     -f ../../dev/values/rollup/dev.yaml \
     -f ../../dev/values/rollup/ibc-bridge-test.yaml \
-    {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=#', '#', tag) } else { '' } }} \
+    {{ if tag != '' { replace('--set evm-rollup.images.conductor.tag=# --set composer.images.composer.devTag=#', '#', tag) } else { '' } }} \
     --set blockscout-stack.enabled=false \
     --set evm-bridge-withdrawer.enabled=false \
     --set postgresql.enabled=false \
