@@ -25,16 +25,6 @@ sequencer:
     aspen:
       activationHeight: 60
       appVersion: 2
-    systemTest:
-      # If `false`, we're running a new network with code and configs incorporating
-      # the latest changes due to be provided via the next planned upgrade. If
-      # `true`, we're running a network similar to current mainnet/testnet, likely
-      # for testing the next planned upgrade.
-      enabled: false
-      # Only effective if `systemTest.enabled` is true. If `bootstrapping` is true, upgrades.json
-      # will not contain the latest upgrade, to allow bootstrapping a test network without the
-      # latest upgrade staged.
-      bootstrapping: false
   priceFeed:
     enabled: true
     metrics:

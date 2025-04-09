@@ -1,7 +1,7 @@
 dependencies:
 - name: celestia-node
   repository: file://../celestia-node
-  version: 0.4.1
+  version: 0.4.0
 - name: evm-rollup
   repository: file://../evm-rollup
   version: 1.2.3
@@ -26,5 +26,5 @@ dependencies:
 - name: blockscout-stack
   repository: https://blockscout.github.io/helm-charts
   version: 1.6.8
-digest: sha256:c1f615ee0a85663d2e7c61b80e0ae9d5dba2198d67e634b010e2212ed1946b01
-generated: "2025-03-29T13:27:44.566768837Z"
+digest: sha256:a18f52087fd7766626750c87ac3240392e8850318ef50a79213ed3c52c7db339
+generated: "2025-04-03T03:46:26.462531892+01:00"
