@@ -97,6 +97,7 @@ fn rollup_data_submission_actions() -> Vec<Arc<Transaction>> {
                 .try_build()
                 .expect("failed to build transaction from actions")
                 .sign(signing_key);
+            *nonce = (*nonce).wrapping_add(1);
             Arc::new(tx)
         })
         .take(SEQUENCE_ACTION_TX_COUNT)
