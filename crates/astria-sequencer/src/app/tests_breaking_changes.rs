@@ -36,11 +36,14 @@ use astria_core::{
                 BridgeUnlock,
                 ChangeMarkets,
                 CurrencyPairsChange,
+                FeeAssetChange,
                 IbcRelayerChange,
                 IbcSudoChange,
+                InitBridgeAccount,
                 MarketMapChange,
                 PriceFeed,
                 RollupDataSubmission,
+                SudoAddressChange,
                 Transfer,
                 UpdateMarketMapParams,
                 ValidatorUpdate,
@@ -77,6 +80,7 @@ use crate::{
             get_alice_signing_key,
             get_bridge_signing_key,
             get_judy_signing_key,
+            run_until_aspen_applied,
             transactions_with_extended_commit_info_and_commitments,
         },
     },
@@ -94,13 +98,14 @@ use crate::{
 #[tokio::test]
 async fn app_genesis_snapshot() {
     let (app, _storage) = AppInitializer::new().init().await;
-    insta::assert_json_snapshot!("app_hash_at_genesis", app.app_hash.as_bytes());
+    insta::assert_json_snapshot!("app_hash_at_genesis", hex::encode(app.app_hash.as_bytes()));
 }
 
 #[tokio::test]
 async fn app_finalize_block_snapshot() {
     let alice = get_alice_signing_key();
     let (mut app, storage) = AppInitializer::new().init().await;
+    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -155,7 +160,6 @@ async fn app_finalize_block_snapshot() {
 
     let timestamp = Time::unix_epoch();
     let block_hash = Hash::try_from([99u8; 32].to_vec()).unwrap();
-    let height = tendermint::block::Height::from(2_u8);
     let finalize_block = abci::request::FinalizeBlock {
         hash: block_hash,
         height,
@@ -178,7 +182,10 @@ async fn app_finalize_block_snapshot() {
         .await
         .unwrap();
     app.commit(storage.clone()).await.unwrap();
-    insta::assert_json_snapshot!("app_hash_finalize_block", app.app_hash.as_bytes());
+    insta::assert_json_snapshot!(
+        "app_hash_finalize_block",
+        hex::encode(app.app_hash.as_bytes())
+    );
 }
 
 // Note: this tests every action except for `Ics20Withdrawal` and `IbcRelay`.
@@ -188,12 +195,6 @@ async fn app_finalize_block_snapshot() {
 #[expect(clippy::too_many_lines, reason = "it's a test")]
 #[tokio::test]
 async fn app_execute_transaction_with_every_action_snapshot() {
-    use astria_core::protocol::transaction::v1::action::{
-        FeeAssetChange,
-        InitBridgeAccount,
-        SudoAddressChange,
-    };
-
     let alice = get_alice_signing_key();
     let bridge = get_bridge_signing_key();
     let bridge_withdrawer = get_judy_signing_key();
@@ -241,6 +242,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .with_genesis_state(genesis_state)
         .init()
         .await;
+    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
 
     // setup for ValidatorUpdate action
     let update = ValidatorUpdate {
@@ -435,10 +437,13 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     app.execute_transaction(signed_tx).await.unwrap();
 
     let sudo_address = app.state.get_sudo_address().await.unwrap();
-    app.end_block(1, &sudo_address).await.unwrap();
+    app.end_block(height.value(), &sudo_address).await.unwrap();
 
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await.unwrap();
 
-    insta::assert_json_snapshot!("app_hash_execute_every_action", app.app_hash.as_bytes());
+    insta::assert_json_snapshot!(
+        "app_hash_execute_every_action",
+        hex::encode(app.app_hash.as_bytes())
+    );
 }

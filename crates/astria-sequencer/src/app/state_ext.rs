@@ -206,7 +206,7 @@ mod tests {
     use cnidarium::StateDelta;
 
     use super::*;
-    use crate::app::benchmark_and_test_utils::default_consensus_params;
+    use crate::app::test_utils::default_consensus_params;
 
     #[test]
     fn revision_number_from_chain_id_regex() {
