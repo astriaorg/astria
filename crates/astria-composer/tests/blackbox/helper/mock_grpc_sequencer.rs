@@ -21,6 +21,8 @@ use astria_core::{
         sequencerblock::v1::{
             GetUpgradesInfoRequest,
             GetUpgradesInfoResponse,
+            GetValidatorNameRequest,
+            GetValidatorNameResponse,
         },
     },
 };
@@ -131,6 +133,13 @@ impl SequencerService for SequencerServiceImpl {
         self: Arc<Self>,
         _request: Request<GetUpgradesInfoRequest>,
     ) -> Result<Response<GetUpgradesInfoResponse>, Status> {
+        unimplemented!()
+    }
+
+    async fn get_validator_name(
+        self: Arc<Self>,
+        _request: Request<GetValidatorNameRequest>,
+    ) -> Result<Response<GetValidatorNameResponse>, Status> {
         unimplemented!()
     }
 }
