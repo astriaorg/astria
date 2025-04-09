@@ -265,7 +265,9 @@ fn create_block_channels(commit_level: CommitLevel, state: &StateSender) -> eyre
                 )?;
             ensure!(
                 channel_size > 0,
-"celestia-search-height-max-look-ahead must be greater than 0 if running in soft-and-firm mode; note that unset values in the execution session have a default of 0"
+                "celestia-search-height-max-look-ahead must be greater than 0 if running in \
+                 soft-and-firm mode; note that unset values in the execution session have a \
+                 default of 0"
             );
             tokio::sync::mpsc::channel(channel_size)
         }
