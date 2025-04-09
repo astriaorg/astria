@@ -23,7 +23,7 @@ dependencies:
     repository: "file://../celestia-node"
     condition: celestia-node.enabled
   - name: evm-rollup
-    version: 1.2.3
+    version: 1.2.4
     repository: "file://../evm-rollup"
     condition: evm-rollup.enabled
   - name: flame-rollup
