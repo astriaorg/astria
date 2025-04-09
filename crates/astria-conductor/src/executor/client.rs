@@ -13,6 +13,7 @@ use astria_core::{
         },
         sequencerblock::v1::RollupData,
     },
+    sequencerblock::v1::block::Hash,
     Protobuf as _,
 };
 use astria_eyre::eyre::{
@@ -62,7 +63,7 @@ impl Client {
 
     /// Calls RPC astria.execution.v2.GetExecutedBlockMetadata
     #[instrument(skip_all, fields(block_number, uri = %self.uri), err)]
-    pub(crate) async fn get_executed_block_metadata(
+    pub(crate) async fn get_executed_block_metadata_with_retry(
         &mut self,
         block_number: u64,
     ) -> eyre::Result<ExecutedBlockMetadata> {
@@ -128,7 +129,7 @@ impl Client {
         parent_hash: String,
         transactions: Vec<Bytes>,
         timestamp: Timestamp,
-        sequencer_block_hash: String,
+        sequencer_block_hash: Hash,
     ) -> eyre::Result<ExecutedBlockMetadata> {
         use prost::Message;
 
@@ -137,6 +138,8 @@ impl Client {
             .map(RollupData::decode)
             .collect::<Result<_, _>>()
             .wrap_err("failed to decode tx bytes as RollupData")?;
+
+        let sequencer_block_hash = sequencer_block_hash.to_string();
 
         let request = raw::ExecuteBlockRequest {
             session_id,

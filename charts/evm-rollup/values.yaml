@@ -11,8 +11,8 @@ images:
     repo: ghcr.io/astriaorg/astria-geth
     pullPolicy: IfNotPresent
     tag: 1.1.0
-    devTag: pr-78
-    overrideTag: pr-78
+    devTag: pr-59
+    overrideTag: pr-59
   conductor:
     repo: ghcr.io/astriaorg/conductor
     pullPolicy: IfNotPresent

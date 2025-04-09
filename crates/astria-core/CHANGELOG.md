@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update `idna` dependency to resolve cargo audit warning [#1869](https://github.com/astriaorg/astria/pull/1869).
 - Replaced all instances of `[u8; 32]` by newtype
   `astria_core::sequencerblock::v1::block::Hash` where appropriate [#1884](https://github.com/astriaorg/astria/pull/1884).
+- Replace `execution::v1` with `execution::v2` API [#2006](https://github.com/astriaorg/astria/pull/2006).
 
 ### Removed
 
@@ -42,4 +43,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove inherent methods `Address::try_from_raw` and `Address::to_raw`
   [#1802](https://github.com/astriaorg/astria/pull/1802).
 - Remove `AddressBuilder::with_iter` from public interface [#1802](https://github.com/astriaorg/astria/pull/1802).
-- Removed `execution::v1` in favor of v2 execution API [#2006](https://github.com/astriaorg/astria/pull/2006).

@@ -1,5 +1,6 @@
 use std::{
     cmp::max,
+    num::NonZeroUsize,
     sync::Arc,
     time::Duration,
 };
@@ -15,6 +16,7 @@ use astria_eyre::eyre::{
     self,
     bail,
     ensure,
+    OptionExt as _,
     WrapErr as _,
 };
 use bytes::Bytes;
@@ -287,7 +289,7 @@ struct RunningReader {
     /// `celestia_search_height_max_look_ahead` + `celestia_reference_height` define the maximum
     /// Celestia height from Celestia blobs that can be fetched. Set once during initialization
     /// to the value stored in the rollup state.
-    celestia_search_height_max_look_ahead: u64,
+    celestia_search_height_max_look_ahead: NonZeroUsize,
 
     /// The rollup ID of the rollup that conductor is driving. Set once during initialization to
     /// the value stored in the
@@ -335,8 +337,9 @@ impl RunningReader {
 
         let celestia_next_height = rollup_state.lowest_celestia_search_height();
         let celestia_reference_height = rollup_state.lowest_celestia_search_height();
-        let celestia_search_height_max_look_ahead =
-            rollup_state.celestia_search_height_max_look_ahead();
+        let celestia_search_height_max_look_ahead = rollup_state
+            .celestia_search_height_max_look_ahead()
+            .ok_or_eyre("celestia search height max look ahead not set")?;
 
         Ok(Self {
             block_cache,
@@ -551,7 +554,7 @@ impl RunningReader {
     /// - `celestia_search_height_max_look_ahead` received from the current rollup state,
     fn max_permitted_celestia_height(&self) -> u64 {
         self.celestia_reference_height
-            .saturating_add(self.celestia_search_height_max_look_ahead)
+            .saturating_add(self.celestia_search_height_max_look_ahead.get() as u64)
     }
 
     fn record_latest_celestia_height(&mut self, height: u64) {

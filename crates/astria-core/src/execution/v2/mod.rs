@@ -182,39 +182,42 @@ enum ExecutionSessionParametersErrorKind {
     serde(into = "crate::generated::astria::execution::v2::ExecutionSessionParameters")
 )]
 pub struct ExecutionSessionParameters {
-    // The rollup_id is the unique identifier for the rollup chain.
+    /// The `rollup_id` is the unique identifier for the rollup chain.
     rollup_id: RollupId,
-    // The first rollup block number to be executed. This is mapped to
-    // `sequencer_first_block_height`. The minimum first block number is 1, since 0 represents
-    // the genesis block. Implementors should reject a value of 0.
-    //
-    // Servers implementing this API should reject execution of blocks below this
-    // value with an OUT_OF_RANGE error code.
+    /// The first rollup block number to be executed. This is mapped to
+    /// `sequencer_first_block_height`. The minimum first block number is 1, since 0 represents
+    /// the genesis block. Implementors should reject a value of 0.
+    ///
+    /// Servers implementing this API should reject execution of blocks below this
+    /// value with an `OUT_OF_RANGE` error code.
     rollup_start_block_number: u64,
-    // The final rollup block number to execute as part of a session.
-    //
-    // If not set or set to 0, the execution session does not have an upper bound.
-    //
-    // Servers implementing this API should reject execution of blocks past this
-    // value with an OUT_OF_RANGE error code.
+    /// The final rollup block number to execute as part of a session.
+    ///
+    /// If not set or set to 0, the execution session does not have an upper bound.
+    ///
+    /// Servers implementing this API should reject execution of blocks past this
+    /// value with an `OUT_OF_RANGE` error code.
     rollup_end_block_number: Option<NonZeroU64>,
-    // The ID of the Astria Sequencer network to retrieve Sequencer blocks from.
-    // Conductor implementations should verify that the Sequencer network they are
-    // connected to have this chain ID (if fetching soft Sequencer blocks), and verify
-    // that the Sequencer metadata blobs retrieved from Celestia contain this chain
-    // ID (if extracting firm Sequencer blocks from Celestia blobs).
+    /// The ID of the Astria Sequencer network to retrieve Sequencer blocks from.
+    /// Conductor implementations should verify that the Sequencer network they are
+    /// connected to have this chain ID (if fetching soft Sequencer blocks), and verify
+    /// that the Sequencer metadata blobs retrieved from Celestia contain this chain
+    /// ID (if extracting firm Sequencer blocks from Celestia blobs).
     sequencer_chain_id: String,
-    // The first block height on the sequencer chain to use for rollup transactions.
-    // This is mapped to `rollup_start_block_number`.
+    /// The first block height on the sequencer chain to use for rollup transactions.
+    /// This is mapped to `rollup_start_block_number`.
     sequencer_start_block_height: tendermint::block::Height,
-    // The ID of the Celestia network to retrieve blobs from.
-    // Conductor implementations should verify that the Celestia network they are
-    // connected to have this chain ID (if extracting firm Sequencer blocks from
-    // Celestia blobs).
+    /// The ID of the Celestia network to retrieve blobs from.
+    /// Conductor implementations should verify that the Celestia network they are
+    /// connected to have this chain ID (if extracting firm Sequencer blocks from
+    /// Celestia blobs).
     celestia_chain_id: String,
-    // The maximum number of Celestia blocks which can be read above
-    // `CommitmentState.lowest_celestia_search_height` in search of the next firm
-    // block.
+    /// The maximum number of Celestia blocks which can be read above
+    /// `CommitmentState.lowest_celestia_search_height` in search of the next firm
+    /// block.
+    ///
+    /// Cannot be set to 0 if Conductor is configured to use firm commitments. If
+    /// Conductor is in soft-only mode, this value is ignored.
     celestia_search_height_max_look_ahead: u64,
 }
 

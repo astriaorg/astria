@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    num::NonZeroUsize,
     time::Duration,
 };
 
@@ -20,6 +21,7 @@ use astria_eyre::eyre::{
     bail,
     ensure,
     eyre,
+    OptionExt as _,
     WrapErr as _,
 };
 use bytes::Bytes;
@@ -71,20 +73,6 @@ pub(super) use client::Client;
 
 type CelestiaHeight = u64;
 
-pub(crate) enum ExitStatus {
-    ShutdownSignalReceived,
-    Unexpected(Box<State>),
-}
-
-impl std::fmt::Display for ExitStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ExitStatus::ShutdownSignalReceived => f.write_str("shutdown signal received"),
-            ExitStatus::Unexpected(_) => f.write_str("executor exited unexpectedly"),
-        }
-    }
-}
-
 pub(crate) struct Executor {
     config: crate::Config,
 
@@ -114,7 +102,7 @@ impl std::fmt::Display for ReaderKind {
 }
 
 impl Executor {
-    pub(crate) async fn run_until_stopped(self) -> eyre::Result<ExitStatus> {
+    pub(crate) async fn run_until_stopped(self) -> eyre::Result<Option<State>> {
         let initialized = select!(
             biased;
 
@@ -122,7 +110,7 @@ impl Executor {
                 info_span!("shutdown signal on init").in_scope(|| {
                     info!("received shutdown signal while initializing executor; cancelling initialization");
                 });
-                return Ok(ExitStatus::ShutdownSignalReceived);
+                return Ok(None);
             }
             res = self.init() => {
                 res.wrap_err("initialization failed")?
@@ -145,22 +133,9 @@ impl Executor {
 
         let reader_cancellation_token = self.shutdown.child_token();
 
-        // Creating a channel with a buffer size of 0 will panic, so we perform the check here.
-        ensure!(
-            state.celestia_search_height_max_look_ahead() > 0,
-            "celestia search height max look ahead must be greater than 0"
-        );
-
-        let (firm_blocks_tx, firm_blocks_rx) = tokio::sync::mpsc::channel(16);
-        let (soft_blocks_tx, soft_blocks_rx) = tokio::sync::mpsc::channel(
-            state
-                .celestia_search_height_max_look_ahead()
-                .try_into()
-                .wrap_err(
-                    "failed converting u64 to usize; is conductor running on a 32 bit \
-                     architecture?",
-                )?,
-        );
+        let ((firm_blocks_tx, firm_blocks_rx), (soft_blocks_tx, soft_blocks_rx)) =
+            create_block_channels(self.config.execution_commit_level, &state)
+                .wrap_err("failed to create channels")?;
 
         let mut reader_tasks = JoinMap::new();
         if self.config.is_with_firm() {
@@ -245,6 +220,36 @@ impl Executor {
     }
 }
 
+type BlockChannels = (
+    (
+        mpsc::Sender<Box<ReconstructedBlock>>,
+        mpsc::Receiver<Box<ReconstructedBlock>>,
+    ),
+    (
+        mpsc::Sender<FilteredSequencerBlock>,
+        mpsc::Receiver<FilteredSequencerBlock>,
+    ),
+);
+
+fn create_block_channels(
+    commit_level: CommitLevel,
+    state: &StateSender,
+) -> eyre::Result<BlockChannels> {
+    let firm_blocks = tokio::sync::mpsc::channel(16);
+    let soft_blocks = if commit_level.is_with_firm() {
+        tokio::sync::mpsc::channel(
+            state
+                .celestia_search_height_max_look_ahead()
+                .ok_or_eyre("celestia search height max look ahead must be set")?
+                .get(),
+        )
+    } else {
+        // Arbitrarily chosen as 2x the sequencer request rate limit
+        tokio::sync::mpsc::channel(1024)
+    };
+    Ok((firm_blocks, soft_blocks))
+}
+
 struct Initialized {
     config: crate::Config,
 
@@ -281,12 +286,12 @@ struct Initialized {
 }
 
 impl Initialized {
-    async fn run(mut self) -> eyre::Result<ExitStatus> {
-        let reason = select!(
+    async fn run(mut self) -> eyre::Result<Option<State>> {
+        let result = select!(
             biased;
 
             () = self.shutdown.clone().cancelled_owned() => {
-                Ok(ExitStatus::ShutdownSignalReceived)
+                Ok(Some(self.state.get().clone()))
             }
 
             res = self.run_event_loop() => {
@@ -294,11 +299,11 @@ impl Initialized {
             }
         );
 
-        self.shutdown(&reason).await;
-        reason
+        self.shutdown(&result).await;
+        result
     }
 
-    async fn run_event_loop(&mut self) -> eyre::Result<ExitStatus> {
+    async fn run_event_loop(&mut self) -> eyre::Result<Option<State>> {
         loop {
             select!(
                 biased;
@@ -327,7 +332,7 @@ impl Initialized {
                     self.handle_task_exit(task, res)?;
                 }
 
-                else => break Ok(ExitStatus::Unexpected(Box::new(self.state.get().clone())))
+                else => break Ok(Some(self.state.get().clone()))
             );
         }
     }
@@ -351,7 +356,10 @@ impl Initialized {
         };
 
         let is_too_far_ahead = next_soft.saturating_sub(next_firm)
-            >= self.state.celestia_search_height_max_look_ahead();
+            >= self
+                .state
+                .celestia_search_height_max_look_ahead()
+                .map_or(0, NonZeroUsize::get) as u64;
 
         if is_too_far_ahead {
             debug!("soft blocks are too far ahead of firm; skipping soft blocks");
@@ -467,7 +475,11 @@ impl Initialized {
                 "pending block not found for block number in cache. THIS SHOULD NOT HAPPEN. \
                  Trying to fetch the already-executed block from the rollup before giving up."
             );
-            match self.client.get_executed_block_metadata(block_number).await {
+            match self
+                .client
+                .get_executed_block_metadata_with_retry(block_number)
+                .await
+            {
                 Ok(block) => Update::OnlyFirm(block, celestia_height),
                 Err(error) => {
                     error!(
@@ -520,17 +532,10 @@ impl Initialized {
         } = block;
 
         let n_transactions = transactions.len();
-        let sequencer_block_hash = hash.to_string();
 
         let executed_block_metadata = self
             .client
-            .execute_block_with_retry(
-                session_id,
-                parent_hash,
-                transactions,
-                timestamp,
-                sequencer_block_hash,
-            )
+            .execute_block_with_retry(session_id, parent_hash, transactions, timestamp, hash)
             .await
             .wrap_err("failed to run execute_block RPC")?;
 
@@ -645,7 +650,7 @@ impl Initialized {
                     }
 
                     (true, false) => match res {
-                        Ok(Ok(())) => Err(eyre!("task exited with sucess value")),
+                        Ok(Ok(())) => Err(eyre!("task exited with success value")),
                         Ok(Err(err)) => Err(err).wrap_err("task exited with error"),
                         Err(err) => Err(err).wrap_err("task panicked"),
                     }
@@ -673,7 +678,7 @@ impl Initialized {
                         Ok(())
                     }
                     (true, false) => match res {
-                        Ok(Ok(())) => Err(eyre!("task exited with sucess value")),
+                        Ok(Ok(())) => Err(eyre!("task exited with success value")),
                         Ok(Err(err)) => Err(err).wrap_err("task exited with error"),
                         Err(err) => Err(err).wrap_err("task panicked"),
                     }
@@ -699,11 +704,11 @@ impl Initialized {
     }
 
     #[instrument(skip_all)]
-    async fn shutdown(mut self, reason: &eyre::Result<ExitStatus>) {
+    async fn shutdown(mut self, reason: &eyre::Result<Option<State>>) {
         let message = "shutting down";
         match &reason {
-            Ok(reason) => {
-                info!(%reason, message);
+            Ok(_) => {
+                info!(reason = "executor exited with no error", message);
             }
             Err(reason) => {
                 error!(%reason, message);
