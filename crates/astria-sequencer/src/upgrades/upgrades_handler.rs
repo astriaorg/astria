@@ -59,7 +59,12 @@ impl UpgradesHandler {
         cometbft_rpc_addr: String,
     ) -> Result<Self> {
         let upgrades =
-            Upgrades::read_from_path(upgrades_filepath).wrap_err("failed constructing upgrades")?;
+            Upgrades::read_from_path(upgrades_filepath.as_ref()).wrap_err_with(|| {
+                format!(
+                    "failed constructing upgrades from file at {}",
+                    upgrades_filepath.as_ref().display()
+                )
+            })?;
         Ok(Self {
             upgrades,
             cometbft_rpc_addr,

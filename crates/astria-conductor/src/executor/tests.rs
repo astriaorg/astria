@@ -224,7 +224,7 @@ fn should_execute_firm() {
 }
 
 #[test]
-fn should_insert_valid_price_feed_data_into_txs() {
+fn should_prepend_valid_price_feed_data_to_txs() {
     let tx = Bytes::from(vec![1; 1]);
     let txs = vec![tx.clone(); 1];
     let extended_commit_info = ExtendedCommitInfoWithCurrencyPairMapping {
@@ -235,13 +235,13 @@ fn should_insert_valid_price_feed_data_into_txs() {
         id_to_currency_pair: IndexMap::new(),
     };
     let bytes =
-        super::insert_price_feed_data_into_transactions_if_exists(txs, Some(extended_commit_info));
+        super::prepend_transactions_by_price_feed_if_exists(txs, Some(extended_commit_info));
     assert_eq!(bytes.len(), 2);
     assert_eq!(bytes[1], tx);
 }
 
 #[test]
-fn should_not_insert_invalid_price_feed_data_into_txs() {
+fn should_not_prepend_invalid_price_feed_data_to_txs() {
     let txs = vec![Bytes::from(vec![1; 1])];
     let invalid_extended_vote_info = ExtendedVoteInfo {
         validator: Validator {
@@ -259,7 +259,7 @@ fn should_not_insert_invalid_price_feed_data_into_txs() {
         },
         id_to_currency_pair: IndexMap::new(),
     };
-    let bytes = super::insert_price_feed_data_into_transactions_if_exists(
+    let bytes = super::prepend_transactions_by_price_feed_if_exists(
         txs.clone(),
         Some(extended_commit_info),
     );
@@ -267,8 +267,8 @@ fn should_not_insert_invalid_price_feed_data_into_txs() {
 }
 
 #[test]
-fn should_not_insert_missing_price_feed_data_into_txs() {
+fn should_not_prepend_missing_price_feed_data_to_txs() {
     let txs = vec![Bytes::from(vec![1; 1])];
-    let bytes = super::insert_price_feed_data_into_transactions_if_exists(txs.clone(), None);
+    let bytes = super::prepend_transactions_by_price_feed_if_exists(txs.clone(), None);
     assert_eq!(bytes, txs);
 }
