@@ -89,13 +89,12 @@ pub(super) fn reconstruct_blocks_from_verified_blobs(
                 "sequencer header blob contains the target rollup ID, but no matching rollup blob was found; dropping it",
             );
         } else {
-            let extended_commit_info = header_blob.extended_commit_info().cloned();
             reconstructed_blocks.push(ReconstructedBlock {
                 celestia_height,
                 block_hash: *header_blob.block_hash(),
+                extended_commit_info: header_blob.extended_commit_info().cloned(),
                 header: header_blob.into_unchecked().header,
                 transactions: vec![],
-                extended_commit_info,
             });
         }
     }

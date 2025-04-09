@@ -185,4 +185,7 @@ was included in a block, it was already validated by >2/3 voting power of the ne
 
 The conductor then calculates the prices for each pair using the same algorithm
 as `finalize_block` and formats them into `RollupData::OracleData`, which it
-sends to the rollup execution node via the execution API.
+sends to the rollup execution node via the execution API, prepended to the
+collection of transactions. The price feed data is prepended as it's anticipated
+that rollups will usually want to apply the updated price data before executing
+the rest of the transactions.

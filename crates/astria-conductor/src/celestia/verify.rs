@@ -292,7 +292,6 @@ impl BlobVerifier {
         }) {
             info!(reason = %error, "failed to verify metadata retrieved from Celestia; dropping it");
         }
-
         Some(metadata)
     }
 }
