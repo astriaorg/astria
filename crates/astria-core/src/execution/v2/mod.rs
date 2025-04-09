@@ -406,7 +406,7 @@ impl ExecutedBlockMetadata {
     pub fn timestamp(&self) -> Timestamp {
         // prost_types::Timestamp is a (i64, i32) tuple, so this is
         // effectively just a copy
-        self.timestamp.clone()
+        self.timestamp
     }
 
     #[must_use]
@@ -434,9 +434,7 @@ impl Protobuf for ExecutedBlockMetadata {
             sequencer_block_hash,
         } = raw;
         // Cloning timestamp is effectively a copy because timestamp is just a (i32, i64) tuple
-        let timestamp = timestamp
-            .clone()
-            .ok_or(Self::Error::field_not_set(".timestamp"))?;
+        let timestamp = timestamp.ok_or(Self::Error::field_not_set(".timestamp"))?;
 
         Ok(Self {
             number: *number,
@@ -461,7 +459,7 @@ impl Protobuf for ExecutedBlockMetadata {
             parent_hash: parent_hash.clone(),
             // Cloning timestamp is effectively a copy because timestamp is just a (i32, i64)
             // tuple
-            timestamp: Some(timestamp.clone()),
+            timestamp: Some(*timestamp),
             sequencer_block_hash: sequencer_block_hash.clone(),
         }
     }
