@@ -261,6 +261,18 @@ mod tests {
             "value_impl_validator_set",
             borsh_then_hex(&ValueImpl::ValidatorSet(ValidatorSet(vec![])))
         );
+        assert_snapshot!(
+            "value_impl_validator_count",
+            borsh_then_hex(&ValueImpl::ValidatorCount(ValidatorCount(0)))
+        );
+        assert_snapshot!(
+            "value_impl_validator_info_v1",
+            borsh_then_hex(&ValueImpl::ValidatorInfoV1(ValidatorInfoV1 {
+                name: Cow::Borrowed(""),
+                power: 0,
+                verification_key: VerificationKey(Cow::Borrowed(&[0; 32])),
+            }))
+        );
     }
 
     // Note: This test must be here instead of in `crate::storage` since `ValueImpl` is not

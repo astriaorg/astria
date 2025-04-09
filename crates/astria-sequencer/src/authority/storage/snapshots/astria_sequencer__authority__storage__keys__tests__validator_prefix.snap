@@ -1,5 +1,0 @@
----
-source: crates/astria-sequencer/src/authority/storage/keys.rs
-expression: VALIDATOR_PREFIX
----
-authority/validator/

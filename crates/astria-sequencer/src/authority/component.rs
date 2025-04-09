@@ -45,7 +45,7 @@ impl AuthorityComponent {
     pub(crate) async fn handle_aspen_upgrade<S: StateWriteExt>(state: &mut S) -> Result<()> {
         info!("performing Aspen upgrade validator set changes");
         let validator_set = state
-            ._pre_aspen_get_validator_set()
+            .pre_aspen_get_validator_set()
             .await
             .wrap_err("failed to get validator set")?;
         state
@@ -81,7 +81,7 @@ impl Component for AuthorityComponent {
             .wrap_err("failed to set sudo key")?;
         let genesis_validators = app_state.genesis_validators.clone();
         state
-            ._pre_aspen_put_validator_set(ValidatorSet::new_from_updates(genesis_validators))
+            .pre_aspen_put_validator_set(ValidatorSet::new_from_updates(genesis_validators))
             .wrap_err("failed to set validator set")?;
         Ok(())
     }
@@ -99,20 +99,20 @@ impl Component for AuthorityComponent {
             .wrap_err("failed to determine upgrade status")?
         {
             let mut current_set = state
-                ._pre_aspen_get_validator_set()
+                .pre_aspen_get_validator_set()
                 .await
                 .wrap_err("failed getting validator set")?;
             for misbehaviour in &begin_block.byzantine_validators {
                 current_set.remove(&misbehaviour.validator.address);
             }
             state
-                ._pre_aspen_put_validator_set(current_set)
+                .pre_aspen_put_validator_set(current_set)
                 .wrap_err("failed putting validator set")?;
         } else {
             for misbehaviour in &begin_block.byzantine_validators {
                 // Only update the count if validator is in state
-                if let Some(()) = state
-                    .checked_remove_validator(&misbehaviour.validator.address)
+                if state
+                    .remove_validator(&misbehaviour.validator.address)
                     .await
                     .wrap_err("failed to remove validator")?
                 {
@@ -149,13 +149,13 @@ impl Component for AuthorityComponent {
                 .wrap_err("failed getting validator updates")?;
 
             let mut current_set = state
-                ._pre_aspen_get_validator_set()
+                .pre_aspen_get_validator_set()
                 .await
                 .wrap_err("failed getting validator set")?;
             current_set.apply_updates(validator_updates);
 
             state
-                ._pre_aspen_put_validator_set(current_set)
+                .pre_aspen_put_validator_set(current_set)
                 .wrap_err("failed putting validator set")?;
         }
         Ok(())
@@ -257,12 +257,12 @@ mod tests {
         let validator_set = test_validator_set();
 
         state
-            ._pre_aspen_put_validator_set(validator_set.clone())
+            .pre_aspen_put_validator_set(validator_set.clone())
             .unwrap();
 
         // Check that validator set is stored correctly
         assert_eq!(
-            state._pre_aspen_get_validator_set().await.unwrap(),
+            state.pre_aspen_get_validator_set().await.unwrap(),
             validator_set
         );
 
@@ -284,7 +284,7 @@ mod tests {
         // Check that the validator set is removed during upgrade
         assert_eq!(
             state
-                ._pre_aspen_get_validator_set()
+                .pre_aspen_get_validator_set()
                 .await
                 .unwrap_err()
                 .to_string(),
@@ -311,12 +311,12 @@ mod tests {
         let mut validator_set = test_validator_set();
 
         state
-            ._pre_aspen_put_validator_set(validator_set.clone())
+            .pre_aspen_put_validator_set(validator_set.clone())
             .unwrap();
 
         // Check that validator set is stored correctly
         assert_eq!(
-            state._pre_aspen_get_validator_set().await.unwrap(),
+            state.pre_aspen_get_validator_set().await.unwrap(),
             validator_set
         );
 
@@ -339,7 +339,7 @@ mod tests {
             .unwrap();
 
         // Check that the validator set is updated correctly
-        let updated_validator_set = state._pre_aspen_get_validator_set().await.unwrap();
+        let updated_validator_set = state.pre_aspen_get_validator_set().await.unwrap();
         assert_eq!(updated_validator_set.0.len(), 2);
         assert_eq!(updated_validator_set, validator_set);
     }
@@ -422,11 +422,11 @@ mod tests {
             .put_block_validator_updates(validator_set.clone())
             .unwrap();
         state
-            ._pre_aspen_put_validator_set(ValidatorSet::new_from_updates(vec![]))
+            .pre_aspen_put_validator_set(ValidatorSet::new_from_updates(vec![]))
             .unwrap();
 
         assert_eq!(
-            state._pre_aspen_get_validator_set().await.unwrap(),
+            state.pre_aspen_get_validator_set().await.unwrap(),
             ValidatorSet::new_from_updates(vec![])
         );
 
@@ -441,7 +441,7 @@ mod tests {
         .unwrap();
 
         // Check that the validator set is updated correctly
-        let updated_validator_set = state._pre_aspen_get_validator_set().await.unwrap();
+        let updated_validator_set = state.pre_aspen_get_validator_set().await.unwrap();
         assert_eq!(updated_validator_set, validator_set);
     }
 

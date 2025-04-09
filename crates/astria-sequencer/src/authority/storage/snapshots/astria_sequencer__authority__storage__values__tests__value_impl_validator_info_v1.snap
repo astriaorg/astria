@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/authority/storage/values.rs
+expression: "borsh_then_hex(&ValueImpl::ValidatorInfoV1(ValidatorInfoV1\n{\n    name: Cow::Borrowed(\"\"), power: 0, verification_key:\n    VerificationKey(Cow::Borrowed(&[0; 32])),\n}))"
+---
+0300000000000000000000000000000000000000000000000000000000000000000000000000000000
