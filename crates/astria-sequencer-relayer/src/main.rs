@@ -28,7 +28,6 @@ async fn main() -> ExitCode {
     let mut telemetry_conf = telemetry::configure()
         .set_no_otel(cfg.no_otel)
         .set_force_stdout(cfg.force_stdout)
-        .set_pretty_print(cfg.pretty_print)
         .set_filter_directives(&cfg.log);
 
     if !cfg.no_metrics {
@@ -54,8 +53,9 @@ async fn main() -> ExitCode {
 
     let mut sigterm = signal(SignalKind::terminate())
         .expect("setting a SIGTERM listener should always work on Unix");
-    let (sequencer_relayer, shutdown_handle) =
-        SequencerRelayer::new(cfg, metrics).expect("could not initialize sequencer relayer");
+    let (sequencer_relayer, shutdown_handle) = SequencerRelayer::new(cfg, metrics)
+        .await
+        .expect("could not initialize sequencer relayer");
     let sequencer_relayer_handle = tokio::spawn(sequencer_relayer.run());
 
     tokio::select!(

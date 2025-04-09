@@ -28,7 +28,7 @@ impl Upgrades {
     /// # Errors
     ///
     /// Returns an error if reading, parsing or converting from raw (protobuf) upgrades fails.
-    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
+    pub fn read_from_path<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let contents = std::fs::read(path.as_ref())
             .map_err(|source| Error::read_file(source, path.as_ref().to_path_buf()))?;
         let raw_upgrades = serde_json::from_slice::<RawUpgrades>(&contents)

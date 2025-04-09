@@ -79,11 +79,7 @@ impl Protobuf for Aspen {
         let RawBaseUpgradeInfo {
             activation_height,
             app_version,
-        } = raw
-            .base_info
-            .as_ref()
-            .ok_or_else(Error::no_base_info)?
-            .clone();
+        } = *raw.base_info.as_ref().ok_or_else(Error::no_base_info)?;
 
         let price_feed_change = raw
             .price_feed_change

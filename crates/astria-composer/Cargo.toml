@@ -21,7 +21,7 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
   "display",
 ] }
 
-tonic-health = "0.10.2"
+tonic-health = "0.12.3"
 
 async-trait = { workspace = true }
 axum = { workspace = true }

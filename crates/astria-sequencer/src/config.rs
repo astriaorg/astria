@@ -33,8 +33,6 @@ pub struct Config {
     pub no_metrics: bool,
     /// The endpoint which will be listened on for serving prometheus metrics
     pub metrics_http_listener_addr: String,
-    /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
-    pub pretty_print: bool,
     /// The path to the file containing the JSON-encoded upgrades for this network.
     pub upgrades_filepath: PathBuf,
     /// The address of the CometBFT RPC endpoint for this sequencer.

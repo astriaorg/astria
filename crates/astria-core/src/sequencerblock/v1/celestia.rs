@@ -402,9 +402,9 @@ enum SubmittedMetadataErrorKind {
     RollupTransactionsNotInCometBftBlock,
     #[error("the Merkle Tree Hash of the rollup IDs was not a leaf in the sequencer block data")]
     RollupIdsNotInCometBftBlock,
-    #[error(transparent)]
+    #[error("field `.upgrade_change_hashes` is invalid")]
     UpgradeChangeHashes { source: ChangeHashError },
-    #[error("extended commit info or proof error")]
+    #[error("field `.extended_commit_info_with_proof` is invalid")]
     ExtendedCommitInfo { source: ExtendedCommitInfoError },
 }
 
@@ -614,7 +614,7 @@ impl SubmittedMetadata {
         self.rollup_ids.contains(&rollup_id)
     }
 
-    /// Returns the `ExtendedCommitInfoWithCurrencyPairMapping` contained in this blob.
+    /// Returns the [`ExtendedCommitInfoWithCurrencyPairMapping`] contained in this blob.
     #[must_use]
     pub fn extended_commit_info(&self) -> Option<&ExtendedCommitInfoWithCurrencyPairMapping> {
         self.extended_commit_info_with_proof
