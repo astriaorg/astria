@@ -23,7 +23,6 @@ use cnidarium::{
     Snapshot,
     StateWrite,
 };
-use isahc::AsyncReadResponseExt;
 use serde_json::Value;
 use tendermint::consensus::params::VersionParams;
 use tracing::{
@@ -411,7 +410,7 @@ async fn try_get_consensus_params_from_cometbft(
     uri: &str,
 ) -> Result<tendermint::consensus::Params> {
     let blocking_getter = async {
-        isahc::get_async(uri)
+        reqwest::get(uri)
             .await
             .wrap_err("failed to get consensus params")?
             .text()

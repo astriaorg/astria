@@ -6,8 +6,8 @@ ignore = [
   # `proc-macro-error` is Unmaintained. It is a transient dependency of borsh crates, so cannot
   # easily be replaced.
   "RUSTSEC-2024-0370",
-  # `instant` is Unmaintained. It is a transient dependency of `isahc`, `wiremock` and `ethers`, so
-  # cannot easily be replaced.
+  # `instant` is Unmaintained. It is a transient dependency of `wiremock` and `ethers`, so cannot
+  # easily be replaced.
   "RUSTSEC-2024-0384",
   # `derivative` is Unmaintained. It is a transient dependency of many crates including several
   # penumbra ones, so cannot easily be replaced.

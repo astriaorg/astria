@@ -57,6 +57,10 @@ pub mod v2 {
         ///
         /// - if the `price` field is invalid
         /// - if the `block_timestamp` field is missing
+        #[expect(
+            clippy::needless_pass_by_value,
+            reason = "more convenient signature as is"
+        )]
         pub fn try_from_raw(raw: raw::QuotePrice) -> Result<Self, QuotePriceError> {
             let price = raw.price.parse().map_err(QuotePriceError::parse_price)?;
             let Some(block_timestamp) = raw.block_timestamp else {

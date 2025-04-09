@@ -360,10 +360,12 @@ impl serde::Serialize for SequencerBlockCommit {
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.optimistic.v1alpha1.SequencerBlockCommit", len)?;
         if self.height != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
         }
         if !self.block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("blockHash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
         }
         struct_ser.end()

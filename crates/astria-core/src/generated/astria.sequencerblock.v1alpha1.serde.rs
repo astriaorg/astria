@@ -48,6 +48,7 @@ impl serde::Serialize for Deposit {
         }
         if self.source_action_index != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("sourceActionIndex", ToString::to_string(&self.source_action_index).as_str())?;
         }
         struct_ser.end()
@@ -228,6 +229,7 @@ impl serde::Serialize for FilteredSequencerBlock {
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1alpha1.FilteredSequencerBlock", len)?;
         if !self.block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("blockHash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
         }
         if let Some(v) = self.header.as_ref() {
@@ -400,6 +402,7 @@ impl serde::Serialize for GetFilteredSequencerBlockRequest {
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1alpha1.GetFilteredSequencerBlockRequest", len)?;
         if self.height != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
         }
         if !self.rollup_ids.is_empty() {
@@ -693,6 +696,7 @@ impl serde::Serialize for GetSequencerBlockRequest {
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1alpha1.GetSequencerBlockRequest", len)?;
         if self.height != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
         }
         struct_ser.end()
@@ -789,6 +793,7 @@ impl serde::Serialize for RollupData {
             match v {
                 rollup_data::Value::SequencedData(v) => {
                     #[allow(clippy::needless_borrow)]
+                    #[allow(clippy::needless_borrows_for_generic_args)]
                     struct_ser.serialize_field("sequencedData", pbjson::private::base64::encode(&v).as_str())?;
                 }
                 rollup_data::Value::Deposit(v) => {
@@ -1050,6 +1055,7 @@ impl serde::Serialize for SequencerBlock {
         }
         if !self.block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("blockHash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
         }
         struct_ser.end()
@@ -1210,6 +1216,7 @@ impl serde::Serialize for SequencerBlockHeader {
         }
         if self.height != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
         }
         if let Some(v) = self.time.as_ref() {
@@ -1217,14 +1224,17 @@ impl serde::Serialize for SequencerBlockHeader {
         }
         if !self.data_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("dataHash", pbjson::private::base64::encode(&self.data_hash).as_str())?;
         }
         if !self.proposer_address.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("proposerAddress", pbjson::private::base64::encode(&self.proposer_address).as_str())?;
         }
         if !self.rollup_transactions_root.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("rollupTransactionsRoot", pbjson::private::base64::encode(&self.rollup_transactions_root).as_str())?;
         }
         struct_ser.end()
@@ -1396,6 +1406,7 @@ impl serde::Serialize for SubmittedMetadata {
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1alpha1.SubmittedMetadata", len)?;
         if !self.block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("blockHash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
         }
         if let Some(v) = self.header.as_ref() {
@@ -1650,6 +1661,7 @@ impl serde::Serialize for SubmittedRollupData {
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1alpha1.SubmittedRollupData", len)?;
         if !self.sequencer_block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("sequencerBlockHash", pbjson::private::base64::encode(&self.sequencer_block_hash).as_str())?;
         }
         if let Some(v) = self.rollup_id.as_ref() {
