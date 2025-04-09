@@ -10,7 +10,6 @@ homepage = "https://astria.org"
 
 [dependencies]
 bech32 = "0.11.0"
-http = "0.2.9"
 k256 = "0.13.3"
 serde_path_to_error = "0.1.13"
 
@@ -21,6 +20,7 @@ celestia-types = { workspace = true }
 const_format = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
+http = { workspace = true }
 hyper = { workspace = true }
 itoa = { workspace = true }
 jiff = { workspace = true, features = ["serde"] }
@@ -69,23 +69,20 @@ config = { package = "astria-config", path = "../astria-config", features = [
 astria-core = { path = "../astria-core", features = ["test-utils", "server"] }
 
 async-trait = { workspace = true }
-celestia-tendermint = { workspace = true }
 celestia-types = { workspace = true }
 hyper = { workspace = true }
 itertools = { workspace = true }
-rand_core = { version = "0.6", features = ["getrandom"] }
+reqwest = { workspace = true, features = ["json"] }
 tempfile = { workspace = true }
 tendermint-rpc = { workspace = true, features = ["http-client"] }
 tokio = { workspace = true, features = ["test-util"] }
 tokio-stream = { workspace = true, features = ["net"] }
+tokio-test = { workspace = true }
 wiremock = { workspace = true }
 
 assert-json-diff = "2.0.2"
-http = "0.2.7"
-isahc = { version = "1.7.2", features = ["json"] }
-tower = { version = "0.4.13" }
-tokio-test.workspace = true
 rand_chacha = "0.3.1"
+rand_core = { version = "0.6", features = ["getrandom"] }
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }

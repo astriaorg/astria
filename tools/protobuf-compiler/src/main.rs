@@ -74,11 +74,6 @@ fn main() {
         .client_mod_attribute(".", "#[cfg(feature=\"client\")]")
         .server_mod_attribute(".", "#[cfg(feature=\"server\")]")
         .extern_path(".astria_vendored.penumbra", "::penumbra-proto")
-        .type_attribute(".astria.primitive.v1.Uint128", "#[derive(Copy)]")
-        .type_attribute(
-            ".astria.protocol.genesis.v1.IbcParameters",
-            "#[derive(Copy)]",
-        )
         .use_arc_self(true)
         // override prost-types with pbjson-types
         .compile_well_known_types(true)
@@ -86,7 +81,7 @@ fn main() {
         .file_descriptor_set_path(buf_img.path())
         .skip_protoc_run()
         .out_dir(&out_dir)
-        .compile_with_config(prost_build_config(), &files, INCLUDES)
+        .compile_protos_with_config(prost_build_config(), &files, INCLUDES)
         .expect("should be able to compile protobuf using tonic");
 
     let descriptor_set = std::fs::read(buf_img.path())

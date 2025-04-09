@@ -106,6 +106,7 @@ impl serde::Serialize for Denom {
         let mut struct_ser = serializer.serialize_struct("astria.primitive.v1.Denom", len)?;
         if !self.id.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("id", pbjson::private::base64::encode(&self.id).as_str())?;
         }
         if !self.base_denom.is_empty() {
@@ -221,14 +222,17 @@ impl serde::Serialize for Proof {
         let mut struct_ser = serializer.serialize_struct("astria.primitive.v1.Proof", len)?;
         if !self.audit_path.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("auditPath", pbjson::private::base64::encode(&self.audit_path).as_str())?;
         }
         if self.leaf_index != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("leafIndex", ToString::to_string(&self.leaf_index).as_str())?;
         }
         if self.tree_size != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("treeSize", ToString::to_string(&self.tree_size).as_str())?;
         }
         struct_ser.end()
@@ -352,6 +356,7 @@ impl serde::Serialize for RollupId {
         let mut struct_ser = serializer.serialize_struct("astria.primitive.v1.RollupId", len)?;
         if !self.inner.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("inner", pbjson::private::base64::encode(&self.inner).as_str())?;
         }
         struct_ser.end()
@@ -540,10 +545,12 @@ impl serde::Serialize for Uint128 {
         let mut struct_ser = serializer.serialize_struct("astria.primitive.v1.Uint128", len)?;
         if self.lo != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("lo", ToString::to_string(&self.lo).as_str())?;
         }
         if self.hi != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("hi", ToString::to_string(&self.hi).as_str())?;
         }
         struct_ser.end()

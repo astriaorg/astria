@@ -1063,7 +1063,7 @@ impl App {
             event
                 .attributes
                 .iter_mut()
-                .for_each(|attr| attr.index = true);
+                .for_each(|attr| attr.set_index(true));
         }
 
         Ok(events)

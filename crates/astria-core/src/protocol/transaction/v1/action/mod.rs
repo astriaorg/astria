@@ -1121,7 +1121,6 @@ impl Protobuf for Ics20Withdrawal {
             })?;
 
         let timeout_height = timeout_height
-            .clone()
             .ok_or(Ics20WithdrawalError::field_not_set("timeout_height"))?
             .into();
         let bridge_address = bridge_address
