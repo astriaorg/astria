@@ -533,7 +533,7 @@ async fn verification_key<S: StateReadExt>(
         .wrap_err("failed to determine upgrade status")?
     {
         state
-            ._pre_aspen_get_validator_set()
+            .pre_aspen_get_validator_set()
             .await
             .wrap_err("failed to get validator set")?
             .get(address)
@@ -874,7 +874,7 @@ mod test {
                     name: "signer_c".to_string(),
                 },
             ]);
-            state._pre_aspen_put_validator_set(validator_set).unwrap();
+            state.pre_aspen_put_validator_set(validator_set).unwrap();
             state.put_base_prefix("astria".to_string()).unwrap();
 
             let mut market_map = MarketMap {

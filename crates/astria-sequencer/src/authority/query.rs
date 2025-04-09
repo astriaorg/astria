@@ -43,7 +43,7 @@ pub(crate) async fn validator_name_request(
         }
     };
 
-    match snapshot._pre_aspen_get_validator_set().await {
+    match snapshot.pre_aspen_get_validator_set().await {
         Ok(_) => error_query_response(
             None,
             AbciErrorCode::BAD_REQUEST,
@@ -197,7 +197,7 @@ mod tests {
         let key_address_bytes = *verification_key.clone().address_bytes();
 
         state
-            ._pre_aspen_put_validator_set(ValidatorSet::new(BTreeMap::new()))
+            .pre_aspen_put_validator_set(ValidatorSet::new(BTreeMap::new()))
             .unwrap();
         storage.commit(state).await.unwrap();
 

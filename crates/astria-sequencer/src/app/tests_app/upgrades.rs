@@ -485,7 +485,7 @@ async fn execute_block_99(proposer: &mut Node, validator: &mut Node, non_validat
     );
     // Check that validator has been correctly added, and that no name has been stored pre-upgrade
     let validator_set = snapshot_99
-        ._pre_aspen_get_validator_set()
+        .pre_aspen_get_validator_set()
         .await
         .expect("should get validator set");
     assert_eq!(
@@ -606,7 +606,7 @@ async fn execute_block_100(proposer: &mut Node, validator: &mut Node, non_valida
 
     // Check that validator set is no longer in use
     let _ = snapshot_100
-        ._pre_aspen_get_validator_set()
+        .pre_aspen_get_validator_set()
         .await
         .expect_err("validator set should no longer exist in state");
 

@@ -18,7 +18,7 @@ class SequencerController:
     servers.
     """
 
-    def __init__(self, node_name, address):
+    def __init__(self, node_name):
         self.name = node_name
         if node_name == "node0":
             self.namespace = "astria-dev-cluster"
@@ -29,7 +29,6 @@ class SequencerController:
             self.rpc_url = f"http://rpc.sequencer-{node_name}.localdev.me"
             self.grpc_url = f"grpc.sequencer-{node_name}.localdev.me:80"
         self.last_block_height_before_restart = None
-        self.address = address
 
     # ===========================================================
     # Methods managing and querying the sequencer's k8s container
@@ -66,7 +65,7 @@ class SequencerController:
         )
         run_subprocess(args, msg=f"deploying {self.name}")
         self._wait_for_deploy(timeout_secs=600)
-        self._ensure_reported_name_matches_assigned_name()
+        (self.address, self.pub_key, self.power) = self._check_reported_name_and_get_node_info()
         print(f"{self.name}: running")
 
     def stage_upgrade(self, sequencer_image_tag, relayer_image_tag, enable_price_feed, upgrade_name, activation_height):
@@ -264,6 +263,18 @@ class SequencerController:
         except Exception as error:
             raise Exception(f"{self.name}: failed to get validator name: {error}")
 
+    def get_validators(self):
+        """
+        Queries the sequencer's JSON-RPC server for the current set of validators.
+
+        Exits the process on error.
+        """
+        try:
+            response = self._try_send_json_rpc_request_with_retry("validators")
+            return response["validators"]
+        except Exception as error:
+            raise SystemExit(f"{self.name}: failed to get validators: {error}")
+
     # =======================================
     # Methods calling sequencer's gRPC server
     # =======================================
@@ -427,16 +438,22 @@ class SequencerController:
                 f"failed to send grpc request: {str(request).strip()} is an unknown type"
             )
 
-    def _ensure_reported_name_matches_assigned_name(self):
+    def _check_reported_name_and_get_node_info(self):
         """
         Ensures the node name provided in `__init__` matches the moniker of the node we're
         associated with.
+
+        Returns tuple with the node's hex-encoded address, public key, and voting power.
         """
         try:
             response = self._try_send_json_rpc_request_with_retry("status", timeout_secs=600)
             reported_name = response["node_info"]["moniker"]
             if reported_name == self.name:
-                return
+                base64_pubkey = response["validator_info"]["pub_key"]["value"]
+                base64_address = response["validator_info"]["address"]
+                hex_pubkey = base64.b64decode(base64_pubkey).hex()
+                hex_address = base64.b64decode(base64_address).hex()
+                return (hex_address, hex_pubkey, response["validator_info"]["voting_power"])
             else:
                 raise SystemExit(
                     f"provided name `{self.name}` does not match moniker `{reported_name}` as "

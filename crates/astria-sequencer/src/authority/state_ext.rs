@@ -44,10 +44,6 @@ use crate::{
     storage::StoredValue,
 };
 
-fn validator_key(address: &[u8]) -> String {
-    format!("{}/{}", keys::VALIDATOR_PREFIX, hex::encode(address))
-}
-
 pin_project! {
     /// A stream of all existing validators in state.
     pub(crate) struct ValidatorStream<St> {
@@ -75,7 +71,7 @@ where
         };
         let update = StoredValue::deserialize(&bytes)
             .and_then(|value| storage::ValidatorInfoV1::try_from(value).map(ValidatorUpdate::from))
-            .context("invalid validator info bytes")?;
+            .wrap_err("invalid validator info bytes")?;
         Poll::Ready(Some(Ok(update)))
     }
 }
@@ -115,9 +111,12 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all, err(level = Level::WARN))]
-    async fn get_validator(&self, validator: &[u8]) -> Result<Option<ValidatorUpdate>> {
+    async fn get_validator<TAddress: AddressBytes>(
+        &self,
+        validator: &TAddress,
+    ) -> Result<Option<ValidatorUpdate>> {
         let Some(bytes) = self
-            .get_raw(&validator_key(validator))
+            .get_raw(&keys::validator(validator))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw validator info from state")?
@@ -158,9 +157,9 @@ pub(crate) trait StateReadExt: StateRead {
 
     /// Deprecated as of Aspen upgrade
     #[instrument(skip_all, err(level = Level::WARN))]
-    async fn _pre_aspen_get_validator_set(&self) -> Result<ValidatorSet> {
+    async fn pre_aspen_get_validator_set(&self) -> Result<ValidatorSet> {
         let Some(bytes) = self
-            .get_raw(keys::_PRE_ASPEN_VALIDATOR_SET)
+            .get_raw(keys::PRE_ASPEN_VALIDATOR_SET)
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw validator set from state")?
@@ -202,18 +201,21 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    async fn checked_remove_validator(&mut self, validator_address: &[u8]) -> Result<Option<()>> {
+    async fn remove_validator<TAddress: AddressBytes>(
+        &mut self,
+        validator_address: &TAddress,
+    ) -> Result<bool> {
         if self
-            .get_raw(&validator_key(validator_address))
+            .get_raw(&keys::validator(validator_address))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw validator info from state")?
             .is_none()
         {
-            return Ok(None);
+            return Ok(false);
         };
-        self.delete(validator_key(validator_address));
-        Ok(Some(()))
+        self.delete(keys::validator(validator_address));
+        Ok(true)
     }
 
     #[instrument(skip_all)]
@@ -221,10 +223,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = StoredValue::from(storage::ValidatorInfoV1::from(validator))
             .serialize()
             .wrap_err("failed to serialize validator update")?;
-        self.put_raw(
-            validator_key(validator.verification_key.address_bytes()),
-            bytes,
-        );
+        self.put_raw(keys::validator(&validator.verification_key), bytes);
         Ok(())
     }
 
@@ -239,18 +238,18 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     /// Deprecated as of Aspen upgrade
     #[instrument(skip_all)]
-    fn _pre_aspen_put_validator_set(&mut self, validator_set: ValidatorSet) -> Result<()> {
+    fn pre_aspen_put_validator_set(&mut self, validator_set: ValidatorSet) -> Result<()> {
         let bytes = StoredValue::from(storage::ValidatorSet::from(&validator_set))
             .serialize()
             .wrap_err("failed to serialize validator set")?;
-        self.put_raw(keys::_PRE_ASPEN_VALIDATOR_SET.to_string(), bytes);
+        self.put_raw(keys::PRE_ASPEN_VALIDATOR_SET.to_string(), bytes);
         Ok(())
     }
 
     /// Should only be called ONCE, at Aspen upgrade
     #[instrument(skip_all)]
     fn _aspen_upgrade_remove_validator_set(&mut self) -> Result<()> {
-        self.delete(keys::_PRE_ASPEN_VALIDATOR_SET.to_string());
+        self.delete(keys::PRE_ASPEN_VALIDATOR_SET.to_string());
         Ok(())
     }
 }
@@ -319,7 +318,7 @@ mod tests {
 
         // doesn't exist at first
         let _ = state
-            ._pre_aspen_get_validator_set()
+            .pre_aspen_get_validator_set()
             .await
             .expect_err("no validator set should exist at first");
     }
@@ -339,11 +338,11 @@ mod tests {
 
         // can write new
         state
-            ._pre_aspen_put_validator_set(initial_validator_set.clone())
+            .pre_aspen_put_validator_set(initial_validator_set.clone())
             .expect("writing initial validator set should not fail");
         assert_eq!(
             state
-                ._pre_aspen_get_validator_set()
+                .pre_aspen_get_validator_set()
                 .await
                 .expect("a validator set was written and must exist inside the database"),
             initial_validator_set,
@@ -358,11 +357,11 @@ mod tests {
         }];
         let updated_validator_set = ValidatorSet::new_from_updates(updates);
         state
-            ._pre_aspen_put_validator_set(updated_validator_set.clone())
+            .pre_aspen_put_validator_set(updated_validator_set.clone())
             .expect("writing update validator set should not fail");
         assert_eq!(
             state
-                ._pre_aspen_get_validator_set()
+                .pre_aspen_get_validator_set()
                 .await
                 .expect("a validator set was written and must exist inside the database"),
             updated_validator_set,
@@ -374,7 +373,7 @@ mod tests {
             ._aspen_upgrade_remove_validator_set()
             .expect("removing validator set should not fail");
         let _ = state
-            ._pre_aspen_get_validator_set()
+            .pre_aspen_get_validator_set()
             .await
             .expect_err("no validator set should exist at first");
     }
@@ -575,7 +574,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn validator_count_round_trip() {
+    async fn put_and_get_validator_count() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
@@ -621,7 +620,7 @@ mod tests {
                   into many confusingly similar tests"
     )]
     #[tokio::test]
-    async fn validator_round_trip() {
+    async fn put_get_and_remove_validator() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
@@ -716,10 +715,22 @@ mod tests {
         );
 
         // remove validator works as expected
-        state
-            .checked_remove_validator(validator_1.verification_key.address_bytes())
-            .await
-            .expect("removing validator 1 should not fail");
+        assert!(
+            state
+                .remove_validator(validator_1.verification_key.address_bytes())
+                .await
+                .expect("removing validator 1 should not fail"),
+            "validator 1 should exist prior to removal"
+        );
+        // trying to remove again returns false
+        assert!(
+            !state
+                .remove_validator(validator_1.verification_key.address_bytes())
+                .await
+                .expect("removing validator 1 should not fail"),
+            "validator 1 should not exist after removal"
+        );
+
         assert!(
             state
                 .get_validator(validator_1.verification_key.address_bytes())

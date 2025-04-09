@@ -13,6 +13,7 @@ For details on running the test, see the README.md file in `/system-tests`.
 import argparse
 import concurrent
 import aspen_upgrade_checks
+import time
 from concurrent.futures import FIRST_EXCEPTION
 from helpers.astria_cli import Cli
 from helpers.evm_controller import EvmController
@@ -28,13 +29,6 @@ PRE_UPGRADE_IMAGE_TAGS = {
 EVM_DESTINATION_ADDRESS = "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
 ACCOUNT = "astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504"
 BRIDGE_TX_HASH = "0x326c3910da4c96c5a40ba1505fc338164b659729f2f975ccb07e8794c96b66f6"
-VALIDATOR_ADDRESSES = [
-    "astria1py0ywasutrz8g560f4q54ugy5m90jrpzdja7vs",
-    "astria1aqkcy7psk93a29ujj8aj0w6cucza7taz48guf3",
-    "astria13stmhhrux5xg832szc693lym0fd4ffjwkzyuth",
-    "astria1jtsd309u6a78egrje6pnwsu006agztdaxzzter",
-    "astria1h0wwsjmkhq8pk7z7wjcw34jqhakjh599yhlmxc",
-]
 
 parser = argparse.ArgumentParser(prog="upgrade_test", description="Runs the sequencer upgrade test.")
 parser.add_argument(
@@ -73,7 +67,7 @@ for chart in ("sequencer", "evm-stack"):
 #
 # Disable the price feed on sequencer 2 to ensure the oracle still works on all nodes as long as a
 # supermajority are participating.
-nodes = [SequencerController(f"node{i}", VALIDATOR_ADDRESSES[i]) for i in range(NUM_NODES - 1)]
+nodes = [SequencerController(f"node{i}") for i in range(NUM_NODES - 1)]
 evm = EvmController()
 print(f"starting {len(nodes)} sequencers and the evm rollup")
 executor = concurrent.futures.ThreadPoolExecutor(NUM_NODES + 1)
@@ -90,6 +84,14 @@ futures.append(executor.submit(lambda: evm.deploy_rollup(upgrade_image_tag)))
 done, _ = concurrent.futures.wait(futures, return_when=FIRST_EXCEPTION)
 for completed_future in done:
     completed_future.result()
+
+# Instantiate CLI
+cli = Cli(upgrade_image_tag)
+
+# Convert node addresses to astria-prefixed bech32m addresses.
+for node in nodes:
+    address = node.address
+    node.bech32m_address = cli.address(node.name, address)
 
 # Note block 1 and the current app version before attempting the upgrade.
 for node in nodes:
@@ -115,6 +117,15 @@ for node in nodes[1:]:
     if genesis_app_version != node.get_app_version_at_genesis():
         raise SystemExit(f"node0 and {node.name} report different values for genesis app version")
 
+# Run pre-upgrade validator updates to check that the new action still executes correctly.
+print("running pre-upgrade validator updates")
+for node in nodes:
+    node.power += 1
+    cli.validator_update(node.name, node.pub_key, node.power)
+
+# Give time for validator updates to land
+time.sleep(2)
+
 # Run pre-upgrade checks specific to this upgrade.
 print(f"running pre-upgrade checks specific to {upgrade_name}")
 if upgrade_name == "aspen":
@@ -128,7 +139,6 @@ print("testing bridge in")
 evm_balance = evm.get_balance(EVM_DESTINATION_ADDRESS)
 if evm_balance != 0:
     raise SystemExit(f"starting evm balance not 0: balance {evm_balance}")
-cli = Cli(upgrade_image_tag)
 cli.init_bridge_account(sequencer_name="node1")
 cli.bridge_lock(sequencer_name="node2")
 expected_evm_balance = 10000000000000000000
@@ -188,7 +198,7 @@ print(f"{missed_upgrade_node.name} has caught up")
 nodes.append(missed_upgrade_node)
 
 # Start a fifth sequencer validator now that the upgrade has happened.
-new_node = SequencerController(f"node{NUM_NODES - 1}", VALIDATOR_ADDRESSES[NUM_NODES - 1])
+new_node = SequencerController(f"node{NUM_NODES - 1}")
 print(f"starting a new sequencer")
 new_node.deploy_sequencer(
     upgrade_image_tag,
@@ -196,6 +206,7 @@ new_node.deploy_sequencer(
     upgrade_name=upgrade_name,
     upgrade_activation_height=upgrade_activation_height
 )
+new_node.bech32m_address = cli.address(new_node.name, new_node.address)
 
 # Wait for the new node to catch up and go through the upgrade too.
 new_node.wait_until_chain_at_height(upgrade_activation_height + 2, 60)
@@ -243,13 +254,14 @@ for node in nodes[1:]:
 print("upgrade change infos reported correctly")
 
 # Submit validator updates with names for all validators
+print("running post-upgrade validator updates")
 for node in nodes:
-    cli.validator_update(node.name)
+    cli.validator_update(node.name, node.pub_key, node.power)
 
 # Run post-upgrade checks specific to this upgrade.
 print(f"running post-upgrade checks specific to {upgrade_name}")
 if upgrade_name == "aspen":
-    aspen_upgrade_checks.assert_post_upgrade_conditions(nodes, upgrade_activation_height, ["node0", "node1", "node2", "node3", "node4"])
+    aspen_upgrade_checks.assert_post_upgrade_conditions(nodes, upgrade_activation_height)
 print(f"passed {upgrade_name}-specific post-upgrade checks")
 
 # Perform a bridge out.

@@ -8,7 +8,6 @@ use astria_core::{
 use astria_eyre::eyre::{
     bail,
     ensure,
-    OptionExt as _,
     Result,
     WrapErr as _,
 };
@@ -61,7 +60,7 @@ impl ActionHandler for ValidatorUpdate {
             // that doesn't exist, these both cause issues in cometBFT
             if self.power == 0 {
                 let validator_set = state
-                    ._pre_aspen_get_validator_set()
+                    .pre_aspen_get_validator_set()
                     .await
                     .wrap_err("failed to get validator set from state")?;
                 // check that validator exists
@@ -81,28 +80,37 @@ impl ActionHandler for ValidatorUpdate {
                 .wrap_err("failed to get validator count")?;
             if self.power == 0 {
                 ensure!(validator_count > 1, "cannot remove the last validator",);
-                state
-                    .checked_remove_validator(self.verification_key.address_bytes())
+                if !state
+                    .remove_validator(self.verification_key.address_bytes())
                     .await
                     .wrap_err("failed to remove validator")?
-                    .ok_or_eyre("cannot remove a non-existing validator")?;
+                {
+                    bail!("cannot remove a non-existing validator");
+                }
                 state.put_validator_count(validator_count.saturating_sub(1))?;
                 debug!(address = %self.verification_key.display_address(), "removed validator");
             } else {
-                if state
+                let log_msg = if state
                     .get_validator(self.verification_key.address_bytes())
                     .await
                     .wrap_err("failed to get validator")?
-                    .is_none()
+                    .is_some()
                 {
+                    "updated validator"
+                } else {
                     state
                         .put_validator_count(validator_count.saturating_add(1))
                         .wrap_err("failed to put validator count")?;
-                }
+                    "added validator"
+                };
                 state
                     .put_validator(self)
                     .wrap_err("failed to put validator in state")?;
-                debug!(address = %self.verification_key.display_address(), power = self.power, "added validator");
+                debug!(
+                    address = %self.verification_key.display_address(),
+                    power = self.power,
+                    log_msg,
+                );
             }
         }
 
@@ -210,13 +218,13 @@ mod tests {
         };
 
         state
-            ._pre_aspen_put_validator_set(ValidatorSet::new_from_updates(vec![
+            .pre_aspen_put_validator_set(ValidatorSet::new_from_updates(vec![
                 validator_update_1.clone(),
                 validator_update_2.clone(),
             ]))
             .unwrap();
 
-        assert_eq!(state._pre_aspen_get_validator_set().await.unwrap().len(), 2);
+        assert_eq!(state.pre_aspen_get_validator_set().await.unwrap().len(), 2);
 
         let action = ValidatorUpdate {
             verification_key: validator_update_1.verification_key,
@@ -273,7 +281,7 @@ mod tests {
         });
 
         state
-            ._pre_aspen_put_validator_set(ValidatorSet::new_from_updates(vec![]))
+            .pre_aspen_put_validator_set(ValidatorSet::new_from_updates(vec![]))
             .unwrap();
 
         let action = ValidatorUpdate {
@@ -309,7 +317,7 @@ mod tests {
         };
 
         state
-            ._pre_aspen_put_validator_set(ValidatorSet::new_from_updates(vec![
+            .pre_aspen_put_validator_set(ValidatorSet::new_from_updates(vec![
                 validator_update_1.clone()
             ]))
             .unwrap();
