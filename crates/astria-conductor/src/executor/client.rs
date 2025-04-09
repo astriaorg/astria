@@ -139,14 +139,12 @@ impl Client {
             .collect::<Result<_, _>>()
             .wrap_err("failed to decode tx bytes as RollupData")?;
 
-        let sequencer_block_hash = sequencer_block_hash.to_string();
-
         let request = raw::ExecuteBlockRequest {
             session_id,
             parent_hash,
             transactions,
             timestamp: Some(timestamp),
-            sequencer_block_hash,
+            sequencer_block_hash: sequencer_block_hash.to_string(),
         };
         let response = tryhard::retry_fn(|| {
             let mut client = self.inner.clone();

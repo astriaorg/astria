@@ -2,10 +2,7 @@
 //! the other methods can be used. Otherwise, they will panic.
 //!
 //! The inner state must not be unset after having been set.
-use std::num::{
-    NonZeroU64,
-    NonZeroUsize,
-};
+use std::num::NonZeroU64;
 
 use astria_core::{
     execution::v2::{
@@ -229,7 +226,7 @@ forward_impls!(
     [rollup_id -> RollupId],
     [sequencer_start_block_height -> u64],
     [lowest_celestia_search_height -> u64],
-    [celestia_search_height_max_look_ahead -> Option<NonZeroUsize>],
+    [celestia_search_height_max_look_ahead -> u64],
     [rollup_start_block_number -> u64],
     [rollup_end_block_number -> Option<NonZeroU64>],
     [has_firm_number_reached_stop_height -> bool],
@@ -239,7 +236,7 @@ forward_impls!(
 forward_impls!(
     StateReceiver:
     [lowest_celestia_search_height -> u64],
-    [celestia_search_height_max_look_ahead -> Option<NonZeroUsize>],
+    [celestia_search_height_max_look_ahead -> u64],
     [rollup_id -> RollupId],
     [sequencer_chain_id -> String],
     [celestia_chain_id -> String],
@@ -254,7 +251,6 @@ forward_impls!(
 pub(crate) struct State {
     execution_session_id: String,
     execution_session_parameters: ExecutionSessionParameters,
-    non_zero_celestia_search_height_max_look_ahead: Option<NonZeroUsize>,
     commitment_state: CommitmentState,
 }
 
@@ -288,28 +284,9 @@ impl State {
                 rollup_number: rollup_end_block_number.get(),
             })?;
         };
-        let non_zero_celestia_search_height_max_look_ahead = if commit_level.is_with_firm() {
-            NonZeroUsize::new(
-                usize::try_from(
-                    execution_session_parameters.celestia_search_height_max_look_ahead(),
-                )
-                .map_err(|_| InvalidState {
-                    map_purpose: "celestia search height max look ahead",
-                    issue: "celestia search height max look ahead overflows usize",
-                    sequencer_start_height: execution_session_parameters
-                        .sequencer_start_block_height(),
-                    rollup_start_block_number: execution_session_parameters
-                        .rollup_start_block_number(),
-                    rollup_number: 0,
-                })?,
-            )
-        } else {
-            None
-        };
         Ok(State {
             execution_session_id: execution_session.session_id().to_string(),
             execution_session_parameters: execution_session_parameters.clone(),
-            non_zero_celestia_search_height_max_look_ahead,
             commitment_state: commitment_state.clone(),
         })
     }
@@ -371,8 +348,9 @@ impl State {
         self.commitment_state.lowest_celestia_search_height()
     }
 
-    fn celestia_search_height_max_look_ahead(&self) -> Option<NonZeroUsize> {
-        self.non_zero_celestia_search_height_max_look_ahead
+    fn celestia_search_height_max_look_ahead(&self) -> u64 {
+        self.execution_session_parameters
+            .celestia_search_height_max_look_ahead()
     }
 
     pub(crate) fn sequencer_start_block_height(&self) -> u64 {

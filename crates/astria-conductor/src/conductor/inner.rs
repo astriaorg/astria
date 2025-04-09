@@ -87,7 +87,9 @@ impl Inner {
             shutdown_token,
             executor_shutdown_token,
             config,
-            executor: Some(tokio::spawn(executor.run_until_stopped())),
+            executor: Some(tokio::spawn(
+                executor.run_until_stopped_or_stop_height_reached(),
+            )),
         })
     }
 

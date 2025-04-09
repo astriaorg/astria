@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    num::NonZeroUsize,
     time::Duration,
 };
 
@@ -21,7 +20,6 @@ use astria_eyre::eyre::{
     bail,
     ensure,
     eyre,
-    OptionExt as _,
     WrapErr as _,
 };
 use bytes::Bytes;
@@ -102,7 +100,18 @@ impl std::fmt::Display for ReaderKind {
 }
 
 impl Executor {
-    pub(crate) async fn run_until_stopped(self) -> eyre::Result<Option<State>> {
+    /// Run until a stop signal is received or until the stop height is reached.
+    ///
+    /// The stop height is defined by the execution session that the executor task fetches from its
+    /// rollup node. If the execution session contains no stop height, executor will run until a
+    /// stop signal is reached or its execution session is invalidated by the rollup.
+    ///
+    /// Returns [`State`] when exiting gracefully (stop signal, stop height reached). `None` is
+    /// returned if a shutdown signal is received during initialization before a rollup state could
+    /// be established.
+    pub(crate) async fn run_until_stopped_or_stop_height_reached(
+        self,
+    ) -> eyre::Result<Option<State>> {
         let initialized = select!(
             biased;
 
@@ -133,9 +142,13 @@ impl Executor {
 
         let reader_cancellation_token = self.shutdown.child_token();
 
-        let ((firm_blocks_tx, firm_blocks_rx), (soft_blocks_tx, soft_blocks_rx)) =
-            create_block_channels(self.config.execution_commit_level, &state)
-                .wrap_err("failed to create channels")?;
+        let Channels {
+            firm_sender: firm_blocks_tx,
+            firm_receiver: firm_blocks_rx,
+            soft_sender: soft_blocks_tx,
+            soft_receiver: soft_blocks_rx,
+        } = create_block_channels(self.config.execution_commit_level, &state)
+            .wrap_err("failed to create channels")?;
 
         let mut reader_tasks = JoinMap::new();
         if self.config.is_with_firm() {
@@ -220,34 +233,54 @@ impl Executor {
     }
 }
 
-type BlockChannels = (
-    (
-        mpsc::Sender<Box<ReconstructedBlock>>,
-        mpsc::Receiver<Box<ReconstructedBlock>>,
-    ),
-    (
-        mpsc::Sender<FilteredSequencerBlock>,
-        mpsc::Receiver<FilteredSequencerBlock>,
-    ),
-);
+struct Channels {
+    firm_sender: mpsc::Sender<Box<ReconstructedBlock>>,
+    firm_receiver: mpsc::Receiver<Box<ReconstructedBlock>>,
+    soft_sender: mpsc::Sender<FilteredSequencerBlock>,
+    soft_receiver: mpsc::Receiver<FilteredSequencerBlock>,
+}
 
-fn create_block_channels(
-    commit_level: CommitLevel,
-    state: &StateSender,
-) -> eyre::Result<BlockChannels> {
-    let firm_blocks = tokio::sync::mpsc::channel(16);
-    let soft_blocks = if commit_level.is_with_firm() {
-        tokio::sync::mpsc::channel(
-            state
-                .celestia_search_height_max_look_ahead()
-                .ok_or_eyre("celestia search height max look ahead must be set")?
-                .get(),
-        )
-    } else {
-        // Arbitrarily chosen as 2x the sequencer request rate limit
-        tokio::sync::mpsc::channel(1024)
+#[instrument(skip_all, err)]
+fn create_block_channels(commit_level: CommitLevel, state: &StateSender) -> eyre::Result<Channels> {
+    let (firm_tx, firm_rx) = tokio::sync::mpsc::channel(16);
+    debug!("created firm block channel");
+
+    let (soft_tx, soft_rx) = match commit_level {
+        CommitLevel::FirmOnly => {
+            let mut channel_size = usize::try_from(state.celestia_search_height_max_look_ahead())
+                .wrap_err(
+                "celestia search height max look ahead overflows usize, is this a 32 bit machine?",
+            )?;
+            if channel_size == 0 {
+                // Arbitrary value, doesn't matter in firm-only since no soft blocks are received
+                channel_size = 1;
+            }
+            tokio::sync::mpsc::channel(channel_size)
+        }
+        CommitLevel::SoftAndFirm => {
+            let channel_size = usize::try_from(state.celestia_search_height_max_look_ahead())
+                .wrap_err(
+                    "celestia search height max look ahead overflows usize, is this a 32 bit \
+                     machine?",
+                )?;
+            ensure!(
+                channel_size > 0,
+                "celestia search height max look ahead must be greater than 0"
+            );
+            tokio::sync::mpsc::channel(channel_size)
+        }
+        CommitLevel::SoftOnly => {
+            // Arbitrarily chosen as 2x the sequencer request rate limit
+            tokio::sync::mpsc::channel(1024)
+        }
     };
-    Ok((firm_blocks, soft_blocks))
+    debug!("created soft block channel");
+    Ok(Channels {
+        firm_sender: firm_tx,
+        firm_receiver: firm_rx,
+        soft_sender: soft_tx,
+        soft_receiver: soft_rx,
+    })
 }
 
 struct Initialized {
@@ -356,10 +389,7 @@ impl Initialized {
         };
 
         let is_too_far_ahead = next_soft.saturating_sub(next_firm)
-            >= self
-                .state
-                .celestia_search_height_max_look_ahead()
-                .map_or(0, NonZeroUsize::get) as u64;
+            >= self.state.celestia_search_height_max_look_ahead();
 
         if is_too_far_ahead {
             debug!("soft blocks are too far ahead of firm; skipping soft blocks");
@@ -708,7 +738,7 @@ impl Initialized {
         let message = "shutting down";
         match &reason {
             Ok(_) => {
-                info!(reason = "executor exited with no error", message);
+                info!(message);
             }
             Err(reason) => {
                 error!(%reason, message);
