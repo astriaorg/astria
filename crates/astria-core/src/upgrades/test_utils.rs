@@ -40,6 +40,9 @@ impl UpgradesBuilder {
                     genesis: Some(dummy_price_feed_genesis().into_raw()),
                 }),
                 validator_update_action_change: Some(raw::aspen::ValidatorUpdateActionChange {}),
+                ibc_acknowledgement_failure_change: Some(
+                    raw::aspen::IbcAcknowledgementFailureChange {},
+                ),
             });
         let raw_upgrades = raw::Upgrades {
             aspen,

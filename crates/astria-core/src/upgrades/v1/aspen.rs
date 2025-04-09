@@ -65,6 +65,9 @@ impl Aspen {
         Some(&self.price_feed_change as &dyn Change)
             .into_iter()
             .chain(Some(&self.validator_update_action_change as &dyn Change))
+            .chain(Some(
+                &self.ibc_acknowledgement_failure_change as &dyn Change,
+            ))
     }
 }
 
@@ -99,8 +102,8 @@ impl Protobuf for Aspen {
             return Err(Error::no_validator_update_action_change());
         }
 
-        if raw.validator_update_action_change.is_none() {
-            return Err(Error::no_validator_update_action_change());
+        if raw.ibc_acknowledgement_failure_change.is_none() {
+            return Err(Error::ibc_acknowledgement_failure_change());
         }
 
         let price_feed_change = PriceFeedChange {
@@ -205,7 +208,8 @@ impl Change for ValidatorUpdateActionChange {
     }
 }
 
-/// This change introduces new sequencer `Action`s to support updating the validator set.
+/// This change causes a fixed string to be used as the error message in an ICS20 transfer failure
+/// acknowledgement.
 #[derive(Clone, Debug, BorshSerialize)]
 pub struct IbcAcknowledgementFailureChange {
     activation_height: u64,
@@ -246,6 +250,10 @@ impl Error {
 
     fn no_validator_update_action_change() -> Self {
         Self(ErrorKind::FieldNotSet("validator_update_action_change"))
+    }
+
+    fn ibc_acknowledgement_failure_change() -> Self {
+        Self(ErrorKind::FieldNotSet("ibc_acknowledgement_failure_change"))
     }
 
     fn no_price_feed_genesis() -> Self {
@@ -301,16 +309,16 @@ mod tests {
     }
 
     #[test]
-    fn serialized_ibc_acknowledgement_failure_chainge_should_not_change() {
-        let ibc_acknowledgement_failure_chainge = IbcAcknowledgementFailureChange {
+    fn serialized_ibc_acknowledgement_failure_change_should_not_change() {
+        let ibc_acknowledgement_failure_change = IbcAcknowledgementFailureChange {
             activation_height: 10,
             app_version: 2,
         };
-        let serialized_ibc_acknowledgement_failure_chainge =
-            hex::encode(validator_update_action_change.to_vec());
+        let serialized_ibc_acknowledgement_failure_change =
+            hex::encode(ibc_acknowledgement_failure_change.to_vec());
         insta::assert_snapshot!(
-            "ibc_acknowledgement_failure_chainge",
-            serialized_ibc_acknowledgement_failure_chainge
+            "ibc_acknowledgement_failure_change",
+            serialized_ibc_acknowledgement_failure_change
         );
     }
 }
