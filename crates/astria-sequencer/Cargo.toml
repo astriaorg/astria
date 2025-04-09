@@ -36,7 +36,7 @@ borsh = { version = "1.5.1", features = ["bytes", "derive"] }
 cnidarium = { version = "0.83.0", features = ["metrics"] }
 ibc-proto = { version = "0.51.1", features = ["server"] }
 matchit = "0.7.2"
-penumbra-tower-trace = { package = "penumbra-sdk-tower-trace", version = "1.3.1" }
+penumbra-tower-trace = { package = "penumbra-sdk-tower-trace", version = "1.4.0" }
 tower = { workspace = true }
 tower-abci = "0.19.0"
 tower-actor = "0.1.0"

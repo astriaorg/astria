@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Update to tendermint 0.40.3 for security patch to ISA-2025-003 [#2099](https://github.com/astriaorg/astria/pull/2099)
+
 ## [2.0.0]
 
 ### Fixed
