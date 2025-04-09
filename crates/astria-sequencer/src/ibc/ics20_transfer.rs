@@ -379,7 +379,7 @@ impl AppHandlerExecute for Ics20Transfer {
         let ack = match receive_tokens(&mut state, &msg.packet).await {
             Ok(()) => TokenTransferAcknowledgement::success(),
             Err(e) => {
-                tracing::debug!(
+                tracing::warn!(
                     error = AsRef::<dyn std::error::Error>::as_ref(&e),
                     "failed to execute ics20 transfer"
                 );
