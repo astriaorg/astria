@@ -575,6 +575,34 @@ impl ::prost::Name for GetUpgradesInfoResponse {
         ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
     }
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetValidatorNameRequest {
+    /// The account to retrieve the validator name for.
+    #[prost(message, optional, tag = "1")]
+    pub address: ::core::option::Option<super::super::primitive::v1::Address>,
+}
+impl ::prost::Name for GetValidatorNameRequest {
+    const NAME: &'static str = "GetValidatorNameRequest";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetValidatorNameResponse {
+    /// The validator name for the given account.
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+}
+impl ::prost::Name for GetValidatorNameResponse {
+    const NAME: &'static str = "GetValidatorNameResponse";
+    const PACKAGE: &'static str = "astria.sequencerblock.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
+    }
+}
 /// Generated client implementations.
 #[cfg(feature = "client")]
 pub mod sequencer_service_client {
@@ -783,6 +811,37 @@ pub mod sequencer_service_client {
                 );
             self.inner.unary(req, path, codec).await
         }
+        /// Returns the validator name for the given address.
+        pub async fn get_validator_name(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetValidatorNameRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::GetValidatorNameResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/astria.sequencerblock.v1.SequencerService/GetValidatorName",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new(
+                        "astria.sequencerblock.v1.SequencerService",
+                        "GetValidatorName",
+                    ),
+                );
+            self.inner.unary(req, path, codec).await
+        }
     }
 }
 /// Generated server implementations.
@@ -821,6 +880,14 @@ pub mod sequencer_service_server {
             request: tonic::Request<super::GetUpgradesInfoRequest>,
         ) -> std::result::Result<
             tonic::Response<super::GetUpgradesInfoResponse>,
+            tonic::Status,
+        >;
+        /// Returns the validator name for the given address.
+        async fn get_validator_name(
+            self: std::sync::Arc<Self>,
+            request: tonic::Request<super::GetValidatorNameRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::GetValidatorNameResponse>,
             tonic::Status,
         >;
     }
@@ -1082,6 +1149,53 @@ pub mod sequencer_service_server {
                     let fut = async move {
                         let inner = inner.0;
                         let method = GetUpgradesInfoSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/astria.sequencerblock.v1.SequencerService/GetValidatorName" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetValidatorNameSvc<T: SequencerService>(pub Arc<T>);
+                    impl<
+                        T: SequencerService,
+                    > tonic::server::UnaryService<super::GetValidatorNameRequest>
+                    for GetValidatorNameSvc<T> {
+                        type Response = super::GetValidatorNameResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetValidatorNameRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as SequencerService>::get_validator_name(inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = GetValidatorNameSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
