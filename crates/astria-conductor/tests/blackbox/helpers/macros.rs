@@ -168,44 +168,29 @@ macro_rules! mount_celestia_header_network_head {
 #[macro_export]
 macro_rules! mount_get_commitment_state {
     (
-        $test_env:ident,
-        firm: ( number: $firm_number:expr, hash: $firm_hash:expr, parent: $firm_parent:expr$(,)? ),
-        soft: ( number: $soft_number:expr, hash: $soft_hash:expr, parent: $soft_parent:expr$(,)? ),
-        base_celestia_height: $base_celestia_height:expr
-        $(,)?
+        $test_env:ident,firm_number:
+        $firm_number:expr,soft_number:
+        $soft_number:expr,base_celestia_height:
+        $base_celestia_height:expr $(,)?
     ) => {
         $test_env
-            .mount_get_commitment_state($crate::commitment_state!(
-                firm: (
-                    number: $firm_number,
-                    hash: $firm_hash,
-                    parent: $firm_parent,
-                ),
-                soft: (
-                    number: $soft_number,
-                    hash: $soft_hash,
-                    parent: $soft_parent,
-                ),
-                base_celestia_height: $base_celestia_height,
-            ))
-        .await
+            .mount_get_commitment_state($firm_number, $soft_number, $base_celestia_height)
+            .await
     };
 }
 
 #[macro_export]
-macro_rules! mount_update_commitment_state {
+macro_rules! mount_soft_update_commitment_state {
     (
         $test_env:ident,
-        firm: ( number: $firm_number:expr, hash: $firm_hash:expr, parent: $firm_parent:expr$(,)? ),
-        soft: ( number: $soft_number:expr, hash: $soft_hash:expr, parent: $soft_parent:expr$(,)? ),
+        number: $number:expr,
         base_celestia_height: $base_celestia_height:expr
         $(,)?
     ) => {
-        mount_update_commitment_state!(
+        mount_soft_update_commitment_state!(
             $test_env,
             mock_name: None,
-            firm: ( number: $firm_number, hash: $firm_hash, parent: $firm_parent, ),
-            soft: ( number: $soft_number, hash: $soft_hash, parent: $soft_parent, ),
+            number: $number,
             base_celestia_height: $base_celestia_height,
             expected_calls: 1,
         )
@@ -213,16 +198,14 @@ macro_rules! mount_update_commitment_state {
     (
         $test_env:ident,
         mock_name: $mock_name:expr,
-        firm: ( number: $firm_number:expr, hash: $firm_hash:expr, parent: $firm_parent:expr$(,)? ),
-        soft: ( number: $soft_number:expr, hash: $soft_hash:expr, parent: $soft_parent:expr$(,)? ),
+        number: $number:expr,
         base_celestia_height: $base_celestia_height:expr
         $(,)?
     ) => {
-        mount_update_commitment_state!(
+        mount_soft_update_commitment_state!(
             $test_env,
             mock_name: $mock_name,
-            firm: ( number: $firm_number, hash: $firm_hash, parent: $firm_parent, ),
-            soft: ( number: $soft_number, hash: $soft_hash, parent: $soft_parent, ),
+            number: $number,
             base_celestia_height: $base_celestia_height,
             expected_calls: 1,
         )
@@ -230,8 +213,7 @@ macro_rules! mount_update_commitment_state {
     (
         $test_env:ident,
         mock_name: $mock_name:expr,
-        firm: ( number: $firm_number:expr, hash: $firm_hash:expr, parent: $firm_parent:expr$(,)? ),
-        soft: ( number: $soft_number:expr, hash: $soft_hash:expr, parent: $soft_parent:expr$(,)? ),
+        number: $number:expr,
         base_celestia_height: $base_celestia_height:expr,
         expected_calls: $expected_calls:expr
         $(,)?
@@ -239,19 +221,45 @@ macro_rules! mount_update_commitment_state {
         $test_env
             .mount_update_commitment_state(
                 $mock_name.into(),
-                $crate::commitment_state!(
-                    firm: (
-                        number: $firm_number,
-                        hash: $firm_hash,
-                        parent: $firm_parent,
-                    ),
-                    soft: (
-                        number: $soft_number,
-                        hash: $soft_hash,
-                        parent: $soft_parent,
-                    ),
-                    base_celestia_height: $base_celestia_height,
-                ),
+                $number,
+                false,
+                $base_celestia_height,
+                $expected_calls,
+        )
+        .await
+    };
+}
+
+#[macro_export]
+macro_rules! mount_firm_update_commitment_state {
+    (
+        $test_env:ident,
+        number: $number:expr,
+        base_celestia_height: $base_celestia_height:expr
+        $(,)?
+    ) => {
+        mount_firm_update_commitment_state!(
+            $test_env,
+            mock_name: None,
+            number: $number,
+            base_celestia_height: $base_celestia_height,
+            expected_calls: 1,
+        )
+    };
+    (
+        $test_env:ident,
+        mock_name: $mock_name:expr,
+        number: $number:expr,
+        base_celestia_height: $base_celestia_height:expr,
+        expected_calls: $expected_calls:expr
+        $(,)?
+    ) => {
+        $test_env
+            .mount_update_commitment_state(
+                $mock_name.into(),
+                $number,
+                true,
+                $base_celestia_height,
                 $expected_calls,
         )
         .await
@@ -271,36 +279,21 @@ macro_rules! mount_executed_block {
         $test_env:ident,
         mock_name: $mock_name:expr,
         number: $number:expr,
-        hash: $hash:expr,
-        parent: $parent:expr $(,)?
     ) => {{
-        use ::base64::prelude::*;
         $test_env.mount_execute_block(
             $mock_name.into(),
-            ::serde_json::json!({
-                "prevBlockHash": BASE64_STANDARD.encode($parent),
-                "transactions": [{"sequencedData": BASE64_STANDARD.encode($crate::helpers::data())}],
-            }),
-            $crate::block!(
-                number: $number,
-                hash: $hash,
-                parent: $parent,
-            )
+            $number,
         )
         .await
     }};
     (
         $test_env:ident,
         number: $number:expr,
-        hash: $hash:expr,
-        parent: $parent:expr $(,)?
     ) => {
         mount_executed_block!(
             $test_env,
             mock_name: None,
             number: $number,
-            hash: $hash,
-            parent: $parent,
         )
     };
 }
@@ -372,28 +365,8 @@ macro_rules! mount_sequencer_genesis {
 
 #[macro_export]
 macro_rules! mount_get_block {
-    (
-        $test_env:ident,
-        number: $number:expr,
-        hash: $hash:expr,
-        parent: $parent:expr $(,)?
-    ) => {{
-        let block = $crate::block!(
-            number: $number,
-            hash: $hash,
-            parent: $parent,
-        );
-        let identifier = ::astria_core::generated::astria::execution::v1::BlockIdentifier {
-            identifier: Some(
-                ::astria_core::generated::astria::execution::v1::block_identifier::Identifier::BlockNumber(block.number)
-        )};
-        $test_env.mount_get_block(
-            ::astria_core::generated::astria::execution::v1::GetBlockRequest {
-                identifier: Some(identifier),
-            },
-            block,
-        )
-        .await
+    ($test_env:ident,number: $number:expr,) => {{
+        $test_env.mount_get_block($number).await
     }};
 }
 
