@@ -69,7 +69,6 @@ use crate::{
             initialize_app,
         },
     },
-    authority::StateReadExt as _,
     benchmark_and_test_utils::{
         astria_address,
         astria_address_from_hex_string,
@@ -361,8 +360,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     let signed_tx = Arc::new(tx_bridge.sign(&bridge));
     app.execute_transaction(signed_tx).await.unwrap();
 
-    let sudo_address = app.state.get_sudo_address().await.unwrap();
-    app.end_block(1, &sudo_address).await.unwrap();
+    app.end_block(1u32.into()).await.unwrap();
 
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await;
