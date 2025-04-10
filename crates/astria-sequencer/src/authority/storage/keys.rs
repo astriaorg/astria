@@ -9,7 +9,7 @@ pub(in crate::authority) const PRE_ASPEN_VALIDATOR_SET: &str = "authority/valida
 
 pub(in crate::authority) fn validator<TAddress: AddressBytes>(address: &TAddress) -> String {
     format!(
-        "{}/{}",
+        "{}{}",
         VALIDATOR_PREFIX,
         hex::encode(address.address_bytes())
     )

@@ -49,7 +49,7 @@ impl AuthorityComponent {
             .await
             .wrap_err("failed to get validator set")?;
         state
-            ._aspen_upgrade_remove_validator_set()
+            .aspen_upgrade_remove_validator_set()
             .wrap_err("failed to remove validator set")?;
         state
             .put_validator_count(validator_set.len() as u64)
