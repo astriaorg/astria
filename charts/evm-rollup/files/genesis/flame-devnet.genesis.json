@@ -24,7 +24,7 @@
         "sequencer": {
           "chainId": "astria-dusk-11",
           "addressPrefix": "astria",
-          "startHeight": 1923
+          "startHeight": 1924
         },
         "celestia": {
           "chainId": "mocha-4",
