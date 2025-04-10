@@ -248,7 +248,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     /// Should only be called ONCE, at Aspen upgrade
     #[instrument(skip_all)]
-    fn _aspen_upgrade_remove_validator_set(&mut self) -> Result<()> {
+    fn aspen_upgrade_remove_validator_set(&mut self) -> Result<()> {
         self.delete(keys::PRE_ASPEN_VALIDATOR_SET.to_string());
         Ok(())
     }
@@ -370,7 +370,7 @@ mod tests {
 
         // can remove
         state
-            ._aspen_upgrade_remove_validator_set()
+            .aspen_upgrade_remove_validator_set()
             .expect("removing validator set should not fail");
         let _ = state
             .pre_aspen_get_validator_set()

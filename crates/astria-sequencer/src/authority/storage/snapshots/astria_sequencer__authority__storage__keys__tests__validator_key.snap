@@ -2,4 +2,4 @@
 source: crates/astria-sequencer/src/authority/storage/keys.rs
 expression: snapshot_validator()
 ---
-authority/validator//0101010101010101010101010101010101010101
+authority/validator/0101010101010101010101010101010101010101
