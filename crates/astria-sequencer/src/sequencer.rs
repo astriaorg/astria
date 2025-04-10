@@ -453,7 +453,6 @@ mod tests {
             no_otel: true,
             no_metrics: true,
             metrics_http_listener_addr: String::new(),
-            pretty_print: true,
             upgrades_filepath: PathBuf::new(),
             cometbft_rpc_addr: String::new(),
             no_price_feed: false,

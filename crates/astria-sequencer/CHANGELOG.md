@@ -36,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `astria_sequencer_extend_vote_failure_count` and
   `astria_sequencer_verify_vote_extension_failure_count` [#2085](https://github.com/astriaorg/astria/pull/2085).
 
+## [2.0.1]
+
+### Security
+
+- Update to tendermint 0.40.3 for security patch to ISA-2025-003 [#2099](https://github.com/astriaorg/astria/pull/2099)
+
 ## [2.0.0]
 
 ### Added
@@ -538,7 +544,8 @@ address [#721](https://github.com/astriaorg/astria/pull/721).
 
 - Initial release.
 
-[unreleased]: https://github.com/astriaorg/astria/compare/sequencer-v2.0.0-rc.2...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/sequencer-v2.0.1...HEAD
+[2.0.1]: https://github.com/astriaorg/astria/compare/sequencer-v2.0.0...sequencer-v2.0.1
 [2.0.0]: https://github.com/astriaorg/astria/compare/sequencer-v1.0.0...sequencer-v2.0.0
 [2.0.0-rc.2]: https://github.com/astriaorg/astria/compare/sequencer-v2.0.0-rc.1...sequencer-v2.0.0-rc.2
 [2.0.0-rc.1]: https://github.com/astriaorg/astria/compare/sequencer-v1.0.0...sequencer-v2.0.0-rc.1

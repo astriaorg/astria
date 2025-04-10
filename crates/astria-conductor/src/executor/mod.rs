@@ -660,7 +660,7 @@ impl ExecutableBlock {
         } = block;
         let timestamp = convert_tendermint_time_to_protobuf_timestamp(header.time());
         let transactions =
-            insert_price_feed_data_into_transactions_if_exists(transactions, extended_commit_info);
+            prepend_transactions_by_price_feed_if_exists(transactions, extended_commit_info);
         Self {
             hash: block_hash,
             height: header.height(),
@@ -685,7 +685,7 @@ impl ExecutableBlock {
             .unwrap_or_default();
 
         let transactions =
-            insert_price_feed_data_into_transactions_if_exists(transactions, extended_commit_info);
+            prepend_transactions_by_price_feed_if_exists(transactions, extended_commit_info);
         Self {
             hash: block_hash,
             height,
@@ -695,32 +695,45 @@ impl ExecutableBlock {
     }
 }
 
-fn insert_price_feed_data_into_transactions_if_exists(
+/// Prepends the price data to the transactions if it can be calculated from `extended_commit_info`.
+///
+/// Regardless of the order of the returned collection, the rollup can choose whichever execution
+/// order suits best for its use case, but it's anticipated that applying the updated price feed
+/// before executing transactions would be a common use case, so the price feed is prepended for
+/// convenience.
+#[instrument(skip_all)]
+fn prepend_transactions_by_price_feed_if_exists(
     transactions: Vec<Bytes>,
     extended_commit_info: Option<ExtendedCommitInfoWithCurrencyPairMapping>,
 ) -> Vec<Bytes> {
+    use astria_core::oracles::price_feed::utils::calculate_prices_from_vote_extensions;
     use prost::Message as _;
 
-    if let Some(extended_commit_info) = extended_commit_info {
-        let Ok(prices) =
-            astria_core::oracles::price_feed::utils::calculate_prices_from_vote_extensions(
-                &extended_commit_info.extended_commit_info,
-                &extended_commit_info.id_to_currency_pair,
-            )
-        else {
-            debug!(
+    let Some(extended_commit_info) = extended_commit_info else {
+        return transactions;
+    };
+
+    let prices = match calculate_prices_from_vote_extensions(
+        &extended_commit_info.extended_commit_info,
+        &extended_commit_info.id_to_currency_pair,
+    ) {
+        Ok(prices) => prices,
+        Err(error) => {
+            warn!(
+                error = %error,
                 "failed to calculate prices from vote extensions; continuing without price feed \
-                 data"
+                data"
             );
             return transactions;
-        };
-        let rollup_data = RollupData::PriceFeedData(Box::new(PriceFeedData::new(prices)));
-        std::iter::once(rollup_data.into_raw().encode_to_vec().into())
-            .chain(transactions)
-            .collect()
-    } else {
-        transactions
-    }
+        }
+    };
+
+    let rollup_data = RollupData::PriceFeedData(Box::new(PriceFeedData::new(prices)));
+    prepend(rollup_data.into_raw().encode_to_vec().into(), transactions)
+}
+
+fn prepend(item_to_prepend: Bytes, txs: Vec<Bytes>) -> Vec<Bytes> {
+    std::iter::once(item_to_prepend).chain(txs).collect()
 }
 
 /// Converts a [`tendermint::Time`] to a [`prost_types::Timestamp`].

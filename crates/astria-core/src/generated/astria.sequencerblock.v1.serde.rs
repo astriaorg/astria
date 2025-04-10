@@ -14,10 +14,12 @@ impl serde::Serialize for DataItem {
             match v {
                 data_item::Value::RollupTransactionsRoot(v) => {
                     #[allow(clippy::needless_borrow)]
+                    #[allow(clippy::needless_borrows_for_generic_args)]
                     struct_ser.serialize_field("rollupTransactionsRoot", pbjson::private::base64::encode(&v).as_str())?;
                 }
                 data_item::Value::RollupIdsRoot(v) => {
                     #[allow(clippy::needless_borrow)]
+                    #[allow(clippy::needless_borrows_for_generic_args)]
                     struct_ser.serialize_field("rollupIdsRoot", pbjson::private::base64::encode(&v).as_str())?;
                 }
                 data_item::Value::UpgradeChangeHashes(v) => {
@@ -25,6 +27,7 @@ impl serde::Serialize for DataItem {
                 }
                 data_item::Value::ExtendedCommitInfo(v) => {
                     #[allow(clippy::needless_borrow)]
+                    #[allow(clippy::needless_borrows_for_generic_args)]
                     struct_ser.serialize_field("extendedCommitInfo", pbjson::private::base64::encode(&v).as_str())?;
                 }
             }
@@ -281,6 +284,7 @@ impl serde::Serialize for Deposit {
         }
         if self.source_action_index != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("sourceActionIndex", ToString::to_string(&self.source_action_index).as_str())?;
         }
         struct_ser.end()
@@ -449,6 +453,7 @@ impl serde::Serialize for ExtendedCommitInfoWithProof {
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1.ExtendedCommitInfoWithProof", len)?;
         if !self.extended_commit_info.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("extendedCommitInfo", pbjson::private::base64::encode(&self.extended_commit_info).as_str())?;
         }
         if let Some(v) = self.proof.as_ref() {
@@ -579,6 +584,7 @@ impl serde::Serialize for FilteredSequencerBlock {
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1.FilteredSequencerBlock", len)?;
         if !self.block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("blockHash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
         }
         if let Some(v) = self.header.as_ref() {
@@ -784,6 +790,7 @@ impl serde::Serialize for GetFilteredSequencerBlockRequest {
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1.GetFilteredSequencerBlockRequest", len)?;
         if self.height != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
         }
         if !self.rollup_ids.is_empty() {
@@ -1077,6 +1084,7 @@ impl serde::Serialize for GetSequencerBlockRequest {
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1.GetSequencerBlockRequest", len)?;
         if self.height != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
         }
         struct_ser.end()
@@ -1359,6 +1367,7 @@ impl serde::Serialize for get_upgrades_info_response::ChangeInfo {
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1.GetUpgradesInfoResponse.ChangeInfo", len)?;
         if self.activation_height != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("activationHeight", ToString::to_string(&self.activation_height).as_str())?;
         }
         if !self.change_name.is_empty() {
@@ -1366,6 +1375,7 @@ impl serde::Serialize for get_upgrades_info_response::ChangeInfo {
         }
         if self.app_version != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("appVersion", ToString::to_string(&self.app_version).as_str())?;
         }
         if !self.base64_hash.is_empty() {
@@ -1696,6 +1706,7 @@ impl serde::Serialize for Price {
         }
         if self.decimals != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("decimals", ToString::to_string(&self.decimals).as_str())?;
         }
         struct_ser.end()
@@ -1906,6 +1917,7 @@ impl serde::Serialize for RollupData {
             match v {
                 rollup_data::Value::SequencedData(v) => {
                     #[allow(clippy::needless_borrow)]
+                    #[allow(clippy::needless_borrows_for_generic_args)]
                     struct_ser.serialize_field("sequencedData", pbjson::private::base64::encode(&v).as_str())?;
                 }
                 rollup_data::Value::Deposit(v) => {
@@ -2187,6 +2199,7 @@ impl serde::Serialize for SequencerBlock {
         }
         if !self.block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("blockHash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
         }
         if !self.upgrade_change_hashes.is_empty() {
@@ -2380,6 +2393,7 @@ impl serde::Serialize for SequencerBlockHeader {
         }
         if self.height != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
         }
         if let Some(v) = self.time.as_ref() {
@@ -2387,14 +2401,17 @@ impl serde::Serialize for SequencerBlockHeader {
         }
         if !self.data_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("dataHash", pbjson::private::base64::encode(&self.data_hash).as_str())?;
         }
         if !self.proposer_address.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("proposerAddress", pbjson::private::base64::encode(&self.proposer_address).as_str())?;
         }
         if !self.rollup_transactions_root.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("rollupTransactionsRoot", pbjson::private::base64::encode(&self.rollup_transactions_root).as_str())?;
         }
         struct_ser.end()
@@ -2572,6 +2589,7 @@ impl serde::Serialize for SubmittedMetadata {
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1.SubmittedMetadata", len)?;
         if !self.block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("blockHash", pbjson::private::base64::encode(&self.block_hash).as_str())?;
         }
         if let Some(v) = self.header.as_ref() {
@@ -2859,6 +2877,7 @@ impl serde::Serialize for SubmittedRollupData {
         let mut struct_ser = serializer.serialize_struct("astria.sequencerblock.v1.SubmittedRollupData", len)?;
         if !self.sequencer_block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("sequencerBlockHash", pbjson::private::base64::encode(&self.sequencer_block_hash).as_str())?;
         }
         if let Some(v) = self.rollup_id.as_ref() {

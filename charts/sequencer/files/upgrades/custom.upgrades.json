@@ -75,7 +75,8 @@
         }
       }
     },
-    "validatorUpdateActionChange": {}
+    "validatorUpdateActionChange": {},
+    "ibcAcknowledgementFailureChange": {}
   }
   {{- end }}
   {{- end }}

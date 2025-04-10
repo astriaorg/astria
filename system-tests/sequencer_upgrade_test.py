@@ -24,7 +24,7 @@ from helpers.utils import update_chart_dependencies, check_change_infos
 NUM_NODES = 5
 # A map of upgrade name to sequencer, relayer image to use for running BEFORE the given upgrade is executed.
 PRE_UPGRADE_IMAGE_TAGS = {
-    "aspen": ("2.0.0", "1.0.1"),
+    "aspen": ("2.0.1", "1.0.1"),
 }
 EVM_DESTINATION_ADDRESS = "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
 ACCOUNT = "astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504"

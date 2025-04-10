@@ -23,7 +23,6 @@ use cnidarium::{
     Snapshot,
     StateWrite,
 };
-use isahc::AsyncReadResponseExt;
 use serde_json::Value;
 use tendermint::consensus::params::VersionParams;
 use tracing::{
@@ -59,7 +58,13 @@ impl UpgradesHandler {
         upgrades_filepath: P,
         cometbft_rpc_addr: String,
     ) -> Result<Self> {
-        let upgrades = Upgrades::new(upgrades_filepath).wrap_err("failed constructing upgrades")?;
+        let upgrades =
+            Upgrades::read_from_path(upgrades_filepath.as_ref()).wrap_err_with(|| {
+                format!(
+                    "failed constructing upgrades from file at {}",
+                    upgrades_filepath.as_ref().display()
+                )
+            })?;
         Ok(Self {
             upgrades,
             cometbft_rpc_addr,
@@ -410,7 +415,7 @@ async fn try_get_consensus_params_from_cometbft(
     uri: &str,
 ) -> Result<tendermint::consensus::Params> {
     let blocking_getter = async {
-        isahc::get_async(uri)
+        reqwest::get(uri)
             .await
             .wrap_err("failed to get consensus params")?
             .text()

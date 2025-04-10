@@ -27,10 +27,12 @@ impl serde::Serialize for BaseAccount {
         }
         if self.account_number != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("accountNumber", ToString::to_string(&self.account_number).as_str())?;
         }
         if self.sequence != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("sequence", ToString::to_string(&self.sequence).as_str())?;
         }
         struct_ser.end()
@@ -174,22 +176,27 @@ impl serde::Serialize for Params {
         let mut struct_ser = serializer.serialize_struct("cosmos.auth.v1beta1.Params", len)?;
         if self.max_memo_characters != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("maxMemoCharacters", ToString::to_string(&self.max_memo_characters).as_str())?;
         }
         if self.tx_sig_limit != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("txSigLimit", ToString::to_string(&self.tx_sig_limit).as_str())?;
         }
         if self.tx_size_cost_per_byte != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("txSizeCostPerByte", ToString::to_string(&self.tx_size_cost_per_byte).as_str())?;
         }
         if self.sig_verify_cost_ed25519 != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("sigVerifyCostEd25519", ToString::to_string(&self.sig_verify_cost_ed25519).as_str())?;
         }
         if self.sig_verify_cost_secp256k1 != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("sigVerifyCostSecp256k1", ToString::to_string(&self.sig_verify_cost_secp256k1).as_str())?;
         }
         struct_ser.end()

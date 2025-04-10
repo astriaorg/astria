@@ -25,9 +25,7 @@ spec:
       github:
         owner: astriaorg
         repo: astria
-        tokenRef:
-          key: token
-          secretName: github-pat
+        appSecretName: github-app-credentials
         labels:
         # All of the following labels are required to be set on the PR for the app to be created
         - preview

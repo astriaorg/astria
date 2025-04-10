@@ -28,7 +28,10 @@ message Aspen {
 
   message ValidatorUpdateActionChange {}
 
+  message IbcAcknowledgementFailureChange {}
+
   BaseUpgradeInfo base_info = 1;
   PriceFeedChange price_feed_change = 2;
   ValidatorUpdateActionChange validator_update_action_change = 3;
+  IbcAcknowledgementFailureChange ibc_acknowledgement_failure_change = 4;
 }
