@@ -279,7 +279,10 @@ macro_rules! mount_executed_block {
             $mock_name.into(),
             ::serde_json::json!({
                 "prevBlockHash": BASE64_STANDARD.encode($parent),
-                "transactions": [{"sequencedData": BASE64_STANDARD.encode($crate::helpers::data())}],
+                "transactions": [
+                    {"priceFeedData": {}},
+                    {"sequencedData": BASE64_STANDARD.encode($crate::helpers::data())}
+                ],
             }),
             $crate::block!(
                 number: $number,
@@ -408,7 +411,10 @@ macro_rules! mount_execute_block_tonic_code {
         $test_env.mount_tonic_status_code(
             ::serde_json::json!({
                 "prevBlockHash": BASE64_STANDARD.encode($parent),
-                "transactions": [{"sequencedData": BASE64_STANDARD.encode($crate::helpers::data())}],
+                "transactions": [
+                    {"priceFeedData": {}},
+                    {"sequencedData": BASE64_STANDARD.encode($crate::helpers::data())}
+                ],
             }),
             $status_code
         ).await

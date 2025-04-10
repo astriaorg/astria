@@ -33,6 +33,17 @@ pub struct Config {
     pub no_metrics: bool,
     /// The endpoint which will be listened on for serving prometheus metrics
     pub metrics_http_listener_addr: String,
+    /// The path to the file containing the JSON-encoded upgrades for this network.
+    pub upgrades_filepath: PathBuf,
+    /// The address of the CometBFT RPC endpoint for this sequencer.
+    pub cometbft_rpc_addr: String,
+    /// If the price feed is disabled. If false, the `price_feed_grpc_addr` must be set.
+    /// Should be false for validator nodes and true for non-validator nodes.
+    pub no_price_feed: bool,
+    /// The gRPC endpoint for the price feed oracle sidecar.
+    pub price_feed_grpc_addr: String,
+    /// The timeout for the responses from the price feed oracle sidecar in milliseconds.
+    pub price_feed_client_timeout_milliseconds: u64,
     /// The maximum number of transactions that can be parked in the mempool.
     pub mempool_parked_max_tx_count: usize,
     /// Disables streaming optimistic blocks over grpc.

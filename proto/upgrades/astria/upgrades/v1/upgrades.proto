@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package astria.upgrades.v1;
+
+import "astria/protocol/genesis/v1/types.proto";
+
+// A JSON-encoded form of this message is used as the upgrades file for the Sequencer.
+message Upgrades {
+  Aspen aspen = 1;
+}
+
+// Info specific to a given upgrade.
+//
+// All upgrades have this info at a minimum.
+message BaseUpgradeInfo {
+  // The upgrade should be applied during the lifecycle of the block at this height.
+  uint64 activation_height = 1;
+  // The app version running after the upgrade is applied.
+  uint64 app_version = 2;
+}
+
+// Aspen upgrade of the Sequencer network.
+message Aspen {
+  message PriceFeedChange {
+    // The price feed genesis data.
+    astria.protocol.genesis.v1.PriceFeedGenesis genesis = 1;
+  }
+
+  message ValidatorUpdateActionChange {}
+
+  message IbcAcknowledgementFailureChange {}
+
+  BaseUpgradeInfo base_info = 1;
+  PriceFeedChange price_feed_change = 2;
+  ValidatorUpdateActionChange validator_update_action_change = 3;
+  IbcAcknowledgementFailureChange ibc_acknowledgement_failure_change = 4;
+}

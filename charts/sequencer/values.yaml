@@ -9,11 +9,11 @@ global:
   useTTY: true
   dev: false
   # Supported options are `custom`, `mainnet`, `dawn-1`, or `dusk-11`.
-  # If you are using a custom network, you should provide the genesis
+  # If you are using a custom network, you should provide the genesis and upgrades
   # configuration via values.
   #
-  # When set to a specific network, there are default images and genesis files
-  # that are used.
+  # When set to a specific network, there are default images, genesis, and upgrades
+  # files that are used.
   network: "custom"
 
 snapshotLoad:
@@ -42,6 +42,11 @@ images:
     repo: ghcr.io/astriaorg/sequencer
     pullPolicy: IfNotPresent
     tag: latest
+  priceFeed:
+    repo: ghcr.io/skip-mev/connect-sidecar
+    pullPolicy: IfNotPresent
+    tag: v2
+    devTag: v2
 
 # Moniker is used for the cometbft node name, and various chart names.
 # This must be set.
@@ -56,6 +61,14 @@ genesis:
     base: "astria"
     ibcCompat: "astriacompat"
   authoritySudoAddress: ""
+  priceFeed: {}
+    # markets: []
+    # currencyPairGenesis: []
+    # nextId: ""
+    # marketAdminAddress: "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+    # marketAuthorities:
+    #  - "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+    #  - "astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z"
   allowedFeeAssets: []
     # - nria
   ibc:
@@ -70,11 +83,13 @@ genesis:
     #   balance: "333333333333333333"
 
   consensusParams:
+    appVersion: "1"
     blockMaxBytes: "1048576"
     blockMaxGas: "-1"
     maxAgeDuration: "1209600000000000"
     maxAgeNumBlocks: "4000000"
     maxBytes: "1048576"
+    voteExtensionsEnableHeight: "1"
 
   fees:
     feeChange:
@@ -120,17 +135,71 @@ genesis:
       base: "0"
       multiplier: "0"
 
-  validators: []
+  validators:
+    []
     # - name: core
     #   power: '1'
     #   address: 091E47761C58C474534F4D414AF104A6CAF90C22
     #   pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
+
+upgrades:
+  aspen:
+    enabled: false
+    # baseInfo:
+    #   activationHeight: 60
+    #   appVersion: 2
+    # priceFeed:
+    #   nextId: "2"
+    #   marketAdminAddress: "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+    #   marketAuthorities:
+    #    - "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+    #    - "astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z"
+    #   markets:
+    #     - name: "BTC/USD"
+    #       providerConfigs:
+    #         - name: "coingecko_api"
+    #           offChainTicker: "bitcoin/usd"
+    #       ticker:
+    #         currencyPair:
+    #           Base: "BTC"
+    #           Quote: "USD"
+    #         decimals: "5"
+    #         enabled: true
+    #         minProviderCount: "1"
+    #     - name: "ETH/USD"
+    #       providerConfigs:
+    #         - name: "coingecko_api"
+    #           offChainTicker: "ethereum/usd"
+    #       ticker:
+    #         currencyPair:
+    #           Base: "ETH"
+    #           Quote: "USD"
+    #         decimals: "6"
+    #         enabled: true
+    #         minProviderCount: "1"
+    #   currencyPairGenesis:
+    #     - currencyPair:
+    #         Base: "BTC"
+    #         Quote: "USD"
+    #       currencyPairPrice:
+    #         blockTimestamp: "2024-07-04T19:46:35+00:00"
+    #         price: "5834065777"
+    #     - currencyPair:
+    #         Base: "ETH"
+    #         Quote: "USD"
+    #       currencyPairPrice:
+    #         blockTimestamp: "2024-07-04T19:46:35+00:00"
+    #         price: "3138872234"
+    #       id: "1"
 
 sequencer:
   abciUDS: true
   mempool:
     parked:
       maxTxCount: 200
+  priceFeed:
+    enabled: true
+    clientTimeout: 1000
   metrics:
     enabled: false
   otel:
@@ -298,9 +367,12 @@ ports:
   cometbftRpc: 26657
   cometbftMetrics: 26660
   sequencerABCI: 26658
+  # note: the price feed sidecar also uses 8080 by default but can be changed with --port
   sequencerGrpc: 8080
   relayerRpc: 2450
   sequencerMetrics: 9000
+  priceFeedGrpc: 8081
+  priceFeedMetrics: 8002
 
 # ServiceMonitor configuration
 serviceMonitor:
@@ -324,14 +396,14 @@ alerting:
       release: kube-prometheus-stack
     namespace: monitoring
     rules:
-    - alert: Chain_Node_Down
-      expr: up{container="cometbft"} == 0  # Insert your query Expression
-      for: 1m  # Rough number but should be enough to init warn
-      labels:
-        severity: critical
-      annotations:
-        summary: Chain Node is Down (instance {{ $labels.instance }})
-        description: "chain node '{{ $labels.namespace }}' has disappeared from Prometheus target discovery.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: Chain_Node_Down
+        expr: up{container="cometbft"} == 0  # Insert your query Expression
+        for: 1m  # Rough number but should be enough to init warn
+        labels:
+          severity: critical
+        annotations:
+          summary: Chain Node is Down (instance {{ $labels.instance }})
+          description: "chain node '{{ $labels.namespace }}' has disappeared from Prometheus target discovery.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
 
 storage:
   enabled: false

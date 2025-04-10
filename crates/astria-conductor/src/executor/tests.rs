@@ -6,9 +6,23 @@ use astria_core::{
         GenesisInfo,
     },
     generated::astria::execution::v1 as raw,
+    protocol::price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
     Protobuf as _,
 };
 use bytes::Bytes;
+use indexmap::IndexMap;
+use tendermint::{
+    abci::types::{
+        BlockSignatureInfo,
+        ExtendedCommitInfo,
+        ExtendedVoteInfo,
+        Validator,
+    },
+    block::{
+        BlockIdFlag,
+        Round,
+    },
+};
 
 use super::{
     should_execute_firm_block,
@@ -207,4 +221,54 @@ fn should_execute_firm() {
         "firm-and-soft-mode conductors should not execute firm blocks if soft and firm numbers \
          don't match"
     );
+}
+
+#[test]
+fn should_prepend_valid_price_feed_data_to_txs() {
+    let tx = Bytes::from(vec![1; 1]);
+    let txs = vec![tx.clone(); 1];
+    let extended_commit_info = ExtendedCommitInfoWithCurrencyPairMapping {
+        extended_commit_info: ExtendedCommitInfo {
+            round: Round::default(),
+            votes: vec![],
+        },
+        id_to_currency_pair: IndexMap::new(),
+    };
+    let bytes =
+        super::prepend_transactions_by_price_feed_if_exists(txs, Some(extended_commit_info));
+    assert_eq!(bytes.len(), 2);
+    assert_eq!(bytes[1], tx);
+}
+
+#[test]
+fn should_not_prepend_invalid_price_feed_data_to_txs() {
+    let txs = vec![Bytes::from(vec![1; 1])];
+    let invalid_extended_vote_info = ExtendedVoteInfo {
+        validator: Validator {
+            address: [1; 20],
+            power: 10_u8.into(),
+        },
+        sig_info: BlockSignatureInfo::Flag(BlockIdFlag::Commit),
+        vote_extension: Bytes::from(vec![100]), // this fails to decode as a vote extension
+        extension_signature: None,
+    };
+    let extended_commit_info = ExtendedCommitInfoWithCurrencyPairMapping {
+        extended_commit_info: ExtendedCommitInfo {
+            round: Round::default(),
+            votes: vec![invalid_extended_vote_info],
+        },
+        id_to_currency_pair: IndexMap::new(),
+    };
+    let bytes = super::prepend_transactions_by_price_feed_if_exists(
+        txs.clone(),
+        Some(extended_commit_info),
+    );
+    assert_eq!(bytes, txs);
+}
+
+#[test]
+fn should_not_prepend_missing_price_feed_data_to_txs() {
+    let txs = vec![Bytes::from(vec![1; 1])];
+    let bytes = super::prepend_transactions_by_price_feed_if_exists(txs.clone(), None);
+    assert_eq!(bytes, txs);
 }

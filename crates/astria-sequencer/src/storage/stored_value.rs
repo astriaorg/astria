@@ -19,6 +19,9 @@ pub(crate) enum StoredValue<'a> {
     Ibc(crate::ibc::storage::Value<'a>),
     App(crate::app::storage::Value<'a>),
     Grpc(crate::grpc::storage::Value<'a>),
+    Upgrades(crate::upgrades::storage::Value<'a>),
+    PriceFeedMarketMap(crate::oracles::price_feed::market_map::storage::Value<'a>),
+    PriceFeedOracle(crate::oracles::price_feed::oracle::storage::Value<'a>),
 }
 
 impl StoredValue<'_> {

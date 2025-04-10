@@ -1,0 +1,49 @@
+upgrades:
+  aspen:
+    enabled: true
+    baseInfo:
+      activationHeight: 60
+      appVersion: 2
+    priceFeed:
+      nextId: "2"
+      marketAdminAddress: "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+      marketAuthorities:
+        - "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+        - "astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z"
+      markets:
+        - name: "BTC/USD"
+          providerConfigs:
+            - name: "coingecko_api"
+              offChainTicker: "bitcoin/usd"
+          ticker:
+            currencyPair:
+              Base: "BTC"
+              Quote: "USD"
+            decimals: "5"
+            enabled: true
+            minProviderCount: "1"
+        - name: "ETH/USD"
+          providerConfigs:
+            - name: "coingecko_api"
+              offChainTicker: "ethereum/usd"
+          ticker:
+            currencyPair:
+              Base: "ETH"
+              Quote: "USD"
+            decimals: "6"
+            enabled: true
+            minProviderCount: "1"
+      currencyPairGenesis:
+        - currencyPair:
+            Base: "BTC"
+            Quote: "USD"
+          currencyPairPrice:
+            blockTimestamp: "2024-07-04T19:46:35+00:00"
+            price: "5834065777"
+        - currencyPair:
+            Base: "ETH"
+            Quote: "USD"
+          currencyPairPrice:
+            blockTimestamp: "2024-07-04T19:46:35+00:00"
+            price: "3138872234"
+          id: "1"

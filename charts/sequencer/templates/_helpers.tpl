@@ -27,6 +27,9 @@ Namepsace to deploy elements into.
 {{- define "cometBFT.image" -}}
 {{ .Values.images.cometBFT.repo }}:{{ include "cometBFT.imageTag" . }}
 {{- end }}
+{{- define "priceFeed.image" -}}
+{{ .Values.images.priceFeed.repo }}:{{ if .Values.global.dev }}{{ .Values.images.priceFeed.devTag }}{{ else }}{{ .Values.images.priceFeed.tag }}{{ end }}
+{{- end }}
 
 {{- define "cometBFT.timeouts.propose" -}}
 {{- if eq .Values.global.network "custom" }}{{ .Values.cometbft.config.consensus.timeoutPropose }}

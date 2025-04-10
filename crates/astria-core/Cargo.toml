@@ -24,6 +24,7 @@ astria-core-consts = { path = "../astria-core-consts" }
 astria-core-crypto = { path = "../astria-core-crypto" }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
 
+borsh = { workspace = true, features = ["bytes", "derive", "rc"] }
 bytes = { workspace = true }
 celestia-types = { workspace = true, optional = true }
 hex = { workspace = true }
@@ -34,7 +35,9 @@ penumbra-ibc = { workspace = true }
 penumbra-proto = { workspace = true }
 prost = { workspace = true }
 rand = { workspace = true, optional = true }
+regex = { workspace = true }
 serde = { workspace = true, features = ["derive"], optional = true }
+serde_json = { workspace = true, optional = true }
 sha2 = { workspace = true }
 tendermint = { workspace = true }
 tendermint-proto = { workspace = true }
@@ -47,7 +50,7 @@ base64 = { workspace = true }
 [features]
 celestia = ["dep:celestia-types"]
 client = ["dep:tonic"]
-serde = ["dep:serde", "dep:pbjson", "dep:base64-serde"]
+serde = ["dep:serde", "dep:serde_json", "dep:pbjson", "dep:base64-serde"]
 server = ["dep:tonic"]
 test-utils = ["dep:rand"]
 base64-serde = ["dep:base64-serde"]

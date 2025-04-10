@@ -1,7 +1,10 @@
 set allow-duplicate-recipes
 
 import 'defaults.just'
-import 'wait-for.just'
+
+
+# Set the working directory for all recipes to the project's root.
+set working-directory := "../../"
 
 
 _default_deploy:
@@ -34,7 +37,7 @@ all:
 [doc("
 Deploys local Sequencer and Celestia instance.
 Usage:
-  $just deploy astria-local <NAMESPACE> (default: 'astria-dev-cluster')
+  just deploy astria-local <NAMESPACE> (default: 'astria-dev-cluster')
 ")]
 astria-local namespace=defaultNamespace: (celestia-local namespace) (sequencer)
 
@@ -55,16 +58,17 @@ hubbleEnabled := "false"
 [doc("
 Deploys a local Kubernetes cluster.
 Usage:
-  $just deploy cluster <NAMESPACE> <ENABLE_HUBBLE> (defaults: 'astria-dev-cluster', 'false')
+  just deploy cluster <NAMESPACE> <ENABLE_HUBBLE> (defaults: 'astria-dev-cluster', 'false')
 ")]
 cluster namespace=defaultNamespace enableHubble=hubbleEnabled:
-  @kind create cluster --image kindest/node:v1.28.9 --config ../../dev/kubernetes/kind-cluster-config.yml
+  @kind create cluster --image kindest/node:v1.28.9 --config dev/kubernetes/kind-cluster-config.yml
   @just deploy::helm-add-if-not-exist cilium https://helm.cilium.io/ > /dev/null
   @echo "Installing cilium..."
   @helm install cilium cilium/cilium --version 1.15.5 \
-      -f ../../dev/values/cilium.yml \
+      -f dev/values/cilium.yml \
       {{ if enableHubble == "true" { '--set hubble.enabled=true --set hubble.relay.enabled=true --set hubble.ui.enabled=true --set hubble.ui.ingress.enabled=true' } else { '' } }} \
-      --namespace kube-system
+      --namespace kube-system \
+      --labels core=true
   @kubectl create namespace {{namespace}}
 
 
@@ -74,7 +78,7 @@ cluster namespace=defaultNamespace enableHubble=hubbleEnabled:
 Deploys the local metrics serveras defined in '/dev/kubernetes/metrics-server-local.yml'.
 ")]
 local-metrics:
-  @kubectl apply -f ../../dev/kubernetes/metrics-server-local.yml
+  @kubectl apply -f dev/kubernetes/metrics-server-local.yml
 
 
 # Deploy Ingress Controller
@@ -92,7 +96,7 @@ ingress-controller:
 [doc("
 Deploys a local graph node.
 Usage:
-  $just deploy graph-node <NAMESPACE> (default: 'astria-dev-cluster')
+  just deploy graph-node <NAMESPACE> (default: 'astria-dev-cluster')
 ")]
 graph-node namespace=defaultNamespace: (deploy-chart "graph-node" namespace)
 
@@ -113,16 +117,16 @@ secrets-store:
 [doc("
 Deploys a local Sequencer node from 'dev/values/validators'.
 Usage:
-  $just deploy sequencer <NAME> (default: 'single')
+  just deploy sequencer <NAME> (default: 'single')
 ")]
 sequencer name=validatorName:
   @echo "Deploying sequencer '{{name}}'..."
-  @helm dependency update ../../charts/sequencer > /dev/null
+  @helm dependency update charts/sequencer > /dev/null
   @helm install \
-    -f ../../dev/values/validators/all.yml \
-    -f ../../dev/values/validators/{{name}}.yml \
+    -f dev/values/validators/all.yml \
+    -f dev/values/validators/{{name}}.yml \
     -n astria-validator-{{name}} --create-namespace \
-    {{name}}-sequencer-chart ../../charts/sequencer
+    {{name}}-sequencer-chart charts/sequencer
 
 
 # Deploy Sequencers
@@ -135,6 +139,8 @@ sequencers:
   @just deploy sequencer "node0"
   @just deploy sequencer "node1"
   @just deploy sequencer "node2"
+  @just deploy sequencer "node3"
+  @just deploy sequencer "node4"
 
 
 # Deploy Astrotrek
@@ -144,8 +150,8 @@ Deploys a local Astrotrek instance.
 ")]
 astrotrek:
   @echo "Deploying Astrotrek..."
-  @helm dependency update ../../charts/astrotrek > /dev/null
-  @helm install astrotrek-chart ../../charts/astrotrek \
+  @helm dependency update charts/astrotrek > /dev/null
+  @helm install astrotrek-chart charts/astrotrek \
     -n astria-dev-cluster \
 
 
@@ -156,9 +162,9 @@ Deploys a local Hermes instance.
 ")]
 hermes-local:
   @echo "Deploying Hermes..."
-  @helm install hermes-local-chart ../../charts/hermes \
+  @helm install hermes-local-chart charts/hermes \
     -n astria-dev-cluster \
-    -f ../../dev/values/hermes/local.yaml
+    -f dev/values/hermes/local.yaml
 
 
 # Deploy Rollup
@@ -169,16 +175,16 @@ against local network, along with a bridge withdawer. Local Sequencer and Celest
 networks must be running before deploying the rollup.
 Note: default values file can be found in `helm/rollup/values.yaml`
 Usage:
-  $just deploy rollup <ROLLUP_NAME> <NETWORK_ID> (defaults: 'astria', '')
+  just deploy rollup <ROLLUP_NAME> <NETWORK_ID> (defaults: 'astria', '')
 ")]
 rollup rollupName=defaultRollupName networkId=defaultNetworkId:
   @echo "Deploying rollup '{{rollupName}}'..."
-  @helm dependency update ../../charts/evm-stack > /dev/null
+  @helm dependency update charts/evm-stack > /dev/null
   @helm install \
-    {{ if rollupName          != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
-    {{ if networkId           != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
-    -f ../../dev/values/rollup/dev.yaml \
-    {{rollupName}}-chain-chart ../../charts/evm-stack --namespace astria-dev-cluster
+    {{ if rollupName != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
+    {{ if networkId != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
+    -f dev/values/rollup/dev.yaml \
+    {{rollupName}}-chain-chart charts/evm-stack --namespace astria-dev-cluster
 
 
 # Deploy Flame Dev Rollup
@@ -187,16 +193,16 @@ rollup rollupName=defaultRollupName networkId=defaultNetworkId:
 Deploys local Flame instance. Local Sequencer and Celestia networks must be running
 before deploying the rollup.
 Usage:
-  $just deploy flame-dev-rollup <ROLLUP_NAME> <NETWORK_ID> (defaults: 'astria', '')
+  just deploy flame-dev-rollup <ROLLUP_NAME> <NETWORK_ID> (defaults: 'astria', '')
 ")]
 flame-dev-rollup rollupName=defaultRollupName networkId=defaultNetworkId:
   @echo "Deploying Flame rollup '{{rollupName}}'..."
-  @helm dependency update ../../charts/evm-stack > /dev/null
+  @helm dependency update charts/evm-stack > /dev/null
   @helm install \
-    {{ if rollupName          != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
-    {{ if networkId           != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
-    -f ../../dev/values/rollup/flame-dev.yaml \
-    {{rollupName}}-chain-chart ../../charts/evm-stack --namespace astria-dev-cluster
+    {{ if rollupName != '' { replace('--set config.rollup.name=# --set celestia-node.config.labelPrefix=#', '#', rollupName) } else { '' } }} \
+    {{ if networkId != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
+    -f dev/values/rollup/flame-dev.yaml \
+    {{rollupName}}-chain-chart charts/evm-stack --namespace astria-dev-cluster
 
 
 # FIXME: This deployment currently fails
@@ -207,10 +213,10 @@ Deploys local auctioneer.
 ")]
 auctioneer:
   @echo "Deploying auctioneer..."
-  @helm dependency update ../../charts/auctioneer > /dev/null
-  @helm install auctioneer-chart ../../charts/auctioneer \
+  @helm dependency update charts/auctioneer > /dev/null
+  @helm install auctioneer-chart charts/auctioneer \
       --namespace astria-dev-cluster \
-      -f ../../dev/values/auctioneer/values.yaml
+      -f dev/values/auctioneer/values.yaml
 
 
 # Deploy EVM Bridge Withdrawer
@@ -220,9 +226,9 @@ Deploys local EVM Bridge Withdrawer.
 ")]
 bridge-withdrawer:
   @echo "Deploying bridge-withdrawer..."
-  @helm install evm-bridge-withdrawer-chart ../../charts/evm-bridge-withdrawer \
+  @helm install evm-bridge-withdrawer-chart charts/evm-bridge-withdrawer \
     --namespace astria-dev-cluster \
-    -f ../../dev/values/withdrawer/values.yaml
+    -f dev/values/withdrawer/values.yaml
 
 
 # FIXME: This deployment currently fails
@@ -231,7 +237,7 @@ bridge-withdrawer:
 [doc("
 Deploys local Hyperlane agents.
 Usage:
-  $just deploy hyperlane-agents <ROLLUP_NAME> <AGENT_CONFIG> <RELAYER_PRIVATE_KEY> <VALIDATOR_PRIVATE_KEY>
+  just deploy hyperlane-agents <ROLLUP_NAME> <AGENT_CONFIG> <RELAYER_PRIVATE_KEY> <VALIDATOR_PRIVATE_KEY>
   (defaults: 'astria', '', '', '')
 ")]
 hyperlane-agents rollupName=defaultRollupName agentConfig=defaultHypAgentConfig relayerPrivateKey=defaultHypRelayerPrivateKey validatorPrivateKey=defaultHypValidatorPrivateKey:
@@ -240,7 +246,7 @@ hyperlane-agents rollupName=defaultRollupName agentConfig=defaultHypAgentConfig 
     {{ if agentConfig         != '' { replace('--set config.agentConfig=#', '#', agentConfig) } else { '' } }} \
     {{ if relayerPrivateKey   != '' { replace('--set config.relayer.privateKey=#', '#', relayerPrivateKey) } else { '' } }} \
     {{ if validatorPrivateKey != '' { replace('--set config.validator.privateKey=#', '#', validatorPrivateKey) } else { '' } }} \
-    {{rollupName}}-hyperlane-agents-chart ../../charts/hyperlane-agents --namespace astria-dev-cluster
+    {{rollupName}}-hyperlane-agents-chart charts/hyperlane-agents --namespace astria-dev-cluster
 
 
 # Deploy Smoke Test
@@ -249,21 +255,21 @@ hyperlane-agents rollupName=defaultRollupName agentConfig=defaultHypAgentConfig 
 Deploys all components necessary for local end-to-end (including rollup and Celestia)
 smoke test and awaits their readiness.
 Usage:
-  $just deploy smoke-test <TAG> (default: '')
+  just deploy smoke-test <TAG> (default: '')
 ")]
 smoke-test tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
   @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
-  @helm dependency update ../../charts/sequencer > /dev/null
-  @helm dependency update ../../charts/evm-stack > /dev/null
+  @helm dependency update charts/sequencer > /dev/null
+  @helm dependency update charts/evm-stack > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
-    -n astria-validator-single single-sequencer-chart ../../charts/sequencer \
-    -f ../../dev/values/validators/all.yml \
-    -f ../../dev/values/validators/single.yml \
+    -n astria-validator-single single-sequencer-chart charts/sequencer \
+    -f dev/values/validators/all.yml \
+    -f dev/values/validators/single.yml \
     {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
-  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ../../charts/evm-stack -f ../../dev/values/rollup/dev.yaml \
+  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart charts/evm-stack -f dev/values/rollup/dev.yaml \
     {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
     --set blockscout-stack.enabled=false \
     --set postgresql.enabled=false \
@@ -279,21 +285,21 @@ smoke-test tag=defaultTag:
 Deploys all components necessary for local end-to-end smoke test without EVM Bridge
 Withdrawer and awaits their readiness.
 Usage:
-  $just deploy smoke-cli <TAG> (default: '')
+  just deploy smoke-cli <TAG> (default: '')
 ")]
 smoke-cli tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
   @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
-  @helm dependency update ../../charts/sequencer > /dev/null
-  @helm dependency update ../../charts/evm-stack > /dev/null
+  @helm dependency update charts/sequencer > /dev/null
+  @helm dependency update charts/evm-stack > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
-    -n astria-validator-single single-sequencer-chart ../../charts/sequencer \
-    -f ../../dev/values/validators/all.yml \
-    -f ../../dev/values/validators/single.yml \
+    -n astria-validator-single single-sequencer-chart charts/sequencer \
+    -f dev/values/validators/all.yml \
+    -f dev/values/validators/single.yml \
     {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
-  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ../../charts/evm-stack -f ../../dev/values/rollup/dev.yaml \
+  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart charts/evm-stack -f dev/values/rollup/dev.yaml \
     {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=#', '#', tag) } else { '' } }} \
     --set blockscout-stack.enabled=false \
     --set postgresql.enabled=false \
@@ -311,23 +317,23 @@ smoke-cli tag=defaultTag:
 Deploys all components necessary for smoke test via IBC transactions and awaits
 their readiness.
 Usage:
-  $just deploy ibc-test <TAG> (default: '')
+  just deploy ibc-test <TAG> (default: '')
 ")]
 ibc-test tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
   @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
-  @helm dependency update ../../charts/sequencer > /dev/null
-  @helm dependency update ../../charts/evm-stack > /dev/null
+  @helm dependency update charts/sequencer > /dev/null
+  @helm dependency update charts/evm-stack > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
-    -n astria-validator-single single-sequencer-chart ../../charts/sequencer \
-    -f ../../dev/values/validators/all.yml \
-    -f ../../dev/values/validators/single.yml \
+    -n astria-validator-single single-sequencer-chart charts/sequencer \
+    -f dev/values/validators/all.yml \
+    -f dev/values/validators/single.yml \
     {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
-  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ../../charts/evm-stack \
-    -f ../../dev/values/rollup/dev.yaml \
-    -f ../../dev/values/rollup/ibc-bridge-test.yaml \
+  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart charts/evm-stack \
+    -f dev/values/rollup/dev.yaml \
+    -f dev/values/rollup/ibc-bridge-test.yaml \
     {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
     --set blockscout-stack.enabled=false \
     --set postgresql.enabled=false \
@@ -345,18 +351,18 @@ ibc-test tag=defaultTag:
 Deploys all components necessary for IBC test with no native asset defined and awaits
 their readiness.
 Usage:
-  $just deploy ibc-test-without-native <TAG> (default: '')
+  just deploy ibc-test-without-native <TAG> (default: '')
 ")]
 ibc-test-without-native tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
   @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
   @echo "Deploying local celestia instance..."
-  @helm install celestia-local-chart ../../charts/celestia-local --namespace {{defaultNamespace}} --set fast=true --create-namespace  > /dev/null
-  @helm dependency update ../../charts/sequencer > /dev/null
+  @helm install celestia-local-chart charts/celestia-local --namespace {{defaultNamespace}} --set fast=true --create-namespace  > /dev/null
+  @helm dependency update charts/sequencer > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
-    -n astria-validator-single single-sequencer-chart ../../charts/sequencer \
-    -f ../../dev/values/validators/all-without-native.yml \
-    -f ../../dev/values/validators/single.yml \
+    -n astria-validator-single single-sequencer-chart charts/sequencer \
+    -f dev/values/validators/all-without-native.yml \
+    -f dev/values/validators/single.yml \
     {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
   @echo "Deploying Hermes..."
@@ -372,24 +378,24 @@ ibc-test-without-native tag=defaultTag:
 Deploys all components necessary for IBC test with a timeout on receipt of a refund
 and awaits their readiness.
 Usage:
-  $just deploy ibc-test-timeout-refund <TAG> (default: '')
+  just deploy ibc-test-timeout-refund <TAG> (default: '')
 ")]
 ibc-test-timeout-refund tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
   @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." > /dev/null
-  @helm install celestia-local-chart ../../charts/celestia-local --namespace {{defaultNamespace}} --set fast=true --create-namespace  > /dev/null
-  @helm dependency update ../../charts/sequencer > /dev/null
-  @helm dependency update ../../charts/evm-stack > /dev/null
+  @helm install celestia-local-chart charts/celestia-local --namespace {{defaultNamespace}} --set fast=true --create-namespace  > /dev/null
+  @helm dependency update charts/sequencer > /dev/null
+  @helm dependency update charts/evm-stack > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
-    -n astria-validator-single single-sequencer-chart ../../charts/sequencer \
-    -f ../../dev/values/validators/all.yml \
-    -f ../../dev/values/validators/single.yml \
+    -n astria-validator-single single-sequencer-chart charts/sequencer \
+    -f dev/values/validators/all.yml \
+    -f dev/values/validators/single.yml \
     {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
-  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ../../charts/evm-stack \
-    -f ../../dev/values/rollup/dev.yaml \
-    -f ../../dev/values/rollup/ibc-bridge-test.yaml \
+  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart charts/evm-stack \
+    -f dev/values/rollup/dev.yaml \
+    -f dev/values/rollup/ibc-bridge-test.yaml \
     {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=#', '#', tag) } else { '' } }} \
     --set blockscout-stack.enabled=false \
     --set evm-bridge-withdrawer.enabled=false \
@@ -403,13 +409,55 @@ ibc-test-timeout-refund tag=defaultTag:
   @just wait-for hermes-local
 
 
+# Generate System-Test Protos
+##############################
+[doc("
+Generates Python files from the protobuf sources for the system-tests.
+")]
+generate-system-test-protos:
+  buf generate --template system-tests/buf.gen.yaml
+
+
+# Deploy Upgrade Test
+######################
+[doc("
+Deploys all components necessary for running the sequencer upgrade test in the
+`system-tests` folder.
+")]
+upgrade-test: generate-system-test-protos
+  @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
+  @echo "Deploying local celestia instance..." && just deploy::deploy-celestia-local > /dev/null
+  @just wait-for celestia-local
+
+
+# Generate System-Test Protos
+##############################
+[doc("
+Generates Python files from the protobuf sources for the system-tests.
+")]
+generate-system-test-protos:
+  buf generate --template system-tests/buf.gen.yaml
+
+
+# Deploy Upgrade Test
+######################
+[doc("
+Deploys all components necessary for running the sequencer upgrade test in the
+`system-tests` folder.
+")]
+upgrade-test: generate-system-test-protos
+  @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
+  @echo "Deploying local celestia instance..." && just deploy::deploy-celestia-local > /dev/null
+  @just wait-for celestia-local
+
+
 #####################
 ## Private Recipes ##
 #####################
 
 [private]
 deploy-chart chart namespace=defaultNamespace:
-  @helm install {{chart}}-chart ../../charts/{{chart}} --namespace {{namespace}} --create-namespace
+  @helm install {{chart}}-chart charts/{{chart}} --namespace {{namespace}} --create-namespace
 
 [private]
 helm-add-if-not-exist repo url:
