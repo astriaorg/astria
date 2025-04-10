@@ -431,15 +431,6 @@ upgrade-test: generate-system-test-protos
   @just wait-for celestia-local
 
 
-# Generate System-Test Protos
-##############################
-[doc("
-Generates Python files from the protobuf sources for the system-tests.
-")]
-generate-system-test-protos:
-  buf generate --template system-tests/buf.gen.yaml
-
-
 #####################
 ## Private Recipes ##
 #####################
