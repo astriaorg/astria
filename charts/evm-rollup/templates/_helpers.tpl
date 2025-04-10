@@ -28,7 +28,7 @@ files/genesis/{{ include "rollup.type" . }}.genesis.json
 {{- if or (eq $rollupType "custom") .Values.global.dev -}}{{ .Values.images.geth.tag }}
 {{- else if eq $rollupType "flame-mainnet" -}}1.1.0
 {{- else if eq $rollupType "flame-testnet" -}}1.1.0
-{{- else if eq $rollupType "flame-devnet" -}}sha-a31c134
+{{- else if eq $rollupType "flame-devnet" -}}sha-3e479fb
 {{- end -}}
 {{- end }}
 
