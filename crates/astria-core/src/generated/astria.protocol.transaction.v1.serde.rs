@@ -3784,6 +3784,7 @@ impl serde::Serialize for ValidatorUpdate {
         }
         if self.power != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("power", ToString::to_string(&self.power).as_str())?;
         }
         if !self.name.is_empty() {

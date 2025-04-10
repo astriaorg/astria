@@ -616,7 +616,6 @@ impl ::prost::Name for GetUpgradesInfoResponse {
         "/astria.sequencerblock.v1.GetUpgradesInfoResponse".into()
     }
 }
-#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetValidatorNameRequest {
     /// The account to retrieve the validator name for.
@@ -627,10 +626,12 @@ impl ::prost::Name for GetValidatorNameRequest {
     const NAME: &'static str = "GetValidatorNameRequest";
     const PACKAGE: &'static str = "astria.sequencerblock.v1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
+        "astria.sequencerblock.v1.GetValidatorNameRequest".into()
+    }
+    fn type_url() -> ::prost::alloc::string::String {
+        "/astria.sequencerblock.v1.GetValidatorNameRequest".into()
     }
 }
-#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetValidatorNameResponse {
     /// The validator name for the given account.
@@ -641,7 +642,10 @@ impl ::prost::Name for GetValidatorNameResponse {
     const NAME: &'static str = "GetValidatorNameResponse";
     const PACKAGE: &'static str = "astria.sequencerblock.v1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.sequencerblock.v1.{}", Self::NAME)
+        "astria.sequencerblock.v1.GetValidatorNameResponse".into()
+    }
+    fn type_url() -> ::prost::alloc::string::String {
+        "/astria.sequencerblock.v1.GetValidatorNameResponse".into()
     }
 }
 /// Generated client implementations.
@@ -866,8 +870,7 @@ pub mod sequencer_service_client {
                 .ready()
                 .await
                 .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
+                    tonic::Status::unknown(
                         format!("Service was not ready: {}", e.into()),
                     )
                 })?;
@@ -1236,7 +1239,6 @@ pub mod sequencer_service_server {
                     let max_encoding_message_size = self.max_encoding_message_size;
                     let inner = self.inner.clone();
                     let fut = async move {
-                        let inner = inner.0;
                         let method = GetValidatorNameSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
