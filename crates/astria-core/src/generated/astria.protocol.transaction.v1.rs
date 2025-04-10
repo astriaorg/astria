@@ -466,7 +466,6 @@ impl ::prost::Name for BridgeTransfer {
         "/astria.protocol.transaction.v1.BridgeTransfer".into()
     }
 }
-#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ValidatorUpdate {
     /// the ed25519 public key of the validator
@@ -485,7 +484,10 @@ impl ::prost::Name for ValidatorUpdate {
     const NAME: &'static str = "ValidatorUpdate";
     const PACKAGE: &'static str = "astria.protocol.transaction.v1";
     fn full_name() -> ::prost::alloc::string::String {
-        ::prost::alloc::format!("astria.protocol.transaction.v1.{}", Self::NAME)
+        "astria.protocol.transaction.v1.ValidatorUpdate".into()
+    }
+    fn type_url() -> ::prost::alloc::string::String {
+        "/astria.protocol.transaction.v1.ValidatorUpdate".into()
     }
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
