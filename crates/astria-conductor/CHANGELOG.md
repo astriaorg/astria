@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Include price feed oracle data in transactions when sequencer network
   provides it [#2085](https://github.com/astriaorg/astria/pull/2085).
 
+### Fixed
+
+- Update `crossbeam-channel` dependency to resolve cargo audit warning [#2106](https://github.com/astriaorg/astria/pull/2106).
+
 ## [1.1.0] - 2025-03-06
 
 ### Changed
