@@ -490,8 +490,7 @@ impl ::prost::Name for ValidatorUpdate {
         "/astria.protocol.transaction.v1.ValidatorUpdate".into()
     }
 }
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct FeeChange {
     /// the new fee components values
     #[prost(
