@@ -1,1 +1,27 @@
-{}
+{
+  "aspen": {
+    "baseInfo": {
+      "activationHeight": "14034813",
+      "appVersion": "2"
+    },
+    "priceFeedChange": {
+      "genesis": {
+        "marketMap": {
+          "marketMap": {},
+          "params": {
+            "marketAuthorities": [
+              "astria1zx0chamzu245nz0hkreffnx32v7uxg0nljl9sx"
+            ],
+            "admin": "astria1zx0chamzu245nz0hkreffnx32v7uxg0nljl9sx"
+          }
+        },
+        "oracle": {
+          "currencyPairGenesis": [],
+          "nextId": "0"
+        }
+      }
+    },
+    "validatorUpdateActionChange": {},
+    "ibcAcknowledgementFailureChange": {}
+  }
+}
