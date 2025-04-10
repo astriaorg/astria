@@ -108,11 +108,11 @@
                 {{- $fields = append $fields (printf "\"bridgeAddresses\": %s" (toPrettyJson .bridgeAddresses | indent 4 | trim)) }}
                 {{- end }}
 
-                {{-if .astriaOracleCallerAddress}}
+                {{- if .astriaOracleCallerAddress }}
                 {{- $fields = append $fields (printf "\"astriaOracleCallerAddress\": %s" (toPrettyJson .astriaOracleCallerAddress | indent 4 | trim)) }}
                 {{- end }}
 
-                {{-if .astriaOracleContractAddress}}
+                {{- if .astriaOracleContractAddress }}
                 {{- $fields = append $fields (printf "\"astriaOracleContractAddress\": %s" (toPrettyJson .astriaOracleContractAddress | indent 4 | trim)) }}
                 {{- end }}
 
