@@ -65,7 +65,7 @@ Usage:
       BRIDGE_WITHDRAWER_ENABLED: 'true'
 ")]
 rollup rollupName=defaultRollupName bridgeWithdrawerEnabled=withdrawerEnabled:
-  @echo "Waiting for rollup `{{rollupName}}`` to be ready..."
+  @echo "Waiting for rollup '{{rollupName}}' to be ready..."
   @kubectl rollout status --watch statefulset/{{rollupName}}-geth -n astria-dev-cluster --timeout=600s > /dev/null
   {{ if bridgeWithdrawerEnabled == "true" { 'just wait-for bridge-withdrawer' } else { '' } }}
 

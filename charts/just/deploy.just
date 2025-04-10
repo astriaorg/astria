@@ -19,7 +19,14 @@ _default_deploy:
 Deploys cluster, ingress controller, and entire Astria stack, including rollup with
 Astrotrek and sequencer faucet.
 ")]
-all: cluster ingress-controller astria-local astrotrek (deploy-chart "sequencer-faucet") rollup
+all:
+  @just deploy cluster
+  @just deploy ingress-controller
+  @just wait-for ingress-controller
+  @just deploy astria-local
+  @just deploy astrotrek
+  @just deploy::deploy-chart "sequencer-faucet"
+  @just deploy rollup
 
 
 # Deploy Astria Local
@@ -246,7 +253,7 @@ Usage:
 ")]
 smoke-test tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
-  @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller
+  @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
   @helm dependency update ../../charts/sequencer > /dev/null
   @helm dependency update ../../charts/evm-stack > /dev/null
@@ -276,7 +283,7 @@ Usage:
 ")]
 smoke-cli tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
-  @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller
+  @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
   @helm dependency update ../../charts/sequencer > /dev/null
   @helm dependency update ../../charts/evm-stack > /dev/null
@@ -308,7 +315,7 @@ Usage:
 ")]
 ibc-test tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
-  @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller
+  @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
   @helm dependency update ../../charts/sequencer > /dev/null
   @helm dependency update ../../charts/evm-stack > /dev/null
@@ -326,9 +333,10 @@ ibc-test tag=defaultTag:
     --set postgresql.enabled=false \
     --set evm-faucet.enabled=false > /dev/null
   @echo "Deploying Hermes..." && just deploy hermes-local > /dev/null
+  @just wait-for celestia-local
   @just wait-for sequencer
   @just wait-for rollup
-  @just wait-for hermes
+  @just wait-for hermes-local
 
 
 # Deploy IBC Test Without Native Asset
@@ -341,7 +349,7 @@ Usage:
 ")]
 ibc-test-without-native tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
-  @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller
+  @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
   @echo "Deploying local celestia instance..."
   @helm install celestia-local-chart ../../charts/celestia-local --namespace {{defaultNamespace}} --set fast=true --create-namespace  > /dev/null
   @helm dependency update ../../charts/sequencer > /dev/null
@@ -355,8 +363,7 @@ ibc-test-without-native tag=defaultTag:
   @just deploy hermes-local > /dev/null
   @just wait-for celestia-local
   @just wait-for sequencer
-  @just wait-for celestia-local
-  @just wait-for hermes
+  @just wait-for hermes-local
 
 
 # Deploy IBC Test Timeout Refund
@@ -369,7 +376,7 @@ Usage:
 ")]
 ibc-test-timeout-refund tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
-  @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller
+  @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." > /dev/null
   @helm install celestia-local-chart ../../charts/celestia-local --namespace {{defaultNamespace}} --set fast=true --create-namespace  > /dev/null
   @helm dependency update ../../charts/sequencer > /dev/null
@@ -393,7 +400,7 @@ ibc-test-timeout-refund tag=defaultTag:
   @just wait-for celestia-local
   @just wait-for sequencer
   @just wait-for rollup {{defaultRollupName}} "false"
-  @just wait-for hermes
+  @just wait-for hermes-local
 
 
 #####################
