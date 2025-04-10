@@ -21,6 +21,7 @@ use astria_core::{
         sequencerblock::v1::FilteredSequencerBlock,
     },
     primitive::v1::RollupId,
+    sequencerblock::v1::block,
 };
 use astria_grpc_mock::response::error_response;
 use bytes::Bytes;
@@ -545,7 +546,7 @@ pub fn make_sequencer_block(height: u32) -> astria_core::sequencerblock::v1::Seq
     }
 
     astria_core::protocol::test_utils::ConfigureSequencerBlock {
-        block_hash: Some(repeat_bytes_of_u32_as_array(height)),
+        block_hash: Some(block::Hash::new(repeat_bytes_of_u32_as_array(height))),
         chain_id: Some(crate::SEQUENCER_CHAIN_ID.to_string()),
         height,
         sequence_data: vec![(crate::ROLLUP_ID, data())],

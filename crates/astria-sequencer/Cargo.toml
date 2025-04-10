@@ -14,6 +14,7 @@ benchmark = ["divan"]
 [dependencies]
 astria-core = { path = "../astria-core", features = [
   "server",
+  "client",
   "serde",
   "unchecked-constructors",
 ] }
@@ -32,7 +33,6 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
   "display",
 ] }
 
-borsh = { version = "1.5.1", features = ["bytes", "derive"] }
 cnidarium = { version = "0.83.0", features = ["metrics"] }
 ibc-proto = { version = "0.51.1", features = ["server"] }
 matchit = "0.7.2"
@@ -45,11 +45,13 @@ url = "2.5.4"
 
 async-trait = { workspace = true }
 base64 = { workspace = true }
+borsh = { workspace = true, features = ["bytes", "derive"] }
 bytes = { workspace = true }
 divan = { workspace = true, optional = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 ibc-types = { workspace = true, features = ["with_serde"] }
+indexmap = { workspace = true }
 itertools = { workspace = true }
 penumbra-ibc = { workspace = true, features = ["component", "rpc"] }
 penumbra-proto = { workspace = true }
@@ -57,6 +59,7 @@ pin-project-lite = { workspace = true }
 prost = { workspace = true }
 rand = { workspace = true }
 regex = { workspace = true }
+reqwest = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
@@ -67,6 +70,7 @@ tokio = { workspace = true, features = ["rt", "tracing"] }
 tokio-util = { workspace = true, features = ["rt"] }
 tonic = { workspace = true }
 tracing = { workspace = true }
+tryhard = { workspace = true }
 
 [dev-dependencies]
 astria-core = { path = "../astria-core", features = [

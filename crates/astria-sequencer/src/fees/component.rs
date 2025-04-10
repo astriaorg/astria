@@ -137,6 +137,13 @@ impl Component for FeesComponent {
                 .wrap_err("failed to store recover ibc client fee components")?;
         }
 
+        let price_feed_fees = app_state.fees().price_feed;
+        if let Some(price_feed_fees) = price_feed_fees {
+            state
+                .put_fees(price_feed_fees)
+                .wrap_err("failed to store price feed fee components")?;
+        }
+
         Ok(())
     }
 

@@ -34,6 +34,15 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  name: {{ .Values.moniker }}-sequencer-upgrades
+  namespace: {{ include "sequencer.namespace" . }}
+data:
+  upgrades.json: |
+    {{- tpl (.Files.Get (tpl "files/upgrades/{{ .Values.global.network }}.upgrades.json" .)) $ | nindent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
   name: {{ .Values.moniker }}-cometbft-data
   namespace: {{ include "sequencer.namespace" . }}
 data:
@@ -80,5 +89,9 @@ data:
   # These are variables which are added in newer releases and are not present in the current release.
   ASTRIA_SEQUENCER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   {{- else }}
+  ASTRIA_SEQUENCER_UPGRADES_FILEPATH: "/sequencer-upgrades/upgrades.json"
+  ASTRIA_SEQUENCER_COMETBFT_RPC_ADDR: "http://127.0.0.1:{{ .Values.ports.cometbftRpc }}"
+  ASTRIA_SEQUENCER_NO_PRICE_FEED: "{{ not .Values.sequencer.priceFeed.enabled }}"
+  ASTRIA_SEQUENCER_PRICE_FEED_GRPC_ADDR: "http://127.0.0.1:{{ .Values.ports.priceFeedGrpc }}"
+  ASTRIA_SEQUENCER_PRICE_FEED_CLIENT_TIMEOUT_MILLISECONDS: "{{ .Values.sequencer.priceFeed.clientTimeout }}"
   {{- end }}
----

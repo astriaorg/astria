@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Provide support for upgrading the sequencer network [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Implement first sequencer upgrade, named `Aspen` [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Add endpoint to sequencer gRPC service at `/v1/sequencer/upgrades` which
+  responds with a summary of applied and scheduled upgrades [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Include price feed data in blocks provided by Connect oracle sidecar once
+  `Aspen` upgrade has activated [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Add `ASTRIA_SEQUENCER_UPGRADES_FILEPATH` config variable to specify the path
+  to the now required `upgrades.json` file [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Add `ASTRIA_SEQUENCER_COMETBFT_RPC_ADDR` config variable to specify the
+  address of the CometBFT RPC endpoint for this sequencer [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Add `ASTRIA_SEQUENCER_NO_PRICE_FEED` config variable to disable providing
+  price feed data in the consensus vote extensions, avoiding the need to run
+  the price feed oracle sidecar [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Add `ASTRIA_SEQUENCER_PRICE_FEED_GRPC_ADDR` config variable to specify the
+  gRPC endpoint for the price feed oracle sidecar [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Add `ASTRIA_SEQUENCER_PRICE_FEED_CLIENT_TIMEOUT_MILLISECONDS` config variable
+  to specify the timeout for responses from the price feed oracle sidecar [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Add the following metrics relating to price feed data:
+  `astria_sequencer_extended_commit_info_bytes`,
+  `astria_sequencer_extend_vote_duration_seconds`,
+  `astria_sequencer_extend_vote_failure_count` and
+  `astria_sequencer_verify_vote_extension_failure_count` [#2085](https://github.com/astriaorg/astria/pull/2085).
+
 ## [2.0.1]
 
 ### Security
@@ -17,18 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0]
 
-### Fixed
-
-- Increase mempool removal cache size to be greater than default CometBFT
-  mempool size [#1969](https://github.com/astriaorg/astria/pull/1969).
-- Support distributed signers as validators [#2024](https://github.com/astriaorg/astria/pull/2024)
-- Direct fetching of consensus state in `RecoverIbcClient` action [#2037](https://github.com/astriaorg/astria/pull/2037)
-- Ensure getPendingNonce gRPC returns the correct nonce [#2012](https://github.com/astriaorg/astria/pull/2012).
-
 ### Added
 
 - Implement `astria.sequencerblock.optimistic.v1alpha1.OptimisticBlockService` [#1839](https://github.com/astriaorg/astria/pull/1839).
-- Add ASTRIA_SEQUENCER_ABCI_LISTEN_URL config variable [#1877](https://github.com/astriaorg/astria/pull/1877)
+- Add `ASTRIA_SEQUENCER_ABCI_LISTEN_URL` config variable [#1877](https://github.com/astriaorg/astria/pull/1877)
 
 ### Changed
 
@@ -48,6 +65,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Remove ASTRIA_SEQUENCER_LISTEN_ADDR config variable [#1877](https://github.com/astriaorg/astria/pull/1877)
 
+### Fixed
+
+- Increase mempool removal cache size to be greater than default CometBFT
+  mempool size [#1969](https://github.com/astriaorg/astria/pull/1969).
+- Support distributed signers as validators [#2024](https://github.com/astriaorg/astria/pull/2024)
+- Direct fetching of consensus state in `RecoverIbcClient` action [#2037](https://github.com/astriaorg/astria/pull/2037)
+- Ensure getPendingNonce gRPC returns the correct nonce [#2012](https://github.com/astriaorg/astria/pull/2012).
+
 ## [2.0.0-rc.2]
 
 ### Fixed
@@ -56,10 +81,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Direct fetching of consensus state in `RecoverIbcClient` action [#2037](https://github.com/astriaorg/astria/pull/2037)
 
 ## [2.0.0-rc.1] - 2025-03-06
-
-### Fixed
-
-- Ensure getPendingNonce gRPC returns the correct nonce [#2012](https://github.com/astriaorg/astria/pull/2012).
 
 ### Added
 
@@ -83,6 +104,10 @@ of signer [#1905](https://github.com/astriaorg/astria/pull/1905).
 ### Removed
 
 - Remove ASTRIA_SEQUENCER_LISTEN_ADDR config variable [#1877](https://github.com/astriaorg/astria/pull/1877)
+
+### Fixed
+
+- Ensure getPendingNonce gRPC returns the correct nonce [#2012](https://github.com/astriaorg/astria/pull/2012).
 
 ## [1.0.0] - 2024-10-25
 

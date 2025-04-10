@@ -7,6 +7,7 @@ genesis:
   addressPrefixes:
     base: "astria"
   authoritySudoAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
+  marketAdminAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
   ibc:
     enabled: true
     inboundEnabled: true
@@ -18,6 +19,60 @@ genesis:
   # Note large balances must be strings support templating with the u128 size
   # account balances
   genesisAccounts: []
+
+sequencer:
+  upgrades:
+    aspen:
+      activationHeight: 60
+      appVersion: 2
+  priceFeed:
+    enabled: true
+    metrics:
+      enabled: true
+    markets:
+      - name: "BTC/USD"
+        providerConfigs:
+          - name: "coingecko_api"
+            normalizeByPair:
+              Base: "USDT"
+              Quote: "USD"
+            offChainTicker: "bitcoin/usd"
+        ticker:
+          currencyPair:
+            Base: "BTC"
+            Quote: "USD"
+          decimals: "5"
+          enabled: true
+          minProviderCount: "1"
+      - name: "ETH/USD"
+        providerConfigs:
+          - name: "coingecko_api"
+            normalizeByPair:
+              Base: "USDT"
+              Quote: "USD"
+            offChainTicker: "ethereum/usd"
+        ticker:
+          currencyPair:
+            Base: "ETH"
+            Quote: "USD"
+          decimals: "6"
+          enabled: true
+          minProviderCount: "1"
+    currencyPairGenesis:
+      - currencyPair:
+          Base: "BTC"
+          Quote: "USD"
+        currencyPairPrice:
+          blockTimestamp: "2024-07-04T19:46:35+00:00"
+          price: "5834065777"
+      - currencyPair:
+          Base: "ETH"
+          Quote: "USD"
+        currencyPairPrice:
+          blockTimestamp: "2024-07-04T19:46:35+00:00"
+          price: "3138872234"
+        id: "1"
+    nextId: "2"
 
 resources:
   cometbft:

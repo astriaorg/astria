@@ -4,7 +4,7 @@ dependencies:
   version: 0.4.0
 - name: evm-rollup
   repository: file://../evm-rollup
-  version: 1.2.3
+  version: 1.2.4
 - name: flame-rollup
   repository: file://../flame-rollup
   version: 0.1.2
@@ -26,5 +26,5 @@ dependencies:
 - name: blockscout-stack
   repository: https://blockscout.github.io/helm-charts
   version: 1.6.8
-digest: sha256:10649b9c5dc1810c46205a8c2ffe541443b9a850bdd5440062a8575948732d79
-generated: "2025-04-06T13:48:08.007196+02:00"
+digest: sha256:14d268d749db0add1ffc91d076d5bd16824dce2788266750430e54c4a0c305d4
+generated: "2025-04-09T10:32:10.256679874+01:00"

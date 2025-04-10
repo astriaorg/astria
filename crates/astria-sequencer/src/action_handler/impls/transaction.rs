@@ -154,6 +154,10 @@ impl ActionHandler for Transaction {
                     .check_stateless()
                     .await
                     .wrap_err("stateless check failed for RecoverIbcClient action")?,
+                Action::PriceFeed(act) => act
+                    .check_stateless()
+                    .await
+                    .wrap_err("stateless check failed for PriceFeed action")?,
             }
         }
         Ok(())
@@ -286,6 +290,9 @@ impl ActionHandler for Transaction {
                 Action::RecoverIbcClient(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("failed executing recover ibc client")?,
+                Action::PriceFeed(act) => check_execute_and_pay_fees(act, &mut state)
+                    .await
+                    .wrap_err("failed executing price feed")?,
             }
         }
 

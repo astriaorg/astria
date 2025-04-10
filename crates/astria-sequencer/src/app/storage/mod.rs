@@ -6,6 +6,7 @@ pub(super) use values::{
     BlockHeight,
     BlockTimestamp,
     ChainId,
+    ConsensusParams,
     RevisionNumber,
     StorageVersion,
 };
