@@ -48,6 +48,10 @@ pub struct Aspen {
     pub validator_update_action_change: ::core::option::Option<
         aspen::ValidatorUpdateActionChange,
     >,
+    #[prost(message, optional, tag = "4")]
+    pub ibc_acknowledgement_failure_change: ::core::option::Option<
+        aspen::IbcAcknowledgementFailureChange,
+    >,
 }
 /// Nested message and enum types in `Aspen`.
 pub mod aspen {
@@ -79,6 +83,18 @@ pub mod aspen {
         }
         fn type_url() -> ::prost::alloc::string::String {
             "/astria.upgrades.v1.Aspen.ValidatorUpdateActionChange".into()
+        }
+    }
+    #[derive(Clone, Copy, PartialEq, ::prost::Message)]
+    pub struct IbcAcknowledgementFailureChange {}
+    impl ::prost::Name for IbcAcknowledgementFailureChange {
+        const NAME: &'static str = "IbcAcknowledgementFailureChange";
+        const PACKAGE: &'static str = "astria.upgrades.v1";
+        fn full_name() -> ::prost::alloc::string::String {
+            "astria.upgrades.v1.Aspen.IbcAcknowledgementFailureChange".into()
+        }
+        fn type_url() -> ::prost::alloc::string::String {
+            "/astria.upgrades.v1.Aspen.IbcAcknowledgementFailureChange".into()
         }
     }
 }
