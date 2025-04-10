@@ -6,80 +6,41 @@ use std::fmt::{
     Debug,
 };
 
-use penumbra_ibc::IbcRelay;
-
 use super::{
     Action,
     ActionName,
-    BridgeLock,
-    BridgeSudoChange,
-    BridgeTransfer,
-    BridgeUnlock,
-    FeeAssetChange,
-    FeeChange,
-    IbcRelayerChange,
-    IbcSudoChange,
-    Ics20Withdrawal,
-    InitBridgeAccount,
-    RecoverIbcClient,
-    RollupDataSubmission,
-    SudoAddressChange,
-    Transfer,
-    ValidatorUpdate,
+    MarketMapChange,
+    PriceFeed,
 };
-
-trait BelongsToGroup {
-    const GROUP: Group;
-}
-
-macro_rules! impl_belong_to_group {
-    ($(($act:ty, $group:expr)),*$(,)?) => {
-        $(
-            impl BelongsToGroup for $act {
-                const GROUP: Group = $group;
-            }
-        )*
-    }
-}
-
-impl_belong_to_group!(
-    (RollupDataSubmission, Group::BundleableGeneral),
-    (Transfer, Group::BundleableGeneral),
-    (ValidatorUpdate, Group::BundleableGeneral),
-    (SudoAddressChange, Group::UnbundleableSudo),
-    (IbcRelayerChange, Group::BundleableSudo),
-    (Ics20Withdrawal, Group::BundleableGeneral),
-    (InitBridgeAccount, Group::UnbundleableGeneral),
-    (BridgeLock, Group::BundleableGeneral),
-    (BridgeUnlock, Group::BundleableGeneral),
-    (BridgeSudoChange, Group::UnbundleableGeneral),
-    (BridgeTransfer, Group::BundleableGeneral),
-    (FeeChange, Group::BundleableSudo),
-    (FeeAssetChange, Group::BundleableSudo),
-    (IbcRelay, Group::BundleableGeneral),
-    (IbcSudoChange, Group::UnbundleableSudo),
-    (RecoverIbcClient, Group::BundleableSudo),
-);
 
 impl Action {
     pub const fn group(&self) -> Group {
         match self {
-            Action::RollupDataSubmission(_) => RollupDataSubmission::GROUP,
-            Action::Transfer(_) => Transfer::GROUP,
-            Action::ValidatorUpdate(_) => ValidatorUpdate::GROUP,
-            Action::SudoAddressChange(_) => SudoAddressChange::GROUP,
-            Action::IbcRelayerChange(_) => IbcRelayerChange::GROUP,
-            Action::Ics20Withdrawal(_) => Ics20Withdrawal::GROUP,
-            Action::InitBridgeAccount(_) => InitBridgeAccount::GROUP,
-            Action::BridgeLock(_) => BridgeLock::GROUP,
-            Action::BridgeUnlock(_) => BridgeUnlock::GROUP,
-            Action::BridgeSudoChange(_) => BridgeSudoChange::GROUP,
-            Action::BridgeTransfer(_) => BridgeTransfer::GROUP,
-            Action::FeeChange(_) => FeeChange::GROUP,
-            Action::FeeAssetChange(_) => FeeAssetChange::GROUP,
-            Action::Ibc(_) => IbcRelay::GROUP,
-            Action::IbcSudoChange(_) => IbcSudoChange::GROUP,
-            Action::RecoverIbcClient(_) => RecoverIbcClient::GROUP,
+            Action::SudoAddressChange(_) | Action::IbcSudoChange(_) => Group::UnbundleableSudo,
+
+            Action::IbcRelayerChange(_)
+            | Action::FeeChange(_)
+            | Action::FeeAssetChange(_)
+            | Action::RecoverIbcClient(_)
+            | Action::PriceFeed(PriceFeed::MarketMap(MarketMapChange::Params(_))) => {
+                Group::BundleableSudo
+            }
+
+            Action::InitBridgeAccount(_) | Action::BridgeSudoChange(_) => {
+                Group::UnbundleableGeneral
+            }
+
+            Action::RollupDataSubmission(_)
+            | Action::Transfer(_)
+            | Action::ValidatorUpdate(_)
+            | Action::Ics20Withdrawal(_)
+            | Action::BridgeLock(_)
+            | Action::BridgeUnlock(_)
+            | Action::BridgeTransfer(_)
+            | Action::Ibc(_)
+            | Action::PriceFeed(
+                PriceFeed::Oracle(_) | PriceFeed::MarketMap(MarketMapChange::Markets(_)),
+            ) => Group::BundleableGeneral,
         }
     }
 }

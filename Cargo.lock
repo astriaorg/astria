@@ -743,6 +743,7 @@ dependencies = [
  "astria-merkle",
  "base64 0.21.7",
  "base64-serde",
+ "borsh",
  "brotli",
  "bytes",
  "celestia-types",
@@ -756,7 +757,9 @@ dependencies = [
  "penumbra-sdk-proto",
  "prost",
  "rand 0.8.5",
+ "regex",
  "serde",
+ "serde_json",
  "sha2 0.10.8",
  "tempfile",
  "tendermint",
@@ -854,7 +857,7 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "assert-json-diff",
  "astria-build-info",
@@ -873,6 +876,7 @@ dependencies = [
  "hex",
  "ibc-proto",
  "ibc-types",
+ "indexmap 2.7.1",
  "insta",
  "itertools 0.12.1",
  "maplit",
@@ -885,6 +889,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "regex",
+ "reqwest 0.12.15",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -899,6 +904,7 @@ dependencies = [
  "tower-actor",
  "tower-http",
  "tracing",
+ "tryhard",
  "url",
 ]
 
@@ -996,6 +1002,8 @@ dependencies = [
  "hex",
  "indenter",
  "itertools 0.12.1",
+ "maplit",
+ "pbjson-types",
  "penumbra-sdk-ibc",
  "predicates",
  "prost",
@@ -2209,9 +2217,9 @@ checksum = "790eea4361631c5e7d22598ecd5723ff611904e3344ce8720784c93e3d83d40b"
 
 [[package]]
 name = "crossbeam-channel"
-version = "0.5.14"
+version = "0.5.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06ba6d68e24814cb8de6bb986db8222d3a027d15872cabc0d18817bc3c0e4471"
+checksum = "82b8f8f868b36967f9606790d1903570de9ceaf870a7bf9fbbd3016d636a2cb2"
 dependencies = [
  "crossbeam-utils",
 ]
