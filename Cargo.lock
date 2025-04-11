@@ -1002,14 +1002,17 @@ dependencies = [
  "hex",
  "indenter",
  "itertools 0.12.1",
+ "jiff",
  "maplit",
  "pbjson-types",
  "penumbra-sdk-ibc",
  "predicates",
  "prost",
+ "reqwest 0.12.15",
  "rlp",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
