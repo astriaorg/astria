@@ -31,13 +31,14 @@ use crate::{
             BridgeSudoChange,
             BridgeTransfer,
             BridgeUnlock,
+            CurrencyPairsChange,
             FeeAssetChange,
             FeeChange,
             IbcRelayerChange,
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
-            PriceFeed,
+            MarketsChange,
             RecoverIbcClient,
             RollupDataSubmission,
             SudoAddressChange,
@@ -268,25 +269,6 @@ impl GenesisAppState {
         self.ensure_address_has_base_prefix(&self.ibc_sudo_address, ".ibc_sudo_address")?;
         for (i, address) in self.ibc_relayer_addresses.iter().enumerate() {
             self.ensure_address_has_base_prefix(address, &format!(".ibc_relayer_addresses[{i}]"))?;
-        }
-
-        if let Some(price_feed) = &self.price_feed {
-            for (i, address) in price_feed
-                .market_map
-                .params
-                .market_authorities
-                .iter()
-                .enumerate()
-            {
-                self.ensure_address_has_base_prefix(
-                    address,
-                    &format!(".market_map.params.market_authorities[{i}]"),
-                )?;
-            }
-            self.ensure_address_has_base_prefix(
-                &price_feed.market_map.params.admin,
-                ".market_map.params.admin",
-            )?;
         }
 
         Ok(())
@@ -758,7 +740,8 @@ pub struct GenesisFees {
     pub sudo_address_change: Option<FeeComponents<SudoAddressChange>>,
     pub ibc_sudo_change: Option<FeeComponents<IbcSudoChange>>,
     pub recover_ibc_client: Option<FeeComponents<RecoverIbcClient>>,
-    pub price_feed: Option<FeeComponents<PriceFeed>>,
+    pub currency_pairs_change: Option<FeeComponents<CurrencyPairsChange>>,
+    pub markets_change: Option<FeeComponents<MarketsChange>>,
 }
 
 impl Protobuf for GenesisFees {
@@ -784,7 +767,8 @@ impl Protobuf for GenesisFees {
             sudo_address_change,
             ibc_sudo_change,
             recover_ibc_client,
-            price_feed,
+            currency_pairs_change,
+            markets_change,
         } = raw;
         let rollup_data_submission = rollup_data_submission
             .map(FeeComponents::<RollupDataSubmission>::try_from_raw)
@@ -866,10 +850,15 @@ impl Protobuf for GenesisFees {
             .transpose()
             .map_err(|e| FeesError::fee_components("recover_ibc_client", e))?;
 
-        let price_feed = price_feed
-            .map(FeeComponents::<PriceFeed>::try_from_raw)
+        let currency_pairs_change = currency_pairs_change
+            .map(FeeComponents::<CurrencyPairsChange>::try_from_raw)
             .transpose()
-            .map_err(|e| FeesError::fee_components("price_feed", e))?;
+            .map_err(|e| FeesError::fee_components("currency_pairs_change", e))?;
+
+        let markets_change = markets_change
+            .map(FeeComponents::<MarketsChange>::try_from_raw)
+            .transpose()
+            .map_err(|e| FeesError::fee_components("markets_change", e))?;
 
         Ok(Self {
             rollup_data_submission,
@@ -888,7 +877,8 @@ impl Protobuf for GenesisFees {
             sudo_address_change,
             ibc_sudo_change,
             recover_ibc_client,
-            price_feed,
+            currency_pairs_change,
+            markets_change,
         })
     }
 
@@ -910,7 +900,8 @@ impl Protobuf for GenesisFees {
             sudo_address_change,
             ibc_sudo_change,
             recover_ibc_client,
-            price_feed,
+            currency_pairs_change,
+            markets_change,
         } = self;
         Self::Raw {
             transfer: transfer.map(|act| FeeComponents::<Transfer>::to_raw(&act)),
@@ -940,7 +931,9 @@ impl Protobuf for GenesisFees {
                 .map(|act| FeeComponents::<IbcSudoChange>::to_raw(&act)),
             recover_ibc_client: recover_ibc_client
                 .map(|act| FeeComponents::<RecoverIbcClient>::to_raw(&act)),
-            price_feed: price_feed.map(|act| FeeComponents::<PriceFeed>::to_raw(&act)),
+            currency_pairs_change: currency_pairs_change
+                .map(|act| FeeComponents::<CurrencyPairsChange>::to_raw(&act)),
+            markets_change: markets_change.map(|act| FeeComponents::<MarketsChange>::to_raw(&act)),
         }
     }
 }
@@ -983,10 +976,7 @@ mod tests {
     use super::*;
     use crate::{
         oracles::price_feed::{
-            market_map::v2::{
-                MarketMap,
-                Params,
-            },
+            market_map::v2::MarketMap,
             types::v2::CurrencyPairId,
         },
         primitive::v1::Address,
@@ -1087,7 +1077,8 @@ mod tests {
             sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0).to_raw()),
             ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0).to_raw()),
             recover_ibc_client: Some(FeeComponents::<RecoverIbcClient>::new(0, 0).to_raw()),
-            price_feed: Some(FeeComponents::<PriceFeed>::new(0, 0).to_raw()),
+            currency_pairs_change: Some(FeeComponents::<CurrencyPairsChange>::new(0, 0).to_raw()),
+            markets_change: Some(FeeComponents::<MarketsChange>::new(0, 0).to_raw()),
         }
     }
 
@@ -1140,10 +1131,6 @@ mod tests {
                     market_map: market_map::v2::GenesisState {
                         market_map: genesis_state_markets(),
                         last_updated: 0,
-                        params: Params {
-                            market_authorities: vec![alice(), bob()],
-                            admin: alice(),
-                        },
                     },
                     oracle: oracle::v2::GenesisState {
                         currency_pair_genesis: vec![CurrencyPairGenesis {
@@ -1222,26 +1209,6 @@ mod tests {
                 ..proto_genesis_state()
             },
             ".ibc_relayer_addresses[1]",
-        );
-        assert_bad_prefix(
-            raw::GenesisAppState {
-                price_feed: {
-                    let mut price_feed = proto_genesis_state().price_feed;
-                    price_feed
-                        .as_mut()
-                        .unwrap()
-                        .market_map
-                        .as_mut()
-                        .unwrap()
-                        .params
-                        .as_mut()
-                        .unwrap()
-                        .market_authorities[0] = mallory().to_string();
-                    price_feed
-                },
-                ..proto_genesis_state()
-            },
-            ".market_map.params.market_authorities[0]",
         );
         assert_bad_prefix(
             raw::GenesisAppState {

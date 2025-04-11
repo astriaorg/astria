@@ -155,15 +155,6 @@
             }
             {{- end }}
           }
-        },
-        "params": {
-          "admin": "{{ .Values.genesis.priceFeed.marketAdminAddress }}",
-          "marketAuthorities": [
-            {{- range $index, $authority := .Values.genesis.priceFeed.marketAuthorities }}
-            {{- if $index }},{{- end }}
-            "{{ $authority }}"
-            {{- end }}
-          ]
         }
       },
       "oracle": {

@@ -9,7 +9,6 @@ use std::{
     sync::Arc,
 };
 
-use astria_core_address::Address;
 use bytes::Bytes;
 use indexmap::IndexMap;
 use prost::Message as _;
@@ -27,7 +26,6 @@ use crate::{
                 GenesisState as RawMarketMapGenesisState,
                 Market as RawMarket,
                 MarketMap as RawMarketMap,
-                Params as RawMarketMapParams,
                 ProviderConfig as RawProviderConfig,
                 Ticker as RawTicker,
             },
@@ -357,10 +355,6 @@ pub fn dummy_price_feed_genesis() -> PriceFeedGenesis {
                 markets,
             }),
             last_updated: 0,
-            params: Some(RawMarketMapParams {
-                market_authorities: vec![alice().to_string(), bob().to_string()],
-                admin: alice().to_string(),
-            }),
         }),
         oracle: Some(RawOracleGenesisState {
             currency_pair_genesis: vec![
@@ -401,20 +395,4 @@ pub fn dummy_price_feed_genesis() -> PriceFeedGenesis {
         }),
     };
     PriceFeedGenesis::try_from_raw(price_feed_genesis).unwrap()
-}
-
-fn alice() -> Address {
-    Address::builder()
-        .prefix("astria")
-        .slice(hex::decode("1c0c490f1b5528d8173c5de46d131160e4b2c0c3").unwrap())
-        .try_build()
-        .unwrap()
-}
-
-fn bob() -> Address {
-    Address::builder()
-        .prefix("astria")
-        .slice(hex::decode("34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a").unwrap())
-        .try_build()
-        .unwrap()
 }

@@ -12,12 +12,9 @@ use astria_core::{
             IbcParameters,
         },
         price_feed::{
-            marketmap::{
-                self,
-                v2::{
-                    Market,
-                    MarketMap,
-                },
+            marketmap::v2::{
+                Market,
+                MarketMap,
             },
             oracle::{
                 self,
@@ -41,13 +38,14 @@ use astria_core::{
             BridgeSudoChange,
             BridgeTransfer,
             BridgeUnlock,
+            CurrencyPairsChange,
             FeeAssetChange,
             FeeChange,
             IbcRelayerChange,
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
-            PriceFeed,
+            MarketsChange,
             RecoverIbcClient,
             RollupDataSubmission,
             SudoAddressChange,
@@ -188,10 +186,6 @@ fn proto_genesis_state() -> astria_core::generated::astria::protocol::genesis::v
                     astria_core::generated::price_feed::marketmap::v2::GenesisState {
                         market_map: Some(genesis_state_markets()),
                         last_updated: 0,
-                        params: Some(marketmap::v2::Params {
-                            market_authorities: vec![alice().to_string(), bob().to_string()],
-                            admin: alice().to_string(),
-                        }),
                     },
                 ),
                 oracle: Some(oracle::v2::GenesisState {
@@ -252,7 +246,8 @@ fn proto_genesis_state() -> astria_core::generated::astria::protocol::genesis::v
             sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0).to_raw()),
             ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0).to_raw()),
             recover_ibc_client: Some(FeeComponents::<RecoverIbcClient>::new(0, 0).to_raw()),
-            price_feed: Some(FeeComponents::<PriceFeed>::new(0, 0).to_raw()),
+            currency_pairs_change: Some(FeeComponents::<CurrencyPairsChange>::new(0, 0).to_raw()),
+            markets_change: Some(FeeComponents::<MarketsChange>::new(0, 0).to_raw()),
         }),
     }
 }
