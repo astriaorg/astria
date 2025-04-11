@@ -25,10 +25,14 @@ use astria_eyre::eyre::{
 };
 pub(crate) use builder::Builder;
 pub(super) use builder::Handle;
+use prost::Message as _;
 use sequencer_client::{
-    tendermint_rpc::endpoint::{
-        broadcast::tx_sync,
-        tx,
+    tendermint_rpc::{
+        endpoint::{
+            broadcast::tx_sync,
+            tx,
+        },
+        Client as _,
     },
     Address,
     SequencerClientExt,
@@ -274,7 +278,7 @@ async fn submit_tx(
         .on_retry(
             |attempt,
              next_delay: Option<Duration>,
-             err: &sequencer_client::extension_trait::Error| {
+             err: &sequencer_client::tendermint_rpc::Error| {
                 metrics.increment_sequencer_submission_failure_count();
 
                 let state = Arc::clone(&state);
@@ -293,11 +297,12 @@ async fn submit_tx(
                 async move {}
             },
         );
+    let tx_bytes = tx.to_raw().encode_to_vec();
     let check_tx = tryhard::retry_fn(|| {
         let client = client.clone();
-        let tx = tx.clone();
+        let tx_bytes = tx_bytes.clone();
         let span = info_span!(parent: span.clone(), "attempt send");
-        async move { client.submit_transaction_sync(tx).await }.instrument(span)
+        async move { client.broadcast_tx_sync(tx_bytes).await }.instrument(span)
     })
     .with_config(retry_config)
     .await
