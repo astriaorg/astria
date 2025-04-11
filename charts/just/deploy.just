@@ -172,7 +172,8 @@ hermes-local:
 [doc("
 Deploys a geth rollup chain + faucet + blockscout + ingress with defaults running
 against local network, along with a bridge withdawer. Local Sequencer and Celestia
-networks must be running before deploying the rollup.
+networks must be running before deploying the rollup (both can be deployed with
+`just deploy astria-local`).
 Note: default values file can be found in `helm/rollup/values.yaml`
 Usage:
   just deploy rollup <ROLLUP_NAME> <NETWORK_ID> (defaults: 'astria', '')
