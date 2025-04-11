@@ -63,18 +63,9 @@
           "minBaseFee": 18000000000
         }
       },
-      "skip_ahead": {
+      "halt": {
         "height": 1594226,
-        "sequencer": {
-          "chainId": "astria-dusk-11",
-          "addressPrefix": "astria",
-          "startHeight": 12820441
-        },
-        "celestia": {
-          "chainId": "mocha-4",
-          "startHeight": 5251710,
-          "searchHeightMaxLookAhead": 15000
-        }
+        "halt": true,
       }
     }
   },
