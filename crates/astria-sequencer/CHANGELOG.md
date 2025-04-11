@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   responds with a summary of applied and scheduled upgrades [#2085](https://github.com/astriaorg/astria/pull/2085).
 - Include price feed data in blocks provided by Connect oracle sidecar once
   `Aspen` upgrade has activated [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Include names in `ValidatorUpdate` actions once `Aspen` upgrade has been activated
+  [#2089](https://github.com/astriaorg/astria/pull/2089).
 - Add `ASTRIA_SEQUENCER_UPGRADES_FILEPATH` config variable to specify the path
   to the now required `upgrades.json` file [#2085](https://github.com/astriaorg/astria/pull/2085).
 - Add `ASTRIA_SEQUENCER_COMETBFT_RPC_ADDR` config variable to specify the

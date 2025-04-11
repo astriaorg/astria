@@ -48,6 +48,16 @@ message GetUpgradesInfoResponse {
   repeated ChangeInfo scheduled = 2;
 }
 
+message GetValidatorNameRequest {
+  // The account to retrieve the validator name for.
+  astria.primitive.v1.Address address = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message GetValidatorNameResponse {
+  // The validator name for the given account.
+  string name = 1;
+}
+
 service SequencerService {
   // Given a block height, returns the sequencer block at that height.
   rpc GetSequencerBlock(GetSequencerBlockRequest) returns (SequencerBlock) {
@@ -71,5 +81,10 @@ service SequencerService {
   // Returns info about the sequencer upgrades applied and scheduled.
   rpc GetUpgradesInfo(GetUpgradesInfoRequest) returns (GetUpgradesInfoResponse) {
     option (google.api.http) = {get: "/v1/sequencer/upgrades"};
+  }
+
+  // Returns the validator name for the given address.
+  rpc GetValidatorName(GetValidatorNameRequest) returns (GetValidatorNameResponse) {
+    option (google.api.http) = {get: "/v1/sequencer/validatorname/{address}"};
   }
 }

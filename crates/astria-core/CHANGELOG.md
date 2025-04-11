@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `block::ExtendedCommitInfoWithProof` and associated types to allow
   sequencers to utilize CometBFT's extended votes for getting consensus on price
   feed data [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Add `name` field to domain `ValidatorUpdate` action [#2089](https://github.com/astriaorg/astria/pull/2089).
 
 ### Changed
 

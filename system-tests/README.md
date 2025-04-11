@@ -66,7 +66,7 @@ are as per the `latest` tag:
 
 ```shell
 # If previously run, clean up
-just clean-helm
+just clean helm
 
 # Set up the test environment
 just deploy cluster # only needs to be run first time
@@ -83,7 +83,7 @@ To run the upgrade test using local builds:
 
 ```shell
 # If previously run, clean up
-just clean-helm
+just clean helm
 
 # Set up the test environment
 just deploy cluster # only needs to be run first time

@@ -1,3 +1,4 @@
+import base64
 import grpc
 import requests
 from .utils import (
@@ -6,7 +7,8 @@ from .utils import (
     wait_for_statefulset_rollout,
     Retryer,
 )
-from .generated.astria.sequencerblock.v1.service_pb2 import GetSequencerBlockRequest, GetUpgradesInfoRequest
+from .generated.astria.primitive.v1.types_pb2 import Address
+from .generated.astria.sequencerblock.v1.service_pb2 import GetSequencerBlockRequest, GetUpgradesInfoRequest, GetValidatorNameRequest
 from .generated.astria.sequencerblock.v1.service_pb2_grpc import SequencerServiceStub
 
 class SequencerController:
@@ -16,6 +18,8 @@ class SequencerController:
     It provides methods for starting and upgrading the node and accessing the node's RPC and gRPC
     servers.
     """
+
+    bech32m_address = ""
 
     def __init__(self, node_name):
         self.name = node_name
@@ -64,7 +68,7 @@ class SequencerController:
         )
         run_subprocess(args, msg=f"deploying {self.name}")
         self._wait_for_deploy(timeout_secs=600)
-        self._ensure_reported_name_matches_assigned_name()
+        (self.address, self.pub_key, self.power) = self._check_reported_name_and_get_node_info()
         print(f"{self.name}: running")
 
     def stage_upgrade(self, sequencer_image_tag, relayer_image_tag, enable_price_feed, upgrade_name, activation_height):
@@ -246,6 +250,18 @@ class SequencerController:
         except Exception as error:
             raise SystemExit(f"{self.name}: failed to get current app version: {error}")
 
+    def get_validators(self):
+        """
+        Queries the sequencer's JSON-RPC server for the current set of validators.
+
+        Exits the process on error.
+        """
+        try:
+            response = self._try_send_json_rpc_request_with_retry("validators")
+            return response["validators"]
+        except Exception as error:
+            raise SystemExit(f"{self.name}: failed to get validators: {error}")
+
     # =======================================
     # Methods calling sequencer's gRPC server
     # =======================================
@@ -272,6 +288,18 @@ class SequencerController:
             return response.applied, response.scheduled
         except Exception as error:
             raise SystemExit(f"{self.name}: failed to get upgrade info:\n{error}\n")
+
+    def get_validator_name(self):
+        """
+        Queries the sequencer's gRPC server for a given validator's name.
+
+        Propagates error as exception.
+        """
+        try:
+            response = self._try_send_grpc_request(GetValidatorNameRequest(address=Address(bech32m=self.bech32m_address)))
+            return response.name
+        except Exception as error:
+            raise Exception(f"{self.name}: failed to get validator name: {error}")
 
     # ===============
     # Private methods
@@ -404,21 +432,28 @@ class SequencerController:
             return grpc_client.GetSequencerBlock(request)
         elif isinstance(request, GetUpgradesInfoRequest):
             return grpc_client.GetUpgradesInfo(request)
+        elif isinstance(request, GetValidatorNameRequest):
+            return grpc_client.GetValidatorName(request)
         else:
             raise SystemExit(
                 f"failed to send grpc request: {str(request).strip()} is an unknown type"
             )
 
-    def _ensure_reported_name_matches_assigned_name(self):
+    def _check_reported_name_and_get_node_info(self):
         """
         Ensures the node name provided in `__init__` matches the moniker of the node we're
         associated with.
+
+        Returns tuple with the node's hex-encoded address, public key, and voting power.
         """
         try:
             response = self._try_send_json_rpc_request_with_retry("status", timeout_secs=600)
             reported_name = response["node_info"]["moniker"]
             if reported_name == self.name:
-                return
+                base64_pubkey = response["validator_info"]["pub_key"]["value"]
+                address = response["validator_info"]["address"]
+                hex_pubkey = base64.b64decode(base64_pubkey).hex()
+                return (address, hex_pubkey, int(response["validator_info"]["voting_power"]))
             else:
                 raise SystemExit(
                     f"provided name `{self.name}` does not match moniker `{reported_name}` as "

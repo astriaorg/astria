@@ -33,6 +33,9 @@ pub(super) struct Command {
     /// The power the validator is being updated to
     #[arg(long)]
     power: u32,
+    #[arg(long)]
+    /// Optional name of the validator being updated
+    name: Option<String>,
 }
 
 impl Command {
@@ -45,6 +48,7 @@ impl Command {
         let validator_update = ValidatorUpdate {
             power: self.power,
             verification_key,
+            name: self.name.unwrap_or_default(),
         };
 
         let res = submit_transaction(

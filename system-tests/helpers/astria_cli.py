@@ -74,6 +74,32 @@ class Cli:
         except Exception as error:
             raise SystemExit(error)
 
+    def validator_update(self, sequencer_name, sequencer_pub_key, power):
+        try:
+            self._try_exec_sequencer_command(
+                "sudo validator-update",
+                "--sequencer.chain-id=sequencer-test-chain-0",
+                f"--validator-public-key={sequencer_pub_key}",
+                "--private-key=2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90",
+                f"--power={power}",
+                f"--name={sequencer_name}",
+                sequencer_name=sequencer_name,
+            )
+        except Exception as error:
+            raise SystemExit(error)
+
+    def address(self, sequencer_name, address_bytes):
+        try:
+            return self._try_exec_sequencer_command(
+                "address bech32m",
+                f"--bytes={address_bytes}",
+                "--prefix=astria",
+                sequencer_name=sequencer_name,
+                use_sequencer_url=False,
+            )
+        except Exception as error:
+            raise SystemExit(error)
+
     def _try_get_balance(self, account, sequencer_name):
         """
         Tries to get the given account's balance by calling `astria-cli sequencer account balance`.
@@ -113,7 +139,7 @@ class Cli:
                     f"{last_error}\nrpc failed {retryer.successful_wait_count + 1} times, giving up"
                 )
 
-    def _try_exec_sequencer_command(self, *args, sequencer_name):
+    def _try_exec_sequencer_command(self, *args, sequencer_name, use_sequencer_url=True):
         """
         Tries once (i.e. no retries) to execute the CLI `sequencer` subcommand via `docker run`.
 
@@ -128,7 +154,8 @@ class Cli:
             url = f"http://rpc.sequencer-{sequencer_name}.localdev.me"
         args = list(args)
         args.insert(0, "sequencer")
-        args.append(f"--sequencer-url={url}")
+        if use_sequencer_url:
+            args.append(f"--sequencer-url={url}")
         print(
             f"cli: running `docker run --rm --network "
             f"host ghcr.io/astriaorg/astria-cli:{self.image_tag} {' '.join(map(str, args))}`"

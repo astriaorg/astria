@@ -26,7 +26,7 @@ Note: there is no persisted data by default.
 ")]
 helm:
   helm ls -a --all-namespaces -l core!=true | awk 'NR > 1 { print  "-n "$2, $1}' | xargs -L1 helm uninstall
-  just clean-persisted-data
+  just clean persisted-data
 
 
 # Clean Persisted Data
