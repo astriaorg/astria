@@ -9,10 +9,7 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use async_trait::async_trait;
-use cnidarium::{
-    StateRead,
-    StateWrite,
-};
+use cnidarium::StateWrite;
 use tracing::{
     instrument,
     Level,
@@ -24,7 +21,6 @@ use crate::{
         execute_transfer,
         ActionHandler,
     },
-    address::StateReadExt as _,
     bridge::{
         StateReadExt as _,
         StateWriteExt,
@@ -55,8 +51,6 @@ impl ActionHandler for BridgeUnlock {
 
     #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn check_and_execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        check_bridge_unlock(self, &state).await?;
-
         if state
             .is_a_bridge_account(&self.to)
             .await
@@ -92,27 +86,10 @@ impl ActionHandler for BridgeUnlock {
     }
 }
 
-pub(super) async fn check_bridge_unlock<S: StateRead>(
-    bridge_unlock: &BridgeUnlock,
-    state: &S,
-) -> Result<()> {
-    state
-        .ensure_base_prefix(&bridge_unlock.to)
-        .await
-        .wrap_err("failed check for base prefix of destination address")?;
-    state
-        .ensure_base_prefix(&bridge_unlock.bridge_address)
-        .await
-        .wrap_err("failed check for base prefix of bridge address")?;
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use astria_core::{
         primitive::v1::{
-            Address,
             RollupId,
             TransactionId,
         },
@@ -296,85 +273,6 @@ mod tests {
                 .await
                 .unwrap_err(),
             "withdrawal event already processed",
-        );
-    }
-
-    #[tokio::test]
-    async fn bridge_unlock_fails_if_destination_address_is_not_base_prefixed() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        state.put_transaction_context(TransactionContext {
-            address_bytes: [1; 20],
-            transaction_id: TransactionId::new([0; 32]),
-            position_in_transaction: 0,
-        });
-
-        // Put different base prefix into state
-        let different_prefix = "different_prefix";
-        state.put_base_prefix(different_prefix.to_string()).unwrap();
-
-        let bridge_lock_action = BridgeUnlock {
-            to: astria_address(&[0; 20]), // not base prefixed
-            amount: 1,
-            fee_asset: nria().into(),
-            memo: String::new(),
-            bridge_address: astria_address(&[1; 20]),
-            rollup_block_number: 1,
-            rollup_withdrawal_event_id: "rollup_withdrawal_event_id".to_string(),
-        };
-
-        assert_eyre_error(
-            &bridge_lock_action
-                .check_and_execute(&mut state)
-                .await
-                .unwrap_err(),
-            &format!(
-                "address has prefix `{ASTRIA_PREFIX}` but only `{different_prefix}` is permitted"
-            ),
-        );
-    }
-
-    #[tokio::test]
-    async fn bridge_unlock_fails_if_bridge_address_is_not_base_prefixed() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        state.put_transaction_context(TransactionContext {
-            address_bytes: [1; 20],
-            transaction_id: TransactionId::new([0; 32]),
-            position_in_transaction: 0,
-        });
-        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-
-        // Construct non base-prefixed bridge address
-        let different_prefix = "different_prefix";
-        let bridge_address = Address::builder()
-            .array([1; 20])
-            .prefix(different_prefix)
-            .try_build()
-            .unwrap();
-
-        let bridge_lock_action = BridgeUnlock {
-            to: astria_address(&[0; 20]),
-            amount: 1,
-            fee_asset: nria().into(),
-            memo: String::new(),
-            bridge_address,
-            rollup_block_number: 1,
-            rollup_withdrawal_event_id: "rollup_withdrawal_event_id".to_string(),
-        };
-
-        assert_eyre_error(
-            &bridge_lock_action
-                .check_and_execute(&mut state)
-                .await
-                .unwrap_err(),
-            &format!(
-                "address has prefix `{different_prefix}` but only `{ASTRIA_PREFIX}` is permitted",
-            ),
         );
     }
 

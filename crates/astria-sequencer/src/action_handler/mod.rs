@@ -19,7 +19,6 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    address::StateReadExt as _,
     bridge::StateReadExt as _,
     transaction::StateReadExt as _,
 };
@@ -78,10 +77,6 @@ where
     S: StateRead,
     TAddress: AddressBytes,
 {
-    state.ensure_base_prefix(&action.to).await.wrap_err(
-        "failed ensuring that the destination address matches the permitted base prefix",
-    )?;
-
     // check that the sender is the withdrawer for the bridge account, if the transfer is from a
     // bridge account
     if state
@@ -120,10 +115,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use astria_core::primitive::v1::{
-        Address,
-        TransactionId,
-    };
+    use astria_core::primitive::v1::TransactionId;
     use cnidarium::{
         StateDelta,
         TempStorage,
@@ -144,36 +136,6 @@ mod tests {
             TransactionContext,
         },
     };
-
-    #[tokio::test]
-    async fn check_transfer_fails_if_destination_is_not_base_prefixed() {
-        let storage = TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-        let different_prefix = "different_prefix";
-        let to_address = Address::builder()
-            .prefix(different_prefix.to_string())
-            .array([0; 20])
-            .try_build()
-            .unwrap();
-        let action = Transfer {
-            to: to_address,
-            fee_asset: nria().into(),
-            asset: nria().into(),
-            amount: 100,
-        };
-
-        assert_eyre_error(
-            &check_transfer(&action, &astria_address(&[1; 20]), &state)
-                .await
-                .unwrap_err(),
-            &format!(
-                "address has prefix `{different_prefix}` but only `{ASTRIA_PREFIX}` is permitted"
-            ),
-        );
-    }
 
     #[tokio::test]
     async fn check_transfer_fails_if_insufficient_funds_in_sender_account() {
