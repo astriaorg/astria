@@ -142,7 +142,11 @@ expression: genesis_state()
       "base": {},
       "multiplier": {}
     },
-    "priceFeed": {
+    "currencyPairsChange": {
+      "base": {},
+      "multiplier": {}
+    },
+    "marketsChange": {
       "base": {},
       "multiplier": {}
     }
@@ -173,13 +177,6 @@ expression: genesis_state()
             ]
           }
         }
-      },
-      "params": {
-        "marketAuthorities": [
-          "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm",
-          "astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z"
-        ],
-        "admin": "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
       }
     },
     "oracle": {

@@ -89,22 +89,12 @@ message RecoverIbcClientFeeComponents {
   astria.primitive.v1.Uint128 multiplier = 2;
 }
 
-message PriceFeedFeeComponents {
+message CurrencyPairsChangeFeeComponents {
   astria.primitive.v1.Uint128 base = 1;
   astria.primitive.v1.Uint128 multiplier = 2;
 }
 
-message ChangeMarketsFeeComponents {
-  astria.primitive.v1.Uint128 base = 1;
-  astria.primitive.v1.Uint128 multiplier = 2;
-}
-
-message UpdateMarketMapParamsFeeComponents {
-  astria.primitive.v1.Uint128 base = 1;
-  astria.primitive.v1.Uint128 multiplier = 2;
-}
-
-message RemoveMarketAuthoritiesFeeComponents {
+message MarketsChangeFeeComponents {
   astria.primitive.v1.Uint128 base = 1;
   astria.primitive.v1.Uint128 multiplier = 2;
 }

@@ -7,13 +7,14 @@ use astria_core::{
             BridgeSudoChange,
             BridgeTransfer,
             BridgeUnlock,
+            CurrencyPairsChange,
             FeeAssetChange,
             FeeChange,
             IbcRelayerChange,
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
-            PriceFeed,
+            MarketsChange,
             RecoverIbcClient,
             RollupDataSubmission,
             SudoAddressChange,
@@ -505,7 +506,7 @@ impl FeeHandler for RecoverIbcClient {
     }
 }
 
-impl FeeHandler for PriceFeed {
+impl FeeHandler for CurrencyPairsChange {
     fn name() -> &'static str {
         <Self as Protobuf>::Raw::NAME
     }
@@ -515,7 +516,29 @@ impl FeeHandler for PriceFeed {
     }
 
     fn snake_case_name() -> &'static str {
-        "price_feed"
+        "currency_pairs_change"
+    }
+
+    fn variable_component(&self) -> u128 {
+        0
+    }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        None
+    }
+}
+
+impl FeeHandler for MarketsChange {
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "markets_change"
     }
 
     fn variable_component(&self) -> u128 {

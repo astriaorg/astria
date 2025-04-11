@@ -1,7 +1,4 @@
-use astria_core::oracles::price_feed::market_map::v2::{
-    MarketMap,
-    Params,
-};
+use astria_core::oracles::price_feed::market_map::v2::MarketMap;
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
@@ -56,23 +53,6 @@ pub(crate) trait StateReadExt: StateRead {
             .and_then(|value| storage::BlockHeight::try_from(value).map(u64::from))
             .wrap_err("invalid updated height bytes")
     }
-
-    #[instrument(skip_all)]
-    async fn get_params(&self) -> Result<Option<Params>> {
-        let Some(bytes) = self
-            .get_raw(keys::PARAMS)
-            .await
-            .map_err(anyhow_to_eyre)
-            .wrap_err("failed to get params from state")?
-        else {
-            return Ok(None);
-        };
-        StoredValue::deserialize(&bytes)
-            .and_then(|value| {
-                storage::Params::try_from(value).map(|params| Some(Params::from(params)))
-            })
-            .wrap_err("invalid params bytes")
-    }
 }
 
 impl<T: StateRead + ?Sized> StateReadExt for T {}
@@ -96,15 +76,6 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.put_raw(keys::LAST_UPDATED.to_string(), bytes);
         Ok(())
     }
-
-    #[instrument(skip_all)]
-    fn put_params(&mut self, params: Params) -> Result<()> {
-        let bytes = StoredValue::from(storage::Params::from(&params))
-            .serialize()
-            .wrap_err("failed to serialize params")?;
-        self.put_raw(keys::PARAMS.to_string(), bytes);
-        Ok(())
-    }
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
@@ -122,15 +93,6 @@ mod tests {
     };
 
     use super::*;
-    use crate::{
-        app::benchmark_and_test_utils::{
-            ALICE_ADDRESS,
-            BOB_ADDRESS,
-            CAROL_ADDRESS,
-            JUDY_ADDRESS,
-        },
-        benchmark_and_test_utils::astria_address_from_hex_string,
-    };
 
     /// Returns a `MarketMap` with the provided metadata encoded into the first market's ticker to
     /// support creating non-identical maps.
@@ -196,20 +158,6 @@ mod tests {
         MarketMap::try_from(raw_market_map).unwrap()
     }
 
-    /// Returns a `Params` with the provided addresses as the authorities, and the first one used as
-    /// the admin.
-    fn params(addresses: impl IntoIterator<Item = &'static str>) -> Params {
-        let market_authorities: Vec<_> = addresses
-            .into_iter()
-            .map(astria_address_from_hex_string)
-            .collect();
-        let admin = *market_authorities.first().unwrap();
-        Params {
-            market_authorities,
-            admin,
-        }
-    }
-
     #[tokio::test]
     async fn should_put_and_get_market_map() {
         let storage = cnidarium::TempStorage::new().await.unwrap();
@@ -271,39 +219,5 @@ mod tests {
             .await
             .expect("should not error");
         assert_eq!(2, retrieved_height);
-    }
-
-    #[tokio::test]
-    async fn should_put_and_get_params() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        // Getting should return `None` when no params are stored.
-        assert!(state.get_params().await.unwrap().is_none());
-
-        // Putting params should succeed.
-        let params_1 = params([ALICE_ADDRESS, BOB_ADDRESS, CAROL_ADDRESS]);
-        state.put_params(params_1.clone()).unwrap();
-
-        // Getting the stored params should succeed.
-        let retrieved_params = state
-            .get_params()
-            .await
-            .expect("should not error")
-            .expect("should be `Some`");
-        assert_eq!(params_1, retrieved_params);
-
-        // Putting new params should overwrite the first.
-        let params_2 = params([BOB_ADDRESS, JUDY_ADDRESS]);
-        assert_ne!(params_1, params_2);
-        state.put_params(params_2.clone()).unwrap();
-
-        let retrieved_params = state
-            .get_params()
-            .await
-            .expect("should not error")
-            .expect("should be `Some`");
-        assert_eq!(params_2, retrieved_params);
     }
 }

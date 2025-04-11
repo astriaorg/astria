@@ -27,10 +27,7 @@ impl MarketMapComponent {
     ) -> Result<()> {
         state
             .put_market_map(market_map_genesis.market_map.clone())
-            .wrap_err("failed to put market map")?;
-        state
-            .put_params(market_map_genesis.params.clone())
-            .wrap_err("failed to put params")
+            .wrap_err("failed to put market map")
     }
 }
 

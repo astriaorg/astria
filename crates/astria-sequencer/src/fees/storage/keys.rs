@@ -50,12 +50,14 @@ mod tests {
             BridgeSudoChange,
             BridgeTransfer,
             BridgeUnlock,
+            CurrencyPairsChange,
             FeeAssetChange,
             FeeChange,
             IbcRelayerChange,
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
+            MarketsChange,
             RecoverIbcClient,
             RollupDataSubmission,
             SudoAddressChange,
@@ -98,6 +100,8 @@ mod tests {
         check::<Transfer>();
         check::<ValidatorUpdate>();
         check::<BridgeTransfer>();
+        check::<CurrencyPairsChange>();
+        check::<MarketsChange>();
         assert_snapshot!("allowed_asset_prefix", ALLOWED_ASSET_PREFIX);
         assert_snapshot!("allowed_asset_key", allowed_asset(&test_asset()));
     }
@@ -120,6 +124,8 @@ mod tests {
         assert!(name::<IbcSudoChange>().starts_with(COMPONENT_PREFIX));
         assert!(name::<BridgeTransfer>().starts_with(COMPONENT_PREFIX));
         assert!(name::<RecoverIbcClient>().starts_with(COMPONENT_PREFIX));
+        assert!(name::<CurrencyPairsChange>().starts_with(COMPONENT_PREFIX));
+        assert!(name::<MarketsChange>().starts_with(COMPONENT_PREFIX));
         assert!(ALLOWED_ASSET_PREFIX.starts_with(COMPONENT_PREFIX));
         assert!(allowed_asset(&test_asset()).starts_with(COMPONENT_PREFIX));
     }

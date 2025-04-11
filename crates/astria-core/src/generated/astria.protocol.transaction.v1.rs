@@ -3,7 +3,7 @@
 pub struct Action {
     #[prost(
         oneof = "action::Value",
-        tags = "1, 2, 11, 12, 13, 14, 15, 21, 22, 50, 51, 52, 53, 55, 56, 57, 71"
+        tags = "1, 2, 11, 12, 13, 14, 15, 21, 22, 50, 51, 52, 53, 55, 56, 57, 71, 72"
     )]
     pub value: ::core::option::Option<action::Value>,
 }
@@ -51,7 +51,9 @@ pub mod action {
         RecoverIbcClient(super::RecoverIbcClient),
         /// Price feed actions are defined on 71-80
         #[prost(message, tag = "71")]
-        PriceFeed(super::PriceFeed),
+        CurrencyPairsChange(super::CurrencyPairsChange),
+        #[prost(message, tag = "72")]
+        MarketsChange(super::MarketsChange),
     }
 }
 impl ::prost::Name for Action {
@@ -473,7 +475,7 @@ pub struct FeeChange {
     /// the new fee components values
     #[prost(
         oneof = "fee_change::FeeComponents",
-        tags = "1, 2, 3, 4, 5, 7, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17"
+        tags = "1, 2, 3, 4, 5, 7, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18"
     )]
     pub fee_components: ::core::option::Option<fee_change::FeeComponents>,
 }
@@ -517,7 +519,11 @@ pub mod fee_change {
         #[prost(message, tag = "16")]
         RecoverIbcClient(super::super::super::fees::v1::RecoverIbcClientFeeComponents),
         #[prost(message, tag = "17")]
-        PriceFeed(super::super::super::fees::v1::PriceFeedFeeComponents),
+        CurrencyPairsChange(
+            super::super::super::fees::v1::CurrencyPairsChangeFeeComponents,
+        ),
+        #[prost(message, tag = "18")]
+        MarketsChange(super::super::super::fees::v1::MarketsChangeFeeComponents),
     }
 }
 impl ::prost::Name for FeeChange {
@@ -575,32 +581,6 @@ impl ::prost::Name for RecoverIbcClient {
         "/astria.protocol.transaction.v1.RecoverIbcClient".into()
     }
 }
-/// A transaction that modifies the price feed oracle settings.
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct PriceFeed {
-    #[prost(oneof = "price_feed::Value", tags = "1, 2")]
-    pub value: ::core::option::Option<price_feed::Value>,
-}
-/// Nested message and enum types in `PriceFeed`.
-pub mod price_feed {
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum Value {
-        #[prost(message, tag = "1")]
-        Oracle(super::CurrencyPairsChange),
-        #[prost(message, tag = "2")]
-        MarketMap(super::MarketMapChange),
-    }
-}
-impl ::prost::Name for PriceFeed {
-    const NAME: &'static str = "PriceFeed";
-    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        "astria.protocol.transaction.v1.PriceFeed".into()
-    }
-    fn type_url() -> ::prost::alloc::string::String {
-        "/astria.protocol.transaction.v1.PriceFeed".into()
-    }
-}
 /// Add or remove currency pairs to/from the price feed oracle.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CurrencyPairsChange {
@@ -644,57 +624,32 @@ impl ::prost::Name for CurrencyPairs {
         "/astria.protocol.transaction.v1.CurrencyPairs".into()
     }
 }
+/// Either creates, removes or updates existing price feed markets.
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct MarketMapChange {
-    #[prost(oneof = "market_map_change::Value", tags = "1, 2")]
-    pub value: ::core::option::Option<market_map_change::Value>,
+pub struct MarketsChange {
+    #[prost(oneof = "markets_change::Action", tags = "1, 2, 3")]
+    pub action: ::core::option::Option<markets_change::Action>,
 }
-/// Nested message and enum types in `MarketMapChange`.
-pub mod market_map_change {
-    #[derive(Clone, PartialEq, ::prost::Oneof)]
-    pub enum Value {
-        #[prost(message, tag = "1")]
-        Markets(super::ChangeMarkets),
-        #[prost(message, tag = "2")]
-        Params(super::UpdateMarketMapParams),
-    }
-}
-impl ::prost::Name for MarketMapChange {
-    const NAME: &'static str = "MarketMapChange";
-    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        "astria.protocol.transaction.v1.MarketMapChange".into()
-    }
-    fn type_url() -> ::prost::alloc::string::String {
-        "/astria.protocol.transaction.v1.MarketMapChange".into()
-    }
-}
-/// Either creates, updates existing, or removes markets.
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ChangeMarkets {
-    #[prost(oneof = "change_markets::Action", tags = "1, 2, 3")]
-    pub action: ::core::option::Option<change_markets::Action>,
-}
-/// Nested message and enum types in `ChangeMarkets`.
-pub mod change_markets {
+/// Nested message and enum types in `MarketsChange`.
+pub mod markets_change {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Action {
         #[prost(message, tag = "1")]
-        Create(super::Markets),
+        Creation(super::Markets),
         #[prost(message, tag = "2")]
-        Update(super::Markets),
+        Removal(super::Markets),
         #[prost(message, tag = "3")]
-        Remove(super::Markets),
+        Update(super::Markets),
     }
 }
-impl ::prost::Name for ChangeMarkets {
-    const NAME: &'static str = "ChangeMarkets";
+impl ::prost::Name for MarketsChange {
+    const NAME: &'static str = "MarketsChange";
     const PACKAGE: &'static str = "astria.protocol.transaction.v1";
     fn full_name() -> ::prost::alloc::string::String {
-        "astria.protocol.transaction.v1.ChangeMarkets".into()
+        "astria.protocol.transaction.v1.MarketsChange".into()
     }
     fn type_url() -> ::prost::alloc::string::String {
-        "/astria.protocol.transaction.v1.ChangeMarkets".into()
+        "/astria.protocol.transaction.v1.MarketsChange".into()
     }
 }
 /// A list of markets for creation, updating, or removal.
@@ -713,25 +668,6 @@ impl ::prost::Name for Markets {
     }
     fn type_url() -> ::prost::alloc::string::String {
         "/astria.protocol.transaction.v1.Markets".into()
-    }
-}
-/// Updates the market map parameters.
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct UpdateMarketMapParams {
-    /// Params defines the new parameters for the x/marketmap module.
-    #[prost(message, optional, tag = "1")]
-    pub params: ::core::option::Option<
-        super::super::super::super::connect::marketmap::v2::Params,
-    >,
-}
-impl ::prost::Name for UpdateMarketMapParams {
-    const NAME: &'static str = "UpdateMarketMapParams";
-    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        "astria.protocol.transaction.v1.UpdateMarketMapParams".into()
-    }
-    fn type_url() -> ::prost::alloc::string::String {
-        "/astria.protocol.transaction.v1.UpdateMarketMapParams".into()
     }
 }
 /// `Transaction` is a transaction `TransactionBody` together with a public

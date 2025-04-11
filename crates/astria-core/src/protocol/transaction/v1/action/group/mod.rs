@@ -9,8 +9,6 @@ use std::fmt::{
 use super::{
     Action,
     ActionName,
-    MarketMapChange,
-    PriceFeed,
 };
 
 impl Action {
@@ -22,9 +20,8 @@ impl Action {
             | Action::FeeChange(_)
             | Action::FeeAssetChange(_)
             | Action::RecoverIbcClient(_)
-            | Action::PriceFeed(PriceFeed::MarketMap(MarketMapChange::Params(_))) => {
-                Group::BundleableSudo
-            }
+            | Action::CurrencyPairsChange(_)
+            | Action::MarketsChange(_) => Group::BundleableSudo,
 
             Action::InitBridgeAccount(_) | Action::BridgeSudoChange(_) => {
                 Group::UnbundleableGeneral
@@ -37,10 +34,7 @@ impl Action {
             | Action::BridgeLock(_)
             | Action::BridgeUnlock(_)
             | Action::BridgeTransfer(_)
-            | Action::Ibc(_)
-            | Action::PriceFeed(
-                PriceFeed::Oracle(_) | PriceFeed::MarketMap(MarketMapChange::Markets(_)),
-            ) => Group::BundleableGeneral,
+            | Action::Ibc(_) => Group::BundleableGeneral,
         }
     }
 }

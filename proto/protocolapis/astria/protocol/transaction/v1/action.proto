@@ -7,7 +7,6 @@ import "astria/protocol/fees/v1/types.proto";
 import "astria_vendored/penumbra/core/component/ibc/v1/ibc.proto";
 import "astria_vendored/tendermint/abci/types.proto";
 import "connect/marketmap/v2/market.proto";
-import "connect/marketmap/v2/params.proto";
 import "connect/types/v2/currency_pair.proto";
 
 message Action {
@@ -37,7 +36,8 @@ message Action {
     RecoverIbcClient recover_ibc_client = 57;
 
     // Price feed actions are defined on 71-80
-    PriceFeed price_feed = 71;
+    CurrencyPairsChange currency_pairs_change = 71;
+    MarketsChange markets_change = 72;
   }
 }
 
@@ -262,7 +262,8 @@ message FeeChange {
     astria.protocol.fees.v1.ValidatorUpdateFeeComponents validator_update = 14;
     astria.protocol.fees.v1.BridgeTransferFeeComponents bridge_transfer = 15;
     astria.protocol.fees.v1.RecoverIbcClientFeeComponents recover_ibc_client = 16;
-    astria.protocol.fees.v1.PriceFeedFeeComponents price_feed = 17;
+    astria.protocol.fees.v1.CurrencyPairsChangeFeeComponents currency_pairs_change = 17;
+    astria.protocol.fees.v1.MarketsChangeFeeComponents markets_change = 18;
   }
 }
 
@@ -288,14 +289,6 @@ message RecoverIbcClient {
   string replacement_client_id = 2;
 }
 
-// A transaction that modifies the price feed oracle settings.
-message PriceFeed {
-  oneof value {
-    CurrencyPairsChange oracle = 1;
-    MarketMapChange market_map = 2;
-  }
-}
-
 // Add or remove currency pairs to/from the price feed oracle.
 message CurrencyPairsChange {
   oneof value {
@@ -308,29 +301,16 @@ message CurrencyPairs {
   repeated connect.types.v2.CurrencyPair pairs = 1;
 }
 
-message MarketMapChange {
-  oneof value {
-    ChangeMarkets markets = 1;
-    UpdateMarketMapParams params = 2;
-  }
-}
-
-// Either creates, updates existing, or removes markets.
-message ChangeMarkets {
+// Either creates, removes or updates existing price feed markets.
+message MarketsChange {
   oneof action {
-    Markets create = 1;
-    Markets update = 2;
-    Markets remove = 3;
+    Markets creation = 1;
+    Markets removal = 2;
+    Markets update = 3;
   }
 }
 
 // A list of markets for creation, updating, or removal.
 message Markets {
   repeated connect.marketmap.v2.Market markets = 1;
-}
-
-// Updates the market map parameters.
-message UpdateMarketMapParams {
-  // Params defines the new parameters for the x/marketmap module.
-  connect.marketmap.v2.Params params = 1;
 }

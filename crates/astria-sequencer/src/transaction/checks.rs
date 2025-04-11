@@ -141,7 +141,8 @@ async fn add_total_transfers_for_transaction<S: StateRead>(
             | Action::FeeAssetChange(_)
             | Action::FeeChange(_)
             | Action::RecoverIbcClient(_)
-            | Action::PriceFeed(_) => {
+            | Action::CurrencyPairsChange(_)
+            | Action::MarketsChange(_) => {
                 continue;
             }
         }

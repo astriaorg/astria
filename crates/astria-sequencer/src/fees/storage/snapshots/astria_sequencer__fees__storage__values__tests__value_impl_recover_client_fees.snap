@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/fees/storage/values.rs
+expression: value_impl_borsh_as_hex!(RecoverIbcClientFees)
+---
+0f0100000000000000000000000000000002000000000000000000000000000000

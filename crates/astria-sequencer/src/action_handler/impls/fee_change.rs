@@ -88,9 +88,12 @@ impl ActionHandler for FeeChange {
             Self::RecoverIbcClient(fees) => state
                 .put_fees(*fees)
                 .wrap_err("failed to put recover ibc client fees"),
-            Self::PriceFeed(fees) => state
+            Self::CurrencyPairsChange(fees) => state
                 .put_fees(*fees)
-                .wrap_err("failed to put price feed fees"),
+                .wrap_err("failed to put currency pairs change fees"),
+            Self::MarketsChange(fees) => state
+                .put_fees(*fees)
+                .wrap_err("failed to put markets change fees"),
         }
     }
 }
@@ -231,8 +234,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn price_feed_fee_change_action_executes_as_expected() {
-        test_fee_change_action::<PriceFeed>().await;
+    async fn currency_pairs_change_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<CurrencyPairsChange>().await;
+    }
+
+    #[tokio::test]
+    async fn markets_change_fee_change_action_executes_as_expected() {
+        test_fee_change_action::<MarketsChange>().await;
     }
 
     async fn test_fee_change_action<'a, F>()
