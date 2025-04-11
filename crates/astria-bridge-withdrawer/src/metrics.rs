@@ -19,6 +19,7 @@ pub struct Metrics {
     sequencer_submission_failure_count: Counter,
     sequencer_submission_latency: Histogram,
     batch_total_settled_value: Gauge,
+    last_observed_rollup_height: Gauge,
 }
 
 impl Metrics {
@@ -48,6 +49,10 @@ impl Metrics {
 
     pub(crate) fn set_batch_total_settled_value(&self, value: u128) {
         self.batch_total_settled_value.set(value);
+    }
+
+    pub(crate) fn set_last_observed_rollup_height(&self, height: u64) {
+        self.last_observed_rollup_height.set(height);
     }
 }
 
@@ -104,6 +109,13 @@ impl metrics::Metrics for Metrics {
             )?
             .register()?;
 
+        let last_observed_rollup_height = builder
+            .new_gauge_factory(
+                LAST_OBSERVED_ROLLUP_HEIGHT,
+                "The last observed rollup height",
+            )?
+            .register()?;
+
         Ok(Self {
             current_nonce,
             nonce_fetch_count,
@@ -112,6 +124,7 @@ impl metrics::Metrics for Metrics {
             sequencer_submission_failure_count,
             sequencer_submission_latency,
             batch_total_settled_value,
+            last_observed_rollup_height,
         })
     }
 }
@@ -124,6 +137,7 @@ metric_names!(const METRICS_NAMES:
     SEQUENCER_SUBMISSION_FAILURE_COUNT,
     SEQUENCER_SUBMISSION_LATENCY,
     BATCH_TOTAL_SETTLED_VALUE,
+    LAST_OBSERVED_ROLLUP_HEIGHT,
 );
 
 #[cfg(test)]
@@ -131,6 +145,7 @@ mod tests {
     use super::{
         BATCH_TOTAL_SETTLED_VALUE,
         CURRENT_NONCE,
+        LAST_OBSERVED_ROLLUP_HEIGHT,
         NONCE_FETCH_COUNT,
         NONCE_FETCH_FAILURE_COUNT,
         NONCE_FETCH_LATENCY,
@@ -158,5 +173,6 @@ mod tests {
         );
         assert_const(SEQUENCER_SUBMISSION_LATENCY, "sequencer_submission_latency");
         assert_const(BATCH_TOTAL_SETTLED_VALUE, "batch_total_settled_value");
+        assert_const(LAST_OBSERVED_ROLLUP_HEIGHT, "last_observed_rollup_height");
     }
 }
