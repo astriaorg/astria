@@ -12,6 +12,8 @@ mod evm
 mod init
 # Running tests and other operations. 'just --list run' for more...
 mod run
+# Awaiting deployments. `$just --list wait-for` for more...
+mod wait-for
 
 
 ##############################################
