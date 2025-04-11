@@ -11,6 +11,7 @@ use astria_core::{
         IbcSudoChange,
         Ics20Withdrawal,
         InitBridgeAccount,
+        PriceFeed,
         RecoverIbcClient,
         RollupDataSubmission,
         SudoAddressChange,
@@ -151,6 +152,7 @@ empty_impl_addresses! {
     IbcRelay
     RollupDataSubmission
     RecoverIbcClient
+    PriceFeed
 }
 
 #[cfg(test)]

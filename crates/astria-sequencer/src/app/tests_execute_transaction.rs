@@ -1636,7 +1636,7 @@ async fn update_market_map_params_executes_as_expected() {
 
 #[tokio::test]
 async fn app_execute_transaction_base_prefix_check() {
-    let mut app = initialize_app(None, vec![]).await;
+    let mut app = initialize_app(None).await;
 
     let alice = get_alice_signing_key();
     let bad_address = Address::builder()
