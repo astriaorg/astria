@@ -1,5 +1,8 @@
 use astria_core::{
-    primitive::v1::asset,
+    primitive::v1::{
+        asset,
+        Address,
+    },
     protocol::transaction::v1::{
         action::InitBridgeAccount,
         Action,
@@ -22,6 +25,12 @@ pub(super) struct Command {
     // the secrecy crate with specialized `Debug` and `Drop` implementations
     // that overwrite the key on drop and don't reveal it when printing.
     private_key: String,
+    /// The authorized withdrawer address for this account.
+    /// If unset, the sender address will be used.
+    /// Should be an astria-prefixed bech32m address.
+    /// Ex: "astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr"
+    #[arg(long)]
+    withdrawer_address: Option<Address>,
     /// The url of the Sequencer node
     #[arg(long, env = "SEQUENCER_URL")]
     sequencer_url: String,
@@ -55,7 +64,7 @@ impl Command {
                 asset: self.asset.clone(),
                 fee_asset: self.fee_asset.clone(),
                 sudo_address: None,
-                withdrawer_address: None,
+                withdrawer_address: self.withdrawer_address,
             }),
         )
         .await
