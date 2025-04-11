@@ -13,7 +13,7 @@ use astria_eyre::eyre::{
     ensure,
     eyre,
     Result,
-    WrapErr,
+    WrapErr as _,
 };
 use jiff::{
     Span,
@@ -32,9 +32,9 @@ pub struct Args {
     #[command(flatten)]
     action: Action,
 
-    /// The number of blocks to use to estimate a mean block time.
-    #[arg(long, short = 'r', default_value = "43200", value_name = "INTEGER")]
-    range: u64,
+    /// The number of blocks to use to estimate a mean block time
+    #[arg(long, short = 's', default_value = "43200", value_name = "INTEGER")]
+    sample_size: u64,
 
     /// Print verbose output
     #[arg(long, short = 'v')]
@@ -182,7 +182,7 @@ impl Args {
 struct Estimator {
     current_height: u64,
     current_timestamp: Timestamp,
-    estimated_block_time_nanoseconds: f64,
+    estimated_nanoseconds_per_block: f64,
     network_name: String,
     verbose: bool,
 }
@@ -194,8 +194,10 @@ impl Estimator {
             current_height > 1,
             "need current height to be greater than 1"
         );
-        let range = std::cmp::min(args.range, current_height);
-        let old_timestamp = args.get_timestamp_at_height(current_height - range).await?;
+        let sample_size = std::cmp::min(args.sample_size, current_height.saturating_sub(1));
+        let old_timestamp = args
+            .get_timestamp_at_height(current_height - sample_size)
+            .await?;
         let network_name = args.get_network_name().await?;
         if args.verbose {
             println!("current height on `{network_name}`: {current_height}");
@@ -203,12 +205,12 @@ impl Estimator {
         let time_diff_nanoseconds = (current_timestamp - old_timestamp)
             .total(Unit::Nanosecond)
             .wrap_err("failed to get time difference total nanoseconds")?;
-        let estimated_block_time_nanoseconds = time_diff_nanoseconds / range as f64;
+        let estimated_nanoseconds_per_block = time_diff_nanoseconds / sample_size as f64;
 
         Ok(Self {
             current_height,
             current_timestamp,
-            estimated_block_time_nanoseconds,
+            estimated_nanoseconds_per_block,
             network_name,
             verbose: args.verbose,
         })
@@ -225,7 +227,7 @@ impl Estimator {
             .wrap_err("failed to get duration total nanoseconds")?;
 
         let estimated_height_diff =
-            (duration_nanoseconds / self.estimated_block_time_nanoseconds).ceil() as u64;
+            (duration_nanoseconds / self.estimated_nanoseconds_per_block).ceil() as u64;
         let estimated_height = self.current_height + estimated_height_diff;
         if self.verbose {
             println!("estimated height difference: {estimated_height_diff}");
@@ -252,7 +254,7 @@ impl Estimator {
         );
         let height_diff = (future_height - self.current_height) as f64;
         let estimated_instant = self.current_timestamp
-            + Duration::from_nanos((self.estimated_block_time_nanoseconds * height_diff) as u64);
+            + Duration::from_nanos((self.estimated_nanoseconds_per_block * height_diff) as u64);
 
         if self.verbose {
             colour::dark_green!(

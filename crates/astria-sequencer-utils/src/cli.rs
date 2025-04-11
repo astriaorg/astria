@@ -35,7 +35,7 @@ pub enum Command {
     #[command(arg_required_else_help = true)]
     ParseBlob(blob_parser::Args),
 
-    /// Estimate the activation point to schedule or check an upcoming upgrade
+    /// Estimate the activation point of an upgrade to schedule or check an upcoming one
     #[command(arg_required_else_help = true)]
     EstimateActivationPoint(activation_point_estimator::Args),
 }

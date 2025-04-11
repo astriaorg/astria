@@ -107,9 +107,9 @@ cargo run -- parse-blob <<< cat tests/resources/parse_blob/batched_rollup_data/i
 
 The subcommand estimates an activation point for a specified network's next
 upgrade.  It gets the current block height from the provided sequencer, gets
-a block previous to this (default ~24 hours previous) and estimates a mean
-block time from these. This mean is used to predict the height or block time
-of the future block.
+a block previous to this (default ~24 hours previous), and estimates a mean
+block time from these. This mean is used to predict either the height or block
+timestamp of the future block.
 
 #### Usage for `estimate-activation-point`
 
@@ -127,11 +127,11 @@ This subcommand has the following args:
    1. `-t`, `--predict-block-time`: height of future block for which to
       predict block time
 
-1. `-r`, `--range` [required, default 43200]: the number of blocks to use to
-   estimate a mean block time
+1. `-s`, `--sample_size` [required, default 43200]: the number of blocks to use
+   to estimate a mean block time
 1. `-v`, `--verbose` [optional]: if provided, the output contains extra info
    including the chain name, current height, estimated height difference and
-   estimated activation instant.
+   estimated activation instant
 
 #### Example for `estimate-activation-point`
 
