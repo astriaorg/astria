@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Gauge metric `last_observed_rollup_height` [#2110](https://github.com/astriaorg/astria/pull/2110).
+
 ## [1.0.2] - 2025-03-06
 
 ### Changed
