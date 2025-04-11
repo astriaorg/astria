@@ -9,7 +9,7 @@ use std::{
 };
 
 use k256::ecdsa::{
-    signature::Signer,
+    signature::Signer as _,
     Signature,
 };
 use tendermint::{

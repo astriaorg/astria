@@ -56,6 +56,8 @@ spec:
               subPath: {{ .Values.moniker }}/sequencer
             - mountPath: {{ include "sequencer.socket_directory" . }}
               name: socket-volume
+            - mountPath: /sequencer-upgrades
+              name: sequencer-upgrades-volume
           ports:
             - containerPort: {{ .Values.ports.sequencerABCI }}
               name: sequencer-abci
@@ -107,6 +109,23 @@ spec:
             limits:
               cpu: {{ .Values.resources.cometbft.limits.cpu }}
               memory: {{ .Values.resources.cometbft.limits.memory }}
+        - name: price-feed
+          image: "{{ include "priceFeed.image" . }}"
+          imagePullPolicy: {{ .Values.images.priceFeed.pullPolicy }}
+          volumeMounts:
+            - mountPath: /scripts
+              name: cometbft-init-scripts-volume
+          command: [ "connect"]
+          args:
+          - "--market-map-endpoint"
+          - "127.0.0.1:{{ .Values.ports.sequencerGrpc }}"
+          - "--port"
+          - "{{ .Values.ports.priceFeedGrpc }}"
+          ports:
+            - containerPort: {{ .Values.ports.priceFeedGrpc }}
+              name: price-feed-grpc
+            - containerPort: {{ .Values.ports.priceFeedMetrics }}
+              name: price-fd-metric
       volumes:
         - name: socket-volume
           emptyDir: {}
@@ -122,6 +141,10 @@ spec:
           configMap:
             name: {{ .Values.moniker }}-cometbft-init-scripts
             defaultMode: 0777
+        - name: sequencer-upgrades-volume
+          configMap:
+            name: {{ .Values.moniker }}-sequencer-upgrades
+            defaultMode: 0400
         - name: sequencer-shared-storage-vol
           {{- if .Values.storage.enabled }}
           persistentVolumeClaim:

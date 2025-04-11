@@ -20,3 +20,33 @@ message ValidatorUpdate {
   astria_vendored.tendermint.crypto.PublicKey pub_key = 1;
   int64 power = 2;
 }
+
+message ExtendedCommitInfo {
+  // The round at which the block proposer decided in the previous height.
+  int32 round = 1;
+  // List of validators' addresses in the last validator set with their voting
+  // information, including vote extensions.
+  repeated ExtendedVoteInfo votes = 2;
+}
+
+message ExtendedVoteInfo {
+  // The validator that sent the vote.
+  Validator validator = 1;
+  // Non-deterministic extension provided by the sending validator's application.
+  bytes vote_extension = 3;
+  // Vote extension signature created by CometBFT
+  bytes extension_signature = 4;
+  // block_id_flag indicates whether the validator voted for a block, nil, or did not vote at all
+  BlockIDFlag block_id_flag = 5;
+}
+message Validator {
+  bytes address = 1;
+  int64 power = 3;
+}
+
+enum BlockIDFlag {
+  BLOCK_ID_FLAG_UNKNOWN = 0;
+  BLOCK_ID_FLAG_ABSENT = 1;
+  BLOCK_ID_FLAG_COMMIT = 2;
+  BLOCK_ID_FLAG_NIL = 3;
+}

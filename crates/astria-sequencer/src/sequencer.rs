@@ -1,3 +1,6 @@
+use std::time::Duration;
+
+use astria_core::generated::price_feed::service::v2::oracle_client::OracleClient;
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
@@ -26,6 +29,11 @@ use tokio::{
     },
     task::JoinHandle,
 };
+use tonic::transport::{
+    Channel,
+    Endpoint,
+    Uri,
+};
 use tower_abci::v038::Server;
 use tracing::{
     debug,
@@ -34,10 +42,16 @@ use tracing::{
     info,
     info_span,
     instrument,
+    warn,
 };
 
 use crate::{
-    app::App,
+    address::StateReadExt as _,
+    app::{
+        App,
+        ShouldShutDown,
+    },
+    assets::StateReadExt as _,
     config::{
         AbciListenUrl,
         Config,
@@ -45,18 +59,33 @@ use crate::{
     mempool::Mempool,
     metrics::Metrics,
     service,
+    upgrades::UpgradesHandler,
 };
+
+const MAX_RETRIES_TO_CONNECT_TO_PRICE_FEED_SIDECAR: u32 = 36;
 
 pub struct Sequencer;
 
+type GrpcServerHandle = JoinHandle<Result<(), tonic::transport::Error>>;
+type AbciServerHandle = JoinHandle<()>;
+
 struct RunningGrpcServer {
-    pub handle: JoinHandle<Result<(), tonic::transport::Error>>,
+    pub handle: GrpcServerHandle,
     pub shutdown_tx: oneshot::Sender<()>,
 }
 
 struct RunningAbciServer {
-    pub handle: JoinHandle<()>,
+    pub handle: AbciServerHandle,
     pub shutdown_rx: oneshot::Receiver<()>,
+    pub consensus_cancellation_token: tokio_util::sync::CancellationToken,
+}
+
+enum InitializationOutcome {
+    Initialized {
+        grpc_server: RunningGrpcServer,
+        abci_server: RunningAbciServer,
+    },
+    ShutDownForUpgrade,
 }
 
 impl Sequencer {
@@ -80,15 +109,19 @@ impl Sequencer {
             }
 
             result = initialize_fut => {
-                let (grpc_server, abci_server) = result?;
-                Self::run_until_stopped(abci_server, grpc_server, &mut signals).await
+                match result? {
+                    InitializationOutcome::Initialized{grpc_server,abci_server  } => {
+                        Self::run_until_stopped(grpc_server, abci_server, &mut signals).await
+                    }
+                    InitializationOutcome::ShutDownForUpgrade => { Ok(()) }
+                }
             }
         }
     }
 
     async fn run_until_stopped(
-        abci_server: RunningAbciServer,
         grpc_server: RunningGrpcServer,
+        abci_server: RunningAbciServer,
         signals: &mut SignalReceiver,
     ) -> Result<()> {
         select! {
@@ -96,8 +129,14 @@ impl Sequencer {
                 info_span!("run_until_stopped").in_scope(|| info!("shutting down sequencer"));
             }
 
+            () = abci_server.consensus_cancellation_token.cancelled() => {
+                info_span!("run_until_stopped")
+                    .in_scope(|| info!("consensus server shutting down sequencer"));
+            },
+
             _ = abci_server.shutdown_rx => {
-                info_span!("run_until_stopped").in_scope(|| error!("ABCI server task exited, this shouldn't happen"));
+                info_span!("run_until_stopped")
+                    .in_scope(|| error!("ABCI server task exited, this shouldn't happen"));
             }
         }
 
@@ -118,7 +157,7 @@ impl Sequencer {
     async fn initialize(
         config: Config,
         metrics: &'static Metrics,
-    ) -> Result<(RunningGrpcServer, RunningAbciServer)> {
+    ) -> Result<InitializationOutcome> {
         cnidarium::register_metrics();
         register_histogram_global("cnidarium_get_raw_duration_seconds");
         register_histogram_global("cnidarium_nonverifiable_get_raw_duration_seconds");
@@ -129,7 +168,7 @@ impl Sequencer {
             config.db_filepath.clone(),
             substore_prefixes
                 .into_iter()
-                .map(std::string::ToString::to_string)
+                .map(ToString::to_string)
                 .collect(),
         )
         .await
@@ -137,11 +176,60 @@ impl Sequencer {
         .wrap_err("failed to load storage backing chain state")?;
         let snapshot = storage.latest_snapshot();
 
-        let mempool = Mempool::new(metrics, config.mempool_parked_max_tx_count);
-
-        let app = App::new(snapshot, mempool.clone(), metrics)
+        let upgrades_handler =
+            UpgradesHandler::new(&config.upgrades_filepath, config.cometbft_rpc_addr.clone())
+                .wrap_err("failed constructing upgrades handler")?;
+        upgrades_handler
+            .ensure_historical_upgrades_applied(&snapshot)
             .await
-            .wrap_err("failed to initialize app")?;
+            .wrap_err("historical upgrades not applied")?;
+        if let ShouldShutDown::ShutDownForUpgrade {
+            upgrade_activation_height,
+            block_time,
+            hex_encoded_app_hash,
+        } = upgrades_handler
+            .should_shut_down(&snapshot)
+            .await
+            .wrap_err("failed to establish if sequencer should shut down for upgrade")?
+        {
+            info!(
+                upgrade_activation_height,
+                latest_app_hash = %hex_encoded_app_hash,
+                latest_block_time = %block_time,
+                "shutting down for upgrade"
+            );
+            return Ok(InitializationOutcome::ShutDownForUpgrade);
+        }
+
+        // the native asset should be configurable only at genesis.
+        // the genesis state must include the native asset's base
+        // denomination, and it is set in storage during init_chain.
+        // on subsequent startups, we load the native asset from storage.
+        if storage.latest_version() != u64::MAX {
+            let _ = snapshot
+                .get_native_asset()
+                .await
+                .context("failed to query state for native asset")?;
+            let _ = snapshot
+                .get_base_prefix()
+                .await
+                .context("failed to query state for base prefix")?;
+        }
+
+        let mempool = Mempool::new(metrics, config.mempool_parked_max_tx_count);
+        let price_feed_client = new_price_feed_client(&config)
+            .await
+            .wrap_err("failed to create connected price feed client")?;
+        let upgrades = upgrades_handler.upgrades().clone();
+        let app = App::new(
+            snapshot,
+            mempool.clone(),
+            upgrades_handler,
+            crate::app::vote_extension::Handler::new(price_feed_client),
+            metrics,
+        )
+        .await
+        .wrap_err("failed to initialize app")?;
 
         let event_bus_subscription = app.subscribe_to_events();
 
@@ -161,6 +249,7 @@ impl Sequencer {
         let grpc_server_handle = tokio::spawn(crate::grpc::serve(
             storage.clone(),
             mempool,
+            upgrades,
             grpc_addr,
             config.no_optimistic_blocks,
             event_bus_subscription,
@@ -168,12 +257,14 @@ impl Sequencer {
         ));
 
         debug!(%config.abci_listen_url, "starting sequencer");
+        let consensus_cancellation_token = tokio_util::sync::CancellationToken::new();
         let abci_server_handle = start_abci_server(
             &storage,
             app,
             mempool_service,
             config.abci_listen_url,
             abci_shutdown_tx,
+            consensus_cancellation_token.clone(),
         )
         .wrap_err("failed to start ABCI server")?;
 
@@ -184,9 +275,13 @@ impl Sequencer {
         let abci_server = RunningAbciServer {
             handle: abci_server_handle,
             shutdown_rx: abci_shutdown_rx,
+            consensus_cancellation_token,
         };
 
-        Ok((grpc_server, abci_server))
+        Ok(InitializationOutcome::Initialized {
+            grpc_server,
+            abci_server,
+        })
     }
 }
 
@@ -196,6 +291,7 @@ fn start_abci_server(
     mempool_service: service::Mempool,
     listen_url: AbciListenUrl,
     abci_shutdown_tx: oneshot::Sender<()>,
+    consensus_cancellation_token: tokio_util::sync::CancellationToken,
 ) -> eyre::Result<JoinHandle<()>> {
     let consensus_service = tower::ServiceBuilder::new()
         .layer(request_span::layer(|req: &ConsensusRequest| {
@@ -203,7 +299,11 @@ fn start_abci_server(
         }))
         .service(tower_actor::Actor::new(10, |queue: _| {
             let storage = storage.clone();
-            async move { service::Consensus::new(storage, app, queue).run().await }
+            async move {
+                service::Consensus::new(storage, app, queue, consensus_cancellation_token)
+                    .run()
+                    .await
+            }
         }));
     let info_service =
         service::Info::new(storage.clone()).wrap_err("failed initializing info service")?;
@@ -267,5 +367,110 @@ fn spawn_signal_handler() -> SignalReceiver {
 
     SignalReceiver {
         stop_rx,
+    }
+}
+
+/// Returns a new price feed client or `Ok(None)` if `config.no_price_feed` is true.
+///
+/// If `config.no_price_feed` is false, returns `Ok(Some(...))` as soon as a successful response is
+/// received from the price feed sidecar, or returns `Err` after a fixed number of failed
+/// re-attempts (roughly equivalent to 5 minutes total).
+#[instrument(skip_all, err)]
+async fn new_price_feed_client(config: &Config) -> Result<Option<OracleClient<Channel>>> {
+    if config.no_price_feed {
+        return Ok(None);
+    }
+    let uri: Uri = config
+        .price_feed_grpc_addr
+        .parse()
+        .context("failed parsing price feed grpc address as Uri")?;
+    let endpoint = Endpoint::from(uri.clone()).timeout(Duration::from_millis(
+        config.price_feed_client_timeout_milliseconds,
+    ));
+
+    let retry_config =
+        tryhard::RetryFutureConfig::new(MAX_RETRIES_TO_CONNECT_TO_PRICE_FEED_SIDECAR)
+            .exponential_backoff(Duration::from_millis(100))
+            .max_delay(Duration::from_secs(10))
+            .on_retry(
+                |attempt, next_delay: Option<Duration>, error: &eyre::Report| {
+                    let wait_duration = next_delay
+                        .map(telemetry::display::format_duration)
+                        .map(tracing::field::display);
+                    warn!(
+                        error = error.as_ref() as &dyn std::error::Error,
+                        attempt,
+                        wait_duration,
+                        "failed to query price feed oracle sidecar; retrying after backoff",
+                    );
+                    async {}
+                },
+            );
+
+    let client = tryhard::retry_fn(|| connect_to_price_feed_sidecar(&endpoint, &uri))
+        .with_config(retry_config)
+        .await
+        .wrap_err_with(|| {
+            format!(
+                "failed to query price feed sidecar after \
+                 {MAX_RETRIES_TO_CONNECT_TO_PRICE_FEED_SIDECAR} retries; giving up"
+            )
+        })?;
+    Ok(Some(client))
+}
+
+#[instrument(skip_all, err(level = tracing::Level::WARN))]
+async fn connect_to_price_feed_sidecar(
+    endpoint: &Endpoint,
+    uri: &Uri,
+) -> Result<OracleClient<Channel>> {
+    let client = OracleClient::new(
+        endpoint
+            .connect()
+            .await
+            .wrap_err("failed to connect to price feed sidecar")?,
+    );
+    debug!(uri = %uri, "price feed sidecar is reachable");
+    Ok(client)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+
+    #[tokio::test(start_paused = true)]
+    async fn should_wait_while_unable_to_connect() {
+        // We only care about `no_price_feed` and `price_feed_grpc_addr` values - the others can be
+        // meaningless.
+        let config = Config {
+            abci_listen_url: AbciListenUrl::Unix(PathBuf::new()),
+            db_filepath: "".into(),
+            log: String::new(),
+            grpc_addr: String::new(),
+            force_stdout: true,
+            no_otel: true,
+            no_metrics: true,
+            metrics_http_listener_addr: String::new(),
+            upgrades_filepath: PathBuf::new(),
+            cometbft_rpc_addr: String::new(),
+            no_price_feed: false,
+            price_feed_grpc_addr: "http://127.0.0.1:8081".to_string(),
+            price_feed_client_timeout_milliseconds: 1,
+            mempool_parked_max_tx_count: 1,
+            no_optimistic_blocks: false,
+        };
+
+        let start = tokio::time::Instant::now();
+        let error = new_price_feed_client(&config).await.unwrap_err();
+        assert!(start.elapsed() > Duration::from_secs(300));
+        assert_eq!(
+            error.to_string(),
+            format!(
+                "failed to query price feed sidecar after \
+                 {MAX_RETRIES_TO_CONNECT_TO_PRICE_FEED_SIDECAR} retries; giving up"
+            )
+        );
     }
 }

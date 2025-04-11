@@ -392,6 +392,7 @@ impl serde::Serialize for TxResponse {
         let mut struct_ser = serializer.serialize_struct("cosmos.base.abci.v1beta1.TxResponse", len)?;
         if self.height != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
         }
         if !self.txhash.is_empty() {
@@ -417,10 +418,12 @@ impl serde::Serialize for TxResponse {
         }
         if self.gas_wanted != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("gasWanted", ToString::to_string(&self.gas_wanted).as_str())?;
         }
         if self.gas_used != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("gasUsed", ToString::to_string(&self.gas_used).as_str())?;
         }
         if let Some(v) = self.tx.as_ref() {

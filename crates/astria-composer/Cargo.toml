@@ -21,13 +21,12 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
   "display",
 ] }
 
-tonic-health = "0.10.2"
+tonic-health = "0.12.3"
 
 async-trait = { workspace = true }
 axum = { workspace = true }
 ethers = { workspace = true, features = ["ws"] }
 futures = { workspace = true }
-humantime = { workspace = true }
 hyper = { workspace = true }
 hex = { workspace = true }
 itertools = { workspace = true }

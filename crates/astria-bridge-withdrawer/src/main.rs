@@ -28,7 +28,6 @@ async fn main() -> ExitCode {
     let mut telemetry_conf = telemetry::configure()
         .set_no_otel(cfg.no_otel)
         .set_force_stdout(cfg.force_stdout)
-        .set_pretty_print(cfg.pretty_print)
         .set_filter_directives(&cfg.log);
 
     if !cfg.no_metrics {
@@ -41,7 +40,7 @@ async fn main() -> ExitCode {
         .wrap_err("failed to setup telemetry")
     {
         Err(e) => {
-            eprintln!("initializing conductor failed:\n{e:?}");
+            eprintln!("initializing bridge withdrawer failed:\n{e:?}");
             return ExitCode::FAILURE;
         }
         Ok(metrics_and_guard) => metrics_and_guard,
@@ -49,12 +48,12 @@ async fn main() -> ExitCode {
 
     info!(
         config = serde_json::to_string(&cfg).expect("serializing to a string cannot fail"),
-        "initializing conductor"
+        "initializing bridge withdrawer"
     );
 
     let mut sigterm = signal(SignalKind::terminate())
         .expect("setting a SIGTERM listener should always work on Unix");
-    let (withdrawer, shutdown_handle) = match BridgeWithdrawer::new(cfg, metrics) {
+    let (withdrawer, shutdown_handle) = match BridgeWithdrawer::new(cfg, metrics).await {
         Err(error) => {
             error!(%error, "failed initializing bridge withdrawer");
             return ExitCode::FAILURE;

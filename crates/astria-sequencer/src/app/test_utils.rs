@@ -1,35 +1,35 @@
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 use astria_core::{
     crypto::SigningKey,
     primitive::v1::RollupId,
-    protocol::{
-        genesis::v1::GenesisAppState,
-        transaction::v1::{
-            action::{
-                group::Group,
-                FeeAssetChange,
-                InitBridgeAccount,
-                RollupDataSubmission,
-                SudoAddressChange,
-                ValidatorUpdate,
-            },
-            Action,
-            Transaction,
-            TransactionBody,
+    protocol::transaction::v1::{
+        action::{
+            group::Group,
+            FeeAssetChange,
+            InitBridgeAccount,
+            RollupDataSubmission,
+            SudoAddressChange,
         },
+        Action,
+        Transaction,
+        TransactionBody,
     },
+    sequencerblock::v1::{
+        block::Deposit,
+        DataItem,
+    },
+    Protobuf,
 };
 use bytes::Bytes;
 
 use crate::{
-    app::{
-        benchmark_and_test_utils::{
-            denom_0,
-            initialize_app_with_storage,
-            JUDY_ADDRESS,
-        },
-        App,
+    app::benchmark_and_test_utils::{
+        denom_0,
+        JUDY_ADDRESS,
     },
     benchmark_and_test_utils::astria_address_from_hex_string,
 };
@@ -45,7 +45,7 @@ pub(crate) fn get_alice_signing_key() -> SigningKey {
 }
 
 pub(crate) fn get_bob_signing_key() -> SigningKey {
-    // this secret key corresponds to ALICE_ADDRESS
+    // this secret key corresponds to BOB_ADDRESS
     let bob_secret_bytes: [u8; 32] =
         hex::decode("b70fd3b99cab2d98dbd73602deb026b9cdc9bb7b85d35f0bbb81b17c78923dd0")
             .unwrap()
@@ -55,7 +55,7 @@ pub(crate) fn get_bob_signing_key() -> SigningKey {
 }
 
 pub(crate) fn get_carol_signing_key() -> SigningKey {
-    // this secret key corresponds to ALICE_ADDRESS
+    // this secret key corresponds to CAROL_ADDRESS
     let carol_secret_bytes: [u8; 32] =
         hex::decode("0e951afdcbefc420fe6f71b82b0c28c11eb6ee5d95be0886ce9dbf6fa512debc")
             .unwrap()
@@ -65,7 +65,7 @@ pub(crate) fn get_carol_signing_key() -> SigningKey {
 }
 
 pub(crate) fn get_judy_signing_key() -> SigningKey {
-    // this secret key corresponds to ALICE_ADDRESS
+    // this secret key corresponds to JUDY_ADDRESS
     let judy_secret_bytes: [u8; 32] =
         hex::decode("3b2a05a2168952a102dcc07f39b9e385a45b9c2a9b6e3d06acf46fb39fd14019")
             .unwrap()
@@ -81,14 +81,6 @@ pub(crate) fn get_bridge_signing_key() -> SigningKey {
             .try_into()
             .unwrap();
     SigningKey::from(bridge_secret_bytes)
-}
-
-pub(crate) async fn initialize_app(
-    genesis_state: Option<GenesisAppState>,
-    genesis_validators: Vec<ValidatorUpdate>,
-) -> App {
-    let (app, _storage) = initialize_app_with_storage(genesis_state, genesis_validators).await;
-    app
 }
 
 pub(crate) struct MockTxBuilder {
@@ -175,4 +167,34 @@ impl MockTxBuilder {
 
         Arc::new(tx.sign(&self.signer))
     }
+}
+
+pub(crate) fn transactions_with_extended_commit_info_and_commitments(
+    block_height: tendermint::block::Height,
+    txs: &[Arc<Transaction>],
+    deposits: Option<HashMap<RollupId, Vec<Deposit>>>,
+) -> Vec<Bytes> {
+    use astria_core::protocol::price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping;
+    use prost::Message as _;
+
+    use crate::proposal::commitment::generate_rollup_datas_commitment;
+
+    // If vote extensions are enabled at block height 1 (the minimum possible), then the first
+    // block to include extended commit info is at height 2.
+    assert!(
+        block_height > tendermint::block::Height::from(1_u8),
+        "extended commit info can only be applied to block height 2 or greater"
+    );
+
+    let extended_commit_info = ExtendedCommitInfoWithCurrencyPairMapping::empty(0u16.into());
+    let encoded_extended_commit_info =
+        DataItem::ExtendedCommitInfo(extended_commit_info.into_raw().encode_to_vec().into())
+            .encode();
+    let commitments = generate_rollup_datas_commitment::<true>(txs, deposits.unwrap_or_default());
+    let txs_with_commit_info: Vec<Bytes> = commitments
+        .into_iter()
+        .chain(std::iter::once(encoded_extended_commit_info))
+        .chain(txs.iter().map(|tx| tx.to_raw().encode_to_vec().into()))
+        .collect();
+    txs_with_commit_info
 }
