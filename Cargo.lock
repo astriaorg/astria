@@ -499,6 +499,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "astria-account-monitor"
+version = "0.1.0"
+dependencies = [
+ "astria-build-info",
+ "astria-config",
+ "astria-core",
+ "astria-eyre",
+ "astria-sequencer-client",
+ "astria-telemetry",
+ "futures",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-util",
+ "tonic",
+ "tracing",
+]
+
+[[package]]
 name = "astria-auctioneer"
 version = "0.0.1"
 dependencies = [
