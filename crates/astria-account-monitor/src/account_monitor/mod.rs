@@ -5,8 +5,8 @@ use std::{
 
 use astria_core::{
     primitive::v1::{
-        Address,
         asset::Denom,
+        Address,
     },
     protocol::account::v1::AssetBalance,
 };
@@ -16,12 +16,12 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use sequencer_client::{
+    tendermint::{
+        hash::Algorithm,
+        Hash,
+    },
     Client,
     SequencerClientExt as _,
-    tendermint::{
-        Hash,
-        hash::Algorithm,
-    },
 };
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
@@ -48,6 +48,15 @@ pub struct AccountMonitor {
 }
 
 impl AccountMonitor {
+    /// Instantiates a new `Service`.
+    ///
+    /// # Errors
+    ///
+    /// - If the provided `sequencer_abci_endpoint` string cannot be contructed to a cometbft http
+    ///   client.
+    /// - If the provided `sequencer_asset` string cannot be parsed to a valid asset.
+    /// - If the provided `sequencer_accounts` string cannot be parsed to a valid address.
+    /// - If the provided `sequencer_bridge_accounts` string cannot be parsed to a valid address.
     pub fn new(cfg: Config, metrics: &'static Metrics) -> eyre::Result<Self> {
         let shutdown_handle = ShutdownHandle::new();
 
@@ -94,8 +103,8 @@ impl AccountMonitor {
             // Wait for the next poll interval
             poll_timer.tick().await;
 
-            for account in self.bridge_accounts.iter() {
-                let account = account.clone();
+            for account in &self.bridge_accounts {
+                let account = *account;
                 let last_tx_hash = self
                     .sequencer_abci_client
                     .get_bridge_account_last_transaction_hash(account)
@@ -119,8 +128,8 @@ impl AccountMonitor {
             }
 
             // Process regular accounts
-            for account in self.accounts.iter() {
-                let account = account.clone();
+            for account in &self.accounts {
+                let account = *account;
 
                 // Get latest nonce
                 self.metrics.increment_nonce_fetch_count();
