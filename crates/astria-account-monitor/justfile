@@ -1,0 +1,12 @@
+default:
+  @just --list
+
+set dotenv-load
+set fallback
+
+default_env := 'local'
+copy-env type=default_env:
+  cp {{ type }}.env.example .env
+
+run:
+  cargo run
