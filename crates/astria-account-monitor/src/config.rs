@@ -5,10 +5,6 @@ use serde::{
     Serialize,
 };
 
-#[expect(
-    clippy::struct_excessive_bools,
-    reason = "this is a config, may have many boolean values"
-)]
 #[derive(Debug, Deserialize, Serialize)]
 /// The high-level config for creating an astria-account-monitor service.
 pub struct Config {
