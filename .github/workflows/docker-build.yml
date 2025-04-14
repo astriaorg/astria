@@ -12,6 +12,7 @@ on:
         required: false
         type: choice
         options:
+          - account-monitor
           - auctioneer
           - composer
           - conductor
@@ -134,6 +135,22 @@ jobs:
       binary-name: bridge-withdrawer
       tag: ${{ inputs.tag }}
       force: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'evm-bridge-withdrawer' }}
+    secrets: inherit
+
+  account-monitor:
+    needs: run_checker
+    if: needs.run_checker.outputs.run_docker == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'account-monitor')
+    uses: "./.github/workflows/reusable-docker-build.yml"
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    with:
+      depot-project-id: 83lmw4dm66
+      package-name: account-monitor
+      binary-name: account-monitor
+      tag: ${{ inputs.tag }}
+      force: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'account-monitor' }}
     secrets: inherit
 
   cli:
@@ -383,7 +400,7 @@ jobs:
 
   docker:
     if: ${{ always() && !cancelled() }}
-    needs: [auctioneer, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli, smoke-test, smoke-cli, ibc-bridge-test, ibc-no-native-asset-test, ibc-timeout-refund, upgrade-test]
+    needs: [account-monitor, auctioneer, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli, smoke-test, smoke-cli, ibc-bridge-test, ibc-no-native-asset-test, ibc-timeout-refund, upgrade-test]
     uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}
