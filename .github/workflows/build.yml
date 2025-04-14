@@ -51,9 +51,15 @@ jobs:
       package-name: 'bridge-withdrawer'
       tag: ${{ inputs.tag }}
 
+  account-monitor:
+    uses: './.github/workflows/reusable-build.yml'
+    with:
+      package-name: 'account-monitor'
+      tag: ${{ inputs.tag }}
+
   build:
     if: ${{ always() && !cancelled() }}
-    needs: [cli, composer, conductor, sequencer, relayer, bridge-withdrawer]
+    needs: [cli, composer, conductor, sequencer, relayer, bridge-withdrawer, account-monitor]
     uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}
