@@ -59,7 +59,7 @@ withdrawerEnabled := "true"
 Waits for the rollup to be ready.
 Note: This recipe can also be used to await readiness of `flame-dev-rollup`.
 Usage:
-  $just wait-for-rollup <ROLLUP_NAME> <BRIDGE_WITHDRAWER_ENABLED>
+  just wait-for-rollup <ROLLUP_NAME> <BRIDGE_WITHDRAWER_ENABLED>
   (defaults: 'astria', 'true')
 ")]
 rollup rollupName=defaultRollupName bridgeWithdrawerEnabled=withdrawerEnabled:

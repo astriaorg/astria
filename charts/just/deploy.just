@@ -47,7 +47,7 @@ astria-local namespace=defaultNamespace: (celestia-local namespace) (sequencer)
 [doc("
 Deploys local Celestia instance.
 Usage:
-  $just deploy celestia-local <NAMESPACE> (default: 'astria-dev-cluster')
+  just deploy celestia-local <NAMESPACE> (default: 'astria-dev-cluster')
 ")]
 celestia-local namespace=defaultNamespace: (deploy-chart "celestia-local" namespace)
 
