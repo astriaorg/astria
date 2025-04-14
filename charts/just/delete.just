@@ -175,6 +175,17 @@ smoke-test: delete-celestia-local
   @just delete rollup
 
 
+# Delete FROST Smoke Test
+##########################
+[doc("
+Deletes associated components for running FROST smoke tests (Celestia, Sequencer,
+and EVM rollup).
+")]
+frost-smoke-test: delete-celestia-local
+  @just delete sequencer
+  @just delete bridge-signers
+  @just delete rollup
+
 # Delete IBC Test
 ##################
 [doc("

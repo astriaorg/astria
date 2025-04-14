@@ -284,6 +284,52 @@ smoke-test tag=defaultTag:
   @just deploy::wait-for-rollup
 
 
+# Deploy FROST Smoke Test
+##########################
+[doc("
+Deploys all components necessary for local end-to-end (including rollup and Celestia)
+smoke test using FROST threshold signing and awaits their readiness.
+Usage:
+  $just deploy frost-smoke-test <TAG> (default: '')
+")]
+frost-smoke-test tag=defaultTag:
+  @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
+  @echo "Deploying local celestia instance..." && just deploy::deploy-celestia-local > /dev/null
+  @helm dependency update ../../charts/sequencer > /dev/null
+  @helm dependency update ../../charts/evm-stack > /dev/null
+  @echo "Setting up single astria sequencer..." && helm install \
+    -n astria-validator-single single-sequencer-chart ../../charts/sequencer \
+    -f ../../dev/values/validators/all.yml \
+    -f ../../dev/values/validators/single.yml \
+    {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
+    --create-namespace > /dev/null
+  @echo "Deploying Bridge Signer 'signer1'" && helm install signer1-bridge-signer-chart ../../charts/bridge-signer \
+    -f ../../dev/values/signers/values-all.yaml \
+    -f ../../dev/values/signers/signer1.yaml \
+    -n astria-signer-signer1 --create-namespace \
+    {{ if tag != '' { replace('--set images.bridge-signer.devTag=#', '#', tag) } else { '' } }}
+  @echo "Deploying Bridge Signer 'signer2'" && helm install signer2-bridge-signer-chart ../../charts/bridge-signer \
+    -f ../../dev/values/signers/values-all.yaml \
+    -f ../../dev/values/signers/signer2.yaml \
+    -n astria-signer-signer2 --create-namespace \
+    {{ if tag != '' { replace('--set images.bridge-signer.devTag=#', '#', tag) } else { '' } }}
+  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart ../../charts/evm-stack -f ../../dev/values/rollup/dev.yaml \
+    {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
+    --set blockscout-stack.enabled=false \
+    --set postgresql.enabled=false \
+    --set evm-bridge-withdrawer.config.frostThresholdSigning=true \
+    --set evm-faucet.enabled=false > /dev/null
+  @echo "Deploying Bridge Contracts..." && \
+    source ../../dev/bridge-contracts/frost-smoke-test.env > /dev/null && \
+    forge script ../../crates/astria-bridge-contracts/astric-bridge-contracts/script/AstriaWithdrawer.s.sol:AstriaWithdrawerScript \
+    --rpc-url $RPC_URL --broadcast --sig "deploy()" -vvvv
+  @just deploy::wait-for-celestia-local
+  @just deploy::wait-for-sequencer
+  @just deploy::wait-for-bridge-signer "signer1"
+  @just deploy::wait-for-bridge-signer "signer2"
+  @just deploy::wait-for-rollup
+
+
 # Deploy Smoke CLI
 ###################
 [doc("
@@ -435,6 +481,10 @@ wait-for-celestia-local:
 [private]
 wait-for-bridge-withdrawer:
   @kubectl wait -n astria-dev-cluster deployment evm-bridge-withdrawer-local --for=condition=Available=True --timeout=600s > /dev/null
+
+[private]
+wait-for-bridge-signer name=signerName:
+  @kubectl wait -n astria-signer-{{name}} deployment bridge-signer-{{name}} --for=condition=Available=True --timeout=600s > /dev/null
 
 [private]
 wait-for-ingress-controller:
