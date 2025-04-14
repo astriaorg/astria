@@ -51,7 +51,7 @@ async fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    return match account_monitor.run_until_stopped().await {
+    return match account_monitor.run().await {
         Ok(()) => {
             info!("Account monitor stopped");
             ExitCode::SUCCESS
