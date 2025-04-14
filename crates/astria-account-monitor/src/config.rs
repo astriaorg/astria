@@ -46,9 +46,6 @@ pub struct Config {
 
     /// The endpoint which will be listened on for serving prometheus metrics
     pub metrics_http_listener_addr: String,
-
-    /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
-    pub pretty_print: bool,
 }
 
 impl config::Config for Config {
@@ -56,6 +53,11 @@ impl config::Config for Config {
 }
 
 impl Config {
+    /// Returns Address from a string.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if parsing fails.
     pub fn parse_account(&self, account: &str) -> eyre::Result<Address> {
         let address = account
             .parse()
@@ -63,6 +65,11 @@ impl Config {
         Ok(address)
     }
 
+    /// Returns a list of addresses from a comma-separated string.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if parsing any of the addresses fails.
     pub fn parse_accounts(&self) -> eyre::Result<Vec<Address>> {
         let accounts = self
             .sequencer_accounts
@@ -72,6 +79,11 @@ impl Config {
         Ok(accounts)
     }
 
+    /// Returns a list of addresses from a comma-separated string.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if parsing any of the addresses fails.
     pub fn parse_bridge_accounts(&self) -> eyre::Result<Vec<Address>> {
         let accounts = self
             .sequencer_bridge_accounts

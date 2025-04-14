@@ -88,7 +88,11 @@ impl AccountMonitor {
         })
     }
 
-    pub async fn run_until_stopped(&self) -> eyre::Result<()> {
+    /// Run the query loop, polling the sequencer for accounts information.
+    ///
+    /// # Errors
+    /// An error is returned if bridge last transaction height is not found.
+    pub async fn run(&self) -> eyre::Result<()> {
         info!("starting account monitor");
 
         let mut poll_timer = interval(self.interval);
