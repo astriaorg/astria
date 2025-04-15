@@ -1581,12 +1581,10 @@ impl App {
     /// `request::FinalizeBlock`.
     ///
     /// This behavior was introduced in `Aspen`.  If `Aspen` is not included in the upgrades
-    /// files, the assumption is that this network uses `DataItem`s from genesis onwards.
+    /// files, the assumption is that this network does not use `DataItem`s from genesis onwards.
     ///
-    /// Returns `true` if and only if:
-    /// - `Aspen` is in upgrades and `block_height` is greater than or equal to its activation
-    ///   height, or
-    /// - `Aspen` is not in upgrades.
+    /// Returns `true` if and only if `Aspen` is in upgrades and `block_height` is greater than or
+    /// equal to its activation height.
     fn uses_data_item_enum(&self, block_height: tendermint::block::Height) -> bool {
         self.upgrades_handler
             .upgrades()
