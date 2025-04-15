@@ -23,6 +23,8 @@ use jiff::{
 };
 use serde_json::Value;
 
+const TIMEOUT_DURATION: Duration = Duration::from_secs(5);
+
 #[derive(clap::Args, Debug)]
 pub struct Args {
     /// The URL of the Sequencer node
@@ -32,8 +34,14 @@ pub struct Args {
     #[command(flatten)]
     action: Action,
 
-    /// The number of blocks to use to estimate a mean block time
-    #[arg(long, short = 's', default_value = "43200", value_name = "INTEGER")]
+    /// The number of blocks to use to estimate a mean block time [minimum: 1]
+    #[arg(
+        long,
+        short = 's',
+        default_value = "43200",
+        value_name = "INTEGER",
+        value_parser = clap::value_parser!(u64).range(1..)
+    )]
     sample_size: u64,
 
     /// Print verbose output
@@ -81,9 +89,14 @@ impl Args {
                 .wrap_err("failed to parse block response as UTF-8 string")
         };
 
-        let response = tokio::time::timeout(Duration::from_secs(5), blocking_getter)
+        let response = tokio::time::timeout(TIMEOUT_DURATION, blocking_getter)
             .await
-            .wrap_err("timed out fetching block")??
+            .wrap_err_with(|| {
+                format!(
+                    "failed to fetch block within {}s",
+                    TIMEOUT_DURATION.as_secs_f32()
+                )
+            })??
             .trim()
             .to_string();
         let json_rpc_response: Value = serde_json::from_str(&response)
@@ -123,9 +136,14 @@ impl Args {
                 .wrap_err("failed to parse block response as UTF-8 string")
         };
 
-        let response = tokio::time::timeout(Duration::from_secs(5), blocking_getter)
+        let response = tokio::time::timeout(TIMEOUT_DURATION, blocking_getter)
             .await
-            .wrap_err_with(|| format!("timed out fetching block at height {height}"))??
+            .wrap_err_with(|| {
+                format!(
+                    "failed to fetch block at height {height} within {}s",
+                    TIMEOUT_DURATION.as_secs_f32()
+                )
+            })??
             .trim()
             .to_string();
         let json_rpc_response: Value = serde_json::from_str(&response)
@@ -157,9 +175,14 @@ impl Args {
                 .wrap_err("failed to parse status response as UTF-8 string")
         };
 
-        let response = tokio::time::timeout(Duration::from_secs(5), blocking_getter)
+        let response = tokio::time::timeout(TIMEOUT_DURATION, blocking_getter)
             .await
-            .wrap_err("timed out fetching status")??
+            .wrap_err_with(|| {
+                format!(
+                    "failed to fetch status within {}s",
+                    TIMEOUT_DURATION.as_secs_f32()
+                )
+            })??
             .trim()
             .to_string();
         let json_rpc_response: Value = serde_json::from_str(&response)
