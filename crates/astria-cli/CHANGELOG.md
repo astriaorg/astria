@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add `fee-assets` subcommand to `sequencer` CLI [#1816](https://github.com/astriaorg/astria/pull/1816).
+- Add option `--withdrawer-address <ADDRESS>` to `init-bridge-account` subcommand
+[#2055](https://github.com/astriaorg/astria/pull/2055).
 
 ### Changed
 

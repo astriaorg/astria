@@ -1,3 +1,5 @@
+set allow-duplicate-recipes
+
 import 'defaults.just'
 
 
@@ -20,7 +22,14 @@ _default_deploy:
 Deploys cluster, ingress controller, and entire Astria stack, including rollup with
 Astrotrek and sequencer faucet.
 ")]
-all: cluster ingress-controller astria-local astrotrek (deploy-chart "sequencer-faucet") rollup
+all:
+  @just deploy cluster
+  @just deploy ingress-controller
+  @just wait-for ingress-controller
+  @just deploy astria-local
+  @just deploy astrotrek
+  @just deploy::deploy-chart "sequencer-faucet"
+  @just deploy rollup
 
 
 # Deploy Astria Local
@@ -30,7 +39,17 @@ Deploys local Sequencer and Celestia instance.
 Usage:
   just deploy astria-local <NAMESPACE> (default: 'astria-dev-cluster')
 ")]
-astria-local namespace=defaultNamespace: (deploy-chart "celestia-local" namespace) (sequencer)
+astria-local namespace=defaultNamespace: (celestia-local namespace) (sequencer)
+
+
+# Deploy local Celestia instance
+#################################
+[doc("
+Deploys local Celestia instance.
+Usage:
+  just deploy celestia-local <NAMESPACE> (default: 'astria-dev-cluster')
+")]
+celestia-local namespace=defaultNamespace: (deploy-chart "celestia-local" namespace)
 
 
 # Deploy Cluster
@@ -65,13 +84,11 @@ local-metrics:
 # Deploy Ingress Controller
 ############################
 [doc("
-Deploys an ingress controller and awaits its readiness.
+Deploys an ingress controller.
 ")]
 ingress-controller:
   @echo "Deploying ingress controller..."
   @kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml > /dev/null
-  @echo "Waiting for ingress controller to be ready..."
-  @just deploy::wait-for-ingress-controller
 
 
 # Deploy Graph Node
@@ -98,7 +115,7 @@ secrets-store:
 # Deploy Sequencer
 ###################
 [doc("
-Deploys a local Sequencer node from 'dev/values/validators' and awaits its readiness.
+Deploys a local Sequencer node from 'dev/values/validators'.
 Usage:
   just deploy sequencer <NAME> (default: 'single')
 ")]
@@ -110,8 +127,6 @@ sequencer name=validatorName:
     -f dev/values/validators/{{name}}.yml \
     -n astria-validator-{{name}} --create-namespace \
     {{name}}-sequencer-chart charts/sequencer
-  @echo "Waiting for sequencer to become ready..."
-  @just deploy::wait-for-sequencer
 
 
 # Deploy Sequencers
@@ -143,24 +158,22 @@ astrotrek:
 # Deploy Hermes
 ################
 [doc("
-Deploys a local Hermes instance and awaits its readiness.
+Deploys a local Hermes instance.
 ")]
 hermes-local:
   @echo "Deploying Hermes..."
   @helm install hermes-local-chart charts/hermes \
     -n astria-dev-cluster \
     -f dev/values/hermes/local.yaml
-  @echo "Waiting for Hermes to become ready..."
-  @just deploy::wait-for-hermes
 
 
 # Deploy Rollup
 ################
 [doc("
 Deploys a geth rollup chain + faucet + blockscout + ingress with defaults running
-against local network, along with a bridge withdawer. Then, waits for the rollup
-to be ready. Local Sequencer and Celestia networks must be running before deploying
-the rollup.
+against local network, along with a bridge withdawer. Local Sequencer and Celestia
+networks must be running before deploying the rollup (both can be deployed with
+`just deploy astria-local`).
 Note: default values file can be found in `helm/rollup/values.yaml`
 Usage:
   just deploy rollup <ROLLUP_NAME> <NETWORK_ID> (defaults: 'astria', '')
@@ -173,15 +186,13 @@ rollup rollupName=defaultRollupName networkId=defaultNetworkId:
     {{ if networkId != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
     -f dev/values/rollup/dev.yaml \
     {{rollupName}}-chain-chart charts/evm-stack --namespace astria-dev-cluster
-  @echo "Waiting for rollup to become ready..."
-  @just deploy::wait-for-rollup {{rollupName}}
 
 
 # Deploy Flame Dev Rollup
 ##########################
 [doc("
-Deploys local Flame instance and awaits its readiness. Local Sequencer and Celestia
-networks must be running before deploying the rollup.
+Deploys local Flame instance. Local Sequencer and Celestia networks must be running
+before deploying the rollup.
 Usage:
   just deploy flame-dev-rollup <ROLLUP_NAME> <NETWORK_ID> (defaults: 'astria', '')
 ")]
@@ -193,8 +204,6 @@ flame-dev-rollup rollupName=defaultRollupName networkId=defaultNetworkId:
     {{ if networkId != '' { replace('--set config.rollup.networkId=#', '#', networkId) } else { '' } }} \
     -f dev/values/rollup/flame-dev.yaml \
     {{rollupName}}-chain-chart charts/evm-stack --namespace astria-dev-cluster
-  @echo "Waiting for rollup to become ready..."
-  @just deploy::wait-for-rollup {{rollupName}}
 
 
 # FIXME: This deployment currently fails
@@ -214,15 +223,13 @@ auctioneer:
 # Deploy EVM Bridge Withdrawer
 ###############################
 [doc("
-Deploys local EVM Bridge Withdrawer and awaits its readiness.
+Deploys local EVM Bridge Withdrawer.
 ")]
 bridge-withdrawer:
   @echo "Deploying bridge-withdrawer..."
   @helm install evm-bridge-withdrawer-chart charts/evm-bridge-withdrawer \
     --namespace astria-dev-cluster \
     -f dev/values/withdrawer/values.yaml
-  @echo "Waiting for bridge-withdrawer to become ready..."
-  @just deploy::wait-for-bridge-withdrawer
 
 
 # FIXME: This deployment currently fails
@@ -253,7 +260,8 @@ Usage:
 ")]
 smoke-test tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
-  @echo "Deploying local celestia instance..." && just deploy::deploy-celestia-local > /dev/null
+  @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
+  @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
   @helm dependency update charts/sequencer > /dev/null
   @helm dependency update charts/evm-stack > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
@@ -262,13 +270,14 @@ smoke-test tag=defaultTag:
     -f dev/values/validators/single.yml \
     {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
-  @just deploy::wait-for-sequencer
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart charts/evm-stack -f dev/values/rollup/dev.yaml \
     {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
     --set blockscout-stack.enabled=false \
     --set postgresql.enabled=false \
     --set evm-faucet.enabled=false > /dev/null
-  @just deploy::wait-for-rollup
+  @just wait-for celestia-local
+  @just wait-for sequencer
+  @just wait-for rollup
 
 
 # Deploy Smoke CLI
@@ -281,7 +290,8 @@ Usage:
 ")]
 smoke-cli tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
-  @echo "Deploying local celestia instance..." && just deploy::deploy-celestia-local > /dev/null
+  @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
+  @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
   @helm dependency update charts/sequencer > /dev/null
   @helm dependency update charts/evm-stack > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
@@ -290,14 +300,15 @@ smoke-cli tag=defaultTag:
     -f dev/values/validators/single.yml \
     {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
-  @just deploy::wait-for-sequencer
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart charts/evm-stack -f dev/values/rollup/dev.yaml \
-      {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=#', '#', tag) } else { '' } }} \
-      --set blockscout-stack.enabled=false \
-      --set postgresql.enabled=false \
-      --set evm-bridge-withdrawer.enabled=false \
-      --set evm-faucet.enabled=false > /dev/null
-  @just deploy::wait-for-rollup {{defaultRollupName}} "false"
+    {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=#', '#', tag) } else { '' } }} \
+    --set blockscout-stack.enabled=false \
+    --set postgresql.enabled=false \
+    --set evm-bridge-withdrawer.enabled=false \
+    --set evm-faucet.enabled=false > /dev/null
+  @just wait-for celestia-local
+  @just wait-for sequencer
+  @just wait-for rollup {{defaultRollupName}} "false"
   @sleep 10
 
 
@@ -311,7 +322,8 @@ Usage:
 ")]
 ibc-test tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
-  @echo "Deploying local celestia instance..." && just deploy::deploy-celestia-local > /dev/null
+  @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
+  @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
   @helm dependency update charts/sequencer > /dev/null
   @helm dependency update charts/evm-stack > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
@@ -328,8 +340,10 @@ ibc-test tag=defaultTag:
     --set postgresql.enabled=false \
     --set evm-faucet.enabled=false > /dev/null
   @echo "Deploying Hermes..." && just deploy hermes-local > /dev/null
-  @just deploy::wait-for-sequencer
-  @just deploy::wait-for-rollup
+  @just wait-for celestia-local
+  @just wait-for sequencer
+  @just wait-for rollup
+  @just wait-for hermes-local
 
 
 # Deploy IBC Test Without Native Asset
@@ -342,6 +356,7 @@ Usage:
 ")]
 ibc-test-without-native tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
+  @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
   @echo "Deploying local celestia instance..."
   @helm install celestia-local-chart charts/celestia-local --namespace {{defaultNamespace}} --set fast=true --create-namespace  > /dev/null
   @helm dependency update charts/sequencer > /dev/null
@@ -353,7 +368,9 @@ ibc-test-without-native tag=defaultTag:
     --create-namespace > /dev/null
   @echo "Deploying Hermes..."
   @just deploy hermes-local > /dev/null
-  @just deploy::wait-for-sequencer
+  @just wait-for celestia-local
+  @just wait-for sequencer
+  @just wait-for hermes-local
 
 
 # Deploy IBC Test Timeout Refund
@@ -366,6 +383,7 @@ Usage:
 ")]
 ibc-test-timeout-refund tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
+  @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." > /dev/null
   @helm install celestia-local-chart charts/celestia-local --namespace {{defaultNamespace}} --set fast=true --create-namespace  > /dev/null
   @helm dependency update charts/sequencer > /dev/null
@@ -386,8 +404,10 @@ ibc-test-timeout-refund tag=defaultTag:
     --set evm-faucet.enabled=false > /dev/null
   @echo "Deploying Hermes..."
   @just deploy hermes-local > /dev/null
-  @just deploy::wait-for-sequencer
-  @just deploy::wait-for-rollup {{defaultRollupName}} "false"
+  @just wait-for celestia-local
+  @just wait-for sequencer
+  @just wait-for rollup {{defaultRollupName}} "false"
+  @just wait-for hermes-local
 
 
 # Generate System-Test Protos
@@ -407,8 +427,9 @@ Deploys all components necessary for running the sequencer upgrade test in the
 ")]
 upgrade-test: generate-system-test-protos
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
-  @echo "Deploying local celestia instance..." && just deploy::deploy-celestia-local > /dev/null
-  @just deploy::wait-for-celestia-local
+  @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
+  @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
+  @just wait-for celestia-local
 
 
 #####################
@@ -422,34 +443,3 @@ deploy-chart chart namespace=defaultNamespace:
 [private]
 helm-add-if-not-exist repo url:
   @helm repo list | grep -q {{repo}} || helm repo add {{repo}} {{url}}
-
-[private]
-deploy-celestia-local namespace=defaultNamespace: (deploy-chart "celestia-local" namespace)
-
-withdrawerEnabled := "true"
-[private]
-wait-for-rollup rollupName=defaultRollupName bridgeWithdrawerEnabled=withdrawerEnabled:
-  @kubectl rollout status --watch statefulset/{{rollupName}}-geth -n astria-dev-cluster --timeout=600s > /dev/null
-  {{ if bridgeWithdrawerEnabled == "true" { 'just deploy::wait-for-bridge-withdrawer' } else { '' } }}
-
-[private]
-wait-for-sequencer: wait-for-celestia-local
-  @kubectl rollout status --watch statefulset/sequencer -n astria-dev-cluster --timeout=600s > /dev/null
-
-[private]
-wait-for-celestia-local:
-  @kubectl rollout status --watch statefulset/celestia-local -n astria-dev-cluster --timeout=600s > /dev/null
-
-[private]
-wait-for-bridge-withdrawer:
-  @kubectl wait -n astria-dev-cluster deployment evm-bridge-withdrawer-local --for=condition=Available=True --timeout=600s > /dev/null
-
-[private]
-wait-for-ingress-controller:
-  @while ! kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=600s; do \
-    sleep 1; \
-  done
-
-[private]
-wait-for-hermes:
-  @kubectl wait -n astria-dev-cluster deployment hermes-local-chart --for=condition=Available=True --timeout=480s
