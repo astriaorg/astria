@@ -329,10 +329,11 @@ frost-smoke-test tag=defaultTag:
   just wait-for rollup-transaction-index
   cd crates/astria-bridge-contracts/astria-bridge-contracts && \
     cp ../../../dev/bridge-contracts/frost-smoke-test/deploy.env.template .env && \
-    source .env && \
+    . .env && \
     echo "Deploying Bridge Contract..." && forge script script/AstriaWithdrawer.s.sol:AstriaWithdrawerScript \
       --rpc-url {{eth_rpc_url}} --gas-price 10000000000000000 --broadcast --sig "deploy()" -vvvv > /dev/null
-  rm crates/astria-bridge-contracts/astria-bridge-contracts/.env
+  # Remove the .env file and go back to the original directory
+  rm .env && cd ../../..
   echo "Deploying Bridge Signer 'signer1'" && helm install signer1-bridge-signer-chart charts/bridge-signer \
     -f dev/values/signers/values-all.yaml \
     -f dev/values/signers/signer1.yaml \
