@@ -309,44 +309,45 @@ Usage:
   $just deploy frost-smoke-test <TAG> (default: '')
 ")]
 frost-smoke-test tag=defaultTag:
-  @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
-  @just wait-for ingress-controller
-  @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
-  @helm dependency update charts/sequencer > /dev/null
-  @helm dependency update charts/evm-stack > /dev/null
-  @echo "Setting up single astria sequencer..." && helm install \
+  #!/usr/bin/env bash
+  echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
+  just wait-for ingress-controller > /dev/null
+  echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
+  helm dependency update charts/sequencer > /dev/null
+  helm dependency update charts/evm-stack > /dev/null
+  echo "Setting up single astria sequencer..." && helm install \
     -n astria-validator-single single-sequencer-chart charts/sequencer \
     -f dev/values/validators/all.yml \
     -f dev/values/validators/single.yml \
     {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
-  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart charts/evm-stack \
+  echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart charts/evm-stack \
     -f dev/values/rollup/dev.yaml \
     -f dev/values/rollup/frost-smoke-test.yaml \
     {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} > /dev/null
-  @just wait-for rollup {{defaultRollupName}} "false"
-  @just wait-for rollup-transaction-index
-  @cd crates/astria-bridge-contracts/astria-bridge-contracts && \
+  just wait-for rollup {{defaultRollupName}} "false"
+  just wait-for rollup-transaction-index
+  cd crates/astria-bridge-contracts/astria-bridge-contracts && \
     cp ../../../dev/bridge-contracts/frost-smoke-test/deploy.env.template .env && \
-    . .env && \
+    source .env && \
     echo "Deploying Bridge Contract..." && forge script script/AstriaWithdrawer.s.sol:AstriaWithdrawerScript \
       --rpc-url {{eth_rpc_url}} --gas-price 10000000000000000 --broadcast --sig "deploy()" -vvvv > /dev/null
-  @rm crates/astria-bridge-contracts/astria-bridge-contracts/.env
-  @echo "Deploying Bridge Signer 'signer1'" && helm install signer1-bridge-signer-chart charts/bridge-signer \
+  rm crates/astria-bridge-contracts/astria-bridge-contracts/.env
+  echo "Deploying Bridge Signer 'signer1'" && helm install signer1-bridge-signer-chart charts/bridge-signer \
     -f dev/values/signers/values-all.yaml \
     -f dev/values/signers/signer1.yaml \
     -n astria-signer-signer1 --create-namespace \
     {{ if tag != '' { replace('--set images.bridge-signer.devTag=#', '#', tag) } else { '' } }} > /dev/null
-  @echo "Deploying Bridge Signer 'signer2'" && helm install signer2-bridge-signer-chart charts/bridge-signer \
+  echo "Deploying Bridge Signer 'signer2'" && helm install signer2-bridge-signer-chart charts/bridge-signer \
     -f dev/values/signers/values-all.yaml \
     -f dev/values/signers/signer2.yaml \
     -n astria-signer-signer2 --create-namespace \
     {{ if tag != '' { replace('--set images.bridge-signer.devTag=#', '#', tag) } else { '' } }} > /dev/null
-  @just wait-for celestia-local
-  @just wait-for sequencer
-  @just wait-for bridge-signer "signer1"
-  @just wait-for bridge-signer "signer2"
-  @just wait-for bridge-withdrawer
+  just wait-for celestia-local
+  just wait-for sequencer
+  just wait-for bridge-signer "signer1"
+  just wait-for bridge-signer "signer2"
+  just wait-for bridge-withdrawer
 
 
 # Deploy Smoke CLI
