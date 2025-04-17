@@ -567,7 +567,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
- "tonic 0.10.2",
+ "tonic",
  "tracing",
 ]
 
