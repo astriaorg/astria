@@ -39,10 +39,7 @@ use tracing::{
 };
 
 use crate::{
-    api::{
-        self,
-        ApiServer,
-    },
+    api,
     collectors,
     collectors::geth,
     composer,
@@ -65,7 +62,10 @@ const GETH_COLLECTOR_SHUTDOWN_DURATION: Duration = Duration::from_secs(5);
 /// at the same time funneling data from multiple rollup nodes.
 pub struct Composer {
     /// used for monitoring the status of the Composer service.
-    api_server: ApiServer,
+    api: api::Serve,
+    /// A token separate from the `shutdown_token` to ensure the
+    /// API server shuts down last.
+    api_shutdown_token: CancellationToken,
     /// used to announce the current status of the Composer for other
     /// modules in the crate to use.
     composer_status_sender: watch::Sender<composer::Status>,
@@ -158,10 +158,17 @@ impl Composer {
             "gRPC server listening"
         );
 
-        let api_server = api::start(cfg.api_listen_addr, composer_status_sender.subscribe());
+        let api_shutdown_token = CancellationToken::new();
+        let api = api::serve(
+            cfg.api_listen_addr,
+            composer_status_sender.subscribe(),
+            api_shutdown_token.clone(),
+        )
+        .await
+        .wrap_err("failed to start API server")?;
 
         info!(
-            listen_addr = %api_server.local_addr(),
+            listen_addr = %api.local_addr(),
             "API server listening"
         );
 
@@ -188,7 +195,8 @@ impl Composer {
                 .collect();
 
         Ok(Self {
-            api_server,
+            api,
+            api_shutdown_token,
             composer_status_sender,
             executor_handle,
             executor,
@@ -205,7 +213,7 @@ impl Composer {
 
     /// Returns the socket address the api server is served over
     pub fn local_addr(&self) -> SocketAddr {
-        self.api_server.local_addr()
+        self.api.local_addr()
     }
 
     /// Returns the socket address the grpc server is served over
@@ -229,7 +237,8 @@ impl Composer {
     )]
     pub async fn run_until_stopped(self) -> eyre::Result<()> {
         let Self {
-            api_server,
+            api,
+            api_shutdown_token,
             composer_status_sender,
             executor,
             executor_handle,
@@ -245,18 +254,8 @@ impl Composer {
 
         let mut exit_err: OnceCell<eyre::Report> = OnceCell::new();
 
-        // we need the API server to shutdown at the end, since it is used by k8s
-        // to report the liveness of the service
-        let api_server_shutdown_token = CancellationToken::new();
-
-        let api_server_task_shutdown_token = api_server_shutdown_token.clone();
-        // run the api server
-        let mut api_task = tokio::spawn(async move {
-            api_server
-                .with_graceful_shutdown(api_server_task_shutdown_token.cancelled())
-                .await
-                .wrap_err("api server ended unexpectedly")
-        });
+        let mut api_task =
+            tokio::spawn(async move { api.await.wrap_err("API server exited with error") });
 
         // run the collectors and executor
         spawn_geth_collectors(&mut geth_collectors, &mut geth_collector_tasks);
@@ -296,9 +295,9 @@ impl Composer {
             _ = sigterm.recv() => {
                     info!("received SIGTERM; shutting down");
                     break ShutdownInfo {
-                        api_server_shutdown_token,
+                        api_shutdown_token,
                         composer_shutdown_token: shutdown_token,
-                        api_server_task_handle: Some(api_task),
+                        api_task_handle: Some(api_task),
                         executor_task_handle: Some(executor_task),
                         grpc_server_task_handle: Some(grpc_server_handle),
                         geth_collector_tasks,
@@ -307,9 +306,9 @@ impl Composer {
             o = &mut api_task => {
                     report_exit("api server unexpectedly ended", o, &exit_err);
                     break ShutdownInfo {
-                        api_server_shutdown_token,
+                        api_shutdown_token,
                         composer_shutdown_token: shutdown_token,
-                        api_server_task_handle: None,
+                        api_task_handle: None,
                         executor_task_handle: Some(executor_task),
                         grpc_server_task_handle: Some(grpc_server_handle),
                         geth_collector_tasks,
@@ -318,9 +317,9 @@ impl Composer {
             o = &mut executor_task => {
                     report_exit("executor unexpectedly ended", o, &exit_err);
                     break ShutdownInfo {
-                        api_server_shutdown_token,
+                        api_shutdown_token,
                         composer_shutdown_token: shutdown_token,
-                        api_server_task_handle: Some(api_task),
+                        api_task_handle: Some(api_task),
                         executor_task_handle: None,
                         grpc_server_task_handle: Some(grpc_server_handle),
                         geth_collector_tasks,
@@ -329,9 +328,9 @@ impl Composer {
             o = &mut grpc_server_handle => {
                     report_exit("grpc server unexpectedly ended", o, &exit_err);
                     break ShutdownInfo {
-                        api_server_shutdown_token,
+                        api_shutdown_token,
                         composer_shutdown_token: shutdown_token,
-                        api_server_task_handle: Some(api_task),
+                        api_task_handle: Some(api_task),
                         executor_task_handle: Some(executor_task),
                         grpc_server_task_handle: None,
                         geth_collector_tasks,
@@ -369,9 +368,9 @@ impl Composer {
 }
 
 struct ShutdownInfo {
-    api_server_shutdown_token: CancellationToken,
+    api_shutdown_token: CancellationToken,
     composer_shutdown_token: CancellationToken,
-    api_server_task_handle: Option<JoinHandle<eyre::Result<()>>>,
+    api_task_handle: Option<JoinHandle<eyre::Result<()>>>,
     executor_task_handle: Option<JoinHandle<eyre::Result<()>>>,
     grpc_server_task_handle: Option<JoinHandle<eyre::Result<()>>>,
     geth_collector_tasks: JoinMap<String, eyre::Result<()>>,
@@ -381,8 +380,8 @@ impl ShutdownInfo {
     async fn run(self) -> eyre::Result<()> {
         let Self {
             composer_shutdown_token,
-            api_server_shutdown_token,
-            api_server_task_handle,
+            api_shutdown_token,
+            api_task_handle,
             executor_task_handle,
             grpc_server_task_handle,
             mut geth_collector_tasks,
@@ -453,9 +452,9 @@ impl ShutdownInfo {
         // cancel the api server at the end
         // we give the api server 2s, since it shouldn't be getting too much traffic and should
         // be able to shut down faster.
-        api_server_shutdown_token.cancel();
-        if let Some(api_server_task_handle) = api_server_task_handle {
-            match tokio::time::timeout(API_SERVER_SHUTDOWN_DURATION, api_server_task_handle)
+        api_shutdown_token.cancel();
+        if let Some(api_task_handle) = api_task_handle {
+            match tokio::time::timeout(API_SERVER_SHUTDOWN_DURATION, api_task_handle)
                 .await
                 .map(flatten_result)
             {

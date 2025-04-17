@@ -34,6 +34,15 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  name: {{ .Values.moniker }}-sequencer-upgrades
+  namespace: {{ include "sequencer.namespace" . }}
+data:
+  upgrades.json: |
+    {{- tpl (.Files.Get (tpl "files/upgrades/{{ .Values.global.network }}.upgrades.json" .)) $ | nindent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
   name: {{ .Values.moniker }}-cometbft-data
   namespace: {{ include "sequencer.namespace" . }}
 data:
@@ -64,7 +73,6 @@ data:
   ASTRIA_SEQUENCER_NO_METRICS: "{{ not .Values.sequencer.metrics.enabled }}"
   ASTRIA_SEQUENCER_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.sequencerMetrics }}"
   ASTRIA_SEQUENCER_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
-  ASTRIA_SEQUENCER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   NO_COLOR: "{{ .Values.global.useTTY }}"
   ASTRIA_SEQUENCER_NO_OTEL: "{{ not .Values.sequencer.otel.enabled }}"
   OTEL_EXPORTER_OTLP_ENDPOINT: "{{ .Values.sequencer.otel.endpoint }}"
@@ -79,6 +87,11 @@ data:
   # variables which are being deleted in the future.
   {{- if not (or .Values.global.dev (ne (include "sequencer.imageTag" .) .Chart.AppVersion)) }}
   # These are variables which are added in newer releases and are not present in the current release.
+  ASTRIA_SEQUENCER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   {{- else }}
+  ASTRIA_SEQUENCER_UPGRADES_FILEPATH: "/sequencer-upgrades/upgrades.json"
+  ASTRIA_SEQUENCER_COMETBFT_RPC_ADDR: "http://127.0.0.1:{{ .Values.ports.cometbftRpc }}"
+  ASTRIA_SEQUENCER_NO_PRICE_FEED: "{{ not .Values.sequencer.priceFeed.enabled }}"
+  ASTRIA_SEQUENCER_PRICE_FEED_GRPC_ADDR: "http://127.0.0.1:{{ .Values.ports.priceFeedGrpc }}"
+  ASTRIA_SEQUENCER_PRICE_FEED_CLIENT_TIMEOUT_MILLISECONDS: "{{ .Values.sequencer.priceFeed.clientTimeout }}"
   {{- end }}
----

@@ -1,4 +1,5 @@
 pub mod asset;
+pub mod i128;
 pub mod u128;
 
 pub use astria_core_address::{

@@ -47,7 +47,7 @@ spec:
       port: {{ .Values.ports.sequencerGrpc }}
       targetPort: sequencer-grpc
 ---
-{{- if .Values.serviceMonitor.enabled }} 
+{{- if .Values.serviceMonitor.enabled }}
 kind: Service
 apiVersion: v1
 metadata:
@@ -66,5 +66,10 @@ spec:
     - name: seq-metric
       port: {{ .Values.ports.sequencerMetrics }}
       targetPort: seq-metric
+    {{- if .Values.sequencer.priceFeed.metrics.enabled }}
+    - name: price-fd-metric
+      port: {{ .Values.ports.priceFeedMetrics }}
+      targetPort: price-fd-metric
+    {{- end }}
     {{- end }}
 {{- end }}
