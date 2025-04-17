@@ -151,10 +151,6 @@ use crate::{
         RemovalReason,
     },
     metrics::Metrics,
-    oracles::price_feed::{
-        market_map::component::MarketMapComponent,
-        oracle::component::OracleComponent,
-    },
     proposal::{
         block_size_constraints::BlockSizeConstraints,
         commitment::generate_rollup_datas_commitment,
@@ -284,7 +280,6 @@ impl App {
         genesis_state: GenesisAppState,
         genesis_validators: Vec<ValidatorUpdate>,
         chain_id: String,
-        consensus_params: tendermint::consensus::Params,
     ) -> Result<AppHash> {
         let mut state_tx = self
             .state
@@ -313,9 +308,6 @@ impl App {
         state_tx
             .put_block_height(0)
             .wrap_err("failed to write block height to state")?;
-        state_tx
-            .put_consensus_params(consensus_params.clone())
-            .wrap_err("failed to write consensus params to state")?;
 
         // call init_chain on all components
         FeesComponent::init_chain(&mut state_tx, &genesis_state)
@@ -336,15 +328,6 @@ impl App {
         IbcComponent::init_chain(&mut state_tx, &genesis_state)
             .await
             .wrap_err("init_chain failed on IbcComponent")?;
-
-        if vote_extensions_enable_height(&consensus_params) != VOTE_EXTENSIONS_DISABLED_HEIGHT {
-            MarketMapComponent::init_chain(&mut state_tx, &genesis_state)
-                .await
-                .wrap_err("init_chain failed on MarketMapComponent")?;
-            OracleComponent::init_chain(&mut state_tx, &genesis_state)
-                .await
-                .wrap_err("init_chain failed on OracleComponent")?;
-        }
 
         state_tx.apply();
 
@@ -1022,6 +1005,7 @@ impl App {
         let upgrade_change_hashes = self
             .upgrades_handler
             .execute_upgrade_if_due(&mut delta_delta, block_data.height)
+            .await
             .wrap_err("failed to execute upgrade")?;
         if upgrade_change_hashes.is_empty() {
             // We need to drop this so there's only one reference to `self.state` left in order to
@@ -1430,12 +1414,6 @@ impl App {
         FeesComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .wrap_err("begin_block failed on FeesComponent")?;
-        MarketMapComponent::begin_block(&mut arc_state_tx, begin_block)
-            .await
-            .wrap_err("begin_block failed on MarketMapComponent")?;
-        OracleComponent::begin_block(&mut arc_state_tx, begin_block)
-            .await
-            .wrap_err("begin_block failed on OracleComponent")?;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1509,12 +1487,6 @@ impl App {
         IbcComponent::end_block(&mut arc_state_tx, &end_block)
             .await
             .wrap_err("end_block failed on IbcComponent")?;
-        MarketMapComponent::end_block(&mut arc_state_tx, &end_block)
-            .await
-            .wrap_err("end_block failed on MarketMapComponent")?;
-        OracleComponent::end_block(&mut arc_state_tx, &end_block)
-            .await
-            .wrap_err("end_block failed on OracleComponent")?;
 
         let mut state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1609,17 +1581,15 @@ impl App {
     /// `request::FinalizeBlock`.
     ///
     /// This behavior was introduced in `Aspen`.  If `Aspen` is not included in the upgrades
-    /// files, the assumption is that this network uses `DataItem`s from genesis onwards.
+    /// files, the assumption is that this network does not use `DataItem`s from genesis onwards.
     ///
-    /// Returns `true` if and only if:
-    /// - `Aspen` is in upgrades and `block_height` is greater than or equal to its activation
-    ///   height, or
-    /// - `Aspen` is not in upgrades.
+    /// Returns `true` if and only if `Aspen` is in upgrades and `block_height` is greater than or
+    /// equal to its activation height.
     fn uses_data_item_enum(&self, block_height: tendermint::block::Height) -> bool {
         self.upgrades_handler
             .upgrades()
             .aspen()
-            .map_or(true, |aspen| {
+            .map_or(false, |aspen| {
                 block_height.value() >= aspen.activation_height()
             })
     }
@@ -1650,6 +1620,11 @@ impl App {
             vote_extensions_enable_height != VOTE_EXTENSIONS_DISABLED_HEIGHT
                 && block_height.value() > vote_extensions_enable_height,
         )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn mempool(&self) -> Mempool {
+        self.mempool.clone()
     }
 }
 

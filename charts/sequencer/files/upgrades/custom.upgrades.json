@@ -7,72 +7,70 @@
       "appVersion": "{{ .baseInfo.appVersion }}"
     },
     "priceFeedChange": {
-      "genesis": {
+      "marketMapGenesis": {
         "marketMap": {
-          "marketMap": {
-          "markets": {
-            {{- range $index, $market := .priceFeed.markets }}
-            {{- if $index }},{{- end }}
-            "{{ $market.name }}": {
-              "providerConfigs": [
-                {{- range $providerIndex, $provider := $market.providerConfigs }}
-                {{- if $providerIndex }},{{- end }}
-                {
-                  "name": "{{ $provider.name }}",
-                  {{- if $provider.normalizeByPair }}
-                  "normalizeByPair": {
-                    "Base": "{{ $provider.normalizeByPair.Base }}",
-                    "Quote": "{{ $provider.normalizeByPair.Quote }}"
-                  },
-                  {{- end }}
-                  "offChainTicker": "{{ $provider.offChainTicker }}"
-                }
-                {{- end }}
-              ],
-              "ticker": {
-                "currencyPair": {
-                  "Base": "{{ $market.ticker.currencyPair.Base }}",
-                  "Quote": "{{ $market.ticker.currencyPair.Quote }}"
+        "markets": {
+          {{- range $index, $market := .priceFeed.markets }}
+          {{- if $index }},{{- end }}
+          "{{ $market.name }}": {
+            "providerConfigs": [
+              {{- range $providerIndex, $provider := $market.providerConfigs }}
+              {{- if $providerIndex }},{{- end }}
+              {
+                "name": "{{ $provider.name }}",
+                {{- if $provider.normalizeByPair }}
+                "normalizeByPair": {
+                  "Base": "{{ $provider.normalizeByPair.Base }}",
+                  "Quote": "{{ $provider.normalizeByPair.Quote }}"
                 },
-                "decimals": "{{ $market.ticker.decimals }}",
-                "enabled": {{ $market.ticker.enabled }},
-                "minProviderCount": "{{ $market.ticker.minProviderCount }}"
+                {{- end }}
+                "offChainTicker": "{{ $provider.offChainTicker }}"
               }
-            }
-            {{- end }}
-          }
-          },
-          "params": {
-            "admin": "{{ .priceFeed.marketAdminAddress }}",
-            "marketAuthorities": [
-              {{- range $index, $authority := .priceFeed.marketAuthorities }}
-              {{- if $index }},{{- end }}
-              "{{ $authority }}"
               {{- end }}
-            ]
-          }
-        },
-        "oracle": {
-          "currencyPairGenesis": [
-            {{- range $index, $genesis := .priceFeed.currencyPairGenesis }}
-            {{- if $index }},{{- end }}
-            {
+            ],
+            "ticker": {
               "currencyPair": {
-                "Base": "{{ $genesis.currencyPair.Base }}",
-                "Quote": "{{ $genesis.currencyPair.Quote }}"
+                "Base": "{{ $market.ticker.currencyPair.Base }}",
+                "Quote": "{{ $market.ticker.currencyPair.Quote }}"
               },
-              "currencyPairPrice": {
-                "blockTimestamp": "{{ $genesis.currencyPairPrice.blockTimestamp }}",
-                "price": "{{ $genesis.currencyPairPrice.price }}"
-              }
-              {{- if $genesis.id }},
-              "id": "{{ $genesis.id }}"
-              {{- end }}
+              "decimals": "{{ $market.ticker.decimals }}",
+              "enabled": {{ $market.ticker.enabled }},
+              "minProviderCount": "{{ $market.ticker.minProviderCount }}"
             }
-            {{- end }}
-          ],
-          "nextId": "{{ .priceFeed.nextId }}"
+          }
+          {{- end }}
         }
+        },
+        "params": {
+          "admin": "{{ .priceFeed.marketAdminAddress }}",
+          "marketAuthorities": [
+            {{- range $index, $authority := .priceFeed.marketAuthorities }}
+            {{- if $index }},{{- end }}
+            "{{ $authority }}"
+            {{- end }}
+          ]
+        }
+      },
+      "oracleGenesis": {
+        "currencyPairGenesis": [
+          {{- range $index, $genesis := .priceFeed.currencyPairGenesis }}
+          {{- if $index }},{{- end }}
+          {
+            "currencyPair": {
+              "Base": "{{ $genesis.currencyPair.Base }}",
+              "Quote": "{{ $genesis.currencyPair.Quote }}"
+            },
+            "currencyPairPrice": {
+              "blockTimestamp": "{{ $genesis.currencyPairPrice.blockTimestamp }}",
+              "price": "{{ $genesis.currencyPairPrice.price }}"
+            }
+            {{- if $genesis.id }},
+            "id": "{{ $genesis.id }}"
+            {{- end }}
+          }
+          {{- end }}
+        ],
+        "nextId": "{{ .priceFeed.nextId }}"
       }
     },
     "validatorUpdateActionChange": {},
