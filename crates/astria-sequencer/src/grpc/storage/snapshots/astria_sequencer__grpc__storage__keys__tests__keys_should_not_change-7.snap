@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/grpc/storage/keys.rs
+expression: extended_commit_info_by_hash(&HASH)
+---
+grpc/extended_commit_info/AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=

@@ -18,6 +18,7 @@ impl serde::Serialize for BaseBlock {
         let mut struct_ser = serializer.serialize_struct("astria.optimistic_execution.v1alpha1.BaseBlock", len)?;
         if !self.sequencer_block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("sequencerBlockHash", pbjson::private::base64::encode(&self.sequencer_block_hash).as_str())?;
         }
         if !self.transactions.is_empty() {
@@ -239,6 +240,7 @@ impl serde::Serialize for ExecuteOptimisticBlockStreamResponse {
         }
         if !self.base_sequencer_block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("baseSequencerBlockHash", pbjson::private::base64::encode(&self.base_sequencer_block_hash).as_str())?;
         }
         struct_ser.end()

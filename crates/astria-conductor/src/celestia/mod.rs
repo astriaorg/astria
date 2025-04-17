@@ -6,6 +6,7 @@ use std::{
 
 use astria_core::{
     primitive::v1::RollupId,
+    protocol::price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
     sequencerblock::v1::block::{
         self,
         SequencerBlockHeader,
@@ -102,6 +103,7 @@ pub(crate) struct ReconstructedBlock {
     pub(crate) block_hash: block::Hash,
     pub(crate) header: SequencerBlockHeader,
     pub(crate) transactions: Vec<Bytes>,
+    pub(crate) extended_commit_info: Option<ExtendedCommitInfoWithCurrencyPairMapping>,
 }
 
 impl ReconstructedBlock {
@@ -219,12 +221,12 @@ impl Reader {
 #[instrument(skip_all, err, ret(Display))]
 async fn get_celestia_chain_id(
     celestia_client: &CelestiaClient,
-) -> eyre::Result<celestia_tendermint::chain::Id> {
+) -> eyre::Result<tendermint::chain::Id> {
     let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
         .exponential_backoff(Duration::from_millis(100))
         .max_delay(Duration::from_secs(20))
         .on_retry(
-            |attempt: u32, next_delay: Option<Duration>, error: &jsonrpsee::core::Error| {
+            |attempt: u32, next_delay: Option<Duration>, error: &jsonrpsee::core::ClientError| {
                 let wait_duration = next_delay
                     .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
