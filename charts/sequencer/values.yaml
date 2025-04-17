@@ -41,7 +41,7 @@ images:
   sequencer:
     repo: ghcr.io/astriaorg/sequencer
     pullPolicy: IfNotPresent
-    tag: local
+    tag: latest
   priceFeed:
     repo: ghcr.io/skip-mev/connect-sidecar
     pullPolicy: IfNotPresent

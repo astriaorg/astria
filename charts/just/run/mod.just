@@ -192,7 +192,7 @@ frost-smoke-test tag=defaultTag:
   # copy env file for calling forge script
   cd crates/astria-bridge-contracts/astria-bridge-contracts
   cp ../../../dev/bridge-contracts/frost-smoke-test/withdraw-to-sequencer.env.template .env
-  source .env
+  . .env
   # send transaction
   FROST_TRANSACTION_HASH=$(forge script script/AstriaWithdrawer.s.sol:AstriaWithdrawerScript \
     --rpc-url "http://executor.astria.localdev.me/"  --json --legacy  --broadcast --sig "withdrawToSequencer()" -vvvv \
