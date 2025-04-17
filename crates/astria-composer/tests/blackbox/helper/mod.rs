@@ -81,7 +81,6 @@ static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
         no_otel: false,
         no_metrics: false,
         metrics_http_listener_addr: String::new(),
-        pretty_print: false,
         grpc_addr: SocketAddr::new(IpAddr::from([0, 0, 0, 0]), 0),
         fee_asset: Denom::IbcPrefixed(IbcPrefixed::new([0; 32])),
     };
@@ -89,9 +88,7 @@ static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
         telemetry::configure()
             .set_no_otel(true)
-            .set_stdout_writer(std::io::stdout)
             .set_force_stdout(true)
-            .set_pretty_print(true)
             .set_filter_directives(&filter_directives)
             .try_init::<Metrics>(&config)
             .unwrap();
@@ -157,7 +154,6 @@ pub async fn spawn_composer(
         force_stdout: false,
         no_metrics: true,
         metrics_http_listener_addr: String::new(),
-        pretty_print: true,
         grpc_addr: "127.0.0.1:0".parse().unwrap(),
         fee_asset: "nria".parse().unwrap(),
     };
@@ -290,6 +286,7 @@ pub async fn mount_matcher_verifying_tx_integrity(
             data: vec![].into(),
             log: String::new(),
             hash: tendermint::Hash::Sha256([0; 32]),
+            codespace: String::new(),
         }),
         None,
     );
@@ -328,6 +325,7 @@ pub async fn mount_broadcast_tx_sync_mock(
             data: vec![].into(),
             log: String::new(),
             hash: tendermint::Hash::Sha256([0; 32]),
+            codespace: String::new(),
         }),
         None,
     );
@@ -358,6 +356,7 @@ pub async fn mount_broadcast_tx_sync_invalid_nonce_mock(
             data: vec![].into(),
             log: String::new(),
             hash: tendermint::Hash::Sha256([0; 32]),
+            codespace: String::new(),
         }),
         None,
     );
@@ -387,6 +386,7 @@ pub async fn mount_broadcast_tx_sync_nonce_taken_mock(
             data: vec![].into(),
             log: String::new(),
             hash: tendermint::Hash::Sha256([0; 32]),
+            codespace: String::new(),
         }),
         None,
     );
@@ -420,6 +420,7 @@ pub async fn mount_broadcast_tx_sync_rollup_data_submissions_mock(
             data: vec![].into(),
             log: String::new(),
             hash: tendermint::Hash::Sha256([0; 32]),
+            codespace: String::new(),
         }),
         None,
     );

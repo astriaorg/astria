@@ -155,7 +155,7 @@ impl raw::NonceResponse {
     /// native [`NonceResponse`] by allocating a new [`v1alpha::NonceResponse`].
     #[must_use]
     pub fn to_native(&self) -> NonceResponse {
-        self.clone().into_native()
+        self.into_native()
     }
 }
 
