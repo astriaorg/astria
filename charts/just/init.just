@@ -15,14 +15,15 @@ _default_init:
 [doc("
 Initializes a bridge account for the given rollup on the Sequencer chain.
 Usage:
-  $just init rollup-bridge <TAG> <ROLLUP_NAME> <EVM_DESTINATION_ADDRESS> <TRANSFER_AMOUNT>
+  $just init rollup-bridge <TAG> <ROLLUP_NAME> <EVM_DESTINATION_ADDRESS> <WITHDRAWER_ADDRESS> <TRANSFER_AMOUNT>
     defaults:
       TAG: ''
       ROLLUP_NAME: 'astria'
       EVM_DESTINATION_ADDRESS: evm_destination_address (see 'defaults.just')
+      WITHDRAWER_ADDRESS: ''
       TRANSFER_AMOUNT: '10'
 ")]
-rollup-bridge tag=defaultTag rollupName=defaultRollupName evmDestinationAddress=evm_destination_address transferAmount=sequencer_transfer_amount:
+rollup-bridge tag=defaultTag rollupName=defaultRollupName evmDestinationAddress=evm_destination_address withdrawerAddress=defaultWithdrawerAddress transferAmount=sequencer_transfer_amount:
   #!/usr/bin/env bash
   set -e
 
@@ -32,12 +33,12 @@ rollup-bridge tag=defaultTag rollupName=defaultRollupName evmDestinationAddress=
   TRANSFER_AMOUNT=$(echo "{{transferAmount}} * {{sequencer_base_amount}}" | bc)
 
   IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
-
   docker run --rm --network host $IMAGE sequencer init-bridge-account \
     --rollup-name {{rollupName}} \
     --private-key {{sequencer_bridge_pkey}} \
     --sequencer.chain-id {{sequencer_chain_id}} \
     --sequencer-url {{sequencer_rpc_url}} \
+    $([ -n "{{withdrawerAddress}}" ] && echo "--withdrawer-address {{withdrawerAddress}}" || echo "") \
     --fee-asset=$FEE_ASSET --asset=$ASSET || exit 1
   docker run --rm --network host $IMAGE sequencer bridge-lock {{sequencer_bridge_address}} \
     --amount $TRANSFER_AMOUNT \

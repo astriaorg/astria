@@ -161,8 +161,15 @@ frost-smoke-test tag=defaultTag:
     exit 1
   fi
 
+  # Transfer balance to withdrawer address for signing bridge unlock
+  docker run --rm --network host $ASTRIA_CLI_IMAGE sequencer transfer {{frost_withdrawer_address}} \
+    --amount 1000000000000 \
+    --private-key "934ab488f9e1900f6a08f50605ce1409ca9d95ebdc400dafc2e8a4306419fd52" \
+    --sequencer.chain-id {{sequencer_chain_id}} \
+    --sequencer-url {{sequencer_rpc_url}} \
+
   echo "Testing Bridge In..."
-  just init rollup-bridge '{{tag}}' '{{defaultRollupName}}' '{{frost_evm_destination_address}}' '{{sequencer_transfer_amount}}'
+  just init rollup-bridge '{{tag}}' '{{defaultRollupName}}' '{{frost_evm_destination_address}}' '{{frost_withdrawer_address}}' '{{sequencer_transfer_amount}}'
   CHECKS=0
   EXPECTED_BALANCE=$(echo "{{sequencer_transfer_amount}} * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
   while (( $CHECKS < $MAX_CHECKS )); do
@@ -183,13 +190,14 @@ frost-smoke-test tag=defaultTag:
 
   echo "Testing Bridge Out..."
   # copy env file for calling forge script
-  cd ../../../crates/astria-bridge-contracts/astria-bridge-contracts
+  cd crates/astria-bridge-contracts/astria-bridge-contracts
   cp ../../../dev/bridge-contracts/frost-smoke-test/withdraw-to-sequencer.env.template .env
   source .env
   # send transaction
   FROST_TRANSACTION_HASH=$(forge script script/AstriaWithdrawer.s.sol:AstriaWithdrawerScript \
     --rpc-url "http://executor.astria.localdev.me/"  --json --legacy  --broadcast --sig "withdrawToSequencer()" -vvvv \
-    | jq -R 'fromjson? | select(has("tx_hash")) | .tx_hash')
+    | jq -R -r 'fromjson? | select(has("tx_hash")) | .tx_hash')
+  echo "EVM Transaction Hash: $FROST_TRANSACTION_HASH"
   # remove newly created env file
   rm .env
   cd ../../../charts/just/run

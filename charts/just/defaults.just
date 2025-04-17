@@ -11,12 +11,15 @@ defaultDockerTag  := "local"
 
 defaultSequencerStartBlock := ""
 
+defaultWithdrawerAddress := ""
+
 defaultHypAgentConfig         := ""
 defaultHypRelayerPrivateKey   := ""
 defaultHypValidatorPrivateKey := ""
 
 evm_destination_address := "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
 frost_evm_destination_address := "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+frost_withdrawer_address := "astria1w2lxx9p02u7u934ljl060wannqm40g3y089lmh"
 eth_rpc_url := "http://executor.astria.localdev.me/"
 
 validatorName             := "single"
