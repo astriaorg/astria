@@ -183,8 +183,8 @@ and EVM rollup).
 ")]
 frost-smoke-test: delete-celestia-local
   @just delete sequencer
-  @just delete bridge-signers
   @just delete rollup
+  @just delete bridge-signers
 
 # Delete IBC Test
 ##################
