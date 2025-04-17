@@ -310,6 +310,7 @@ Usage:
 ")]
 frost-smoke-test tag=defaultTag:
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
+  @just wait-for ingress-controller
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
   @helm dependency update charts/sequencer > /dev/null
   @helm dependency update charts/evm-stack > /dev/null
