@@ -131,7 +131,8 @@ impl ActionHandler for ValidatorUpdate {
 pub(crate) async fn use_pre_aspen_validator_updates<S: StateRead>(state: &S) -> Result<bool> {
     let pre_aspen_upgrade = state
         .get_upgrade_change_info(&Aspen::NAME, &ValidatorUpdateActionChange::NAME)
-        .await?
+        .await
+        .wrap_err("getting upgrade change info for validator update action change failed")?
         .is_none();
     Ok(pre_aspen_upgrade)
 }

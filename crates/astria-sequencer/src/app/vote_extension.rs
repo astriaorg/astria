@@ -62,7 +62,6 @@ use tracing::{
 };
 
 use crate::{
-    action_handler::impls::validator_update::use_pre_aspen_validator_updates,
     address::StateReadExt as _,
     app::state_ext::StateReadExt,
     authority::StateReadExt as _,
@@ -528,26 +527,14 @@ async fn verification_key<S: StateReadExt>(
     state: &S,
     address: &[u8; ADDRESS_LENGTH],
 ) -> Result<VerificationKey> {
-    let verification_key = if use_pre_aspen_validator_updates(state)
+    // Note that there is no check for pre-Aspen upgrade status, since vote extensions are not
+    // enabled pre-Aspen
+    let verification_key = state
+        .get_validator(address)
         .await
-        .wrap_err("failed to determine upgrade status")?
-    {
-        state
-            .pre_aspen_get_validator_set()
-            .await
-            .wrap_err("failed to get validator set")?
-            .get(address)
-            .ok_or_else(|| eyre!("{} not found in validator set", base64(address)))?
-            .to_owned()
-            .verification_key
-    } else {
-        state
-            .get_validator(address)
-            .await
-            .wrap_err("failed to get validator")?
-            .ok_or_else(|| eyre!("{} not found in validators", base64(address)))?
-            .verification_key
-    };
+        .wrap_err("failed to get validator")?
+        .ok_or_else(|| eyre!("{} not found in validators", base64(address)))?
+        .verification_key;
     Ok(verification_key)
 }
 
@@ -684,10 +671,7 @@ mod test {
     use crate::{
         address::StateWriteExt as _,
         app::StateWriteExt as _,
-        authority::{
-            StateWriteExt as _,
-            ValidatorSet,
-        },
+        authority::StateWriteExt as _,
         oracles::price_feed::market_map::state_ext::StateWriteExt as _,
     };
 
@@ -857,24 +841,27 @@ mod test {
             state
                 .put_chain_id_and_revision_number(CHAIN_ID.try_into().unwrap())
                 .unwrap();
-            let validator_set = ValidatorSet::new_from_updates(vec![
-                ValidatorUpdate {
+            state
+                .put_validator(&ValidatorUpdate {
                     power: signer_a.power.into(),
                     verification_key: signer_a.signing_key.verification_key(),
                     name: "signer_a".to_string(),
-                },
-                ValidatorUpdate {
+                })
+                .unwrap();
+            state
+                .put_validator(&ValidatorUpdate {
                     power: signer_b.power.into(),
                     verification_key: signer_b.signing_key.verification_key(),
                     name: "signer_b".to_string(),
-                },
-                ValidatorUpdate {
+                })
+                .unwrap();
+            state
+                .put_validator(&ValidatorUpdate {
                     power: signer_c.power.into(),
                     verification_key: signer_c.signing_key.verification_key(),
                     name: "signer_c".to_string(),
-                },
-            ]);
-            state.pre_aspen_put_validator_set(validator_set).unwrap();
+                })
+                .unwrap();
             state.put_base_prefix("astria".to_string()).unwrap();
 
             let mut market_map = MarketMap {
@@ -1066,7 +1053,7 @@ mod test {
         let extended_commit_info = extended_commit_info(message.round, votes);
         assert_err_contains(
             validate_vote_extensions(&state, height(&message) + 1, &extended_commit_info).await,
-            &["not found in validator set"],
+            &["failed to get verification key for validator"],
         );
     }
 
