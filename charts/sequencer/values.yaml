@@ -61,14 +61,6 @@ genesis:
     base: "astria"
     ibcCompat: "astriacompat"
   authoritySudoAddress: ""
-  priceFeed: {}
-    # markets: []
-    # currencyPairGenesis: []
-    # nextId: ""
-    # marketAdminAddress: "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
-    # marketAuthorities:
-    #  - "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
-    #  - "astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z"
   allowedFeeAssets: []
     # - nria
   ibc:
@@ -89,7 +81,6 @@ genesis:
     maxAgeDuration: "1209600000000000"
     maxAgeNumBlocks: "4000000"
     maxBytes: "1048576"
-    voteExtensionsEnableHeight: "1"
 
   fees:
     feeChange:
@@ -146,7 +137,7 @@ upgrades:
   aspen:
     enabled: false
     # baseInfo:
-    #   activationHeight: 60
+    #   activationHeight: 1
     #   appVersion: 2
     # priceFeed:
     #   nextId: "2"

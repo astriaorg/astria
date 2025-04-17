@@ -17,9 +17,9 @@ use crate::{
         Aspen as RawAspen,
         BaseUpgradeInfo as RawBaseUpgradeInfo,
     },
-    protocol::genesis::v1::{
-        PriceFeedGenesis,
-        PriceFeedGenesisError,
+    oracles::price_feed::{
+        market_map,
+        oracle,
     },
     Protobuf,
 };
@@ -86,12 +86,22 @@ impl Protobuf for Aspen {
             .as_ref()
             .ok_or_else(Error::no_price_feed_change)?;
 
-        let genesis = price_feed_change
-            .genesis
+        let market_map_genesis = price_feed_change
+            .market_map_genesis
             .as_ref()
-            .ok_or_else(Error::no_price_feed_genesis)
+            .ok_or_else(Error::no_price_feed_market_map_genesis)
             .and_then(|raw_genesis| {
-                PriceFeedGenesis::try_from_raw_ref(raw_genesis).map_err(Error::price_feed_genesis)
+                market_map::v2::GenesisState::try_from_raw_ref(raw_genesis)
+                    .map_err(Error::price_feed_market_map_genesis)
+            })?;
+
+        let oracle_genesis = price_feed_change
+            .oracle_genesis
+            .as_ref()
+            .ok_or_else(Error::no_price_feed_oracle_genesis)
+            .and_then(|raw_genesis| {
+                oracle::v2::GenesisState::try_from_raw_ref(raw_genesis)
+                    .map_err(Error::price_feed_oracle_genesis)
             })?;
 
         if raw.validator_update_action_change.is_none() {
@@ -105,7 +115,8 @@ impl Protobuf for Aspen {
         let price_feed_change = PriceFeedChange {
             activation_height,
             app_version,
-            genesis: Arc::new(genesis),
+            market_map_genesis: Arc::new(market_map_genesis),
+            oracle_genesis: Arc::new(oracle_genesis),
         };
 
         let validator_update_action_change = ValidatorUpdateActionChange {
@@ -133,7 +144,8 @@ impl Protobuf for Aspen {
             app_version: self.app_version,
         });
         let price_feed_change = Some(RawPriceFeedChange {
-            genesis: Some(self.price_feed_change.genesis.to_raw()),
+            market_map_genesis: Some(self.price_feed_change.market_map_genesis.to_raw()),
+            oracle_genesis: Some(self.price_feed_change.oracle_genesis.to_raw()),
         });
         RawAspen {
             base_info,
@@ -153,15 +165,21 @@ impl Protobuf for Aspen {
 pub struct PriceFeedChange {
     activation_height: u64,
     app_version: u64,
-    genesis: Arc<PriceFeedGenesis>,
+    market_map_genesis: Arc<market_map::v2::GenesisState>,
+    oracle_genesis: Arc<oracle::v2::GenesisState>,
 }
 
 impl PriceFeedChange {
     pub const NAME: ChangeName = ChangeName::new("price_feed_change");
 
     #[must_use]
-    pub fn genesis(&self) -> &Arc<PriceFeedGenesis> {
-        &self.genesis
+    pub fn market_map_genesis(&self) -> &Arc<market_map::v2::GenesisState> {
+        &self.market_map_genesis
+    }
+
+    #[must_use]
+    pub fn oracle_genesis(&self) -> &Arc<oracle::v2::GenesisState> {
+        &self.oracle_genesis
     }
 }
 
@@ -252,14 +270,26 @@ impl Error {
         Self(ErrorKind::FieldNotSet("ibc_acknowledgement_failure_change"))
     }
 
-    fn no_price_feed_genesis() -> Self {
-        Self(ErrorKind::FieldNotSet("price_feed_change.genesis"))
+    fn no_price_feed_market_map_genesis() -> Self {
+        Self(ErrorKind::FieldNotSet(
+            "price_feed_change.market_map_genesis",
+        ))
     }
 
-    fn price_feed_genesis(source: PriceFeedGenesisError) -> Self {
-        Self(ErrorKind::PriceFeedGenesis {
+    fn price_feed_market_map_genesis(source: market_map::v2::GenesisStateError) -> Self {
+        Self(ErrorKind::PriceFeedMarketMapGenesis {
             source,
         })
+    }
+
+    fn price_feed_oracle_genesis(source: oracle::v2::GenesisStateError) -> Self {
+        Self(ErrorKind::PriceFeedOracleGenesis {
+            source,
+        })
+    }
+
+    fn no_price_feed_oracle_genesis() -> Self {
+        Self(ErrorKind::FieldNotSet("price_feed_change.oracle_genesis"))
     }
 }
 
@@ -267,26 +297,33 @@ impl Error {
 enum ErrorKind {
     #[error("`{0}` field was not set")]
     FieldNotSet(&'static str),
-    #[error("`price_feed_change.genesis` field was invalid")]
-    PriceFeedGenesis { source: PriceFeedGenesisError },
+    #[error("`price_feed_change.market_map_genesis` field was invalid")]
+    PriceFeedMarketMapGenesis {
+        source: market_map::v2::GenesisStateError,
+    },
+    #[error("`price_feed_change.oracle_genesis` field was invalid")]
+    PriceFeedOracleGenesis {
+        source: oracle::v2::GenesisStateError,
+    },
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        protocol::test_utils::dummy_price_feed_genesis,
-        upgrades::v1::change::DeterministicSerialize,
+    use crate::upgrades::{
+        test_utils::UpgradesBuilder,
+        v1::change::DeterministicSerialize,
     };
 
     #[test]
     fn serialized_price_feed_change_should_not_change() {
-        let price_feed_change = PriceFeedChange {
-            activation_height: 10,
-            app_version: 2,
-            genesis: Arc::new(dummy_price_feed_genesis()),
-        };
-        let serialized_price_feed_change = hex::encode(price_feed_change.to_vec());
+        let price_feed_change = UpgradesBuilder::new()
+            .build()
+            .aspen()
+            .unwrap()
+            .price_feed_change()
+            .to_vec();
+        let serialized_price_feed_change = hex::encode(price_feed_change);
         insta::assert_snapshot!("price_feed_change", serialized_price_feed_change);
     }
 

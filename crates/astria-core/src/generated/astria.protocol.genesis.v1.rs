@@ -27,8 +27,6 @@ pub struct GenesisAppState {
     pub allowed_fee_assets: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "10")]
     pub fees: ::core::option::Option<GenesisFees>,
-    #[prost(message, optional, tag = "11")]
-    pub price_feed: ::core::option::Option<PriceFeedGenesis>,
 }
 impl ::prost::Name for GenesisAppState {
     const NAME: &'static str = "GenesisAppState";
@@ -175,26 +173,5 @@ impl ::prost::Name for GenesisFees {
     }
     fn type_url() -> ::prost::alloc::string::String {
         "/astria.protocol.genesis.v1.GenesisFees".into()
-    }
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct PriceFeedGenesis {
-    #[prost(message, optional, tag = "1")]
-    pub market_map: ::core::option::Option<
-        super::super::super::super::connect::marketmap::v2::GenesisState,
-    >,
-    #[prost(message, optional, tag = "2")]
-    pub oracle: ::core::option::Option<
-        super::super::super::super::connect::oracle::v2::GenesisState,
-    >,
-}
-impl ::prost::Name for PriceFeedGenesis {
-    const NAME: &'static str = "PriceFeedGenesis";
-    const PACKAGE: &'static str = "astria.protocol.genesis.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        "astria.protocol.genesis.v1.PriceFeedGenesis".into()
-    }
-    fn type_url() -> ::prost::alloc::string::String {
-        "/astria.protocol.genesis.v1.PriceFeedGenesis".into()
     }
 }

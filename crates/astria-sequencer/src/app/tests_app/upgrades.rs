@@ -10,16 +10,13 @@ use astria_core::{
             Price,
         },
     },
-    protocol::{
-        test_utils::dummy_price_feed_genesis,
-        transaction::v1::{
-            action::{
-                Transfer,
-                ValidatorUpdate,
-            },
-            Transaction,
-            TransactionBody,
+    protocol::transaction::v1::{
+        action::{
+            Transfer,
+            ValidatorUpdate,
         },
+        Transaction,
+        TransactionBody,
     },
     sequencerblock::v1::block::ExpandedBlockData,
     upgrades::test_utils::UpgradesBuilder,
@@ -291,8 +288,12 @@ fn new_finalize_block(
 }
 
 async fn latest_currency_pair_price(storage: Storage, index: usize) -> QuotePrice {
-    let markets = dummy_price_feed_genesis()
-        .market_map()
+    let markets = UpgradesBuilder::new()
+        .build()
+        .aspen()
+        .unwrap()
+        .price_feed_change()
+        .market_map_genesis()
         .market_map
         .markets
         .clone();
@@ -336,7 +337,6 @@ impl Node {
 
         let (app, storage) = AppInitializer::new()
             .with_genesis_validators(initial_validator_set)
-            .with_vote_extensions_enable_height(0_u8)
             .with_upgrades(UpgradesBuilder::new().set_aspen(Some(100)).build())
             .init()
             .await;
@@ -469,20 +469,14 @@ async fn execute_block_99(proposer: &mut Node, validator: &mut Node, non_validat
     let _ = non_validator.commit().await.unwrap();
     assert_eq!(proposer.app.app_hash, validator.app.app_hash);
     assert_eq!(proposer.app.app_hash, non_validator.app.app_hash);
-    // There should be no currency pairs stored, and `vote_extensions_enable_height` in storage
-    // should be 0.
+    // There should be no currency pairs stored, and consensus params should not be in storage.
     let snapshot_99 = proposer.storage.latest_snapshot();
     assert_eq!(0, snapshot_99.get_num_currency_pairs().await.unwrap());
-    assert_eq!(
-        Some(block::Height::from(0_u8)),
-        snapshot_99
-            .get_consensus_params()
-            .await
-            .expect("should get consensus params")
-            .expect("consensus params should be Some")
-            .abci
-            .vote_extensions_enable_height
-    );
+    assert!(snapshot_99
+        .get_consensus_params()
+        .await
+        .expect("should get consensus params")
+        .is_none());
     // Check that validator has been correctly added, and that no name has been stored pre-upgrade
     let validator_set = snapshot_99
         .pre_aspen_get_validator_set()
