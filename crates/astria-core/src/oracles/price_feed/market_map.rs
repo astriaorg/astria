@@ -1,11 +1,5 @@
 pub mod v2 {
-    use std::{
-        io::{
-            self,
-            Write,
-        },
-        str::FromStr,
-    };
+    use std::io;
 
     use borsh::BorshSerialize;
     use indexmap::IndexMap;
@@ -16,10 +10,6 @@ pub mod v2 {
             CurrencyPair,
             CurrencyPairError,
         },
-        primitive::v1::{
-            Address,
-            AddressError,
-        },
         Protobuf,
     };
 
@@ -27,7 +17,6 @@ pub mod v2 {
     pub struct GenesisState {
         pub market_map: MarketMap,
         pub last_updated: u64,
-        pub params: Params,
     }
 
     impl TryFrom<raw::GenesisState> for GenesisState {
@@ -58,8 +47,6 @@ pub mod v2 {
         ///
         /// - if the `market_map` field is missing
         /// - if the `market_map` field is invalid
-        /// - if the `params` field is missing
-        /// - if the `params` field is invalid
         fn try_from_raw(raw: raw::GenesisState) -> Result<Self, GenesisStateError> {
             let Some(market_map) = raw
                 .market_map
@@ -70,18 +57,9 @@ pub mod v2 {
                 return Err(GenesisStateError::missing_market_map());
             };
             let last_updated = raw.last_updated;
-            let Some(params) = raw
-                .params
-                .map(Params::try_from_raw)
-                .transpose()
-                .map_err(GenesisStateError::invalid_params)?
-            else {
-                return Err(GenesisStateError::missing_params());
-            };
             Ok(Self {
                 market_map,
                 last_updated,
-                params,
             })
         }
 
@@ -94,7 +72,6 @@ pub mod v2 {
             raw::GenesisState {
                 market_map: Some(self.market_map.into_raw()),
                 last_updated: self.last_updated,
-                params: Some(self.params.into_raw()),
             }
         }
     }
@@ -113,16 +90,6 @@ pub mod v2 {
         pub fn invalid_market_map(err: MarketMapError) -> Self {
             Self(GenesisStateErrorKind::MarketMapParseError(err))
         }
-
-        #[must_use]
-        pub fn missing_params() -> Self {
-            Self(GenesisStateErrorKind::MissingParams)
-        }
-
-        #[must_use]
-        pub fn invalid_params(err: ParamsError) -> Self {
-            Self(GenesisStateErrorKind::ParamsParseError(err))
-        }
     }
 
     #[derive(Debug, thiserror::Error)]
@@ -131,114 +98,6 @@ pub mod v2 {
         MissingMarketMap,
         #[error("failed to parse market map")]
         MarketMapParseError(#[from] MarketMapError),
-        #[error("missing params")]
-        MissingParams,
-        #[error("failed to parse params")]
-        ParamsParseError(#[from] ParamsError),
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct Params {
-        pub market_authorities: Vec<Address>,
-        pub admin: Address,
-    }
-
-    impl TryFrom<raw::Params> for Params {
-        type Error = ParamsError;
-
-        fn try_from(raw: raw::Params) -> Result<Self, Self::Error> {
-            Self::try_from_raw(raw)
-        }
-    }
-
-    impl From<Params> for raw::Params {
-        fn from(params: Params) -> Self {
-            params.into_raw()
-        }
-    }
-
-    impl BorshSerialize for Params {
-        fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-            let market_authorities: Vec<_> = self
-                .market_authorities
-                .iter()
-                .map(Address::to_string)
-                .collect();
-            (market_authorities, self.admin.to_string()).serialize(writer)
-        }
-    }
-
-    impl Params {
-        /// Converts from a raw protobuf `Params` to a native `Params`.
-        ///
-        /// # Errors
-        ///
-        /// - if any of the `market_authorities` addresses are invalid
-        /// - if the `admin` address is invalid
-        pub fn try_from_raw(raw: raw::Params) -> Result<Self, ParamsError> {
-            let market_authorities = raw
-                .market_authorities
-                .into_iter()
-                .map(|s| Address::from_str(&s))
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(ParamsError::market_authority_parse_error)?;
-            let admin = raw.admin.parse().map_err(ParamsError::admin_parse_error)?;
-            Ok(Self {
-                market_authorities,
-                admin,
-            })
-        }
-
-        #[must_use]
-        pub fn into_raw(self) -> raw::Params {
-            raw::Params {
-                market_authorities: self
-                    .market_authorities
-                    .into_iter()
-                    .map(|a| a.to_string())
-                    .collect(),
-                admin: self.admin.to_string(),
-            }
-        }
-
-        /// This should only be used where the inputs have been provided by a trusted entity, e.g.
-        /// read from our own state store.
-        ///
-        /// Note that this function is not considered part of the public API and is subject to
-        /// breaking change at any time.
-        #[cfg(feature = "unchecked-constructors")]
-        #[doc(hidden)]
-        #[must_use]
-        pub fn unchecked_from_parts(market_authorities: Vec<Address>, admin: Address) -> Self {
-            Self {
-                market_authorities,
-                admin,
-            }
-        }
-    }
-
-    #[derive(Debug, thiserror::Error)]
-    #[error(transparent)]
-    pub struct ParamsError(ParamsErrorKind);
-
-    impl ParamsError {
-        #[must_use]
-        pub fn market_authority_parse_error(err: AddressError) -> Self {
-            Self(ParamsErrorKind::MarketAuthorityParseError(err))
-        }
-
-        #[must_use]
-        pub fn admin_parse_error(err: AddressError) -> Self {
-            Self(ParamsErrorKind::AdminParseError(err))
-        }
-    }
-
-    #[derive(Debug, thiserror::Error)]
-    pub enum ParamsErrorKind {
-        #[error("failed to parse market authority address")]
-        MarketAuthorityParseError(#[source] AddressError),
-        #[error("failed to parse admin address")]
-        AdminParseError(#[source] AddressError),
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize)]
@@ -594,7 +453,7 @@ pub mod v2 {
     }
 
     impl BorshSerialize for MarketMap {
-        fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
             u32::try_from(self.markets.len())
                 .map_err(|_| io::ErrorKind::InvalidInput)?
                 .serialize(writer)?;

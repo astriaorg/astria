@@ -18,13 +18,14 @@ use crate::{
         BridgeSudoChange,
         BridgeTransfer,
         BridgeUnlock,
+        CurrencyPairsChange,
         FeeAssetChange,
         FeeChange,
         IbcRelayerChange,
         IbcSudoChange,
         Ics20Withdrawal,
         InitBridgeAccount,
-        PriceFeed,
+        MarketsChange,
         RecoverIbcClient,
         RollupDataSubmission,
         SudoAddressChange,
@@ -113,7 +114,8 @@ impl_protobuf_for_fee_components!(
     FeeComponents<SudoAddressChange> => raw::SudoAddressChangeFeeComponents,
     FeeComponents<IbcSudoChange> => raw::IbcSudoChangeFeeComponents,
     FeeComponents<RecoverIbcClient> => raw::RecoverIbcClientFeeComponents,
-    FeeComponents<PriceFeed> => raw::PriceFeedFeeComponents,
+    FeeComponents<CurrencyPairsChange> => raw::CurrencyPairsChangeFeeComponents,
+    FeeComponents<MarketsChange> => raw::MarketsChangeFeeComponents,
 );
 
 pub struct FeeComponents<T: ?Sized> {
