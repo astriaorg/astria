@@ -1,5 +1,8 @@
 use astria_core::protocol::transaction::v1::{
-    action::ValidatorUpdate,
+    action::{
+        ValidatorName,
+        ValidatorUpdate,
+    },
     Action,
 };
 use color_eyre::eyre::{
@@ -33,9 +36,9 @@ pub(super) struct Command {
     /// The power the validator is being updated to
     #[arg(long)]
     power: u32,
-    #[arg(long)]
+    #[arg(long, default_value_t = ValidatorName::empty())]
     /// Optional name of the validator being updated
-    name: Option<String>,
+    name: ValidatorName,
 }
 
 impl Command {
@@ -45,15 +48,10 @@ impl Command {
                 .wrap_err("failed to decode public key bytes from argument")?,
         )
         .wrap_err("failed to construct public key from bytes")?;
-        let name = self
-            .name
-            .unwrap_or_default()
-            .parse()
-            .wrap_err("validator name is invalid")?;
         let validator_update = ValidatorUpdate {
             power: self.power,
             verification_key,
-            name,
+            name: self.name,
         };
 
         let res = submit_transaction(

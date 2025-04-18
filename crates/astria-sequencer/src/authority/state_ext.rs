@@ -259,8 +259,8 @@ impl<T: StateWrite> StateWriteExt for T {}
 #[cfg(test)]
 mod tests {
     use astria_core::protocol::transaction::v1::action::{
+        ValidatorName,
         ValidatorUpdate,
-        ValidatorUpdateName,
     };
     use cnidarium::StateDelta;
     use futures::TryStreamExt as _;
@@ -335,7 +335,7 @@ mod tests {
         let initial = vec![ValidatorUpdate {
             power: 10,
             verification_key: verification_key(1),
-            name: ValidatorUpdateName::empty(),
+            name: ValidatorName::empty(),
         }];
         let initial_validator_set = ValidatorSet::new_from_updates(initial);
 
@@ -356,7 +356,7 @@ mod tests {
         let updates = vec![ValidatorUpdate {
             power: 20,
             verification_key: verification_key(2),
-            name: ValidatorUpdateName::empty(),
+            name: ValidatorName::empty(),
         }];
         let updated_validator_set = ValidatorSet::new_from_updates(updates);
         state
@@ -409,12 +409,12 @@ mod tests {
             ValidatorUpdate {
                 power: 10,
                 verification_key: verification_key(1),
-                name: ValidatorUpdateName::empty(),
+                name: ValidatorName::empty(),
             },
             ValidatorUpdate {
                 power: 0,
                 verification_key: verification_key(2),
-                name: ValidatorUpdateName::empty(),
+                name: ValidatorName::empty(),
             },
         ];
         let mut validator_set_updates = ValidatorSet::new_from_updates(updates);
@@ -437,12 +437,12 @@ mod tests {
             ValidatorUpdate {
                 power: 22,
                 verification_key: verification_key(1),
-                name: ValidatorUpdateName::empty(),
+                name: ValidatorName::empty(),
             },
             ValidatorUpdate {
                 power: 10,
                 verification_key: verification_key(3),
-                name: ValidatorUpdateName::empty(),
+                name: ValidatorName::empty(),
             },
         ];
 
@@ -472,7 +472,7 @@ mod tests {
         let updates = vec![ValidatorUpdate {
             power: 10,
             verification_key: verification_key(1),
-            name: ValidatorUpdateName::empty(),
+            name: ValidatorName::empty(),
         }];
         let validator_set_updates = ValidatorSet::new_from_updates(updates);
 

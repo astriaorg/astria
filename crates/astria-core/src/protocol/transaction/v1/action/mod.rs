@@ -1,4 +1,7 @@
-use std::str::FromStr;
+use std::{
+    fmt::Display,
+    str::FromStr,
+};
 
 use bytes::Bytes;
 use ibc_types::{
@@ -654,16 +657,16 @@ enum TransferActionErrorKind {
     "input was `{length}` bytes but validator names can only be up to \
      `{MAX_VALIDATOR_NAME_LENGTH}` bytes long"
 )]
-pub struct ValidatorUpdateNameError {
+pub struct ValidatorNameError {
     length: usize,
 }
 
 /// Wrapper for validator name field of [`ValidatorUpdate`]. Cannot be longer than
 /// [`MAX_VALIDATOR_NAME_LENGTH`].
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ValidatorUpdateName(String);
+pub struct ValidatorName(String);
 
-impl ValidatorUpdateName {
+impl ValidatorName {
     #[must_use]
     pub fn empty() -> Self {
         Self(String::new())
@@ -680,16 +683,22 @@ impl ValidatorUpdateName {
     }
 }
 
-impl FromStr for ValidatorUpdateName {
-    type Err = ValidatorUpdateNameError;
+impl FromStr for ValidatorName {
+    type Err = ValidatorNameError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         if value.len() > MAX_VALIDATOR_NAME_LENGTH {
-            return Err(ValidatorUpdateNameError {
+            return Err(ValidatorNameError {
                 length: value.len(),
             });
         }
         Ok(Self(value.to_string()))
+    }
+}
+
+impl Display for ValidatorName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -718,7 +727,7 @@ impl ValidatorUpdateError {
         })
     }
 
-    fn invalid_name(source: ValidatorUpdateNameError) -> Self {
+    fn invalid_name(source: ValidatorNameError) -> Self {
         Self(ValidatorUpdateErrorKind::InvalidName {
             source,
         })
@@ -736,14 +745,14 @@ enum ValidatorUpdateErrorKind {
     #[error("bytes stored in the .pub_key field could not be read as an ed25519 verification key")]
     VerificationKey { source: crate::crypto::Error },
     #[error("field `.name` was invalid")]
-    InvalidName { source: ValidatorUpdateNameError },
+    InvalidName { source: ValidatorNameError },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ValidatorUpdate {
     pub power: u32,
     pub verification_key: crate::crypto::VerificationKey,
-    pub name: ValidatorUpdateName,
+    pub name: ValidatorName,
 }
 
 impl Protobuf for ValidatorUpdate {

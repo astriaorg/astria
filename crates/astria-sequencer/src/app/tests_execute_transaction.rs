@@ -36,8 +36,8 @@ use astria_core::{
                 SudoAddressChange,
                 Transfer,
                 UpdateMarketMapParams,
+                ValidatorName,
                 ValidatorUpdate,
-                ValidatorUpdateName,
             },
             Action,
             TransactionBody,
@@ -384,7 +384,7 @@ async fn app_execute_transaction_validator_update() {
     let mut app = initialize_app(Some(genesis_state())).await;
 
     let update = ValidatorUpdate {
-        name: ValidatorUpdateName::empty(),
+        name: ValidatorName::empty(),
         power: 100,
         verification_key: verification_key(1),
     };

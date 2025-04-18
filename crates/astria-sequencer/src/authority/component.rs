@@ -166,7 +166,7 @@ impl Component for AuthorityComponent {
 mod tests {
     use astria_core::{
         crypto::VerificationKey,
-        protocol::transaction::v1::action::ValidatorUpdateName,
+        protocol::transaction::v1::action::ValidatorName,
         upgrades::{
             test_utils::UpgradesBuilder,
             v1::Aspen,
@@ -201,17 +201,17 @@ mod tests {
     fn test_validator_set() -> ValidatorSet {
         ValidatorSet::new_from_updates(vec![
             ValidatorUpdate {
-                name: ValidatorUpdateName::empty(),
+                name: ValidatorName::empty(),
                 power: 10,
                 verification_key: VerificationKey::try_from([0; 32]).unwrap(),
             },
             ValidatorUpdate {
-                name: ValidatorUpdateName::empty(),
+                name: ValidatorName::empty(),
                 power: 20,
                 verification_key: VerificationKey::try_from([1; 32]).unwrap(),
             },
             ValidatorUpdate {
-                name: ValidatorUpdateName::empty(),
+                name: ValidatorName::empty(),
                 power: 30,
                 verification_key: VerificationKey::try_from([3; 32]).unwrap(),
             },

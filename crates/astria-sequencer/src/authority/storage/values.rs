@@ -11,8 +11,8 @@ use astria_core::{
     crypto::VerificationKey as DomainVerificationKey,
     primitive::v1::ADDRESS_LEN,
     protocol::transaction::v1::action::{
+        ValidatorName,
         ValidatorUpdate as DomainValidatorUpdate,
-        ValidatorUpdateName,
     },
 };
 use astria_eyre::eyre::bail;
@@ -132,7 +132,7 @@ impl<'a> From<ValidatorSet<'a>> for DomainValidatorSet {
                     verification_key: astria_core::crypto::VerificationKey::from(
                         update.verification_key,
                     ),
-                    name: ValidatorUpdateName::empty(),
+                    name: ValidatorName::empty(),
                 };
                 (key, validator_update)
             })

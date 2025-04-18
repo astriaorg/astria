@@ -13,8 +13,8 @@ use astria_core::{
     protocol::transaction::v1::{
         action::{
             Transfer,
+            ValidatorName,
             ValidatorUpdate,
-            ValidatorUpdateName,
         },
         Transaction,
         TransactionBody,
@@ -502,7 +502,7 @@ async fn execute_block_99(proposer: &mut Node, validator: &mut Node, non_validat
             block_99_validator_update.power
         ),
     );
-    assert_eq!(existing_validator_update.name, ValidatorUpdateName::empty(),);
+    assert_eq!(existing_validator_update.name, ValidatorName::empty(),);
 }
 
 /// Upgrade should execute as part of this block, and the `vote_extensions_enable_height` should get
