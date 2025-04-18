@@ -142,7 +142,11 @@ expression: genesis_state()
       "base": {},
       "multiplier": {}
     },
-    "priceFeed": {
+    "currencyPairsChange": {
+      "base": {},
+      "multiplier": {}
+    },
+    "marketsChange": {
       "base": {},
       "multiplier": {}
     }

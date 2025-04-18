@@ -2,7 +2,6 @@ syntax = "proto3";
 package connect.marketmap.v2;
 
 import "connect/marketmap/v2/market.proto";
-import "connect/marketmap/v2/params.proto";
 
 option go_package = "github.com/skip-mev/connect/v2/x/marketmap/types";
 
@@ -16,7 +15,4 @@ message GenesisState {
   // This field can be used as an optimization for clients checking if there
   // is a new update to the map.
   uint64 last_updated = 2;
-
-  // Params are the parameters for the x/marketmap module.
-  Params params = 3;
 }

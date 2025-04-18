@@ -113,28 +113,6 @@ impl ::prost::Name for MarketMap {
         "/connect.marketmap.v2.MarketMap".into()
     }
 }
-/// Params defines the parameters for the x/marketmap module.
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Params {
-    /// MarketAuthorities is the list of authority accounts that are able to
-    /// control updating the marketmap.
-    #[prost(string, repeated, tag = "1")]
-    pub market_authorities: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    /// Admin is an address that can remove addresses from the MarketAuthorities
-    /// list. Only governance can add to the MarketAuthorities or change the Admin.
-    #[prost(string, tag = "2")]
-    pub admin: ::prost::alloc::string::String,
-}
-impl ::prost::Name for Params {
-    const NAME: &'static str = "Params";
-    const PACKAGE: &'static str = "connect.marketmap.v2";
-    fn full_name() -> ::prost::alloc::string::String {
-        "connect.marketmap.v2.Params".into()
-    }
-    fn type_url() -> ::prost::alloc::string::String {
-        "/connect.marketmap.v2.Params".into()
-    }
-}
 /// GenesisState defines the x/marketmap module's genesis state.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GenesisState {
@@ -147,9 +125,6 @@ pub struct GenesisState {
     /// is a new update to the map.
     #[prost(uint64, tag = "2")]
     pub last_updated: u64,
-    /// Params are the parameters for the x/marketmap module.
-    #[prost(message, optional, tag = "3")]
-    pub params: ::core::option::Option<Params>,
 }
 impl ::prost::Name for GenesisState {
     const NAME: &'static str = "GenesisState";
@@ -235,35 +210,6 @@ impl ::prost::Name for MarketResponse {
     }
     fn type_url() -> ::prost::alloc::string::String {
         "/connect.marketmap.v2.MarketResponse".into()
-    }
-}
-/// ParamsRequest is the request type for the Query/Params RPC method.
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct ParamsRequest {}
-impl ::prost::Name for ParamsRequest {
-    const NAME: &'static str = "ParamsRequest";
-    const PACKAGE: &'static str = "connect.marketmap.v2";
-    fn full_name() -> ::prost::alloc::string::String {
-        "connect.marketmap.v2.ParamsRequest".into()
-    }
-    fn type_url() -> ::prost::alloc::string::String {
-        "/connect.marketmap.v2.ParamsRequest".into()
-    }
-}
-/// ParamsResponse is the response type for the Query/Params RPC method.
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ParamsResponse {
-    #[prost(message, optional, tag = "1")]
-    pub params: ::core::option::Option<Params>,
-}
-impl ::prost::Name for ParamsResponse {
-    const NAME: &'static str = "ParamsResponse";
-    const PACKAGE: &'static str = "connect.marketmap.v2";
-    fn full_name() -> ::prost::alloc::string::String {
-        "connect.marketmap.v2.ParamsResponse".into()
-    }
-    fn type_url() -> ::prost::alloc::string::String {
-        "/connect.marketmap.v2.ParamsResponse".into()
     }
 }
 /// LastUpdatedRequest is the request type for the Query/LastUpdated RPC
@@ -464,28 +410,6 @@ pub mod query_client {
                 .insert(GrpcMethod::new("connect.marketmap.v2.Query", "LastUpdated"));
             self.inner.unary(req, path, codec).await
         }
-        /// Params returns the current x/marketmap module parameters.
-        pub async fn params(
-            &mut self,
-            request: impl tonic::IntoRequest<super::ParamsRequest>,
-        ) -> std::result::Result<tonic::Response<super::ParamsResponse>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/connect.marketmap.v2.Query/Params",
-            );
-            let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("connect.marketmap.v2.Query", "Params"));
-            self.inner.unary(req, path, codec).await
-        }
     }
 }
 /// Generated server implementations.
@@ -525,11 +449,6 @@ pub mod query_server {
             tonic::Response<super::LastUpdatedResponse>,
             tonic::Status,
         >;
-        /// Params returns the current x/marketmap module parameters.
-        async fn params(
-            self: std::sync::Arc<Self>,
-            request: tonic::Request<super::ParamsRequest>,
-        ) -> std::result::Result<tonic::Response<super::ParamsResponse>, tonic::Status>;
     }
     /// Query is the query service for the x/marketmap module.
     #[derive(Debug)]
@@ -722,49 +641,6 @@ pub mod query_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = LastUpdatedSvc(inner);
-                        let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            )
-                            .apply_max_message_size_config(
-                                max_decoding_message_size,
-                                max_encoding_message_size,
-                            );
-                        let res = grpc.unary(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                "/connect.marketmap.v2.Query/Params" => {
-                    #[allow(non_camel_case_types)]
-                    struct ParamsSvc<T: Query>(pub Arc<T>);
-                    impl<T: Query> tonic::server::UnaryService<super::ParamsRequest>
-                    for ParamsSvc<T> {
-                        type Response = super::ParamsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<super::ParamsRequest>,
-                        ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as Query>::params(inner, request).await
-                            };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let max_decoding_message_size = self.max_decoding_message_size;
-                    let max_encoding_message_size = self.max_encoding_message_size;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let method = ParamsSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

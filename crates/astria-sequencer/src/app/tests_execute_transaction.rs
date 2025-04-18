@@ -10,7 +10,6 @@ use astria_core::{
         market_map::v2::{
             Market,
             MarketMap,
-            Params,
         },
         types::v2::CurrencyPair,
     },
@@ -26,16 +25,13 @@ use astria_core::{
             action::{
                 BridgeLock,
                 BridgeUnlock,
-                ChangeMarkets,
                 CurrencyPairsChange,
                 IbcRelayerChange,
                 IbcSudoChange,
-                MarketMapChange,
-                PriceFeed,
+                MarketsChange,
                 RollupDataSubmission,
                 SudoAddressChange,
                 Transfer,
-                UpdateMarketMapParams,
                 ValidatorName,
                 ValidatorUpdate,
             },
@@ -64,7 +60,6 @@ use crate::{
     app::{
         benchmark_and_test_utils::{
             AppInitializer,
-            ALICE_ADDRESS,
             BOB_ADDRESS,
             CAROL_ADDRESS,
         },
@@ -75,10 +70,7 @@ use crate::{
         App,
         InvalidNonce,
     },
-    authority::{
-        StateReadExt as _,
-        StateWriteExt,
-    },
+    authority::StateReadExt as _,
     benchmark_and_test_utils::{
         astria_address,
         astria_address_from_hex_string,
@@ -1372,9 +1364,9 @@ async fn test_app_execute_transaction_add_and_remove_currency_pairs() {
     assert!(!default_currency_pairs.contains(&currency_pair));
 
     let tx = TransactionBody::builder()
-        .actions(vec![PriceFeed::Oracle(CurrencyPairsChange::Addition(
-            vec![currency_pair.clone()],
-        ))
+        .actions(vec![CurrencyPairsChange::Addition(vec![
+            currency_pair.clone()
+        ])
         .into()])
         .chain_id("test")
         .try_build()
@@ -1393,9 +1385,9 @@ async fn test_app_execute_transaction_add_and_remove_currency_pairs() {
     assert!(currency_pairs.contains(&currency_pair));
 
     let tx = TransactionBody::builder()
-        .actions(vec![PriceFeed::Oracle(CurrencyPairsChange::Removal(vec![
-            currency_pair.clone(),
-        ]))
+        .actions(vec![CurrencyPairsChange::Removal(vec![
+            currency_pair.clone()
+        ])
         .into()])
         .chain_id("test")
         .nonce(1)
@@ -1439,11 +1431,7 @@ async fn create_markets_executes_as_expected() {
         .markets
         .contains_key(&ticker_2.currency_pair.to_string()));
 
-    let create_markets_action =
-        PriceFeed::MarketMap(MarketMapChange::Markets(ChangeMarkets::Create(vec![
-            market_1.clone(),
-            market_2.clone(),
-        ])));
+    let create_markets_action = MarketsChange::Creation(vec![market_1.clone(), market_2.clone()]);
 
     let tx = TransactionBody::builder()
         .actions(vec![create_markets_action.into()])
@@ -1509,10 +1497,7 @@ async fn update_markets_executes_as_expected() {
         provider_configs: vec![],
     };
 
-    let update_markets_action =
-        PriceFeed::MarketMap(MarketMapChange::Markets(ChangeMarkets::Update(vec![
-            market_3.clone(),
-        ])));
+    let update_markets_action = MarketsChange::Update(vec![market_3.clone()]);
 
     let tx = TransactionBody::builder()
         .actions(vec![update_markets_action.into()])
@@ -1571,13 +1556,10 @@ async fn remove_markets_executes_as_expected() {
     state_tx.put_market_map(market_map).unwrap();
     app.apply(state_tx);
 
-    let remove_markets_action =
-        PriceFeed::MarketMap(MarketMapChange::Markets(ChangeMarkets::Remove(vec![
-            Market {
-                ticker: ticker_1.clone(),
-                provider_configs: vec![],
-            },
-        ])));
+    let remove_markets_action = MarketsChange::Removal(vec![Market {
+        ticker: ticker_1.clone(),
+        provider_configs: vec![],
+    }]);
 
     let tx = TransactionBody::builder()
         .actions(vec![remove_markets_action.into()])
@@ -1598,45 +1580,4 @@ async fn remove_markets_executes_as_expected() {
         market_map.markets.get(&ticker_2.currency_pair.to_string()),
         Some(&market_2)
     );
-}
-
-#[tokio::test]
-async fn update_market_map_params_executes_as_expected() {
-    let mut app = initialize_app(Some(genesis_state())).await;
-    let mut state_tx = StateDelta::new(app.state.clone());
-
-    let alice_signing_key = get_alice_signing_key();
-    let alice_address = astria_address_from_hex_string(ALICE_ADDRESS);
-    let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
-    let carol_address = astria_address_from_hex_string(CAROL_ADDRESS);
-
-    let params_1 = Params {
-        market_authorities: vec![alice_address, bob_address],
-        admin: alice_address,
-    };
-    state_tx.put_params(params_1.clone()).unwrap();
-    state_tx.put_sudo_address(alice_address).unwrap();
-    app.apply(state_tx);
-
-    let params_2 = Params {
-        market_authorities: vec![bob_address, carol_address],
-        admin: alice_address,
-    };
-    let update_market_map_params_action =
-        PriceFeed::MarketMap(MarketMapChange::Params(UpdateMarketMapParams {
-            params: params_2.clone(),
-        }));
-
-    let tx = TransactionBody::builder()
-        .actions(vec![update_market_map_params_action.into()])
-        .chain_id("test")
-        .try_build()
-        .unwrap();
-
-    let signed_tx = Arc::new(tx.sign(&alice_signing_key));
-    app.execute_transaction(signed_tx).await.unwrap();
-
-    let params = app.state.get_params().await.unwrap().unwrap();
-    assert_ne!(params, params_1);
-    assert_eq!(params, params_2);
 }

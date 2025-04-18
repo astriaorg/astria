@@ -523,7 +523,10 @@ impl serde::Serialize for GenesisFees {
         if self.recover_ibc_client.is_some() {
             len += 1;
         }
-        if self.price_feed.is_some() {
+        if self.currency_pairs_change.is_some() {
+            len += 1;
+        }
+        if self.markets_change.is_some() {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.protocol.genesis.v1.GenesisFees", len)?;
@@ -575,8 +578,11 @@ impl serde::Serialize for GenesisFees {
         if let Some(v) = self.recover_ibc_client.as_ref() {
             struct_ser.serialize_field("recoverIbcClient", v)?;
         }
-        if let Some(v) = self.price_feed.as_ref() {
-            struct_ser.serialize_field("priceFeed", v)?;
+        if let Some(v) = self.currency_pairs_change.as_ref() {
+            struct_ser.serialize_field("currencyPairsChange", v)?;
+        }
+        if let Some(v) = self.markets_change.as_ref() {
+            struct_ser.serialize_field("marketsChange", v)?;
         }
         struct_ser.end()
     }
@@ -619,8 +625,10 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
             "bridgeTransfer",
             "recover_ibc_client",
             "recoverIbcClient",
-            "price_feed",
-            "priceFeed",
+            "currency_pairs_change",
+            "currencyPairsChange",
+            "markets_change",
+            "marketsChange",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -641,7 +649,8 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
             ValidatorUpdate,
             BridgeTransfer,
             RecoverIbcClient,
-            PriceFeed,
+            CurrencyPairsChange,
+            MarketsChange,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -679,7 +688,8 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                             "validatorUpdate" | "validator_update" => Ok(GeneratedField::ValidatorUpdate),
                             "bridgeTransfer" | "bridge_transfer" => Ok(GeneratedField::BridgeTransfer),
                             "recoverIbcClient" | "recover_ibc_client" => Ok(GeneratedField::RecoverIbcClient),
-                            "priceFeed" | "price_feed" => Ok(GeneratedField::PriceFeed),
+                            "currencyPairsChange" | "currency_pairs_change" => Ok(GeneratedField::CurrencyPairsChange),
+                            "marketsChange" | "markets_change" => Ok(GeneratedField::MarketsChange),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -715,7 +725,8 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                 let mut validator_update__ = None;
                 let mut bridge_transfer__ = None;
                 let mut recover_ibc_client__ = None;
-                let mut price_feed__ = None;
+                let mut currency_pairs_change__ = None;
+                let mut markets_change__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::BridgeLock => {
@@ -814,11 +825,17 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                             }
                             recover_ibc_client__ = map_.next_value()?;
                         }
-                        GeneratedField::PriceFeed => {
-                            if price_feed__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("priceFeed"));
+                        GeneratedField::CurrencyPairsChange => {
+                            if currency_pairs_change__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("currencyPairsChange"));
                             }
-                            price_feed__ = map_.next_value()?;
+                            currency_pairs_change__ = map_.next_value()?;
+                        }
+                        GeneratedField::MarketsChange => {
+                            if markets_change__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("marketsChange"));
+                            }
+                            markets_change__ = map_.next_value()?;
                         }
                     }
                 }
@@ -839,7 +856,8 @@ impl<'de> serde::Deserialize<'de> for GenesisFees {
                     validator_update: validator_update__,
                     bridge_transfer: bridge_transfer__,
                     recover_ibc_client: recover_ibc_client__,
-                    price_feed: price_feed__,
+                    currency_pairs_change: currency_pairs_change__,
+                    markets_change: markets_change__,
                 })
             }
         }

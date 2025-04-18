@@ -15,7 +15,7 @@ type: application
 # This is the chart version. This version number should be incremented each time you make changes
 # to the chart and its templates, including the app version.
 # Versions are expected to follow Semantic Versioning (https://semver.org/)
-version: 1.2.0
+version: 1.2.1
 
 dependencies:
   - name: celestia-node
@@ -43,7 +43,7 @@ dependencies:
     repository: "file://../evm-faucet"
     condition: evm-faucet.enabled
   - name: evm-bridge-withdrawer
-    version: 1.0.4
+    version: 1.0.5
     repository: "file://../evm-bridge-withdrawer"
     condition: evm-bridge-withdrawer.enabled
   - name: postgresql

@@ -26,13 +26,14 @@ use crate::{
             BridgeSudoChange,
             BridgeTransfer,
             BridgeUnlock,
+            CurrencyPairsChange,
             FeeAssetChange,
             FeeChange,
             IbcRelayerChange,
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
-            PriceFeed,
+            MarketsChange,
             RecoverIbcClient,
             RollupDataSubmission,
             SudoAddressChange,
@@ -599,7 +600,8 @@ pub struct GenesisFees {
     pub sudo_address_change: Option<FeeComponents<SudoAddressChange>>,
     pub ibc_sudo_change: Option<FeeComponents<IbcSudoChange>>,
     pub recover_ibc_client: Option<FeeComponents<RecoverIbcClient>>,
-    pub price_feed: Option<FeeComponents<PriceFeed>>,
+    pub currency_pairs_change: Option<FeeComponents<CurrencyPairsChange>>,
+    pub markets_change: Option<FeeComponents<MarketsChange>>,
 }
 
 impl Protobuf for GenesisFees {
@@ -625,7 +627,8 @@ impl Protobuf for GenesisFees {
             sudo_address_change,
             ibc_sudo_change,
             recover_ibc_client,
-            price_feed,
+            currency_pairs_change,
+            markets_change,
         } = raw;
         let rollup_data_submission = rollup_data_submission
             .map(FeeComponents::<RollupDataSubmission>::try_from_raw)
@@ -707,10 +710,15 @@ impl Protobuf for GenesisFees {
             .transpose()
             .map_err(|e| FeesError::fee_components("recover_ibc_client", e))?;
 
-        let price_feed = price_feed
-            .map(FeeComponents::<PriceFeed>::try_from_raw)
+        let currency_pairs_change = currency_pairs_change
+            .map(FeeComponents::<CurrencyPairsChange>::try_from_raw)
             .transpose()
-            .map_err(|e| FeesError::fee_components("price_feed", e))?;
+            .map_err(|e| FeesError::fee_components("currency_pairs_change", e))?;
+
+        let markets_change = markets_change
+            .map(FeeComponents::<MarketsChange>::try_from_raw)
+            .transpose()
+            .map_err(|e| FeesError::fee_components("markets_change", e))?;
 
         Ok(Self {
             rollup_data_submission,
@@ -729,7 +737,8 @@ impl Protobuf for GenesisFees {
             sudo_address_change,
             ibc_sudo_change,
             recover_ibc_client,
-            price_feed,
+            currency_pairs_change,
+            markets_change,
         })
     }
 
@@ -751,7 +760,8 @@ impl Protobuf for GenesisFees {
             sudo_address_change,
             ibc_sudo_change,
             recover_ibc_client,
-            price_feed,
+            currency_pairs_change,
+            markets_change,
         } = self;
         Self::Raw {
             transfer: transfer.map(|act| FeeComponents::<Transfer>::to_raw(&act)),
@@ -781,7 +791,9 @@ impl Protobuf for GenesisFees {
                 .map(|act| FeeComponents::<IbcSudoChange>::to_raw(&act)),
             recover_ibc_client: recover_ibc_client
                 .map(|act| FeeComponents::<RecoverIbcClient>::to_raw(&act)),
-            price_feed: price_feed.map(|act| FeeComponents::<PriceFeed>::to_raw(&act)),
+            currency_pairs_change: currency_pairs_change
+                .map(|act| FeeComponents::<CurrencyPairsChange>::to_raw(&act)),
+            markets_change: markets_change.map(|act| FeeComponents::<MarketsChange>::to_raw(&act)),
         }
     }
 }
@@ -876,7 +888,8 @@ mod tests {
             sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0).to_raw()),
             ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0).to_raw()),
             recover_ibc_client: Some(FeeComponents::<RecoverIbcClient>::new(0, 0).to_raw()),
-            price_feed: Some(FeeComponents::<PriceFeed>::new(0, 0).to_raw()),
+            currency_pairs_change: Some(FeeComponents::<CurrencyPairsChange>::new(0, 0).to_raw()),
+            markets_change: Some(FeeComponents::<MarketsChange>::new(0, 0).to_raw()),
         }
     }
 

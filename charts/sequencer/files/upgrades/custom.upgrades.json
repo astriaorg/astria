@@ -40,15 +40,6 @@
           }
           {{- end }}
         }
-        },
-        "params": {
-          "admin": "{{ .priceFeed.marketAdminAddress }}",
-          "marketAuthorities": [
-            {{- range $index, $authority := .priceFeed.marketAuthorities }}
-            {{- if $index }},{{- end }}
-            "{{ $authority }}"
-            {{- end }}
-          ]
         }
       },
       "oracleGenesis": {

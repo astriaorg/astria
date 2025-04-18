@@ -12,9 +12,6 @@ impl serde::Serialize for GenesisState {
         if self.last_updated != 0 {
             len += 1;
         }
-        if self.params.is_some() {
-            len += 1;
-        }
         let mut struct_ser = serializer.serialize_struct("connect.marketmap.v2.GenesisState", len)?;
         if let Some(v) = self.market_map.as_ref() {
             struct_ser.serialize_field("marketMap", v)?;
@@ -23,9 +20,6 @@ impl serde::Serialize for GenesisState {
             #[allow(clippy::needless_borrow)]
             #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("lastUpdated", ToString::to_string(&self.last_updated).as_str())?;
-        }
-        if let Some(v) = self.params.as_ref() {
-            struct_ser.serialize_field("params", v)?;
         }
         struct_ser.end()
     }
@@ -41,14 +35,12 @@ impl<'de> serde::Deserialize<'de> for GenesisState {
             "marketMap",
             "last_updated",
             "lastUpdated",
-            "params",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             MarketMap,
             LastUpdated,
-            Params,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -72,7 +64,6 @@ impl<'de> serde::Deserialize<'de> for GenesisState {
                         match value {
                             "marketMap" | "market_map" => Ok(GeneratedField::MarketMap),
                             "lastUpdated" | "last_updated" => Ok(GeneratedField::LastUpdated),
-                            "params" => Ok(GeneratedField::Params),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -94,7 +85,6 @@ impl<'de> serde::Deserialize<'de> for GenesisState {
             {
                 let mut market_map__ = None;
                 let mut last_updated__ = None;
-                let mut params__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::MarketMap => {
@@ -111,18 +101,11 @@ impl<'de> serde::Deserialize<'de> for GenesisState {
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
-                        GeneratedField::Params => {
-                            if params__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("params"));
-                            }
-                            params__ = map_.next_value()?;
-                        }
                     }
                 }
                 Ok(GenesisState {
                     market_map: market_map__,
                     last_updated: last_updated__.unwrap_or_default(),
-                    params: params__,
                 })
             }
         }
@@ -882,277 +865,6 @@ impl<'de> serde::Deserialize<'de> for MarketResponse {
             }
         }
         deserializer.deserialize_struct("connect.marketmap.v2.MarketResponse", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for Params {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if !self.market_authorities.is_empty() {
-            len += 1;
-        }
-        if !self.admin.is_empty() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("connect.marketmap.v2.Params", len)?;
-        if !self.market_authorities.is_empty() {
-            struct_ser.serialize_field("marketAuthorities", &self.market_authorities)?;
-        }
-        if !self.admin.is_empty() {
-            struct_ser.serialize_field("admin", &self.admin)?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for Params {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "market_authorities",
-            "marketAuthorities",
-            "admin",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            MarketAuthorities,
-            Admin,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "marketAuthorities" | "market_authorities" => Ok(GeneratedField::MarketAuthorities),
-                            "admin" => Ok(GeneratedField::Admin),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = Params;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct connect.marketmap.v2.Params")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<Params, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut market_authorities__ = None;
-                let mut admin__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::MarketAuthorities => {
-                            if market_authorities__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("marketAuthorities"));
-                            }
-                            market_authorities__ = Some(map_.next_value()?);
-                        }
-                        GeneratedField::Admin => {
-                            if admin__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("admin"));
-                            }
-                            admin__ = Some(map_.next_value()?);
-                        }
-                    }
-                }
-                Ok(Params {
-                    market_authorities: market_authorities__.unwrap_or_default(),
-                    admin: admin__.unwrap_or_default(),
-                })
-            }
-        }
-        deserializer.deserialize_struct("connect.marketmap.v2.Params", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for ParamsRequest {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let len = 0;
-        let struct_ser = serializer.serialize_struct("connect.marketmap.v2.ParamsRequest", len)?;
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for ParamsRequest {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                            Err(serde::de::Error::unknown_field(value, FIELDS))
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = ParamsRequest;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct connect.marketmap.v2.ParamsRequest")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<ParamsRequest, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                while map_.next_key::<GeneratedField>()?.is_some() {
-                    let _ = map_.next_value::<serde::de::IgnoredAny>()?;
-                }
-                Ok(ParamsRequest {
-                })
-            }
-        }
-        deserializer.deserialize_struct("connect.marketmap.v2.ParamsRequest", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for ParamsResponse {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if self.params.is_some() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("connect.marketmap.v2.ParamsResponse", len)?;
-        if let Some(v) = self.params.as_ref() {
-            struct_ser.serialize_field("params", v)?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for ParamsResponse {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "params",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            Params,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "params" => Ok(GeneratedField::Params),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = ParamsResponse;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct connect.marketmap.v2.ParamsResponse")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<ParamsResponse, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut params__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::Params => {
-                            if params__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("params"));
-                            }
-                            params__ = map_.next_value()?;
-                        }
-                    }
-                }
-                Ok(ParamsResponse {
-                    params: params__,
-                })
-            }
-        }
-        deserializer.deserialize_struct("connect.marketmap.v2.ParamsResponse", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for ProviderConfig {

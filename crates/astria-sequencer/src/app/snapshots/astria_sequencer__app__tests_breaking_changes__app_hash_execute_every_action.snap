@@ -2,4 +2,4 @@
 source: crates/astria-sequencer/src/app/tests_breaking_changes.rs
 expression: "hex::encode(app.app_hash.as_bytes())"
 ---
-"7ee7a21d3937b786631ff0d5818226f0b618275dd7a8ee352e285b6feb3088ff"
+"682b8639a06d85e248f1c8c1e635fb2498de7db965c52df2bb8359795f85055b"
