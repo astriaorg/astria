@@ -30,6 +30,10 @@ spec:
           volumeMounts:
             - mountPath: /secret/sequencerPrivateKey/
               name: sequencer-private-key-volume
+              {{- if .Values.config.frostThresholdSigning }}
+            - mountPath: /public/publicKeyPackage/
+              name: bridge-public-key-volume
+              {{- end }}
           ports:
             - containerPort: {{ .Values.ports.metrics }}
               name: metrics
@@ -57,4 +61,9 @@ spec:
           {{- else }}
           configMap:
             name: {{ include "evm-bridge-withdrawer.appName" . }}-private-key
+          {{- end }}
+          {{- if .Values.config.frostThresholdSigning }}
+        - name: bridge-public-key-volume
+          configMap:
+            name: {{ include "evm-bridge-withdrawer.appName" . }}-pubkey-package
           {{- end }}

@@ -4,7 +4,7 @@ metadata:
   name: {{ include "evm-bridge-withdrawer.appName" . }}-env
   namespace: {{ include "evm-bridge-withdrawer.namespace" . }}
 data:
-  ASTRIA_BRIDGE_WITHDRAWER_LOG: "astria_bridge_withdrawer=debug"
+  ASTRIA_BRIDGE_WITHDRAWER_LOG: "astria_bridge_withdrawer={{ .Values.config.logLevel }}"
   ASTRIA_BRIDGE_WITHDRAWER_API_ADDR: "0.0.0.0:{{ .Values.ports.healthAPI }}"
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_COMETBFT_ENDPOINT: "{{ tpl .Values.config.sequencerCometbftEndpoint . }}"
   ASTRIA_BRIDGE_WITHDRAWER_SEQUENCER_CHAIN_ID: "{{ tpl .Values.config.sequencerChainId . }}"
@@ -34,10 +34,10 @@ data:
   {{- if not .Values.global.dev }}
   ASTRIA_BRIDGE_WITHDRAWER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   {{- else }}
-  ASTRIA_BRIDGE_WITHDRAWER_NO_FROST_THRESHOLD_SIGNING: "{{ .Values.config.noFrostThresholdSigning }}"
+  ASTRIA_BRIDGE_WITHDRAWER_NO_FROST_THRESHOLD_SIGNING: "{{ not .Values.config.frostThresholdSigning }}"
   ASTRIA_BRIDGE_WITHDRAWER_FROST_MIN_SIGNERS: "{{ .Values.config.frostMinSigners }}"
-  ASTRIA_BRIDGE_WITHDRAWER_FROST_PUBLIC_KEY_PACKAGE_PATH: "{{ .Values.config.frostPublicKeyPackagePath }}"
-  ASTRIA_BRIDGE_WITHDRAWER_FROST_PARTICIPANT_ENDPOINTS: "{{ .Values.config.frostParticipantEndpoints }}"
+  ASTRIA_BRIDGE_WITHDRAWER_FROST_PUBLIC_KEY_PACKAGE_PATH: "/public/publicKeyPackage/{{ .Values.config.frostPubKeyPackage.filename }}"
+  ASTRIA_BRIDGE_WITHDRAWER_FROST_PARTICIPANT_ENDPOINTS: "{{ include "evm-bridge-withdrawer.frostParticipantEndpoints" . }}"
   {{- end }}
 ---
 {{- if not .Values.secretProvider.enabled }}
@@ -49,5 +49,16 @@ metadata:
 data:
   {{ .Values.config.sequencerPrivateKey.secret.filename }}: |
     {{ .Values.config.sequencerPrivateKey.devContent }}
+---
+{{- end }}
+{{- if .Values.config.frostThresholdSigning }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "evm-bridge-withdrawer.appName" . }}-pubkey-package
+  namespace: {{ include "evm-bridge-withdrawer.namespace" . }}
+data:
+  {{ .Values.config.frostPubKeyPackage.filename }}: |
+    {{ toJson .Values.config.frostPubKeyPackage.devContent | nindent 4 }}
 ---
 {{- end }}

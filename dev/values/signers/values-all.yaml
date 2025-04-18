@@ -1,0 +1,8 @@
+global:
+  # Whether to use tty readable logging for astria services, when false use json.
+  useTTY: true
+  dev: true
+
+config:
+  logLevel: "debug"
+  evmRpcEndpoint: "http://astria-evm-service.astria-dev-cluster.svc.cluster.local:8545"

@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "bridge-signer.appName" . }}
+  namespace: {{ include "bridge-signer.namespace" . }}
+  labels:
+    {{ include "bridge-signer.selectorLabels" . }}
+spec:
+  replicas: {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+      {{ include "bridge-signer.selectorLabels" . }}
+  template:
+    metadata:
+      labels:
+        {{ include "bridge-signer.selectorLabels" . }}
+    spec:
+      containers:
+        - name: bridge-signer
+          image: {{ include "bridge-signer.image" . }}
+          imagePullPolicy: {{ .Values.images.bridgeSigner.pullPolicy }}
+          command: ["/usr/local/bin/astria-bridge-signer"]
+          stdin: {{ .Values.global.useTTY }}
+          tty: {{ .Values.global.useTTY }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "bridge-signer.appName" . }}-env
+          volumeMounts:
+            - mountPath: /secret/signerPrivateKey/
+              name: {{ include "bridge-signer.appName" . }}-private-key
+          ports:
+            {{- if .Values.metrics.enabled }}
+            - containerPort: {{ .Values.ports.metrics }}
+              name: {{ include "bridge-signer.appName" . }}-metric
+            {{- end }}
+            - containerPort: {{ .Values.ports.grpc }}
+              name: grpc
+          resources:
+            {{- toYaml .Values.resources | trim | nindent 12 }}
+      volumes:
+        - name: {{ include "bridge-signer.appName" . }}-private-key
+          {{- if .Values.secretProvider.enabled }}
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ include "bridge-signer.appName" . }}-private-key
+          {{- else }}
+          configMap:
+            name: {{ include "bridge-signer.appName" . }}-private-key
+              {{- end }}
