@@ -373,6 +373,8 @@ jobs:
     runs-on: depot-ubuntu-24.04-8
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Install just
         uses: taiki-e/install-action@just
       - name: Install kind

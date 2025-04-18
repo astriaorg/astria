@@ -329,21 +329,9 @@ frost-smoke-test tag=defaultTag:
   just wait-for rollup-transaction-index
   cd crates/astria-bridge-contracts/astria-bridge-contracts && \
     cp ../../../dev/bridge-contracts/frost-smoke-test/deploy.env.template .env && \
-    . .env
-    echo "Current directory:" && ls \
-    && echo "Script:" && ls -la script
-  pwd
-  # Check script location and permissions
-  if [ -f "script/AstriaWithdrawer.s.sol" ]; then
-    echo "Script file exists"
-    ls -la script/AstriaWithdrawer.s.sol
-  else
-    echo "Script file not found"
-    # Try to find it elsewhere
-    find . -name "AstriaWithdrawer.s.sol" 2>/dev/null || echo "File not found anywhere"
-  fi
-  echo "Deploying Bridge Contract..." && forge script script/AstriaWithdrawer.s.sol:AstriaWithdrawerScript \
-    --rpc-url {{eth_rpc_url}} --gas-price 10000000000000000 --broadcast --sig "deploy()" -vvvv > /dev/null
+    . .env && \
+    echo "Deploying Bridge Contract..." && forge script script/AstriaWithdrawer.s.sol:AstriaWithdrawerScript \
+      --rpc-url {{eth_rpc_url}} --gas-price 10000000000000000 --broadcast --sig "deploy()" -vvvv > /dev/null
   # Remove the .env file and go back to the original directory
   rm .env && cd ../../..
   echo "Deploying Bridge Signer 'signer1'" && helm install signer1-bridge-signer-chart charts/bridge-signer \
