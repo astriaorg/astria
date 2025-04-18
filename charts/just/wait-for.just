@@ -76,3 +76,35 @@ Waits for the sequencer to be ready.
 sequencer:
   @echo "Waiting for sequencer to be ready..."
   @kubectl rollout status --watch statefulset/sequencer -n {{defaultNamespace}} --timeout=600s > /dev/null
+
+
+# Waits for Bridge Signer
+##########################
+[doc("
+Waits for the Bridge Signer to be ready.
+Usage:
+  just wait-for bridge-signer <SIGNER_NAME>
+  (defaults: 'signer1')
+")]
+bridge-signer name=signerName:
+  @kubectl wait -n astria-signer-{{name}} deployment bridge-signer-{{name}} --for=condition=Available=True --timeout=600s > /dev/null
+
+
+# Waits for Rollup Transaction Indexing
+########################################
+[doc("
+Waits for rollup to finish indexing transactions.
+")]
+rollup-transaction-index:
+  #!/usr/bin/env bash
+  echo "Waiting for rollup to finish indexing transactions..."
+  while true; do
+    SYNC_STATUS=$(just evm get-sync-status 2>/dev/null || echo "error")
+    if [[ $SYNC_STATUS == "false" ]]; then
+      echo "Rollup has finished indexing transactions."
+      break
+    else
+      echo "Rollup still indexing..."
+      sleep 3
+    fi
+  done

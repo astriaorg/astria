@@ -101,6 +101,18 @@ get-txpool-length rpcUrl=eth_rpc_url:
   #!/usr/bin/env bash
   curl -X POST {{eth_rpc_url}} -s -d '{"jsonrpc":"2.0","method":"txpool_content","params":[],"id":1}' -H 'Content-Type: application/json' | jq '.result'
 
+# Get Geth Sync Status
+#######################
+[doc("
+Checks if Geth has finished indexing transactions.
+Returns 'false' when syncing is complete, or sync status details when still in progress.
+Usage:
+  $just evm check-sync-status <RPC_URL>
+    (see 'defaults.just' for default 'eth_rpc_url')
+")]
+get-sync-status rpcUrl=eth_rpc_url:
+  #!/usr/bin/env bash
+  curl -X POST {{rpcUrl}} -s -d '{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}' -H 'Content-Type: application/json' | jq '.result'
 
 [private]
 hex-to-dec hex:
