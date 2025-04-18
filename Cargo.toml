@@ -4,6 +4,7 @@ exclude = ["tools/protobuf-compiler", "tools/solidity-compiler"]
 members = [
   "crates/astria-auctioneer",
   "crates/astria-bridge-contracts",
+  "crates/astria-bridge-signer",
   "crates/astria-bridge-withdrawer",
   "crates/astria-build-info",
   "crates/astria-cli",
@@ -32,7 +33,9 @@ members = [
 default-members = [
   "crates/astria-auctioneer",
   "crates/astria-bridge-contracts",
+  "crates/astria-bridge-signer",
   "crates/astria-bridge-withdrawer",
+  "crates/astria-bridge-signer",
   "crates/astria-build-info",
   "crates/astria-cli",
   "crates/astria-composer",
