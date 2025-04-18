@@ -326,7 +326,7 @@ impl SequencerService for SequencerServer {
             return Err(Status::not_found("provided address is not a validator"));
         };
         Ok(Response::new(GetValidatorNameResponse {
-            name: validator.name.clone(),
+            name: validator.name.as_str().to_string(),
         }))
     }
 }
@@ -488,7 +488,7 @@ mod tests {
         let validator_name = "test".to_string();
 
         let update_with_name = ValidatorUpdate {
-            name: validator_name.clone(),
+            name: validator_name.clone().try_into().unwrap(),
             power: 100,
             verification_key,
         };
@@ -549,7 +549,7 @@ mod tests {
         let validator_name = "test".to_string();
 
         let validator_set = ValidatorSet::new_from_updates(vec![ValidatorUpdate {
-            name: validator_name.clone(),
+            name: validator_name.clone().try_into().unwrap(),
             power: 100,
             verification_key,
         }]);

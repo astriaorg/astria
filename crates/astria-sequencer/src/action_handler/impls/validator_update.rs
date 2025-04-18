@@ -142,6 +142,7 @@ mod tests {
     use astria_core::{
         crypto::VerificationKey,
         primitive::v1::TransactionId,
+        protocol::transaction::v1::action::ValidatorUpdateName,
         upgrades::test_utils::UpgradesBuilder,
     };
     use futures::TryStreamExt as _;
@@ -179,7 +180,7 @@ mod tests {
         let action = ValidatorUpdate {
             verification_key: VerificationKey::try_from([0; 32]).unwrap(),
             power: 100,
-            name: String::new(),
+            name: ValidatorUpdateName::empty(),
         };
 
         action.check_and_execute(&mut state).await.unwrap();
@@ -209,13 +210,13 @@ mod tests {
         let validator_update_1 = ValidatorUpdate {
             verification_key: VerificationKey::try_from([0; 32]).unwrap(),
             power: 100,
-            name: String::new(),
+            name: ValidatorUpdateName::empty(),
         };
 
         let validator_update_2 = ValidatorUpdate {
             verification_key: VerificationKey::try_from([1; 32]).unwrap(),
             power: 100,
-            name: String::new(),
+            name: ValidatorUpdateName::empty(),
         };
 
         state
@@ -230,7 +231,7 @@ mod tests {
         let action = ValidatorUpdate {
             verification_key: validator_update_1.verification_key,
             power: 0,
-            name: String::new(),
+            name: ValidatorUpdateName::empty(),
         };
 
         action.check_and_execute(&mut state).await.unwrap();
@@ -259,7 +260,7 @@ mod tests {
         let action = ValidatorUpdate {
             verification_key: VerificationKey::try_from([0; 32]).unwrap(),
             power: 100,
-            name: String::new(),
+            name: ValidatorUpdateName::empty(),
         };
 
         assert_eyre_error(
@@ -288,7 +289,7 @@ mod tests {
         let action = ValidatorUpdate {
             verification_key: VerificationKey::try_from([0; 32]).unwrap(),
             power: 0,
-            name: String::new(),
+            name: ValidatorUpdateName::empty(),
         };
 
         assert_eyre_error(
@@ -314,7 +315,7 @@ mod tests {
         let validator_update_1 = ValidatorUpdate {
             verification_key: VerificationKey::try_from([1; 32]).unwrap(),
             power: 100,
-            name: String::new(),
+            name: ValidatorUpdateName::empty(),
         };
 
         state
@@ -326,7 +327,7 @@ mod tests {
         let action = ValidatorUpdate {
             verification_key: validator_update_1.verification_key,
             power: 0,
-            name: String::new(),
+            name: ValidatorUpdateName::empty(),
         };
 
         assert_eyre_error(
@@ -367,7 +368,7 @@ mod tests {
         let action = ValidatorUpdate {
             verification_key: VerificationKey::try_from([0; 32]).unwrap(),
             power: 100,
-            name: String::new(),
+            name: ValidatorUpdateName::empty(),
         };
 
         action.check_and_execute(&mut state).await.unwrap();
@@ -429,14 +430,14 @@ mod tests {
         let validator_update_1 = ValidatorUpdate {
             verification_key: VerificationKey::try_from([0; 32]).unwrap(),
             power: 100,
-            name: String::new(),
+            name: ValidatorUpdateName::empty(),
         };
         state.put_validator(&validator_update_1).unwrap();
 
         let validator_update_2 = ValidatorUpdate {
             verification_key: VerificationKey::try_from([1; 32]).unwrap(),
             power: 100,
-            name: String::new(),
+            name: ValidatorUpdateName::empty(),
         };
         state.put_validator(&validator_update_2).unwrap();
         state.put_validator_count(2).unwrap();
@@ -471,7 +472,7 @@ mod tests {
         let action = ValidatorUpdate {
             verification_key: validator_update_1.verification_key.clone(),
             power: 0,
-            name: String::new(),
+            name: ValidatorUpdateName::empty(),
         };
 
         action.check_and_execute(&mut state).await.unwrap();
@@ -544,7 +545,7 @@ mod tests {
         let action = ValidatorUpdate {
             verification_key: VerificationKey::try_from([0; 32]).unwrap(),
             power: 0,
-            name: String::new(),
+            name: ValidatorUpdateName::empty(),
         };
 
         assert_eyre_error(
@@ -584,7 +585,7 @@ mod tests {
         let action = ValidatorUpdate {
             verification_key: VerificationKey::try_from([1; 32]).unwrap(),
             power: 0,
-            name: String::new(),
+            name: ValidatorUpdateName::empty(),
         };
 
         assert_eyre_error(
@@ -622,7 +623,7 @@ mod tests {
         let validator_update_1 = ValidatorUpdate {
             verification_key: VerificationKey::try_from([0; 32]).unwrap(),
             power: 100,
-            name: String::new(),
+            name: ValidatorUpdateName::empty(),
         };
         state.put_validator(&validator_update_1).unwrap();
         state.put_validator_count(1).unwrap();
@@ -630,7 +631,7 @@ mod tests {
         let action = ValidatorUpdate {
             verification_key: validator_update_1.verification_key.clone(),
             power: 200,
-            name: String::new(),
+            name: ValidatorUpdateName::empty(),
         };
 
         action.check_and_execute(&mut state).await.unwrap();

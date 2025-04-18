@@ -45,10 +45,15 @@ impl Command {
                 .wrap_err("failed to decode public key bytes from argument")?,
         )
         .wrap_err("failed to construct public key from bytes")?;
+        let name = self
+            .name
+            .unwrap_or_default()
+            .try_into()
+            .wrap_err("validator name is invalid")?;
         let validator_update = ValidatorUpdate {
             power: self.power,
             verification_key,
-            name: self.name.unwrap_or_default(),
+            name,
         };
 
         let res = submit_transaction(

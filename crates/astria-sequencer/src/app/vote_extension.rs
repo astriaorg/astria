@@ -845,21 +845,21 @@ mod test {
                 .put_validator(&ValidatorUpdate {
                     power: signer_a.power.into(),
                     verification_key: signer_a.signing_key.verification_key(),
-                    name: "signer_a".to_string(),
+                    name: "signer_a".try_into().unwrap(),
                 })
                 .unwrap();
             state
                 .put_validator(&ValidatorUpdate {
                     power: signer_b.power.into(),
                     verification_key: signer_b.signing_key.verification_key(),
-                    name: "signer_b".to_string(),
+                    name: "signer_b".try_into().unwrap(),
                 })
                 .unwrap();
             state
                 .put_validator(&ValidatorUpdate {
                     power: signer_c.power.into(),
                     verification_key: signer_c.signing_key.verification_key(),
-                    name: "signer_c".to_string(),
+                    name: "signer_c".try_into().unwrap(),
                 })
                 .unwrap();
             state.put_base_prefix("astria".to_string()).unwrap();

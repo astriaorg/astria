@@ -186,12 +186,12 @@ async fn app_begin_block_remove_byzantine_validators() {
 
     let initial_validator_set = vec![
         ValidatorUpdate {
-            name: "test1".to_string(),
+            name: "test1".try_into().unwrap(),
             power: 100u32,
             verification_key: verification_key(1),
         },
         ValidatorUpdate {
-            name: "test2".to_string(),
+            name: "test2".try_into().unwrap(),
             power: 1u32,
             verification_key: verification_key(2),
         },
@@ -896,12 +896,12 @@ async fn app_process_proposal_transaction_fails_to_execute_fails() {
 async fn app_end_block_validator_updates() {
     let initial_validator_set = vec![
         ValidatorUpdate {
-            name: "test1".to_string(),
+            name: "test1".try_into().unwrap(),
             power: 100,
             verification_key: verification_key(1),
         },
         ValidatorUpdate {
-            name: "test2".to_string(),
+            name: "test2".try_into().unwrap(),
             power: 1,
             verification_key: verification_key(2),
         },
@@ -915,17 +915,17 @@ async fn app_end_block_validator_updates() {
 
     let validator_updates = vec![
         ValidatorUpdate {
-            name: "test0".to_string(),
+            name: "test0".try_into().unwrap(),
             power: 0,
             verification_key: verification_key(0),
         },
         ValidatorUpdate {
-            name: "test1".to_string(),
+            name: "test1".try_into().unwrap(),
             power: 100,
             verification_key: verification_key(1),
         },
         ValidatorUpdate {
-            name: "test2".to_string(),
+            name: "test2".try_into().unwrap(),
             power: 100,
             verification_key: verification_key(2),
         },
@@ -1168,7 +1168,7 @@ async fn app_oracle_price_update_events_in_finalize_block() {
     let initial_validator_set = vec![ValidatorUpdate {
         power: 100,
         verification_key: alice_signing_key.verification_key(),
-        name: "test".to_string(),
+        name: "test".try_into().unwrap(),
     }];
     let (mut app, storage) = AppInitializer::new()
         .with_genesis_validators(initial_validator_set)

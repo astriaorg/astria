@@ -649,6 +649,66 @@ enum TransferActionErrorKind {
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
+pub struct ValidatorUpdateNameError(ValidatorUpdateNameErrorKind);
+
+impl ValidatorUpdateNameError {
+    fn name_too_long(length: usize) -> Self {
+        Self(ValidatorUpdateNameErrorKind::NameTooLong {
+            length,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum ValidatorUpdateNameErrorKind {
+    #[error(
+        "validator name was {length} characters long, but must be {MAX_VALIDATOR_NAME_LENGTH} at \
+         most"
+    )]
+    NameTooLong { length: usize },
+}
+
+/// Wrapper for validator name field of [`ValidatorUpdate`]. Cannot be longer than
+/// [`MAX_VALIDATOR_NAME_LENGTH`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ValidatorUpdateName(String);
+
+impl ValidatorUpdateName {
+    #[must_use]
+    pub fn empty() -> Self {
+        Self(String::new())
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl TryFrom<String> for ValidatorUpdateName {
+    type Error = ValidatorUpdateNameError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        if value.len() > MAX_VALIDATOR_NAME_LENGTH {
+            return Err(ValidatorUpdateNameError::name_too_long(value.len()));
+        }
+        Ok(Self(value))
+    }
+}
+
+impl TryFrom<&str> for ValidatorUpdateName {
+    type Error = ValidatorUpdateNameError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        if value.len() > MAX_VALIDATOR_NAME_LENGTH {
+            return Err(ValidatorUpdateNameError::name_too_long(value.len()));
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
 pub struct ValidatorUpdateError(ValidatorUpdateErrorKind);
 
 impl ValidatorUpdateError {
@@ -672,9 +732,9 @@ impl ValidatorUpdateError {
         })
     }
 
-    fn name_too_long(length: usize) -> Self {
-        Self(ValidatorUpdateErrorKind::NameTooLong {
-            length,
+    fn invalid_name(source: ValidatorUpdateNameError) -> Self {
+        Self(ValidatorUpdateErrorKind::InvalidName {
+            source,
         })
     }
 }
@@ -689,18 +749,15 @@ enum ValidatorUpdateErrorKind {
     Secp256k1NotSupported,
     #[error("bytes stored in the .pub_key field could not be read as an ed25519 verification key")]
     VerificationKey { source: crate::crypto::Error },
-    #[error(
-        "validator name was {length} characters long, but must be {MAX_VALIDATOR_NAME_LENGTH} at \
-         most"
-    )]
-    NameTooLong { length: usize },
+    #[error(transparent)]
+    InvalidName { source: ValidatorUpdateNameError },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ValidatorUpdate {
     pub power: u32,
     pub verification_key: crate::crypto::VerificationKey,
-    pub name: String,
+    pub name: ValidatorUpdateName,
 }
 
 impl Protobuf for ValidatorUpdate {
@@ -725,9 +782,9 @@ impl Protobuf for ValidatorUpdate {
             power,
             name,
         } = value;
-        if name.len() > MAX_VALIDATOR_NAME_LENGTH {
-            return Err(Self::Error::name_too_long(name.len()));
-        }
+        let name = name
+            .try_into()
+            .map_err(ValidatorUpdateError::invalid_name)?;
         let power = power
             .try_into()
             .map_err(|_| Self::Error::negative_power(power))?;
@@ -783,7 +840,7 @@ impl Protobuf for ValidatorUpdate {
                     verification_key.to_bytes().to_vec(),
                 )),
             }),
-            name: name.clone(),
+            name: name.as_str().to_string(),
         }
     }
 }

@@ -10,7 +10,10 @@ use std::{
 use astria_core::{
     crypto::VerificationKey as DomainVerificationKey,
     primitive::v1::ADDRESS_LEN,
-    protocol::transaction::v1::action::ValidatorUpdate as DomainValidatorUpdate,
+    protocol::transaction::v1::action::{
+        ValidatorUpdate as DomainValidatorUpdate,
+        ValidatorUpdateName,
+    },
 };
 use astria_eyre::eyre::bail;
 use borsh::{
@@ -129,7 +132,7 @@ impl<'a> From<ValidatorSet<'a>> for DomainValidatorSet {
                     verification_key: astria_core::crypto::VerificationKey::from(
                         update.verification_key,
                     ),
-                    name: String::new(),
+                    name: ValidatorUpdateName::empty(),
                 };
                 (key, validator_update)
             })
@@ -204,7 +207,7 @@ pub(in crate::authority) struct ValidatorInfoV1<'a> {
 impl<'a> From<&'a DomainValidatorUpdate> for ValidatorInfoV1<'a> {
     fn from(value: &'a DomainValidatorUpdate) -> Self {
         ValidatorInfoV1 {
-            name: Cow::Borrowed(&value.name),
+            name: Cow::Borrowed(value.name.as_str()),
             power: value.power,
             verification_key: VerificationKey(Cow::Borrowed(value.verification_key.as_bytes())),
         }
@@ -214,7 +217,11 @@ impl<'a> From<&'a DomainValidatorUpdate> for ValidatorInfoV1<'a> {
 impl From<ValidatorInfoV1<'_>> for DomainValidatorUpdate {
     fn from(value: ValidatorInfoV1) -> Self {
         Self {
-            name: value.name.into_owned(),
+            name: value
+                .name
+                .into_owned()
+                .try_into()
+                .expect("state should only contain valid validator names"),
             power: value.power,
             verification_key: astria_core::crypto::VerificationKey::from(value.verification_key),
         }

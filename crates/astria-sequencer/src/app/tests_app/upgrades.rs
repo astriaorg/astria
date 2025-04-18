@@ -14,6 +14,7 @@ use astria_core::{
         action::{
             Transfer,
             ValidatorUpdate,
+            ValidatorUpdateName,
         },
         Transaction,
         TransactionBody,
@@ -326,12 +327,12 @@ impl Node {
             ValidatorUpdate {
                 power: 10,
                 verification_key: SigningKey::from(PROPOSER_SEED).verification_key(),
-                name: "test".to_string(),
+                name: "test".try_into().unwrap(),
             },
             ValidatorUpdate {
                 power: 10,
                 verification_key: SigningKey::from(VALIDATOR_SEED).verification_key(),
-                name: "test".to_string(),
+                name: "test".try_into().unwrap(),
             },
         ];
 
@@ -420,7 +421,7 @@ async fn execute_block_99(proposer: &mut Node, validator: &mut Node, non_validat
     let block_99_validator_update = ValidatorUpdate {
         power: BLOCK_99_VALIDATOR_UPDATE_POWER,
         verification_key: SigningKey::from(TEST_VALIDATOR_UPDATE_SEED).verification_key(),
-        name: TEST_VALIDATOR_UPDATE_NAME.to_string(),
+        name: TEST_VALIDATOR_UPDATE_NAME.try_into().unwrap(),
     };
     proposer
         .app
@@ -501,7 +502,7 @@ async fn execute_block_99(proposer: &mut Node, validator: &mut Node, non_validat
             block_99_validator_update.power
         ),
     );
-    assert_eq!(existing_validator_update.name, String::new(),);
+    assert_eq!(existing_validator_update.name, ValidatorUpdateName::empty(),);
 }
 
 /// Upgrade should execute as part of this block, and the `vote_extensions_enable_height` should get
@@ -523,7 +524,7 @@ async fn execute_block_100(proposer: &mut Node, validator: &mut Node, non_valida
     let block_100_validator_update = ValidatorUpdate {
         power: BLOCK_100_VALIDATOR_UPDATE_POWER,
         verification_key: SigningKey::from(TEST_VALIDATOR_UPDATE_SEED).verification_key(),
-        name: TEST_VALIDATOR_UPDATE_NAME.to_string(),
+        name: TEST_VALIDATOR_UPDATE_NAME.try_into().unwrap(),
     };
     proposer
         .app
@@ -633,7 +634,7 @@ async fn execute_block_101(proposer: &mut Node, validator: &mut Node, non_valida
     let block_101_validator_update = ValidatorUpdate {
         power: BLOCK_101_VALIDATOR_UPDATE_POWER,
         verification_key: SigningKey::from(TEST_VALIDATOR_UPDATE_SEED).verification_key(),
-        name: TEST_VALIDATOR_UPDATE_NAME.to_string(),
+        name: TEST_VALIDATOR_UPDATE_NAME.try_into().unwrap(),
     };
     proposer
         .app
