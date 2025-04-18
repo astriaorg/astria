@@ -13,10 +13,10 @@ use astria_conductor::{
 use astria_core::{
     brotli::compress_bytes,
     generated::astria::{
-        execution::v1::{
-            Block,
+        execution::v2::{
             CommitmentState,
-            GenesisInfo,
+            ExecutedBlockMetadata,
+            ExecutionSession,
         },
         sequencerblock::v1::FilteredSequencerBlock,
     },
@@ -53,6 +53,7 @@ pub static ROLLUP_ID_BYTES: Bytes = Bytes::from_static(ROLLUP_ID.as_bytes());
 
 pub const SEQUENCER_CHAIN_ID: &str = "test_sequencer-1000";
 pub const CELESTIA_CHAIN_ID: &str = "test_celestia-1000";
+pub const EXECUTION_SESSION_ID: &str = "test_execution_session";
 
 pub const INITIAL_SOFT_HASH: [u8; 64] = [1; 64];
 pub const INITIAL_FIRM_HASH: [u8; 64] = [1; 64];
@@ -175,21 +176,24 @@ impl TestConductor {
         .await;
     }
 
-    pub async fn mount_get_block<S: serde::Serialize>(
+    pub async fn mount_get_executed_block_metadata<S: serde::Serialize>(
         &self,
         expected_pbjson: S,
-        block: astria_core::generated::astria::execution::v1::Block,
+        block: ExecutedBlockMetadata,
     ) {
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
             response::constant_response,
             Mock,
         };
-        Mock::for_rpc_given("get_block", message_partial_pbjson(&expected_pbjson))
-            .respond_with(constant_response(block))
-            .expect(1..)
-            .mount(&self.mock_grpc.mock_server)
-            .await;
+        Mock::for_rpc_given(
+            "get_executed_block_metadata",
+            message_partial_pbjson(&expected_pbjson),
+        )
+        .respond_with(constant_response(block))
+        .expect(1..)
+        .mount(&self.mock_grpc.mock_server)
+        .await;
     }
 
     pub async fn mount_celestia_blob_get_all(
@@ -304,29 +308,22 @@ impl TestConductor {
         mount_genesis(&self.mock_http, chain_id).await;
     }
 
-    pub async fn mount_get_genesis_info(&self, genesis_info: GenesisInfo) {
-        use astria_core::generated::astria::execution::v1::GetGenesisInfoRequest;
+    pub async fn mount_create_execution_session(
+        &self,
+        execution_session: ExecutionSession,
+        up_to_n_times: u64,
+        expected_calls: u64,
+    ) {
+        use astria_core::generated::astria::execution::v2::CreateExecutionSessionRequest;
         astria_grpc_mock::Mock::for_rpc_given(
-            "get_genesis_info",
-            astria_grpc_mock::matcher::message_type::<GetGenesisInfoRequest>(),
-        )
-        .respond_with(astria_grpc_mock::response::constant_response(genesis_info))
-        .expect(1..)
-        .mount(&self.mock_grpc.mock_server)
-        .await;
-    }
-
-    pub async fn mount_get_commitment_state(&self, commitment_state: CommitmentState) {
-        use astria_core::generated::astria::execution::v1::GetCommitmentStateRequest;
-
-        astria_grpc_mock::Mock::for_rpc_given(
-            "get_commitment_state",
-            astria_grpc_mock::matcher::message_type::<GetCommitmentStateRequest>(),
+            "create_execution_session",
+            astria_grpc_mock::matcher::message_type::<CreateExecutionSessionRequest>(),
         )
         .respond_with(astria_grpc_mock::response::constant_response(
-            commitment_state,
+            execution_session,
         ))
-        .expect(1..)
+        .up_to_n_times(up_to_n_times)
+        .expect(expected_calls)
         .mount(&self.mock_grpc.mock_server)
         .await;
     }
@@ -335,8 +332,10 @@ impl TestConductor {
         &self,
         mock_name: Option<&str>,
         expected_pbjson: S,
-        response: Block,
+        block_metadata: ExecutedBlockMetadata,
+        expected_calls: u64,
     ) -> astria_grpc_mock::MockGuard {
+        use astria_core::generated::astria::execution::v2::ExecuteBlockResponse;
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
             response::constant_response,
@@ -344,11 +343,13 @@ impl TestConductor {
         };
         let mut mock =
             Mock::for_rpc_given("execute_block", message_partial_pbjson(&expected_pbjson))
-                .respond_with(constant_response(response));
+                .respond_with(constant_response(ExecuteBlockResponse {
+                    executed_block_metadata: Some(block_metadata.clone()),
+                }));
         if let Some(name) = mock_name {
             mock = mock.with_name(name);
         }
-        mock.expect(1)
+        mock.expect(expected_calls)
             .mount_as_scoped(&self.mock_grpc.mock_server)
             .await
     }
@@ -378,9 +379,9 @@ impl TestConductor {
         &self,
         mock_name: Option<&str>,
         commitment_state: CommitmentState,
-        expected_calls: u64,
+        expected_calls: impl Into<astria_grpc_mock::Times>,
     ) -> astria_grpc_mock::MockGuard {
-        use astria_core::generated::astria::execution::v1::UpdateCommitmentStateRequest;
+        use astria_core::generated::astria::execution::v2::UpdateCommitmentStateRequest;
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
             response::constant_response,
@@ -389,6 +390,7 @@ impl TestConductor {
         let mut mock = Mock::for_rpc_given(
             "update_commitment_state",
             message_partial_pbjson(&UpdateCommitmentStateRequest {
+                session_id: EXECUTION_SESSION_ID.to_string(),
                 commitment_state: Some(commitment_state.clone()),
             }),
         )
@@ -521,8 +523,6 @@ pub(crate) fn make_config() -> Config {
         sequencer_cometbft_url: "http://127.0.0.1:26657".into(),
         sequencer_requests_per_second: 500,
         sequencer_block_time_ms: 2000,
-        expected_celestia_chain_id: CELESTIA_CHAIN_ID.into(),
-        expected_sequencer_chain_id: SEQUENCER_CHAIN_ID.into(),
         execution_rpc_url: "http://127.0.0.1:50051".into(),
         log: "info".into(),
         execution_commit_level: astria_conductor::config::CommitLevel::SoftAndFirm,

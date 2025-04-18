@@ -97,7 +97,7 @@ impl Proposed {
 #[derive(Debug, Clone)]
 pub(crate) struct Executed {
     /// The rollup block metadata that resulted from executing a proposed Sequencer block.
-    block: execution::v1::Block,
+    block_metadata: execution::v2::ExecutedBlockMetadata,
     /// The hash of the sequencer block that was executed optimistically.
     sequencer_block_hash: block::Hash,
 }
@@ -106,8 +106,9 @@ impl Executed {
     pub(crate) fn try_from_raw(
         raw: optimistic_execution::ExecuteOptimisticBlockStreamResponse,
     ) -> eyre::Result<Self> {
-        let block = if let Some(raw_block) = raw.block {
-            execution::v1::Block::try_from_raw(raw_block).wrap_err("invalid rollup block")?
+        let block_metadata = if let Some(raw_block_metadata) = raw.block {
+            execution::v2::ExecutedBlockMetadata::try_from_raw(raw_block_metadata)
+                .wrap_err("invalid rollup block")?
         } else {
             return Err(eyre!("missing block"));
         };
@@ -119,7 +120,7 @@ impl Executed {
             .wrap_err("invalid block hash")?;
 
         Ok(Self {
-            block,
+            block_metadata,
             sequencer_block_hash,
         })
     }
@@ -129,6 +130,7 @@ impl Executed {
     }
 
     pub(crate) fn rollup_block_hash(&self) -> RollupBlockHash {
-        RollupBlockHash::new(self.block.hash().clone())
+        let bytes = self.block_metadata.hash().to_string().into_bytes().into();
+        RollupBlockHash::new(bytes)
     }
 }
