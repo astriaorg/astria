@@ -42,6 +42,7 @@ use astria_core::{
         Deposit,
         RollupData,
     },
+    upgrades::test_utils::UpgradesBuilder,
 };
 use benchmark_and_test_utils::{
     default_genesis_accounts,
@@ -185,10 +186,12 @@ async fn app_begin_block_remove_byzantine_validators() {
 
     let initial_validator_set = vec![
         ValidatorUpdate {
+            name: "test1".parse().unwrap(),
             power: 100u32,
             verification_key: verification_key(1),
         },
         ValidatorUpdate {
+            name: "test2".parse().unwrap(),
             power: 1u32,
             verification_key: verification_key(2),
         },
@@ -196,6 +199,7 @@ async fn app_begin_block_remove_byzantine_validators() {
 
     let (mut app, _storage) = AppInitializer::new()
         .with_genesis_validators(initial_validator_set.clone())
+        .with_upgrades(UpgradesBuilder::new().set_aspen(Some(100)).build())
         .init()
         .await;
 
@@ -224,7 +228,7 @@ async fn app_begin_block_remove_byzantine_validators() {
     app.begin_block(&begin_block).await.unwrap();
 
     // assert that validator with pubkey_a is removed
-    let validator_set = app.state.get_validator_set().await.unwrap();
+    let validator_set = app.state.pre_aspen_get_validator_set().await.unwrap();
     assert_eq!(validator_set.len(), 1);
     assert_eq!(validator_set.get(&verification_key(2)).unwrap().power, 1,);
 }
@@ -892,10 +896,12 @@ async fn app_process_proposal_transaction_fails_to_execute_fails() {
 async fn app_end_block_validator_updates() {
     let initial_validator_set = vec![
         ValidatorUpdate {
+            name: "test1".parse().unwrap(),
             power: 100,
             verification_key: verification_key(1),
         },
         ValidatorUpdate {
+            name: "test2".parse().unwrap(),
             power: 1,
             verification_key: verification_key(2),
         },
@@ -909,14 +915,17 @@ async fn app_end_block_validator_updates() {
 
     let validator_updates = vec![
         ValidatorUpdate {
+            name: "test0".parse().unwrap(),
             power: 0,
             verification_key: verification_key(0),
         },
         ValidatorUpdate {
+            name: "test1".parse().unwrap(),
             power: 100,
             verification_key: verification_key(1),
         },
         ValidatorUpdate {
+            name: "test2".parse().unwrap(),
             power: 100,
             verification_key: verification_key(2),
         },
@@ -924,7 +933,7 @@ async fn app_end_block_validator_updates() {
 
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx
-        .put_validator_updates(ValidatorSet::new_from_updates(validator_updates.clone()))
+        .put_block_validator_updates(ValidatorSet::new_from_updates(validator_updates.clone()))
         .unwrap();
     app.apply(state_tx);
 
@@ -936,7 +945,7 @@ async fn app_end_block_validator_updates() {
     // validator with pubkey_a should be removed (power set to 0)
     // validator with pubkey_b should be updated
     // validator with pubkey_c should be added
-    let validator_set = app.state.get_validator_set().await.unwrap();
+    let validator_set = app.state.pre_aspen_get_validator_set().await.unwrap();
     assert_eq!(validator_set.len(), 2);
     let validator_b = validator_set
         .get(verification_key(1).address_bytes())
@@ -948,7 +957,10 @@ async fn app_end_block_validator_updates() {
         .unwrap();
     assert_eq!(validator_c.verification_key, verification_key(2));
     assert_eq!(validator_c.power, 100);
-    assert_eq!(app.state.get_validator_updates().await.unwrap().len(), 0);
+    assert_eq!(
+        app.state.get_block_validator_updates().await.unwrap().len(),
+        0
+    );
 }
 
 #[tokio::test]
@@ -1156,6 +1168,7 @@ async fn app_oracle_price_update_events_in_finalize_block() {
     let initial_validator_set = vec![ValidatorUpdate {
         power: 100,
         verification_key: alice_signing_key.verification_key(),
+        name: "test".parse().unwrap(),
     }];
     let (mut app, storage) = AppInitializer::new()
         .with_genesis_validators(initial_validator_set)

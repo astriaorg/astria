@@ -5,7 +5,7 @@ package astria.protocol.transaction.v1;
 import "astria/primitive/v1/types.proto";
 import "astria/protocol/fees/v1/types.proto";
 import "astria_vendored/penumbra/core/component/ibc/v1/ibc.proto";
-import "astria_vendored/tendermint/abci/types.proto";
+import "astria_vendored/tendermint/crypto/keys.proto";
 import "connect/marketmap/v2/market.proto";
 import "connect/types/v2/currency_pair.proto";
 
@@ -28,7 +28,7 @@ message Action {
 
     // POA sudo actions are defined on 50-70
     SudoAddressChange sudo_address_change = 50;
-    astria_vendored.tendermint.abci.ValidatorUpdate validator_update = 51;
+    ValidatorUpdate validator_update = 51;
     IbcRelayerChange ibc_relayer_change = 52;
     FeeAssetChange fee_asset_change = 53;
     FeeChange fee_change = 55;
@@ -241,6 +241,15 @@ message BridgeTransfer {
   // This field is of type `string` so that it can be formatted in the preferred
   // format of the rollup when targeting plain text encoding.
   string rollup_withdrawal_event_id = 7;
+}
+
+message ValidatorUpdate {
+  // the ed25519 public key of the validator
+  astria_vendored.tendermint.crypto.PublicKey pub_key = 1;
+  // the amount of power to assign the validator
+  int64 power = 2;
+  // an optional name for the validator. to opt for no name, leave blank
+  string name = 3;
 }
 
 message FeeChange {

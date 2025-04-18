@@ -77,6 +77,7 @@ fn try_from_list_of_actions_bundleable_general() {
         Action::ValidatorUpdate(ValidatorUpdate {
             power: 100,
             verification_key: VerificationKey::try_from([0; 32]).unwrap(),
+            name: "test_validator".parse().unwrap(),
         }),
         Action::Ics20Withdrawal(Ics20Withdrawal {
             denom: asset.clone(),

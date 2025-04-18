@@ -1,7 +1,11 @@
 use std::collections::HashSet;
 
 use astria_core::{
-    crypto::Signature,
+    crypto::{
+        Signature,
+        VerificationKey,
+        ADDRESS_LENGTH,
+    },
     generated::price_feed::{
         abci::v2::OracleVoteExtension as RawOracleVoteExtension,
         service::v2::{
@@ -434,10 +438,6 @@ async fn validate_vote_extensions<S: StateReadExt>(
     // the total voting power of all validators which submitted vote extensions
     let mut submitted_voting_power: u64 = 0;
 
-    let all_validators = state
-        .get_validator_set()
-        .await
-        .wrap_err("failed to get validator set")?;
     let mut validators_that_voted = HashSet::new();
 
     for vote in &extended_commit_info.votes {
@@ -479,15 +479,9 @@ async fn validate_vote_extensions<S: StateReadExt>(
             .checked_add(vote.validator.power.value())
             .ok_or_eyre("calculating submitted voting power overflowed")?;
 
-        let verification_key = &all_validators
-            .get(&vote.validator.address)
-            .ok_or_else(|| {
-                eyre!(
-                    "{} not found in validator set",
-                    base64(&vote.validator.address)
-                )
-            })?
-            .verification_key;
+        let verification_key = verification_key(state, &vote.validator.address)
+            .await
+            .wrap_err("failed to get verification key for validator")?;
 
         let vote_extension = CanonicalVoteExtension {
             extension: vote.vote_extension.to_vec(),
@@ -527,6 +521,21 @@ async fn validate_vote_extensions<S: StateReadExt>(
         total_voting_power, "validated extended commit info"
     );
     Ok(())
+}
+
+async fn verification_key<S: StateReadExt>(
+    state: &S,
+    address: &[u8; ADDRESS_LENGTH],
+) -> Result<VerificationKey> {
+    // Note that there is no check for pre-Aspen upgrade status, since vote extensions are not
+    // enabled pre-Aspen
+    let verification_key = state
+        .get_validator(address)
+        .await
+        .wrap_err("failed to get validator")?
+        .ok_or_else(|| eyre!("{} not found in validators", base64(address)))?
+        .verification_key;
+    Ok(verification_key)
 }
 
 fn validate_extended_commit_against_last_commit(
@@ -662,10 +671,7 @@ mod test {
     use crate::{
         address::StateWriteExt as _,
         app::StateWriteExt as _,
-        authority::{
-            StateWriteExt as _,
-            ValidatorSet,
-        },
+        authority::StateWriteExt as _,
         oracles::price_feed::market_map::state_ext::StateWriteExt as _,
     };
 
@@ -835,21 +841,27 @@ mod test {
             state
                 .put_chain_id_and_revision_number(CHAIN_ID.try_into().unwrap())
                 .unwrap();
-            let validator_set = ValidatorSet::new_from_updates(vec![
-                ValidatorUpdate {
+            state
+                .put_validator(&ValidatorUpdate {
                     power: signer_a.power.into(),
                     verification_key: signer_a.signing_key.verification_key(),
-                },
-                ValidatorUpdate {
+                    name: "signer_a".parse().unwrap(),
+                })
+                .unwrap();
+            state
+                .put_validator(&ValidatorUpdate {
                     power: signer_b.power.into(),
                     verification_key: signer_b.signing_key.verification_key(),
-                },
-                ValidatorUpdate {
+                    name: "signer_b".parse().unwrap(),
+                })
+                .unwrap();
+            state
+                .put_validator(&ValidatorUpdate {
                     power: signer_c.power.into(),
                     verification_key: signer_c.signing_key.verification_key(),
-                },
-            ]);
-            state.put_validator_set(validator_set).unwrap();
+                    name: "signer_c".parse().unwrap(),
+                })
+                .unwrap();
             state.put_base_prefix("astria".to_string()).unwrap();
 
             let mut market_map = MarketMap {
@@ -900,8 +912,8 @@ mod test {
     }
 
     #[track_caller]
-    fn assert_err_contains<T: Debug, E: ToString>(result: Result<T, E>, messages: &[&str]) {
-        let actual_message = result.unwrap_err().to_string();
+    fn assert_err_contains<T: Debug, E: Debug>(result: Result<T, E>, messages: &[&str]) {
+        let actual_message = format!("{:?}", result.unwrap_err());
         for message in messages {
             assert!(
                 actual_message.contains(message),
@@ -1041,7 +1053,7 @@ mod test {
         let extended_commit_info = extended_commit_info(message.round, votes);
         assert_err_contains(
             validate_vote_extensions(&state, height(&message) + 1, &extended_commit_info).await,
-            &["not found in validator set"],
+            &["failed to get verification key for validator"],
         );
     }
 

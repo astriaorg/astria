@@ -82,6 +82,7 @@ use crate::{
         astria_address,
         astria_address_from_hex_string,
         nria,
+        verification_key,
         ASTRIA_PREFIX,
     },
     bridge::StateWriteExt as _,
@@ -238,8 +239,9 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 
     // setup for ValidatorUpdate action
     let update = ValidatorUpdate {
+        name: "test_validator".parse().unwrap(),
         power: 100,
-        verification_key: crate::benchmark_and_test_utils::verification_key(1),
+        verification_key: verification_key(1),
     };
 
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");

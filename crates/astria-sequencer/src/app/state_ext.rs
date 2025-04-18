@@ -63,7 +63,7 @@ pub(crate) trait StateReadExt: StateRead {
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw block_height from state")?
         else {
-            bail!("block height not found state");
+            bail!("block height not found in state");
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| storage::BlockHeight::try_from(value).map(u64::from))

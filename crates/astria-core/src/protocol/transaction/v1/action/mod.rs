@@ -1,3 +1,8 @@
+use std::{
+    fmt::Display,
+    str::FromStr,
+};
+
 use bytes::Bytes;
 use ibc_types::{
     core::{
@@ -39,6 +44,8 @@ use crate::{
 };
 
 pub mod group;
+
+const MAX_VALIDATOR_NAME_LENGTH: usize = 32;
 
 #[derive(Clone, Debug)]
 #[cfg_attr(
@@ -309,6 +316,12 @@ impl From<CurrencyPairsChange> for Action {
 impl From<MarketsChange> for Action {
     fn from(value: MarketsChange) -> Self {
         Self::MarketsChange(value)
+    }
+}
+
+impl From<ValidatorUpdate> for Action {
+    fn from(value: ValidatorUpdate) -> Self {
+        Self::ValidatorUpdate(value)
     }
 }
 
@@ -656,6 +669,56 @@ enum TransferActionErrorKind {
 }
 
 #[derive(Debug, thiserror::Error)]
+#[error(
+    "input was `{length}` bytes but validator names can only be up to \
+     `{MAX_VALIDATOR_NAME_LENGTH}` bytes long"
+)]
+pub struct ValidatorNameError {
+    length: usize,
+}
+
+/// Wrapper for validator name field of [`ValidatorUpdate`]. Cannot be longer than
+/// [`MAX_VALIDATOR_NAME_LENGTH`].
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ValidatorName(String);
+
+impl ValidatorName {
+    #[must_use]
+    pub fn empty() -> Self {
+        Self(String::new())
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    #[must_use]
+    pub fn into_inner(self) -> String {
+        self.0
+    }
+}
+
+impl FromStr for ValidatorName {
+    type Err = ValidatorNameError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        if value.len() > MAX_VALIDATOR_NAME_LENGTH {
+            return Err(ValidatorNameError {
+                length: value.len(),
+            });
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+
+impl Display for ValidatorName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct ValidatorUpdateError(ValidatorUpdateErrorKind);
 
@@ -679,6 +742,12 @@ impl ValidatorUpdateError {
             source,
         })
     }
+
+    fn invalid_name(source: ValidatorNameError) -> Self {
+        Self(ValidatorUpdateErrorKind::InvalidName {
+            source,
+        })
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -691,82 +760,78 @@ enum ValidatorUpdateErrorKind {
     Secp256k1NotSupported,
     #[error("bytes stored in the .pub_key field could not be read as an ed25519 verification key")]
     VerificationKey { source: crate::crypto::Error },
+    #[error("field `.name` was invalid")]
+    InvalidName { source: ValidatorNameError },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "serde",
-    derive(::serde::Deserialize, ::serde::Serialize),
-    serde(
-        into = "crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate",
-        try_from = "crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate",
-    )
-)]
 pub struct ValidatorUpdate {
     pub power: u32,
     pub verification_key: crate::crypto::VerificationKey,
+    pub name: ValidatorName,
 }
 
 impl Protobuf for ValidatorUpdate {
     type Error = ValidatorUpdateError;
-    type Raw = crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate;
+    type Raw = raw::ValidatorUpdate;
 
     /// Create a validator update by verifying a raw protobuf-decoded
-    /// [`crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate`].
+    /// [`crate::generated::protocol::transaction::v1alpha1::ValidatorUpdate`].
     ///
     /// # Errors
     /// Returns an error if the `.power` field is negative, if `.pub_key`
     /// is not set, or if `.pub_key` contains a non-ed25519 variant, or
     /// if the ed25519 has invalid bytes (that is, bytes from which an
     /// ed25519 public key cannot be constructed).
-    fn try_from_raw(
-        value: crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate,
-    ) -> Result<Self, ValidatorUpdateError> {
+    fn try_from_raw(value: Self::Raw) -> Result<Self, Self::Error> {
         use crate::generated::astria_vendored::tendermint::crypto::{
             public_key,
             PublicKey,
         };
-        let crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate {
+        let Self::Raw {
             pub_key,
             power,
+            name,
         } = value;
+        let name = name.parse().map_err(ValidatorUpdateError::invalid_name)?;
         let power = power
             .try_into()
-            .map_err(|_| ValidatorUpdateError::negative_power(power))?;
+            .map_err(|_| Self::Error::negative_power(power))?;
         let verification_key = match pub_key {
             None
             | Some(PublicKey {
                 sum: None,
-            }) => Err(ValidatorUpdateError::public_key_not_set()),
+            }) => Err(Self::Error::public_key_not_set()),
             Some(PublicKey {
                 sum: Some(public_key::Sum::Secp256k1(..)),
-            }) => Err(ValidatorUpdateError::secp256k1_not_supported()),
+            }) => Err(Self::Error::secp256k1_not_supported()),
 
             Some(PublicKey {
                 sum: Some(public_key::Sum::Ed25519(bytes)),
             }) => crate::crypto::VerificationKey::try_from(&*bytes)
-                .map_err(ValidatorUpdateError::verification_key),
+                .map_err(Self::Error::verification_key),
         }?;
         Ok(Self {
             power,
             verification_key,
+            name,
         })
     }
 
     /// Create a validator update by verifying a reference to raw protobuf-decoded
-    /// [`crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate`].
+    /// [`crate::generated::protocol::transaction::v1alpha1::ValidatorUpdate`].
     ///
     /// # Errors
     /// Returns an error if the `.power` field is negative, if `.pub_key`
     /// is not set, or if `.pub_key` contains a non-ed25519 variant, or
     /// if the ed25519 has invalid bytes (that is, bytes from which an
     /// ed25519 public key cannot be constructed).
-    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, ValidatorUpdateError> {
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         Self::try_from_raw(raw.clone())
     }
 
     #[must_use]
-    fn to_raw(&self) -> crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate {
+    fn to_raw(&self) -> Self::Raw {
         use crate::generated::astria_vendored::tendermint::crypto::{
             public_key,
             PublicKey,
@@ -774,34 +839,36 @@ impl Protobuf for ValidatorUpdate {
         let Self {
             power,
             verification_key,
+            name,
         } = self;
 
-        crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate {
+        Self::Raw {
             power: (*power).into(),
             pub_key: Some(PublicKey {
                 sum: Some(public_key::Sum::Ed25519(
                     verification_key.to_bytes().to_vec(),
                 )),
             }),
+            name: name.clone().into_inner(),
         }
     }
 }
 
 impl From<ValidatorUpdate>
-    for crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate
+    for crate::generated::astria::protocol::transaction::v1::ValidatorUpdate
 {
     fn from(value: ValidatorUpdate) -> Self {
         value.into_raw()
     }
 }
 
-impl TryFrom<crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate>
+impl TryFrom<crate::generated::astria::protocol::transaction::v1::ValidatorUpdate>
     for ValidatorUpdate
 {
     type Error = ValidatorUpdateError;
 
     fn try_from(
-        value: crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate,
+        value: crate::generated::astria::protocol::transaction::v1::ValidatorUpdate,
     ) -> Result<Self, Self::Error> {
         Self::try_from_raw(value)
     }

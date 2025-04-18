@@ -1,5 +1,8 @@
 use astria_core::{
-    protocol::transaction::v1::action::group::Group,
+    protocol::transaction::v1::action::{
+        group::Group,
+        ValidatorUpdate,
+    },
     Protobuf as _,
 };
 use prost::Message;
@@ -14,7 +17,6 @@ use tendermint::{
             ExtendedCommitInfo,
         },
     },
-    block::Height,
     Hash,
     Time,
 };
@@ -140,7 +142,15 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
     //
     // The block building process should handle this in a way that allows the transactions to
     // both eventually be included.
-    let (mut app, storage) = AppInitializer::new().init().await;
+    let (mut app, storage) = AppInitializer::new()
+        .with_genesis_validators(vec![ValidatorUpdate {
+            verification_key: (&get_alice_signing_key()).into(),
+            power: 1,
+            name: "genesis_validator".parse().unwrap(),
+        }])
+        .init()
+        .await;
+    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
 
     // create transactions that should fail due to incorrect ordering if both are included in the
     // same block
@@ -172,7 +182,7 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
             round: 0u16.into(),
         }),
         misbehavior: vec![],
-        height: Height::default(),
+        height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [88u8; 20].to_vec().try_into().unwrap(),
@@ -208,7 +218,7 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
             round: 0u16.into(),
         }),
         misbehavior: vec![],
-        height: 1u32.into(),
+        height: height.increment(),
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: [88u8; 20].to_vec().try_into().unwrap(),

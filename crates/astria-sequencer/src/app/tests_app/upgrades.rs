@@ -13,6 +13,7 @@ use astria_core::{
     protocol::transaction::v1::{
         action::{
             Transfer,
+            ValidatorName,
             ValidatorUpdate,
         },
         Transaction,
@@ -65,11 +66,15 @@ use crate::{
             AppInitializer,
             BOB_ADDRESS,
         },
-        test_utils::get_alice_signing_key,
+        test_utils::{
+            get_alice_signing_key,
+            get_judy_signing_key,
+        },
         App,
         ShouldShutDown,
         StateReadExt as _,
     },
+    authority::StateReadExt,
     benchmark_and_test_utils::{
         astria_address_from_hex_string,
         nria,
@@ -83,7 +88,13 @@ const NON_VALIDATOR_SEED: [u8; 32] = [3; 32];
 const NEW_CURRENCY_PAIR_0_PRICE: i128 = 1_000;
 const NEW_CURRENCY_PAIR_1_PRICE: i128 = 1_001;
 
-fn signed_tx(nonce: u32) -> Arc<Transaction> {
+const TEST_VALIDATOR_UPDATE_SEED: [u8; 32] = [0; 32];
+const TEST_VALIDATOR_UPDATE_NAME: &str = "test_validator";
+const BLOCK_99_VALIDATOR_UPDATE_POWER: u32 = 10;
+const BLOCK_100_VALIDATOR_UPDATE_POWER: u32 = 20;
+const BLOCK_101_VALIDATOR_UPDATE_POWER: u32 = 0;
+
+fn signed_transfer_tx(nonce: u32) -> Arc<Transaction> {
     let tx = TransactionBody::builder()
         .actions(vec![Transfer {
             to: astria_address_from_hex_string(BOB_ADDRESS),
@@ -97,6 +108,17 @@ fn signed_tx(nonce: u32) -> Arc<Transaction> {
         .try_build()
         .unwrap();
     let alice = get_alice_signing_key();
+    Arc::new(tx.sign(&alice))
+}
+
+fn signed_validator_update_tx(validator_update: ValidatorUpdate, nonce: u32) -> Arc<Transaction> {
+    let tx = TransactionBody::builder()
+        .actions(vec![validator_update.into()])
+        .chain_id("test")
+        .nonce(nonce)
+        .try_build()
+        .unwrap();
+    let alice = get_judy_signing_key(); // Judy is the sudo address by default
     Arc::new(tx.sign(&alice))
 }
 
@@ -305,10 +327,12 @@ impl Node {
             ValidatorUpdate {
                 power: 10,
                 verification_key: SigningKey::from(PROPOSER_SEED).verification_key(),
+                name: "test".parse().unwrap(),
             },
             ValidatorUpdate {
                 power: 10,
                 verification_key: SigningKey::from(VALIDATOR_SEED).verification_key(),
+                name: "test".parse().unwrap(),
             },
         ];
 
@@ -381,20 +405,44 @@ async fn should_upgrade() {
 
 /// Last block before upgrade - nothing special happens here.
 async fn execute_block_99(proposer: &mut Node, validator: &mut Node, non_validator: &mut Node) {
-    // Execute `PrepareProposal` for block 99 on the proposer.
+    // Add transfer action
     proposer
         .app
         .mempool
-        .insert(signed_tx(0), 0, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
+        .insert(
+            signed_transfer_tx(0),
+            0,
+            mock_balances(0, 0),
+            mock_tx_cost(0, 0, 0),
+        )
         .await
         .unwrap();
+    // Add validator update action
+    let block_99_validator_update = ValidatorUpdate {
+        power: BLOCK_99_VALIDATOR_UPDATE_POWER,
+        verification_key: SigningKey::from(TEST_VALIDATOR_UPDATE_SEED).verification_key(),
+        name: TEST_VALIDATOR_UPDATE_NAME.parse().unwrap(),
+    };
+    proposer
+        .app
+        .mempool
+        .insert(
+            signed_validator_update_tx(block_99_validator_update.clone(), 0),
+            0,
+            mock_balances(0, 0),
+            mock_tx_cost(0, 0, 0),
+        )
+        .await
+        .unwrap();
+
+    // Execute `PrepareProposal` for block 99 on the proposer.
     let prepare_proposal = PrepareProposalBuilder::new().with_height(99_u8).build();
     let prepare_proposal_response = proposer.prepare_proposal(&prepare_proposal).await.unwrap();
     // Check the response's `txs` are in the legacy form, i.e. not encoded `DataItem`s, and that the
     // tx inserted to the mempool has been added to the block.
     let expanded_block_data =
         ExpandedBlockData::new_from_untyped_data(&prepare_proposal_response.txs).unwrap();
-    assert_eq!(1, expanded_block_data.user_submitted_transactions.len());
+    assert_eq!(2, expanded_block_data.user_submitted_transactions.len());
 
     // Execute `ProcessProposal` for block 99 on the proposer and on the non-proposing validator.
     let process_proposal = new_process_proposal(&prepare_proposal, &prepare_proposal_response);
@@ -412,8 +460,8 @@ async fn execute_block_99(proposer: &mut Node, validator: &mut Node, non_validat
         finalize_block_response,
         non_validator.finalize_block(&finalize_block).await.unwrap()
     );
-    // There should be three tx results: the two commitments and the rollup tx.
-    assert_eq!(3, finalize_block_response.tx_results.len());
+    // There should be four tx results: the two commitments and the two transactions.
+    assert_eq!(4, finalize_block_response.tx_results.len());
     assert!(finalize_block_response.consensus_param_updates.is_none());
 
     // Execute `Commit` for block 99 on all three nodes.
@@ -430,18 +478,67 @@ async fn execute_block_99(proposer: &mut Node, validator: &mut Node, non_validat
         .await
         .expect("should get consensus params")
         .is_none());
+    // Check that validator has been correctly added, and that no name has been stored pre-upgrade
+    let validator_set = snapshot_99
+        .pre_aspen_get_validator_set()
+        .await
+        .expect("should get validator set");
+    assert_eq!(
+        3,
+        validator_set.len(),
+        "should be 3 validators in validator set"
+    );
+    let existing_validator_update = validator_set
+        .get(block_99_validator_update.verification_key.address_bytes())
+        .expect("test validator should be in state")
+        .to_owned();
+    assert_eq!(
+        (
+            existing_validator_update.verification_key,
+            existing_validator_update.power
+        ),
+        (
+            block_99_validator_update.verification_key,
+            block_99_validator_update.power
+        ),
+    );
+    assert_eq!(existing_validator_update.name, ValidatorName::empty(),);
 }
 
 /// Upgrade should execute as part of this block, and the `vote_extensions_enable_height` should get
 /// set to 101.
 async fn execute_block_100(proposer: &mut Node, validator: &mut Node, non_validator: &mut Node) {
-    // Execute `PrepareProposal` for block 100 on the proposer.
+    // Add transfer action
     proposer
         .app
         .mempool
-        .insert(signed_tx(1), 1, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
+        .insert(
+            signed_transfer_tx(1),
+            1,
+            mock_balances(0, 0),
+            mock_tx_cost(0, 0, 0),
+        )
         .await
         .unwrap();
+    // Add validator update action
+    let block_100_validator_update = ValidatorUpdate {
+        power: BLOCK_100_VALIDATOR_UPDATE_POWER,
+        verification_key: SigningKey::from(TEST_VALIDATOR_UPDATE_SEED).verification_key(),
+        name: TEST_VALIDATOR_UPDATE_NAME.parse().unwrap(),
+    };
+    proposer
+        .app
+        .mempool
+        .insert(
+            signed_validator_update_tx(block_100_validator_update.clone(), 1),
+            1,
+            mock_balances(0, 0),
+            mock_tx_cost(0, 0, 0),
+        )
+        .await
+        .unwrap();
+
+    // Execute `PrepareProposal` for block 100 on the proposer.
     let prepare_proposal = PrepareProposalBuilder::new().with_height(100_u8).build();
     let prepare_proposal_response = proposer.prepare_proposal(&prepare_proposal).await.unwrap();
     // Check the response's `txs` are in the new form, i.e. encoded `DataItem`s, that the upgrade
@@ -450,7 +547,7 @@ async fn execute_block_100(proposer: &mut Node, validator: &mut Node, non_valida
     let expanded_block_data =
         ExpandedBlockData::new_from_typed_data(&prepare_proposal_response.txs, false).unwrap();
     assert!(!expanded_block_data.upgrade_change_hashes.is_empty());
-    assert_eq!(1, expanded_block_data.user_submitted_transactions.len());
+    assert_eq!(2, expanded_block_data.user_submitted_transactions.len());
 
     // Execute `ProcessProposal` for block 100 on the proposer and on the non-proposing validator.
     let process_proposal = new_process_proposal(&prepare_proposal, &prepare_proposal_response);
@@ -468,9 +565,9 @@ async fn execute_block_100(proposer: &mut Node, validator: &mut Node, non_valida
         finalize_block_response,
         non_validator.finalize_block(&finalize_block).await.unwrap()
     );
-    // There should be four tx results: the two commitments, the upgrade change hashes and the
-    // rollup tx.
-    assert_eq!(4, finalize_block_response.tx_results.len());
+    // There should be five tx results: the two commitments, the upgrade change hashes and the two
+    // transactions.
+    assert_eq!(5, finalize_block_response.tx_results.len());
     // The consensus params should be `Some`, with `vote_extensions_enable_height` set to 101.
     assert_eq!(
         Some(block::Height::from(101_u8)),
@@ -501,18 +598,57 @@ async fn execute_block_100(proposer: &mut Node, validator: &mut Node, non_valida
             .abci
             .vote_extensions_enable_height
     );
+
+    // Check that validator set is no longer in use
+    let _ = snapshot_100
+        .pre_aspen_get_validator_set()
+        .await
+        .expect_err("validator set should no longer exist in state");
+
+    // Check that validator has been correctly added, and that name has been stored post-upgrade
+    let validator_in_state = snapshot_100
+        .get_validator(block_100_validator_update.verification_key.address_bytes())
+        .await
+        .unwrap()
+        .expect("test validator should be in state");
+    assert_eq!(block_100_validator_update, validator_in_state);
+    assert_eq!(snapshot_100.get_validator_count().await.unwrap(), 3);
 }
 
 /// This will be the first block where `ExtendVote` and `VerifyVoteExtension` will be called. No
 /// vote extension will be available in `PrepareProposal` until the next block.
 async fn execute_block_101(proposer: &mut Node, validator: &mut Node, non_validator: &mut Node) {
-    // Execute `PrepareProposal` for block 101 on the proposer.
+    // Add transfer action
     proposer
         .app
         .mempool
-        .insert(signed_tx(2), 2, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
+        .insert(
+            signed_transfer_tx(2),
+            2,
+            mock_balances(0, 0),
+            mock_tx_cost(0, 0, 0),
+        )
         .await
         .unwrap();
+    // Add validator update action
+    let block_101_validator_update = ValidatorUpdate {
+        power: BLOCK_101_VALIDATOR_UPDATE_POWER,
+        verification_key: SigningKey::from(TEST_VALIDATOR_UPDATE_SEED).verification_key(),
+        name: TEST_VALIDATOR_UPDATE_NAME.parse().unwrap(),
+    };
+    proposer
+        .app
+        .mempool
+        .insert(
+            signed_validator_update_tx(block_101_validator_update.clone(), 2),
+            2,
+            mock_balances(0, 0),
+            mock_tx_cost(0, 0, 0),
+        )
+        .await
+        .unwrap();
+
+    // Execute `PrepareProposal` for block 101 on the proposer.
     let prepare_proposal = PrepareProposalBuilder::new().with_height(101_u8).build();
     let prepare_proposal_response = proposer.prepare_proposal(&prepare_proposal).await.unwrap();
     // Check the response's `txs` are in the new form, i.e. encoded `DataItem`s, that no extended
@@ -520,7 +656,7 @@ async fn execute_block_101(proposer: &mut Node, validator: &mut Node, non_valida
     let expanded_block_data =
         ExpandedBlockData::new_from_typed_data(&prepare_proposal_response.txs, false).unwrap();
     assert!(expanded_block_data.upgrade_change_hashes.is_empty());
-    assert_eq!(1, expanded_block_data.user_submitted_transactions.len());
+    assert_eq!(2, expanded_block_data.user_submitted_transactions.len());
 
     // Execute `ProcessProposal` for block 101 on the proposer and on the non-proposing validator.
     let process_proposal = new_process_proposal(&prepare_proposal, &prepare_proposal_response);
@@ -565,8 +701,8 @@ async fn execute_block_101(proposer: &mut Node, validator: &mut Node, non_valida
         finalize_block_response,
         non_validator.finalize_block(&finalize_block).await.unwrap()
     );
-    // There should be three tx results: the two commitments and the rollup tx.
-    assert_eq!(3, finalize_block_response.tx_results.len());
+    // There should be three tx results: the two commitments and the two transactions.
+    assert_eq!(4, finalize_block_response.tx_results.len());
     // The consensus params should be `None`.
     assert!(finalize_block_response.consensus_param_updates.is_none());
 
@@ -576,6 +712,18 @@ async fn execute_block_101(proposer: &mut Node, validator: &mut Node, non_valida
     let _ = non_validator.commit().await.unwrap();
     assert_eq!(proposer.app.app_hash, validator.app.app_hash);
     assert_eq!(proposer.app.app_hash, non_validator.app.app_hash);
+
+    // Check that validator has been correctly removed
+    let snapshot_101 = proposer.storage.latest_snapshot();
+    assert!(
+        snapshot_101
+            .get_validator(block_101_validator_update.verification_key.address_bytes())
+            .await
+            .unwrap()
+            .is_none(),
+        "test validator should be removed from state"
+    );
+    assert_eq!(snapshot_101.get_validator_count().await.unwrap(), 2);
 }
 
 /// This will be the first block where the previous block's vote extensions will be available in
@@ -593,7 +741,12 @@ async fn execute_block_102(proposer: &mut Node, validator: &mut Node, non_valida
     proposer
         .app
         .mempool
-        .insert(signed_tx(3), 3, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
+        .insert(
+            signed_transfer_tx(3),
+            3,
+            mock_balances(0, 0),
+            mock_tx_cost(0, 0, 0),
+        )
         .await
         .unwrap();
     let prepare_proposal = PrepareProposalBuilder::new()

@@ -1005,6 +1005,7 @@ impl App {
         let upgrade_change_hashes = self
             .upgrades_handler
             .execute_upgrade_if_due(&mut delta_delta, block_data.height)
+            .await
             .wrap_err("failed to execute upgrade")?;
         if upgrade_change_hashes.is_empty() {
             // We need to drop this so there's only one reference to `self.state` left in order to
@@ -1493,12 +1494,12 @@ impl App {
         // gather and return validator updates
         let validator_updates = self
             .state
-            .get_validator_updates()
+            .get_block_validator_updates()
             .await
             .expect("failed getting validator updates");
 
         // clear validator updates
-        state_tx.clear_validator_updates();
+        state_tx.clear_block_validator_updates();
 
         // gather block fees and transfer them to the block proposer
         let fees = self.state.get_block_fees();

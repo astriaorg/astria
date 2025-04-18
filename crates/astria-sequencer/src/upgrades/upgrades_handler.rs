@@ -41,6 +41,7 @@ use crate::{
         StateReadExt,
         StateWriteExt,
     },
+    authority::component::AuthorityComponent,
     oracles::price_feed,
 };
 
@@ -164,7 +165,7 @@ impl UpgradesHandler {
     /// storage.
     ///
     /// Returns an empty `Vec` if no upgrade was executed.
-    pub(crate) fn execute_upgrade_if_due<S: StateWrite>(
+    pub(crate) async fn execute_upgrade_if_due<S: StateWrite>(
         &mut self,
         mut state: S,
         block_height: tendermint::block::Height,
@@ -201,6 +202,10 @@ impl UpgradesHandler {
             price_feed::oracle::handle_genesis(&mut state, oracle_genesis.as_ref())
                 .wrap_err("failed to handle oracle genesis")?;
             info!("handled oracle genesis");
+            AuthorityComponent::handle_aspen_upgrade(&mut state)
+                .await
+                .wrap_err("failed to handle authority component aspen upgrade")?;
+            info!("handled authority component aspen upgrade");
         }
 
         Ok(change_hashes)
