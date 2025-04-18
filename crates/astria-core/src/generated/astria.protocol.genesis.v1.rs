@@ -161,8 +161,12 @@ pub struct GenesisFees {
         super::super::fees::v1::RecoverIbcClientFeeComponents,
     >,
     #[prost(message, optional, tag = "17")]
-    pub price_feed: ::core::option::Option<
-        super::super::fees::v1::PriceFeedFeeComponents,
+    pub currency_pairs_change: ::core::option::Option<
+        super::super::fees::v1::CurrencyPairsChangeFeeComponents,
+    >,
+    #[prost(message, optional, tag = "18")]
+    pub markets_change: ::core::option::Option<
+        super::super::fees::v1::MarketsChangeFeeComponents,
     >,
 }
 impl ::prost::Name for GenesisFees {

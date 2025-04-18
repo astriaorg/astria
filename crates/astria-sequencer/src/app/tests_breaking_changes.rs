@@ -17,10 +17,7 @@ use std::{
 
 use astria_core::{
     oracles::price_feed::{
-        market_map::v2::{
-            Market,
-            Params,
-        },
+        market_map::v2::Market,
         types::v2::CurrencyPair,
     },
     primitive::v1::{
@@ -34,18 +31,15 @@ use astria_core::{
                 BridgeLock,
                 BridgeSudoChange,
                 BridgeUnlock,
-                ChangeMarkets,
                 CurrencyPairsChange,
                 FeeAssetChange,
                 IbcRelayerChange,
                 IbcSudoChange,
                 InitBridgeAccount,
-                MarketMapChange,
-                PriceFeed,
+                MarketsChange,
                 RollupDataSubmission,
                 SudoAddressChange,
                 Transfer,
-                UpdateMarketMapParams,
                 ValidatorUpdate,
             },
             Action,
@@ -71,7 +65,6 @@ use crate::{
             default_genesis_accounts,
             proto_genesis_state,
             AppInitializer,
-            ALICE_ADDRESS,
             BOB_ADDRESS,
             CAROL_ADDRESS,
             JUDY_ADDRESS,
@@ -199,7 +192,6 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     let bridge = get_bridge_signing_key();
     let bridge_withdrawer = get_judy_signing_key();
     let bridge_address = astria_address(&bridge.address_bytes());
-    let alice_address = astria_address_from_hex_string(ALICE_ADDRESS);
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let carol_address = astria_address_from_hex_string(CAROL_ADDRESS);
     let bridge_withdrawer_address = astria_address_from_hex_string(JUDY_ADDRESS);
@@ -268,44 +260,13 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             }
             .into(),
             Action::ValidatorUpdate(update.clone()),
-            PriceFeed::MarketMap(MarketMapChange::Markets(ChangeMarkets::Create(vec![
-                Market {
-                    ticker: example_ticker_from_currency_pair(
-                        "testAssetOne",
-                        "testAssetTwo",
-                        "create market".to_string(),
-                    ),
-                    provider_configs: vec![],
-                },
-            ])))
-            .into(),
-            PriceFeed::MarketMap(MarketMapChange::Markets(ChangeMarkets::Update(vec![
-                Market {
-                    ticker: example_ticker_from_currency_pair(
-                        "testAssetOne",
-                        "testAssetTwo",
-                        "update market".to_string(),
-                    ),
-                    provider_configs: vec![],
-                },
-            ])))
-            .into(),
-            PriceFeed::MarketMap(MarketMapChange::Markets(ChangeMarkets::Remove(vec![
-                Market {
-                    ticker: example_ticker_from_currency_pair(
-                        "testAssetOne",
-                        "testAssetTwo",
-                        "remove market".to_string(),
-                    ),
-                    provider_configs: vec![],
-                },
-            ])))
-            .into(),
         ])
         .chain_id("test")
         .try_build()
         .unwrap();
 
+    let currency_pair_tia = CurrencyPair::from_str("TIA/USD").unwrap();
+    let currency_pair_eth = CurrencyPair::from_str("ETH/USD").unwrap();
     let tx_bundleable_sudo = TransactionBody::builder()
         .actions(vec![
             IbcRelayerChange::Addition(bob_address).into(),
@@ -314,12 +275,38 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             FeeAssetChange::Addition("test-0".parse().unwrap()).into(),
             FeeAssetChange::Addition("test-1".parse().unwrap()).into(),
             FeeAssetChange::Removal("test-0".parse().unwrap()).into(),
-            PriceFeed::MarketMap(MarketMapChange::Params(UpdateMarketMapParams {
-                params: Params {
-                    market_authorities: vec![bob_address, carol_address],
-                    admin: alice_address,
-                },
-            }))
+            CurrencyPairsChange::Addition(vec![
+                currency_pair_tia.clone(),
+                currency_pair_eth.clone(),
+            ])
+            .into(),
+            CurrencyPairsChange::Removal(vec![currency_pair_eth.clone()]).into(),
+            MarketsChange::Creation(vec![Market {
+                ticker: example_ticker_from_currency_pair(
+                    "testAssetOne",
+                    "testAssetTwo",
+                    "create market".to_string(),
+                ),
+                provider_configs: vec![],
+            }])
+            .into(),
+            MarketsChange::Update(vec![Market {
+                ticker: example_ticker_from_currency_pair(
+                    "testAssetOne",
+                    "testAssetTwo",
+                    "update market".to_string(),
+                ),
+                provider_configs: vec![],
+            }])
+            .into(),
+            MarketsChange::Removal(vec![Market {
+                ticker: example_ticker_from_currency_pair(
+                    "testAssetOne",
+                    "testAssetTwo",
+                    "remove market".to_string(),
+                ),
+                provider_configs: vec![],
+            }])
             .into(),
         ])
         .nonce(1)
@@ -420,20 +407,6 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .unwrap();
 
     let signed_tx = Arc::new(tx_bridge.sign(&bridge));
-    app.execute_transaction(signed_tx).await.unwrap();
-
-    let currency_pair_tia = CurrencyPair::from_str("TIA/USD").unwrap();
-    let currency_pair_eth = CurrencyPair::from_str("ETH/USD").unwrap();
-    let tx = TransactionBody::builder()
-        .actions(vec![PriceFeed::Oracle(CurrencyPairsChange::Addition(
-            vec![currency_pair_tia.clone(), currency_pair_eth.clone()],
-        ))
-        .into()])
-        .chain_id("test")
-        .nonce(4)
-        .try_build()
-        .unwrap();
-    let signed_tx = Arc::new(tx.sign(&alice));
     app.execute_transaction(signed_tx).await.unwrap();
 
     let sudo_address = app.state.get_sudo_address().await.unwrap();

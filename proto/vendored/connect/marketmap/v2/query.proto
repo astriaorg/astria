@@ -2,7 +2,6 @@ syntax = "proto3";
 package connect.marketmap.v2;
 
 import "connect/marketmap/v2/market.proto";
-import "connect/marketmap/v2/params.proto";
 import "connect/types/v2/currency_pair.proto";
 import "google/api/annotations.proto";
 
@@ -25,11 +24,6 @@ service Query {
   // LastUpdated returns the last height the market map was updated at.
   rpc LastUpdated(LastUpdatedRequest) returns (LastUpdatedResponse) {
     option (google.api.http) = {get: "/connect/marketmap/v2/last_updated"};
-  }
-
-  // Params returns the current x/marketmap module parameters.
-  rpc Params(ParamsRequest) returns (ParamsResponse) {
-    option (google.api.http) = {get: "/connect/marketmap/v2/params"};
   }
 }
 
@@ -64,14 +58,6 @@ message MarketRequest {
 message MarketResponse {
   // Market is the configuration of a single market to be price-fetched for.
   Market market = 1;
-}
-
-// ParamsRequest is the request type for the Query/Params RPC method.
-message ParamsRequest {}
-
-// ParamsResponse is the response type for the Query/Params RPC method.
-message ParamsResponse {
-  Params params = 1;
 }
 
 // LastUpdatedRequest is the request type for the Query/LastUpdated RPC

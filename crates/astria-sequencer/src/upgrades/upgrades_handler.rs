@@ -164,7 +164,7 @@ impl UpgradesHandler {
     /// storage.
     ///
     /// Returns an empty `Vec` if no upgrade was executed.
-    pub(crate) async fn execute_upgrade_if_due<S: StateWrite>(
+    pub(crate) fn execute_upgrade_if_due<S: StateWrite>(
         &mut self,
         mut state: S,
         block_height: tendermint::block::Height,
@@ -195,7 +195,6 @@ impl UpgradesHandler {
         if let Upgrade::Aspen(aspen) = upgrade {
             let market_map_genesis = aspen.price_feed_change().market_map_genesis();
             price_feed::market_map::handle_genesis(&mut state, market_map_genesis.as_ref())
-                .await
                 .wrap_err("failed to handle market map genesis")?;
             info!("handled market map genesis");
             let oracle_genesis = aspen.price_feed_change().oracle_genesis();

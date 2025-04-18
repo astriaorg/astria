@@ -1005,7 +1005,6 @@ impl App {
         let upgrade_change_hashes = self
             .upgrades_handler
             .execute_upgrade_if_due(&mut delta_delta, block_data.height)
-            .await
             .wrap_err("failed to execute upgrade")?;
         if upgrade_change_hashes.is_empty() {
             // We need to drop this so there's only one reference to `self.state` left in order to

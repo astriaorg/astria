@@ -17,13 +17,14 @@ use astria_core::{
             BridgeSudoChange,
             BridgeTransfer,
             BridgeUnlock,
+            CurrencyPairsChange,
             FeeAssetChange,
             FeeChange,
             IbcRelayerChange,
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
-            PriceFeed,
+            MarketsChange,
             RecoverIbcClient,
             RollupDataSubmission,
             SudoAddressChange,
@@ -95,7 +96,8 @@ pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1::GenesisFees 
         sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0)),
         ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0)),
         recover_ibc_client: Some(FeeComponents::<RecoverIbcClient>::new(0, 0)),
-        price_feed: Some(FeeComponents::<PriceFeed>::new(0, 0)),
+        currency_pairs_change: Some(FeeComponents::<CurrencyPairsChange>::new(0, 0)),
+        markets_change: Some(FeeComponents::<MarketsChange>::new(0, 0)),
     }
 }
 
@@ -415,10 +417,16 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
         .wrap_err("failed to initiate recover ibc client fee components")
         .unwrap();
 
-    let price_feed_fees = FeeComponents::<PriceFeed>::new(0, 0);
+    let currency_pairs_change_fees = FeeComponents::<CurrencyPairsChange>::new(0, 0);
     state
-        .put_fees(price_feed_fees)
-        .wrap_err("failed to initiate price feed fee components")
+        .put_fees(currency_pairs_change_fees)
+        .wrap_err("failed to initiate currency pairs change fee components")
+        .unwrap();
+
+    let markets_change_fees = FeeComponents::<MarketsChange>::new(0, 0);
+    state
+        .put_fees(markets_change_fees)
+        .wrap_err("failed to initiate markets change fee components")
         .unwrap();
 
     // put denoms as allowed fee asset

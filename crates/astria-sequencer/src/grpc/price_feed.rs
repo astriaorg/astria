@@ -13,8 +13,6 @@ use astria_core::{
             MarketMapResponse,
             MarketRequest,
             MarketResponse,
-            ParamsRequest,
-            ParamsResponse,
         },
         oracle::v2::{
             query_server::Query as OracleService,
@@ -145,21 +143,6 @@ impl MarketMapQueryService for SequencerServer {
 
         Ok(Response::new(LastUpdatedResponse {
             last_updated,
-        }))
-    }
-
-    #[instrument(skip_all)]
-    async fn params(
-        self: Arc<Self>,
-        _request: Request<ParamsRequest>,
-    ) -> Result<Response<ParamsResponse>, Status> {
-        let snapshot = self.storage.latest_snapshot();
-        let params = snapshot.get_params().await.map_err(|e| {
-            Status::internal(format!("failed to get block params from storage: {e:#}"))
-        })?;
-
-        Ok(Response::new(ParamsResponse {
-            params: params.map(astria_core::oracles::price_feed::market_map::v2::Params::into_raw),
         }))
     }
 }
