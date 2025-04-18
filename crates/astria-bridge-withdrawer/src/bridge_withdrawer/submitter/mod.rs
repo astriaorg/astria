@@ -160,6 +160,8 @@ impl Submitter {
             ..
         } = self;
 
+        metrics.set_last_observed_rollup_height(rollup_height);
+
         if actions.is_empty() {
             metrics.set_batch_total_settled_value(0);
 
