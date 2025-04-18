@@ -57,10 +57,15 @@ pub struct Aspen {
 pub mod aspen {
     #[derive(Clone, PartialEq, ::prost::Message)]
     pub struct PriceFeedChange {
-        /// The price feed genesis data.
+        /// The price feed market map genesis data.
         #[prost(message, optional, tag = "1")]
-        pub genesis: ::core::option::Option<
-            super::super::super::protocol::genesis::v1::PriceFeedGenesis,
+        pub market_map_genesis: ::core::option::Option<
+            super::super::super::super::connect::marketmap::v2::GenesisState,
+        >,
+        /// The price feed oracle genesis data.
+        #[prost(message, optional, tag = "2")]
+        pub oracle_genesis: ::core::option::Option<
+            super::super::super::super::connect::oracle::v2::GenesisState,
         >,
     }
     impl ::prost::Name for PriceFeedChange {

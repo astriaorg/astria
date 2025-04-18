@@ -34,7 +34,7 @@ spec:
       {{- with .Values.serviceMonitor.scrapeTimeout  }}
       scrapeTimeout: {{ . }}
       {{- end }}
-    {{- if .Values.sequencer.priceFeed.metrics.enabled }}
+    {{- if .Values.sequencer.priceFeed.enabled }}
     - port: price-fd-metric
       path: /
       {{- with .Values.serviceMonitor.interval }}

@@ -2,7 +2,8 @@ syntax = "proto3";
 
 package astria.upgrades.v1;
 
-import "astria/protocol/genesis/v1/types.proto";
+import "connect/marketmap/v2/genesis.proto";
+import "connect/oracle/v2/genesis.proto";
 
 // A JSON-encoded form of this message is used as the upgrades file for the Sequencer.
 message Upgrades {
@@ -22,8 +23,10 @@ message BaseUpgradeInfo {
 // Aspen upgrade of the Sequencer network.
 message Aspen {
   message PriceFeedChange {
-    // The price feed genesis data.
-    astria.protocol.genesis.v1.PriceFeedGenesis genesis = 1;
+    // The price feed market map genesis data.
+    connect.marketmap.v2.GenesisState market_map_genesis = 1;
+    // The price feed oracle genesis data.
+    connect.oracle.v2.GenesisState oracle_genesis = 2;
   }
 
   message ValidatorUpdateActionChange {}
