@@ -1,8 +1,5 @@
 pub mod v2 {
-    use std::io::{
-        self,
-        Write,
-    };
+    use std::io;
 
     use borsh::BorshSerialize;
     use indexmap::IndexMap;
@@ -456,7 +453,7 @@ pub mod v2 {
     }
 
     impl BorshSerialize for MarketMap {
-        fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
             u32::try_from(self.markets.len())
                 .map_err(|_| io::ErrorKind::InvalidInput)?
                 .serialize(writer)?;
