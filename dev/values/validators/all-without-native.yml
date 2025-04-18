@@ -27,8 +27,6 @@ sequencer:
       appVersion: 2
   priceFeed:
     enabled: true
-    metrics:
-      enabled: true
     markets:
       - name: "BTC/USD"
         providerConfigs:
