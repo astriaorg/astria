@@ -327,10 +327,11 @@ frost-smoke-test tag=defaultTag:
     {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} > /dev/null
   just wait-for rollup {{defaultRollupName}} "false"
   just wait-for rollup-transaction-index
-  cd crates/astria-bridge-contracts && ls
-  cd astria-bridge-contracts && \
+  cd crates/astria-bridge-contracts/astria-bridge-contracts && \
     cp ../../../dev/bridge-contracts/frost-smoke-test/deploy.env.template .env && \
     . .env
+    echo "Current directory:" && ls \
+    && echo "Script:" && ls -la script
   pwd
   # Check script location and permissions
   if [ -f "script/AstriaWithdrawer.s.sol" ]; then
