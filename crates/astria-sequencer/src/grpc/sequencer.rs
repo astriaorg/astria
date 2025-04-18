@@ -488,7 +488,7 @@ mod tests {
         let validator_name = "test".to_string();
 
         let update_with_name = ValidatorUpdate {
-            name: validator_name.clone().try_into().unwrap(),
+            name: validator_name.clone().parse().unwrap(),
             power: 100,
             verification_key,
         };
@@ -549,7 +549,7 @@ mod tests {
         let validator_name = "test".to_string();
 
         let validator_set = ValidatorSet::new_from_updates(vec![ValidatorUpdate {
-            name: validator_name.clone().try_into().unwrap(),
+            name: validator_name.clone().parse().unwrap(),
             power: 100,
             verification_key,
         }]);

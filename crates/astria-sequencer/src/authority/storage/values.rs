@@ -220,7 +220,7 @@ impl From<ValidatorInfoV1<'_>> for DomainValidatorUpdate {
             name: value
                 .name
                 .into_owned()
-                .try_into()
+                .parse()
                 .expect("state should only contain valid validator names"),
             power: value.power,
             verification_key: astria_core::crypto::VerificationKey::from(value.verification_key),

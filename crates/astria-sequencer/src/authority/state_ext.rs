@@ -520,17 +520,17 @@ mod tests {
             ValidatorUpdate {
                 power: 1,
                 verification_key: verification_key(0),
-                name: "test0".try_into().unwrap(),
+                name: "test0".parse().unwrap(),
             },
             ValidatorUpdate {
                 power: 2,
                 verification_key: verification_key(1),
-                name: "test1".try_into().unwrap(),
+                name: "test1".parse().unwrap(),
             },
             ValidatorUpdate {
                 power: 3,
                 verification_key: verification_key(2),
-                name: "test2".try_into().unwrap(),
+                name: "test2".parse().unwrap(),
             },
         ];
         let mut initial_validator_set = ValidatorSet::new_from_updates(initial);
@@ -540,12 +540,12 @@ mod tests {
             ValidatorUpdate {
                 power: 5,
                 verification_key: verification_key(0),
-                name: "test0".try_into().unwrap(),
+                name: "test0".parse().unwrap(),
             },
             ValidatorUpdate {
                 power: 0,
                 verification_key: verification_key(1),
-                name: "test1".try_into().unwrap(),
+                name: "test1".parse().unwrap(),
             },
         ];
 
@@ -559,12 +559,12 @@ mod tests {
             ValidatorUpdate {
                 power: 5,
                 verification_key: verification_key(0),
-                name: "test0".try_into().unwrap(),
+                name: "test0".parse().unwrap(),
             },
             ValidatorUpdate {
                 power: 3,
                 verification_key: verification_key(2),
-                name: "test2".try_into().unwrap(),
+                name: "test2".parse().unwrap(),
             },
         ];
         let validator_set_endstate = ValidatorSet::new_from_updates(updates);
@@ -631,12 +631,12 @@ mod tests {
         let validator_1 = ValidatorUpdate {
             power: 10,
             verification_key: verification_key(1),
-            name: "test1".try_into().unwrap(),
+            name: "test1".parse().unwrap(),
         };
         let mut validator_2 = ValidatorUpdate {
             power: 20,
             verification_key: verification_key(2),
-            name: "test2".try_into().unwrap(),
+            name: "test2".parse().unwrap(),
         };
 
         // No validator returns `None`

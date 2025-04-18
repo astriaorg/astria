@@ -48,7 +48,7 @@ impl Command {
         let name = self
             .name
             .unwrap_or_default()
-            .try_into()
+            .parse()
             .wrap_err("validator name is invalid")?;
         let validator_update = ValidatorUpdate {
             power: self.power,

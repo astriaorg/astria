@@ -327,12 +327,12 @@ impl Node {
             ValidatorUpdate {
                 power: 10,
                 verification_key: SigningKey::from(PROPOSER_SEED).verification_key(),
-                name: "test".try_into().unwrap(),
+                name: "test".parse().unwrap(),
             },
             ValidatorUpdate {
                 power: 10,
                 verification_key: SigningKey::from(VALIDATOR_SEED).verification_key(),
-                name: "test".try_into().unwrap(),
+                name: "test".parse().unwrap(),
             },
         ];
 
@@ -421,7 +421,7 @@ async fn execute_block_99(proposer: &mut Node, validator: &mut Node, non_validat
     let block_99_validator_update = ValidatorUpdate {
         power: BLOCK_99_VALIDATOR_UPDATE_POWER,
         verification_key: SigningKey::from(TEST_VALIDATOR_UPDATE_SEED).verification_key(),
-        name: TEST_VALIDATOR_UPDATE_NAME.try_into().unwrap(),
+        name: TEST_VALIDATOR_UPDATE_NAME.parse().unwrap(),
     };
     proposer
         .app
@@ -524,7 +524,7 @@ async fn execute_block_100(proposer: &mut Node, validator: &mut Node, non_valida
     let block_100_validator_update = ValidatorUpdate {
         power: BLOCK_100_VALIDATOR_UPDATE_POWER,
         verification_key: SigningKey::from(TEST_VALIDATOR_UPDATE_SEED).verification_key(),
-        name: TEST_VALIDATOR_UPDATE_NAME.try_into().unwrap(),
+        name: TEST_VALIDATOR_UPDATE_NAME.parse().unwrap(),
     };
     proposer
         .app
@@ -634,7 +634,7 @@ async fn execute_block_101(proposer: &mut Node, validator: &mut Node, non_valida
     let block_101_validator_update = ValidatorUpdate {
         power: BLOCK_101_VALIDATOR_UPDATE_POWER,
         verification_key: SigningKey::from(TEST_VALIDATOR_UPDATE_SEED).verification_key(),
-        name: TEST_VALIDATOR_UPDATE_NAME.try_into().unwrap(),
+        name: TEST_VALIDATOR_UPDATE_NAME.parse().unwrap(),
     };
     proposer
         .app

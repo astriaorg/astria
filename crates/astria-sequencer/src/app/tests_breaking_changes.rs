@@ -247,7 +247,7 @@ async fn app_execute_transaction_with_every_action_snapshot() {
 
     // setup for ValidatorUpdate action
     let update = ValidatorUpdate {
-        name: "test_validator".try_into().unwrap(),
+        name: "test_validator".parse().unwrap(),
         power: 100,
         verification_key: verification_key(1),
     };

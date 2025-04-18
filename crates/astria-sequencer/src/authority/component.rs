@@ -366,7 +366,7 @@ mod tests {
         let mut validator_set = test_validator_set();
 
         for (index, (_, validator)) in validator_set.0.iter_mut().enumerate() {
-            validator.name = format!("validator_{index}").try_into().unwrap();
+            validator.name = format!("validator_{index}").parse().unwrap();
             state.put_validator(validator).unwrap();
         }
 

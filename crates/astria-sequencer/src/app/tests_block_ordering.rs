@@ -146,7 +146,7 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
         .with_genesis_validators(vec![ValidatorUpdate {
             verification_key: (&get_alice_signing_key()).into(),
             power: 1,
-            name: "genesis_validator".try_into().unwrap(),
+            name: "genesis_validator".parse().unwrap(),
         }])
         .init()
         .await;
