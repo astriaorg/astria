@@ -561,6 +561,7 @@ dependencies = [
  "ethers",
  "frost-ed25519",
  "futures",
+ "ibc-types",
  "prost",
  "rand 0.8.5",
  "regex",
@@ -569,6 +570,7 @@ dependencies = [
  "tokio",
  "tonic",
  "tracing",
+ "wiremock",
 ]
 
 [[package]]
