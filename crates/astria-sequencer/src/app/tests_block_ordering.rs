@@ -29,6 +29,7 @@ use crate::app::{
     test_utils::{
         get_bob_signing_key,
         get_judy_signing_key,
+        run_until_aspen_applied,
         transactions_with_extended_commit_info_and_commitments,
         MockTxBuilder,
     },
@@ -37,6 +38,7 @@ use crate::app::{
 #[tokio::test]
 async fn app_process_proposal_ordering_ok() {
     let (mut app, storage) = AppInitializer::new().init().await;
+    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
 
     // create transactions that should pass with expected ordering
     let txs = vec![
@@ -59,7 +61,6 @@ async fn app_process_proposal_ordering_ok() {
             .build(),
     ];
 
-    let height = tendermint::block::Height::from(2_u8);
     let process_proposal = ProcessProposal {
         hash: Hash::Sha256([1; 32]),
         height,
@@ -87,6 +88,7 @@ async fn app_process_proposal_ordering_fail() {
     // Tests that process proposal will reject blocks that contain transactions that are out of
     // order.
     let (mut app, storage) = AppInitializer::new().init().await;
+    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
 
     // create transactions that should fail due to incorrect ordering
     let txs = vec![
@@ -100,7 +102,6 @@ async fn app_process_proposal_ordering_fail() {
             .build(),
     ];
 
-    let height = tendermint::block::Height::from(2_u8);
     let process_proposal = ProcessProposal {
         hash: Hash::default(),
         height,
