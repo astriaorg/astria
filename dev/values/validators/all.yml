@@ -43,8 +43,6 @@ sequencer:
     enabled: false
   priceFeed:
     enabled: true
-    metrics:
-      enabled: true
 
 resources:
   cometbft:

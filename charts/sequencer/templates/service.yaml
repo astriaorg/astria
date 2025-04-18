@@ -66,7 +66,7 @@ spec:
     - name: seq-metric
       port: {{ .Values.ports.sequencerMetrics }}
       targetPort: seq-metric
-    {{- if .Values.sequencer.priceFeed.metrics.enabled }}
+    {{- if .Values.sequencer.priceFeed.enabled }}
     - name: price-fd-metric
       port: {{ .Values.ports.priceFeedMetrics }}
       targetPort: price-fd-metric

@@ -2,10 +2,7 @@
 #![expect(clippy::missing_panics_doc, reason = "these are test-only functions")]
 
 use std::{
-    collections::{
-        BTreeMap,
-        HashMap,
-    },
+    collections::HashMap,
     sync::Arc,
 };
 
@@ -20,30 +17,11 @@ use super::{
 };
 use crate::{
     crypto::SigningKey,
-    generated::{
-        price_feed::{
-            marketmap::v2::{
-                GenesisState as RawMarketMapGenesisState,
-                Market as RawMarket,
-                MarketMap as RawMarketMap,
-                ProviderConfig as RawProviderConfig,
-                Ticker as RawTicker,
-            },
-            oracle::v2::{
-                CurrencyPairGenesis as RawCurrencyPairGenesis,
-                GenesisState as RawOracleGenesisState,
-                QuotePrice as RawQuotePrice,
-            },
-            types::v2::CurrencyPair as RawCurrencyPair,
-        },
-        protocol::genesis::v1::PriceFeedGenesis as RawPriceFeedGenesis,
-    },
     primitive::v1::{
         derive_merkle_tree_from_rollup_txs,
         RollupId,
     },
     protocol::{
-        genesis::v1::PriceFeedGenesis,
         price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
         transaction::v1::TransactionBody,
     },
@@ -299,100 +277,4 @@ pub fn minimal_extended_commit_info_bytes() -> Bytes {
             .into(),
     )
     .encode()
-}
-
-#[must_use]
-pub fn dummy_price_feed_genesis() -> PriceFeedGenesis {
-    let mut markets = BTreeMap::new();
-    markets.insert(
-        "BTC/USD".to_string(),
-        RawMarket {
-            ticker: Some(RawTicker {
-                currency_pair: Some(RawCurrencyPair {
-                    base: "BTC".to_string(),
-                    quote: "USD".to_string(),
-                }),
-                decimals: 8,
-                min_provider_count: 1,
-                enabled: true,
-                metadata_json: String::new(),
-            }),
-            provider_configs: vec![RawProviderConfig {
-                name: "coingecko_api".to_string(),
-                off_chain_ticker: "bitcoin/usd".to_string(),
-                normalize_by_pair: None,
-                invert: false,
-                metadata_json: String::new(),
-            }],
-        },
-    );
-    markets.insert(
-        "ETH/USD".to_string(),
-        RawMarket {
-            ticker: Some(RawTicker {
-                currency_pair: Some(RawCurrencyPair {
-                    base: "ETH".to_string(),
-                    quote: "USD".to_string(),
-                }),
-                decimals: 8,
-                min_provider_count: 1,
-                enabled: true,
-                metadata_json: String::new(),
-            }),
-            provider_configs: vec![RawProviderConfig {
-                name: "coingecko_api".to_string(),
-                off_chain_ticker: "ethereum/usd".to_string(),
-                normalize_by_pair: None,
-                invert: false,
-                metadata_json: String::new(),
-            }],
-        },
-    );
-
-    let price_feed_genesis = RawPriceFeedGenesis {
-        market_map: Some(RawMarketMapGenesisState {
-            market_map: Some(RawMarketMap {
-                markets,
-            }),
-            last_updated: 0,
-        }),
-        oracle: Some(RawOracleGenesisState {
-            currency_pair_genesis: vec![
-                RawCurrencyPairGenesis {
-                    id: 0,
-                    nonce: 0,
-                    currency_pair_price: Some(RawQuotePrice {
-                        price: 5_834_065_777_u128.to_string(),
-                        block_height: 0,
-                        block_timestamp: Some(pbjson_types::Timestamp {
-                            seconds: 1_720_122_395,
-                            nanos: 0,
-                        }),
-                    }),
-                    currency_pair: Some(RawCurrencyPair {
-                        base: "BTC".to_string(),
-                        quote: "USD".to_string(),
-                    }),
-                },
-                RawCurrencyPairGenesis {
-                    id: 1,
-                    nonce: 0,
-                    currency_pair_price: Some(RawQuotePrice {
-                        price: 3_138_872_234_u128.to_string(),
-                        block_height: 0,
-                        block_timestamp: Some(pbjson_types::Timestamp {
-                            seconds: 1_720_122_395,
-                            nanos: 0,
-                        }),
-                    }),
-                    currency_pair: Some(RawCurrencyPair {
-                        base: "ETH".to_string(),
-                        quote: "USD".to_string(),
-                    }),
-                },
-            ],
-            next_id: 2,
-        }),
-    };
-    PriceFeedGenesis::try_from_raw(price_feed_genesis).unwrap()
 }

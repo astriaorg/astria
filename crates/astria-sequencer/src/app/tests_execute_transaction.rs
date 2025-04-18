@@ -62,7 +62,10 @@ use crate::{
             BOB_ADDRESS,
             CAROL_ADDRESS,
         },
-        test_utils::get_bridge_signing_key,
+        test_utils::{
+            get_bridge_signing_key,
+            run_until_aspen_applied,
+        },
         App,
         InvalidNonce,
     },
@@ -133,7 +136,9 @@ async fn initialize_app(genesis_state: Option<GenesisAppState>) -> App {
     if let Some(genesis_state) = genesis_state {
         app_initializer = app_initializer.with_genesis_state(genesis_state);
     }
-    app_initializer.init().await.0
+    let (mut app, storage) = app_initializer.init().await;
+    let _ = run_until_aspen_applied(&mut app, storage).await;
+    app
 }
 
 #[tokio::test]
@@ -1453,6 +1458,7 @@ async fn create_markets_executes_as_expected() {
 #[tokio::test]
 async fn update_markets_executes_as_expected() {
     let mut app = initialize_app(Some(genesis_state())).await;
+    // let height = run_until_aspen_applied(&mut app, storage.clone()).await;
     let mut state_tx = StateDelta::new(app.state.clone());
 
     let alice_signing_key = get_alice_signing_key();
