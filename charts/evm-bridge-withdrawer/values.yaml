@@ -28,6 +28,10 @@ config:
   rollupAssetDenom: ""
   evmContractAddress: "0x"
   evmRpcEndpoint: ""
+  noFrostThresholdSigning: "true"
+  frostMinSigners: "0"
+  frostPublicKeyPackagePath: ""
+  frostParticipantEndpoints: ""
   sequencerPrivateKey:
     devContent: ""
     secret:

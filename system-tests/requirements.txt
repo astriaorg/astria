@@ -1,0 +1,7 @@
+argparse>=1.4.0
+requests>=2.31.0
+google>=3.0.0
+google-api-core>=2.15.0
+grpcio>=1.71.0
+python-on-whales>=0.67.0
+protobuf>=6.30.1

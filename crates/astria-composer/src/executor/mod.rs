@@ -50,7 +50,6 @@ use sequencer_client::{
         Client as _,
     },
     Address,
-    SequencerClientExt as _,
 };
 use tendermint::{
     abci::Code,
@@ -377,7 +376,7 @@ impl Executor {
                  next_delay: Option<Duration>,
                  error: &sequencer_client::tendermint_rpc::Error| {
                     let wait_duration = next_delay
-                        .map(humantime::format_duration)
+                        .map(telemetry::display::format_duration)
                         .map(tracing::field::display);
                     warn!(
                         attempt,
@@ -491,7 +490,7 @@ async fn get_pending_nonce(
                 metrics.increment_nonce_fetch_failure_count();
 
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     parent: span.clone(),
@@ -554,11 +553,11 @@ async fn submit_tx(
         .on_retry(
             |attempt,
              next_delay: Option<Duration>,
-             err: &sequencer_client::extension_trait::Error| {
+             err: &sequencer_client::tendermint_rpc::Error| {
                 metrics.increment_sequencer_submission_failure_count();
 
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     parent: span.clone(),
@@ -570,11 +569,12 @@ async fn submit_tx(
                 async move {}
             },
         );
+    let tx_bytes = tx.to_raw().encode_to_vec();
     let res = tryhard::retry_fn(|| {
         let client = client.clone();
-        let tx = tx.clone();
+        let tx_bytes = tx_bytes.clone();
         let span = info_span!(parent: span.clone(), "attempt send");
-        async move { client.submit_transaction_sync(tx).await }.instrument(span)
+        async move { client.broadcast_tx_sync(tx_bytes).await }.instrument(span)
     })
     .with_config(retry_config)
     .await

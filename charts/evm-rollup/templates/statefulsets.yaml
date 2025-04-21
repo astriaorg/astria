@@ -72,6 +72,7 @@ spec:
             - --{{ $arg.name }}{{ if $arg.value }}={{ tpl $arg.value $ }}{{ end }}
             {{- end }}
             {{- end }}
+            - --verbosity={{ printf "%s" (include "rollup.logLevelNum" .) }}
           image: {{ include "rollup.image" . }}
           imagePullPolicy: {{ .Values.images.geth.pullPolicy }}
           volumeMounts:

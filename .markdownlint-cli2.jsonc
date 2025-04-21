@@ -5,6 +5,7 @@
   "ignores": [
     "target",
     ".github",
-    "**/*/astria-bridge-contracts/lib/**/*.md"
+    "**/*/astria-bridge-contracts/lib/**/*.md",
+    "**/.venv/**/*.md"
   ]
 }

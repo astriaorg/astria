@@ -25,16 +25,19 @@ use astria_eyre::eyre::{
 };
 pub(crate) use builder::Builder;
 pub(super) use builder::Handle;
+use prost::Message as _;
 use sequencer_client::{
-    tendermint_rpc::endpoint::{
-        broadcast::tx_sync,
-        tx,
+    tendermint_rpc::{
+        endpoint::{
+            broadcast::tx_sync,
+            tx,
+        },
+        Client as _,
     },
     Address,
     SequencerClientExt,
     Transaction,
 };
-use signer::SequencerKey;
 use state::State;
 use tokio::{
     select,
@@ -61,7 +64,9 @@ use super::{
 use crate::metrics::Metrics;
 
 mod builder;
-pub(crate) mod signer;
+mod signer;
+
+pub(crate) use signer::Signer;
 
 pub(super) struct Submitter {
     shutdown_token: CancellationToken,
@@ -70,25 +75,36 @@ pub(super) struct Submitter {
     batches_rx: mpsc::Receiver<Batch>,
     sequencer_cometbft_client: sequencer_client::HttpClient,
     sequencer_grpc_client: SequencerServiceClient<Channel>,
-    signer: SequencerKey,
+    signer: Signer,
     metrics: &'static Metrics,
 }
 
 impl Submitter {
+    pub(super) async fn initialize(&mut self) -> eyre::Result<String> {
+        let (startup_info, ()) = async move {
+            tokio::try_join!(self.startup_handle.get_info(), self.signer.initialize(),)
+        }
+        .await?;
+        Ok(startup_info.chain_id)
+    }
+
     pub(super) async fn run(mut self) -> eyre::Result<()> {
-        let sequencer_chain_id = select! {
-            () = self.shutdown_token.cancelled() => {
-                report_exit(Ok("submitter received shutdown signal while waiting for startup"));
-                return Ok(());
-            }
-
-            startup_info = self.startup_handle.get_info() => {
-                let startup::Info { chain_id, .. } = startup_info.wrap_err("submitter failed to get startup info")?;
-
-                self.state.set_submitter_ready();
-                chain_id
-            }
+        let sequencer_chain_id = if let Some(init_result) = self
+            .shutdown_token
+            .clone()
+            .run_until_cancelled(self.initialize())
+            .await
+        {
+            init_result.wrap_err(
+                "failed initializing task for submitting transactions to the Astria network",
+            )?
+        } else {
+            report_exit(Ok(
+                "submitter received shutdown signal while waiting for startup"
+            ));
+            return Ok(());
         };
+
         self.state.set_submitter_ready();
 
         let reason = loop {
@@ -178,7 +194,10 @@ impl Submitter {
             .wrap_err("failed to build unsigned transaction")?;
 
         // sign transaction
-        let signed = unsigned.sign(signer.signing_key());
+        let signed = signer
+            .sign(unsigned)
+            .await
+            .wrap_err("failed to sign transaction")?;
         debug!(transaction_id = %&signed.id(), "signed transaction");
 
         // submit transaction and handle response
@@ -259,14 +278,14 @@ async fn submit_tx(
         .on_retry(
             |attempt,
              next_delay: Option<Duration>,
-             err: &sequencer_client::extension_trait::Error| {
+             err: &sequencer_client::tendermint_rpc::Error| {
                 metrics.increment_sequencer_submission_failure_count();
 
                 let state = Arc::clone(&state);
                 state.set_sequencer_connected(false);
 
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     parent: span.clone(),
@@ -278,11 +297,12 @@ async fn submit_tx(
                 async move {}
             },
         );
+    let tx_bytes = tx.to_raw().encode_to_vec();
     let check_tx = tryhard::retry_fn(|| {
         let client = client.clone();
-        let tx = tx.clone();
+        let tx_bytes = tx_bytes.clone();
         let span = info_span!(parent: span.clone(), "attempt send");
-        async move { client.submit_transaction_sync(tx).await }.instrument(span)
+        async move { client.broadcast_tx_sync(tx_bytes).await }.instrument(span)
     })
     .with_config(retry_config)
     .await
@@ -314,7 +334,7 @@ pub(crate) async fn get_pending_nonce(
     state: Arc<State>,
     metrics: &'static Metrics,
 ) -> eyre::Result<u32> {
-    debug!("fetching pending nonce from sequencing");
+    debug!("fetching pending nonce from sequencer");
     let start = std::time::Instant::now();
     let span = Span::current();
     let retry_config = tryhard::RetryFutureConfig::new(1024)
@@ -327,13 +347,13 @@ pub(crate) async fn get_pending_nonce(
                 state.set_sequencer_connected(false);
 
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     error = err as &dyn std::error::Error,
                     attempt,
                     wait_duration,
-                    "failed getting pending nonce from sequencing; retrying after backoff",
+                    "failed getting pending nonce from sequencer; retrying after backoff",
                 );
                 futures::future::ready(())
             },
@@ -354,7 +374,7 @@ pub(crate) async fn get_pending_nonce(
     })
     .with_config(retry_config)
     .await
-    .wrap_err("failed getting pending nonce from sequencing after 1024 attempts");
+    .wrap_err("failed getting pending nonce from sequencer after 1024 attempts");
 
     state.set_sequencer_connected(res.is_ok());
     metrics.increment_nonce_fetch_count();

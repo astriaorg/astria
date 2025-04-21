@@ -4,21 +4,32 @@ use std::{
 };
 
 use astria_core::{
-    generated::astria::sequencerblock::v1::{
-        sequencer_service_server::{
-            SequencerService,
-            SequencerServiceServer,
+    generated::{
+        astria::sequencerblock::v1::{
+            sequencer_service_server::{
+                SequencerService,
+                SequencerServiceServer,
+            },
+            FilteredSequencerBlock as RawFilteredSequencerBlock,
+            GetFilteredSequencerBlockRequest,
+            GetPendingNonceRequest,
+            GetPendingNonceResponse,
+            GetSequencerBlockRequest,
+            SequencerBlock as RawSequencerBlock,
         },
-        FilteredSequencerBlock as RawFilteredSequencerBlock,
-        GetFilteredSequencerBlockRequest,
-        GetPendingNonceRequest,
-        GetPendingNonceResponse,
-        GetSequencerBlockRequest,
-        SequencerBlock as RawSequencerBlock,
+        sequencerblock::v1::{
+            GetUpgradesInfoRequest,
+            GetUpgradesInfoResponse,
+            GetValidatorNameRequest,
+            GetValidatorNameResponse,
+        },
     },
     primitive::v1::RollupId,
     protocol::test_utils::ConfigureSequencerBlock,
-    sequencerblock::v1::SequencerBlock,
+    sequencerblock::v1::{
+        block,
+        SequencerBlock,
+    },
 };
 use astria_eyre::eyre::{
     self,
@@ -96,8 +107,6 @@ impl MockSequencerServer {
     }
 }
 
-// TODO(https://github.com/astriaorg/astria/issues/1859): box enum variants to avoid large sizes
-#[expect(clippy::large_enum_variant, reason = "should be fixed")]
 pub enum SequencerBlockToMount {
     GoodAtHeight(u32),
     BadAtHeight(u32),
@@ -132,6 +141,20 @@ impl SequencerService for SequencerServiceImpl {
     ) -> Result<Response<GetPendingNonceResponse>, Status> {
         unimplemented!()
     }
+
+    async fn get_upgrades_info(
+        self: Arc<Self>,
+        _request: Request<GetUpgradesInfoRequest>,
+    ) -> Result<Response<GetUpgradesInfoResponse>, Status> {
+        unimplemented!()
+    }
+
+    async fn get_validator_name(
+        self: Arc<Self>,
+        _request: Request<GetValidatorNameRequest>,
+    ) -> Result<Response<GetValidatorNameResponse>, Status> {
+        unimplemented!()
+    }
 }
 
 fn prepare_sequencer_block_response(
@@ -144,7 +167,7 @@ fn prepare_sequencer_block_response(
     let block = match block_to_mount {
         SequencerBlockToMount::GoodAtHeight(height)
         | SequencerBlockToMount::BadAtHeight(height) => ConfigureSequencerBlock {
-            block_hash: Some([99u8; 32]),
+            block_hash: Some(block::Hash::new([99u8; 32])),
             height,
             proposer_address: Some(proposer),
             sequence_data: vec![(
