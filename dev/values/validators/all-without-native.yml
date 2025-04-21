@@ -7,7 +7,6 @@ genesis:
   addressPrefixes:
     base: "astria"
   authoritySudoAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
-  marketAdminAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
   ibc:
     enabled: true
     inboundEnabled: true
@@ -27,8 +26,6 @@ sequencer:
       appVersion: 2
   priceFeed:
     enabled: true
-    metrics:
-      enabled: true
     markets:
       - name: "BTC/USD"
         providerConfigs:

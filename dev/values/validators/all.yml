@@ -7,7 +7,6 @@ genesis:
   addressPrefixes:
     base: "astria"
   authoritySudoAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
-  marketAdminAddress: astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
   nativeAssetBaseDenomination: nria
   allowedFeeAssets:
     - nria
@@ -44,8 +43,6 @@ sequencer:
     enabled: false
   priceFeed:
     enabled: true
-    metrics:
-      enabled: true
 
 resources:
   cometbft:

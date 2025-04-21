@@ -35,6 +35,8 @@ use astria_core::generated::{
     sequencerblock::v1::{
         GetUpgradesInfoRequest,
         GetUpgradesInfoResponse,
+        GetValidatorNameRequest,
+        GetValidatorNameResponse,
     },
 };
 use astria_eyre::eyre::{
@@ -128,6 +130,13 @@ impl SequencerService for SequencerServiceImpl {
         self: Arc<Self>,
         _request: Request<GetUpgradesInfoRequest>,
     ) -> tonic::Result<Response<GetUpgradesInfoResponse>> {
+        unimplemented!()
+    }
+
+    async fn get_validator_name(
+        self: Arc<Self>,
+        _request: Request<GetValidatorNameRequest>,
+    ) -> tonic::Result<Response<GetValidatorNameResponse>> {
         unimplemented!()
     }
 }

@@ -17,10 +17,7 @@ use std::{
 
 use astria_core::{
     oracles::price_feed::{
-        market_map::v2::{
-            Market,
-            Params,
-        },
+        market_map::v2::Market,
         types::v2::CurrencyPair,
     },
     primitive::v1::{
@@ -34,15 +31,15 @@ use astria_core::{
                 BridgeLock,
                 BridgeSudoChange,
                 BridgeUnlock,
-                ChangeMarkets,
                 CurrencyPairsChange,
+                FeeAssetChange,
                 IbcRelayerChange,
                 IbcSudoChange,
-                MarketMapChange,
-                PriceFeed,
+                InitBridgeAccount,
+                MarketsChange,
                 RollupDataSubmission,
+                SudoAddressChange,
                 Transfer,
-                UpdateMarketMapParams,
                 ValidatorUpdate,
             },
             Action,
@@ -68,7 +65,6 @@ use crate::{
             default_genesis_accounts,
             proto_genesis_state,
             AppInitializer,
-            ALICE_ADDRESS,
             BOB_ADDRESS,
             CAROL_ADDRESS,
             JUDY_ADDRESS,
@@ -77,6 +73,7 @@ use crate::{
             get_alice_signing_key,
             get_bridge_signing_key,
             get_judy_signing_key,
+            run_until_aspen_applied,
             transactions_with_extended_commit_info_and_commitments,
         },
     },
@@ -85,6 +82,7 @@ use crate::{
         astria_address,
         astria_address_from_hex_string,
         nria,
+        verification_key,
         ASTRIA_PREFIX,
     },
     bridge::StateWriteExt as _,
@@ -94,13 +92,14 @@ use crate::{
 #[tokio::test]
 async fn app_genesis_snapshot() {
     let (app, _storage) = AppInitializer::new().init().await;
-    insta::assert_json_snapshot!("app_hash_at_genesis", app.app_hash.as_bytes());
+    insta::assert_json_snapshot!("app_hash_at_genesis", hex::encode(app.app_hash.as_bytes()));
 }
 
 #[tokio::test]
 async fn app_finalize_block_snapshot() {
     let alice = get_alice_signing_key();
     let (mut app, storage) = AppInitializer::new().init().await;
+    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -155,7 +154,6 @@ async fn app_finalize_block_snapshot() {
 
     let timestamp = Time::unix_epoch();
     let block_hash = Hash::try_from([99u8; 32].to_vec()).unwrap();
-    let height = tendermint::block::Height::from(2_u8);
     let finalize_block = abci::request::FinalizeBlock {
         hash: block_hash,
         height,
@@ -178,7 +176,10 @@ async fn app_finalize_block_snapshot() {
         .await
         .unwrap();
     app.commit(storage.clone()).await.unwrap();
-    insta::assert_json_snapshot!("app_hash_finalize_block", app.app_hash.as_bytes());
+    insta::assert_json_snapshot!(
+        "app_hash_finalize_block",
+        hex::encode(app.app_hash.as_bytes())
+    );
 }
 
 // Note: this tests every action except for `Ics20Withdrawal` and `IbcRelay`.
@@ -188,17 +189,10 @@ async fn app_finalize_block_snapshot() {
 #[expect(clippy::too_many_lines, reason = "it's a test")]
 #[tokio::test]
 async fn app_execute_transaction_with_every_action_snapshot() {
-    use astria_core::protocol::transaction::v1::action::{
-        FeeAssetChange,
-        InitBridgeAccount,
-        SudoAddressChange,
-    };
-
     let alice = get_alice_signing_key();
     let bridge = get_bridge_signing_key();
     let bridge_withdrawer = get_judy_signing_key();
     let bridge_address = astria_address(&bridge.address_bytes());
-    let alice_address = astria_address_from_hex_string(ALICE_ADDRESS);
     let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
     let carol_address = astria_address_from_hex_string(CAROL_ADDRESS);
     let bridge_withdrawer_address = astria_address_from_hex_string(JUDY_ADDRESS);
@@ -241,11 +235,13 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .with_genesis_state(genesis_state)
         .init()
         .await;
+    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
 
     // setup for ValidatorUpdate action
     let update = ValidatorUpdate {
+        name: "test_validator".parse().unwrap(),
         power: 100,
-        verification_key: crate::benchmark_and_test_utils::verification_key(1),
+        verification_key: verification_key(1),
     };
 
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -266,44 +262,13 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             }
             .into(),
             Action::ValidatorUpdate(update.clone()),
-            PriceFeed::MarketMap(MarketMapChange::Markets(ChangeMarkets::Create(vec![
-                Market {
-                    ticker: example_ticker_from_currency_pair(
-                        "testAssetOne",
-                        "testAssetTwo",
-                        "create market".to_string(),
-                    ),
-                    provider_configs: vec![],
-                },
-            ])))
-            .into(),
-            PriceFeed::MarketMap(MarketMapChange::Markets(ChangeMarkets::Update(vec![
-                Market {
-                    ticker: example_ticker_from_currency_pair(
-                        "testAssetOne",
-                        "testAssetTwo",
-                        "update market".to_string(),
-                    ),
-                    provider_configs: vec![],
-                },
-            ])))
-            .into(),
-            PriceFeed::MarketMap(MarketMapChange::Markets(ChangeMarkets::Remove(vec![
-                Market {
-                    ticker: example_ticker_from_currency_pair(
-                        "testAssetOne",
-                        "testAssetTwo",
-                        "remove market".to_string(),
-                    ),
-                    provider_configs: vec![],
-                },
-            ])))
-            .into(),
         ])
         .chain_id("test")
         .try_build()
         .unwrap();
 
+    let currency_pair_tia = CurrencyPair::from_str("TIA/USD").unwrap();
+    let currency_pair_eth = CurrencyPair::from_str("ETH/USD").unwrap();
     let tx_bundleable_sudo = TransactionBody::builder()
         .actions(vec![
             IbcRelayerChange::Addition(bob_address).into(),
@@ -312,12 +277,38 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             FeeAssetChange::Addition("test-0".parse().unwrap()).into(),
             FeeAssetChange::Addition("test-1".parse().unwrap()).into(),
             FeeAssetChange::Removal("test-0".parse().unwrap()).into(),
-            PriceFeed::MarketMap(MarketMapChange::Params(UpdateMarketMapParams {
-                params: Params {
-                    market_authorities: vec![bob_address, carol_address],
-                    admin: alice_address,
-                },
-            }))
+            CurrencyPairsChange::Addition(vec![
+                currency_pair_tia.clone(),
+                currency_pair_eth.clone(),
+            ])
+            .into(),
+            CurrencyPairsChange::Removal(vec![currency_pair_eth.clone()]).into(),
+            MarketsChange::Creation(vec![Market {
+                ticker: example_ticker_from_currency_pair(
+                    "testAssetOne",
+                    "testAssetTwo",
+                    "create market".to_string(),
+                ),
+                provider_configs: vec![],
+            }])
+            .into(),
+            MarketsChange::Update(vec![Market {
+                ticker: example_ticker_from_currency_pair(
+                    "testAssetOne",
+                    "testAssetTwo",
+                    "update market".to_string(),
+                ),
+                provider_configs: vec![],
+            }])
+            .into(),
+            MarketsChange::Removal(vec![Market {
+                ticker: example_ticker_from_currency_pair(
+                    "testAssetOne",
+                    "testAssetTwo",
+                    "remove market".to_string(),
+                ),
+                provider_configs: vec![],
+            }])
             .into(),
         ])
         .nonce(1)
@@ -420,25 +411,14 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     let signed_tx = Arc::new(tx_bridge.sign(&bridge));
     app.execute_transaction(signed_tx).await.unwrap();
 
-    let currency_pair_tia = CurrencyPair::from_str("TIA/USD").unwrap();
-    let currency_pair_eth = CurrencyPair::from_str("ETH/USD").unwrap();
-    let tx = TransactionBody::builder()
-        .actions(vec![PriceFeed::Oracle(CurrencyPairsChange::Addition(
-            vec![currency_pair_tia.clone(), currency_pair_eth.clone()],
-        ))
-        .into()])
-        .chain_id("test")
-        .nonce(4)
-        .try_build()
-        .unwrap();
-    let signed_tx = Arc::new(tx.sign(&alice));
-    app.execute_transaction(signed_tx).await.unwrap();
-
     let sudo_address = app.state.get_sudo_address().await.unwrap();
-    app.end_block(1, &sudo_address).await.unwrap();
+    app.end_block(height.value(), &sudo_address).await.unwrap();
 
     app.prepare_commit(storage.clone()).await.unwrap();
     app.commit(storage.clone()).await.unwrap();
 
-    insta::assert_json_snapshot!("app_hash_execute_every_action", app.app_hash.as_bytes());
+    insta::assert_json_snapshot!(
+        "app_hash_execute_every_action",
+        hex::encode(app.app_hash.as_bytes())
+    );
 }

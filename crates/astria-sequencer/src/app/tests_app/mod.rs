@@ -4,10 +4,18 @@ mod upgrades;
 use std::collections::HashMap;
 
 use astria_core::{
-    oracles::price_feed::types::v2::{
-        CurrencyPair,
-        CurrencyPairId,
-        CurrencyPairNonce,
+    generated::{
+        astria::sequencerblock::v1::RollupData as RawRollupData,
+        price_feed::abci::v2::OracleVoteExtension as RawOracleVoteExtension,
+    },
+    oracles::price_feed::{
+        oracle::v2::CurrencyPairState,
+        types::v2::{
+            CurrencyPair,
+            CurrencyPairId,
+            CurrencyPairNonce,
+            Price,
+        },
     },
     primitive::v1::{
         asset::TracePrefixed,
@@ -16,7 +24,10 @@ use astria_core::{
     },
     protocol::{
         genesis::v1::Account,
-        price_feed::v1::CurrencyPairInfo,
+        price_feed::v1::{
+            CurrencyPairInfo,
+            ExtendedCommitInfoWithCurrencyPairMapping,
+        },
         transaction::v1::{
             action::{
                 BridgeLock,
@@ -27,7 +38,11 @@ use astria_core::{
             TransactionBody,
         },
     },
-    sequencerblock::v1::block::Deposit,
+    sequencerblock::v1::block::{
+        Deposit,
+        RollupData,
+    },
+    upgrades::test_utils::UpgradesBuilder,
 };
 use benchmark_and_test_utils::{
     default_genesis_accounts,
@@ -49,14 +64,17 @@ use tendermint::{
             ProcessProposal,
         },
         types::{
+            BlockSignatureInfo,
             CommitInfo,
             ExtendedCommitInfo,
             ExtendedVoteInfo,
+            Validator,
         },
     },
     account,
     block::{
         header::Version,
+        BlockIdFlag,
         Header,
         Height,
         Round,
@@ -65,15 +83,13 @@ use tendermint::{
     Hash,
     Time,
 };
+use tendermint_proto::types::CanonicalVoteExtension;
 
 use super::*;
 use crate::{
     accounts::StateReadExt as _,
     app::{
-        benchmark_and_test_utils::{
-            default_consensus_params,
-            AppInitializer,
-        },
+        benchmark_and_test_utils::AppInitializer,
         test_utils::*,
     },
     assets::StateReadExt as _,
@@ -90,7 +106,9 @@ use crate::{
     },
     bridge::StateWriteExt as _,
     fees::StateReadExt as _,
+    grpc::StateReadExt as _,
     oracles::price_feed::oracle::state_ext::StateWriteExt,
+    proposal::commitment::generate_rollup_datas_commitment,
 };
 
 fn default_tendermint_header() -> Header {
@@ -138,10 +156,6 @@ async fn app_genesis_and_init_chain() {
         app.state.get_native_asset().await.unwrap(),
         Some("nria".parse::<TracePrefixed>().unwrap()),
     );
-    assert_eq!(
-        app.state.get_consensus_params().await.unwrap(),
-        Some(default_consensus_params())
-    );
 }
 
 #[tokio::test]
@@ -172,10 +186,12 @@ async fn app_begin_block_remove_byzantine_validators() {
 
     let initial_validator_set = vec![
         ValidatorUpdate {
+            name: "test1".parse().unwrap(),
             power: 100u32,
             verification_key: verification_key(1),
         },
         ValidatorUpdate {
+            name: "test2".parse().unwrap(),
             power: 1u32,
             verification_key: verification_key(2),
         },
@@ -183,6 +199,7 @@ async fn app_begin_block_remove_byzantine_validators() {
 
     let (mut app, _storage) = AppInitializer::new()
         .with_genesis_validators(initial_validator_set.clone())
+        .with_upgrades(UpgradesBuilder::new().set_aspen(Some(100)).build())
         .init()
         .await;
 
@@ -211,7 +228,7 @@ async fn app_begin_block_remove_byzantine_validators() {
     app.begin_block(&begin_block).await.unwrap();
 
     // assert that validator with pubkey_a is removed
-    let validator_set = app.state.get_validator_set().await.unwrap();
+    let validator_set = app.state.pre_aspen_get_validator_set().await.unwrap();
     assert_eq!(validator_set.len(), 1);
     assert_eq!(validator_set.get(&verification_key(2)).unwrap().power, 1,);
 }
@@ -260,6 +277,7 @@ async fn app_commit() {
 #[tokio::test]
 async fn app_transfer_block_fees_to_sudo() {
     let (mut app, storage) = AppInitializer::new().init().await;
+    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
 
     let alice = get_alice_signing_key();
 
@@ -280,7 +298,6 @@ async fn app_transfer_block_fees_to_sudo() {
 
     let signed_tx = tx.sign(&alice);
 
-    let height = tendermint::block::Height::from(2_u8);
     let proposer_address: tendermint::account::Id = [99u8; 20].to_vec().try_into().unwrap();
     let finalize_block = abci::request::FinalizeBlock {
         hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
@@ -323,20 +340,10 @@ async fn app_transfer_block_fees_to_sudo() {
 }
 
 #[tokio::test]
-#[expect(
-    clippy::too_many_lines,
-    reason = "it's a test, so allow a lot of lines"
-)]
 async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
-    use astria_core::{
-        generated::astria::sequencerblock::v1::RollupData as RawRollupData,
-        sequencerblock::v1::block::RollupData,
-    };
-
-    use crate::grpc::StateReadExt as _;
-
     let alice = get_alice_signing_key();
     let (mut app, storage) = AppInitializer::new().init().await;
+    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -403,7 +410,6 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     };
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
 
-    let height = tendermint::block::Height::from(2_u8);
     let finalize_block = abci::request::FinalizeBlock {
         hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
         height,
@@ -453,6 +459,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
 async fn app_execution_results_match_proposal_vs_after_proposal() {
     let alice = get_alice_signing_key();
     let (mut app, storage) = AppInitializer::new().init().await;
+    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -505,7 +512,6 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
 
     let timestamp = Time::now();
     let block_hash = Hash::Sha256([99u8; 32]);
-    let height = tendermint::block::Height::from(2_u8);
     let finalize_block = abci::request::FinalizeBlock {
         hash: block_hash,
         height,
@@ -612,6 +618,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
 #[tokio::test]
 async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
     let (mut app, storage) = AppInitializer::new().init().await;
+    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
 
     // create txs which will cause cometBFT overflow
     let alice = get_alice_signing_key();
@@ -668,7 +675,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
             round: 0u16.into(),
         }),
         misbehavior: vec![],
-        height: 2_u8.into(),
+        height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: account::Id::new([1u8; 20]),
@@ -699,6 +706,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
 #[tokio::test]
 async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
     let (mut app, storage) = AppInitializer::new().init().await;
+    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
 
     // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
     let alice = get_alice_signing_key();
@@ -754,7 +762,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
             round: 0u16.into(),
         }),
         misbehavior: vec![],
-        height: 2_u8.into(),
+        height,
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address: account::Id::new([1u8; 20]),
@@ -785,6 +793,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
 #[tokio::test]
 async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
     let (mut app, storage) = AppInitializer::new().init().await;
+    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
 
     // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
     let alice = get_alice_signing_key();
@@ -814,7 +823,6 @@ async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
 
     let txs = vec![Arc::new(tx_pass), Arc::new(tx_overflow)];
 
-    let height = tendermint::block::Height::from(2_u8);
     let process_proposal = ProcessProposal {
         hash: Hash::default(),
         height,
@@ -843,6 +851,7 @@ async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
 #[tokio::test]
 async fn app_process_proposal_transaction_fails_to_execute_fails() {
     let (mut app, storage) = AppInitializer::new().init().await;
+    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
 
     // create txs which will cause transaction execution failure
     let alice = get_alice_signing_key();
@@ -858,7 +867,6 @@ async fn app_process_proposal_transaction_fails_to_execute_fails() {
 
     let txs = vec![Arc::new(tx_fail)];
 
-    let height = tendermint::block::Height::from(2_u8);
     let process_proposal = ProcessProposal {
         hash: Hash::default(),
         height,
@@ -888,10 +896,12 @@ async fn app_process_proposal_transaction_fails_to_execute_fails() {
 async fn app_end_block_validator_updates() {
     let initial_validator_set = vec![
         ValidatorUpdate {
+            name: "test1".parse().unwrap(),
             power: 100,
             verification_key: verification_key(1),
         },
         ValidatorUpdate {
+            name: "test2".parse().unwrap(),
             power: 1,
             verification_key: verification_key(2),
         },
@@ -905,14 +915,17 @@ async fn app_end_block_validator_updates() {
 
     let validator_updates = vec![
         ValidatorUpdate {
+            name: "test0".parse().unwrap(),
             power: 0,
             verification_key: verification_key(0),
         },
         ValidatorUpdate {
+            name: "test1".parse().unwrap(),
             power: 100,
             verification_key: verification_key(1),
         },
         ValidatorUpdate {
+            name: "test2".parse().unwrap(),
             power: 100,
             verification_key: verification_key(2),
         },
@@ -920,7 +933,7 @@ async fn app_end_block_validator_updates() {
 
     let mut state_tx = StateDelta::new(app.state.clone());
     state_tx
-        .put_validator_updates(ValidatorSet::new_from_updates(validator_updates.clone()))
+        .put_block_validator_updates(ValidatorSet::new_from_updates(validator_updates.clone()))
         .unwrap();
     app.apply(state_tx);
 
@@ -932,7 +945,7 @@ async fn app_end_block_validator_updates() {
     // validator with pubkey_a should be removed (power set to 0)
     // validator with pubkey_b should be updated
     // validator with pubkey_c should be added
-    let validator_set = app.state.get_validator_set().await.unwrap();
+    let validator_set = app.state.pre_aspen_get_validator_set().await.unwrap();
     assert_eq!(validator_set.len(), 2);
     let validator_b = validator_set
         .get(verification_key(1).address_bytes())
@@ -944,7 +957,10 @@ async fn app_end_block_validator_updates() {
         .unwrap();
     assert_eq!(validator_c.verification_key, verification_key(2));
     assert_eq!(validator_c.power, 100);
-    assert_eq!(app.state.get_validator_updates().await.unwrap().len(), 0);
+    assert_eq!(
+        app.state.get_block_validator_updates().await.unwrap().len(),
+        0
+    );
 }
 
 #[tokio::test]
@@ -955,6 +971,7 @@ async fn app_end_block_validator_updates() {
 async fn app_proposal_fingerprint_triggers_update() {
     let alice = get_alice_signing_key();
     let (mut app, storage) = AppInitializer::new().init().await;
+    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -1011,7 +1028,6 @@ async fn app_proposal_fingerprint_triggers_update() {
     let timestamp = Time::now();
     let raw_hash = [99u8; 32];
     let block_hash = Hash::Sha256(raw_hash);
-    let height = tendermint::block::Height::from(2_u8);
     let txs = vec![signed_tx.to_raw().encode_to_vec().into()];
     let txs_with_commitments = transactions_with_extended_commit_info_and_commitments(
         height,
@@ -1148,35 +1164,17 @@ async fn app_proposal_fingerprint_triggers_update() {
 )]
 #[tokio::test]
 async fn app_oracle_price_update_events_in_finalize_block() {
-    use astria_core::{
-        generated::price_feed::abci::v2::OracleVoteExtension as RawOracleVoteExtension,
-        oracles::price_feed::{
-            oracle::v2::CurrencyPairState,
-            types::v2::Price,
-        },
-        protocol::price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
-    };
-    use prost::Message as _;
-    use tendermint::{
-        abci::types::{
-            BlockSignatureInfo,
-            Validator,
-        },
-        block::BlockIdFlag,
-    };
-    use tendermint_proto::types::CanonicalVoteExtension;
-
-    use crate::proposal::commitment::generate_rollup_datas_commitment;
-
     let alice_signing_key = get_alice_signing_key();
     let initial_validator_set = vec![ValidatorUpdate {
         power: 100,
         verification_key: alice_signing_key.verification_key(),
+        name: "test".parse().unwrap(),
     }];
     let (mut app, storage) = AppInitializer::new()
         .with_genesis_validators(initial_validator_set)
         .init()
         .await;
+    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
 
     let currency_pair: CurrencyPair = "ETH/USD".parse().unwrap();
     let id = CurrencyPairId::new(0);
@@ -1209,7 +1207,7 @@ async fn app_oracle_price_update_events_in_finalize_block() {
     .encode_to_vec();
     let message_to_sign = CanonicalVoteExtension {
         extension: extension_bytes.clone(),
-        height: 1,
+        height: i64::try_from(height.value()).unwrap(),
         round: 1,
         chain_id: "test".to_string(),
     }
@@ -1251,7 +1249,7 @@ async fn app_oracle_price_update_events_in_finalize_block() {
     let proposer_address: account::Id = [99u8; 20].to_vec().try_into().unwrap();
     let finalize_block = abci::request::FinalizeBlock {
         hash: Hash::try_from([0u8; 32].to_vec()).unwrap(),
-        height: 2u32.into(),
+        height: height.increment(),
         time: Time::now(),
         next_validators_hash: Hash::default(),
         proposer_address,

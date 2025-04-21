@@ -53,7 +53,7 @@ pub struct OracleVoteExtension {
 `OracleVoteExtension` contains a map of currency pair IDs to prices, where the
 currency pair ID is mapped to a full currency pair inside the sequencer application.
 The IDs are assigned starting from 0, incrementing by 1 for each pair added. IDs
-cannot repeat. Pairs can be added to state either in genesis, or via a `PriceFeed::Oracle`
+cannot repeat. Pairs can be added to state either in genesis, or via a `CurrencyPairsChange`
 action. If a pair is removed, its ID cannot be re-used.
 
 The `SequencerBlock` type, which is written to DA, contains the following oracle-related

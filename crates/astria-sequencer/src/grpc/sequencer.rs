@@ -14,9 +14,14 @@ use astria_core::{
         sequencerblock::v1::{
             GetUpgradesInfoRequest,
             GetUpgradesInfoResponse,
+            GetValidatorNameRequest,
+            GetValidatorNameResponse,
         },
     },
-    primitive::v1::RollupId,
+    primitive::v1::{
+        Address,
+        RollupId,
+    },
     sequencerblock::v1::block::ExtendedCommitInfoWithProof,
     upgrades::v1::{
         Upgrade,
@@ -32,13 +37,16 @@ use tonic::{
     Status,
 };
 use tracing::{
+    debug,
     error,
     info,
     instrument,
+    warn,
 };
 
 use crate::{
     app::StateReadExt as _,
+    authority::StateReadExt as _,
     grpc::StateReadExt as _,
     mempool::Mempool,
 };
@@ -284,12 +292,52 @@ impl SequencerService for SequencerServer {
         }
         Ok(Response::new(response))
     }
+
+    #[instrument(skip_all)]
+    async fn get_validator_name(
+        self: Arc<Self>,
+        request: Request<GetValidatorNameRequest>,
+    ) -> Result<Response<GetValidatorNameResponse>, Status> {
+        let request = request.into_inner();
+        let address = request
+            .address
+            .ok_or_else(|| Status::invalid_argument("required field address was not set"))?;
+        let address = Address::try_from_raw(address).map_err(|e| {
+            debug!(
+                error = %e,
+                "failed to parse address from get validator name request",
+            );
+            Status::invalid_argument(format!("invalid address: {e}"))
+        })?;
+        let snapshot = self.storage.latest_snapshot();
+        let Some(validator) = snapshot.get_validator(&address).await.map_err(|e| {
+            warn!(
+                error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                "failed to get validator from state",
+            );
+            Status::internal(format!("failed to get validator from state: {e}"))
+        })?
+        else {
+            if snapshot.pre_aspen_get_validator_set().await.is_ok() {
+                return Err(Status::failed_precondition(
+                    "validator names are only supported post Aspen upgrade",
+                ));
+            }
+            return Err(Status::not_found("provided address is not a validator"));
+        };
+        Ok(Response::new(GetValidatorNameResponse {
+            name: validator.name.as_str().to_string(),
+        }))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use astria_core::{
-        protocol::test_utils::ConfigureSequencerBlock,
+        protocol::{
+            test_utils::ConfigureSequencerBlock,
+            transaction::v1::action::ValidatorUpdate,
+        },
         sequencerblock::v1::SequencerBlock,
     };
     use cnidarium::StateDelta;
@@ -305,7 +353,14 @@ mod tests {
             test_utils::get_alice_signing_key,
             StateWriteExt as _,
         },
-        benchmark_and_test_utils::astria_address,
+        authority::{
+            StateWriteExt as _,
+            ValidatorSet,
+        },
+        benchmark_and_test_utils::{
+            astria_address,
+            verification_key,
+        },
         grpc::StateWriteExt as _,
     };
 
@@ -418,5 +473,109 @@ mod tests {
         let request = Request::new(request);
         let response = server.get_pending_nonce(request).await.unwrap();
         assert_eq!(response.into_inner().inner, 99);
+    }
+
+    #[tokio::test]
+    async fn get_validator_name_works_as_expected() {
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let verification_key = verification_key(1);
+        let key_address_bytes = *verification_key.clone().address_bytes();
+        let validator_name = "test".to_string();
+
+        let update_with_name = ValidatorUpdate {
+            name: validator_name.clone().parse().unwrap(),
+            power: 100,
+            verification_key,
+        };
+
+        state.put_validator(&update_with_name).unwrap();
+        storage.commit(state).await.unwrap();
+
+        let server = Arc::new(SequencerServer::new(
+            storage.clone(),
+            mempool,
+            Upgrades::default(),
+        ));
+        let request = GetValidatorNameRequest {
+            address: Some(astria_address(&key_address_bytes).into_raw()),
+        };
+        let rsp = server
+            .get_validator_name(Request::new(request))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(rsp.name, validator_name);
+    }
+
+    #[tokio::test]
+    async fn validator_name_request_fails_if_not_a_validator() {
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+
+        let server = Arc::new(SequencerServer::new(
+            storage.clone(),
+            mempool,
+            Upgrades::default(),
+        ));
+        let request = GetValidatorNameRequest {
+            address: Some(astria_address(&[0; 20]).into_raw()),
+        };
+
+        let rsp = server
+            .get_validator_name(Request::new(request))
+            .await
+            .unwrap_err();
+        assert_eq!(rsp.code(), tonic::Code::NotFound, "{}", rsp.message());
+        let err_msg = "provided address is not a validator";
+        assert_eq!(rsp.message(), err_msg);
+    }
+
+    #[tokio::test]
+    async fn validator_name_request_fails_if_pre_aspen() {
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let verification_key = verification_key(1);
+        let key_address_bytes = *verification_key.clone().address_bytes();
+        let validator_name = "test".to_string();
+
+        let validator_set = ValidatorSet::new_from_updates(vec![ValidatorUpdate {
+            name: validator_name.clone().parse().unwrap(),
+            power: 100,
+            verification_key,
+        }]);
+
+        state.pre_aspen_put_validator_set(validator_set).unwrap();
+        storage.commit(state).await.unwrap();
+
+        let server = Arc::new(SequencerServer::new(
+            storage.clone(),
+            mempool,
+            Upgrades::default(),
+        ));
+        let request = GetValidatorNameRequest {
+            address: Some(astria_address(&key_address_bytes).into_raw()),
+        };
+        let rsp = server
+            .get_validator_name(Request::new(request))
+            .await
+            .unwrap_err();
+        assert_eq!(
+            rsp.code(),
+            tonic::Code::FailedPrecondition,
+            "{}",
+            rsp.message()
+        );
+        let err_msg = "validator names are only supported post Aspen upgrade";
+        assert_eq!(rsp.message(), err_msg);
     }
 }
