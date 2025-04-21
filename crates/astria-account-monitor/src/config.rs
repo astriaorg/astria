@@ -1,11 +1,10 @@
+use std::str::FromStr;
+
 use astria_eyre::eyre;
 use sequencer_client::Address;
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use serde::Deserialize;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize)]
 /// The high-level config for creating an astria-account-monitor service.
 pub struct Config {
     /// Log level. One of debug, info, warn, or error
@@ -21,9 +20,8 @@ pub struct Config {
     pub sequencer_address_prefix: String,
 
     /// The addresses of the sequencer chain to monitor.
-    pub sequencer_accounts: String,
+    pub sequencer_accounts: Vec<Account>,
 
-    pub sequencer_bridge_accounts: String,
     /// The asset ID of the sequencer chain to monitor.
     pub sequencer_asset: String,
 
@@ -44,49 +42,53 @@ pub struct Config {
     pub metrics_http_listener_addr: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct Account {
+    /// The address of the account to monitor.
+    pub address: Address,
+}
+
+impl FromStr for Account {
+    type Err = eyre::Report;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let address = s
+            .parse()
+            .map_err(|e| eyre::eyre!("failed to parse account address: {e}"))?;
+        Ok(Self {
+            address,
+        })
+    }
+}
+
+impl ToString for Account {
+    fn to_string(&self) -> String {
+        self.address.to_string()
+    }
+}
+
 impl config::Config for Config {
     const PREFIX: &'static str = "ASTRIA_ACCOUNT_MONITOR_";
 }
 
 impl Config {
-    /// Returns Address from a string.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if parsing fails.
-    pub fn parse_account(&self, account: &str) -> eyre::Result<Address> {
-        let address = account
-            .parse()
-            .map_err(|e| eyre::eyre!("failed to parse account address: {e}"))?;
-        Ok(address)
-    }
-
     /// Returns a list of addresses from a comma-separated string.
     ///
     /// # Errors
     ///
     /// Returns an error if parsing any of the addresses fails.
-    pub fn parse_accounts(&self) -> eyre::Result<Vec<Address>> {
-        let accounts = self
-            .sequencer_accounts
-            .split(',')
-            .map(|account| self.parse_account(account))
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(accounts)
+    pub fn parse_accounts(&self) -> eyre::Result<Vec<Account>> {
+        Ok(self.sequencer_accounts.clone())
     }
+}
 
-    /// Returns a list of addresses from a comma-separated string.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if parsing any of the addresses fails.
-    pub fn parse_bridge_accounts(&self) -> eyre::Result<Vec<Address>> {
-        let accounts = self
-            .sequencer_bridge_accounts
-            .split(',')
-            .map(|account| self.parse_account(account))
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(accounts)
+impl<'de> Deserialize<'de> for Account {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        s.parse().map_err(serde::de::Error::custom)
     }
 }
 
