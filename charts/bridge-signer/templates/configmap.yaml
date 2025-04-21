@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "bridge-signer.appName" . }}-env
+  namespace: {{ include "bridge-signer.namespace" . }}
+data:
+  ASTRIA_BRIDGE_SIGNER_LOG: "astria_bridge_signer={{ .Values.config.logLevel }}"
+  ASTRIA_BRIDGE_SIGNER_GRPC_ENDPOINT: "0.0.0.0:{{ .Values.ports.grpc }}"
+  ASTRIA_BRIDGE_SIGNER_FROST_SECRET_KEY_PACKAGE_PATH: "/secret/signerPrivateKey/{{ .Values.config.privateKey.secret.filename }}"
+  ASTRIA_BRIDGE_SIGNER_ROLLUP_RPC_ENDPOINT: "{{ .Values.config.evmRpcEndpoint }}"
+  ASTRIA_BRIDGE_SIGNER_NO_OTEL: "{{ .Values.global.useTTY }}"
+  ASTRIA_BRIDGE_SIGNER_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
+  ASTRIA_BRIDGE_SIGNER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
+  ASTRIA_BRIDGE_SIGNER_NO_METRICS: "{{ not .Values.metrics.enabled }}"
+  ASTRIA_BRIDGE_SIGNER_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.metrics }}"
+  {{- if not .Values.global.dev }}
+  {{- else }}
+  {{- end }}
+---
+{{- if not .Values.secretProvider.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: {{ include "bridge-signer.namespace" .  }}
+  name: {{ include "bridge-signer.appName" . }}-private-key
+data:
+  {{ .Values.config.privateKey.secret.filename }}: |-
+    {{ toJson .Values.config.privateKey.devContent | nindent 4 }}
+---
+{{- end }}
