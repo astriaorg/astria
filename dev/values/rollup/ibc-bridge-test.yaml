@@ -1,12 +1,46 @@
 # this file contains overrides that are used for the ibc bridge tests
+global:
+  rollupName: astria
+  sequencerChainId: sequencer-test-chain-0
+  celestiaChainId: celestia-local-0
 
 evm-rollup:
   genesis:
-    bridgeAddresses:
-      - bridgeAddress: "astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr"
-        startHeight: 1
-        assetDenom: "transfer/channel-0/utia"
-        assetPrecision: 6
+    # The name of the rollup chain, used to generate the Rollup ID
+    rollupName: "{{ .Values.global.rollupName }}"
+
+    # The "forks" for upgrading the chain. Contains necessary information for starting
+    # and, if desired, restarting the chain at a given height. The necessary fields
+    # for the genesis fork are provided, and additional forks can be added as needed.
+    forks:
+      ## These values are used to configure the genesis block of the rollup chain
+      ## no defaults as they are unique to each chain
+      launch:
+        # The rollup number to start executing blocks at, lowest possible is 1
+        height: 1
+        # Configure the fee collector for the evm tx fees, activated at block heights.
+        # If not configured, all tx fees will be burned.
+        feeCollector: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
+        sequencer:
+          # The chain id of the sequencer chain
+          chainId: "sequencer-test-chain-0"
+          # The hrp for bech32m addresses, unlikely to be changed
+          addressPrefix: "astria"
+          # Block height to start syncing rollup from (inclusive), lowest possible is 2
+          startHeight: 2
+        celestia:
+          # The chain id of the celestia chain
+          chainId: "celestia-local-0"
+          # The first Celestia height to utilize when looking for rollup data
+          startHeight: 2
+          # The maximum number of blocks ahead of the lowest Celestia search height
+          # to search for a firm commitment
+          searchHeightMaxLookAhead: 100
+        bridgeAddresses:
+        - bridgeAddress: "astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr"
+          assetDenom: "transfer/channel-0/utia"
+          assetPrecision: 6
+
     alloc:
       - address: "0x4e59b44847b379578588920cA78FbF26c0B4956C"
         value:

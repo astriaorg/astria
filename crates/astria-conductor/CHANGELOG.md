@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Update `idna` dependency to resolve cargo audit warning [#1869](https://github.com/astriaorg/astria/pull/1869).
 - Remove panic source on shutdown [#1919](https://github.com/astriaorg/astria/pull/1919).
+- Upgrade to `astria.execution.v2` APIs, implement execution sessions, remove env
+vars for setting chain IDs [#2006](https://github.com/astriaorg/astria/pull/2006).
 
 ### Added
 

@@ -65,6 +65,7 @@ use tracing::{
 use crate::{
     block_cache::GetSequencerHeight,
     metrics::Metrics,
+    state::StateReceiver,
     utils::flatten,
 };
 
@@ -137,7 +138,7 @@ pub(crate) struct Reader {
     firm_blocks: mpsc::Sender<Box<ReconstructedBlock>>,
 
     /// The channel to read updates of the rollup state from.
-    rollup_state: crate::executor::StateReceiver,
+    rollup_state: StateReceiver,
 
     /// The client to get the sequencer namespace and verify blocks.
     sequencer_cometbft_client: SequencerClient,
@@ -145,12 +146,6 @@ pub(crate) struct Reader {
     /// The number of requests per second that will be sent to Sequencer
     /// (usually to verify block data retrieved from Celestia blobs).
     sequencer_requests_per_second: u32,
-
-    /// The chain ID of the Celestia network the reader should be communicating with.
-    expected_celestia_chain_id: String,
-
-    /// The chain ID of the Sequencer the reader should be communicating with.
-    expected_sequencer_chain_id: String,
 
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
@@ -181,13 +176,13 @@ impl Reader {
 
     #[instrument(skip_all, err)]
     async fn initialize(&mut self) -> eyre::Result<tendermint::chain::Id> {
+        let expected_celestia_chain_id = self.rollup_state.celestia_chain_id();
         let validate_celestia_chain_id = async {
             let actual_celestia_chain_id = get_celestia_chain_id(&self.celestia_client)
                 .await
                 .wrap_err("failed to fetch Celestia chain ID")?;
-            let expected_celestia_chain_id = &self.expected_celestia_chain_id;
             ensure!(
-                self.expected_celestia_chain_id == actual_celestia_chain_id.as_str(),
+                expected_celestia_chain_id == actual_celestia_chain_id.as_str(),
                 "expected Celestia chain id `{expected_celestia_chain_id}` does not match actual: \
                  `{actual_celestia_chain_id}`"
             );
@@ -195,14 +190,14 @@ impl Reader {
         }
         .in_current_span();
 
+        let expected_sequencer_chain_id = self.rollup_state.sequencer_chain_id();
         let get_and_validate_sequencer_chain_id = async {
             let actual_sequencer_chain_id =
                 get_sequencer_chain_id(self.sequencer_cometbft_client.clone())
                     .await
                     .wrap_err("failed to get sequencer chain ID")?;
-            let expected_sequencer_chain_id = &self.expected_sequencer_chain_id;
             ensure!(
-                self.expected_sequencer_chain_id == actual_sequencer_chain_id.to_string(),
+                expected_sequencer_chain_id == actual_sequencer_chain_id.as_str(),
                 "expected Celestia chain id `{expected_sequencer_chain_id}` does not match \
                  actual: `{actual_sequencer_chain_id}`"
             );
@@ -257,7 +252,7 @@ struct RunningReader {
     firm_blocks: mpsc::Sender<Box<ReconstructedBlock>>,
 
     /// The channel to read updates of the rollup state from.
-    rollup_state: crate::executor::StateReceiver,
+    rollup_state: StateReceiver,
 
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
@@ -283,18 +278,18 @@ struct RunningReader {
     /// The next Celestia height that will be fetched.
     celestia_next_height: u64,
 
-    /// The reference Celestia height. `celestia_reference_height` + `celestia_variance` = C is the
-    /// maximum Celestia height up to which Celestia's blobs will be fetched.
-    /// `celestia_reference_height` is initialized to the base Celestia height stored in the
-    /// rollup genesis. It is later advanced to that Celestia height from which the next block
-    /// is derived that will be executed against the rollup (only if greater than the current
-    /// value; it will never go down).
+    /// The reference Celestia height. `celestia_reference_height` +
+    /// `celestia_search_height_max_look_ahead` = C is the maximum Celestia height up to which
+    /// Celestia's blobs will be fetched. `celestia_reference_height` is initialized to the
+    /// base Celestia height stored in the rollup state. It is later advanced to that Celestia
+    /// height from which the next block is derived that will be executed against the rollup
+    /// (only if greater than the current value; it will never go down).
     celestia_reference_height: u64,
 
-    /// `celestia_variance` + `celestia_reference_height` define the maximum Celestia height from
-    /// Celestia blobs can be fetched. Set once during initialization to the value stored in
-    /// the rollup genesis.
-    celestia_variance: u64,
+    /// `celestia_search_height_max_look_ahead` + `celestia_reference_height` define the maximum
+    /// Celestia height from Celestia blobs that can be fetched. Set once during initialization
+    /// to the value stored in the rollup state.
+    celestia_search_height_max_look_ahead: u64,
 
     /// The rollup ID of the rollup that conductor is driving. Set once during initialization to
     /// the value stored in the
@@ -340,9 +335,10 @@ impl RunningReader {
         let sequencer_namespace =
             astria_core::celestia::namespace_v0_from_sha256_of_bytes(sequencer_chain_id.as_bytes());
 
-        let celestia_next_height = rollup_state.celestia_base_block_height();
-        let celestia_reference_height = rollup_state.celestia_base_block_height();
-        let celestia_variance = rollup_state.celestia_block_variance();
+        let celestia_next_height = rollup_state.lowest_celestia_search_height();
+        let celestia_reference_height = rollup_state.lowest_celestia_search_height();
+        let celestia_search_height_max_look_ahead =
+            rollup_state.celestia_search_height_max_look_ahead();
 
         Ok(Self {
             block_cache,
@@ -361,7 +357,7 @@ impl RunningReader {
             celestia_head_height: None,
             celestia_next_height,
             celestia_reference_height,
-            celestia_variance,
+            celestia_search_height_max_look_ahead,
 
             rollup_id,
             rollup_namespace,
@@ -376,7 +372,7 @@ impl RunningReader {
             info!(
                 initial_celestia_height = self.celestia_next_height,
                 initial_max_celestia_height = self.max_permitted_celestia_height(),
-                celestia_variance = self.celestia_variance,
+                celestia_search_height_max_look_ahead = self.celestia_search_height_max_look_ahead,
                 rollup_namespace = %base64(&self.rollup_namespace.as_bytes()),
                 rollup_id = %self.rollup_id,
                 sequencer_chain_id = %self.sequencer_chain_id,
@@ -386,6 +382,10 @@ impl RunningReader {
         });
 
         let reason = loop {
+            if self.has_reached_stop_height() {
+                break Ok("stop height reached");
+            }
+
             self.schedule_new_blobs();
 
             select!(
@@ -449,6 +449,17 @@ impl RunningReader {
                 );
             }
         }
+    }
+
+    /// The stop height is reached if a) the next height to be forwarded would be greater
+    /// than the stop height, and b) there is no block currently in flight.
+    fn has_reached_stop_height(&self) -> bool {
+        self.rollup_state
+            .sequencer_stop_height()
+            .map_or(false, |height| {
+                self.block_cache.next_height_to_pop() > height.get()
+                    && self.enqueued_block.is_terminated()
+            })
     }
 
     #[instrument(skip_all)]
@@ -535,14 +546,14 @@ impl RunningReader {
 
     /// Returns the maximum permitted Celestia height given the current state.
     ///
-    /// The maximum permitted Celestia height is calculated as `ref_height + 6 * variance`, with:
+    /// The maximum permitted Celestia height is calculated as `ref_height +
+    /// celestia_search_height_max_look_ahead`, with:
     ///
     /// - `ref_height` the height from which the last expected sequencer block was derived,
-    /// - `variance` the `celestia_block_variance` received from the connected rollup genesis info,
-    /// - and the factor 6 based on the assumption that there are up to 6 sequencer heights stored
-    ///   per Celestia height.
+    /// - `celestia_search_height_max_look_ahead` received from the current rollup state,
     fn max_permitted_celestia_height(&self) -> u64 {
-        max_permitted_celestia_height(self.celestia_reference_height, self.celestia_variance)
+        self.celestia_reference_height
+            .saturating_add(self.celestia_search_height_max_look_ahead)
     }
 
     fn record_latest_celestia_height(&mut self, height: u64) {
@@ -562,7 +573,7 @@ struct FetchConvertVerifyAndReconstruct {
     rollup_id: RollupId,
     rollup_namespace: Namespace,
     sequencer_namespace: Namespace,
-    rollup_state: crate::executor::StateReceiver,
+    rollup_state: StateReceiver,
     metrics: &'static Metrics,
 }
 
@@ -695,10 +706,6 @@ async fn get_sequencer_chain_id(client: SequencerClient) -> eyre::Result<tenderm
         .wrap_err("failed to get genesis info from Sequencer after a lot of attempts")?;
 
     Ok(genesis.chain_id)
-}
-
-fn max_permitted_celestia_height(reference: u64, variance: u64) -> u64 {
-    reference.saturating_add(variance.saturating_mul(6))
 }
 
 #[instrument(skip_all)]

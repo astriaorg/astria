@@ -24,20 +24,62 @@ images:
     tag: 1.69.0
 
 genesis:
-  ## These values are used to configure the genesis block of the rollup chain
-  ## no defaults as they are unique to each chain
-
   # The name of the rollup chain, used to generate the Rollup ID
   rollupName: ""
-  # Block height to start syncing rollup from, lowest possible is 2
-  sequencerInitialHeight: ""
-  # The first Celestia height to utilize when looking for rollup data
-  celestiaInitialHeight: ""
-  # The variance in Celestia height to allow before halting the chain
-  celestiaHeightVariance: ""
-  # Will fill the extra data in each block, can be left empty
-  # can also fill with something unique for your chain.
-  extraDataOverride: ""
+
+  # The "forks" for upgrading the chain. Contains necessary information for starting
+  # and, if desired, restarting the chain at a given height. The necessary fields
+  # for the genesis fork are provided, and additional forks can be added as needed.
+  forks:
+    launch:
+      # The rollup number to start executing blocks at, lowest possible is 1
+      height: 1
+      # Whether to halt the rollup chain at the given height
+      halt: "false"
+      # Checksum of the snapshot to use upon restart
+      snapshotChecksum: ""
+      # Will fill the extra data in each block, can be left empty
+      # can also fill with something unique for your chain.
+      extraDataOverride: ""
+      # Configure the fee collector for the evm tx fees, activated at block heights.
+      # If not configured, all tx fees will be burned.
+      feeCollector: ""
+        # 1: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
+      # Configure EIP-1559 params, activated at block heights.
+      eip1559Params: {}
+        # 1:
+        #   minBaseFee: 0
+        #   elasticityMultiplier: 2
+        #   baseFeeChangeDenominator: 8
+      sequencer:
+        # The chain id of the sequencer chain
+        chainId: ""
+        # The hrp for bech32m addresses, unlikely to be changed
+        addressPrefix: "astria"
+        # Block height to start syncing rollup from (inclusive), lowest possible is 2
+        startHeight: ""
+      celestia:
+        # The chain id of the celestia chain
+        chainId: ""
+        # The first Celestia height to utilize when looking for rollup data
+        startHeight: ""
+        # The maximum number of blocks ahead of the lowest Celestia search height
+        # to search for a firm commitment
+        searchHeightMaxLookAhead: ""
+      # Configure the sequencer bridge addresses and allowed assets if using
+      # the astria canonical bridge. Recommend removing alloc values if so.
+      bridgeAddresses: []
+        # - address: "684ae50c49a434199199c9c698115391152d7b3f"
+        #   assetDenom: "nria"
+        #   senderAddress: "0x0000000000000000000000000000000000000000"
+        #   assetPrecision: 9
+        ## Native oracle configuration
+      # address from which injected oracle transactions are called from;
+      # must not have a known private key for mainnet
+      astriaOracleCallerAddress: "0x0000000000000000000000000000000000000088"
+      # address where the oracle contract is deployed at (at genesis)
+      # must match the `alloc` genesis field
+      astriaOracleContractAddress: "0x0000000000000000000000000000000000000089"
 
   ## These are general configuration values with some recommended defaults
 
@@ -45,42 +87,7 @@ genesis:
   gasLimit: "50000000"
   # If set to true the genesis block will contain extra data
   overrideGenesisExtraData: true
-  # The hrp for bech32m addresses, unlikely to be changed
-  sequencerAddressPrefix: "astria"
 
-  ## These values are used to configure astria native bridging
-  ## Many of the fields have commented out example fields
-
-  # Configure the sequencer bridge addresses and allowed assets if using
-  # the astria canonical bridge. Recommend removing alloc values if so.
-  bridgeAddresses: []
-    # - address: "684ae50c49a434199199c9c698115391152d7b3f"
-    #   startHeight: 1
-    #   assetDenom: "nria"
-    #   senderAddress: "0x0000000000000000000000000000000000000000"
-    #   assetPrecision: 9
-
-  ## Native oracle configuration
-
-  # address from which injected oracle transactions are called from;
-  # must not have a known private key for mainnet
-  astriaOracleCallerAddress: "0x0000000000000000000000000000000000000088"
-  # address where the oracle contract is deployed at (at genesis)
-  # must match the `alloc` genesis field
-  astriaOracleContractAddress: "0x0000000000000000000000000000000000000089"
-
-  ## Fee configuration
-
-  # Configure the fee collector for the evm tx fees, activated at block heights.
-  # If not configured, all tx fees will be burned.
-  feeCollectors: {}
-  # 1: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
-  # Configure EIP-1559 params, activated at block heights
-  eip1559Params: {}
-    # 1:
-    #   minBaseFee: 0
-    #   elasticityMultiplier: 2
-    #   baseFeeChangeDenominator: 8
 
   ## Standard Eth Genesis config values
   # An EVM chain number id, different from the astria rollup name
@@ -198,8 +205,6 @@ config:
     # - "FirmOnly" -> blocks are only pulled from DA
     # - "SoftAndFirm" -> blocks are pulled from both the sequencer and DA
     executionCommitLevel: 'SoftAndFirm'
-    # The chain id of the Astria sequencer chain conductor communicates with
-    sequencerChainId: ""
     # The expected fastest block time possible from sequencer, determines polling
     # rate.
     sequencerBlockTimeMs: 2000
@@ -211,8 +216,6 @@ config:
     sequencerGrpc: ""
     # The maximum number of requests to make to the sequencer per second
     sequencerRequestsPerSecond: 500
-    # The chain id of the celestia network the conductor communicates with
-    celestiaChainId: ""
 
   celestia:
     # if config.rollup.executionLevel is NOT 'SoftOnly' AND celestia-node is not enabled

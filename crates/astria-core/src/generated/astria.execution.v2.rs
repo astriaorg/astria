@@ -217,6 +217,9 @@ pub struct ExecutionSessionParameters {
     /// The maximum number of Celestia blocks which can be read above
     /// `CommitmentState.lowest_celestia_search_height` in search of the next firm
     /// block.
+    ///
+    /// Cannot be set to 0 if Conductor is configured to use firm commitments. If
+    /// Conductor is in soft-only mode, this value is ignored.
     #[prost(uint64, tag = "7")]
     pub celestia_search_height_max_look_ahead: u64,
 }
