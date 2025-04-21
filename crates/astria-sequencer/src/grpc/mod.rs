@@ -116,7 +116,9 @@ pub(crate) async fn serve(
     let sequencer_api = SequencerServer::new(storage.clone(), mempool, upgrades);
     let market_map_api = price_feed::SequencerServer::new(storage.clone());
     let oracle_api = price_feed::SequencerServer::new(storage.clone());
-    let cors_layer: CorsLayer = CorsLayer::permissive();
+    // Using very permissive here reflects the origin allowed headers back to the client
+    // this is required for buf studio to work.
+    let cors_layer: CorsLayer = CorsLayer::very_permissive();
 
     let mut background_tasks = BackgroundTasks::new();
     let optimistic_block_service = if no_optimistic_blocks {
