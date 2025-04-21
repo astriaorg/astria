@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0-rc.1]
+
 ### Added
 
 - Provide support for upgrading the sequencer network [#2085](https://github.com/astriaorg/astria/pull/2085).
@@ -544,7 +546,8 @@ address [#721](https://github.com/astriaorg/astria/pull/721).
 
 - Initial release.
 
-[unreleased]: https://github.com/astriaorg/astria/compare/sequencer-v2.0.1...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/sequencer-v3.0.0-rc.1...HEAD
+[3.0.0-rc.1]: https://github.com/astriaorg/astria/compare/sequencer-v2.0.1...sequencer-v3.0.0-rc.1
 [2.0.1]: https://github.com/astriaorg/astria/compare/sequencer-v2.0.0...sequencer-v2.0.1
 [2.0.0]: https://github.com/astriaorg/astria/compare/sequencer-v1.0.0...sequencer-v2.0.0
 [2.0.0-rc.2]: https://github.com/astriaorg/astria/compare/sequencer-v2.0.0-rc.1...sequencer-v2.0.0-rc.2
