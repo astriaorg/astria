@@ -1,4 +1,4 @@
-# Execution API Specification (v2)
+# Execution API (v2) Specification
 
 ## Overview
 
@@ -15,7 +15,7 @@ The Execution API is a resource-based API with three resources: `ExecutedBlockMe
 `CommitmentState`, and `ExecutionSession`. The API is designed to follow basic
 principles outlined by aip.dev as best practices for resource based APIs. gRPC
 has been chosen for the API due to the wide availability of language implementations
-which make it easy to generate client libraries and server implementations.  
+which make it easy to generate client libraries and server implementations.
 
 ## Conductor Usage
 

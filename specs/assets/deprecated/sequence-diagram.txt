@@ -11,11 +11,6 @@ participant Relayer
 database DA
 
 group Setup
-Rollup Node<-Conductor: CreateExecutionSession
-activate Rollup Node
-note left of Rollup Node: Create execution session
-Rollup Node-->Conductor: ExecutionSession(State, Params, ID)
-deactivate Rollup Node
 parallel on
 Sequencer<-Relayer: WS Subscribe NewBlocks
 Conductor->Sequencer: WS Subscribe NewBlocks
@@ -47,7 +42,7 @@ group Derivation of Rollup Block
 Conductor->Rollup Node: ExecuteBlock(Block N)
 activate Rollup Node
 note left of Rollup Node:Execute Block
-Conductor<--Rollup Node: ExecutedBlockMetadata
+Conductor<--Rollup Node: New Rollup Block
 deactivate Rollup Node
 Conductor->Rollup Node: UpdateCommitmentState (Soft N)
 end
