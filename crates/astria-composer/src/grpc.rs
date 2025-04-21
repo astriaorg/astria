@@ -84,6 +84,7 @@ impl GrpcServer {
 
         let composer_service = GrpcCollectorServiceServer::new(self.grpc_collector);
         let grpc_server = tonic::transport::Server::builder()
+            .layer(tonic_web::GrpcWebLayer::new())
             .add_service(health_service)
             .add_service(composer_service);
 

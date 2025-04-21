@@ -148,6 +148,7 @@ pub(crate) async fn serve(
         // (from Penumbra) Add permissive CORS headers, so pd's gRPC services are accessible
         // from arbitrary web contexts, including from localhost.
         .layer(cors_layer)
+        .layer(tonic_web::GrpcWebLayer::new())
         .add_service(ClientQueryServer::new(ibc.clone()))
         .add_service(ChannelQueryServer::new(ibc.clone()))
         .add_service(ConnectionQueryServer::new(ibc.clone()))

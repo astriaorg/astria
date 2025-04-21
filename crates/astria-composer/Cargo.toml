@@ -51,6 +51,7 @@ tokio-util = { workspace = true, features = ["rt"] }
 tracing = { workspace = true, features = ["attributes"] }
 tryhard = { workspace = true }
 tonic = { workspace = true }
+tonic-web = { workspace = true }
 tokio-stream = { workspace = true, features = ["net"] }
 
 [dependencies.sequencer-client]
