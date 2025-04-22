@@ -14,7 +14,10 @@
 //! ```
 
 use std::{
-    collections::BTreeMap,
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     time::Duration,
 };
 
@@ -33,13 +36,17 @@ use astria_eyre::eyre::{
 };
 use ethers::{
     providers::{
+        Middleware as _,
         Provider,
         ProviderError,
-        SubscriptionStream,
         Ws,
     },
-    types::Transaction,
+    types::{
+        Transaction,
+        U256,
+    },
 };
+use futures::stream;
 use itertools::Itertools as _;
 use telemetry::metrics::Counter;
 use tokio::{
@@ -157,8 +164,15 @@ impl Geth {
         self.status.subscribe()
     }
 
-    /// Starts the collector instance and runs until failure or until
-    /// explicitly closed
+    /// Starts the collector instance and runs until failure or until explicitly closed.
+    ///
+    /// The following steps are performed:
+    /// 1. Connect to Geth node and subscribe to new pending transactions.
+    /// 2. Retrieve any existing pending transactions and add them to a cache.
+    /// 3. Stream existing pending transactions followed by subscription to new pending
+    ///    transactions, sending each to the executor. If the transaction has already been cached as
+    ///    sent, it is skipped. This is to account for any transactions which are received between
+    ///    steps 1 and 2, and hence are included in both.
     pub(crate) async fn run_until_stopped(self) -> eyre::Result<()> {
         use ethers::providers::Middleware as _;
         use futures::stream::StreamExt as _;
@@ -179,89 +193,98 @@ impl Geth {
             .await
             .wrap_err("failed to connect to geth node")?;
 
+        // Subscribe to pending transactions immediately so that there is no gap between retrieving
+        // the current pending transactions and subscribing to new ones.
+        let new_tx_stream = client
+            .subscribe_full_pending_txs()
+            .await
+            .wrap_err("failed to subscribe eth client to full pending transactions")?;
+        let new_tx_subscription_id = new_tx_stream.id;
+
         // Get current pending transactions, since the subscription will only return new ones.
-        // Sorted deterministically by nonce.
-        let cur_pending_txs = client
+        let existing_pending_txs = client
             .txpool_content()
             .await
             .wrap_err("failed to get current tx pool")?
-            .pending
-            .into_values()
-            .flat_map(BTreeMap::into_values)
-            .sorted_by_key(|tx| tx.nonce)
-            .collect::<Vec<_>>();
+            .pending;
 
-        let send_cur_pending_txs = async {
-            let _ = info_span!("Geth::run_until_stopped::send_cur_pending_txs").enter();
-            if cur_pending_txs.is_empty() {
-                info!("no pending transactions in tx pool");
-            } else {
+        if existing_pending_txs.is_empty() {
+            info_span!("Geth::run_until_stopped::send_cur_pending_txs")
+                .in_scope(|| info!("no pending transactions in tx pool"));
+        } else {
+            info_span!("Geth::run_until_stopped::send_cur_pending_txs").in_scope(|| {
                 info!(
-                    num_pending_txs = cur_pending_txs.len(),
-                    "found existing pending transactions in tx pool, sending to executor before \
-                     subscribing to new ones",
+                    num_existing_txs = existing_pending_txs.len(),
+                    "found existing pending transactions in tx pool, sending to executor prior to \
+                     newly received txs",
                 );
-            }
-            for tx in cur_pending_txs {
-                txs_received_counter.increment(1);
-
-                self.forward_geth_tx(&tx, &txs_dropped_counter).await?;
-            }
-            Ok(())
+            });
         };
 
-        let reason = 'outer: {
-            // Process all existing pending transactions before those received via subscription
+        // Create a cache for existing pending transactions to avoid sending the same transaction if
+        // it is also streamed via `new_tx_stream`.
+        let mut existing_pending_tx_cache = HashMap::new();
+
+        // Using `sorted_by_key` instead of `sorted_unstable_by_key` to ensure that the order of the
+        // transactions is determinisic.
+        let existing_pending_txs_stream = stream::iter(
+            existing_pending_txs
+                .into_values()
+                .flat_map(BTreeMap::into_values)
+                .sorted_by_key(|tx| {
+                    // Only insert existing pending txs to avoid indefinite growth of the cache.
+                    // This approach also takes advantage of the sorting iteration to populate the
+                    // cache.
+                    existing_pending_tx_cache.insert(tx.hash.0, false);
+                    tx.nonce
+                }),
+        );
+
+        // Chain current pending transactions with new transactions.
+        let mut tx_stream = existing_pending_txs_stream.chain(new_tx_stream);
+
+        status.send_modify(|status| status.is_connected = true);
+
+        let reason = loop {
             select! {
                 biased;
                 () = shutdown_token.cancelled() => {
-                    break 'outer Ok("shutdown signal received");
+                    break Ok("shutdown signal received");
                 },
-                send_pending_txs_res = send_cur_pending_txs => {
-                    if let Err(err) = send_pending_txs_res {
-                        break 'outer Err(err);
-                    }
-            }};
-
-            let mut tx_stream = client
-                .subscribe_full_pending_txs()
-                .await
-                .wrap_err("failed to subscribe eth client to full pending transactions")?;
-
-            status.send_modify(|status| status.is_connected = true);
-
-            let inner_reason = 'inner: loop {
-                select! {
-                    biased;
-                    () = shutdown_token.cancelled() => {
-                        break 'inner Ok("shutdown signal received");
-                    },
-                    tx_res = tx_stream.next() => {
-                        if let Some(tx) = tx_res {
-                            txs_received_counter.increment(1);
-
-                            if let Err(err) = self.forward_geth_tx(
-                                &tx,
-                                &txs_dropped_counter,
-                            ).await {
-                                break 'inner Err(err);
+                tx_res = tx_stream.next() => {
+                    if let Some(tx) = tx_res {
+                        // Check cache for previously sent transactions.
+                        if let Some(previously_sent) = existing_pending_tx_cache.get(&tx.hash.0) {
+                            if *previously_sent {
+                                // this transaction was already sent to the executor
+                                continue;
                             }
+                            // update value in cache to represent that it has already been sent
+                            existing_pending_tx_cache.insert(tx.hash.0, true);
+                        };
 
-                        } else {
-                            break 'inner Err(eyre!("geth tx stream ended"));
+                        txs_received_counter.increment(1);
+
+                        if let Err(err) = self.forward_geth_tx(
+                            &tx,
+                            &txs_dropped_counter,
+                        ).await {
+                            break Err(err);
                         }
+
+                    } else {
+                        break Err(eyre!("geth tx stream ended"));
                     }
                 }
-            };
-
-            status.send_modify(|status| status.is_connected = false);
-
-            // if the loop exits with an error, we can still proceed with unsubscribing the WSS
-            // stream as we could have exited due to an error in sending messages via the executor
-            // channel.
-            unsubscribe_from_rollup(&tx_stream).await;
-            inner_reason
+            }
         };
+
+        status.send_modify(|status| status.is_connected = false);
+
+        // if the loop exits with an error, we can still proceed with unsubscribing the WSS
+        // stream as we could have exited due to an error in sending messages via the executor
+        // channel.
+        unsubscribe_from_rollup(&client, &new_tx_subscription_id).await;
 
         report_exit_reason(reason.as_deref());
 
@@ -311,10 +334,15 @@ impl Geth {
 }
 
 #[instrument(skip_all)]
-async fn unsubscribe_from_rollup(tx_stream: &SubscriptionStream<'_, Ws, Transaction>) {
+async fn unsubscribe_from_rollup(tx_stream: &Provider<Ws>, subscription_id: &U256) {
     // give 2s for the websocket connection to be unsubscribed as we want to avoid having
     // this hang for too long
-    match tokio::time::timeout(WSS_UNSUBSCRIBE_TIMEOUT, tx_stream.unsubscribe()).await {
+    match tokio::time::timeout(
+        WSS_UNSUBSCRIBE_TIMEOUT,
+        tx_stream.unsubscribe(subscription_id),
+    )
+    .await
+    {
         Ok(Ok(true)) => info!("unsubscribed from geth tx stream"),
         Ok(Ok(false)) => warn!("geth responded to unsubscribe request but returned `false`"),
         Ok(Err(err)) => {
