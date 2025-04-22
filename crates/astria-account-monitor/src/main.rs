@@ -28,37 +28,31 @@ async fn main() -> ExitCode {
         .set_force_stdout(cfg.force_stdout)
         .set_filter_directives(&cfg.log);
 
-    if !cfg.no_metrics {
-        telemetry_conf =
-            telemetry_conf.set_metrics(&cfg.metrics_http_listener_addr, env!("CARGO_PKG_NAME"));
-    }
+    telemetry_conf =
+        telemetry_conf.set_metrics(&cfg.metrics_http_listener_addr, env!("CARGO_PKG_NAME"));
 
     let (metrics, _telemetry_guard) = match telemetry_conf
         .try_init(&cfg)
         .wrap_err("failed to setup telemetry")
     {
-        Err(e) => {
-            eprintln!("initializing account monitor failed:\n{e:?}");
+        Err(_) => {
             return ExitCode::FAILURE;
         }
         Ok(metrics_and_guard) => metrics_and_guard,
     };
 
+    info!("initializing account monitor");
     let account_monitor = match AccountMonitor::new(cfg, metrics) {
         Ok(account_monitor) => account_monitor,
-        Err(e) => {
-            error!(%e, "failed initializing AccountMonitor");
+        Err(_) => {
             return ExitCode::FAILURE;
         }
     };
-    return match account_monitor.run().await {
-        Ok(()) => {
-            info!("Account monitor stopped");
-            ExitCode::SUCCESS
-        }
-        Err(error) => {
-            error!(%error, "Account monitor exited with error");
-            ExitCode::FAILURE
-        }
+    let monitor_result = match account_monitor.run().await {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(_) => ExitCode::FAILURE,
     };
+
+    info!("account monitor shut down");
+    monitor_result
 }

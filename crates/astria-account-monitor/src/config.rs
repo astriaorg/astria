@@ -16,9 +16,6 @@ pub struct Config {
     /// The chain ID of the sequencer chain
     pub sequencer_chain_id: String,
 
-    /// The address prefix to use when constructing sequencer addresses using the signing key.
-    pub sequencer_address_prefix: String,
-
     /// The addresses of the sequencer chain to monitor.
     pub sequencer_accounts: Vec<Account>,
 
@@ -26,17 +23,13 @@ pub struct Config {
     pub sequencer_asset: String,
 
     /// Sequencer block time in milliseconds
-    #[serde(alias = "query_interval_ms")]
-    pub block_time_ms: u64,
+    pub query_interval_ms: u64,
 
     /// Forces writing trace data to stdout no matter if connected to a tty or not.
     pub force_stdout: bool,
 
     /// Disables writing trace data to an opentelemetry endpoint.
     pub no_otel: bool,
-
-    /// Set to true to disable the metrics server
-    pub no_metrics: bool,
 
     /// The endpoint which will be listened on for serving prometheus metrics
     pub metrics_http_listener_addr: String,
