@@ -1100,7 +1100,6 @@ dependencies = [
  "base64 0.21.7",
  "bytes",
  "futures",
- "gxhash",
  "hex",
  "http 1.2.0",
  "hyper 1.6.0",
@@ -4489,15 +4488,6 @@ dependencies = [
  "ff",
  "rand_core 0.6.4",
  "subtle",
-]
-
-[[package]]
-name = "gxhash"
-version = "3.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3ce1bab7aa741d4e7042b2aae415b78741f267a98a7271ea226cd5ba6c43d7d"
-dependencies = [
- "rustversion",
 ]
 
 [[package]]
