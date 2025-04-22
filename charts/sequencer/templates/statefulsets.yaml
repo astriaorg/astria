@@ -109,6 +109,7 @@ spec:
             limits:
               cpu: {{ .Values.resources.cometbft.limits.cpu }}
               memory: {{ .Values.resources.cometbft.limits.memory }}
+        {{- if .Values.sequencer.priceFeed.enabled }}
         - name: price-feed
           image: "{{ include "priceFeed.image" . }}"
           imagePullPolicy: {{ .Values.images.priceFeed.pullPolicy }}
@@ -126,6 +127,7 @@ spec:
               name: price-feed-grpc
             - containerPort: {{ .Values.ports.priceFeedMetrics }}
               name: price-fd-metric
+        {{- end }}
       volumes:
         - name: socket-volume
           emptyDir: {}
