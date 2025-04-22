@@ -72,6 +72,7 @@ pub(crate) struct Bidpipe {
     pub(crate) optimistic_block_hash: RollupBlockHash,
     pub(crate) sequencer_block_hash: block::Hash,
     pub(crate) optimistic_block_number: u64,
+    pub(crate) auction_started_at: std::time::Instant,
     to_auction: mpsc::UnboundedSender<BidWithNotify>,
 }
 
@@ -131,7 +132,7 @@ pub(super) struct Auction {
     /// The actual event loop running in the background that receives bids, times the
     /// auction, and submits the winner to Sequencer.
     worker: JoinHandle<Result<Summary, worker::Error>>,
-    metrics: &'static crate::Metrics,
+    started_at: std::time::Instant,
 }
 
 impl Auction {
@@ -202,6 +203,7 @@ impl Auction {
             optimistic_block_number: block.rollup_block_number(),
             sequencer_block_hash: *block.sequencer_block_hash(),
             to_auction: self.bids.clone(),
+            auction_started_at: self.started_at,
         })
     }
 }

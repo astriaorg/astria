@@ -84,6 +84,7 @@ use crate::{
         Bundle,
         Transaction,
     },
+    Metrics,
     OptionalExt as _,
 };
 
@@ -146,6 +147,7 @@ impl Orderpool {
         cancellation_token: CancellationToken,
         active_auction: watch::Receiver<Option<crate::auctioneer::Bidpipe>>,
         eth_url: String,
+        metrics: &'static Metrics,
     ) -> Self {
         let (tx, rx) = channel::new();
         let task = tokio::spawn(
@@ -166,6 +168,7 @@ impl Orderpool {
                         bundle_storage: in_memory::Storage::new(),
                         eth_client,
                         requests: rx,
+                        metrics,
                     }
                     .run()
                     .await
@@ -216,6 +219,7 @@ struct Inner {
         crate::auctioneer::auction::Id,
         Result<(Uuid, jiff::Timestamp), tokio::sync::oneshot::error::RecvError>,
     >,
+    metrics: &'static Metrics,
 }
 
 impl Inner {
@@ -420,6 +424,7 @@ impl Inner {
                 bid_pipe,
                 simulations,
                 notify_orderpool: Some(notify_submitted_tx),
+                metrics: self.metrics,
             }
             .run(),
         )
@@ -430,6 +435,7 @@ struct SimulationsForAuction {
     bid_pipe: Bidpipe,
     simulations: JoinMap<(Uuid, jiff::Timestamp), Result<ProcessedSimulation, SimulationError>>,
     notify_orderpool: Option<tokio::sync::oneshot::Sender<(Uuid, jiff::Timestamp)>>,
+    metrics: &'static Metrics,
 }
 
 impl SimulationsForAuction {
@@ -461,6 +467,7 @@ impl SimulationsForAuction {
 
                 Some(((uuid, timestamp), sim_res)) = self.simulations.join_next() =>
                 {
+                    self.metrics.record_auction_simulation_delay_since_start(self.bid_pipe.auction_started_at.elapsed());
                     // TODO: report the time it took for the simulation to respond.
                     // we can probably do this by instrumenting the RPC future.
                     let sim_result = match sim_res {
@@ -485,11 +492,15 @@ impl SimulationsForAuction {
                             .collect(),
                     ) {
                         Ok(notify) => {
+                            self.metrics.increment_in_time_order_simulations();
                             if self.notify_orderpool.is_some() {
                                 uuid_to_notify.spawn((uuid, timestamp), async move { notify.notified().await });
                             }
                         }
-                        Err(_error) => todo!("report that the simulation is already done,"),
+                        Err(_error) => {
+                            self.metrics.increment_late_order_simulations();
+                            todo!("report that the simulation is already done,");
+                        }
                     };
                 }
             )

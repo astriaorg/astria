@@ -206,6 +206,7 @@ impl Auctioneer {
             shutdown_token.child_token(),
             running_auction.subscribe(),
             rollup_ethereum_rpc_endpoint,
+            metrics,
         );
 
         let jsonrpc_server = crate::jsonrpc_server::Builder {
