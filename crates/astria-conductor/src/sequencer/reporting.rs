@@ -1,6 +1,6 @@
 use astria_core::{
     primitive::v1::RollupId,
-    sequencerblock::v1::block::{
+    sequencerblock::v1alpha1::block::{
         FilteredSequencerBlock,
         RollupTransactions,
     },
@@ -37,46 +37,5 @@ impl Serialize for ReportRollups<'_> {
             map.serialize_entry(id, &txes.transactions().len())?;
         }
         map.end()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use astria_core::{
-        primitive::v1::RollupId,
-        protocol::test_utils::ConfigureSequencerBlock,
-        sequencerblock::v1::block::FilteredSequencerBlock,
-    };
-    use insta::assert_json_snapshot;
-
-    use crate::sequencer::reporting::{
-        ReportFilteredSequencerBlock,
-        ReportRollups,
-    };
-
-    const ROLLUP_42: RollupId = RollupId::new([42u8; 32]);
-    const ROLLUP_69: RollupId = RollupId::new([69u8; 32]);
-
-    fn snapshot_block() -> FilteredSequencerBlock {
-        let block = ConfigureSequencerBlock {
-            height: 100,
-            sequence_data: vec![
-                (ROLLUP_42, b"hello".to_vec()),
-                (ROLLUP_42, b"hello world".to_vec()),
-                (ROLLUP_69, b"hello world".to_vec()),
-            ],
-            ..Default::default()
-        }
-        .make();
-
-        block.into_filtered_block([ROLLUP_42, ROLLUP_69])
-    }
-
-    #[test]
-    fn snapshots() {
-        let block = snapshot_block();
-
-        assert_json_snapshot!(ReportRollups(block.rollup_transactions()));
-        assert_json_snapshot!(ReportFilteredSequencerBlock(&block));
     }
 }

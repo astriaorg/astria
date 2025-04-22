@@ -53,7 +53,7 @@ macro_rules! celestia_network_head {
 #[macro_export]
 macro_rules! filtered_sequencer_block {
     (sequencer_height: $height:expr) => {{
-        let block = ::astria_core::protocol::test_utils::ConfigureSequencerBlock {
+        let block = ::astria_core::protocol::test_utils::ConfigureV1Alpha1SequencerBlock {
             height: $height,
             sequence_data: vec![($crate::ROLLUP_ID, $crate::helpers::data())],
             ..Default::default()
@@ -262,7 +262,6 @@ macro_rules! mount_execute_block {
                 "sessionId": $crate::helpers::EXECUTION_SESSION_ID,
                 "parentHash": $parent,
                 "transactions": [
-                    {"priceFeedData": {}},
                     {"sequencedData": BASE64_STANDARD.encode($crate::helpers::data())}
                 ],
             }),
@@ -312,7 +311,7 @@ macro_rules! mount_get_filtered_sequencer_block {
     ($test_env:ident, sequencer_height: $height:expr, delay: $delay:expr $(,)?) => {
         $test_env
             .mount_get_filtered_sequencer_block(
-                ::astria_core::generated::astria::sequencerblock::v1::GetFilteredSequencerBlockRequest {
+                ::astria_core::generated::astria::sequencerblock::v1alpha1::GetFilteredSequencerBlockRequest {
                     height: $height,
                     rollup_ids: vec![$crate::ROLLUP_ID.to_raw()],
                 },
@@ -498,7 +497,6 @@ macro_rules! mount_execute_block_tonic_code {
                 "sessionId": $crate::helpers::EXECUTION_SESSION_ID,
                 "parentHash": $parent,
                 "transactions": [
-                    {"priceFeedData": {}},
                     {"sequencedData": BASE64_STANDARD.encode($crate::helpers::data())}
                 ],
             }),

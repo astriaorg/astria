@@ -4,8 +4,7 @@ use std::{
     time::Duration,
 };
 
-use astria_core::sequencerblock::v1::{
-    block,
+use astria_core::sequencerblock::v1alpha1::{
     SubmittedMetadata,
     SubmittedRollupData,
 };
@@ -55,7 +54,7 @@ use crate::state::StateReceiver;
 
 pub(super) struct VerifiedBlobs {
     celestia_height: u64,
-    header_blobs: HashMap<block::Hash, SubmittedMetadata>,
+    header_blobs: HashMap<[u8; 32], SubmittedMetadata>,
     rollup_blobs: Vec<SubmittedRollupData>,
 }
 
@@ -72,7 +71,7 @@ impl VerifiedBlobs {
         self,
     ) -> (
         u64,
-        HashMap<block::Hash, SubmittedMetadata>,
+        HashMap<[u8; 32], SubmittedMetadata>,
         Vec<SubmittedRollupData>,
     ) {
         (self.celestia_height, self.header_blobs, self.rollup_blobs)
@@ -85,7 +84,7 @@ impl VerifiedBlobs {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 struct VerificationTaskKey {
     index: usize,
-    block_hash: block::Hash,
+    block_hash: [u8; 32],
     sequencer_height: SequencerHeight,
 }
 
@@ -139,7 +138,7 @@ pub(super) async fn verify_metadata(
                         .get(dropped_entry.block_hash())
                         .expect("must exist; just inserted an item under the same key");
                     info!(
-                        block_hash = %dropped_entry.block_hash(),
+                        block_hash = %hex::encode(dropped_entry.block_hash()),
                         dropped_blob.sequencer_height = dropped_entry.height().value(),
                         accepted_blob.sequencer_height = accepted_entry.height().value(),
                         "two Sequencer header blobs were well formed and validated against \
@@ -151,7 +150,7 @@ pub(super) async fn verify_metadata(
             Ok(None) => {}
             Err(error) => {
                 info!(
-                    block_hash = %key.block_hash,
+                    block_hash = %hex::encode(key.block_hash),
                     sequencer_height = %key.sequencer_height,
                     %error,
                     "verification of sequencer blob was cancelled abruptly; dropping it"
@@ -541,16 +540,16 @@ fn ensure_chain_ids_match(in_commit: &str, in_header: &str) -> eyre::Result<()> 
     Ok(())
 }
 
-fn ensure_block_hashes_match(in_commit: &[u8], in_header: &block::Hash) -> eyre::Result<()> {
+fn ensure_block_hashes_match(in_commit: &[u8], in_header: &[u8; 32]) -> eyre::Result<()> {
     use base64::prelude::*;
     // NOTE: we still re-encode the block hash using base64 instead of its display impl
     // to ensure that the formatting of the two byte slices doesn't accidentally go
     // out of whack should the display impl change.
     ensure!(
-        in_commit == in_header.as_bytes(),
+        in_commit == in_header,
         "expected block hash `{}` (from commit), but found `{}` in retrieved metadata",
         BASE64_STANDARD.encode(in_commit),
-        BASE64_STANDARD.encode(in_header.as_bytes()),
+        BASE64_STANDARD.encode(in_header),
     );
     Ok(())
 }

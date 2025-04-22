@@ -1,10 +1,10 @@
 use astria_core::{
     brotli::decompress_bytes,
-    generated::astria::sequencerblock::v1::{
+    generated::astria::sequencerblock::v1alpha1::{
         SubmittedMetadataList,
         SubmittedRollupDataList,
     },
-    sequencerblock::v1::{
+    sequencerblock::v1alpha1::{
         celestia::{
             SubmittedMetadataError,
             SubmittedRollupDataError,

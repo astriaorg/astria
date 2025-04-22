@@ -2,7 +2,7 @@ syntax = 'proto3';
 
 package astria.execution.v2;
 
-import "astria/sequencerblock/v1/block.proto";
+import "astria/sequencerblock/v1alpha1/block.proto";
 import "google/protobuf/timestamp.proto";
 
 // ExecuteBlockRequest contains all the information needed to create a new rollup
@@ -17,7 +17,7 @@ message ExecuteBlockRequest {
   // formatted in the execution node's preferred encoding.
   string parent_hash = 2;
   // List of transactions to include in the new block.
-  repeated astria.sequencerblock.v1.RollupData transactions = 3;
+  repeated astria.sequencerblock.v1alpha1.RollupData transactions = 3;
   // Timestamp to be used for new block.
   google.protobuf.Timestamp timestamp = 4;
   // The hash of the sequencer block from which the transactions and timestamp

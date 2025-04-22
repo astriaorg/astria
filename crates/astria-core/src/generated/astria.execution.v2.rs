@@ -101,7 +101,7 @@ pub struct ExecuteBlockRequest {
     /// List of transactions to include in the new block.
     #[prost(message, repeated, tag = "3")]
     pub transactions: ::prost::alloc::vec::Vec<
-        super::super::sequencerblock::v1::RollupData,
+        super::super::sequencerblock::v1alpha1::RollupData,
     >,
     /// Timestamp to be used for new block.
     #[prost(message, optional, tag = "4")]

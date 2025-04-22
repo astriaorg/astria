@@ -3,40 +3,32 @@ use std::{
     sync::Arc,
 };
 
-use astria_core::generated::{
-    astria::{
-        execution::v2::{
-            execution_service_server::{
-                ExecutionService,
-                ExecutionServiceServer,
-            },
-            CommitmentState,
-            CreateExecutionSessionRequest,
-            ExecuteBlockRequest,
-            ExecuteBlockResponse,
-            ExecutedBlockMetadata,
-            ExecutionSession,
-            GetExecutedBlockMetadataRequest,
-            UpdateCommitmentStateRequest,
+use astria_core::generated::astria::{
+    execution::v2::{
+        execution_service_server::{
+            ExecutionService,
+            ExecutionServiceServer,
         },
-        sequencerblock::v1::{
-            sequencer_service_server::{
-                SequencerService,
-                SequencerServiceServer,
-            },
-            FilteredSequencerBlock,
-            GetFilteredSequencerBlockRequest,
-            GetPendingNonceRequest,
-            GetPendingNonceResponse,
-            GetSequencerBlockRequest,
-            SequencerBlock,
-        },
+        CommitmentState,
+        CreateExecutionSessionRequest,
+        ExecuteBlockRequest,
+        ExecuteBlockResponse,
+        ExecutedBlockMetadata,
+        ExecutionSession,
+        GetExecutedBlockMetadataRequest,
+        UpdateCommitmentStateRequest,
     },
-    sequencerblock::v1::{
-        GetUpgradesInfoRequest,
-        GetUpgradesInfoResponse,
-        GetValidatorNameRequest,
-        GetValidatorNameResponse,
+    sequencerblock::v1alpha1::{
+        sequencer_service_server::{
+            SequencerService,
+            SequencerServiceServer,
+        },
+        FilteredSequencerBlock,
+        GetFilteredSequencerBlockRequest,
+        GetPendingNonceRequest,
+        GetPendingNonceResponse,
+        GetSequencerBlockRequest,
+        SequencerBlock,
     },
 };
 use astria_eyre::eyre::{
@@ -123,20 +115,6 @@ impl SequencerService for SequencerServiceImpl {
         self: Arc<Self>,
         _request: Request<GetPendingNonceRequest>,
     ) -> tonic::Result<Response<GetPendingNonceResponse>> {
-        unimplemented!()
-    }
-
-    async fn get_upgrades_info(
-        self: Arc<Self>,
-        _request: Request<GetUpgradesInfoRequest>,
-    ) -> tonic::Result<Response<GetUpgradesInfoResponse>> {
-        unimplemented!()
-    }
-
-    async fn get_validator_name(
-        self: Arc<Self>,
-        _request: Request<GetValidatorNameRequest>,
-    ) -> tonic::Result<Response<GetValidatorNameResponse>> {
         unimplemented!()
     }
 }
