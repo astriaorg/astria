@@ -6,10 +6,7 @@ use astria_account_monitor::{
     BUILD_INFO,
 };
 use astria_eyre::eyre::WrapErr as _;
-use tracing::{
-    error,
-    info,
-};
+use tracing::info;
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -43,10 +40,8 @@ async fn main() -> ExitCode {
 
     info!("initializing account monitor");
     let account_monitor = match AccountMonitor::new(cfg, metrics) {
+        Err(_) => return ExitCode::FAILURE,
         Ok(account_monitor) => account_monitor,
-        Err(_) => {
-            return ExitCode::FAILURE;
-        }
     };
     let monitor_result = match account_monitor.run().await {
         Ok(()) => ExitCode::SUCCESS,
