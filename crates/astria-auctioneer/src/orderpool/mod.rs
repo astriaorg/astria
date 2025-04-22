@@ -453,32 +453,47 @@ impl SimulationsForAuction {
                     uuid_to_notify.detach_all();
                     fut_out.expect("the task spawned here is just awaiting a tokio Notify; this should never panic and if it does something very bad is going on");
 
-                    if let Err((uuid, timestamp)) =
-                        self
-                        .notify_orderpool
-                        .take()
-                        .expect("in a select arm that asserts that the field is set")
-                        .send((uuid, timestamp))
-                    {
-                        warn!(%uuid, %timestamp, "tried notifying orderpool of the bundle submitted by the auction, but the channel was already closed");
-                    }
+                    tracing::info_span!(
+                        "notify_orderpool_of_winner",
+                        auction_id = %self.bid_pipe.auction_id,
+                    ).in_scope(|| {
+                        if let Err((uuid, timestamp)) =
+                            self
+                            .notify_orderpool
+                            .take()
+                            .expect("in a select arm that asserts that the field is set")
+                            .send((uuid, timestamp))
+                        {
+                            warn!(
+                                %uuid,
+                                %timestamp,
+                                "could not notify orderpool of the bundle submitted by the auction because the channel was already closed; probably because the auction was cancelled?"
+                            );
+                        }
+                    });
                 }
 
 
                 Some(((uuid, timestamp), sim_res)) = self.simulations.join_next() =>
                 {
-                    self.metrics.record_auction_simulation_delay_since_start(self.bid_pipe.auction_started_at.elapsed());
-                    // TODO: report the time it took for the simulation to respond.
-                    // we can probably do this by instrumenting the RPC future.
-                    let sim_result = match sim_res {
-                        Ok(Ok(success)) => success,
-                        Ok(Err(_error)) => unimplemented!("report simulation error return value"),
-                        Err(_error) => unimplemented!("report panicked simulation"),
-                    };
-                    // TODO: at this point there needs to be some kind of feedback mechanism with the
-                    // actual orderpool to evict bundles that failed simulation (taking into consideration
-                    // the reverted_txs and dropped_txs fields) so that bad bundles don't stay in the
-                    // orderpool indefinitely.
+                    let sim_result = match sim_res
+                        .wrap_err("simulation task panicked")
+                        .and_then(|res| res.wrap_err("simulation returned with an error"))
+                        {
+                            Err(error) => {
+                            // TODO: should there be a feedback mechanism with the orderpool so that
+                            // simulations that fail can be evicted from the pool?
+                            // It sounds complex to write a allow or blocklist for the specific error conditions.
+                            self.metrics.record_order_simulation_success_latency(self.bid_pipe.auction_started_at.elapsed());
+                                warn!(%error, "simulation failed");
+                                continue;
+                            }
+                            Ok(success) => {
+                            self.metrics.record_order_simulation_failure_latency(self.bid_pipe.auction_started_at.elapsed());
+                                success
+                            }
+
+                        };
 
                     // TODO: probably report a failure explicitly so that the logs can be grepped for those
                     // auctions that returned after an auction was cancelled/ended.

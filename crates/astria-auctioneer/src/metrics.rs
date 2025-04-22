@@ -17,8 +17,11 @@ const AUCTION_WINNER_SUBMISSION_LATENCY_LABEL: &str = "auction_winner_submission
 const AUCTION_WINNER_ERROR: &str = "error";
 const AUCTION_WINNER_SUCCESS: &str = "success";
 
+const ORDER_SIMULATION_LATENCY_LABEL: &str = "order_simulation_latency";
+const ORDER_SIMULATION_ERROR: &str = "error";
+const ORDER_SIMULATION_SUCCESS: &str = "success";
+
 pub struct Metrics {
-    auction_simulation_delay_since_start: Histogram,
     bids_per_auction_dropped_histogram: Histogram,
     bids_per_auction_processed_histogram: Histogram,
     in_time_order_simulations: Counter,
@@ -30,6 +33,8 @@ pub struct Metrics {
     block_commitments_received_count: Counter,
     executed_blocks_received_count: Counter,
     proposed_blocks_received_count: Counter,
+    order_simulation_success_latency: Histogram,
+    order_simulation_failure_latency: Histogram,
 }
 
 impl Metrics {
@@ -65,10 +70,6 @@ impl Metrics {
         self.bids_per_auction_processed_histogram.record(val);
     }
 
-    pub(crate) fn record_auction_simulation_delay_since_start(&self, val: impl IntoF64) {
-        self.auction_simulation_delay_since_start.record(val);
-    }
-
     pub(crate) fn record_auction_winning_bid_histogram(&self, val: impl IntoF64) {
         self.auction_winning_bid_histogram.record(val);
     }
@@ -79,6 +80,14 @@ impl Metrics {
 
     pub(crate) fn record_auction_winner_submission_success_latency(&self, val: impl IntoF64) {
         self.auction_winner_submission_success_latency.record(val);
+    }
+
+    pub(crate) fn record_order_simulation_success_latency(&self, val: impl IntoF64) {
+        self.order_simulation_success_latency.record(val)
+    }
+
+    pub(crate) fn record_order_simulation_failure_latency(&self, val: impl IntoF64) {
+        self.order_simulation_failure_latency.record(val)
     }
 }
 
@@ -140,14 +149,6 @@ impl astria_telemetry::metrics::Metrics for Metrics {
             .new_histogram_factory(AUCTION_WINNING_BID, "the amount bid by the auction winner")?
             .register()?;
 
-        let auction_simulation_delay_since_start = builder
-            .new_histogram_factory(
-                AUCTION_SIMULATION_DELAY_SINCE_START,
-                "the duration from the start of an auction to when the simulation result for an \
-                 order was received",
-            )?
-            .register()?;
-
         let mut auction_winner_submission_latency_factory = builder.new_histogram_factory(
             AUCTION_WINNER_SUBMISSION_LATENCY,
             "the duration for Sequencer to respond to a auction submission",
@@ -172,8 +173,23 @@ impl astria_telemetry::metrics::Metrics for Metrics {
                  cancelled",
             )?
             .register()?;
+
+        let mut order_simulations_latency_factory = builder.new_histogram_factory(
+            ORDER_SIMULATION_LATENCY,
+            "the duration for the rollup to respond to an eth_simulateV1 from the start of an \
+             auction",
+        )?;
+        let order_simulation_success_latency = order_simulations_latency_factory
+            .register_with_labels(&[(
+                ORDER_SIMULATION_LATENCY_LABEL,
+                ORDER_SIMULATION_SUCCESS.to_string(),
+            )])?;
+        let order_simulation_failure_latency = order_simulations_latency_factory
+            .register_with_labels(&[(
+                ORDER_SIMULATION_LATENCY_LABEL,
+                ORDER_SIMULATION_ERROR.to_string(),
+            )])?;
         Ok(Self {
-            auction_simulation_delay_since_start,
             bids_per_auction_dropped_histogram,
             bids_per_auction_processed_histogram,
             in_time_order_simulations,
@@ -185,6 +201,8 @@ impl astria_telemetry::metrics::Metrics for Metrics {
             block_commitments_received_count,
             executed_blocks_received_count,
             proposed_blocks_received_count,
+            order_simulation_success_latency,
+            order_simulation_failure_latency,
         })
     }
 }
@@ -198,6 +216,7 @@ metric_names!(const METRICS_NAMES:
     BIDS_PER_AUCTION,
     ORDERS_SIMULATED_IN_TIME,
     ORDER_SIMULATIONS_WITHOUT_MATCHING_AUCTION,
+    ORDER_SIMULATION_LATENCY,
     AUCTION_WINNING_BID,
     AUCTION_WINNER_SUBMISSION_LATENCY,
 );
