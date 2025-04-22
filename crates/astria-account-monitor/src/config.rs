@@ -1,4 +1,7 @@
-use std::str::FromStr;
+use std::{
+    fmt::Display,
+    str::FromStr,
+};
 
 use astria_eyre::eyre;
 use sequencer_client::Address;
@@ -54,9 +57,9 @@ impl FromStr for Account {
     }
 }
 
-impl ToString for Account {
-    fn to_string(&self) -> String {
-        self.address.to_string()
+impl Display for Account {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.address)
     }
 }
 

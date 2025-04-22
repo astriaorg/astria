@@ -4,7 +4,6 @@ use std::{
         Display,
         Formatter,
     },
-    str::FromStr,
     time::Duration,
 };
 
@@ -123,7 +122,7 @@ async fn run_loop(
     loop {
         poll_timer.tick().await;
 
-        fetch_all_info(metrics, client, accounts.clone(), denom.clone());
+        fetch_all_info(metrics, client, accounts.clone(), &denom);
     }
 }
 
@@ -131,7 +130,7 @@ fn fetch_all_info(
     metrics: &'static Metrics,
     client: &sequencer_client::HttpClient,
     accounts: Vec<Account>,
-    denom: Denom,
+    denom: &Denom,
 ) {
     for account in accounts {
         let client = client.clone();
@@ -218,7 +217,7 @@ pub struct AccountInfo {
 impl<T: Display> Display for QueryResponse<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            QueryResponse::Value(value) => write!(f, "{}", value),
+            QueryResponse::Value(value) => write!(f, "{value}"),
             QueryResponse::Error => write!(f, "Error"),
             QueryResponse::Timeout => write!(f, "Timeout"),
         }
