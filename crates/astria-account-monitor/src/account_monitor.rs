@@ -10,10 +10,7 @@ use std::{
 
 use astria_core::{
     primitive::v1::{
-        asset::{
-            denom,
-            Denom,
-        },
+        asset::Denom,
         Address,
     },
     protocol::account::v1::AssetBalance,
@@ -23,17 +20,10 @@ use astria_eyre::eyre::{
     OptionExt,
     WrapErr as _,
 };
-use futures::future::join_all;
-use sequencer_client::{
-    tendermint_rpc::client,
-    SequencerClientExt as _,
-};
-use tokio::{
-    task::JoinHandle,
-    time::{
-        interval,
-        timeout,
-    },
+use sequencer_client::SequencerClientExt as _;
+use tokio::time::{
+    interval,
+    timeout,
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{
@@ -56,7 +46,6 @@ pub struct AccountMonitor {
     sequencer_asset: Denom,
     metrics: &'static Metrics,
     interval: Duration,
-    // fields omitted
 }
 
 impl AccountMonitor {
@@ -83,10 +72,11 @@ impl AccountMonitor {
             sequencer_client::HttpClient::new(&*sequencer_abci_endpoint)
                 .wrap_err("failed constructing cometbft http client")?;
 
-        let sequencer_asset = Denom::from_str(sequencer_asset.as_str())
-            .map_err(|e| eyre::eyre!("failed to parse asset: {e}"))?;
+        let sequencer_asset = sequencer_asset
+            .parse()
+            .wrap_err("msg: failed to parse asset")?;
 
-        let interval = Duration::from_millis(cfg.block_time_ms);
+        let interval = Duration::from_millis(cfg.query_interval_ms);
         Ok(Self {
             shutdown_token: shutdown_handle,
             sequencer_abci_client: sequencer_cometbft_client,
@@ -102,11 +92,10 @@ impl AccountMonitor {
     /// # Errors
     /// An error is returned if bridge last transaction height is not found.
     pub async fn run(&self) -> eyre::Result<()> {
-        info!("starting account monitor");
         let Some(_res) = self
             .shutdown_token
             .token
-            .run_until_cancelled(run_until_the_end_of_days(
+            .run_until_cancelled(run_loop(
                 self.metrics,
                 &self.sequencer_abci_client,
                 self.sequencer_accounts.clone(),
@@ -122,7 +111,7 @@ impl AccountMonitor {
     }
 }
 
-async fn run_until_the_end_of_days(
+async fn run_loop(
     metrics: &'static Metrics,
     client: &sequencer_client::HttpClient,
     accounts: Vec<Account>,
@@ -135,40 +124,6 @@ async fn run_until_the_end_of_days(
         poll_timer.tick().await;
 
         fetch_all_info(metrics, client, accounts.clone(), denom.clone());
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum QueryResponse<T> {
-    Value(T),
-    Error,
-    Timeout,
-}
-
-#[derive(Debug, Clone)]
-pub struct AccountInfo {
-    nonce: QueryResponse<u32>,
-    balance: QueryResponse<u128>,
-}
-
-impl<T: Display> Display for QueryResponse<T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            QueryResponse::Value(value) => write!(f, "{}", value),
-            QueryResponse::Error => write!(f, "Error"),
-            QueryResponse::Timeout => write!(f, "Timeout"),
-        }
-    }
-}
-
-// Implement Display for AccountInfo
-impl Display for AccountInfo {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "AccountInfo {{ nonce: {}, balance: {} }}",
-            self.nonce, self.balance
-        )
     }
 }
 
@@ -244,6 +199,40 @@ async fn fetch_account_info(
     AccountInfo {
         nonce: account_nonce,
         balance: account_balance,
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum QueryResponse<T> {
+    Value(T),
+    Error,
+    Timeout,
+}
+
+#[derive(Debug, Clone)]
+pub struct AccountInfo {
+    nonce: QueryResponse<u32>,
+    balance: QueryResponse<u128>,
+}
+
+impl<T: Display> Display for QueryResponse<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            QueryResponse::Value(value) => write!(f, "{}", value),
+            QueryResponse::Error => write!(f, "Error"),
+            QueryResponse::Timeout => write!(f, "Timeout"),
+        }
+    }
+}
+
+// Implement Display for AccountInfo
+impl Display for AccountInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "AccountInfo {{ nonce: {}, balance: {} }}",
+            self.nonce, self.balance
+        )
     }
 }
 

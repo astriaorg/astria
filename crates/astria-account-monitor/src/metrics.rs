@@ -33,7 +33,7 @@ impl Metrics {
         if let Some(gauge) = self.account_nonce.get(account) {
             gauge.set(nonce);
         } else {
-            error!("No gauge found for account nonce: {}", account);
+            error!("no gauge found for account nonce: {}", account);
         }
     }
 
@@ -41,7 +41,7 @@ impl Metrics {
         if let Some(gauge) = self.account_balance.get(account) {
             gauge.set(balance);
         } else {
-            error!("No gauge found for account balance: {}", account);
+            error!("no gauge found for account balance: {}", account);
         }
     }
 
@@ -104,6 +104,7 @@ impl telemetry::Metrics for Metrics {
             ACCOUNT_BALANCE,
             "The current balance for a specific account",
         )?;
+
         for account in &config.sequencer_accounts {
             let balance_gauge =
                 balance_factory.register_with_labels(&[(ACCOUNT_LABEL, account.to_string())])?;
