@@ -52,6 +52,7 @@ use tokio_util::{
 use tracing::{
     field::display,
     info,
+    info_span,
     instrument,
     warn,
     Level,
@@ -476,47 +477,53 @@ impl SimulationsForAuction {
 
                 Some(((uuid, timestamp), sim_res)) = self.simulations.join_next() =>
                 {
-                    let sim_result = match sim_res
-                        .wrap_err("simulation task panicked")
-                        .and_then(|res| res.wrap_err("simulation returned with an error"))
-                        {
-                            Err(error) => {
-                            // TODO: should there be a feedback mechanism with the orderpool so that
-                            // simulations that fail can be evicted from the pool?
-                            // It sounds complex to write a allow or blocklist for the specific error conditions.
-                            self.metrics.record_order_simulation_success_latency(self.bid_pipe.auction_started_at.elapsed());
-                                warn!(%error, "simulation failed");
-                                continue;
-                            }
-                            Ok(success) => {
-                            self.metrics.record_order_simulation_failure_latency(self.bid_pipe.auction_started_at.elapsed());
-                                success
-                            }
+                    info_span!(
+                        "handle_simulation_response",
+                        auction_id = %self.bid_pipe.auction_id,
+                        %uuid,
+                    ).in_scope(|| {
+                        let sim_result = match sim_res
+                            .wrap_err("simulation task panicked")
+                            .and_then(|res| res.wrap_err("simulation returned with an error"))
+                            {
+                                Err(error) => {
+                                // TODO: should there be a feedback mechanism with the orderpool so that
+                                // simulations that fail can be evicted from the pool?
+                                // It sounds complex to write a allow or blocklist for the specific error conditions.
+                                self.metrics.record_order_simulation_success_latency(self.bid_pipe.auction_started_at.elapsed());
+                                    warn!(%error, "simulation failed");
+                                    return;
+                                }
+                                Ok(success) => {
+                                self.metrics.record_order_simulation_failure_latency(self.bid_pipe.auction_started_at.elapsed());
+                                    success
+                                }
 
+                            };
+
+                        // TODO: probably report a failure explicitly so that the logs can be grepped for those
+                        // auctions that returned after an auction was cancelled/ended.
+                        match self.bid_pipe.send(
+                            sim_result.total_fee,
+                            sim_result
+                                .transactions_considered
+                                .into_iter()
+                                .map(|tx| tx.inner.encoded_2718())
+                                .map(bytes::Bytes::from)
+                                .collect(),
+                        ) {
+                            Ok(notify) => {
+                                self.metrics.increment_in_time_order_simulations();
+                                if self.notify_orderpool.is_some() {
+                                    uuid_to_notify.spawn((uuid, timestamp), async move { notify.notified().await });
+                                }
+                            }
+                            Err(_error) => {
+                                self.metrics.increment_late_order_simulations();
+                                info!("simulation response was received too late and order could not be submitted to auction");
+                            }
                         };
-
-                    // TODO: probably report a failure explicitly so that the logs can be grepped for those
-                    // auctions that returned after an auction was cancelled/ended.
-                    match self.bid_pipe.send(
-                        sim_result.total_fee,
-                        sim_result
-                            .transactions_considered
-                            .into_iter()
-                            .map(|tx| tx.inner.encoded_2718())
-                            .map(bytes::Bytes::from)
-                            .collect(),
-                    ) {
-                        Ok(notify) => {
-                            self.metrics.increment_in_time_order_simulations();
-                            if self.notify_orderpool.is_some() {
-                                uuid_to_notify.spawn((uuid, timestamp), async move { notify.notified().await });
-                            }
-                        }
-                        Err(_error) => {
-                            self.metrics.increment_late_order_simulations();
-                            todo!("report that the simulation is already done,");
-                        }
-                    };
+                    });
                 }
             )
         }
