@@ -210,7 +210,7 @@ impl Auctioneer {
         );
 
         let jsonrpc_server = crate::jsonrpc_server::Builder {
-            endpoint: jsonrpc_listen_addr,
+            addr: jsonrpc_listen_addr,
             cancellation_token: shutdown_token.child_token(),
             to_orderpool: orderpool.sender().clone(),
         }
@@ -403,8 +403,8 @@ impl Auctioneer {
             Err(error) => warn!(%error, "jsonrpc server panicked"),
         }
         self.jsonrpc_server = crate::jsonrpc_server::Builder {
+            addr: self.config.jsonrpc_listen_addr,
             cancellation_token: self.shutdown_token.child_token(),
-            endpoint: self.config.jsonrpc_listen_addr.clone(),
             to_orderpool: self.orderpool.sender().clone(),
         }
         .start();

@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use astria_core::primitive::v1::asset;
 use serde::{
     Deserialize,
@@ -41,8 +43,8 @@ pub struct Config {
     pub no_metrics: bool,
     /// The endpoint which will be listened on for serving prometheus metrics
     pub metrics_http_listener_addr: String,
-    /// The endpoint on which to serve JSONRPC order bool RPCs like `eth_sendBundle`.
-    pub jsonrpc_listen_addr: String,
+    // The socket address on which auctioneer will serve JSONRPCs like `eth_sendBundle`
+    pub jsonrpc_listen_addr: SocketAddr,
 }
 
 impl config::Config for Config {

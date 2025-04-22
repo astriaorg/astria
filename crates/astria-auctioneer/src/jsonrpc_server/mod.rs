@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use alloy_primitives::B256;
 use astria_eyre::eyre::{
     self,
@@ -29,7 +31,7 @@ const ETH_SENDBUNDLE: &str = "eth_sendBundle";
 
 pub(crate) struct Builder {
     pub(crate) cancellation_token: CancellationToken,
-    pub(crate) endpoint: String,
+    pub(crate) addr: SocketAddr,
     pub(crate) to_orderpool: crate::orderpool::Sender,
 }
 
@@ -41,15 +43,15 @@ impl Builder {
     pub(crate) fn start(self) -> JoinHandle<eyre::Result<()>> {
         let Self {
             cancellation_token,
-            endpoint,
+            addr,
             to_orderpool,
         } = self;
 
         tokio::spawn(async move {
             let server = Server::builder()
-                .build(&endpoint)
+                .build(addr)
                 .await
-                .wrap_err_with(|| format!("failed instantiating jsonrpc server `{endpoint}`"))?;
+                .wrap_err_with(|| format!("failed instantiating jsonrpc server at `{addr}`"))?;
 
             let mut module = RpcModule::new(());
             {
