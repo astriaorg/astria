@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   provides it [#2085](https://github.com/astriaorg/astria/pull/2085).
 
 ### Changed
+
 - Upgrade to `astria.execution.v2` APIs, implement execution sessions, remove env
   vars for setting chain IDs [#2006](https://github.com/astriaorg/astria/pull/2006).
 
