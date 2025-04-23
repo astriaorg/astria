@@ -301,7 +301,7 @@ evm-rollup-restart-test tag=defaultTag:
     -n astria-validator-single single-sequencer-chart charts/sequencer \
     -f dev/values/validators/all.yml \
     -f dev/values/validators/single.yml \
-    {{ if tag != '' { replace('--set images.sequencer.devTag=# --set sequencer-relayer.images.sequencerRelayer.devTag=#', '#', tag) } else { '' } }} \
+    {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
   @just wait-for sequencer
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart charts/evm-stack -f dev/values/rollup/evm-restart-test.yaml \
