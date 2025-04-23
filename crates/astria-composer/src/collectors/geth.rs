@@ -202,11 +202,17 @@ impl Geth {
         let new_tx_subscription_id = new_tx_stream.id;
 
         // Get current pending transactions, since the subscription will only return new ones.
+        // Using `sorted_by_key` instead of `sorted_unstable_by_key` to ensure that the order of the
+        // transactions is determinisic.
         let existing_pending_txs = client
             .txpool_content()
             .await
             .wrap_err("failed to get current tx pool")?
-            .pending;
+            .pending
+            .into_values()
+            .flat_map(BTreeMap::into_values)
+            .sorted_by_key(|tx| tx.nonce)
+            .collect::<Vec<_>>();
 
         if existing_pending_txs.is_empty() {
             info_span!("Geth::run_until_stopped::send_cur_pending_txs")
@@ -223,24 +229,13 @@ impl Geth {
 
         // Create a cache for existing pending transactions to avoid sending the same transaction if
         // it is also streamed via `new_tx_stream`.
-        let mut existing_pending_tx_cache = HashMap::new();
-
-        // Using `sorted_by_key` instead of `sorted_unstable_by_key` to ensure that the order of the
-        // transactions is determinisic.
-        let existing_pending_txs_stream = stream::iter(
-            existing_pending_txs
-                .into_values()
-                .flat_map(BTreeMap::into_values)
-                .sorted_by_key(|tx| {
-                    // Only insert existing pending txs to avoid indefinite growth of the cache.
-                    // This approach also takes advantage of the sorting iteration to populate the
-                    // cache.
-                    existing_pending_tx_cache.insert(tx.hash.0, false);
-                    tx.nonce
-                }),
-        );
+        let mut existing_pending_tx_cache = existing_pending_txs
+            .iter()
+            .map(|tx| (tx.hash.0, false))
+            .collect::<HashMap<_, _>>();
 
         // Chain current pending transactions with new transactions.
+        let existing_pending_txs_stream = stream::iter(existing_pending_txs.into_iter());
         let mut tx_stream = existing_pending_txs_stream.chain(new_tx_stream);
 
         status.send_modify(|status| status.is_connected = true);
