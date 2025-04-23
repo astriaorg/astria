@@ -43,7 +43,10 @@ use tokio::{
         oneshot,
         watch,
     },
-    task::JoinHandle,
+    task::{
+        JoinError,
+        JoinHandle,
+    },
 };
 use tokio_util::{
     sync::CancellationToken,
@@ -162,6 +165,11 @@ impl Orderpool {
                             format!("failed to connect to eth endpoint at `{eth_url}`")
                         })?
                         .erased();
+                    let bundle_storage = in_memory::Storage::new();
+
+                    let (cleanup_tx, cleanup_rx) = tokio::sync::watch::channel(None);
+                    let cleanup_task =
+                        tokio::spawn(run_cleanup_loop(bundle_storage.clone(), cleanup_rx));
                     Inner {
                         active_auction,
                         auction_id_to_simulations: JoinMap::new(),
@@ -169,6 +177,8 @@ impl Orderpool {
                         bundle_storage: in_memory::Storage::new(),
                         eth_client,
                         requests: rx,
+                        to_cleanup_task: cleanup_tx,
+                        cleanup_task,
                         metrics,
                     }
                     .run()
@@ -207,6 +217,36 @@ impl Future for Orderpool {
     }
 }
 
+struct DoCleanup {
+    up_to_height: u64,
+    follows_from: Option<tracing::Id>,
+}
+
+async fn run_cleanup_loop(
+    storage: in_memory::Storage,
+    mut rx: tokio::sync::watch::Receiver<Option<DoCleanup>>,
+) -> eyre::Result<()> {
+    'cleanup: loop {
+        rx.changed()
+            .await
+            .wrap_err("all senders have been dropped")?;
+        // XXX: declare the variables before but assign them inside the block
+        // to ensure that we don't accidentally hold a lock on the borrowed
+        // value inside the channel.
+        // TODO: can this be done more elegantly using Deref and destructuring?
+        let up_to_height;
+        let follows_from;
+        {
+            let Some(do_cleanup) = &*rx.borrow_and_update() else {
+                continue 'cleanup;
+            };
+            up_to_height = do_cleanup.up_to_height;
+            follows_from = do_cleanup.follows_from.clone();
+        }
+        let _ = storage.remove_up_to_height(follows_from.clone(), up_to_height);
+    }
+}
+
 struct Inner {
     active_auction: watch::Receiver<Option<crate::auctioneer::Bidpipe>>,
     eth_client: DynProvider,
@@ -220,6 +260,8 @@ struct Inner {
         crate::auctioneer::auction::Id,
         Result<(Uuid, jiff::Timestamp), tokio::sync::oneshot::error::RecvError>,
     >,
+    to_cleanup_task: tokio::sync::watch::Sender<Option<DoCleanup>>,
+    cleanup_task: JoinHandle<eyre::Result<()>>,
     metrics: &'static Metrics,
 }
 
@@ -252,6 +294,10 @@ impl Inner {
                     auction_id,
                     bundle_submitted
                 );
+            }
+
+            res = &mut self.cleanup_task => {
+                self.respawn_cleanup_task(res);
             }
         );
         Ok(())
@@ -393,6 +439,19 @@ impl Inner {
     }
 
     #[instrument(skip_all)]
+    fn respawn_cleanup_task(&mut self, res: Result<eyre::Result<()>, JoinError>) {
+        let error = res
+            .wrap_err("task panicked")
+            .and_then(|res| res.wrap_err("task exited with error"))
+            .err()
+            .unwrap_or_else(|| eyre::Report::msg("task exited unexpectedly"));
+        warn!(%error, "cleanup task exited, respawning");
+        let (tx, rx) = tokio::sync::watch::channel(None);
+        self.cleanup_task = tokio::spawn(run_cleanup_loop(self.bundle_storage.clone(), rx));
+        self.to_cleanup_task = tx;
+    }
+
+    #[instrument(skip_all)]
     fn cancel_active_simulations(&self) {
         // TODO: what should cancellting active simulations entail? If they are not
         // done yet, they should be put on a timer and killed.
@@ -407,12 +466,19 @@ impl Inner {
         // TODO: assert that no simulations for bid_pipe.auction_id exist.
         let mut simulations = JoinMap::new();
         for (uuid, bundle) in self.bundle_storage.pin().iter() {
-            // TODO: only simulate those bundles that are valid at
-            // bid_pipe.optimistic_block_number. This would also be
-            // a good place to evict them (or martk them for eviction?).
             simulations.spawn(
                 (*uuid, *bundle.timestamp()),
                 simulate_and_estimate_bid(self.eth_client.clone(), bundle.clone()),
+            );
+        }
+
+        if let Err(_error) = self.to_cleanup_task.send(Some(DoCleanup {
+            up_to_height: bid_pipe.optimistic_block_number,
+            follows_from: Span::current().id(),
+        })) {
+            warn!(
+                "attempted to send intruct cleanup task to evict outdated bundles, but the \
+                 channel was already dead"
             );
         }
 
@@ -428,7 +494,7 @@ impl Inner {
                 metrics: self.metrics,
             }
             .run(),
-        )
+        );
     }
 }
 

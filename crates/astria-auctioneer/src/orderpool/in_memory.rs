@@ -12,6 +12,10 @@ use papaya::{
     LocalGuard,
     Operation,
 };
+use tracing::{
+    info,
+    instrument,
+};
 use uuid::Uuid;
 
 use super::Bundle;
@@ -44,15 +48,16 @@ pub(crate) enum RemovedOrNotFound {
     },
 }
 
+#[derive(Clone)]
 pub(super) struct Storage {
     /// The collection of currently active bundles.
-    uuid_to_bundle: papaya::HashMap<Uuid, Arc<crate::bundle::Bundle>>,
+    uuid_to_bundle: Arc<papaya::HashMap<Uuid, Arc<crate::bundle::Bundle>>>,
 }
 
 impl Storage {
     pub(super) fn new() -> Self {
         Self {
-            uuid_to_bundle: papaya::HashMap::new(),
+            uuid_to_bundle: Arc::new(papaya::HashMap::new()),
         }
     }
 
@@ -114,5 +119,39 @@ impl Storage {
                 in_storage_bundle: bundle.clone(),
             },
         }
+    }
+
+    /// Removes all bundles up to (but not including) `height`.
+    ///
+    /// Returns the total number of bundles removed from storage.
+    #[instrument(
+        skip_all,
+        follows_from = [follows_from],
+        fields(height),
+        ret
+    )]
+    pub(super) fn remove_up_to_height(
+        &self,
+        follows_from: Option<tracing::Id>,
+        height: u64,
+    ) -> usize {
+        let guard = self.uuid_to_bundle.guard();
+        let mut evicted = 0;
+        for uuid in self.uuid_to_bundle.keys(&guard) {
+            if let Ok(Some((_uuid, bundle))) =
+                self.uuid_to_bundle
+                    .remove_if(uuid, |_, bundle| bundle.is_valid_at(height), &guard)
+            {
+                info!(
+                    %uuid,
+                    bundle_hash = %bundle.hash(),
+                    timestamp = %bundle.timestamp(),
+                    good_until = bundle.block(),
+                    "evicted order",
+                );
+                evicted += 1;
+            }
+        }
+        evicted
     }
 }

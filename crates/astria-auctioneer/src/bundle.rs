@@ -163,6 +163,14 @@ impl Bundle {
         &self.timestamp
     }
 
+    pub(crate) fn block(&self) -> &Option<std::num::NonZeroU64> {
+        &self.block
+    }
+
+    pub(crate) fn is_valid_at(&self, height: u64) -> bool {
+        self.block.map_or(true, |block| block.get() >= height)
+    }
+
     pub(crate) fn txs(&self) -> &[Transaction] {
         &self.txs
     }
