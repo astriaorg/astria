@@ -250,6 +250,7 @@ impl Sequencer {
             storage.clone(),
             mempool,
             upgrades,
+            metrics,
             grpc_addr,
             config.no_optimistic_blocks,
             event_bus_subscription,

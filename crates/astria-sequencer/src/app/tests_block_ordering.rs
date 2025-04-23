@@ -199,7 +199,9 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
         "expected to contain first transaction"
     );
 
-    app.mempool.run_maintenance(&app.state, false).await;
+    app.mempool
+        .run_maintenance(&app.state, false, vec![], 0)
+        .await;
     assert_eq!(
         app.mempool.len().await,
         1,
@@ -234,6 +236,8 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
         "expected to contain second transaction"
     );
 
-    app.mempool.run_maintenance(&app.state, false).await;
+    app.mempool
+        .run_maintenance(&app.state, false, vec![], 0)
+        .await;
     assert_eq!(app.mempool.len().await, 0, "mempool should be empty");
 }

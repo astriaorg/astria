@@ -1,3 +1,4 @@
+use astria_core::primitive::v1::TransactionId;
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
@@ -120,6 +121,24 @@ pub(crate) trait StateReadExt: StateRead {
             })
             .wrap_err("invalid consensus params bytes")
     }
+
+    #[instrument(skip_all)]
+    async fn get_executed_transaction_hashes(&self) -> Result<Option<Vec<TransactionId>>> {
+        let Some(bytes) = self
+            .nonverifiable_get_raw(keys::EXECUTED_TRANSACTION_HASHES.as_bytes())
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read raw executed transaction hashes from state")?
+        else {
+            return Ok(None);
+        };
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| {
+                storage::ExecutedTransactionHashes::try_from(value)
+                    .map(|hashes| Some(Vec::<TransactionId>::from(hashes)))
+            })
+            .wrap_err("invalid executed transaction hashes bytes")
+    }
 }
 
 impl<T: StateRead> StateReadExt for T {}
@@ -178,6 +197,21 @@ pub(crate) trait StateWriteExt: StateWrite {
             .serialize()
             .wrap_err("failed to serialize consensus params")?;
         self.nonverifiable_put_raw(keys::CONSENSUS_PARAMS.into(), bytes);
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    fn put_executed_transaction_hashes(&mut self, hashes: &Vec<TransactionId>) -> Result<()> {
+        let bytes = StoredValue::from(storage::ExecutedTransactionHashes::from(hashes))
+            .serialize()
+            .wrap_err("failed to serialize executed transaction hashes")?;
+        self.nonverifiable_put_raw(keys::EXECUTED_TRANSACTION_HASHES.into(), bytes);
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    fn clear_executed_transaction_hashes(&mut self) -> Result<()> {
+        self.nonverifiable_delete(keys::EXECUTED_TRANSACTION_HASHES.into());
         Ok(())
     }
 }

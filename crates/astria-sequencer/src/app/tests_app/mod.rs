@@ -566,7 +566,9 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         .unwrap();
     assert_eq!(prepare_proposal_result.txs, finalize_block.txs);
 
-    app.mempool.run_maintenance(&app.state, false).await;
+    app.mempool
+        .run_maintenance(&app.state, false, vec![], 0)
+        .await;
 
     assert_eq!(app.mempool.len().await, 0);
 
@@ -687,7 +689,9 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         .expect("too large transactions should not cause prepare proposal to fail");
 
     // run maintence to clear out transactions
-    app.mempool.run_maintenance(&app.state, false).await;
+    app.mempool
+        .run_maintenance(&app.state, false, vec![], 0)
+        .await;
 
     // see only first tx made it in
     assert_eq!(
@@ -774,7 +778,9 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         .expect("too large transactions should not cause prepare proposal to fail");
 
     // run maintence to clear out transactions
-    app.mempool.run_maintenance(&app.state, false).await;
+    app.mempool
+        .run_maintenance(&app.state, false, vec![], 0)
+        .await;
 
     // see only first tx made it in
     assert_eq!(

@@ -23,7 +23,7 @@ pub struct Config {
     pub db_filepath: PathBuf,
     /// Log level: debug, info, warn, or error
     pub log: String,
-    /// The gRPC endpoint
+    /// The sequencer gRPC endpoint
     pub grpc_addr: String,
     /// Forces writing trace data to stdout no matter if connected to a tty or not.
     pub force_stdout: bool,

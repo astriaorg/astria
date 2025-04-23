@@ -99,6 +99,15 @@ impl IntoCheckTxResponse for RemovalReason {
                     .into(),
                 ..response::CheckTx::default()
             },
+            RemovalReason::Included(block_number) => response::CheckTx {
+                code: Code::Err(AbciErrorCode::TRANSACTION_PREVIOUSLY_INCLUDED.value()),
+                info: AbciErrorCode::TRANSACTION_PREVIOUSLY_INCLUDED.to_string(),
+                log: format!(
+                    "transaction removed from app mempool because it was included in block \
+                     {block_number}"
+                ),
+                ..response::CheckTx::default()
+            },
         }
     }
 }
@@ -220,7 +229,7 @@ impl Service<MempoolRequest> for Mempool {
 /// - Is already in the appside mempool
 /// - Passes stateless checks and insertion into the mempool is successful
 #[instrument(skip_all)]
-async fn handle_check_tx<S: StateRead>(
+pub(crate) async fn handle_check_tx<S: StateRead>(
     req: request::CheckTx,
     state: S,
     mempool: &mut AppMempool,

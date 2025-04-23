@@ -211,3 +211,4 @@ _lint-proto:
   buf breaking proto/protocolapis --against 'buf.build/astria/protocol-apis'
   buf breaking proto/composerapis --against 'buf.build/astria/composer-apis'
   buf breaking proto/upgrades --against 'buf.build/astria/upgrades'
+  buf breaking proto/mempoolapis --against 'buf.build/astria/mempool-apis'

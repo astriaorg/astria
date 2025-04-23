@@ -11,7 +11,10 @@ use std::{
 };
 
 use astria_core::{
-    primitive::v1::asset::IbcPrefixed,
+    primitive::v1::{
+        asset::IbcPrefixed,
+        TRANSACTION_ID_LEN,
+    },
     protocol::transaction::v1::{
         action::group::Group,
         Transaction,
@@ -496,7 +499,6 @@ pub(super) trait TransactionsForAccount: Default {
             .collect()
     }
 
-    #[cfg(test)]
     fn contains_tx(&self, tx_hash: &[u8; 32]) -> bool {
         self.txs().values().any(|ttx| ttx.tx_hash == *tx_hash)
     }
@@ -679,7 +681,9 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
         &mut self,
         address: &[u8; 20],
         current_account_nonce: u32,
-    ) -> Vec<([u8; 32], RemovalReason)> {
+        included_txs: &Vec<[u8; TRANSACTION_ID_LEN]>,
+        block_number: u64,
+    ) -> Vec<([u8; TRANSACTION_ID_LEN], RemovalReason)> {
         // Take the collection for this account out of `self` temporarily if it exists.
         let Some(mut account_txs) = self.txs_mut().remove(address) else {
             return Vec::new();
@@ -690,7 +694,15 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
         mem::swap(&mut split_off, account_txs.txs_mut());
         let mut removed_txs: Vec<([u8; 32], RemovalReason)> = split_off
             .into_values()
-            .map(|ttx| (ttx.tx_hash, RemovalReason::NonceStale))
+            .map(|ttx| {
+                if included_txs.contains(&ttx.tx_hash) {
+                    // We only need to check stale transactions for inclusion, since all executed
+                    // transactions will be stale
+                    (ttx.tx_hash, RemovalReason::Included(block_number))
+                } else {
+                    (ttx.tx_hash, RemovalReason::NonceStale)
+                }
+            })
             .collect();
 
         // check for expired transactions
@@ -724,7 +736,6 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
             .sum()
     }
 
-    #[cfg(test)]
     fn contains_tx(&self, tx_hash: &[u8; 32]) -> bool {
         self.txs()
             .values()
@@ -1759,7 +1770,9 @@ mod tests {
 
     #[test]
     #[expect(clippy::too_many_lines, reason = "it's a test")]
-    fn transactions_container_clean_account_stale_expired() {
+    fn transactions_container_clean_account_stale_expired_and_included() {
+        const INCLUDED_TX_BLOCK_NUMBER: u64 = 9;
+
         let mut pending_txs = PendingTransactions::new(TX_TTL);
 
         // transactions to add to accounts
@@ -1827,14 +1840,21 @@ mod tests {
         let mut removed_txs = pending_txs.clean_account_stale_expired(
             astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             0,
+            &vec![],
+            0,
         );
         removed_txs.extend(pending_txs.clean_account_stale_expired(
             astria_address_from_hex_string(BOB_ADDRESS).as_bytes(),
             1,
+            &vec![],
+            0,
         ));
         removed_txs.extend(pending_txs.clean_account_stale_expired(
             astria_address_from_hex_string(CAROL_ADDRESS).as_bytes(),
             4,
+            // should remove transactions 0 and 1 with `RemovalReason::Indluded(9)`
+            &vec![ttx_s2_0.tx_hash, ttx_s2_1.tx_hash],
+            INCLUDED_TX_BLOCK_NUMBER,
         ));
 
         assert_eq!(
@@ -1872,7 +1892,13 @@ mod tests {
                 .len(),
             2
         );
-        for (_, reason) in removed_txs {
+        for (hash, reason) in removed_txs {
+            if hash == ttx_s2_0.tx_hash || hash == ttx_s2_1.tx_hash {
+                assert!(
+                    matches!(reason, RemovalReason::Included(INCLUDED_TX_BLOCK_NUMBER)),
+                    "removal reason should be included(9)"
+                );
+            }
             assert!(
                 matches!(reason, RemovalReason::NonceStale),
                 "removal reason should be stale nonce"
@@ -1912,10 +1938,14 @@ mod tests {
         let mut removed_txs = pending_txs.clean_account_stale_expired(
             astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             0,
+            &vec![],
+            1,
         );
         removed_txs.extend(pending_txs.clean_account_stale_expired(
             astria_address_from_hex_string(BOB_ADDRESS).as_bytes(),
             0,
+            &vec![],
+            1,
         ));
 
         assert_eq!(

@@ -48,21 +48,23 @@ use crate::{
     app::StateReadExt as _,
     authority::StateReadExt as _,
     grpc::StateReadExt as _,
-    mempool::Mempool,
+    mempool::Mempool, Metrics,
 };
 
 pub(crate) struct SequencerServer {
-    storage: Storage,
-    mempool: Mempool,
+    pub(in crate::grpc) storage: Storage,
+    pub(in crate::grpc) mempool: Mempool,
     upgrades: Upgrades,
+    pub(in crate::grpc) metrics: &'static Metrics
 }
 
 impl SequencerServer {
-    pub(crate) fn new(storage: Storage, mempool: Mempool, upgrades: Upgrades) -> Self {
+    pub(crate) fn new(storage: Storage, mempool: Mempool, upgrades: Upgrades, metrics: &'static Metrics) -> Self {
         Self {
             storage,
             mempool,
             upgrades,
+            metrics,
         }
     }
 }
@@ -387,6 +389,7 @@ mod tests {
             storage.clone(),
             mempool,
             Upgrades::default(),
+            metrics,
         ));
         let request = GetSequencerBlockRequest {
             height: 1,
@@ -440,6 +443,7 @@ mod tests {
             storage.clone(),
             mempool,
             Upgrades::default(),
+            metrics,
         ));
         let request = GetPendingNonceRequest {
             address: Some(alice_address.into_raw()),
@@ -466,6 +470,7 @@ mod tests {
             storage.clone(),
             mempool,
             Upgrades::default(),
+            metrics,
         ));
         let request = GetPendingNonceRequest {
             address: Some(alice_address.into_raw()),
@@ -500,6 +505,7 @@ mod tests {
             storage.clone(),
             mempool,
             Upgrades::default(),
+            metrics,
         ));
         let request = GetValidatorNameRequest {
             address: Some(astria_address(&key_address_bytes).into_raw()),
@@ -522,6 +528,7 @@ mod tests {
             storage.clone(),
             mempool,
             Upgrades::default(),
+            metrics
         ));
         let request = GetValidatorNameRequest {
             address: Some(astria_address(&[0; 20]).into_raw()),
@@ -561,6 +568,7 @@ mod tests {
             storage.clone(),
             mempool,
             Upgrades::default(),
+            metrics
         ));
         let request = GetValidatorNameRequest {
             address: Some(astria_address(&key_address_bytes).into_raw()),

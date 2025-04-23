@@ -14,7 +14,11 @@ use std::{
 };
 
 use astria_core::{
-    primitive::v1::asset::IbcPrefixed,
+    primitive::v1::{
+        asset::IbcPrefixed,
+        TransactionId,
+        TRANSACTION_ID_LEN,
+    },
     protocol::transaction::v1::Transaction,
 };
 use astria_eyre::eyre::Result;
@@ -37,7 +41,8 @@ use transactions_container::{
     ParkedTransactions,
     PendingTransactions,
     TimemarkedTransaction,
-    TransactionsContainer as _,
+    TransactionsContainer,
+    TransactionsForAccount as _,
 };
 
 use crate::{
@@ -51,6 +56,23 @@ pub(crate) enum RemovalReason {
     NonceStale,
     LowerNonceInvalidated,
     FailedPrepareProposal(String),
+    Included(u64),
+}
+
+impl std::fmt::Display for RemovalReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RemovalReason::Expired => write!(f, "expired"),
+            RemovalReason::NonceStale => write!(f, "stale nonce"),
+            RemovalReason::LowerNonceInvalidated => write!(f, "lower nonce invalidated"),
+            RemovalReason::FailedPrepareProposal(reason) => {
+                write!(f, "failed prepare proposal: {reason}")
+            }
+            RemovalReason::Included(block_number) => {
+                write!(f, "included in block {block_number}")
+            }
+        }
+    }
 }
 
 /// How long transactions are considered valid in the mempool.
@@ -369,7 +391,13 @@ impl Mempool {
     /// All removed transactions are added to the CometBFT removal cache to aid with CometBFT
     /// mempool maintenance.
     #[instrument(skip_all)]
-    pub(crate) async fn run_maintenance<S: accounts::StateReadExt>(&self, state: &S, recost: bool) {
+    pub(crate) async fn run_maintenance<S: accounts::StateReadExt>(
+        &self,
+        state: &S,
+        recost: bool,
+        included_txs: Vec<[u8; TRANSACTION_ID_LEN]>,
+        block_number: u64,
+    ) {
         let (mut pending, mut parked) = self.acquire_both_locks().await;
         let mut removed_txs = Vec::<([u8; 32], RemovalReason)>::new();
 
@@ -412,12 +440,22 @@ impl Mempool {
             };
 
             // clean pending and parked of stale and expired
-            removed_txs.extend(pending.clean_account_stale_expired(address, current_nonce));
+            removed_txs.extend(pending.clean_account_stale_expired(
+                address,
+                current_nonce,
+                &included_txs,
+                block_number,
+            ));
             if recost {
                 pending.recost_transactions(address, state).await;
             }
 
-            removed_txs.extend(parked.clean_account_stale_expired(address, current_nonce));
+            removed_txs.extend(parked.clean_account_stale_expired(
+                address,
+                current_nonce,
+                &included_txs,
+                block_number,
+            ));
             if recost {
                 parked.recost_transactions(address, state).await;
             }
@@ -506,6 +544,60 @@ impl Mempool {
         let parked = self.parked.write().await;
         (pending, parked)
     }
+
+    pub(crate) async fn pending_hashes(&self) -> Vec<[u8; 32]> {
+        self.pending
+            .read()
+            .await
+            .txs()
+            .iter()
+            .flat_map(|(_, txs_for_acct)| txs_for_acct.txs().values().map(|tx| tx.id()))
+            .collect()
+    }
+
+    pub(crate) async fn parked_hashes(&self) -> Vec<[u8; 32]> {
+        self.parked
+            .read()
+            .await
+            .txs()
+            .iter()
+            .flat_map(|(_, txs_for_acct)| txs_for_acct.txs().values().map(|tx| tx.id()))
+            .collect()
+    }
+
+    pub(crate) async fn removal_cache(&self) -> HashMap<[u8; 32], RemovalReason> {
+        self.comet_bft_removal_cache.read().await.cache.clone()
+    }
+
+    pub(crate) async fn transaction_status(
+        &self,
+        tx_hash: &[u8; TRANSACTION_ID_LEN],
+    ) -> Option<TransactionStatus> {
+        if !self.contained_txs.read().await.contains(tx_hash) {
+            return None;
+        };
+        if self.pending.read().await.contains_tx(tx_hash) {
+            Some(TransactionStatus::Pending)
+        } else if self.parked.read().await.contains_tx(tx_hash) {
+            Some(TransactionStatus::Parked)
+        } else if let Some(reason) = self.comet_bft_removal_cache.read().await.cache.get(tx_hash) {
+            match reason {
+                RemovalReason::Included(block_number) => {
+                    Some(TransactionStatus::Included(*block_number))
+                }
+                _ => Some(TransactionStatus::Removed(reason.clone())),
+            }
+        } else {
+            None
+        }
+    }
+}
+
+pub(crate) enum TransactionStatus {
+    Pending,
+    Parked,
+    Removed(RemovalReason),
+    Included(u64),
 }
 
 #[cfg(test)]
@@ -674,7 +766,7 @@ mod tests {
             mock_balances(100, 100),
         );
 
-        mempool.run_maintenance(&mock_state, false).await;
+        mempool.run_maintenance(&mock_state, false, vec![], 0).await;
 
         // assert mempool at 1
         assert_eq!(mempool.len().await, 1);
@@ -741,7 +833,7 @@ mod tests {
             mock_balances(3, 0),
         );
 
-        mempool.run_maintenance(&mock_state, false).await;
+        mempool.run_maintenance(&mock_state, false, vec![], 0).await;
 
         // see builder queue now contains them
         let builder_queue = mempool.builder_queue().await;
@@ -807,7 +899,7 @@ mod tests {
             mock_balances(1, 0),
         );
 
-        mempool.run_maintenance(&mock_state, false).await;
+        mempool.run_maintenance(&mock_state, false, vec![], 0).await;
 
         // see builder queue now contains single transactions
         let builder_queue = mempool.builder_queue().await;
@@ -828,7 +920,7 @@ mod tests {
             mock_balances(3, 0),
         );
 
-        mempool.run_maintenance(&mock_state, false).await;
+        mempool.run_maintenance(&mock_state, false, vec![], 0).await;
 
         let builder_queue = mempool.builder_queue().await;
         assert_eq!(
@@ -1142,7 +1234,7 @@ mod tests {
             astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             2,
         );
-        mempool.run_maintenance(&mock_state, false).await;
+        mempool.run_maintenance(&mock_state, false, vec![], 0).await;
 
         // check that the transactions are not in the tracked set
         assert!(!mempool.is_tracked(tx0.id().get()).await);
@@ -1215,6 +1307,92 @@ mod tests {
                 .unwrap_err(),
             InsertionError::ParkedSizeLimit,
             "size limit should be enforced"
+        );
+    }
+
+    #[tokio::test]
+    async fn run_maintenance_included() {
+        const INCLUDED_TX_BLOCK_NUMBER: u64 = 12;
+
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+
+        let initial_balances = mock_balances(4, 0);
+        let tx_cost = mock_tx_cost(0, 0, 0);
+        let tx1 = MockTxBuilder::new().nonce(1).build();
+        let tx2 = MockTxBuilder::new().nonce(2).build();
+        let tx3 = MockTxBuilder::new().nonce(3).build();
+        let tx4 = MockTxBuilder::new().nonce(4).build();
+
+        mempool
+            .insert(tx1.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+        mempool
+            .insert(tx2.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+        mempool
+            .insert(tx3.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+        mempool
+            .insert(tx4.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        let mut mock_state = mock_state_getter().await;
+        mock_state_put_account_nonce(
+            &mut mock_state,
+            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
+            3,
+        );
+
+        let builder_queue = mempool.builder_queue().await;
+        assert_eq!(
+            builder_queue.len(),
+            4,
+            "builder queue should only contain four transactions"
+        );
+
+        mock_state_put_account_balances(
+            &mut mock_state,
+            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
+            mock_balances(0, 0),
+        );
+
+        mempool
+            .run_maintenance(
+                &mock_state,
+                false,
+                vec![tx1.id().get(), tx2.id().get()],
+                INCLUDED_TX_BLOCK_NUMBER,
+            )
+            .await;
+
+        // see builder queue now contains single transactions
+        let builder_queue = mempool.builder_queue().await;
+        assert_eq!(
+            builder_queue.len(),
+            2,
+            "builder queue should contain two transactions"
+        );
+
+        let removal_cache = mempool.removal_cache().await;
+        assert_eq!(
+            removal_cache.len(),
+            2,
+            "removal cache should contain two transactions"
+        );
+        assert_eq!(
+            *removal_cache.get(&tx1.id().get()).unwrap(),
+            RemovalReason::Included(INCLUDED_TX_BLOCK_NUMBER),
+            "removal reason should be included"
+        );
+        assert_eq!(
+            *removal_cache.get(&tx2.id().get()).unwrap(),
+            RemovalReason::Included(INCLUDED_TX_BLOCK_NUMBER),
+            "removal reason should be included"
         );
     }
 }

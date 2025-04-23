@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package astria.mempool.v1alpha1;
+
+import "astria/mempool/v1alpha1/get_mempool_request.proto";
+import "astria/mempool/v1alpha1/get_parked_transactions_request.proto";
+import "astria/mempool/v1alpha1/get_pending_transactions_request.proto";
+import "astria/mempool/v1alpha1/get_removal_cache_request.proto";
+import "astria/mempool/v1alpha1/get_transaction_status_request.proto";
+import "astria/mempool/v1alpha1/mempool.proto";
+import "astria/mempool/v1alpha1/parked_transactions.proto";
+import "astria/mempool/v1alpha1/pending_transactions.proto";
+import "astria/mempool/v1alpha1/removal_cache.proto";
+import "astria/mempool/v1alpha1/submit_transaction_request.proto";
+import "astria/mempool/v1alpha1/submit_transaction_response.proto";
+import "astria/mempool/v1alpha1/transaction_status.proto";
+
+// `MempoolService` is a gRPC service which provides access to the Astria Sequencer's
+// mempool. It allows clients to get various information about the mempool, transaction
+// status, and submit transactions directly to the mempool.
+service MempoolService {
+    // `GetMempool` returns the current state of the mempool, consisting of the
+    // parked and pending transaction queues, as well as removal cache.
+    rpc GetMempool(GetMempoolRequest) returns (Mempool);
+
+    // `GetParkedTransactions` returns the parked transaction queue of the mempool.
+    rpc GetParkedTransactions(GetParkedTransactionsRequest) returns (ParkedTransactions);
+
+    // `GetPendingTransactions` returns the pending transaction queue of the mempool.
+    rpc GetPendingTransactions(GetPendingTransactionsRequest) returns (PendingTransactions);
+
+    // `GetRemovalCache` returns the removal cache of the mempool.
+    rpc GetRemovalCache(GetRemovalCacheRequest) returns (RemovalCache);
+
+    // `GetTransactionStatus` returns the status of a transaction in the mempool.
+    rpc GetTransactionStatus(GetTransactionStatusRequest) returns (TransactionStatus);
+
+    // `SubmitTransaction` submits a transaction to the mempool and returns the
+    // status of the transaction in the mempool.
+    rpc SubmitTransaction(SubmitTransactionRequest) returns (SubmitTransactionResponse);
+}

@@ -26,6 +26,7 @@ impl AbciErrorCode {
     pub const NONCE_TAKEN: Self = Self(unsafe { NonZeroU32::new_unchecked(15) });
     pub const ACCOUNT_SIZE_LIMIT: Self = Self(unsafe { NonZeroU32::new_unchecked(16) });
     pub const PARKED_FULL: Self = Self(unsafe { NonZeroU32::new_unchecked(17) });
+    pub const TRANSACTION_PREVIOUSLY_INCLUDED: Self = Self(unsafe { NonZeroU32::new_unchecked(18) });
     // NOTE: When adding a new code, ensure it is added to `ALL_CODES` in the `tests` module below.
 }
 
@@ -65,6 +66,9 @@ impl AbciErrorCode {
                 "the account has reached the maximum number of parked transactions".into()
             }
             Self::PARKED_FULL => "the mempool is out of space for more parked transactions".into(),
+            Self::TRANSACTION_PREVIOUSLY_INCLUDED => "the transaction was removed from the \
+                                                      mempool after being included in a block"
+                .into(),
             Self(other) => {
                 format!("invalid error code {other}: should be unreachable (this is a bug)")
             }
@@ -84,7 +88,7 @@ mod tests {
 
     use super::*;
 
-    const ALL_CODES: [AbciErrorCode; 17] = [
+    const ALL_CODES: [AbciErrorCode; 18] = [
         AbciErrorCode::UNKNOWN_PATH,
         AbciErrorCode::INVALID_PARAMETER,
         AbciErrorCode::INTERNAL_ERROR,
@@ -102,6 +106,7 @@ mod tests {
         AbciErrorCode::NONCE_TAKEN,
         AbciErrorCode::ACCOUNT_SIZE_LIMIT,
         AbciErrorCode::PARKED_FULL,
+        AbciErrorCode::TRANSACTION_PREVIOUSLY_INCLUDED,
     ];
 
     #[test]

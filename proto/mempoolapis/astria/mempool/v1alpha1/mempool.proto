@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package astria.mempool.v1alpha1;
+
+import "astria/mempool/v1alpha1/parked_transactions.proto";
+import "astria/mempool/v1alpha1/pending_transactions.proto";
+import "astria/mempool/v1alpha1/removal_cache.proto";
+
+// `Mempool` is a resource which represents the mempool of the Astria Sequencer.
+message Mempool {
+    // The pending queue of the mempool.
+    PendingTransactions pending = 1;
+    // The parked queue of the mempool.
+    ParkedTransactions parked = 2;
+    // The removal cache of the mempool.
+    RemovalCache removed = 3;
+}

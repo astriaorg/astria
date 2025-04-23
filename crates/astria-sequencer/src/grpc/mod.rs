@@ -38,9 +38,10 @@ use crate::{
     app::event_bus::EventBusSubscription,
     grpc::sequencer::SequencerServer,
     ibc::host_interface::AstriaHost,
-    mempool::Mempool,
+    mempool::Mempool, Metrics,
 };
 
+pub(crate) mod mempool;
 pub(crate) mod optimistic;
 pub(crate) mod price_feed;
 pub(crate) mod sequencer;
@@ -99,6 +100,7 @@ pub(crate) async fn serve(
     storage: cnidarium::Storage,
     mempool: Mempool,
     upgrades: Upgrades,
+    metrics: &'static Metrics,
     grpc_addr: std::net::SocketAddr,
     no_optimistic_blocks: bool,
     event_bus_subscription: EventBusSubscription,
@@ -113,7 +115,7 @@ pub(crate) async fn serve(
     use tower_http::cors::CorsLayer;
 
     let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
-    let sequencer_api = SequencerServer::new(storage.clone(), mempool, upgrades);
+    let sequencer_api = SequencerServer::new(storage.clone(), mempool, upgrades, metrics);
     let market_map_api = price_feed::SequencerServer::new(storage.clone());
     let oracle_api = price_feed::SequencerServer::new(storage.clone());
     let cors_layer: CorsLayer = CorsLayer::permissive();
