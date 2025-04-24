@@ -5,28 +5,35 @@ global:
   # Best to be false in production environments, true for clean logs on local dev.
   useTTY: false
   dev: false
+  # The name of the rollup chain, used to generate the Rollup ID.
+  # If this matches one of the predefined rollups and dev is not set to true
+  # a predefined genesis and images will be used. When set to custom,
+  # all values below are used.
+  #
+  # Allowed values: custom, flame, flame-dawn-1, flame-dusk-11
+  rollupName: custom
 
+# Note that the tags below are only used when either `global.rollupName` is set
+# to `custom` or `global.dev` is set to `true`.
+#
+# If you are using a predefined rollup, the image tags are predefined to latest
+# release for that network defined in the helpers file.
 images:
   geth:
     repo: ghcr.io/astriaorg/astria-geth
     pullPolicy: IfNotPresent
-    tag: 1.1.0
-    devTag: latest
-    overrideTag: ""
+    tag: latest
   conductor:
     repo: ghcr.io/astriaorg/conductor
     pullPolicy: IfNotPresent
-    tag: 1.1.0
-    devTag: latest
+    tag: latest
   snapshot:
     repo: rclone/rclone
     pullPolicy: IfNotPresent
     tag: 1.69.0
 
+# Not utilized unless `global.rollupName` is set to `custom`
 genesis:
-  # The name of the rollup chain, used to generate the Rollup ID
-  rollupName: ""
-
   # The "forks" for upgrading the chain. Contains necessary information for starting
   # and, if desired, restarting the chain at a given height. The necessary fields
   # for the genesis fork are provided, and additional forks can be added as needed.
@@ -113,115 +120,125 @@ genesis:
     #   # The balance must be a string due to size
     #   balance: "1000000000000000000000000000"
 
-config:
-  # The level at which core astria components will log out
-  # Options are: error, warn, info, and debug
-  logLevel: "debug"
+geth:
+  # The level at which geth will log at,
+  # Options are: 0(off), 1(error), 2(warn), 3(info), 4(debug), 5(trace)
+  logLevel: 3
+  # Override the log level of individual modules
+  moduleLogLevels:
+    - module: "execution/*"
+      level: 4
+  # Set to true to keep history of all blocks
+  archiveNode: false
+  # Set to true to clear the mempool on startup/restart
+  purgeMempool: false
+  snapshot:
+    # Load from snapshot
+    restore:
+      enabled: false
+      # rclone source to download the snapshot from (in the form of remote:path)
+      source: ""
+      # Optional sha256 checksum to verify the snapshot
+      checksum: ""
+    # Create snapshots on a schedule
+    create:
+      enabled: false
+      # Cron format (default: daily at midnight)
+      schedule: "@daily"
+      # Number of snapshots to keep on disk
+      retentionCount: 7
+      storage:
+        path: '{{ include "rollup.gethDataDir" . }}/snapshots'
+        upload:
+          enabled: false
+          # rclone destination to upload the snapshot to (in the form of remote:path)
+          destination: ""
+  flags:
+    datadir:
+      value: '{{ include "rollup.gethDataDir" . }}'
+    http: {}
+    http.addr:
+      value: 0.0.0.0
+    http.port:
+      value: "{{ .Values.ports.jsonRPC }}"
+    http.corsdomain:
+      value: "*"
+    http.vhosts:
+      value: "*"
+    http.api:
+      value: eth,net,web3,debug,txpool
+    ws: {}
+    ws.addr:
+      value: 0.0.0.0
+    ws.port:
+      value: "{{ .Values.ports.wsRPC }}"
+    ws.origins:
+      value: "*"
+    grpc: {}
+    grpc.addr:
+      value: 0.0.0.0
+    grpc.port:
+      value: "{{ .Values.ports.executionGRPC }}"
+    db.engine:
+      value: pebble  # Can be set to 'pebble' or 'leveldb'
+    maxpeers:
+      value: "0"
+    rpc.gascap:
+      value: "{{ .Values.genesis.gasLimit }}"
+    rpc.txfeecap:
+      value: "0"
+    gcmode:
+      value: "{{- if .Values.geth.archiveNode -}} archive {{- else -}} full {{- end }}"
+    state.scheme:
+      value: "{{- if .Values.geth.archiveNode -}} hash {{- else -}} path {{- end }}"
+    history.transactions:
+      value: "{{- if .Values.geth.archiveNode -}} 0 {{- else -}} 2350000 {{- end }}"
+    history.state:
+      value: "{{- if .Values.geth.archiveNode -}} 0 {{- else -}} 540000 {{- end }}"
+    metrics:
+      condition: "{{ .Values.metrics.enabled }}"
+    metrics.addr:
+      value: 0.0.0.0
+      condition: "{{ .Values.metrics.enabled }}"
+    metrics.port:
+      value: "{{ .Values.ports.metrics }}"
+      condition: "{{ .Values.metrics.enabled }}"
+    txpool.nolocals:
+      value: "true"
+    verbosity:
+      value: "{{ .Values.geth.logLevel }}"
+    log.vmodule:
+      value: "{{ range $index, $module := .Values.geth.moduleLogLevels }}{{- if $index }},{{- end }}{{- $module.module }}={{- $module.level }}{{- end }}"
+    log.debug:
+      condition: "{{ gt (int .Values.geth.logLevel) 3 }}"
 
-  geth:
-    # Set to true to keep history of all blocks
-    archiveNode: false
-    # Set to true to clear the mempool on startup/restart
-    purgeMempool: false
-    snapshot:
-      # Load from snapshot
-      restore:
-        enabled: false
-        # rclone source to download the snapshot from (in the form of remote:path)
-        source: ""
-        # Optional sha256 checksum to verify the snapshot
-        checksum: ""
-      # Create snapshots on a schedule
-      create:
-        enabled: false
-        # Cron format (default: daily at midnight)
-        schedule: "@daily"
-        # Number of snapshots to keep on disk
-        retentionCount: 7
-        storage:
-          path: '{{ include "rollup.gethDataDir" . }}/snapshots'
-          upload:
-            enabled: false
-            # rclone destination to upload the snapshot to (in the form of remote:path)
-            destination: ""
-    flags:
-      - name: datadir
-        value: '{{ include "rollup.gethDataDir" . }}'
-      - name: networkid
-        value: "{{ tpl .Values.genesis.chainId . }}"
-      - name: http
-      - name: http.addr
-        value: 0.0.0.0
-      - name: http.port
-        value: "{{ .Values.ports.jsonRPC }}"
-      - name: http.corsdomain
-        value: "*"
-      - name: http.vhosts
-        value: "*"
-      - name: http.api
-        value: eth,net,web3,debug,txpool
-      - name: ws
-      - name: ws.addr
-        value: 0.0.0.0
-      - name: ws.port
-        value: "{{ .Values.ports.wsRPC }}"
-      - name: ws.origins
-        value: "*"
-      - name: grpc
-      - name: grpc.addr
-        value: 0.0.0.0
-      - name: grpc.port
-        value: "{{ .Values.ports.executionGRPC }}"
-      - name: db.engine
-        value: pebble  # Can be set to 'pebble' or 'leveldb'
-      - name: maxpeers
-        value: "0"
-      - name: rpc.gascap
-        value: "{{ .Values.genesis.gasLimit }}"
-      - name: rpc.txfeecap
-        value: "0"
-      - name: gcmode
-        value: "{{- if .Values.config.geth.archiveNode -}} archive {{- else -}} full {{- end }}"
-      - name: state.scheme
-        value: "{{- if .Values.config.geth.archiveNode -}} hash {{- else -}} path {{- end }}"
-      - name: history.transactions
-        value: "{{- if .Values.config.geth.archiveNode -}} 0 {{- else -}} 2350000 {{- end }}"
-      - name: history.state
-        value: "{{- if .Values.config.geth.archiveNode -}} 0 {{- else -}} 540000 {{- end }}"
-      - name: metrics
-        condition: "{{ .Values.metrics.enabled }}"
-      - name: metrics.addr
-        value: 0.0.0.0
-        condition: "{{ .Values.metrics.enabled }}"
-      - name: metrics.port
-        value: "{{ .Values.ports.metrics }}"
-        condition: "{{ .Values.metrics.enabled }}"
-      - name: txpool.nolocals
-        value: "true"
-
-  conductor:
-    # Determines what will drive block execution, options are:
-    # - "SoftOnly" -> blocks are only pulled from the sequencer
-    # - "FirmOnly" -> blocks are only pulled from DA
-    # - "SoftAndFirm" -> blocks are pulled from both the sequencer and DA
-    executionCommitLevel: 'SoftAndFirm'
-    # The expected fastest block time possible from sequencer, determines polling
-    # rate.
-    sequencerBlockTimeMs: 2000
-    # The expected fastest block time possible from DA, determines polling rate.
-    celestiaBlockTimeMs: 6000
-    # URL path for the sequencer
-    sequencerRpc: ""
-    # gRPC path for the sequencer
-    sequencerGrpc: ""
-    # The maximum number of requests to make to the sequencer per second
-    sequencerRequestsPerSecond: 500
-
-  celestia:
-    # if config.rollup.executionLevel is NOT 'SoftOnly' AND celestia-node is not enabled
-    # the rpc, ws, and token fields must be set to access celestia network.
-    rpc: ""
-    token: ""
+conductor:
+  # This is a rust log configuration, see https://docs.rs/env_logger/latest/env_logger/#enabling-logging
+  # for detailed information.
+  # Generally you can set a level for each crate or a global level
+  # eg "debug" will set all crates in binary to log at debug level
+  #    "debug,astria_conductor=info,astria_sequencer_client=off" will set all crates to debug but the conductor to info
+  logLevel: "astria_conductor=debug"
+  # Determines what will drive block execution, options are:
+  # - "SoftOnly" -> blocks are only pulled from the sequencer
+  # - "FirmOnly" -> blocks are only pulled from DA
+  # - "SoftAndFirm" -> blocks are pulled from both the sequencer and DA
+  executionCommitLevel: 'SoftAndFirm'
+  # The expected fastest block time possible from sequencer, determines polling
+  # rate.
+  sequencerBlockTimeMs: 2000
+  # The expected fastest block time possible from DA, determines polling rate.
+  celestiaBlockTimeMs: 6000
+  # URL path for the sequencer
+  sequencerRpc: ""
+  # gRPC path for the sequencer
+  sequencerGrpc: ""
+  # The maximum number of requests to make to the sequencer per second
+  sequencerRequestsPerSecond: 500
+  # if executionLevel is NOT 'SoftOnly' must set the RPC
+  celestiaRpc: ""
+  # Token can be left empty if the RPC does not require auth
+  celestiaToken: ""
 
 rclone:
   config:

@@ -28,7 +28,7 @@
         "{{ $key }}": {{ toPrettyJson $value | indent 8 | trim }},
         {{- end }}
         "astriaOverrideGenesisExtraData": {{ .Values.genesis.overrideGenesisExtraData }},
-        "astriaRollupName": "{{ tpl .Values.genesis.rollupName . }}",
+        "astriaRollupName": "{{ tpl .Values.global.rollupName . }}",
         "astriaForks": {
             {{- $forks := .Values.genesis.forks }}
             {{- $index := 0 }}

@@ -7,7 +7,65 @@ Namepsace to deploy elements into.
 
 {{/*  The name of the rollup */}}
 {{- define "rollup.name" -}}
-{{- tpl .Values.genesis.rollupName . }}
+{{- tpl .Values.global.rollupName . }}
+{{- end }}
+
+{{- define "rollup.genesis-file" -}}
+files/genesis/{{ include "rollup.type" . }}.genesis.json
+{{- end -}}
+
+{{- define "rollup.networkId" }}
+{{- $rollupType := (include "rollup.type" . ) -}}
+{{- if eq $rollupType "flame-mainnet" -}}253368190
+{{- else if eq $rollupType "flame-testnet" -}}16604737732183
+{{- else if eq $rollupType "flame-devnet" -}}912559
+{{- else -}}{{ tpl .Values.genesis.chainId . }}
+{{- end -}}
+{{- end }}
+
+{{- define "rollup.tags.geth" -}}
+{{- $rollupType := (include "rollup.type" . ) -}}
+{{- if or (eq $rollupType "custom") .Values.global.dev -}}{{ .Values.images.geth.tag }}
+{{- else if eq $rollupType "flame-mainnet" -}}1.1.0
+{{- else if eq $rollupType "flame-testnet" -}}1.1.0
+{{- else if eq $rollupType "flame-devnet" -}}2.0.0-beta.1
+{{- end -}}
+{{- end }}
+
+{{- define "rollup.tags.conductor" -}}
+{{- $rollupType := (include "rollup.type" . ) -}}
+{{- if or (eq $rollupType "custom") .Values.global.dev -}}{{ .Values.images.conductor.tag }}
+{{- else if eq $rollupType "flame-mainnet" -}}1.1.0
+{{- else if eq $rollupType "flame-testnet" -}}1.1.0
+{{- else if eq $rollupType "flame-devnet" -}}2.0.0-rc.1
+{{- end -}}
+{{- end }}
+
+
+{{- define "rollup.type" -}}
+{{- $rollupName := (include "rollup.name" . ) -}}
+{{- if eq $rollupName "flame" -}}flame-mainnet
+{{- else if eq $rollupName "flame-dawn-1" -}}flame-testnet
+{{- else if eq $rollupName "flame-dusk-11"}}flame-devnet
+{{- else -}}custom
+{{- end -}}
+{{- end }}
+
+
+{{/* verbosity based on log level */}}
+{{- define "rollup.verbosity" -}}
+{{- if eq . "silent" }}0
+{{- else if eq . "error" }}1
+{{- else if eq . "warn" }}2
+{{- else if eq . "info" }}3
+{{- else if eq . "debug" }}4
+{{- else if eq . "trace" }}5
+{{- end }}
+{{- end }}
+
+{{- define "rollup.moduleVerbosity" -}}
+{{- range $module := .Values.geth.moduleLogLevels }}{{$module.module}}={{ include "rollup.verbosity" $module.level }},
+{{- end }}
 {{- end }}
 
 {{/*
@@ -52,11 +110,11 @@ The log level represented as a number
 Full image paths for Astria built images
 */}}
 {{- define "rollup.image" -}}
-{{ .Values.images.geth.repo }}:{{ if .Values.images.geth.overrideTag }}{{ .Values.images.geth.overrideTag }}{{ else }}{{ if .Values.global.dev }}{{ .Values.images.geth.devTag }}{{ else }}{{ .Values.images.geth.tag }}{{ end }}
+{{ .Values.images.geth.repo }}:{{ include "rollup.tags.geth" . }}
 {{- end }}
-{{- end }}
+
 {{- define "conductor.image" -}}
-{{ .Values.images.conductor.repo }}:{{ if .Values.global.dev }}{{ .Values.images.conductor.devTag }}{{ else }}{{ .Values.images.conductor.tag }}{{ end }}
+{{ .Values.images.conductor.repo }}:{{ include "rollup.tags.conductor" . }}
 {{- end }}
 
 

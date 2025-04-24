@@ -1,4 +1,4 @@
-{{- if .Values.config.geth.snapshot.create.enabled }}
+{{- if .Values.geth.snapshot.create.enabled }}
 ---
 kind: CronJob
 apiVersion: batch/v1
@@ -8,7 +8,7 @@ metadata:
     app: {{ include "rollup.appName" . }}
   namespace: {{ include "rollup.namespace" . }}
 spec:
-  schedule: "{{ .Values.config.geth.snapshot.create.schedule }}"
+  schedule: "{{ .Values.geth.snapshot.create.schedule }}"
   jobTemplate:
     spec:
       template:
@@ -22,7 +22,7 @@ spec:
               - configMapRef:
                   name: {{ include "rollup.name" . }}-geth-env
             volumeMounts:
-              {{- if .Values.config.geth.snapshot.create.storage.upload.enabled }}
+              {{- if .Values.geth.snapshot.create.storage.upload.enabled }}
               - mountPath: /root/.config/rclone/
                 name: {{ include "rollup.name" . }}-rclone-config-volume
               {{- end }}
@@ -33,7 +33,7 @@ spec:
                 subPath: {{ include "rollup.name" . }}/executor
           restartPolicy: OnFailure
           volumes:
-            {{- if .Values.config.geth.snapshot.create.storage.upload.enabled }}
+            {{- if .Values.geth.snapshot.create.storage.upload.enabled }}
             - name: {{ include "rollup.name" . }}-rclone-config-volume
               {{- if .Values.secretProvider.enabled }}
               csi:
