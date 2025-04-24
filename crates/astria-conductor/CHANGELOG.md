@@ -9,10 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0-rc.1] - 2025-04-22
+
 ### Added
 
 - Include price feed oracle data in transactions when sequencer network
   provides it [#2085](https://github.com/astriaorg/astria/pull/2085).
+
+### Changed
+
+- Upgrade to `astria.execution.v2` APIs, implement execution sessions, remove env
+  vars for setting chain IDs [#2006](https://github.com/astriaorg/astria/pull/2006).
 
 ### Fixed
 
@@ -24,8 +31,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Update `idna` dependency to resolve cargo audit warning [#1869](https://github.com/astriaorg/astria/pull/1869).
 - Remove panic source on shutdown [#1919](https://github.com/astriaorg/astria/pull/1919).
-- Upgrade to `astria.execution.v2` APIs, implement execution sessions, remove env
-vars for setting chain IDs [#2006](https://github.com/astriaorg/astria/pull/2006).
 
 ### Added
 
@@ -375,7 +380,8 @@ address [#721](https://github.com/astriaorg/astria/pull/721).
 
 - Initial release.
 
-[unreleased]: https://github.com/astriaorg/astria/compare/conductor-v1.0.0...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/conductor-v2.0.0-rc.1...HEAD
+[2.0.0-rc.1]: https://github.com/astriaorg/astria/compare/conductor-v1.1.0...conductor-v2.0.0-rc.1
 [1.1.0]: https://github.com/astriaorg/astria/compare/conductor-v1.0.0...conductor-v1.1.0
 [1.0.0]: https://github.com/astriaorg/astria/compare/conductor-v1.0.0-rc.2...conductor-v1.0.0
 [1.0.0-rc.2]: https://github.com/astriaorg/astria/compare/conductor-v1.0.0-rc.1...conductor-v1.0.0-rc.2
