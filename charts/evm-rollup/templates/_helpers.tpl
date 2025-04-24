@@ -37,7 +37,7 @@ files/genesis/{{ include "rollup.type" . }}.genesis.json
 {{- if or (eq $rollupType "custom") .Values.global.dev -}}{{ .Values.images.conductor.tag }}
 {{- else if eq $rollupType "flame-mainnet" -}}1.1.0
 {{- else if eq $rollupType "flame-testnet" -}}1.1.0
-{{- else if eq $rollupType "flame-devnet" -}}latest
+{{- else if eq $rollupType "flame-devnet" -}}2.0.0-rc.1
 {{- end -}}
 {{- end }}
 
