@@ -8,15 +8,11 @@ use std::{
 };
 
 use astria_core::{
-    primitive::v1::{
-        asset::Denom,
-        Address,
-    },
+    primitive::v1::Address,
     protocol::account::v1::AssetBalance,
 };
 use astria_eyre::eyre::{
     self,
-    OptionExt,
     WrapErr as _,
 };
 use sequencer_client::SequencerClientExt as _;
@@ -28,12 +24,14 @@ use tokio_util::sync::CancellationToken;
 use tracing::{
     info,
     instrument,
+    warn,
 };
 
 use crate::{
     config::{
-        Account,
+        Asset,
         Config,
+        SequencerAccountsToMonitor,
     },
     metrics::Metrics,
 };
@@ -41,8 +39,8 @@ use crate::{
 pub struct AccountMonitor {
     shutdown_token: ShutdownHandle,
     sequencer_abci_client: sequencer_client::HttpClient,
-    sequencer_accounts: Vec<Account>,
-    sequencer_asset: Denom,
+    sequencer_accounts: SequencerAccountsToMonitor,
+    sequencer_asset: Asset,
     metrics: &'static Metrics,
     interval: Duration,
 }
@@ -57,6 +55,7 @@ impl AccountMonitor {
     /// - If the provided `sequencer_asset` string cannot be parsed to a valid asset.
     /// - If the provided `sequencer_accounts` string cannot be parsed to a valid address.
     /// - If the provided `sequencer_bridge_accounts` string cannot be parsed to a valid address.
+    #[instrument(skip_all, err)]
     pub fn new(cfg: Config, metrics: &'static Metrics) -> eyre::Result<Self> {
         let shutdown_handle = ShutdownHandle::new();
 
@@ -68,12 +67,9 @@ impl AccountMonitor {
         } = cfg;
 
         let sequencer_cometbft_client =
-            sequencer_client::HttpClient::new(&*sequencer_abci_endpoint)
-                .wrap_err("failed constructing cometbft http client")?;
-
-        let sequencer_asset = sequencer_asset
-            .parse()
-            .wrap_err("msg: failed to parse asset")?;
+            sequencer_client::HttpClient::new(&*sequencer_abci_endpoint).wrap_err_with(|| {
+                format!("failed to create sequencer client for url {sequencer_abci_endpoint}")
+            })?;
 
         let interval = Duration::from_millis(cfg.query_interval_ms);
         Ok(Self {
@@ -97,8 +93,8 @@ impl AccountMonitor {
             .run_until_cancelled(run_loop(
                 self.metrics,
                 &self.sequencer_abci_client,
-                self.sequencer_accounts.clone(),
-                self.sequencer_asset.clone(),
+                &self.sequencer_accounts,
+                &self.sequencer_asset,
                 self.interval,
             ))
             .await
@@ -113,40 +109,42 @@ impl AccountMonitor {
 async fn run_loop(
     metrics: &'static Metrics,
     client: &sequencer_client::HttpClient,
-    accounts: Vec<Account>,
-    denom: Denom,
+    accounts: &SequencerAccountsToMonitor,
+    asset: &Asset,
     pull_interval: Duration,
 ) {
     let mut poll_timer = interval(pull_interval);
+    poll_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
     loop {
         poll_timer.tick().await;
 
-        fetch_all_info(metrics, client, accounts.clone(), &denom);
+        fetch_all_info(metrics, client, accounts, asset);
     }
 }
 
 fn fetch_all_info(
     metrics: &'static Metrics,
     client: &sequencer_client::HttpClient,
-    accounts: Vec<Account>,
-    denom: &Denom,
+    accounts: &SequencerAccountsToMonitor,
+    asset: &Asset,
 ) {
     for account in accounts {
         let client = client.clone();
-        let denom = denom.clone();
+        let asset = asset.clone();
         let address = account.address;
         let _handle =
-            tokio::spawn(async move { fetch_account_info(metrics, &client, address, denom).await });
+            tokio::spawn(async move { fetch_account_info(metrics, &client, address, asset).await });
     }
 }
 
-#[instrument(skip_all, fields(%address), ret(Display))]
+/// Note: The return value of this function exists only to be emitted as part of instrumentation.
+#[instrument(skip_all, fields(%address, %asset), ret(Display))]
 async fn fetch_account_info(
     metrics: &'static Metrics,
     client: &sequencer_client::HttpClient,
     address: Address,
-    denom: Denom,
+    asset: Asset,
 ) -> AccountInfo {
     metrics.increment_nonce_fetch_count();
     metrics.increment_balance_fetch_count();
@@ -157,22 +155,22 @@ async fn fetch_account_info(
         ),
         timeout(
             Duration::from_millis(1000),
-            get_latest_balance(client, address, denom)
+            get_latest_balance(client, address, asset)
         )
     );
 
     let account_nonce = match nonce {
         Ok(Ok(nonce)) => {
-            metrics.set_account_nonce(address.to_string().as_str(), nonce);
+            metrics.set_account_nonce(&address.into(), nonce);
             QueryResponse::Value(nonce)
         }
-        Ok(Err(_)) => {
-            println!("Failed to get nonce");
+        Ok(Err(err)) => {
+            warn!(%err, "failed to get nonce");
             metrics.increment_nonce_fetch_failure_count();
             QueryResponse::Error
         }
-        Err(_) => {
-            println!("Nonce query timed out");
+        Err(err) => {
+            warn!(%err, "nonce query timed out");
             metrics.increment_nonce_fetch_failure_count();
             QueryResponse::Timeout
         }
@@ -180,16 +178,16 @@ async fn fetch_account_info(
 
     let account_balance = match balance {
         Ok(Ok(balance)) => {
-            metrics.set_account_balance(address.to_string().as_str(), balance.balance);
+            metrics.set_account_balance(&address.into(), balance.balance);
             QueryResponse::Value(balance.balance)
         }
-        Ok(Err(_)) => {
-            println!("Failed to get balance");
+        Ok(Err(err)) => {
+            warn!(%err, "failed to get balance");
             metrics.increment_balance_fetch_failure_count();
             QueryResponse::Error
         }
-        Err(_) => {
-            println!("Balance query timed out");
+        Err(err) => {
+            warn!(%err, "balance query timed out");
             metrics.increment_balance_fetch_failure_count();
             QueryResponse::Timeout
         }
@@ -217,9 +215,9 @@ pub struct AccountInfo {
 impl<T: Display> Display for QueryResponse<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            QueryResponse::Value(value) => write!(f, "{value}"),
-            QueryResponse::Error => write!(f, "Error"),
-            QueryResponse::Timeout => write!(f, "Timeout"),
+            QueryResponse::Value(value) => value.fmt(f),
+            QueryResponse::Error => f.write_str("<error>"),
+            QueryResponse::Timeout => f.write_str("<timed out>"),
         }
     }
 }
@@ -227,32 +225,34 @@ impl<T: Display> Display for QueryResponse<T> {
 // Implement Display for AccountInfo
 impl Display for AccountInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "AccountInfo {{ nonce: {}, balance: {} }}",
-            self.nonce, self.balance
-        )
+        write!(f, "nonce = {}, balance = {}", self.nonce, self.balance)
     }
 }
 
 async fn get_latest_balance(
     client: &sequencer_client::HttpClient,
     account: Address,
-    asset: Denom,
+    asset: Asset,
 ) -> eyre::Result<AssetBalance> {
-    let balances = client.get_latest_balance(account).await?;
+    let balances = client
+        .get_latest_balance(account)
+        .await
+        .wrap_err("failed to fetch the balance")?;
     balances
         .balances
         .into_iter()
-        .find(|b| b.denom == asset)
-        .ok_or_eyre("failed to find asset balance")
+        .find(|b| b.denom == asset.asset)
+        .ok_or_else(|| eyre::eyre!("response did not contain target asset `{asset}`"))
 }
 
 async fn get_latest_nonce(
     client: &sequencer_client::HttpClient,
     account: Address,
 ) -> eyre::Result<u32> {
-    let nonce = client.get_latest_nonce(account).await?;
+    let nonce = client
+        .get_latest_nonce(account)
+        .await
+        .wrap_err("failed to fetch the nonce")?;
     Ok(nonce.nonce)
 }
 
