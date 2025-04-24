@@ -109,10 +109,6 @@ async fn check_and_execute_currency_pairs_removal<S: StateWrite>(
         .get_num_currency_pairs()
         .await
         .wrap_err("failed to get number of currency pairs")?;
-    ensure!(
-        num_currency_pairs >= currency_pairs.len() as u64,
-        "cannot remove more currency pairs than exist",
-    );
 
     for pair in currency_pairs {
         if state
