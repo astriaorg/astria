@@ -31,7 +31,6 @@ use astria_core::{
 };
 use bytes::Bytes;
 use cnidarium::Storage;
-use tokio::sync::Mutex;
 use tonic::{
     Request,
     Response,
@@ -54,7 +53,7 @@ use crate::{
 
 pub(crate) struct SequencerServer {
     pub(in crate::grpc) storage: Storage,
-    pub(in crate::grpc) mempool: Arc<Mutex<Mempool>>,
+    pub(in crate::grpc) mempool: Mempool,
     upgrades: Upgrades,
 }
 
@@ -62,7 +61,7 @@ impl SequencerServer {
     pub(crate) fn new(storage: Storage, mempool: Mempool, upgrades: Upgrades) -> Self {
         Self {
             storage,
-            mempool: Arc::new(Mutex::new(mempool)),
+            mempool,
             upgrades,
         }
     }
@@ -241,12 +240,7 @@ impl SequencerService for SequencerServer {
             );
             Status::invalid_argument(format!("invalid address: {e}"))
         })?;
-        let nonce = self
-            .mempool
-            .lock()
-            .await
-            .pending_nonce(address.as_bytes())
-            .await;
+        let nonce = self.mempool.pending_nonce(address.as_bytes()).await;
 
         if let Some(nonce) = nonce {
             return Ok(Response::new(GetPendingNonceResponse {

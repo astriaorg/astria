@@ -100,10 +100,10 @@ impl BackgroundTasks {
     }
 }
 
-// TODO
+// TODO(https://github.com/astriaorg/astria/issues/2134): this should be fixed
 #[expect(
     clippy::too_many_arguments,
-    reason = "this should probably be replaced with a builder"
+    reason = "this should probably be replaced with a builder or dedicated struct"
 )]
 pub(crate) async fn serve(
     storage: cnidarium::Storage,
