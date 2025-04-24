@@ -128,7 +128,7 @@ pub struct TestComposer {
 pub async fn spawn_composer(
     rollup_ids: &[&str],
     sequencer_chain_id: Option<&str>,
-    pending_txs: Option<Vec<EthersTransaction>>,
+    txs_in_pool: Vec<EthersTransaction>,
     loop_until_ready: bool,
 ) -> TestComposer {
     LazyLock::force(&TELEMETRY);
@@ -136,19 +136,13 @@ pub async fn spawn_composer(
     let mut rollup_nodes = HashMap::new();
     let mut rollups = String::new();
     for id in rollup_ids {
-        let pending_txs = match pending_txs {
-            Some(ref pending_txs) => {
-                let mut pending_map = BTreeMap::new();
-                let mut nonce_map = BTreeMap::new();
-                for (index, tx) in pending_txs.iter().enumerate() {
-                    nonce_map.insert(index.to_string(), tx.clone());
-                }
-                pending_map.insert(H160::zero(), nonce_map);
-                pending_map
-            }
-            None => BTreeMap::default(),
-        };
-        let geth = Geth::spawn_with_pending_txs(pending_txs).await;
+        let mut pending_map = BTreeMap::new();
+        let mut nonce_map = BTreeMap::new();
+        for (index, tx) in txs_in_pool.iter().enumerate() {
+            nonce_map.insert(index.to_string(), tx.clone());
+        }
+        pending_map.insert(H160::zero(), nonce_map);
+        let geth = Geth::spawn_with_pending_txs(pending_map).await;
         let execution_url = format!("ws://{}", geth.local_addr());
         rollup_nodes.insert((*id).to_string(), geth);
         rollups.push_str(&format!("{id}::{execution_url},"));

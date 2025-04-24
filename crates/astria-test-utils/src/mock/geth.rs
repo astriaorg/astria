@@ -111,6 +111,7 @@ use tokio::sync::broadcast::{
     error::SendError,
     Sender,
 };
+use tracing::instrument;
 
 #[derive(Debug)]
 pub struct RandomU256IdProvider;
@@ -216,8 +217,8 @@ impl GethServer for GethImpl {
         }
     }
 
+    #[instrument(skip_all, level = "trace")]
     async fn txpool_content(&self) -> Result<TxpoolContent, ErrorObjectOwned> {
-        tracing::debug!("received txpool_content request");
         Ok(self.starting_tx_pool.clone())
     }
 

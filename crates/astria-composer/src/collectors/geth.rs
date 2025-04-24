@@ -41,10 +41,7 @@ use ethers::{
         ProviderError,
         Ws,
     },
-    types::{
-        Transaction,
-        U256,
-    },
+    types::U256,
 };
 use futures::stream;
 use itertools::Itertools as _;
@@ -69,6 +66,7 @@ use crate::{
     collectors::EXECUTOR_SEND_TIMEOUT,
     executor::{
         self,
+        Handle,
     },
     metrics::Metrics,
     utils::report_exit_reason,
@@ -215,14 +213,14 @@ impl Geth {
             .collect::<Vec<_>>();
 
         if existing_pending_txs.is_empty() {
-            info_span!("Geth::run_until_stopped::send_cur_pending_txs")
+            info_span!("fetch_pending_rollup_txs")
                 .in_scope(|| info!("no pending transactions in tx pool"));
         } else {
-            info_span!("Geth::run_until_stopped::send_cur_pending_txs").in_scope(|| {
+            info_span!("fetch_pending_rollup_txs").in_scope(|| {
                 info!(
                     num_existing_txs = existing_pending_txs.len(),
-                    "found existing pending transactions in tx pool, sending to executor prior to \
-                     newly received txs",
+                    "fetched pending transactions in tx pool that will be sent prior to newly \
+                     submitted transactions",
                 );
             });
         };
@@ -260,8 +258,18 @@ impl Geth {
 
                         txs_received_counter.increment(1);
 
-                        if let Err(err) = self.forward_geth_tx(
-                            &tx,
+                        let tx_hash = tx.hash;
+                        let data = tx.rlp().to_vec();
+                        let seq_action = RollupDataSubmission {
+                            rollup_id: self.rollup_id,
+                            data: data.into(),
+                            fee_asset: self.fee_asset.clone(),
+                        };
+
+                        if let Err(err) = forward_geth_tx(
+                            &self.executor_handle,
+                            seq_action,
+                            tx_hash,
                             &txs_dropped_counter,
                         ).await {
                             break Err(err);
@@ -285,45 +293,37 @@ impl Geth {
 
         reason.map(|_| ())
     }
+}
 
-    #[instrument(skip_all)]
-    async fn forward_geth_tx(
-        &self,
-        tx: &Transaction,
-        txs_dropped_counter: &Counter,
-    ) -> eyre::Result<()> {
-        let tx_hash = tx.hash;
-        let data = tx.rlp().to_vec();
-        let seq_action = RollupDataSubmission {
-            rollup_id: self.rollup_id,
-            data: data.into(),
-            fee_asset: self.fee_asset.clone(),
-        };
-
-        match self
-            .executor_handle
-            .send_timeout(seq_action, EXECUTOR_SEND_TIMEOUT)
-            .await
-        {
-            Ok(()) => Ok(()),
-            Err(SendTimeoutError::Timeout(_seq_action)) => {
-                warn!(
-                    transaction.hash = %tx_hash,
-                    timeout_ms = EXECUTOR_SEND_TIMEOUT.as_millis(),
-                    "timed out sending new transaction to executor; dropping tx",
-                );
-                txs_dropped_counter.increment(1);
-                Ok(())
-            }
-            Err(SendTimeoutError::Closed(_seq_action)) => {
-                warn!(
-                    transaction.hash = %tx_hash,
-                    "executor channel closed while sending transaction; dropping transaction \
-                        and exiting event loop"
-                );
-                txs_dropped_counter.increment(1);
-                Err(eyre!("executor channel closed while sending transaction"))
-            }
+#[instrument(skip_all)]
+async fn forward_geth_tx(
+    executor_handle: &Handle,
+    seq_action: RollupDataSubmission,
+    tx_hash: ethers::types::H256,
+    txs_dropped_counter: &Counter,
+) -> eyre::Result<()> {
+    match executor_handle
+        .send_timeout(seq_action, EXECUTOR_SEND_TIMEOUT)
+        .await
+    {
+        Ok(()) => Ok(()),
+        Err(SendTimeoutError::Timeout(_seq_action)) => {
+            warn!(
+                transaction.hash = %tx_hash,
+                timeout_ms = EXECUTOR_SEND_TIMEOUT.as_millis(),
+                "timed out sending new transaction to executor; dropping tx",
+            );
+            txs_dropped_counter.increment(1);
+            Ok(())
+        }
+        Err(SendTimeoutError::Closed(_seq_action)) => {
+            warn!(
+                transaction.hash = %tx_hash,
+                "executor channel closed while sending transaction; dropping transaction \
+                    and exiting event loop"
+            );
+            txs_dropped_counter.increment(1);
+            Err(eyre!("executor channel closed while sending transaction"))
         }
     }
 }
