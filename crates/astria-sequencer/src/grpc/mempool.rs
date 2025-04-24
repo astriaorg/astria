@@ -29,7 +29,10 @@ use tonic::{
 };
 
 use crate::{
-    mempool::Mempool,
+    mempool::{
+        Mempool,
+        TransactionStatus,
+    },
     service::mempool::handle_check_tx,
     Metrics,
 };
@@ -102,7 +105,6 @@ async fn get_transaction_status(
     mempool: &Mempool,
     tx_hash_bytes: Bytes,
 ) -> Result<TransactionStatusResponse, Status> {
-    use crate::mempool::TransactionStatus;
     let tx_hash: [u8; 32] = tx_hash_bytes.as_ref().try_into().map_err(|_| {
         Status::invalid_argument(format!(
             "Invalid transaction hash contained {} bytes, expected {TRANSACTION_ID_LEN}",

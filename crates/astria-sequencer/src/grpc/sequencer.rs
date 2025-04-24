@@ -52,8 +52,8 @@ use crate::{
 };
 
 pub(crate) struct SequencerServer {
-    pub(in crate::grpc) storage: Storage,
-    pub(in crate::grpc) mempool: Mempool,
+    storage: Storage,
+    mempool: Mempool,
     upgrades: Upgrades,
 }
 

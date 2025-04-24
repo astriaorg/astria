@@ -1561,7 +1561,7 @@ impl App {
         if self.recost_mempool {
             self.metrics.increment_mempool_recosted();
         }
-        // Perform fallible tasks before commiting to storage.
+
         let block_height = storage
             .latest_snapshot()
             .get_block_height()
@@ -1574,6 +1574,7 @@ impl App {
             .into_iter()
             .map(TransactionId::get)
             .collect();
+
         update_mempool_after_finalization(
             &mut self.mempool,
             &self.state,
