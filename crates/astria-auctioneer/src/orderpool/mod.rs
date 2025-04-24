@@ -173,7 +173,7 @@ impl Orderpool {
                     Inner {
                         active_auction,
                         auction_id_to_simulations: JoinMap::new(),
-                        auction_id_to_submitted_bundle: JoinMap::new(),
+                        auction_id_to_submitted_bundle: None,
                         bundle_storage: in_memory::Storage::new(),
                         eth_client,
                         requests: rx,
@@ -256,10 +256,8 @@ struct Inner {
     /// This does not expect a return value and only exists to report panics.
     auction_id_to_simulations: JoinMap<crate::auctioneer::auction::Id, ()>,
     /// A map of the bundle that ended up being submitted for a given auction.
-    auction_id_to_submitted_bundle: JoinMap<
-        crate::auctioneer::auction::Id,
-        Result<(Uuid, jiff::Timestamp), tokio::sync::oneshot::error::RecvError>,
-    >,
+    auction_id_to_submitted_bundle:
+        Option<(auction::Id, oneshot::Receiver<(Uuid, jiff::Timestamp)>)>,
     to_cleanup_task: tokio::sync::watch::Sender<Option<DoCleanup>>,
     cleanup_task: JoinHandle<eyre::Result<()>>,
     metrics: &'static Metrics,
@@ -286,17 +284,17 @@ impl Inner {
                 self.handle_request(request)?;
             }
 
-            Some((auction_id, bundle_submitted)) = self.auction_id_to_submitted_bundle.join_next()
+            // TODO: this is a pretty funky looking line; maybe implement a custom fut for this
+            // (auction_id, oneshot_rx) pair.
+            res = async { (&mut self.auction_id_to_submitted_bundle.as_mut().unwrap().1).await }
+            , if self.auction_id_to_submitted_bundle.is_some()
             => {
-                let bundle_submitted =  bundle_submitted
-                    .expect(
-                        "should not panic because the task is just a oneshot rx; \
-                        if it does then something is very wrong in tokio::sync::oneshot"
-                    );
-                self.handle_bundle_submitted(
-                    auction_id,
-                    bundle_submitted
-                );
+                // Unset the oneshot channel to not poll it again.
+                let (auction_id, _) = self
+                    .auction_id_to_submitted_bundle
+                    .take()
+                    .expect("in a select arm that asserts this value is set");
+                self.handle_bundle_submitted(auction_id, res);
             }
 
             res = &mut self.cleanup_task => {
@@ -306,6 +304,7 @@ impl Inner {
         Ok(())
     }
 
+    #[instrument(skip_all)]
     fn handle_auction_changed(
         &mut self,
         auction_changed: Result<(), tokio::sync::watch::error::RecvError>,
@@ -314,15 +313,19 @@ impl Inner {
             "all senders of auction changes are dead; the orderpool can no longer receive \
              notifications of new auctions; exiting",
         )?;
-        let new_auction = self.active_auction.borrow_and_update().clone();
-        match new_auction {
-            Some(bid_pipe) => {
-                self.start_simulations_for_auction(bid_pipe);
-            }
-            None => {
-                self.cancel_active_simulations();
-            }
+        if let Some((auction_id, _)) = self.auction_id_to_submitted_bundle.take() {
+            info!(
+                %auction_id,
+                "dropped channel for currently running simulations; after this point orderpool
+                will no longer remove the auction winner from the orderpool for the given 
+                auction ID"
+            );
         }
+        let Some(bid_pipe) = self.active_auction.borrow_and_update().clone() else {
+            tracing::trace!("active auction channel was unset");
+            return Ok(());
+        };
+        self.start_simulations_for_auction(bid_pipe);
         Ok(())
     }
 
@@ -334,6 +337,9 @@ impl Inner {
         let _ = self.handle_bundle_submitted_impl(auction_id, res);
     }
 
+    /// The actual definition implementation of `orderpool::Inner::handle_bundle_submitted`.
+    ///
+    /// Exists to emit errors as part of its instrumentation.
     #[instrument(
         name = "handle_submitted_bundle",
         skip_all,
@@ -454,12 +460,6 @@ impl Inner {
         self.to_cleanup_task = tx;
     }
 
-    #[instrument(skip_all)]
-    fn cancel_active_simulations(&self) {
-        // TODO: what should cancellting active simulations entail? If they are not
-        // done yet, they should be put on a timer and killed.
-    }
-
     #[instrument(skip_all, fields(
         auction_id = %bid_pipe.auction_id,
         optimistic_block_hash = %bid_pipe.optimistic_block_hash,
@@ -490,8 +490,7 @@ impl Inner {
         }
 
         let (notify_submitted_tx, notify_submitted_rx) = tokio::sync::oneshot::channel();
-        self.auction_id_to_submitted_bundle
-            .spawn(bid_pipe.auction_id, notify_submitted_rx);
+        self.auction_id_to_submitted_bundle = Some(notify_submitted_rx);
         self.auction_id_to_simulations.spawn(
             bid_pipe.auction_id,
             SimulationsForAuction {
