@@ -1,9 +1,15 @@
 use std::{
+    borrow::Cow,
+    collections::HashSet,
     fmt::Display,
+    hash::Hash,
     str::FromStr,
 };
 
-use astria_eyre::eyre;
+use astria_core::primitive::v1::asset::Denom;
+use astria_eyre::eyre::{
+    self,
+};
 use sequencer_client::Address;
 use serde::Deserialize;
 
@@ -20,10 +26,10 @@ pub struct Config {
     pub sequencer_chain_id: String,
 
     /// The addresses of the sequencer chain to monitor.
-    pub sequencer_accounts: Vec<Account>,
+    pub sequencer_accounts: SequencerAccountsToMonitor,
 
     /// The asset ID of the sequencer chain to monitor.
-    pub sequencer_asset: String,
+    pub sequencer_asset: Asset,
 
     /// Sequencer block time in milliseconds
     pub query_interval_ms: u64,
@@ -39,9 +45,97 @@ pub struct Config {
 }
 
 #[derive(Debug, Clone)]
+pub struct Asset {
+    /// The asset ID of the sequencer chain to monitor.
+    pub asset: Denom,
+}
+
+impl<'de> Deserialize<'de> for Asset {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        let asset = value.parse().map_err(serde::de::Error::custom)?;
+
+        Ok(Self {
+            asset,
+        })
+    }
+}
+
+impl Hash for Asset {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.asset.hash(state);
+    }
+}
+
+impl Display for Asset {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.asset)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SequencerAccountsToMonitor(Vec<Account>);
+
+impl<'de> Deserialize<'de> for SequencerAccountsToMonitor {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+
+        let accounts: Result<Vec<Account>, _> = value
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::parse)
+            .collect();
+
+        let accounts = accounts.map_err(serde::de::Error::custom)?;
+
+        if accounts.is_empty() {
+            return Err(serde::de::Error::custom("empty account list"));
+        }
+
+        let mut items = HashSet::new();
+        if !accounts.iter().all(|item| items.insert(item)) {
+            return Err(serde::de::Error::custom("duplicate accounts"));
+        }
+
+        Ok(Self(accounts))
+    }
+}
+
+#[expect(clippy::into_iter_without_iter, reason = "iter() is not needed")]
+impl<'a> IntoIterator for &'a SequencerAccountsToMonitor {
+    type IntoIter = std::slice::Iter<'a, Account>;
+    type Item = &'a Account;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Account {
     /// The address of the account to monitor.
     pub address: Address,
+}
+
+impl Hash for Account {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.address.to_string().hash(state);
+    }
+}
+
+impl From<Address> for Account {
+    fn from(address: Address) -> Self {
+        Self {
+            address,
+        }
+    }
 }
 
 impl FromStr for Account {
@@ -67,23 +161,12 @@ impl config::Config for Config {
     const PREFIX: &'static str = "ASTRIA_ACCOUNT_MONITOR_";
 }
 
-impl Config {
-    /// Returns a list of addresses from a comma-separated string.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if parsing any of the addresses fails.
-    pub fn parse_accounts(&self) -> eyre::Result<Vec<Account>> {
-        Ok(self.sequencer_accounts.clone())
-    }
-}
-
 impl<'de> Deserialize<'de> for Account {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        let s = String::deserialize(deserializer)?;
+        let s = Cow::<'_, str>::deserialize(deserializer)?;
         s.parse().map_err(serde::de::Error::custom)
     }
 }

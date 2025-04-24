@@ -9,15 +9,20 @@ use telemetry::{
         RegisteringBuilder,
     },
 };
-use tracing::error;
+use tracing::{
+    instrument,
+    warn,
+};
+
+use crate::config::Account;
 
 pub struct Metrics {
     nonce_fetch_count: Counter,
     nonce_fetch_failure_count: Counter,
     balance_fetch_count: Counter,
     balance_fetch_failure_count: Counter,
-    account_nonce: HashMap<String, Gauge>,
-    account_balance: HashMap<String, Gauge>,
+    account_nonce: HashMap<Account, Gauge>,
+    account_balance: HashMap<Account, Gauge>,
 }
 
 impl Metrics {
@@ -29,19 +34,21 @@ impl Metrics {
         self.nonce_fetch_failure_count.increment(1);
     }
 
-    pub fn set_account_nonce(&self, account: &str, nonce: u32) {
+    #[instrument(skip_all, fields(%account))]
+    pub fn set_account_nonce(&self, account: &Account, nonce: u32) {
         if let Some(gauge) = self.account_nonce.get(account) {
             gauge.set(nonce);
         } else {
-            error!("no gauge found for account nonce: {}", account);
+            warn!("no gauge found for account nonce");
         }
     }
 
-    pub fn set_account_balance(&self, account: &str, balance: u128) {
+    #[instrument(skip_all, fields(%account))]
+    pub fn set_account_balance(&self, account: &Account, balance: u128) {
         if let Some(gauge) = self.account_balance.get(account) {
             gauge.set(balance);
         } else {
-            error!("no gauge found for account balance: {}", account);
+            warn!("no gauge found for account balance");
         }
     }
 
@@ -97,7 +104,7 @@ impl telemetry::Metrics for Metrics {
         for account in &config.sequencer_accounts {
             let nonce_gauge =
                 nonce_factory.register_with_labels(&[(ACCOUNT_LABEL, account.to_string())])?;
-            account_nonce.insert(account.to_string().clone(), nonce_gauge);
+            account_nonce.insert(account.clone(), nonce_gauge);
         }
 
         let mut balance_factory = builder.new_gauge_factory(
@@ -108,7 +115,7 @@ impl telemetry::Metrics for Metrics {
         for account in &config.sequencer_accounts {
             let balance_gauge =
                 balance_factory.register_with_labels(&[(ACCOUNT_LABEL, account.to_string())])?;
-            account_balance.insert(account.to_string().clone(), balance_gauge);
+            account_balance.insert(account.clone(), balance_gauge);
         }
 
         Ok(Self {
