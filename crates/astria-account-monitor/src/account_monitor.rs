@@ -37,7 +37,6 @@ use crate::{
 };
 
 pub struct AccountMonitor {
-    shutdown_token: ShutdownHandle,
     sequencer_abci_client: sequencer_client::HttpClient,
     sequencer_accounts: SequencerAccountsToMonitor,
     sequencer_asset: Asset,
@@ -57,8 +56,6 @@ impl AccountMonitor {
     /// - If the provided `sequencer_bridge_accounts` string cannot be parsed to a valid address.
     #[instrument(skip_all, err)]
     pub fn new(cfg: Config, metrics: &'static Metrics) -> eyre::Result<Self> {
-        let shutdown_handle = ShutdownHandle::new();
-
         let Config {
             sequencer_abci_endpoint,
             sequencer_asset,
@@ -68,12 +65,11 @@ impl AccountMonitor {
 
         let sequencer_cometbft_client =
             sequencer_client::HttpClient::new(&*sequencer_abci_endpoint).wrap_err_with(|| {
-                format!("failed to create sequencer client for url {sequencer_abci_endpoint}")
+                format!("failed to create sequencer client for url `{sequencer_abci_endpoint}`")
             })?;
 
         let interval = Duration::from_millis(cfg.query_interval_ms);
         Ok(Self {
-            shutdown_token: shutdown_handle,
             sequencer_abci_client: sequencer_cometbft_client,
             sequencer_accounts,
             sequencer_asset,
@@ -87,8 +83,8 @@ impl AccountMonitor {
     /// # Errors
     /// An error is returned if bridge last transaction height is not found.
     pub async fn run(&self) -> eyre::Result<()> {
-        let Some(_res) = self
-            .shutdown_token
+        let shutdown_token = ShutdownHandle::new();
+        let Some(()) = shutdown_token
             .token
             .run_until_cancelled(run_loop(
                 self.metrics,
@@ -133,8 +129,7 @@ fn fetch_all_info(
         let client = client.clone();
         let asset = asset.clone();
         let address = account.address;
-        let _handle =
-            tokio::spawn(async move { fetch_account_info(metrics, &client, address, asset).await });
+        tokio::spawn(fetch_account_info(metrics, client, address, asset));
     }
 }
 
@@ -142,7 +137,7 @@ fn fetch_all_info(
 #[instrument(skip_all, fields(%address, %asset), ret(Display))]
 async fn fetch_account_info(
     metrics: &'static Metrics,
-    client: &sequencer_client::HttpClient,
+    client: sequencer_client::HttpClient,
     address: Address,
     asset: Asset,
 ) -> AccountInfo {
@@ -151,11 +146,11 @@ async fn fetch_account_info(
     let (nonce, balance) = tokio::join!(
         timeout(
             Duration::from_millis(1000),
-            get_latest_nonce(client, address)
+            get_latest_nonce(&client, address)
         ),
         timeout(
             Duration::from_millis(1000),
-            get_latest_balance(client, address, asset)
+            get_latest_balance(&client, address, asset)
         )
     );
 
@@ -164,13 +159,13 @@ async fn fetch_account_info(
             metrics.set_account_nonce(&address.into(), nonce);
             QueryResponse::Value(nonce)
         }
-        Ok(Err(err)) => {
-            warn!(%err, "failed to get nonce");
+        Ok(Err(error)) => {
+            warn!(%error, "failed to get nonce");
             metrics.increment_nonce_fetch_failure_count();
             QueryResponse::Error
         }
-        Err(err) => {
-            warn!(%err, "nonce query timed out");
+        Err(error) => {
+            warn!(%error, "nonce query timed out");
             metrics.increment_nonce_fetch_failure_count();
             QueryResponse::Timeout
         }
@@ -181,13 +176,13 @@ async fn fetch_account_info(
             metrics.set_account_balance(&address.into(), balance.balance);
             QueryResponse::Value(balance.balance)
         }
-        Ok(Err(err)) => {
-            warn!(%err, "failed to get balance");
+        Ok(Err(error)) => {
+            warn!(%error, "failed to get balance");
             metrics.increment_balance_fetch_failure_count();
             QueryResponse::Error
         }
-        Err(err) => {
-            warn!(%err, "balance query timed out");
+        Err(error) => {
+            warn!(%error, "balance query timed out");
             metrics.increment_balance_fetch_failure_count();
             QueryResponse::Timeout
         }
@@ -200,14 +195,14 @@ async fn fetch_account_info(
 }
 
 #[derive(Debug, Clone)]
-pub enum QueryResponse<T> {
+enum QueryResponse<T> {
     Value(T),
     Error,
     Timeout,
 }
 
 #[derive(Debug, Clone)]
-pub struct AccountInfo {
+struct AccountInfo {
     nonce: QueryResponse<u32>,
     balance: QueryResponse<u128>,
 }

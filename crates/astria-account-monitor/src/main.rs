@@ -27,8 +27,8 @@ async fn main() -> ExitCode {
         .try_init(&cfg)
         .wrap_err("failed to setup telemetry")
     {
-        Err(e) => {
-            eprintln!("failed to setup telemetry: {e}");
+        Err(error) => {
+            eprintln!("failed to setup telemetry: {error}");
             return ExitCode::FAILURE;
         }
         Ok(telemetry_conf) => telemetry_conf,
@@ -38,10 +38,11 @@ async fn main() -> ExitCode {
         Err(_) => return ExitCode::FAILURE,
         Ok(account_monitor) => account_monitor,
     };
+
     match account_monitor.run().await {
         Ok(()) => ExitCode::SUCCESS,
-        Err(e) => {
-            eprintln!("account monitor exited unexpectedly: {e}");
+        Err(error) => {
+            eprintln!("account monitor exited unexpectedly: {error}");
             ExitCode::FAILURE
         }
     }
