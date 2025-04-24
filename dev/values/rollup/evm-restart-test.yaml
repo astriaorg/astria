@@ -82,7 +82,7 @@ evm-rollup:
   geth:
     # The level at which core astria components will log out
     # Options are: error, warn, info, and debug
-    logLevel: 3
+    logLevel: 4
 
   conductor:
     # Determines what will drive block execution, options are:

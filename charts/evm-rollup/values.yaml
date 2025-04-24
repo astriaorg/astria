@@ -5,11 +5,19 @@ global:
   # Best to be false in production environments, true for clean logs on local dev.
   useTTY: false
   dev: false
-  # The name of the rollup chain, used to generate the Rollup ID
-  # if this matches one of the predefined rollups and dev is not set to true
-  # a predefined genesis and images will be used.
+  # The name of the rollup chain, used to generate the Rollup ID.
+  # If this matches one of the predefined rollups and dev is not set to true
+  # a predefined genesis and images will be used. When set to custom,
+  # all values below are used.
+  #
+  # Allowed values: custom, flame, flame-dawn-1, flame-dusk-11
   rollupName: custom
 
+# Note that the tags below are only used when either `global.rollupName` is set
+# to `custom` or `global.dev` is set to `true`.
+#
+# If you are using a predefined rollup, the image tags are predefined to latest
+# release for that network defined in the helpers file.
 images:
   geth:
     repo: ghcr.io/astriaorg/astria-geth
@@ -24,6 +32,7 @@ images:
     pullPolicy: IfNotPresent
     tag: 1.69.0
 
+# Not utilized unless `global.rollupName` is set to `custom`
 genesis:
   # The "forks" for upgrading the chain. Contains necessary information for starting
   # and, if desired, restarting the chain at a given height. The necessary fields
