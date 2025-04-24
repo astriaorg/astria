@@ -302,9 +302,9 @@ enum ErrorKind {
     },
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Hash)]
 pub enum Bech32m {}
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Hash)]
 pub enum Bech32 {}
 #[derive(Clone, Copy, Debug)]
 pub enum NoFormat {}

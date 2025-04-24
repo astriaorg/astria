@@ -44,7 +44,7 @@ pub struct Config {
     pub metrics_http_listener_addr: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub struct Asset {
     /// The asset ID of the sequencer chain to monitor.
     pub asset: Denom,
@@ -64,12 +64,6 @@ impl<'de> Deserialize<'de> for Asset {
     }
 }
 
-impl Hash for Asset {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.asset.hash(state);
-    }
-}
-
 impl Display for Asset {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.asset)
@@ -86,18 +80,17 @@ impl<'de> Deserialize<'de> for SequencerAccountsToMonitor {
     {
         let value = String::deserialize(deserializer)?;
 
+        if value.is_empty() {
+            return Err(serde::de::Error::custom("empty account list"));
+        }
+
         let accounts: Result<Vec<Account>, _> = value
             .split(',')
             .map(str::trim)
-            .filter(|s| !s.is_empty())
             .map(str::parse)
-            .collect();
+            .collect::<Result<Vec<Account>, _>>();
 
         let accounts = accounts.map_err(serde::de::Error::custom)?;
-
-        if accounts.is_empty() {
-            return Err(serde::de::Error::custom("empty account list"));
-        }
 
         let mut items = HashSet::new();
         if !accounts.iter().all(|item| items.insert(item)) {
@@ -118,16 +111,10 @@ impl<'a> IntoIterator for &'a SequencerAccountsToMonitor {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Account {
     /// The address of the account to monitor.
     pub address: Address,
-}
-
-impl Hash for Account {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.address.to_string().hash(state);
-    }
 }
 
 impl From<Address> for Account {
@@ -142,9 +129,7 @@ impl FromStr for Account {
     type Err = eyre::Report;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let address = s
-            .parse()
-            .map_err(|e| eyre::eyre!("failed to parse account address: {e}"))?;
+        let address = s.parse()?;
         Ok(Self {
             address,
         })
@@ -153,7 +138,7 @@ impl FromStr for Account {
 
 impl Display for Account {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.address)
+        self.address.fmt(f)
     }
 }
 
