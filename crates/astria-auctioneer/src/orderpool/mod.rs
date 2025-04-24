@@ -276,15 +276,18 @@ impl Inner {
         select!(
             biased;
 
-            auction_change = self.active_auction.changed() => {
+            auction_change = self.active_auction.changed()
+            => {
                 self.handle_auction_changed(auction_change)?;
             }
 
-            request = self.requests.recv() => {
+            request = self.requests.recv()
+            => {
                 self.handle_request(request)?;
             }
 
-            Some((auction_id, bundle_submitted)) = self.auction_id_to_submitted_bundle.join_next() => {
+            Some((auction_id, bundle_submitted)) = self.auction_id_to_submitted_bundle.join_next()
+            => {
                 let bundle_submitted =  bundle_submitted
                     .expect(
                         "should not panic because the task is just a oneshot rx; \
@@ -466,10 +469,14 @@ impl Inner {
         // TODO: assert that no simulations for bid_pipe.auction_id exist.
         let mut simulations = JoinMap::new();
         for (uuid, bundle) in self.bundle_storage.pin().iter() {
-            simulations.spawn(
-                (*uuid, *bundle.timestamp()),
-                simulate_and_estimate_bid(self.eth_client.clone(), bundle.clone()),
-            );
+            // Just skip the bundles that are not valid at this point. They
+            // will be evicted in the cleanup task.
+            if bundle.is_valid_at(bid_pipe.optimistic_block_number) {
+                simulations.spawn(
+                    (*uuid, *bundle.timestamp()),
+                    simulate_and_estimate_bid(self.eth_client.clone(), bundle.clone()),
+                );
+            }
         }
 
         if let Err(_error) = self.to_cleanup_task.send(Some(DoCleanup {
@@ -518,7 +525,9 @@ impl SimulationsForAuction {
                     // XXX: Abort and detach all to forever inactivate this select-arm
                     uuid_to_notify.abort_all();
                     uuid_to_notify.detach_all();
-                    fut_out.expect("the task spawned here is just awaiting a tokio Notify; this should never panic and if it does something very bad is going on");
+                    fut_out.expect("the task spawned here is just awaiting a tokio Notify; \
+                        this should never panic and if it does something very bad is going on"
+                    );
 
                     tracing::info_span!(
                         "notify_orderpool_of_winner",
@@ -534,7 +543,9 @@ impl SimulationsForAuction {
                             warn!(
                                 %uuid,
                                 %timestamp,
-                                "could not notify orderpool of the bundle submitted by the auction because the channel was already closed; probably because the auction was cancelled?"
+                                "could not notify orderpool of the bundle submitted by the auction \
+                                because the channel was already closed; probably because the \
+                                auction was cancelled?"
                             );
                         }
                     });
@@ -556,12 +567,18 @@ impl SimulationsForAuction {
                                 // TODO: should there be a feedback mechanism with the orderpool so that
                                 // simulations that fail can be evicted from the pool?
                                 // It sounds complex to write a allow or blocklist for the specific error conditions.
-                                self.metrics.record_order_simulation_success_latency(self.bid_pipe.auction_started_at.elapsed());
+                                self.metrics
+                                    .record_order_simulation_success_latency(
+                                        self.bid_pipe.auction_started_at.elapsed()
+                                    );
                                     warn!(%error, "simulation failed");
                                     return;
                                 }
                                 Ok(success) => {
-                                self.metrics.record_order_simulation_failure_latency(self.bid_pipe.auction_started_at.elapsed());
+                                self.metrics
+                                    .record_order_simulation_failure_latency(
+                                        self.bid_pipe.auction_started_at.elapsed()
+                                    );
                                     success
                                 }
 
@@ -581,12 +598,18 @@ impl SimulationsForAuction {
                             Ok(notify) => {
                                 self.metrics.increment_in_time_order_simulations();
                                 if self.notify_orderpool.is_some() {
-                                    uuid_to_notify.spawn((uuid, timestamp), async move { notify.notified().await });
+                                    uuid_to_notify.spawn(
+                                        (uuid, timestamp),
+                                        async move { notify.notified().await }
+                                    );
                                 }
                             }
                             Err(_error) => {
                                 self.metrics.increment_late_order_simulations();
-                                info!("simulation response was received too late and order could not be submitted to auction");
+                                info!(
+                                    "simulation response was received too late and order could not \
+                                    be submitted to auction"
+                                );
                             }
                         };
                     });
