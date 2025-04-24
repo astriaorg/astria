@@ -2,7 +2,6 @@ mod block_height;
 mod block_timestamp;
 mod chain_id;
 mod consensus_params;
-mod executed_transaction_hashes;
 mod revision_number;
 mod storage_version;
 
@@ -16,7 +15,6 @@ pub(in crate::app) use self::{
     block_timestamp::BlockTimestamp,
     chain_id::ChainId,
     consensus_params::ConsensusParams,
-    executed_transaction_hashes::ExecutedTransactionHashes,
     revision_number::RevisionNumber,
     storage_version::StorageVersion,
 };
@@ -32,12 +30,10 @@ enum ValueImpl<'a> {
     BlockTimestamp(BlockTimestamp),
     StorageVersion(StorageVersion),
     ConsensusParams(ConsensusParams),
-    ExecutedTransactionHashes(ExecutedTransactionHashes<'a>),
 }
 
 #[cfg(test)]
 mod tests {
-    use astria_core::primitive::v1::TransactionId;
     use insta::assert_snapshot;
 
     use super::*;
@@ -69,12 +65,6 @@ mod tests {
             "value_impl_storage_version",
             borsh_then_hex(&ValueImpl::StorageVersion(1.into()))
         );
-        assert_snapshot!(
-            "value_impl_executed_transaction_hashes",
-            borsh_then_hex(&ValueImpl::ExecutedTransactionHashes(
-                (&vec![TransactionId::new([0; 32])]).into()
-            ))
-        )
     }
 
     #[test]

@@ -1,6 +1,0 @@
-syntax = "proto3";
-
-package astria.mempool.v1alpha1;
-
-// A request for the current Astria Sequencer mempool state.
-message GetMempoolRequest {}

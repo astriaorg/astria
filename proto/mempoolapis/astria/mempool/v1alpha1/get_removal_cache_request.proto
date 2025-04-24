@@ -1,6 +1,0 @@
-syntax = "proto3";
-
-package astria.mempool.v1alpha1;
-
-// A request to get the removal cache of the Astria Sequencer's mempool.
-message GetRemovalCacheRequest {}

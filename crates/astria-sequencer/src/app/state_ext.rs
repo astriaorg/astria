@@ -123,21 +123,8 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip_all)]
-    async fn get_executed_transaction_hashes(&self) -> Result<Option<Vec<TransactionId>>> {
-        let Some(bytes) = self
-            .nonverifiable_get_raw(keys::EXECUTED_TRANSACTION_HASHES.as_bytes())
-            .await
-            .map_err(anyhow_to_eyre)
-            .wrap_err("failed to read raw executed transaction hashes from state")?
-        else {
-            return Ok(None);
-        };
-        StoredValue::deserialize(&bytes)
-            .and_then(|value| {
-                storage::ExecutedTransactionHashes::try_from(value)
-                    .map(|hashes| Some(Vec::<TransactionId>::from(hashes)))
-            })
-            .wrap_err("invalid executed transaction hashes bytes")
+    fn get_executed_transaction_hashes(&self) -> Option<Vec<TransactionId>> {
+        self.object_get(keys::EXECUTED_TRANSACTION_HASHES)
     }
 }
 
@@ -201,17 +188,8 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    fn put_executed_transaction_hashes(&mut self, hashes: &Vec<TransactionId>) -> Result<()> {
-        let bytes = StoredValue::from(storage::ExecutedTransactionHashes::from(hashes))
-            .serialize()
-            .wrap_err("failed to serialize executed transaction hashes")?;
-        self.nonverifiable_put_raw(keys::EXECUTED_TRANSACTION_HASHES.into(), bytes);
-        Ok(())
-    }
-
-    #[instrument(skip_all)]
-    fn clear_executed_transaction_hashes(&mut self) -> Result<()> {
-        self.nonverifiable_delete(keys::EXECUTED_TRANSACTION_HASHES.into());
+    fn put_executed_transaction_hashes(&mut self, hashes: Vec<TransactionId>) -> Result<()> {
+        self.object_put(keys::EXECUTED_TRANSACTION_HASHES, hashes);
         Ok(())
     }
 }
@@ -516,5 +494,33 @@ mod tests {
             state.get_consensus_params().await.unwrap(),
             Some(updated_params),
         );
+    }
+
+    #[tokio::test]
+    async fn put_and_get_executed_transaction_hashes() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // doesn't exist at first
+        assert!(state.get_executed_transaction_hashes().is_none());
+
+        // can write new
+        let mut hashes = vec![TransactionId::new([1; 32]), TransactionId::new([2; 32])];
+        state
+            .put_executed_transaction_hashes(hashes.clone())
+            .unwrap();
+        assert_eq!(state.get_executed_transaction_hashes(), Some(hashes),);
+
+        // can rewrite with new value
+        hashes = vec![TransactionId::new([3; 32]), TransactionId::new([4; 32])];
+        state
+            .put_executed_transaction_hashes(hashes.clone())
+            .unwrap();
+        assert_eq!(state.get_executed_transaction_hashes(), Some(hashes),);
+
+        // can rewrite with empty value
+        state.put_executed_transaction_hashes(vec![]).unwrap();
+        assert_eq!(state.get_executed_transaction_hashes(), Some(vec![]),);
     }
 }

@@ -31,6 +31,7 @@ use astria_core::{
 };
 use bytes::Bytes;
 use cnidarium::Storage;
+use tokio::sync::Mutex;
 use tonic::{
     Request,
     Response,
@@ -48,23 +49,21 @@ use crate::{
     app::StateReadExt as _,
     authority::StateReadExt as _,
     grpc::StateReadExt as _,
-    mempool::Mempool, Metrics,
+    mempool::Mempool,
 };
 
 pub(crate) struct SequencerServer {
     pub(in crate::grpc) storage: Storage,
-    pub(in crate::grpc) mempool: Mempool,
+    pub(in crate::grpc) mempool: Arc<Mutex<Mempool>>,
     upgrades: Upgrades,
-    pub(in crate::grpc) metrics: &'static Metrics
 }
 
 impl SequencerServer {
-    pub(crate) fn new(storage: Storage, mempool: Mempool, upgrades: Upgrades, metrics: &'static Metrics) -> Self {
+    pub(crate) fn new(storage: Storage, mempool: Mempool, upgrades: Upgrades) -> Self {
         Self {
             storage,
-            mempool,
+            mempool: Arc::new(Mutex::new(mempool)),
             upgrades,
-            metrics,
         }
     }
 }
@@ -242,7 +241,12 @@ impl SequencerService for SequencerServer {
             );
             Status::invalid_argument(format!("invalid address: {e}"))
         })?;
-        let nonce = self.mempool.pending_nonce(address.as_bytes()).await;
+        let nonce = self
+            .mempool
+            .lock()
+            .await
+            .pending_nonce(address.as_bytes())
+            .await;
 
         if let Some(nonce) = nonce {
             return Ok(Response::new(GetPendingNonceResponse {
@@ -389,7 +393,6 @@ mod tests {
             storage.clone(),
             mempool,
             Upgrades::default(),
-            metrics,
         ));
         let request = GetSequencerBlockRequest {
             height: 1,
@@ -443,7 +446,6 @@ mod tests {
             storage.clone(),
             mempool,
             Upgrades::default(),
-            metrics,
         ));
         let request = GetPendingNonceRequest {
             address: Some(alice_address.into_raw()),
@@ -470,7 +472,6 @@ mod tests {
             storage.clone(),
             mempool,
             Upgrades::default(),
-            metrics,
         ));
         let request = GetPendingNonceRequest {
             address: Some(alice_address.into_raw()),
@@ -505,7 +506,6 @@ mod tests {
             storage.clone(),
             mempool,
             Upgrades::default(),
-            metrics,
         ));
         let request = GetValidatorNameRequest {
             address: Some(astria_address(&key_address_bytes).into_raw()),
@@ -528,7 +528,6 @@ mod tests {
             storage.clone(),
             mempool,
             Upgrades::default(),
-            metrics
         ));
         let request = GetValidatorNameRequest {
             address: Some(astria_address(&[0; 20]).into_raw()),
@@ -568,7 +567,6 @@ mod tests {
             storage.clone(),
             mempool,
             Upgrades::default(),
-            metrics
         ));
         let request = GetValidatorNameRequest {
             address: Some(astria_address(&key_address_bytes).into_raw()),

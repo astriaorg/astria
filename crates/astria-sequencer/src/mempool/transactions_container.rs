@@ -1898,11 +1898,13 @@ mod tests {
                     matches!(reason, RemovalReason::Included(INCLUDED_TX_BLOCK_NUMBER)),
                     "removal reason should be included(9)"
                 );
+            } else {
+                assert_eq!(
+                    reason,
+                    RemovalReason::NonceStale,
+                    "removal reason should be stale nonce"
+                );
             }
-            assert!(
-                matches!(reason, RemovalReason::NonceStale),
-                "removal reason should be stale nonce"
-            );
         }
     }
 

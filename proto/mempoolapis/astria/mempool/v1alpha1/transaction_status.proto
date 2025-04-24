@@ -5,24 +5,24 @@ package astria.mempool.v1alpha1;
 // `TransactionStatus` is a resource which represents the status of a transaction
 // in the Astria Sequencer's mempool.
 message TransactionStatus {
-    // The transaction hash.
-    bytes transaction_hash = 1;
+  // The transaction hash.
+  bytes transaction_hash = 1;
 
-    // The status of the transaction. Can be one of:
-    // - `Pending`: The transaction is pending inclusion in a block.
-    // - `Parked`: The transaction is parked and will not be proposed until both:
-    //     - The transaction's nonce matches the sender's next nonce.
-    //     - The sender has sufficient balance to pay for the transaction.
-    // - `Removed`: The transaction has been removed from the mempool. Includes
-    //       reason for removal.
-    // - `Included`: The transaction has been included in a block. Includes hash
-    //       hash and number of the block in which the transaction was finalized.
-    oneof status {
-        Pending pending = 2;
-        Parked parked = 3;
-        Removed removed = 4;
-        Included included = 5;
-    }
+  // The status of the transaction. Can be one of:
+  // - `Pending`: The transaction is pending inclusion in a block.
+  // - `Parked`: The transaction is parked and will not be proposed until both:
+  //     - The transaction's nonce matches the sender's next nonce.
+  //     - The sender has sufficient balance to pay for the transaction.
+  // - `Removed`: The transaction has been removed from the mempool. Includes
+  //       reason for removal.
+  // - `Included`: The transaction has been included in a block. Includes hash
+  //       hash and number of the block in which the transaction was finalized.
+  oneof status {
+    Pending pending = 2;
+    Parked parked = 3;
+    Removed removed = 4;
+    Included included = 5;
+  }
 }
 
 // Status representing a pending transaction in the Astria Sequencer's mempool.
@@ -33,13 +33,13 @@ message Parked {}
 
 // Status representing a removed transaction in the Astria Sequencer's mempool.
 message Removed {
-    // The reason for the transaction's removal from the mempool.
-    string reason = 1;
+  // The reason for the transaction's removal from the mempool.
+  string reason = 1;
 }
 
 // Status representing a transaction which has been included in a block and is
 // no longer in the Astria Sequencer's mempool.
 message Included {
-    // The number of the block in which the transaction was included.
-    uint64 block_number = 1;
+  // The number of the block in which the transaction was included.
+  uint64 block_number = 1;
 }

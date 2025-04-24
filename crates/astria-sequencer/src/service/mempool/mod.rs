@@ -203,12 +203,12 @@ impl Service<MempoolRequest> for Mempool {
         use penumbra_tower_trace::v038::RequestExt as _;
         let span = req.create_span();
         let storage = self.storage.clone();
-        let mut mempool = self.inner.clone();
+        let mempool = self.inner.clone();
         let metrics = self.metrics;
         async move {
             let rsp = match req {
                 MempoolRequest::CheckTx(req) => MempoolResponse::CheckTx(
-                    handle_check_tx(req, storage.latest_snapshot(), &mut mempool, metrics).await,
+                    handle_check_tx(req, storage.latest_snapshot(), &mempool, metrics).await,
                 ),
             };
             Ok(rsp)
@@ -232,7 +232,7 @@ impl Service<MempoolRequest> for Mempool {
 pub(crate) async fn handle_check_tx<S: StateRead>(
     req: request::CheckTx,
     state: S,
-    mempool: &mut AppMempool,
+    mempool: &AppMempool,
     metrics: &'static Metrics,
 ) -> response::CheckTx {
     use sha2::Digest as _;

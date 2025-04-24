@@ -492,9 +492,7 @@ impl App {
             .try_begin_transaction()
             .expect("state Arc should not be referenced elsewhere");
         state_delta
-            .put_executed_transaction_hashes(
-                &signed_txs_included.iter().map(|tx| tx.id()).collect(),
-            )
+            .put_executed_transaction_hashes(signed_txs_included.iter().map(|tx| tx.id()).collect())
             .wrap_err("failed to put executed transaction hashes into state")?;
         state_delta.apply();
 
@@ -1539,30 +1537,6 @@ impl App {
 
     #[instrument(name = "App::commit", skip_all)]
     pub(crate) async fn commit(&mut self, storage: Storage) -> Result<ShouldShutDown> {
-        // Perform fallible tasks before commiting to storage.
-        let included_txs = self
-            .state
-            .get_executed_transaction_hashes()
-            .await
-            .wrap_err("failed to get previously executed transaction hashes")?
-            .unwrap_or(vec![])
-            .into_iter()
-            .map(TransactionId::get)
-            .collect();
-        let mut state_delta = self
-            .state
-            .try_begin_transaction()
-            .expect("state Arc should be present and unique");
-        state_delta
-            .clear_executed_transaction_hashes()
-            .wrap_err("failed to clear executed transaction hashes for current block")?;
-        state_delta.apply();
-        let block_height = self
-            .state
-            .get_block_height()
-            .await
-            .wrap_err("failed to get block height")?;
-
         // Commit the pending writes, clearing the state.
         let app_hash = storage
             .commit_batch(self.write_batch.take().expect(
@@ -1587,6 +1561,19 @@ impl App {
         if self.recost_mempool {
             self.metrics.increment_mempool_recosted();
         }
+        // Perform fallible tasks before commiting to storage.
+        let block_height = storage
+            .latest_snapshot()
+            .get_block_height()
+            .await
+            .expect("block height must exist in state");
+        let included_txs = storage
+            .latest_snapshot()
+            .get_executed_transaction_hashes()
+            .unwrap_or_default()
+            .into_iter()
+            .map(TransactionId::get)
+            .collect();
         update_mempool_after_finalization(
             &mut self.mempool,
             &self.state,

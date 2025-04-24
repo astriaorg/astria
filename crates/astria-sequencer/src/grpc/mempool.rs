@@ -4,16 +4,11 @@ use astria_core::{
     generated::mempool::v1alpha1::{
         mempool_service_server::MempoolService,
         transaction_status::Status as RawTransactionStatus,
-        GetMempoolRequest,
-        GetParkedTransactionsRequest,
-        GetPendingTransactionsRequest,
-        GetRemovalCacheRequest,
         GetTransactionStatusRequest,
-        Mempool as MempoolResponse,
-        ParkedTransactions,
-        PendingTransactions,
-        Removal,
-        RemovalCache,
+        Included as RawIncluded,
+        Parked as RawParked,
+        Pending as RawPending,
+        Removed as RawRemoved,
         SubmitTransactionRequest,
         SubmitTransactionResponse,
         TransactionStatus as TransactionStatusResponse,
@@ -21,92 +16,50 @@ use astria_core::{
     primitive::v1::TRANSACTION_ID_LEN,
 };
 use bytes::Bytes;
+use cnidarium::Storage;
 use sha2::Digest;
-use tendermint::abci::{request, Code};
+use tendermint::abci::{
+    request,
+    Code,
+};
 use tonic::{
     Request,
     Response,
     Status,
 };
 
-use crate::{mempool::Mempool, service::mempool::handle_check_tx};
+use crate::{
+    mempool::Mempool,
+    service::mempool::handle_check_tx,
+    Metrics,
+};
 
-use super::sequencer::SequencerServer;
+pub(crate) struct Server {
+    storage: Storage,
+    mempool: Mempool,
+    metrics: &'static Metrics,
+}
+
+impl Server {
+    pub(crate) fn new(storage: Storage, mempool: Mempool, metrics: &'static Metrics) -> Self {
+        Self {
+            storage,
+            mempool,
+            metrics,
+        }
+    }
+}
 
 #[async_trait::async_trait]
-impl MempoolService for SequencerServer {
-    async fn get_mempool(
-        self: Arc<Self>,
-        _request: Request<GetMempoolRequest>,
-    ) -> Result<Response<MempoolResponse>, Status> {
-        let pending = {
-            let pending_hashes = self.mempool.pending_hashes().await;
-            (!pending_hashes.is_empty()).then(|| PendingTransactions {
-                inner: pending_hashes
-                    .iter()
-                    .map(|hash| hash.to_vec().into())
-                    .collect(),
-            })
-        };
-        let parked = {
-            let parked_hashes = self.mempool.parked_hashes().await;
-            (!parked_hashes.is_empty()).then(|| ParkedTransactions {
-                inner: parked_hashes
-                    .iter()
-                    .map(|hash| hash.to_vec().into())
-                    .collect(),
-            })
-        };
-        let removed = {
-            let removal_cache = self.mempool.removal_cache().await;
-            (!removal_cache.is_empty()).then(|| RemovalCache {
-                inner: removal_cache
-                    .iter()
-                    .map(|(hash, removal_reason)| Removal {
-                        tx_hash: hash.to_vec().into(),
-                        reason: removal_reason.to_string(),
-                    })
-                    .collect(),
-            })
-        };
-        Ok(Response::new(Mempool {
-            pending,
-            parked,
-            removed,
-        }))
-    }
-
-    async fn get_parked_transactions(
-        self: Arc<Self>,
-        _request: Request<GetParkedTransactionsRequest>,
-    ) -> Result<Response<ParkedTransactions>, Status> {
-        todo!()
-    }
-
-    async fn get_pending_transactions(
-        self: Arc<Self>,
-        _request: Request<GetPendingTransactionsRequest>,
-    ) -> Result<Response<PendingTransactions>, Status> {
-        todo!()
-    }
-
-    async fn get_removal_cache(
-        self: Arc<Self>,
-        _request: Request<GetRemovalCacheRequest>,
-    ) -> Result<Response<RemovalCache>, Status> {
-        todo!()
-    }
-
+impl MempoolService for Server {
     async fn get_transaction_status(
         self: Arc<Self>,
         request: Request<GetTransactionStatusRequest>,
     ) -> Result<Response<TransactionStatusResponse>, Status> {
         let tx_hash_bytes = request.into_inner().transaction_hash;
-        Ok(Response::new(get_transaction_status(
-            &self.mempool,
-            tx_hash_bytes,
-        )
-        .await?))
+        Ok(Response::new(
+            get_transaction_status(&self.mempool, tx_hash_bytes).await?,
+        ))
     }
 
     async fn submit_transaction(
@@ -119,9 +72,18 @@ impl MempoolService for SequencerServer {
             kind: request::CheckTxKind::New,
         };
 
-        let rsp = handle_check_tx(check_tx, self.storage.latest_snapshot(), &mut self.mempool, self.metrics).await;
+        let rsp = handle_check_tx(
+            check_tx,
+            self.storage.latest_snapshot(),
+            &self.mempool,
+            self.metrics,
+        )
+        .await;
         if let Code::Err(_) = rsp.code {
-            return Err(Status::internal(format!("Transaction failed CheckTx: {}", rsp.log)));
+            return Err(Status::internal(format!(
+                "Transaction failed CheckTx: {}",
+                rsp.log
+            )));
         };
 
         let status = get_transaction_status(
@@ -131,7 +93,7 @@ impl MempoolService for SequencerServer {
         .await?;
 
         Ok(Response::new(SubmitTransactionResponse {
-            status: Some(status)
+            status: Some(status),
         }))
     }
 }
@@ -141,12 +103,6 @@ async fn get_transaction_status(
     tx_hash_bytes: Bytes,
 ) -> Result<TransactionStatusResponse, Status> {
     use crate::mempool::TransactionStatus;
-    use astria_core::generated::mempool::v1alpha1::{
-        Included as RawIncluded,
-        Parked as RawParked,
-        Pending as RawPending,
-        Removed as RawRemoved,
-    };
     let tx_hash: [u8; 32] = tx_hash_bytes.as_ref().try_into().map_err(|_| {
         Status::invalid_argument(format!(
             "Invalid transaction hash contained {} bytes, expected {TRANSACTION_ID_LEN}",
@@ -172,4 +128,343 @@ async fn get_transaction_status(
         transaction_hash: tx_hash_bytes,
         status,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use astria_core::{
+        primitive::v1::{
+            RollupId,
+            ROLLUP_ID_LEN,
+        },
+        protocol::{
+            fees::v1::FeeComponents,
+            transaction::v1::{
+                action::RollupDataSubmission,
+                Transaction,
+                TransactionBodyBuilder,
+            },
+        },
+        Protobuf as _,
+    };
+    use cnidarium::StateDelta;
+    use prost::Message as _;
+    use telemetry::Metrics as _;
+
+    use super::*;
+    use crate::{
+        accounts::StateWriteExt as _,
+        address::StateWriteExt as _,
+        app::{
+            test_utils::get_alice_signing_key,
+            StateWriteExt as _,
+        },
+        benchmark_and_test_utils::nria,
+        fees::StateWriteExt as _,
+        mempool::RemovalReason,
+        Metrics,
+    };
+
+    const TEST_CHAIN_ID: &str = "test_chain_id";
+
+    fn make_transaction(nonce: u32) -> Transaction {
+        TransactionBodyBuilder::new()
+            .actions(vec![RollupDataSubmission {
+                rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
+                data: vec![0; 100].into(),
+                fee_asset: nria().into(),
+            }
+            .into()])
+            .nonce(nonce)
+            .chain_id(TEST_CHAIN_ID.to_string())
+            .try_build()
+            .unwrap()
+            .sign(&get_alice_signing_key())
+    }
+
+    #[tokio::test]
+    async fn transaction_status_pending_works_as_expected() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+
+        let server = Arc::new(Server::new(storage.clone(), mempool.clone(), metrics));
+
+        let nonce = 1;
+        let tx = Arc::new(make_transaction(nonce));
+        let tx_hash_bytes: Bytes = tx.id().get().to_vec().into();
+        // Should be inserted into Pending
+        mempool
+            .insert(tx.clone(), nonce, HashMap::default(), HashMap::default())
+            .await
+            .unwrap();
+
+        let req = GetTransactionStatusRequest {
+            transaction_hash: tx_hash_bytes.clone(),
+        };
+        let rsp = server
+            .get_transaction_status(Request::new(req))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(rsp.transaction_hash, tx_hash_bytes);
+        assert_eq!(
+            rsp.status,
+            Some(RawTransactionStatus::Pending(RawPending {}))
+        );
+    }
+
+    #[tokio::test]
+    async fn transaction_status_parked_works_as_expected() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+
+        let server = Arc::new(Server::new(storage.clone(), mempool.clone(), metrics));
+
+        let nonce = 1;
+        let tx = Arc::new(make_transaction(nonce));
+        let tx_hash_bytes: Bytes = tx.id().get().to_vec().into();
+        // Should be inserted into Parked due to nonce gap
+        mempool
+            .insert(
+                tx.clone(),
+                nonce.saturating_sub(1),
+                HashMap::default(),
+                HashMap::default(),
+            )
+            .await
+            .unwrap();
+
+        let req = GetTransactionStatusRequest {
+            transaction_hash: tx_hash_bytes.clone(),
+        };
+        let rsp = server
+            .get_transaction_status(Request::new(req))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(rsp.transaction_hash, tx_hash_bytes);
+        assert_eq!(rsp.status, Some(RawTransactionStatus::Parked(RawParked {})));
+    }
+
+    #[tokio::test]
+    async fn transaction_status_removed_works_as_expected() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+
+        let server = Arc::new(Server::new(storage.clone(), mempool.clone(), metrics));
+
+        let nonce = 1;
+        let tx = Arc::new(make_transaction(nonce));
+        let tx_hash_bytes: Bytes = tx.id().get().to_vec().into();
+        mempool
+            .insert(tx.clone(), nonce, HashMap::default(), HashMap::default())
+            .await
+            .unwrap();
+
+        let removal_reason = RemovalReason::FailedPrepareProposal("failure reason".to_string());
+        mempool
+            .remove_tx_invalid(tx.clone(), removal_reason.clone())
+            .await;
+
+        let req = GetTransactionStatusRequest {
+            transaction_hash: tx_hash_bytes.clone(),
+        };
+        let rsp = server
+            .get_transaction_status(Request::new(req))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(rsp.transaction_hash, tx_hash_bytes);
+        assert_eq!(
+            rsp.status,
+            Some(RawTransactionStatus::Removed(RawRemoved {
+                reason: removal_reason.to_string()
+            }))
+        );
+    }
+
+    #[tokio::test]
+    async fn transaction_status_included_works_as_expected() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+        let mut state_delta = StateDelta::new(storage.latest_snapshot());
+        let nonce = 1u32;
+        state_delta
+            .put_account_nonce(
+                &get_alice_signing_key().address_bytes(),
+                nonce.saturating_add(1),
+            )
+            .unwrap();
+        storage.commit(state_delta).await.unwrap();
+
+        let server = Arc::new(Server::new(storage.clone(), mempool.clone(), metrics));
+
+        let tx = Arc::new(make_transaction(nonce));
+        let tx_hash_bytes: Bytes = tx.id().get().to_vec().into();
+        mempool
+            .insert(tx.clone(), nonce, HashMap::default(), HashMap::default())
+            .await
+            .unwrap();
+        let block_number = 100;
+        mempool
+            .run_maintenance(
+                &storage.latest_snapshot(),
+                false,
+                vec![tx.id().get()],
+                block_number,
+            )
+            .await;
+
+        let req = GetTransactionStatusRequest {
+            transaction_hash: tx_hash_bytes.clone(),
+        };
+        let rsp = server
+            .get_transaction_status(Request::new(req))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(rsp.transaction_hash, tx_hash_bytes);
+        assert_eq!(
+            rsp.status,
+            Some(RawTransactionStatus::Included(RawIncluded {
+                block_number
+            }))
+        );
+    }
+
+    #[tokio::test]
+    async fn transaction_status_fails_if_invalid_address() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+
+        let server = Arc::new(Server::new(storage.clone(), mempool.clone(), metrics));
+
+        let wrong_hash_len = TRANSACTION_ID_LEN.saturating_sub(10);
+        let req = GetTransactionStatusRequest {
+            transaction_hash: vec![0; wrong_hash_len].into(),
+        };
+        let rsp = server
+            .get_transaction_status(Request::new(req))
+            .await
+            .unwrap_err();
+        assert_eq!(rsp.code(), tonic::Code::InvalidArgument);
+        assert_eq!(
+            rsp.message(),
+            format!(
+                "Invalid transaction hash contained {wrong_hash_len} bytes, expected \
+                 {TRANSACTION_ID_LEN}",
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn transaction_status_returns_none_if_not_found() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+
+        let server = Arc::new(Server::new(storage.clone(), mempool.clone(), metrics));
+
+        let tx_hash_bytes: Bytes = vec![0; TRANSACTION_ID_LEN].into();
+        let req = GetTransactionStatusRequest {
+            transaction_hash: tx_hash_bytes.clone(),
+        };
+        let rsp = server
+            .get_transaction_status(Request::new(req))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(rsp.transaction_hash, tx_hash_bytes);
+        assert_eq!(rsp.status, None);
+    }
+
+    #[tokio::test]
+    async fn submit_transaction_works_as_expected() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+        let mut state_delta = StateDelta::new(storage.latest_snapshot());
+        let nonce = 1u32;
+        state_delta
+            .put_account_nonce(&get_alice_signing_key().address_bytes(), nonce)
+            .unwrap();
+        state_delta
+            .put_fees(FeeComponents::<RollupDataSubmission>::new(0, 0))
+            .unwrap();
+        state_delta.put_base_prefix("astria".to_string()).unwrap();
+        state_delta
+            .put_chain_id_and_revision_number(
+                tendermint::chain::Id::try_from(TEST_CHAIN_ID.to_string()).unwrap(),
+            )
+            .unwrap();
+        storage.commit(state_delta).await.unwrap();
+
+        let server = Arc::new(Server::new(storage.clone(), mempool.clone(), metrics));
+
+        let tx = Arc::new(make_transaction(nonce));
+
+        let req = SubmitTransactionRequest {
+            transaction: tx.to_raw().encode_to_vec().into(),
+        };
+        let rsp = server
+            .submit_transaction(Request::new(req))
+            .await
+            .unwrap()
+            .into_inner();
+        let status = rsp.status.expect("status should be present");
+        assert_eq!(status.transaction_hash, Bytes::from(tx.id().get().to_vec()));
+        assert_eq!(
+            status.status,
+            Some(RawTransactionStatus::Pending(RawPending {}))
+        );
+    }
+
+    #[tokio::test]
+    async fn submit_transaction_fails_if_check_tx_fails() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+        let mut state_delta = StateDelta::new(storage.latest_snapshot());
+        let nonce = 1u32;
+        state_delta
+            .put_account_nonce(
+                &get_alice_signing_key().address_bytes(),
+                nonce.saturating_add(1),
+            )
+            .unwrap();
+        state_delta
+            .put_fees(FeeComponents::<RollupDataSubmission>::new(0, 0))
+            .unwrap();
+        state_delta.put_base_prefix("astria".to_string()).unwrap();
+        state_delta
+            .put_chain_id_and_revision_number(
+                tendermint::chain::Id::try_from(TEST_CHAIN_ID.to_string()).unwrap(),
+            )
+            .unwrap();
+        storage.commit(state_delta).await.unwrap();
+
+        let server = Arc::new(Server::new(storage.clone(), mempool.clone(), metrics));
+
+        let tx = Arc::new(make_transaction(nonce));
+
+        let req = SubmitTransactionRequest {
+            transaction: tx.to_raw().encode_to_vec().into(),
+        };
+        let rsp = server
+            .submit_transaction(Request::new(req))
+            .await
+            .unwrap_err();
+        assert_eq!(rsp.code(), tonic::Code::Internal);
+        assert_eq!(
+            rsp.message(),
+            "Transaction failed CheckTx: given nonce has already been used previously".to_string()
+        );
+    }
 }

@@ -123,9 +123,10 @@ fn init_mempool<T: MempoolSize>() -> Mempool {
         for i in 0..super::REMOVAL_CACHE_SIZE {
             let hash = Sha256::digest(i.to_le_bytes()).into();
             mempool
-                .comet_bft_removal_cache
+                .inner
                 .write()
                 .await
+                .comet_bft_removal_cache
                 .add(hash, RemovalReason::Expired);
         }
     });
@@ -298,7 +299,7 @@ fn run_maintenance<T: MempoolSize>(bencher: divan::Bencher) {
         .with_inputs(|| init_mempool::<T>())
         .bench_values(move |mempool| {
             runtime.block_on(async {
-                mempool.run_maintenance(&mock_state, false).await;
+                mempool.run_maintenance(&mock_state, false, vec![], 1).await;
             });
         });
 }
@@ -340,7 +341,7 @@ fn run_maintenance_tx_recosting<T: MempoolSize>(bencher: divan::Bencher) {
         .with_inputs(|| init_mempool::<T>())
         .bench_values(move |mempool| {
             runtime.block_on(async {
-                mempool.run_maintenance(&mock_state, true).await;
+                mempool.run_maintenance(&mock_state, true, vec![], 1).await;
             });
         });
 }
