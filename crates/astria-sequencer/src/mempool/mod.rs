@@ -51,6 +51,7 @@ pub(crate) enum RemovalReason {
     NonceStale,
     LowerNonceInvalidated,
     FailedPrepareProposal(String),
+    InternalError,
 }
 
 /// How long transactions are considered valid in the mempool.
@@ -276,12 +277,16 @@ impl Mempool {
                 // promote the transactions
                 for ttx in to_promote {
                     let tx_id = ttx.id();
-                    if let Err(error) =
-                        pending.add(ttx, current_account_nonce, &current_account_balances)
-                    {
+                    if let Err(error) = pending.add(
+                        ttx.clone(),
+                        current_account_nonce,
+                        &current_account_balances,
+                    ) {
                         // NOTE: this branch is not expected to be hit so grabbing the lock inside
                         // of the loop is more performant.
-                        self.lock_contained_txs().await.remove(timemarked_tx.id());
+                        self.lock_contained_txs().await.remove(tx_id);
+                        self.remove_tx_invalid(ttx.signed_tx(), RemovalReason::InternalError)
+                            .await;
                         error!(
                             current_account_nonce,
                             tx_hash = %telemetry::display::hex(&tx_id),

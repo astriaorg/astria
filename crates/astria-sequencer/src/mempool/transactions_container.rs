@@ -100,6 +100,10 @@ impl TimemarkedTransaction {
         now.saturating_duration_since(self.time_first_seen) > ttl
     }
 
+    pub(super) fn signed_tx(&self) -> Arc<Transaction> {
+        self.signed_tx.clone()
+    }
+
     pub(super) fn nonce(&self) -> u32 {
         self.signed_tx.nonce()
     }
