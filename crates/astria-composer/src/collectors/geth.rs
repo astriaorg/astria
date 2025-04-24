@@ -176,16 +176,16 @@ impl Geth {
         use futures::stream::StreamExt as _;
 
         let Self {
-            ref status,
-            ref url,
-            ref shutdown_token,
-            ref chain_name,
+            status,
+            url,
+            shutdown_token,
+            chain_name,
             metrics,
             ..
         } = self;
 
-        let txs_received_counter = txs_received_counter(metrics, chain_name);
-        let txs_dropped_counter = txs_dropped_counter(metrics, chain_name);
+        let txs_received_counter = txs_received_counter(metrics, &chain_name);
+        let txs_dropped_counter = txs_dropped_counter(metrics, &chain_name);
 
         let client = connect_to_geth_node(url.clone())
             .await
