@@ -11,7 +11,7 @@ use astria_eyre::eyre::WrapErr as _;
 use cnidarium::Storage;
 use futures::{
     Future,
-    FutureExt as _ as _,
+    FutureExt as _,
     TryFutureExt as _,
 };
 use penumbra_tower_trace::v038::RequestExt as _;
