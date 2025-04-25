@@ -16,6 +16,8 @@ use rustc_hir::{
     },
     def_id::DefId,
     Arm,
+    AssocItemConstraint,
+    AssocItemConstraintKind,
     Block,
     Body,
     Closure,
@@ -45,6 +47,7 @@ use rustc_hir::{
     QPath,
     Stmt,
     StmtKind,
+    Term,
     TraitFn,
     TraitItem,
     TraitItemKind,
@@ -830,7 +833,29 @@ impl FindTrait for GenericArgs<'_> {
             } else {
                 false
             }
-        })
+        }) || self
+            .constraints
+            .iter()
+            .any(|constraint| constraint.find(trait_name, hir, cache))
+    }
+}
+
+impl FindTrait for AssocItemConstraint<'_> {
+    fn find(&self, trait_name: Symbol, hir: &Map, cache: &mut CheckedImportCache) -> bool {
+        match self.kind {
+            AssocItemConstraintKind::Equality {
+                term,
+            } => {
+                if let Term::Ty(ty) = term {
+                    ty.find(trait_name, hir, cache)
+                } else {
+                    false
+                }
+            }
+            AssocItemConstraintKind::Bound {
+                bounds,
+            } => bounds.find(trait_name, hir, cache),
+        }
     }
 }
 

@@ -14,7 +14,7 @@ use super::{
 };
 use crate::{
     generated::upgrades::v1::Upgrades as RawUpgrades,
-    Protobuf,
+    Protobuf as _,
 };
 
 /// The collection of all upgrades applied and scheduled to be applied to the network, ordered by
