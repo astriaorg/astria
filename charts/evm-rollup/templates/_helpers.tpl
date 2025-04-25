@@ -19,6 +19,7 @@ files/genesis/{{ include "rollup.type" . }}.genesis.json
 {{- if eq $rollupType "flame-mainnet" -}}253368190
 {{- else if eq $rollupType "flame-testnet" -}}16604737732183
 {{- else if eq $rollupType "flame-devnet" -}}912559
+{{- else if eq $rollupType "forma-sketchpad" -}}984123
 {{- else -}}{{ tpl .Values.genesis.chainId . }}
 {{- end -}}
 {{- end }}
@@ -29,6 +30,7 @@ files/genesis/{{ include "rollup.type" . }}.genesis.json
 {{- else if eq $rollupType "flame-mainnet" -}}1.1.0
 {{- else if eq $rollupType "flame-testnet" -}}1.1.0
 {{- else if eq $rollupType "flame-devnet" -}}2.0.0-beta.1
+{{- else if eq $rollupType "forma-sketchpad" -}}pr-
 {{- end -}}
 {{- end }}
 
@@ -38,6 +40,7 @@ files/genesis/{{ include "rollup.type" . }}.genesis.json
 {{- else if eq $rollupType "flame-mainnet" -}}1.1.0
 {{- else if eq $rollupType "flame-testnet" -}}1.1.0
 {{- else if eq $rollupType "flame-devnet" -}}2.0.0-rc.1
+{{- else if eq $rollupType "forma-sketchpad" -}}pr-
 {{- end -}}
 {{- end }}
 
@@ -47,6 +50,7 @@ files/genesis/{{ include "rollup.type" . }}.genesis.json
 {{- if eq $rollupName "flame" -}}flame-mainnet
 {{- else if eq $rollupName "flame-dawn-1" -}}flame-testnet
 {{- else if eq $rollupName "flame-dusk-11"}}flame-devnet
+{{- else if eq $rollupName "forma-sketchpad"}}forma-testnet
 {{- else -}}custom
 {{- end -}}
 {{- end }}

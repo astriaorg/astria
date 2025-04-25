@@ -1,0 +1,82 @@
+{
+  "config": {
+    "chainId": 984123,
+    "homesteadBlock": 0,
+    "eip150Block": 0,
+    "eip155Block": 0,
+    "eip158Block": 0,
+    "byzantiumBlock": 0,
+    "constantinopleBlock": 0,
+    "petersburgBlock": 0,
+    "istanbulBlock": 0,
+    "berlinBlock": 0,
+    "londonBlock": 0,
+    "shanghaiTime": 0,
+    "terminalTotalDifficulty": 0,
+    "terminalTotalDifficultyPassed": true,
+    "ethash": {},
+    "astriaRollupName": "forma-sketchpad",
+    "astriaOverrideGenesisExtraData": true,
+    "astriaForks": {
+      "init": {
+        "height": 1,
+        "feeCollector": "0xBd2949362b3087E7BCc442A19CeC9F921385f846",
+        "extraDataOverride": "0xdb8f666f726d612d736b6574636870616483027100831a6cd8825460",
+        "sequencer": {
+          "chainId": "dusk-5",
+          "addressPrefix": "astria",
+          "startHeight": 160001
+        },
+        "celestia": {
+          "chainId": "mocha-4",
+          "startHeight": 2131418,
+          "searchHeightMaxLookAhead": 129600
+        },
+        "eip1559Params": {
+          "minBaseFee": 45000000000,
+          "elasticityMultiplier": 2,
+          "BaseFeeChangeDenominator": 8
+        }
+      },
+      "eipParamUpdate": {
+        "height": 809300,
+        "extraDataOverride": "0xdb8f666f726d612d736b6574636870616483027100831a6cd8825460",
+        "eip1559Params": {
+          "minBaseFee": 18000000000,
+          "elasticityMultiplier": 2,
+          "BaseFeeChangeDenominator": 8
+        }
+      },
+      "dawnMigration": {
+        "height": 100000000,
+        "halt": true,
+        "sequencer": {
+          "chainId": "dawn-1",
+          "addressPrefix": "astria",
+          "startHeight": 100000000
+        }
+      }
+    },
+    "forma": {
+      "hyperlaneMailbox": "0xBcfCeBAdCcDbb8615eA6EE236Ad0A4DeFFB4b44f"
+    }
+  },
+  "difficulty": "10000000",
+  "gasLimit": "0x1c9c380",
+  "coinbase": "0xBd2949362b3087E7BCc442A19CeC9F921385f846",
+  "alloc": {
+    "0xa21075f66f627BA0aBA885713E22b3dF26942f48": {
+      "balance": "10000000000000000000"
+    },
+    "0x00000000000000000000000000000f043a000001": {
+      "balance": "0",
+      "storage": {
+        "0x00": "0x000000000000000000000000a21075f66f627BA0aBA885713E22b3dF26942f48"
+      }
+    },
+    "0x4e59b44847b379578588920cA78FbF26c0B4956C": {
+      "balance": "0",
+      "code": "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3"
+    }
+  }
+}
