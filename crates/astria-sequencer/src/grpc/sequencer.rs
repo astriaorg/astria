@@ -1,16 +1,32 @@
 use std::sync::Arc;
 
 use astria_core::{
-    generated::astria::sequencerblock::v1::{
-        sequencer_service_server::SequencerService,
-        FilteredSequencerBlock as RawFilteredSequencerBlock,
-        GetFilteredSequencerBlockRequest,
-        GetPendingNonceRequest,
-        GetPendingNonceResponse,
-        GetSequencerBlockRequest,
-        SequencerBlock as RawSequencerBlock,
+    generated::{
+        astria::sequencerblock::v1::{
+            sequencer_service_server::SequencerService,
+            FilteredSequencerBlock as RawFilteredSequencerBlock,
+            GetFilteredSequencerBlockRequest,
+            GetPendingNonceRequest,
+            GetPendingNonceResponse,
+            GetSequencerBlockRequest,
+            SequencerBlock as RawSequencerBlock,
+        },
+        sequencerblock::v1::{
+            GetUpgradesInfoRequest,
+            GetUpgradesInfoResponse,
+            GetValidatorNameRequest,
+            GetValidatorNameResponse,
+        },
     },
-    primitive::v1::RollupId,
+    primitive::v1::{
+        Address,
+        RollupId,
+    },
+    sequencerblock::v1::block::ExtendedCommitInfoWithProof,
+    upgrades::v1::{
+        Upgrade,
+        Upgrades,
+    },
     Protobuf as _,
 };
 use bytes::Bytes;
@@ -21,13 +37,16 @@ use tonic::{
     Status,
 };
 use tracing::{
+    debug,
     error,
     info,
     instrument,
+    warn,
 };
 
 use crate::{
     app::StateReadExt as _,
+    authority::StateReadExt as _,
     grpc::StateReadExt as _,
     mempool::Mempool,
 };
@@ -35,13 +54,15 @@ use crate::{
 pub(crate) struct SequencerServer {
     storage: Storage,
     mempool: Mempool,
+    upgrades: Upgrades,
 }
 
 impl SequencerServer {
-    pub(crate) fn new(storage: Storage, mempool: Mempool) -> Self {
+    pub(crate) fn new(storage: Storage, mempool: Mempool, upgrades: Upgrades) -> Self {
         Self {
             storage,
             mempool,
+            upgrades,
         }
     }
 }
@@ -134,6 +155,24 @@ impl SequencerService for SequencerServer {
                 Status::internal(format!("failed to get rollup ids proof from storage: {e}"))
             })?;
 
+        let upgrade_change_hashes = snapshot
+            .get_upgrade_change_hashes(&block_hash)
+            .await
+            .map_err(|e| {
+                Status::internal(format!(
+                    "failed to get upgrade change hashes from storage: {e}"
+                ))
+            })?;
+
+        let extended_commit_info_with_proof = snapshot
+            .get_extended_commit_info_with_proof(&block_hash)
+            .await
+            .map_err(|e| {
+                Status::internal(format!(
+                    "failed to get extended commit info with proof from storage: {e}"
+                ))
+            })?;
+
         let mut all_rollup_ids = snapshot
             .get_rollup_ids_by_block_hash(&block_hash)
             .await
@@ -166,6 +205,12 @@ impl SequencerService for SequencerServer {
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
             all_rollup_ids,
+            upgrade_change_hashes: upgrade_change_hashes
+                .into_iter()
+                .map(|change_hash| Bytes::copy_from_slice(change_hash.as_bytes()))
+                .collect(),
+            extended_commit_info_with_proof: extended_commit_info_with_proof
+                .map(ExtendedCommitInfoWithProof::into_raw),
         };
 
         Ok(Response::new(block))
@@ -217,12 +262,82 @@ impl SequencerService for SequencerServer {
             inner: nonce,
         }))
     }
+
+    #[instrument(skip_all)]
+    async fn get_upgrades_info(
+        self: Arc<Self>,
+        _request: Request<GetUpgradesInfoRequest>,
+    ) -> Result<Response<GetUpgradesInfoResponse>, Status> {
+        let snapshot = self.storage.latest_snapshot();
+        let current_block_height = snapshot.get_block_height().await.map_err(|e| {
+            Status::internal(format!("failed to get block height from storage: {e:#}"))
+        })?;
+        let mut response = GetUpgradesInfoResponse::default();
+        // NOTE: the upgrades being added to the `response.applied` collection here have all been
+        // verified as having been executed and added to verifiable storage during startup of the
+        // sequencer. The ones added to `response.scheduled` can legitimately vary from sequencer to
+        // sequencer depending upon what the operator has staged for upcoming upgrades. At the
+        // activation point of scheduled upgrades, consensus must be reached on the contents of the
+        // upgrade.  Assuming consensus is reached on the state changes caused by executing the
+        // upgrade, any peer with varying upgrade details will produce a different state root hash
+        // during finalize block at the activation height and will from there be stuck in a crash
+        // loop.
+        for change in self.upgrades.iter().flat_map(Upgrade::changes) {
+            let change_info = change.info().to_raw();
+            if change_info.activation_height <= current_block_height {
+                response.applied.push(change_info);
+            } else {
+                response.scheduled.push(change_info);
+            }
+        }
+        Ok(Response::new(response))
+    }
+
+    #[instrument(skip_all)]
+    async fn get_validator_name(
+        self: Arc<Self>,
+        request: Request<GetValidatorNameRequest>,
+    ) -> Result<Response<GetValidatorNameResponse>, Status> {
+        let request = request.into_inner();
+        let address = request
+            .address
+            .ok_or_else(|| Status::invalid_argument("required field address was not set"))?;
+        let address = Address::try_from_raw(address).map_err(|e| {
+            debug!(
+                error = %e,
+                "failed to parse address from get validator name request",
+            );
+            Status::invalid_argument(format!("invalid address: {e}"))
+        })?;
+        let snapshot = self.storage.latest_snapshot();
+        let Some(validator) = snapshot.get_validator(&address).await.map_err(|e| {
+            warn!(
+                error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                "failed to get validator from state",
+            );
+            Status::internal(format!("failed to get validator from state: {e}"))
+        })?
+        else {
+            if snapshot.pre_aspen_get_validator_set().await.is_ok() {
+                return Err(Status::failed_precondition(
+                    "validator names are only supported post Aspen upgrade",
+                ));
+            }
+            return Err(Status::not_found("provided address is not a validator"));
+        };
+        Ok(Response::new(GetValidatorNameResponse {
+            name: validator.name.as_str().to_string(),
+        }))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use astria_core::{
-        protocol::test_utils::ConfigureSequencerBlock,
+        protocol::{
+            test_utils::ConfigureSequencerBlock,
+            transaction::v1::action::ValidatorUpdate,
+        },
         sequencerblock::v1::SequencerBlock,
     };
     use cnidarium::StateDelta;
@@ -238,7 +353,14 @@ mod tests {
             test_utils::get_alice_signing_key,
             StateWriteExt as _,
         },
-        benchmark_and_test_utils::astria_address,
+        authority::{
+            StateWriteExt as _,
+            ValidatorSet,
+        },
+        benchmark_and_test_utils::{
+            astria_address,
+            verification_key,
+        },
         grpc::StateWriteExt as _,
     };
 
@@ -251,7 +373,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_sequencer_block() {
+    async fn get_sequencer_block_ok() {
         let block = make_test_sequencer_block(1);
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
@@ -261,7 +383,11 @@ mod tests {
         state_tx.put_sequencer_block(block).unwrap();
         storage.commit(state_tx).await.unwrap();
 
-        let server = Arc::new(SequencerServer::new(storage.clone(), mempool));
+        let server = Arc::new(SequencerServer::new(
+            storage.clone(),
+            mempool,
+            Upgrades::default(),
+        ));
         let request = GetSequencerBlockRequest {
             height: 1,
         };
@@ -310,7 +436,11 @@ mod tests {
             .await
             .unwrap();
 
-        let server = Arc::new(SequencerServer::new(storage.clone(), mempool));
+        let server = Arc::new(SequencerServer::new(
+            storage.clone(),
+            mempool,
+            Upgrades::default(),
+        ));
         let request = GetPendingNonceRequest {
             address: Some(alice_address.into_raw()),
         };
@@ -332,12 +462,120 @@ mod tests {
         state_tx.put_account_nonce(&alice_address, 99).unwrap();
         storage.commit(state_tx).await.unwrap();
 
-        let server = Arc::new(SequencerServer::new(storage.clone(), mempool));
+        let server = Arc::new(SequencerServer::new(
+            storage.clone(),
+            mempool,
+            Upgrades::default(),
+        ));
         let request = GetPendingNonceRequest {
             address: Some(alice_address.into_raw()),
         };
         let request = Request::new(request);
         let response = server.get_pending_nonce(request).await.unwrap();
         assert_eq!(response.into_inner().inner, 99);
+    }
+
+    #[tokio::test]
+    async fn get_validator_name_works_as_expected() {
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let verification_key = verification_key(1);
+        let key_address_bytes = *verification_key.clone().address_bytes();
+        let validator_name = "test".to_string();
+
+        let update_with_name = ValidatorUpdate {
+            name: validator_name.clone().parse().unwrap(),
+            power: 100,
+            verification_key,
+        };
+
+        state.put_validator(&update_with_name).unwrap();
+        storage.commit(state).await.unwrap();
+
+        let server = Arc::new(SequencerServer::new(
+            storage.clone(),
+            mempool,
+            Upgrades::default(),
+        ));
+        let request = GetValidatorNameRequest {
+            address: Some(astria_address(&key_address_bytes).into_raw()),
+        };
+        let rsp = server
+            .get_validator_name(Request::new(request))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(rsp.name, validator_name);
+    }
+
+    #[tokio::test]
+    async fn validator_name_request_fails_if_not_a_validator() {
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+
+        let server = Arc::new(SequencerServer::new(
+            storage.clone(),
+            mempool,
+            Upgrades::default(),
+        ));
+        let request = GetValidatorNameRequest {
+            address: Some(astria_address(&[0; 20]).into_raw()),
+        };
+
+        let rsp = server
+            .get_validator_name(Request::new(request))
+            .await
+            .unwrap_err();
+        assert_eq!(rsp.code(), tonic::Code::NotFound, "{}", rsp.message());
+        let err_msg = "provided address is not a validator";
+        assert_eq!(rsp.message(), err_msg);
+    }
+
+    #[tokio::test]
+    async fn validator_name_request_fails_if_pre_aspen() {
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let verification_key = verification_key(1);
+        let key_address_bytes = *verification_key.clone().address_bytes();
+        let validator_name = "test".to_string();
+
+        let validator_set = ValidatorSet::new_from_updates(vec![ValidatorUpdate {
+            name: validator_name.clone().parse().unwrap(),
+            power: 100,
+            verification_key,
+        }]);
+
+        state.pre_aspen_put_validator_set(validator_set).unwrap();
+        storage.commit(state).await.unwrap();
+
+        let server = Arc::new(SequencerServer::new(
+            storage.clone(),
+            mempool,
+            Upgrades::default(),
+        ));
+        let request = GetValidatorNameRequest {
+            address: Some(astria_address(&key_address_bytes).into_raw()),
+        };
+        let rsp = server
+            .get_validator_name(Request::new(request))
+            .await
+            .unwrap_err();
+        assert_eq!(
+            rsp.code(),
+            tonic::Code::FailedPrecondition,
+            "{}",
+            rsp.message()
+        );
+        let err_msg = "validator names are only supported post Aspen upgrade";
+        assert_eq!(rsp.message(), err_msg);
     }
 }

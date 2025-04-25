@@ -27,8 +27,7 @@ use astria_sequencer_relayer::{
     ShutdownHandle,
 };
 use http::StatusCode;
-use isahc::AsyncReadResponseExt;
-use itertools::Itertools;
+use itertools::Itertools as _;
 use serde::Deserialize;
 use serde_json::json;
 use telemetry::metrics;
@@ -131,9 +130,7 @@ static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
         println!("initializing telemetry");
         let _ = telemetry::configure()
             .set_no_otel(true)
-            .set_stdout_writer(std::io::stdout)
             .set_force_stdout(true)
-            .set_pretty_print(true)
             .set_filter_directives(&filter_directives)
             .try_init::<Metrics>(&())
             .unwrap();
@@ -539,13 +536,13 @@ impl TestSequencerRelayer {
     ) -> (serde_json::Value, StatusCode) {
         let url = format!("http://{}/{api_endpoint}", self.api_address);
         let getter = async {
-            isahc::get_async(&url)
+            reqwest::get(url.clone())
                 .await
                 .unwrap_or_else(|error| panic!("should get response from `{url}`: {error}"))
         };
 
         let new_context = format!("{context}: get from `{url}`");
-        let mut response = self.timeout_ms(100, &new_context, getter).await;
+        let response = self.timeout_ms(100, &new_context, getter).await;
 
         let status_code = response.status();
         let value = response
@@ -585,7 +582,7 @@ impl TestSequencerRelayer {
             value
         } else {
             let state = tokio::time::timeout(Duration::from_millis(100), async {
-                isahc::get_async(format!("http://{}/status", self.api_address))
+                reqwest::get(format!("http://{}/status", self.api_address))
                     .await
                     .ok()?
                     .json()
@@ -600,7 +597,7 @@ impl TestSequencerRelayer {
             .map_or("unknown".to_string(), |state| format!("{state:?}"));
 
             let healthz = tokio::time::timeout(Duration::from_millis(100), async {
-                isahc::get_async(format!("http://{}/healthz", self.api_address))
+                reqwest::get(format!("http://{}/healthz", self.api_address))
                     .await
                     .ok()?
                     .json()
@@ -726,7 +723,6 @@ impl TestSequencerRelayerConfig {
             no_otel: false,
             no_metrics: false,
             metrics_http_listener_addr: "127.0.0.1:9000".to_string(),
-            pretty_print: true,
             submission_state_path: submission_state_file.path().to_owned(),
         };
 
@@ -738,7 +734,9 @@ impl TestSequencerRelayerConfig {
 
         info!(config = serde_json::to_string(&config).unwrap());
         let (sequencer_relayer, relayer_shutdown_handle) =
-            SequencerRelayer::new(config.clone(), metrics).unwrap();
+            SequencerRelayer::new(config.clone(), metrics)
+                .await
+                .unwrap();
         let api_address = sequencer_relayer.local_addr();
         let sequencer_relayer = tokio::task::spawn(sequencer_relayer.run());
 

@@ -18,10 +18,12 @@ impl serde::Serialize for Allocation {
         let mut struct_ser = serializer.serialize_struct("astria.auction.v1alpha1.Allocation", len)?;
         if !self.signature.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("signature", pbjson::private::base64::encode(&self.signature).as_str())?;
         }
         if !self.public_key.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("publicKey", pbjson::private::base64::encode(&self.public_key).as_str())?;
         }
         if let Some(v) = self.bid.as_ref() {
@@ -153,14 +155,17 @@ impl serde::Serialize for Bid {
         let mut struct_ser = serializer.serialize_struct("astria.auction.v1alpha1.Bid", len)?;
         if !self.rollup_parent_block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("rollupParentBlockHash", pbjson::private::base64::encode(&self.rollup_parent_block_hash).as_str())?;
         }
         if !self.sequencer_parent_block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("sequencerParentBlockHash", pbjson::private::base64::encode(&self.sequencer_parent_block_hash).as_str())?;
         }
         if self.fee != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("fee", ToString::to_string(&self.fee).as_str())?;
         }
         if !self.transactions.is_empty() {

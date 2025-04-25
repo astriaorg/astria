@@ -25,10 +25,14 @@ use astria_eyre::eyre::{
 };
 pub(crate) use builder::Builder;
 pub(super) use builder::Handle;
+use prost::Message as _;
 use sequencer_client::{
-    tendermint_rpc::endpoint::{
-        broadcast::tx_sync,
-        tx,
+    tendermint_rpc::{
+        endpoint::{
+            broadcast::tx_sync,
+            tx,
+        },
+        Client as _,
     },
     Address,
     SequencerClientExt as _,
@@ -156,6 +160,8 @@ impl Submitter {
             ..
         } = self;
 
+        metrics.set_last_observed_rollup_height(rollup_height);
+
         if actions.is_empty() {
             metrics.set_batch_total_settled_value(0);
 
@@ -274,7 +280,7 @@ async fn submit_tx(
         .on_retry(
             |attempt,
              next_delay: Option<Duration>,
-             err: &sequencer_client::extension_trait::Error| {
+             err: &sequencer_client::tendermint_rpc::Error| {
                 metrics.increment_sequencer_submission_failure_count();
 
                 let state = Arc::clone(&state);
@@ -293,11 +299,12 @@ async fn submit_tx(
                 async move {}
             },
         );
+    let tx_bytes = tx.to_raw().encode_to_vec();
     let check_tx = tryhard::retry_fn(|| {
         let client = client.clone();
-        let tx = tx.clone();
+        let tx_bytes = tx_bytes.clone();
         let span = info_span!(parent: span.clone(), "attempt send");
-        async move { client.submit_transaction_sync(tx).await }.instrument(span)
+        async move { client.broadcast_tx_sync(tx_bytes).await }.instrument(span)
     })
     .with_config(retry_config)
     .await
@@ -329,7 +336,7 @@ pub(crate) async fn get_pending_nonce(
     state: Arc<State>,
     metrics: &'static Metrics,
 ) -> eyre::Result<u32> {
-    debug!("fetching pending nonce from sequencing");
+    debug!("fetching pending nonce from sequencer");
     let start = std::time::Instant::now();
     let span = Span::current();
     let retry_config = tryhard::RetryFutureConfig::new(1024)
@@ -348,7 +355,7 @@ pub(crate) async fn get_pending_nonce(
                     error = err as &dyn std::error::Error,
                     attempt,
                     wait_duration,
-                    "failed getting pending nonce from sequencing; retrying after backoff",
+                    "failed getting pending nonce from sequencer; retrying after backoff",
                 );
                 futures::future::ready(())
             },
@@ -369,7 +376,7 @@ pub(crate) async fn get_pending_nonce(
     })
     .with_config(retry_config)
     .await
-    .wrap_err("failed getting pending nonce from sequencing after 1024 attempts");
+    .wrap_err("failed getting pending nonce from sequencer after 1024 attempts");
 
     state.set_sequencer_connected(res.is_ok());
     metrics.increment_nonce_fetch_count();

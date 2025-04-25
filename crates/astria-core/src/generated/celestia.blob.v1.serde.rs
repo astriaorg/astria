@@ -192,6 +192,7 @@ impl serde::Serialize for Params {
         }
         if self.gov_max_square_size != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("govMaxSquareSize", ToString::to_string(&self.gov_max_square_size).as_str())?;
         }
         struct_ser.end()

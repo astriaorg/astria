@@ -137,7 +137,10 @@ impl Payload {
     ) -> Result<(), PayloadError> {
         let encoded = value.encode_to_vec();
         let compressed = compress_bytes(&encoded)?;
-        let blob = Blob::new(namespace, compressed)?;
+        // TODO(janis): should sequencer-relayer query its celestia endpoint to dermine which
+        // app version it's interacting with? At the time of writing, sequencer-relayer is
+        // is deployed against celestia-app 3.2.0 (mainnet) and 3.3.0 (concensus/validator)
+        let blob = Blob::new(namespace, compressed, celestia_types::AppVersion::V3)?;
         self.uncompressed_size = self
             .uncompressed_size
             .checked_add(encoded.len())
