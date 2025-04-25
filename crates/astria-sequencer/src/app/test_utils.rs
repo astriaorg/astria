@@ -119,6 +119,15 @@ impl MockTxBuilder {
         }
     }
 
+    pub(crate) fn new_with_chain_id(chain_id: String) -> Self {
+        Self {
+            chain_id,
+            nonce: 0,
+            signer: get_alice_signing_key(),
+            group: Group::BundleableGeneral,
+        }
+    }
+
     pub(crate) fn nonce(self, nonce: u32) -> Self {
         Self {
             nonce,
