@@ -4,6 +4,12 @@ use std::{
         Display,
         Formatter,
     },
+    future::Future,
+    pin::Pin,
+    task::{
+        Context,
+        Poll,
+    },
     time::Duration,
 };
 
@@ -16,9 +22,15 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use sequencer_client::SequencerClientExt as _;
-use tokio::time::{
-    interval,
-    timeout,
+use tokio::{
+    task::{
+        JoinError,
+        JoinHandle,
+    },
+    time::{
+        interval,
+        timeout,
+    },
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{
@@ -37,6 +49,11 @@ use crate::{
 };
 
 pub struct AccountMonitor {
+    shutdown_token: CancellationToken,
+    task: Option<JoinHandle<eyre::Result<()>>>,
+}
+struct Inner {
+    shutdown_token: CancellationToken,
     sequencer_abci_client: sequencer_client::HttpClient,
     sequencer_accounts: SequencerAccountsToMonitor,
     sequencer_asset: Asset,
@@ -44,18 +61,15 @@ pub struct AccountMonitor {
     interval: Duration,
 }
 
-impl AccountMonitor {
+impl Inner {
     /// Instantiates a new `Service`.
     ///
     /// # Errors
     ///
     /// - If the provided `sequencer_abci_endpoint` string cannot be contructed to a cometbft http
     ///   client.
-    /// - If the provided `sequencer_asset` string cannot be parsed to a valid asset.
-    /// - If the provided `sequencer_accounts` string cannot be parsed to a valid address.
-    /// - If the provided `sequencer_bridge_accounts` string cannot be parsed to a valid address.
     #[instrument(skip_all, err)]
-    pub fn new(cfg: Config, metrics: &'static Metrics) -> eyre::Result<Self> {
+    fn new(cfg: Config, metrics: &'static Metrics) -> eyre::Result<Self> {
         let Config {
             sequencer_abci_endpoint,
             sequencer_asset,
@@ -63,6 +77,7 @@ impl AccountMonitor {
             ..
         } = cfg;
 
+        let shutdown_token = CancellationToken::new();
         let sequencer_cometbft_client =
             sequencer_client::HttpClient::new(&*sequencer_abci_endpoint).wrap_err_with(|| {
                 format!("failed to create sequencer client for url `{sequencer_abci_endpoint}`")
@@ -70,6 +85,7 @@ impl AccountMonitor {
 
         let interval = Duration::from_millis(cfg.query_interval_ms);
         Ok(Self {
+            shutdown_token,
             sequencer_abci_client: sequencer_cometbft_client,
             sequencer_accounts,
             sequencer_asset,
@@ -82,40 +98,70 @@ impl AccountMonitor {
     ///
     /// # Errors
     /// An error is returned if bridge last transaction height is not found.
-    pub async fn run(&self) -> eyre::Result<()> {
-        let shutdown_token = ShutdownHandle::new();
-        let Some(()) = shutdown_token
-            .token
-            .run_until_cancelled(run_loop(
+    async fn run(self) -> eyre::Result<()> {
+        let mut poll_timer = interval(self.interval);
+        poll_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+        loop {
+            if self.shutdown_token.is_cancelled() {
+                info!("received shutdown signal");
+                break;
+            }
+
+            poll_timer.tick().await;
+
+            fetch_all_info(
                 self.metrics,
                 &self.sequencer_abci_client,
                 &self.sequencer_accounts,
                 &self.sequencer_asset,
-                self.interval,
-            ))
-            .await
-        else {
-            return Ok(());
-        };
+            );
+        }
 
         Ok(())
     }
 }
 
-async fn run_loop(
-    metrics: &'static Metrics,
-    client: &sequencer_client::HttpClient,
-    accounts: &SequencerAccountsToMonitor,
-    asset: &Asset,
-    pull_interval: Duration,
-) {
-    let mut poll_timer = interval(pull_interval);
-    poll_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+impl AccountMonitor {
+    /// Spawns the Account Monitor service.
+    ///
+    /// # Errors
+    /// Returns an error if the Auctioneer cannot be initialized.
+    pub fn spawn(cfg: Config, metrics: &'static Metrics) -> eyre::Result<Self> {
+        let shutdown_token = CancellationToken::new();
+        let inner = Inner::new(cfg, metrics)?;
+        let task = tokio::spawn(inner.run());
 
-    loop {
-        poll_timer.tick().await;
+        Ok(Self {
+            shutdown_token,
+            task: Some(task),
+        })
+    }
 
-        fetch_all_info(metrics, client, accounts, asset);
+    pub fn shutdown(self) {
+        self.shutdown_token.cancel();
+    }
+}
+
+impl Future for AccountMonitor {
+    type Output = eyre::Result<()>;
+
+    fn poll(mut self: Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<Self::Output> {
+        use futures::future::FutureExt as _;
+
+        let task = self
+            .task
+            .as_mut()
+            .expect("auctioneer must not be polled after shutdown");
+        task.poll_unpin(ctx).map(flatten_join_result)
+    }
+}
+
+fn flatten_join_result<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre::Result<T> {
+    match res {
+        Ok(Ok(val)) => Ok(val),
+        Ok(Err(err)) => Err(err).wrap_err("task returned with error"),
+        Err(err) => Err(err).wrap_err("task panicked"),
     }
 }
 
@@ -249,43 +295,4 @@ async fn get_latest_nonce(
         .await
         .wrap_err("failed to fetch the nonce")?;
     Ok(nonce.nonce)
-}
-
-/// A handle for instructing the [`Service`] to shut down.
-///
-/// It is returned along with its related `Service` from [`Service::new`].  The
-/// `Service` will begin to shut down as soon as [`ShutdownHandle::shutdown`] is called or
-/// when the `ShutdownHandle` is dropped.
-pub struct ShutdownHandle {
-    token: CancellationToken,
-}
-
-impl ShutdownHandle {
-    #[must_use]
-    fn new() -> Self {
-        Self {
-            token: CancellationToken::new(),
-        }
-    }
-
-    /// Returns a clone of the wrapped cancellation token.
-    #[must_use]
-    pub fn token(&self) -> CancellationToken {
-        self.token.clone()
-    }
-
-    /// Consumes `self` and cancels the wrapped cancellation token.
-    pub fn shutdown(self) {
-        self.token.cancel();
-    }
-}
-
-impl Drop for ShutdownHandle {
-    #[instrument(skip_all)]
-    fn drop(&mut self) {
-        if !self.token.is_cancelled() {
-            info!("shutdown handle dropped, issuing shutdown to all services");
-        }
-        self.token.cancel();
-    }
 }

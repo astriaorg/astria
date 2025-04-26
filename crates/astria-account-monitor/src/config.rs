@@ -7,9 +7,6 @@ use std::{
 };
 
 use astria_core::primitive::v1::asset::Denom;
-use astria_eyre::eyre::{
-    self,
-};
 use sequencer_client::Address;
 use serde::Deserialize;
 
@@ -126,7 +123,7 @@ impl From<Address> for Account {
 }
 
 impl FromStr for Account {
-    type Err = eyre::Report;
+    type Err = <Address as FromStr>::Err;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let address = s.parse()?;
