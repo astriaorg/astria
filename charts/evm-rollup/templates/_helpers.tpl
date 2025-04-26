@@ -30,7 +30,7 @@ files/genesis/{{ include "rollup.type" . }}.genesis.json
 {{- else if eq $rollupType "flame-mainnet" -}}1.1.0
 {{- else if eq $rollupType "flame-testnet" -}}1.1.0
 {{- else if eq $rollupType "flame-devnet" -}}2.0.0-beta.1
-{{- else if eq $rollupType "forma-sketchpad" -}}pr-
+{{- else if eq $rollupType "forma-sketchpad" -}}2.0.0-beta.1
 {{- end -}}
 {{- end }}
 
