@@ -6,6 +6,10 @@ use astria_account_monitor::{
     BUILD_INFO,
 };
 use astria_eyre::eyre::WrapErr as _;
+use tokio::signal::unix::{
+    signal,
+    SignalKind,
+};
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -28,22 +32,36 @@ async fn main() -> ExitCode {
         .wrap_err("failed to setup telemetry")
     {
         Err(error) => {
-            eprintln!("failed to setup telemetry: {error}");
+            eprintln!("failed to setup telemetry:\n {error}");
             return ExitCode::FAILURE;
         }
         Ok(telemetry_conf) => telemetry_conf,
     };
 
-    let account_monitor = match AccountMonitor::new(cfg, metrics) {
-        Err(_) => return ExitCode::FAILURE,
+    let mut account_monitor = match AccountMonitor::spawn(cfg, metrics) {
+        Err(error) => {
+            eprintln!("failed to start account monitor:\n {error}");
+            return ExitCode::FAILURE;
+        }
         Ok(account_monitor) => account_monitor,
     };
 
-    match account_monitor.run().await {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(error) => {
-            eprintln!("account monitor exited unexpectedly: {error}");
-            ExitCode::FAILURE
+    let mut sigterm = signal(SignalKind::terminate())
+        .expect("setting a SIGTERM listener should always work on Unix");
+
+    tokio::select! {
+        _ = sigterm.recv() => {
+            account_monitor.shutdown();
+            ExitCode::SUCCESS
+        },
+        res = &mut account_monitor => {
+            match res {
+                Ok(_) => ExitCode::SUCCESS,
+                Err(error) => {
+                    eprintln!("account monitor exited unexpectedly:\n {error}");
+                    ExitCode::FAILURE
+                }
+            }
         }
     }
 }
