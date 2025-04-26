@@ -57,22 +57,31 @@ alerting:
   additionalLabels:
     release: kube-prometheus-stack
   annotations: {}
-  # scrapeTimeout: 10s
-  # path: /metrics
   prometheusRule:
     enabled: true
     additionalLabels:
       release: kube-prometheus-stack
     namespace: monitoring
-    rules:
+    defaultAlerts:
     - alert: Composer_Node_Down
-      expr: up{container="composer"} == 0  # Insert your query Expression
-      for: 1m  # Rough number but should be enough to init warn
+      expr: up{container="composer", namespace="{{ include "composer.namespace" . }}"} == 0
+      for: 1m
       labels:
         severity: warning
       annotations:
         summary: Composer is Down (instance {{ $labels.instance }})
         description: "composer node '{{ $labels.namespace }}' has disappeared from Prometheus target discovery.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+  additionalAlertGroups: {}
+#   additional-alerts:
+#     rules:
+#       - alert: Test_Alert
+#         expr: increase(chain_head_finalized{namespace="{{ .Release.Namespace }}"}[5m]) < 20
+#         for: 5m
+#         labels:
+#           severity: critical
+#         annotations:
+#           summary: Test Alert (instance {{ $labels.instance }})
+#           description: "Test Alert on {{ $labels.namespace }} is increasing at a rate slower then 20 blocks per 5 minute\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
 
 # When deploying in a production environment should use a secret provider
 # This is configured for use with GCP, need to set own resource names
@@ -80,6 +89,7 @@ alerting:
 secretProvider:
   enabled: false
   provider: gcp
+  useDefaultServiceAccount: true
   parametersTemplate: |-
     secrets: |
       - resourceName: {{ .key.resourceName }}

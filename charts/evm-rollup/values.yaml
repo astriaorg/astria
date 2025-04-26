@@ -296,29 +296,37 @@ serviceMonitor:
   port: 6060
   additionalLabels:
     release: kube-prometheus-stack
+
 alerting:
   enabled: false
   interval: ""
   additionalLabels:
     release: kube-prometheus-stack
   annotations: {}
-  # scrapeTimeout: 10s
-  # path: /metrics
   prometheusRule:
     enabled: true
     additionalLabels:
       release: kube-prometheus-stack
-    namespace: monitoring
-    rules:
-    - alert: Geth_Slow_Finalized
-      expr: increase(chain_head_finalized{namespace="astria-dusk3-cluster"}[5m]) < 20  # Insert your query Expression
-      for: 5m  # Rough number but should be enough to init warn
-      labels:
-        severity: critical
-      annotations:
-        summary: Slow Chain Head Finalized (instance {{ $labels.instance }})
-        description: "Chain Head Finalized on {{ $labels.namespace }} is increasing at a rate slower then 20 blocks per 5 minute\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-
+    defaultAlerts:
+      - alert: Geth_Slow_Finalized
+        expr: increase(chain_head_finalized{namespace="{{ include "rollup.namespace" . }}"}[5m]) < 20
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Slow Chain Head Finalized (instance {{ $labels.instance }})
+          description: "Chain Head Finalized on {{ $labels.namespace }} is increasing at a rate slower then 20 blocks per 5 minute\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+  additionalAlertGroups: {}
+#   additional-alerts:
+#     rules:
+#       - alert: Test_Alert
+#         expr: increase(chain_head_finalized{namespace="{{ .Release.Namespace }}"}[5m]) < 20
+#         for: 5m
+#         labels:
+#           severity: critical
+#         annotations:
+#           summary: Test Alert (instance {{ $labels.instance }})
+#           description: "Test Alert on {{ $labels.namespace }} is increasing at a rate slower then 20 blocks per 5 minute\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
 ingress:
   enabled: false
   labels: {}

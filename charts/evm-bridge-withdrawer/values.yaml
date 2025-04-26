@@ -66,22 +66,39 @@ alerting:
   additionalLabels:
     release: kube-prometheus-stack
   annotations: {}
-  # scrapeTimeout: 10s
-  # path: /metrics
   prometheusRule:
     enabled: true
     additionalLabels:
       release: kube-prometheus-stack
     namespace: monitoring
-    rules:
-    - alert: Bridge_Withdrawer_Down
-      expr: up{container="evm-bridge-withdrawer"} == 0  # Insert your query Expression
-      for: 1m  # Rough number but should be enough to init warn
-      labels:
-        severity: warning
-      annotations:
-        summary: Bridge Withdrawer is Down (instance {{ $labels.instance }})
-        description: "bridge withdrawer node '{{ $labels.namespace }}' has disappeared from Prometheus target discovery.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+    defaultAlerts:
+      - alert: Bridge_Withdrawer_Down
+        expr: up{container="evm-bridge-withdrawer", namespace="{{ include "evm-bridge-withdrawer.namespace" . }}"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Bridge Withdrawer is Down (instance {{ $labels.instance }})
+          description: "bridge withdrawer node '{{ $labels.namespace }}' has disappeared from Prometheus target discovery.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: Bridge_Withdrawer_Stale_Nonce
+        expr: increase(astria_bridge_withdrawer_current_nonce{namespace="{{ include "evm-bridge-withdrawer.namespace" . }}"}[1h]) < 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Bridge withdrawer account has stale nonce
+          description: "Bridge withdrawer has stale nonce\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+  additionalAlertGroups: {}
+#   additional-alerts:
+#     rules:
+#       - alert: Test_Alert
+#         expr: increase(chain_head_finalized{namespace="{{ .Release.Namespace }}"}[5m]) < 20
+#         for: 5m
+#         labels:
+#           severity: critical
+#         annotations:
+#           summary: Test Alert (instance {{ $labels.instance }})
+#           description: "Test Alert on {{ $labels.namespace }} is increasing at a rate slower then 20 blocks per 5 minute\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
 
 # When deploying in a production environment should use a secret provider
 # This is configured for use with GCP, need to set own resource names
