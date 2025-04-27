@@ -4,7 +4,6 @@ mod tests;
 use std::{
     collections::HashMap,
     fmt::Display,
-    sync::Arc,
 };
 
 use bytes::Bytes;
@@ -30,10 +29,7 @@ use super::{
     raw,
 };
 use crate::{
-    generated::protocol::{
-        price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping as RawExtendedCommitInfoWithCurrencyPairMapping,
-        transaction::v1::Transaction as RawTransaction,
-    },
+    generated::protocol::price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping as RawExtendedCommitInfoWithCurrencyPairMapping,
     oracles::price_feed::types::v2::{
         CurrencyPair,
         CurrencyPairError,
@@ -48,16 +44,9 @@ use crate::{
         TransactionId,
         TransactionIdError,
     },
-    protocol::{
-        price_feed::v1::{
-            ExtendedCommitInfoWithCurrencyPairMapping,
-            ExtendedCommitInfoWithCurrencyPairMappingError,
-        },
-        transaction::v1::{
-            action,
-            Transaction,
-            TransactionError,
-        },
+    protocol::price_feed::v1::{
+        ExtendedCommitInfoWithCurrencyPairMapping,
+        ExtendedCommitInfoWithCurrencyPairMappingError,
     },
     upgrades::v1::{
         ChangeHash,
@@ -274,14 +263,6 @@ impl SequencerBlockError {
         Self(SequencerBlockErrorKind::RollupTransactionsNotInSequencerBlock)
     }
 
-    fn transaction_protobuf_decode(source: prost::DecodeError) -> Self {
-        Self(SequencerBlockErrorKind::TransactionProtobufDecode(source))
-    }
-
-    fn raw_signed_transaction_conversion(source: TransactionError) -> Self {
-        Self(SequencerBlockErrorKind::RawTransactionConversion(source))
-    }
-
     fn rollup_transactions_root_does_not_match_reconstructed() -> Self {
         Self(SequencerBlockErrorKind::RollupTransactionsRootDoesNotMatchReconstructed)
     }
@@ -353,16 +334,6 @@ enum SequencerBlockErrorKind {
          sequencer block could not be verified against their proof and the block's data hash"
     )]
     RollupTransactionsNotInSequencerBlock,
-    #[error(
-        "failed decoding an entry in the cometbft `block.data` field as a protobuf astria \
-         transaction"
-    )]
-    TransactionProtobufDecode(#[source] prost::DecodeError),
-    #[error(
-        "failed converting a raw protobuf transaction decoded from the cometbft `block.data`
-        field to a native astria transaction"
-    )]
-    RawTransactionConversion(#[source] TransactionError),
     #[error(
         "the root derived from the rollup transactions in the cometbft `block.data` field did not \
          match the root stored in the same block.data field"
@@ -730,6 +701,7 @@ pub struct SequencerBlockBuilder {
     pub time: Time,
     pub proposer_address: account::Id,
     pub expanded_block_data: ExpandedBlockData,
+    pub rollup_data_bytes: Vec<(RollupId, Bytes)>,
     pub deposits: HashMap<RollupId, Vec<Deposit>>,
 }
 
@@ -753,6 +725,7 @@ impl SequencerBlockBuilder {
             time,
             proposer_address,
             expanded_block_data,
+            rollup_data_bytes,
             deposits,
         } = self;
 
@@ -764,27 +737,19 @@ impl SequencerBlockBuilder {
             rollup_ids_proof,
             upgrade_change_hashes,
             extended_commit_info_with_proof,
-            user_submitted_transactions,
+            user_submitted_transactions: _,
         } = expanded_block_data;
 
-        let mut rollup_datas = IndexMap::new();
-        for tx in user_submitted_transactions {
-            for action in (*tx).clone().into_unsigned().into_actions() {
-                // XXX: The fee asset is dropped. We should explain why that's ok.
-                if let action::Action::RollupDataSubmission(action::RollupDataSubmission {
-                    rollup_id,
-                    data,
-                    fee_asset: _,
-                }) = action
-                {
-                    let elem = rollup_datas.entry(rollup_id).or_insert(vec![]);
-                    let data = RollupData::SequencedData(data)
-                        .into_raw()
-                        .encode_to_vec()
-                        .into();
-                    elem.push(data);
-                }
-            }
+        let mut rollup_datas = IndexMap::<RollupId, Vec<Bytes>>::new();
+        for (rollup_id, data_bytes) in rollup_data_bytes {
+            let encoded_data = RollupData::SequencedData(data_bytes)
+                .into_raw()
+                .encode_to_vec()
+                .into();
+            rollup_datas
+                .entry(rollup_id)
+                .or_default()
+                .push(encoded_data);
         }
         for (id, deposits) in deposits {
             rollup_datas
@@ -1474,9 +1439,9 @@ pub struct ExpandedBlockData {
     /// must exist. If not, there must be no entry in `data` for this, as opposed to an empty or
     /// `None` entry.
     pub extended_commit_info_with_proof: Option<ExtendedCommitInfoWithProof>,
-    /// All remaining entries of `data`, parsed into txs, in the same order as they appear in
-    /// `data`.
-    pub user_submitted_transactions: Vec<Arc<Transaction>>,
+    /// All remaining entries of `data` as unparsed `Transaction`s, in the same order as they
+    /// appear in `data`.
+    pub user_submitted_transactions: Vec<Bytes>,
 }
 
 impl ExpandedBlockData {
@@ -1514,15 +1479,7 @@ impl ExpandedBlockData {
              in `data` used to construct the tree",
         );
 
-        let user_submitted_transactions = data_iter
-            .map(|(_index, bytes)| {
-                let raw_tx = RawTransaction::decode(bytes.as_ref())
-                    .map_err(SequencerBlockError::transaction_protobuf_decode)?;
-                Transaction::try_from_raw(raw_tx)
-                    .map(Arc::new)
-                    .map_err(SequencerBlockError::raw_signed_transaction_conversion)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let user_submitted_transactions = data_iter.map(|(_index, bytes)| bytes.clone()).collect();
 
         Ok(Self {
             data_root_hash,
@@ -1628,13 +1585,9 @@ impl ExpandedBlockData {
         let user_submitted_transactions = data_iter
             .map(|(_index, bytes)| {
                 merkle_tree_leaves.push(Sha256::digest(bytes.as_ref()));
-                let raw_tx = RawTransaction::decode(bytes.as_ref())
-                    .map_err(SequencerBlockError::transaction_protobuf_decode)?;
-                Transaction::try_from_raw(raw_tx)
-                    .map(Arc::new)
-                    .map_err(SequencerBlockError::raw_signed_transaction_conversion)
+                bytes.clone()
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect();
 
         // We can construct the Merkle tree now we've iterated all data items.
         let tree = merkle::Tree::from_leaves(merkle_tree_leaves);

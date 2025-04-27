@@ -1,5 +1,3 @@
-#[cfg(any(test, feature = "benchmark"))]
-pub(crate) mod benchmark_and_test_utils;
 #[cfg(feature = "benchmark")]
 mod benchmarks;
 pub(crate) mod event_bus;
@@ -7,15 +5,11 @@ mod execution_state;
 mod state_ext;
 pub(crate) mod storage;
 #[cfg(test)]
-pub(crate) mod test_utils;
-#[cfg(test)]
 mod tests_app;
 #[cfg(test)]
 mod tests_block_ordering;
 #[cfg(test)]
 mod tests_breaking_changes;
-#[cfg(test)]
-mod tests_execute_transaction;
 
 pub(crate) mod vote_extension;
 
@@ -25,18 +19,14 @@ use std::{
 };
 
 use astria_core::{
-    primitive::v1::TRANSACTION_ID_LEN,
+    primitive::v1::RollupId,
     protocol::{
         abci::AbciErrorCode,
         genesis::v1::GenesisAppState,
         price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
-        transaction::v1::{
-            action::{
-                group::Group,
-                ValidatorUpdate,
-            },
-            Action,
-            Transaction,
+        transaction::v1::action::{
+            group::Group,
+            ValidatorUpdate,
         },
     },
     sequencerblock::v1::{
@@ -49,13 +39,13 @@ use astria_core::{
         SequencerBlock,
     },
     upgrades::v1::ChangeHash,
-    Protobuf as _,
 };
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
         bail,
         ensure,
+        Report,
         Result,
         WrapErr as _,
     },
@@ -70,11 +60,8 @@ use cnidarium::{
     StateWrite,
     Storage,
 };
+use futures::future::try_join_all;
 use prost::Message as _;
-use sha2::{
-    Digest as _,
-    Sha256,
-};
 use telemetry::display::{
     base64,
     json,
@@ -110,10 +97,6 @@ use crate::{
         component::AccountsComponent,
         StateWriteExt as _,
     },
-    action_handler::{
-        impls::transaction::InvalidNonce,
-        ActionHandler as _,
-    },
     address::StateWriteExt as _,
     app::{
         event_bus::{
@@ -138,6 +121,11 @@ use crate::{
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
+    },
+    checked_actions::CheckedAction,
+    checked_transaction::{
+        CheckedTransaction,
+        CheckedTransactionExecutionError,
     },
     component::Component as _,
     fees::{
@@ -454,12 +442,12 @@ impl App {
         };
 
         // ignore the txs passed by cometbft in favour of our app-side mempool
-        let (included_tx_bytes, signed_txs_included) = self
+        let included_txs = self
             .prepare_proposal_tx_execution(block_size_constraints)
             .await
             .wrap_err("failed to execute transactions")?;
         self.metrics
-            .record_proposal_transactions(signed_txs_included.len());
+            .record_proposal_transactions(included_txs.len());
 
         let deposits = self.state.get_cached_block_deposits();
         self.metrics.record_proposal_deposits(deposits.len());
@@ -468,15 +456,18 @@ impl App {
         // included in the block, chain on the extended commit info if `Some`, and finally chain on
         // the tx bytes.
         let commitments_iter = if uses_data_item_enum {
-            generate_rollup_datas_commitment::<true>(&signed_txs_included, deposits).into_iter()
+            generate_rollup_datas_commitment::<true>(&included_txs, deposits).into_iter()
         } else {
-            generate_rollup_datas_commitment::<false>(&signed_txs_included, deposits).into_iter()
+            generate_rollup_datas_commitment::<false>(&included_txs, deposits).into_iter()
         };
 
+        let included_txs_encoded_bytes = included_txs
+            .iter()
+            .map(|checked_tx| checked_tx.encoded_bytes().clone());
         let txs = commitments_iter
             .chain(encoded_upgrade_change_hashes.into_iter())
             .chain(encoded_extended_commit_info.into_iter())
-            .chain(included_tx_bytes)
+            .chain(included_txs_encoded_bytes)
             .collect();
 
         let response = abci::response::PrepareProposal {
@@ -567,17 +558,19 @@ impl App {
         .wrap_err("failed to parse data items")?;
 
         // If we can skip execution just fetch the cache, otherwise need to run the execution.
-        let tx_results = if skip_execution {
+        let (rollup_data_bytes, tx_results) = if skip_execution {
             // if we're the proposer, we should have the execution results from
             // `prepare_proposal`. run the post-tx-execution hook to generate the
             // `SequencerBlock` and to set `self.finalize_block`.
             //
             // we can't run this in `prepare_proposal` as we don't know the block hash there.
-            let Some(tx_results) = self.state.object_get(EXECUTION_RESULTS_KEY) else {
+            let Some((rollup_data_bytes, tx_results)) =
+                self.state.object_get(EXECUTION_RESULTS_KEY)
+            else {
                 bail!("execution results must be present after executing transactions")
             };
 
-            tx_results
+            (rollup_data_bytes, tx_results)
         } else {
             self.update_state_for_new_round(&storage);
 
@@ -622,30 +615,32 @@ impl App {
             // the max sequenced data bytes.
             let block_size_constraints = BlockSizeConstraints::new_unlimited_cometbft();
 
+            let user_submitted_transactions = construct_checked_txs(
+                &expanded_block_data.user_submitted_transactions,
+                &self.state,
+            )
+            .await
+            .wrap_err("failed to execute transactions in process proposal")?;
             let tx_results = self
-                .process_proposal_tx_execution(
-                    &expanded_block_data.user_submitted_transactions,
-                    block_size_constraints,
-                )
+                .process_proposal_tx_execution(&user_submitted_transactions, block_size_constraints)
                 .await
-                .wrap_err("failed to execute transactions")?;
+                .wrap_err("failed to execute transactions in process proposal")?;
 
-            self.metrics.record_proposal_transactions(
-                expanded_block_data.user_submitted_transactions.len(),
-            );
+            self.metrics
+                .record_proposal_transactions(user_submitted_transactions.len());
 
             let deposits = self.state.get_cached_block_deposits();
             self.metrics.record_proposal_deposits(deposits.len());
 
             let (expected_rollup_datas_root, expected_rollup_ids_root) = if uses_data_item_enum {
                 let commitments = generate_rollup_datas_commitment::<true>(
-                    &expanded_block_data.user_submitted_transactions,
+                    &user_submitted_transactions,
                     deposits,
                 );
                 (commitments.rollup_datas_root, commitments.rollup_ids_root)
             } else {
                 let commitments = generate_rollup_datas_commitment::<false>(
-                    &expanded_block_data.user_submitted_transactions,
+                    &user_submitted_transactions,
                     deposits,
                 );
                 (commitments.rollup_datas_root, commitments.rollup_ids_root)
@@ -659,7 +654,15 @@ impl App {
                 "rollup IDs commitment does not match expected",
             );
 
-            tx_results
+            let rollup_data_bytes = user_submitted_transactions
+                .iter()
+                .flat_map(|checked_tx| {
+                    checked_tx
+                        .rollup_data_bytes()
+                        .map(|(rollup_id, data)| (*rollup_id, data.clone()))
+                })
+                .collect();
+            (rollup_data_bytes, tx_results)
         };
 
         let sequencer_block = self
@@ -669,6 +672,7 @@ impl App {
                 process_proposal.time,
                 process_proposal.proposer_address,
                 expanded_block_data,
+                rollup_data_bytes,
                 tx_results,
             )
             .await
@@ -703,17 +707,16 @@ impl App {
     async fn prepare_proposal_tx_execution(
         &mut self,
         block_size_constraints: BlockSizeConstraints,
-    ) -> Result<(Vec<Bytes>, Vec<Arc<Transaction>>)> {
+    ) -> Result<Vec<Arc<CheckedTransaction>>> {
         let mempool_len = self.mempool.len().await;
         debug!(mempool_len, "executing transactions from mempool");
 
         let mut proposal_info = Proposal::Prepare {
             block_size_constraints,
-            validated_txs: Vec::new(),
-            included_signed_txs: Vec::new(),
+            included_txs: Vec::new(),
             failed_tx_count: 0,
             execution_results: Vec::new(),
-            excluded_txs: 0,
+            excluded_tx_count: 0,
             current_tx_group: Group::BundleableGeneral,
             mempool: self.mempool.clone(),
             metrics: self.metrics,
@@ -723,11 +726,16 @@ impl App {
         let pending_txs = self.mempool.builder_queue().await;
 
         let mut unused_count = pending_txs.len();
-        for (tx_hash, tx) in pending_txs {
+        let mut rollup_data_bytes = vec![];
+        for tx in pending_txs {
             unused_count = unused_count.saturating_sub(1);
+            rollup_data_bytes.extend(
+                tx.rollup_data_bytes()
+                    .map(|(rollup_id, data)| (*rollup_id, data.clone())),
+            );
 
             if self
-                .proposal_checks_and_tx_execution(tx, Some(tx_hash), &mut proposal_info)
+                .proposal_checks_and_tx_execution(tx, &mut proposal_info)
                 .await?
                 .should_break()
             {
@@ -736,11 +744,10 @@ impl App {
         }
 
         let Proposal::Prepare {
-            validated_txs,
-            included_signed_txs,
+            included_txs,
             failed_tx_count,
             execution_results,
-            excluded_txs,
+            excluded_tx_count,
             ..
         } = proposal_info
         else {
@@ -750,12 +757,12 @@ impl App {
         if failed_tx_count > 0 {
             info!(
                 failed_tx_count = failed_tx_count,
-                included_tx_count = validated_txs.len(),
+                included_tx_count = included_txs.len(),
                 "excluded transactions from block due to execution failure"
             );
         }
         self.metrics.set_prepare_proposal_excluded_transactions(
-            excluded_txs.saturating_add(failed_tx_count),
+            excluded_tx_count.saturating_add(failed_tx_count),
         );
 
         debug!("{unused_count} leftover pending transactions");
@@ -768,10 +775,13 @@ impl App {
         // at this point.
         let mut state_tx = Arc::try_begin_transaction(&mut self.state)
             .expect("state Arc should not be referenced elsewhere");
-        state_tx.object_put(EXECUTION_RESULTS_KEY, execution_results);
+        state_tx.object_put(
+            EXECUTION_RESULTS_KEY,
+            (rollup_data_bytes, execution_results),
+        );
         let _ = state_tx.apply();
 
-        Ok((validated_txs, included_signed_txs))
+        Ok(included_txs)
     }
 
     /// Executes the given transactions, writing to the app's `StateDelta`.
@@ -789,7 +799,7 @@ impl App {
     #[instrument(name = "App::process_proposal_tx_execution", skip_all, err(level = Level::DEBUG))]
     async fn process_proposal_tx_execution(
         &mut self,
-        txs: &[Arc<Transaction>],
+        txs: &[Arc<CheckedTransaction>],
         block_size_constraints: BlockSizeConstraints,
     ) -> Result<Vec<ExecTxResult>> {
         let mut proposal_info = Proposal::Process {
@@ -800,7 +810,7 @@ impl App {
 
         for tx in txs {
             if self
-                .proposal_checks_and_tx_execution(tx.clone(), None, &mut proposal_info)
+                .proposal_checks_and_tx_execution(tx.clone(), &mut proposal_info)
                 .await?
                 .should_break()
             {
@@ -813,35 +823,29 @@ impl App {
     #[instrument(skip_all)]
     async fn proposal_checks_and_tx_execution(
         &mut self,
-        tx: Arc<Transaction>,
-        // `prepare_proposal_tx_execution` already has the tx hash, so we pass it in here
-        tx_hash: Option<[u8; TRANSACTION_ID_LEN]>,
+        tx: Arc<CheckedTransaction>,
         proposal_info: &mut Proposal,
     ) -> Result<BreakOrContinue> {
-        let tx_bytes = tx.to_raw().encode_to_vec();
-        let tx_hash_base_64 =
-            telemetry::display::base64(tx_hash.unwrap_or_else(|| Sha256::digest(&tx_bytes).into()))
-                .to_string();
-        let tx_len = tx_bytes.len();
-        info!(transaction_hash = %tx_hash_base_64, "executing transaction");
+        let tx_len = tx.encoded_bytes().len();
+        info!(tx_id = %tx.id(), "executing transaction");
 
         // check CometBFT size constraints for `prepare_proposal`
         if let Proposal::Prepare {
             block_size_constraints,
             metrics,
-            excluded_txs,
+            excluded_tx_count,
             ..
         } = proposal_info
         {
             if !block_size_constraints.cometbft_has_space(tx_len) {
                 metrics.increment_prepare_proposal_excluded_transactions_cometbft_space();
                 debug!(
-                    transaction_hash = %tx_hash_base_64,
+                    tx_id = %tx.id(),
                     block_size_constraints = %json(block_size_constraints),
                     tx_data_bytes = tx_len,
                     "excluding remaining transactions: max cometBFT data limit reached"
                 );
-                *excluded_txs = excluded_txs.saturating_add(1);
+                *excluded_tx_count = excluded_tx_count.saturating_add(1);
 
                 // break from calling loop, as the block is full
                 return Ok(BreakOrContinue::Break);
@@ -859,17 +863,15 @@ impl App {
 
         // check sequencer size constraints
         let tx_sequence_data_bytes = tx
-            .unsigned_transaction()
-            .actions()
-            .iter()
-            .filter_map(Action::as_rollup_data_submission)
-            .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
+            .rollup_data_bytes()
+            .map(|(_rollup_id, data)| data.len())
+            .sum();
         if !proposal_info
             .block_size_constraints()
             .sequencer_has_space(tx_sequence_data_bytes)
         {
             debug!(
-                transaction_hash = %tx_hash_base_64,
+                tx_id = %tx.id(),
                 block_size_constraints = %json(&proposal_info.block_size_constraints()),
                 tx_data_bytes = tx_sequence_data_bytes,
                 "{debug_msg}: max block sequenced data limit reached"
@@ -877,11 +879,11 @@ impl App {
             match proposal_info {
                 Proposal::Prepare {
                     metrics,
-                    excluded_txs,
+                    excluded_tx_count,
                     ..
                 } => {
                     metrics.increment_prepare_proposal_excluded_transactions_sequencer_space();
-                    *excluded_txs = excluded_txs.saturating_add(1);
+                    *excluded_tx_count = excluded_tx_count.saturating_add(1);
 
                     // continue as there might be non-sequence txs that can fit
                     return Ok(BreakOrContinue::Continue);
@@ -896,14 +898,14 @@ impl App {
         let tx_group = tx.group();
         if tx_group > proposal_info.current_tx_group() {
             debug!(
-                transaction_hash = %tx_hash_base_64,
+                tx_id = %tx.id(),
                 "{debug_msg}: group is higher priority than previously included transactions"
             );
             match proposal_info {
                 Proposal::Prepare {
-                    excluded_txs, ..
+                    excluded_tx_count, ..
                 } => {
-                    *excluded_txs = excluded_txs.saturating_add(1);
+                    *excluded_tx_count = excluded_tx_count.saturating_add(1);
                     return Ok(BreakOrContinue::Continue);
                 }
                 Proposal::Process {
@@ -930,19 +932,16 @@ impl App {
                     .cometbft_checked_add(tx_len)
                     .wrap_err("error growing cometBFT block size")?;
                 if let Proposal::Prepare {
-                    validated_txs,
-                    included_signed_txs,
-                    ..
+                    included_txs, ..
                 } = proposal_info
                 {
-                    validated_txs.push(tx_bytes.into());
-                    included_signed_txs.push(tx.clone());
+                    included_txs.push(tx.clone());
                 }
             }
-            Err(e) => {
+            Err(error) => {
                 debug!(
-                    transaction_hash = %tx_hash_base_64,
-                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                    tx_id = %tx.id(),
+                    %error,
                     "{debug_msg}: failed to execute transaction"
                 );
                 match proposal_info {
@@ -953,7 +952,7 @@ impl App {
                         ..
                     } => {
                         metrics.increment_prepare_proposal_excluded_transactions_failed_execution();
-                        if e.downcast_ref::<InvalidNonce>().is_some() {
+                        if matches!(error, CheckedTransactionExecutionError::InvalidNonce { .. }) {
                             // we don't remove the tx from mempool if it failed to execute
                             // due to an invalid nonce, as it may be valid in the future.
                             // if it's invalid due to the nonce being too low, it'll be
@@ -975,14 +974,17 @@ impl App {
                             mempool
                                 .remove_tx_invalid(
                                     tx,
-                                    RemovalReason::FailedPrepareProposal(e.to_string()),
+                                    RemovalReason::FailedPrepareProposal(format!(
+                                        "{:#}",
+                                        Report::new(error)
+                                    )),
                                 )
                                 .await;
                         }
                     }
                     Proposal::Process {
                         ..
-                    } => return Err(e.wrap_err("transaction failed to execute")),
+                    } => return Err(error).wrap_err("transaction failed to execute"),
                 }
             }
         };
@@ -1100,6 +1102,10 @@ impl App {
     ///
     /// this must be called after a block's transactions are executed.
     /// FIXME: don't return sequencer block but grab the block from state delta https://github.com/astriaorg/astria/issues/1436
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "should be refactored to reduce arg count"
+    )]
     #[instrument(name = "App::post_execute_transactions", skip_all, err(level = Level::WARN))]
     async fn post_execute_transactions(
         &mut self,
@@ -1108,6 +1114,7 @@ impl App {
         time: tendermint::Time,
         proposer_address: account::Id,
         expanded_block_data: ExpandedBlockData,
+        rollup_data_bytes: Vec<(RollupId, Bytes)>,
         tx_results: Vec<ExecTxResult>,
     ) -> Result<SequencerBlock> {
         let Hash::Sha256(block_hash) = block_hash else {
@@ -1161,6 +1168,7 @@ impl App {
             time,
             proposer_address,
             expanded_block_data,
+            rollup_data_bytes,
             deposits: deposits_in_this_block,
         }
         .try_build()
@@ -1276,21 +1284,29 @@ impl App {
                 upgrade_change_hashes.as_ref(),
             )?;
 
-            let mut tx_results =
-                Vec::with_capacity(expanded_block_data.user_submitted_transactions.len());
-            for tx in &expanded_block_data.user_submitted_transactions {
+            let user_submitted_transactions = construct_checked_txs(
+                &expanded_block_data.user_submitted_transactions,
+                &self.state,
+            )
+            .await
+            .wrap_err("failed to execute transactions in finalize block")?;
+            let mut tx_results = Vec::with_capacity(user_submitted_transactions.len());
+            for tx in &user_submitted_transactions {
                 match self.execute_transaction(tx.clone()).await {
                     Ok(events) => tx_results.push(ExecTxResult {
                         events,
                         ..Default::default()
                     }),
-                    Err(e) => {
+                    Err(error) => {
                         // this is actually a protocol error, as only valid txs should be finalized
                         tracing::error!(
-                            error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                            %error,
                             "failed to finalize transaction; ignoring it",
                         );
-                        let code = if e.downcast_ref::<InvalidNonce>().is_some() {
+                        let code = if matches!(
+                            error,
+                            CheckedTransactionExecutionError::InvalidNonce { .. }
+                        ) {
                             AbciErrorCode::INVALID_NONCE
                         } else {
                             AbciErrorCode::INTERNAL_ERROR
@@ -1298,12 +1314,20 @@ impl App {
                         tx_results.push(ExecTxResult {
                             code: Code::Err(code.value()),
                             info: code.info(),
-                            log: format!("{e:#}"),
+                            log: format!("{:#}", Report::new(error)),
                             ..Default::default()
                         });
                     }
                 }
             }
+            let rollup_data_bytes = user_submitted_transactions
+                .iter()
+                .flat_map(|checked_tx| {
+                    checked_tx
+                        .rollup_data_bytes()
+                        .map(|(rollup_id, data)| (*rollup_id, data.clone()))
+                })
+                .collect();
 
             self.post_execute_transactions(
                 finalize_block.hash,
@@ -1311,6 +1335,7 @@ impl App {
                 finalize_block.time,
                 finalize_block.proposer_address,
                 expanded_block_data,
+                rollup_data_bytes,
                 tx_results,
             )
             .await
@@ -1421,32 +1446,27 @@ impl App {
         Ok(self.apply(state_tx))
     }
 
-    /// Executes a signed transaction.
+    /// Executes a checked transaction.
     #[instrument(name = "App::execute_transaction", skip_all, err(level = Level::DEBUG))]
-    async fn execute_transaction(&mut self, signed_tx: Arc<Transaction>) -> Result<Vec<Event>> {
-        signed_tx
-            .check_stateless()
-            .await
-            .wrap_err("stateless check failed")?;
-
+    async fn execute_transaction(
+        &mut self,
+        tx: Arc<CheckedTransaction>,
+    ) -> std::result::Result<Vec<Event>, CheckedTransactionExecutionError> {
         let mut state_tx = self
             .state
             .try_begin_transaction()
             .expect("state Arc should be present and unique");
 
-        signed_tx
-            .check_and_execute(&mut state_tx)
-            .await
-            .wrap_err("failed executing transaction")?;
+        tx.execute(&mut state_tx).await?;
 
         // flag mempool for cleaning if we ran a fee change action
-        self.recost_mempool = self.recost_mempool
-            || signed_tx.is_bundleable_sudo_action_group()
-                && signed_tx
-                    .actions()
-                    .iter()
-                    .any(|act| act.is_fee_asset_change() || act.is_fee_change());
-
+        let changes_fees = |action: &CheckedAction| {
+            matches!(
+                action,
+                CheckedAction::FeeChange(_) | CheckedAction::FeeAssetChange(_)
+            )
+        };
+        self.recost_mempool = self.recost_mempool || tx.checked_actions().iter().any(changes_fees);
         // index all event attributes
         let mut events = state_tx.apply().1;
         for event in &mut events {
@@ -1622,9 +1642,68 @@ impl App {
         )
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "benchmark"))]
     pub(crate) fn mempool(&self) -> Mempool {
         self.mempool.clone()
+    }
+
+    #[cfg(any(test, feature = "benchmark"))]
+    pub(crate) fn upgrades_handler(&self) -> &UpgradesHandler {
+        &self.upgrades_handler
+    }
+
+    #[cfg(any(test, feature = "benchmark"))]
+    pub(crate) fn state(&self) -> &StateDelta<Snapshot> {
+        &self.state
+    }
+
+    #[cfg(any(test, feature = "benchmark"))]
+    pub(crate) fn state_mut(&mut self) -> &mut StateDelta<Snapshot> {
+        Arc::get_mut(&mut self.state).unwrap()
+    }
+
+    #[cfg(any(test, feature = "benchmark"))]
+    pub(crate) fn new_state_delta(&self) -> StateDelta<Arc<StateDelta<Snapshot>>> {
+        StateDelta::new(self.state.clone())
+    }
+
+    #[cfg(any(test, feature = "benchmark"))]
+    pub(crate) fn metrics(&self) -> &'static Metrics {
+        self.metrics
+    }
+
+    #[cfg(any(test, feature = "benchmark"))]
+    pub(crate) fn into_events(self) -> Vec<Event> {
+        Arc::into_inner(self.state)
+            .unwrap()
+            .flatten()
+            .1
+            .take_events()
+    }
+
+    #[cfg(any(test, feature = "benchmark"))]
+    pub(crate) async fn authority_component_end_block(&mut self) {
+        let state_tx = StateDelta::new(self.state.clone());
+        let mut arc_state_tx = Arc::new(state_tx);
+        let end_block = abci::request::EndBlock {
+            height: 1,
+        };
+        AuthorityComponent::end_block(&mut arc_state_tx, &end_block)
+            .await
+            .unwrap();
+        let state_tx = Arc::try_unwrap(arc_state_tx).unwrap();
+        let _ = self.apply(state_tx);
+    }
+
+    #[cfg(any(test, feature = "benchmark"))]
+    pub(crate) async fn apply_and_commit(
+        &mut self,
+        state_delta: StateDelta<InterBlockState>,
+        storage: Storage,
+    ) {
+        let _events = self.apply(state_delta);
+        self.prepare_commit(storage.clone()).await.unwrap();
+        self.commit(storage).await.unwrap();
     }
 }
 
@@ -1707,11 +1786,10 @@ impl BreakOrContinue {
 enum Proposal {
     Prepare {
         block_size_constraints: BlockSizeConstraints,
-        validated_txs: Vec<Bytes>,
-        included_signed_txs: Vec<Arc<Transaction>>,
+        included_txs: Vec<Arc<CheckedTransaction>>,
         failed_tx_count: usize,
         execution_results: Vec<ExecTxResult>,
-        excluded_txs: usize,
+        excluded_tx_count: usize,
         current_tx_group: Group,
         mempool: Mempool,
         metrics: &'static Metrics,
@@ -1793,6 +1871,20 @@ impl Proposal {
             } => execution_results,
         }
     }
+}
+
+async fn construct_checked_txs<S: StateRead>(
+    encoded_txs: &[Bytes],
+    state: &S,
+) -> Result<Vec<Arc<CheckedTransaction>>> {
+    let txs_futures = encoded_txs.iter().map(|encoded_tx| async move {
+        let tx = CheckedTransaction::new(encoded_tx.clone(), state)
+            .await
+            .wrap_err("failed to construct checked transaction")?;
+        Ok(Arc::new(tx))
+    });
+
+    try_join_all(txs_futures).await
 }
 
 fn display_consensus_params(params: &tendermint::consensus::Params) -> String {

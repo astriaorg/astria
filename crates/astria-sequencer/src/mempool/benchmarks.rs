@@ -20,17 +20,14 @@ use sha2::{
 use telemetry::Metrics;
 
 use crate::{
-    app::benchmark_and_test_utils::{
-        mock_balances,
-        mock_state_getter,
-        mock_state_put_account_balances,
-        mock_state_put_account_nonce,
-        mock_tx_cost,
-    },
     benchmark_utils::SIGNER_COUNT,
     mempool::{
         Mempool,
         RemovalReason,
+    },
+    test_utils::{
+        dummy_balances,
+        dummy_tx_costs,
     },
 };
 
@@ -106,16 +103,16 @@ fn init_mempool<T: MempoolSize>() -> Mempool {
         .unwrap();
     let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
     let mempool = Mempool::new(metrics, T::size());
-    let account_mock_balance = mock_balances(0, 0);
-    let tx_mock_cost = mock_tx_cost(0, 0, 0);
+    let account_dummy_balance = dummy_balances(0, 0);
+    let tx_dummy_costs = dummy_tx_costs(0, 0, 0);
     runtime.block_on(async {
         for tx in transactions().iter().take(T::checked_size()) {
             mempool
                 .insert(
                     tx.clone(),
                     0,
-                    account_mock_balance.clone(),
-                    tx_mock_cost.clone(),
+                    account_dummy_balance.clone(),
+                    tx_dummy_costs.clone(),
                 )
                 .await
                 .unwrap();
@@ -154,15 +151,15 @@ fn insert<T: MempoolSize>(bencher: divan::Bencher) {
         .enable_all()
         .build()
         .unwrap();
-    let mock_balances = mock_balances(0, 0);
-    let mock_tx_cost = mock_tx_cost(0, 0, 0);
+    let dummy_balances = dummy_balances(0, 0);
+    let dummy_tx_costs = dummy_tx_costs(0, 0, 0);
     bencher
         .with_inputs(|| {
             (
                 init_mempool::<T>(),
                 get_unused_tx::<T>(),
-                mock_balances.clone(),
-                mock_tx_cost.clone(),
+                dummy_balances.clone(),
+                dummy_tx_costs.clone(),
             )
         })
         .bench_values(move |(mempool, tx, mock_balances, mock_tx_cost)| {
@@ -283,15 +280,19 @@ fn run_maintenance<T: MempoolSize>(bencher: divan::Bencher) {
         .checked_div(u32::from(SIGNER_COUNT))
         .and_then(|res| res.checked_add(1))
         .unwrap();
-    let mock_balances = mock_balances(0, 0);
-    let mut mock_state = runtime.block_on(mock_state_getter());
+    let dummy_balances = dummy_balances(0, 0);
+    let mut dummy_state = runtime.block_on(mock_state_getter());
 
     // iterate over all signers and put their balances and nonces into the mock state
     for i in 0..SIGNER_COUNT {
         let signing_key = SigningKey::from([i; 32]);
         let signing_address = signing_key.address_bytes();
-        mock_state_put_account_balances(&mut mock_state, &signing_address, mock_balances.clone());
-        mock_state_put_account_nonce(&mut mock_state, &signing_address, new_nonce);
+        dummy_state_put_account_balances(
+            &mut dummy_state,
+            &signing_address,
+            dummy_balances.clone(),
+        );
+        dummy_state_put_account_nonce(&mut dummy_state, &signing_address, new_nonce);
     }
 
     bencher
@@ -325,22 +326,26 @@ fn run_maintenance_tx_recosting<T: MempoolSize>(bencher: divan::Bencher) {
         .checked_div(u32::from(SIGNER_COUNT))
         .and_then(|res| res.checked_add(1))
         .unwrap();
-    let mock_balances = mock_balances(0, 0);
-    let mut mock_state = runtime.block_on(mock_state_getter());
+    let dummy_balances = dummy_balances(0, 0);
+    let mut dummy_state = runtime.block_on(mock_state_getter());
 
     // iterate over all signers and put their balances and nonces into the mock state
     for i in 0..SIGNER_COUNT {
         let signing_key = SigningKey::from([i; 32]);
         let signing_address = signing_key.address_bytes();
-        mock_state_put_account_balances(&mut mock_state, &signing_address, mock_balances.clone());
-        mock_state_put_account_nonce(&mut mock_state, &signing_address, new_nonce);
+        dummy_state_put_account_balances(
+            &mut dummy_state,
+            &signing_address,
+            dummy_balances.clone(),
+        );
+        dummy_state_put_account_nonce(&mut dummy_state, &signing_address, new_nonce);
     }
 
     bencher
         .with_inputs(|| init_mempool::<T>())
         .bench_values(move |mempool| {
             runtime.block_on(async {
-                mempool.run_maintenance(&mock_state, true).await;
+                mempool.run_maintenance(&dummy_state, true).await;
             });
         });
 }

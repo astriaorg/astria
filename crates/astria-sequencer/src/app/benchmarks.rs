@@ -5,31 +5,21 @@
 
 use std::time::Duration;
 
-use astria_core::{
-    protocol::genesis::v1::{
-        Account,
-        GenesisAppState,
-    },
-    Protobuf,
-};
 use cnidarium::Storage;
 
 use crate::{
-    app::{
-        benchmark_and_test_utils::{
-            mock_balances,
-            mock_tx_cost,
-            AppInitializer,
-        },
-        App,
-    },
-    benchmark_and_test_utils::astria_address,
+    app::App,
     benchmark_utils::{
         self,
         TxTypes,
         SIGNER_COUNT,
     },
     proposal::block_size_constraints::BlockSizeConstraints,
+    test_utils::{
+        astria_address,
+        dummy_balances,
+        dummy_tx_costs,
+    },
 };
 
 /// The max time for any benchmark.
@@ -52,38 +42,43 @@ impl Fixture {
         let accounts = benchmark_utils::signing_keys()
             .enumerate()
             .take(usize::from(SIGNER_COUNT))
-            .map(|(index, signing_key)| Account {
-                address: astria_address(&signing_key.address_bytes()),
-                balance: 10u128
-                    .pow(19)
-                    .saturating_add(u128::try_from(index).unwrap()),
-            })
-            .map(Protobuf::into_raw)
-            .collect::<Vec<_>>();
-        let first_address = accounts.first().cloned().unwrap().address;
-        let genesis_state = GenesisAppState::try_from_raw(
-            astria_core::generated::astria::protocol::genesis::v1::GenesisAppState {
-                accounts,
-                authority_sudo_address: first_address.clone(),
-                ibc_sudo_address: first_address.clone(),
-                ..crate::app::benchmark_and_test_utils::proto_genesis_state()
-            },
-        )
-        .unwrap();
-
-        let (app, storage) = AppInitializer::new()
-            .with_genesis_state(genesis_state)
+            .map(|(index, signing_key)| {
+                (
+                    astria_address(&signing_key.address_bytes()),
+                    10_u128
+                        .pow(19)
+                        .saturating_add(u128::try_from(index).unwrap()),
+                )
+            });
+        let first_signing_key = benchmark_utils::signing_keys().next().unwrap();
+        let first_address = astria_address(&first_signing_key.address_bytes());
+        let mut fixture = crate::test_utils::Fixture::uninitialized(None).await;
+        fixture
+            .chain_initializer()
+            .with_genesis_accounts(accounts)
+            .with_authority_sudo_address(first_address)
+            .with_ibc_sudo_address(first_address)
             .init()
             .await;
 
-        let mock_balances = mock_balances(0, 0);
-        let mock_tx_cost = mock_tx_cost(0, 0, 0);
+        let (app, storage) = fixture.destructure();
+
+        let dummy_balances = dummy_balances(0, 0);
+        let dummy_tx_costs = dummy_tx_costs(0, 0, 0);
 
         for tx in benchmark_utils::transactions(TxTypes::AllTransfers) {
-            app.mempool
-                .insert(tx.clone(), 0, mock_balances.clone(), mock_tx_cost.clone())
-                .await
-                .unwrap();
+            dbg!(tx);
+            dbg!(&dummy_balances);
+            dbg!(&dummy_tx_costs);
+            // app.mempool
+            //     .insert(
+            //         tx.clone(),
+            //         0,
+            //         dummy_balances.clone(),
+            //         dummy_tx_costs.clone(),
+            //     )
+            //     .await
+            //     .unwrap();
         }
         Fixture {
             app,
@@ -102,7 +97,7 @@ fn prepare_proposal_tx_execution(bencher: divan::Bencher) {
     bencher
         .with_inputs(|| BlockSizeConstraints::new(COMETBFT_MAX_TX_BYTES, true).unwrap())
         .bench_local_refs(|constraints| {
-            let (_tx_bytes, included_txs) = runtime.block_on(async {
+            let included_txs = runtime.block_on(async {
                 fixture
                     .app
                     .prepare_proposal_tx_execution(*constraints)

@@ -285,7 +285,7 @@ mod tests {
             StateReadExt as _,
             StateWriteExt as _,
         },
-        benchmark_and_test_utils::{
+        test_utils::{
             astria_address,
             nria,
         },

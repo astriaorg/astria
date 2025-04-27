@@ -235,7 +235,6 @@ mod tests {
     use tokio::pin;
 
     use super::*;
-    use crate::app::benchmark_and_test_utils::AppInitializer;
 
     fn asset_0() -> asset::Denom {
         "asset_0".parse().unwrap()
@@ -251,7 +250,7 @@ mod tests {
 
     #[tokio::test]
     async fn block_fee_read_and_increase() {
-        let (_, storage) = AppInitializer::new().init().await;
+        let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
@@ -280,7 +279,7 @@ mod tests {
 
     #[tokio::test]
     async fn block_fee_read_and_increase_can_delete() {
-        let (_, storage) = AppInitializer::new().init().await;
+        let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 

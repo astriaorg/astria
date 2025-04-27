@@ -177,12 +177,6 @@ impl<T: ?Sized> PartialEq for FeeComponents<T> {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct RecoverIbcClientFeeComponents {
-    pub base: u128,
-    pub multiplier: u128,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransactionFeeResponse {
     pub height: u64,

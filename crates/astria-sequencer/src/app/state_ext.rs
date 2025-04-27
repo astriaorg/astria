@@ -206,7 +206,6 @@ mod tests {
     use cnidarium::StateDelta;
 
     use super::*;
-    use crate::app::test_utils::default_consensus_params;
 
     #[test]
     fn revision_number_from_chain_id_regex() {
@@ -462,7 +461,29 @@ mod tests {
         assert!(state.get_consensus_params().await.unwrap().is_none());
 
         // can write new
-        let original_params = default_consensus_params();
+        let original_params = tendermint::consensus::Params {
+            block: tendermint::block::Size {
+                max_bytes: 22_020_096,
+                max_gas: -1,
+                time_iota_ms: 1000,
+            },
+            evidence: tendermint::evidence::Params {
+                max_age_num_blocks: 100_000,
+                max_age_duration: tendermint::evidence::Duration(std::time::Duration::from_secs(
+                    172_800_000_000_000,
+                )),
+                max_bytes: 1_048_576,
+            },
+            validator: tendermint::consensus::params::ValidatorParams {
+                pub_key_types: vec![tendermint::public_key::Algorithm::Ed25519],
+            },
+            version: Some(tendermint::consensus::params::VersionParams {
+                app: 0,
+            }),
+            abci: tendermint::consensus::params::AbciParams {
+                vote_extensions_enable_height: Some(tendermint::block::Height::from(1_u8)),
+            },
+        };
         state.put_consensus_params(original_params.clone()).unwrap();
         assert_eq!(
             state.get_consensus_params().await.unwrap(),
@@ -474,7 +495,7 @@ mod tests {
             abci: tendermint::consensus::params::AbciParams {
                 vote_extensions_enable_height: Some(tendermint::block::Height::from(8_u8)),
             },
-            ..default_consensus_params()
+            ..original_params.clone()
         };
         assert_ne!(original_params, updated_params);
         state.put_consensus_params(updated_params.clone()).unwrap();

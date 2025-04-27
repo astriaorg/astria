@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    future::ready,
-};
+use std::future::ready;
 
 use astria_core::{
     generated::astria::protocol::transaction::v1::TransactionBody as RawBody,
@@ -33,7 +30,6 @@ use astria_core::{
                 Transfer,
                 ValidatorUpdate,
             },
-            Action,
             TransactionBody,
         },
     },
@@ -41,9 +37,7 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     self,
-    eyre,
     OptionExt as _,
-    Report,
     WrapErr as _,
 };
 use cnidarium::{
@@ -66,23 +60,21 @@ use tendermint::abci::{
 };
 use tokio::{
     join,
-    sync::OnceCell,
     try_join,
 };
 use tracing::{
     instrument,
     warn,
-    Level,
 };
 
 use crate::{
     app::StateReadExt as _,
     assets::StateReadExt as _,
-    fees::{
-        FeeHandler,
-        StateReadExt as _,
+    checked_actions::{
+        utils::total_fees,
+        ActionRef,
     },
-    storage::StoredValue,
+    fees::StateReadExt as _,
 };
 
 #[instrument(skip_all, fields(%asset))]
@@ -226,17 +218,18 @@ pub(crate) async fn transaction_fee_request(
         }
     };
 
-    let fees_with_ibc_denoms = match get_fees_for_transaction(&tx, &snapshot).await {
-        Ok(fees) => fees,
-        Err(err) => {
-            return response::Query {
-                code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
-                info: AbciErrorCode::INTERNAL_ERROR.info(),
-                log: format!("failed calculating fees for provided transaction: {err:#}"),
-                ..response::Query::default()
-            };
-        }
-    };
+    let fees_with_ibc_denoms =
+        match total_fees(tx.actions().iter().map(ActionRef::from), &snapshot).await {
+            Ok(fees) => fees,
+            Err(err) => {
+                return response::Query {
+                    code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
+                    info: AbciErrorCode::INTERNAL_ERROR.info(),
+                    log: format!("failed calculating fees for provided transaction: {err:#}"),
+                    ..response::Query::default()
+                };
+            }
+        };
 
     let mut fees = Vec::with_capacity(fees_with_ibc_denoms.len());
     for (ibc_denom, value) in fees_with_ibc_denoms {
@@ -282,135 +275,6 @@ pub(crate) async fn transaction_fee_request(
     }
 }
 
-#[instrument(skip_all, err(level = Level::DEBUG))]
-pub(crate) async fn get_fees_for_transaction<S: StateRead>(
-    tx: &TransactionBody,
-    state: &S,
-) -> eyre::Result<HashMap<asset::IbcPrefixed, u128>> {
-    let transfer_fees: OnceCell<Option<FeeComponents<Transfer>>> = OnceCell::new();
-    let rollup_data_submission_fees: OnceCell<Option<FeeComponents<RollupDataSubmission>>> =
-        OnceCell::new();
-    let ics20_withdrawal_fees: OnceCell<Option<FeeComponents<Ics20Withdrawal>>> = OnceCell::new();
-    let init_bridge_account_fees: OnceCell<Option<FeeComponents<InitBridgeAccount>>> =
-        OnceCell::new();
-    let bridge_lock_fees: OnceCell<Option<FeeComponents<BridgeLock>>> = OnceCell::new();
-    let bridge_unlock_fees: OnceCell<Option<FeeComponents<BridgeUnlock>>> = OnceCell::new();
-    let bridge_transfer_fees: OnceCell<Option<FeeComponents<BridgeTransfer>>> = OnceCell::new();
-    let bridge_sudo_change_fees: OnceCell<Option<FeeComponents<BridgeSudoChange>>> =
-        OnceCell::new();
-    let validator_update_fees: OnceCell<Option<FeeComponents<ValidatorUpdate>>> = OnceCell::new();
-    let sudo_address_change_fees: OnceCell<Option<FeeComponents<SudoAddressChange>>> =
-        OnceCell::new();
-    let ibc_sudo_change_fees: OnceCell<Option<FeeComponents<IbcSudoChange>>> = OnceCell::new();
-    let ibc_relay_fees: OnceCell<Option<FeeComponents<IbcRelay>>> = OnceCell::new();
-    let ibc_relayer_change_fees: OnceCell<Option<FeeComponents<IbcRelayerChange>>> =
-        OnceCell::new();
-    let fee_asset_change_fees: OnceCell<Option<FeeComponents<FeeAssetChange>>> = OnceCell::new();
-    let fee_change_fees: OnceCell<Option<FeeComponents<FeeChange>>> = OnceCell::new();
-    let recover_ibc_client_fees: OnceCell<Option<FeeComponents<RecoverIbcClient>>> =
-        OnceCell::new();
-    let currency_pairs_change_fees: OnceCell<Option<FeeComponents<CurrencyPairsChange>>> =
-        OnceCell::new();
-    let markets_change_fees: OnceCell<Option<FeeComponents<MarketsChange>>> = OnceCell::new();
-
-    let mut fees_by_asset = HashMap::new();
-    for action in tx.actions() {
-        match action {
-            Action::Transfer(act) => {
-                let fees = get_or_init_fees(state, &transfer_fees).await?;
-                calculate_and_add_fees(act, &mut fees_by_asset, fees);
-            }
-            Action::RollupDataSubmission(act) => {
-                let fees = get_or_init_fees(state, &rollup_data_submission_fees).await?;
-                calculate_and_add_fees(act, &mut fees_by_asset, fees);
-            }
-            Action::Ics20Withdrawal(act) => {
-                let fees = get_or_init_fees(state, &ics20_withdrawal_fees).await?;
-                calculate_and_add_fees(act, &mut fees_by_asset, fees);
-            }
-            Action::InitBridgeAccount(act) => {
-                let fees = get_or_init_fees(state, &init_bridge_account_fees).await?;
-                calculate_and_add_fees(act, &mut fees_by_asset, fees);
-            }
-            Action::BridgeLock(act) => {
-                let fees = get_or_init_fees(state, &bridge_lock_fees).await?;
-                calculate_and_add_fees(act, &mut fees_by_asset, fees);
-            }
-            Action::BridgeUnlock(act) => {
-                let fees = get_or_init_fees(state, &bridge_unlock_fees).await?;
-                calculate_and_add_fees(act, &mut fees_by_asset, fees);
-            }
-            Action::BridgeTransfer(act) => {
-                let fees = get_or_init_fees(state, &bridge_transfer_fees).await?;
-                calculate_and_add_fees(act, &mut fees_by_asset, fees);
-            }
-            Action::BridgeSudoChange(act) => {
-                let fees = get_or_init_fees(state, &bridge_sudo_change_fees).await?;
-                calculate_and_add_fees(act, &mut fees_by_asset, fees);
-            }
-            Action::ValidatorUpdate(act) => {
-                let fees = get_or_init_fees(state, &validator_update_fees).await?;
-                calculate_and_add_fees(act, &mut fees_by_asset, fees);
-            }
-            Action::SudoAddressChange(act) => {
-                let fees = get_or_init_fees(state, &sudo_address_change_fees).await?;
-                calculate_and_add_fees(act, &mut fees_by_asset, fees);
-            }
-            Action::IbcSudoChange(act) => {
-                let fees = get_or_init_fees(state, &ibc_sudo_change_fees).await?;
-                calculate_and_add_fees(act, &mut fees_by_asset, fees);
-            }
-            Action::Ibc(act) => {
-                let fees = get_or_init_fees(state, &ibc_relay_fees).await?;
-                calculate_and_add_fees(act, &mut fees_by_asset, fees);
-            }
-            Action::IbcRelayerChange(act) => {
-                let fees = get_or_init_fees(state, &ibc_relayer_change_fees).await?;
-                calculate_and_add_fees(act, &mut fees_by_asset, fees);
-            }
-            Action::FeeAssetChange(act) => {
-                let fees = get_or_init_fees(state, &fee_asset_change_fees).await?;
-                calculate_and_add_fees(act, &mut fees_by_asset, fees);
-            }
-            Action::FeeChange(act) => {
-                let fees = get_or_init_fees(state, &fee_change_fees).await?;
-                calculate_and_add_fees(act, &mut fees_by_asset, fees);
-            }
-            Action::RecoverIbcClient(act) => {
-                let fees = get_or_init_fees(state, &recover_ibc_client_fees).await?;
-                calculate_and_add_fees(act, &mut fees_by_asset, fees);
-            }
-            Action::CurrencyPairsChange(act) => {
-                let fees = get_or_init_fees(state, &currency_pairs_change_fees).await?;
-                calculate_and_add_fees(act, &mut fees_by_asset, fees);
-            }
-            Action::MarketsChange(act) => {
-                let fees = get_or_init_fees(state, &markets_change_fees).await?;
-                calculate_and_add_fees(act, &mut fees_by_asset, fees);
-            }
-        }
-    }
-    Ok(fees_by_asset)
-}
-
-fn calculate_and_add_fees<F: FeeHandler>(
-    action: &F,
-    fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
-    fees: &FeeComponents<F>,
-) {
-    let Some(fee_asset) = action.fee_asset().map(Denom::to_ibc_prefixed) else {
-        // If there's no fee asset, we don't charge fees.
-        return;
-    };
-    let base = fees.base();
-    let multiplier = fees.multiplier();
-    let total_fees = base.saturating_add(multiplier.saturating_mul(action.variable_component()));
-    fees_by_asset
-        .entry(fee_asset)
-        .and_modify(|amt| *amt = amt.saturating_add(total_fees))
-        .or_insert(total_fees);
-}
-
 fn preprocess_fees_request(request: &request::Query) -> Result<TransactionBody, response::Query> {
     let tx = match RawBody::decode(&*request.data) {
         Ok(tx) => tx,
@@ -445,29 +309,6 @@ fn preprocess_fees_request(request: &request::Query) -> Result<TransactionBody, 
     Ok(tx)
 }
 
-async fn get_or_init_fees<'a, F, S>(
-    state: &S,
-    fee_components: &'a OnceCell<Option<FeeComponents<F>>>,
-) -> eyre::Result<&'a FeeComponents<F>>
-where
-    F: FeeHandler,
-    FeeComponents<F>: TryFrom<StoredValue<'a>, Error = Report>,
-    S: StateRead,
-{
-    let fees = fee_components
-        .get_or_try_init(|| async { state.get_fees::<F>().await })
-        .await
-        .wrap_err_with(|| format!("failed to get fees for `{}` action", F::snake_case_name()))?
-        .as_ref()
-        .ok_or_else(|| {
-            eyre!(
-                "fees not found for `{}` action, hence it is disabled",
-                F::snake_case_name()
-            )
-        })?;
-    Ok(fees)
-}
-
 #[derive(serde::Serialize)]
 struct AllFeeComponents {
     transfer: FetchResult,
@@ -486,6 +327,8 @@ struct AllFeeComponents {
     sudo_address_change: FetchResult,
     ibc_sudo_change: FetchResult,
     recover_ibc_client: FetchResult,
+    currency_pairs_change: FetchResult,
+    markets_change: FetchResult,
 }
 
 #[derive(serde::Serialize)]
@@ -527,6 +370,8 @@ async fn get_all_fee_components<S: StateRead>(state: &S) -> AllFeeComponents {
         fee_asset_change,
         fee_change,
         recover_ibc_client,
+        currency_pairs_change,
+        markets_change,
     ) = join!(
         state.get_fees::<Transfer>().map(FetchResult::from),
         state
@@ -546,6 +391,10 @@ async fn get_all_fee_components<S: StateRead>(state: &S) -> AllFeeComponents {
         state.get_fees::<FeeAssetChange>().map(FetchResult::from),
         state.get_fees::<FeeChange>().map(FetchResult::from),
         state.get_fees::<RecoverIbcClient>().map(FetchResult::from),
+        state
+            .get_fees::<CurrencyPairsChange>()
+            .map(FetchResult::from),
+        state.get_fees::<MarketsChange>().map(FetchResult::from),
     );
     AllFeeComponents {
         transfer,
@@ -564,6 +413,8 @@ async fn get_all_fee_components<S: StateRead>(state: &S) -> AllFeeComponents {
         sudo_address_change,
         ibc_sudo_change,
         recover_ibc_client,
+        currency_pairs_change,
+        markets_change,
     }
 }
 
@@ -585,8 +436,11 @@ mod test {
     use crate::{
         app::StateWriteExt as _,
         assets::StateWriteExt as _,
-        benchmark_and_test_utils::astria_address,
-        fees::StateWriteExt as _,
+        fees::{
+            fee_handler::FeeHandler,
+            StateWriteExt as _,
+        },
+        test_utils::astria_address,
     };
 
     #[tokio::test]
@@ -630,6 +484,8 @@ mod test {
                 rollup_data_submission_multiplier,
             ))
             .unwrap();
+        state.put_allowed_fee_asset(&asset_a).unwrap();
+        state.put_allowed_fee_asset(&asset_b).unwrap();
         state.put_block_height(1).unwrap();
         state
             .put_ibc_asset(asset_a.clone().unwrap_trace_prefixed())

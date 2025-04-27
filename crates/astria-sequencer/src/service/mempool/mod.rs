@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     pin::Pin,
     sync::Arc,
     task::{
@@ -10,16 +9,13 @@ use std::{
 };
 
 use astria_core::{
-    generated::astria::protocol::transaction::v1 as raw,
-    primitive::v1::asset::IbcPrefixed,
-    protocol::{
-        abci::AbciErrorCode,
-        transaction::v1::Transaction,
-    },
-    Protobuf as _,
+    primitive::v1::TransactionId,
+    protocol::abci::AbciErrorCode,
 };
-use astria_eyre::eyre::WrapErr as _;
-use bytes::Bytes;
+use base64::{
+    prelude::BASE64_STANDARD,
+    Engine as _,
+};
 use cnidarium::{
     StateRead,
     Storage,
@@ -28,12 +24,11 @@ use futures::{
     Future,
     FutureExt,
 };
-use prost::{
-    Message as _,
-    Name as _,
-};
 use tendermint::{
-    abci::Code,
+    abci::{
+        request::CheckTxKind,
+        Code,
+    },
     v0_38::abci::{
         request,
         response,
@@ -49,9 +44,14 @@ use tracing::{
 };
 
 use crate::{
-    accounts::StateReadExt as _,
-    action_handler::ActionHandler as _,
-    address::StateReadExt as _,
+    accounts::{
+        AddressBytes as _,
+        StateReadExt as _,
+    },
+    checked_transaction::{
+        CheckedTransaction,
+        CheckedTransactionInitialCheckError,
+    },
     mempool::{
         get_account_balances,
         InsertionError,
@@ -59,103 +59,113 @@ use crate::{
         RemovalReason,
     },
     metrics::Metrics,
-    transaction,
 };
 
 #[cfg(test)]
 mod tests;
 
-const MAX_TX_SIZE: usize = 256_000; // 256 KB
-
-pub(crate) trait IntoCheckTxResponse {
-    fn into_check_tx_response(self) -> response::CheckTx;
-}
-
-impl IntoCheckTxResponse for RemovalReason {
-    fn into_check_tx_response(self) -> response::CheckTx {
-        match self {
-            RemovalReason::Expired => response::CheckTx {
-                code: Code::Err(AbciErrorCode::TRANSACTION_EXPIRED.value()),
-                info: AbciErrorCode::TRANSACTION_EXPIRED.to_string(),
-                log: "transaction expired in the app's mempool".into(),
-                ..response::CheckTx::default()
-            },
-            RemovalReason::FailedPrepareProposal(err) => response::CheckTx {
-                code: Code::Err(AbciErrorCode::TRANSACTION_FAILED.value()),
-                info: AbciErrorCode::TRANSACTION_FAILED.to_string(),
-                log: format!("transaction failed execution because: {err}"),
-                ..response::CheckTx::default()
-            },
-            RemovalReason::NonceStale => response::CheckTx {
-                code: Code::Err(AbciErrorCode::INVALID_NONCE.value()),
-                info: "transaction removed from app mempool due to stale nonce".into(),
-                log: "transaction from app mempool due to stale nonce".into(),
-                ..response::CheckTx::default()
-            },
-            RemovalReason::LowerNonceInvalidated => response::CheckTx {
-                code: Code::Err(AbciErrorCode::LOWER_NONCE_INVALIDATED.value()),
-                info: AbciErrorCode::LOWER_NONCE_INVALIDATED.to_string(),
-                log: "transaction removed from app mempool due to lower nonce being invalidated"
-                    .into(),
-                ..response::CheckTx::default()
-            },
+impl From<RemovalReason> for response::CheckTx {
+    fn from(removal_reason: RemovalReason) -> Self {
+        match removal_reason {
+            RemovalReason::Expired => error_response(
+                AbciErrorCode::TRANSACTION_EXPIRED,
+                "transaction expired in the app's mempool",
+            ),
+            RemovalReason::FailedPrepareProposal(err) => error_response(
+                AbciErrorCode::TRANSACTION_FAILED_EXECUTION,
+                format!("transaction failed execution: {err}"),
+            ),
+            RemovalReason::NonceStale => error_response(
+                AbciErrorCode::INVALID_NONCE,
+                "transaction removed from app mempool due to stale nonce",
+            ),
+            RemovalReason::LowerNonceInvalidated => error_response(
+                AbciErrorCode::LOWER_NONCE_INVALIDATED,
+                "transaction removed from app mempool due to lower nonce being invalidated",
+            ),
         }
     }
 }
 
-impl IntoCheckTxResponse for InsertionError {
-    fn into_check_tx_response(self) -> response::CheckTx {
-        match self {
-            InsertionError::AlreadyPresent => response::CheckTx {
-                code: Code::Err(AbciErrorCode::ALREADY_PRESENT.value()),
-                info: AbciErrorCode::ALREADY_PRESENT.to_string(),
-                log: InsertionError::AlreadyPresent.to_string(),
-                ..response::CheckTx::default()
-            },
-            InsertionError::NonceTooLow => response::CheckTx {
-                code: Code::Err(AbciErrorCode::INVALID_NONCE.value()),
-                info: AbciErrorCode::INVALID_NONCE.to_string(),
-                log: InsertionError::NonceTooLow.to_string(),
-                ..response::CheckTx::default()
-            },
-            InsertionError::NonceTaken => response::CheckTx {
-                code: Code::Err(AbciErrorCode::NONCE_TAKEN.value()),
-                info: AbciErrorCode::NONCE_TAKEN.to_string(),
-                log: InsertionError::NonceTaken.to_string(),
-                ..response::CheckTx::default()
-            },
-            InsertionError::AccountSizeLimit => response::CheckTx {
-                code: Code::Err(AbciErrorCode::ACCOUNT_SIZE_LIMIT.value()),
-                info: AbciErrorCode::ACCOUNT_SIZE_LIMIT.to_string(),
-                log: InsertionError::AccountSizeLimit.to_string(),
-                ..response::CheckTx::default()
-            },
-            InsertionError::ParkedSizeLimit => response::CheckTx {
-                code: Code::Err(AbciErrorCode::PARKED_FULL.value()),
-                info: AbciErrorCode::PARKED_FULL.info(),
-                log: "transaction failed insertion because parked container is full".into(),
-                ..response::CheckTx::default()
-            },
-            InsertionError::AccountBalanceTooLow | InsertionError::NonceGap => {
-                // NOTE: these are handled interally by the mempool and don't
-                // block transaction inclusion in the mempool. they shouldn't
-                // be bubbled up to the client.
-                response::CheckTx {
-                    code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
-                    info: AbciErrorCode::INTERNAL_ERROR.info(),
-                    log: "transaction failed insertion because of an internal error".into(),
-                    ..response::CheckTx::default()
-                }
+impl From<InsertionError> for response::CheckTx {
+    fn from(insertion_error: InsertionError) -> Self {
+        let log = format!("failed to insert transaction into app mempool: {insertion_error}");
+        let code = match insertion_error {
+            InsertionError::AlreadyPresent => AbciErrorCode::ALREADY_PRESENT,
+            InsertionError::NonceTooLow => AbciErrorCode::INVALID_NONCE,
+            InsertionError::NonceTaken => AbciErrorCode::NONCE_TAKEN,
+            InsertionError::NonceGap | InsertionError::AccountBalanceTooLow => {
+                AbciErrorCode::INTERNAL_ERROR
             }
-        }
+            InsertionError::AccountSizeLimit => AbciErrorCode::ACCOUNT_SIZE_LIMIT,
+            InsertionError::ParkedSizeLimit => AbciErrorCode::PARKED_FULL,
+        };
+        error_response(code, log)
     }
 }
 
-fn error_response(abci_error_code: AbciErrorCode, log: String) -> response::CheckTx {
+// impl From<CheckedTransactionExecutionError> for response::CheckTx {
+//     fn from(error: CheckedTransactionExecutionError) -> Self {
+//         let abci_error_code = match &error {
+//             CheckedTransactionExecutionError::TooLarge {
+//                 ..
+//             }
+//             | CheckedTransactionExecutionError::ActionIndexOverflowed => {
+//                 AbciErrorCode::TRANSACTION_TOO_LARGE
+//             }
+//             CheckedTransactionExecutionError::Decode(_)
+//             | CheckedTransactionExecutionError::Convert(_)
+//             | CheckedTransactionExecutionError::CheckedAction(
+//                 CheckedActionExecutionError::ActionDisabled {
+//                     ..
+//                 }
+//                 | CheckedActionExecutionError::FeeAssetIsNotAllowed {
+//                     ..
+//                 },
+//             ) => AbciErrorCode::BAD_REQUEST,
+//             CheckedTransactionExecutionError::ChainIdMismatch {
+//                 ..
+//             } => AbciErrorCode::INVALID_CHAIN_ID,
+//             CheckedTransactionExecutionError::InvalidNonce {
+//                 ..
+//             }
+//             | CheckedTransactionExecutionError::NonceOverflowed => AbciErrorCode::INVALID_NONCE,
+//             CheckedTransactionExecutionError::CheckedAction(
+//                 CheckedActionExecutionError::InitialCheck {
+//                     ..
+//                 }
+//                 | CheckedActionExecutionError::MutableCheck {
+//                     ..
+//                 },
+//             ) => AbciErrorCode::TRANSACTION_FAILED_CHECK_TX,
+//             CheckedTransactionExecutionError::CheckedAction(
+//                 CheckedActionExecutionError::Execution {
+//                     ..
+//                 }
+//                 | CheckedActionExecutionError::InsufficientBalanceToPayFee {
+//                     ..
+//                 },
+//             ) => AbciErrorCode::TRANSACTION_FAILED_EXECUTION,
+//             CheckedTransactionExecutionError::CheckedAction(
+//                 CheckedActionExecutionError::InternalError {
+//                     ..
+//                 },
+//             )
+//             | CheckedTransactionExecutionError::InternalError {
+//                 ..
+//             } => AbciErrorCode::INTERNAL_ERROR,
+//         };
+//
+//         error_response(abci_error_code, error)
+//     }
+// }
+
+#[expect(clippy::needless_pass_by_value, reason = "more ergonomic to call")]
+fn error_response<T: ToString>(abci_error_code: AbciErrorCode, log: T) -> response::CheckTx {
     response::CheckTx {
         code: Code::Err(abci_error_code.value()),
         info: abci_error_code.info(),
-        log,
+        log: log.to_string(),
         ..response::CheckTx::default()
     }
 }
@@ -213,12 +223,12 @@ impl Service<MempoolRequest> for Mempool {
 ///
 /// This function will error if:
 /// - the transaction has been removed from the app's mempool (will throw error once)
-/// - the transaction fails stateless checks
+/// - the transaction fails conversion to a checked transaction
 /// - the transaction fails insertion into the mempool
 ///
 /// The function will return a [`response::CheckTx`] with a status code of 0 if the transaction:
-/// - Is already in the appside mempool
-/// - Passes stateless checks and insertion into the mempool is successful
+/// - Is already in the appside mempool and passes `CheckedTransaction::run_mutable_checks`, or
+/// - Passes checks and insertion into the mempool is successful
 #[instrument(skip_all)]
 async fn handle_check_tx<S: StateRead>(
     req: request::CheckTx,
@@ -229,230 +239,143 @@ async fn handle_check_tx<S: StateRead>(
     use sha2::Digest as _;
 
     let request::CheckTx {
-        tx, ..
+        tx: tx_bytes,
+        kind: check_tx_kind,
     } = req;
 
-    let tx_hash = sha2::Sha256::digest(&tx).into();
-
-    // check if the transaction has been removed from the appside mempool
-    if let Err(rsp) = check_removed_comet_bft(tx_hash, mempool, metrics).await {
-        return rsp;
+    if check_tx_kind == CheckTxKind::Recheck {
+        let tx_id = TransactionId::new(sha2::Sha256::digest(&tx_bytes).into());
+        if let Some(response) = recheck_tx(&tx_id, mempool, metrics).await {
+            return response;
+        }
     }
 
-    // check if the transaction is already in the mempool
-    if is_tracked(tx_hash, mempool, metrics).await {
-        return response::CheckTx::default();
-    }
-
-    // perform stateless checks
-    let signed_tx = match stateless_checks(tx, &state, metrics).await {
-        Ok(signed_tx) => signed_tx,
-        Err(rsp) => return rsp,
+    let start = Instant::now();
+    let checked_tx = match CheckedTransaction::new(tx_bytes, &state).await {
+        Ok(checked_tx) => checked_tx,
+        Err(error) => {
+            let abci_error_code = match &error {
+                CheckedTransactionInitialCheckError::TooLarge {
+                    ..
+                } => {
+                    metrics.increment_check_tx_failed_tx_too_large();
+                    AbciErrorCode::TRANSACTION_TOO_LARGE
+                }
+                CheckedTransactionInitialCheckError::Decode(_)
+                | CheckedTransactionInitialCheckError::Convert(_) => {
+                    metrics.increment_check_tx_failed_action_checks();
+                    AbciErrorCode::BAD_REQUEST
+                }
+                CheckedTransactionInitialCheckError::ChainIdMismatch {
+                    ..
+                } => {
+                    metrics.increment_check_tx_failed_action_checks();
+                    AbciErrorCode::INVALID_CHAIN_ID
+                }
+                CheckedTransactionInitialCheckError::CheckedAction(_) => {
+                    metrics.increment_check_tx_failed_action_checks();
+                    AbciErrorCode::TRANSACTION_FAILED_CHECK_TX
+                }
+                CheckedTransactionInitialCheckError::InternalError {
+                    ..
+                } => {
+                    metrics.increment_internal_logic_error();
+                    AbciErrorCode::INTERNAL_ERROR
+                }
+            };
+            return error_response(abci_error_code, error);
+        }
     };
+    metrics.record_check_tx_duration_seconds_check_actions(start.elapsed());
 
-    // attempt to insert the transaction into the mempool
-    if let Err(rsp) = insert_into_mempool(mempool, &state, signed_tx, metrics).await {
+    if let Err(rsp) = insert_into_mempool(mempool, &state, checked_tx, metrics).await {
         return rsp;
     }
 
-    // insertion successful
     metrics.set_transactions_in_mempool_total(mempool.len().await);
 
     response::CheckTx::default()
 }
 
-/// Checks if the transaction is already in the mempool.
-#[instrument(skip_all, fields(tx_hash = %hex::encode(tx_hash)))]
-async fn is_tracked(tx_hash: [u8; 32], mempool: &AppMempool, metrics: &Metrics) -> bool {
-    let start_tracked_check = Instant::now();
-
-    let result = mempool.is_tracked(tx_hash).await;
-
-    metrics.record_check_tx_duration_seconds_check_tracked(start_tracked_check.elapsed());
-
-    result
-}
-
-/// Checks if the transaction has been removed from the appside mempool.
+/// Re-checks the transaction in the appside mempool.
 ///
-/// Returns an `Err(response::CheckTx)` with an error code and message if the transaction has been
-/// removed from the appside mempool.
-#[instrument(skip_all, fields(tx_hash = %hex::encode(tx_hash)))]
-async fn check_removed_comet_bft(
-    tx_hash: [u8; 32],
+/// Returns a successful response if the given tx passes `CheckedTransaction::run_mutable_checks`.
+/// Returns a failure response if:
+///   - the tx is scheduled to be removed from the mempool
+///   - the tx returns an error from `run_mutable_checks`.
+/// Returns `None` if the tx is not in the mempool.
+#[instrument(skip_all, fields(%tx_id))]
+async fn recheck_tx(
+    tx_id: &TransactionId,
     mempool: &AppMempool,
     metrics: &Metrics,
-) -> Result<(), response::CheckTx> {
-    let start_removal_check = Instant::now();
+) -> Option<response::CheckTx> {
+    let start = Instant::now();
 
-    // check if the transaction has been removed from the appside mempool and handle
-    // the removal reason
-    if let Some(removal_reason) = mempool.check_removed_comet_bft(tx_hash).await {
-        match removal_reason {
-            RemovalReason::Expired => {
-                metrics.increment_check_tx_removed_expired();
-                return Err(removal_reason.into_check_tx_response());
+    let rsp = match mempool.check_removed_comet_bft(tx_id).await {
+        Some(removal_reason) => {
+            match removal_reason {
+                RemovalReason::Expired => {
+                    metrics.increment_check_tx_removed_expired();
+                }
+                RemovalReason::FailedPrepareProposal(_) => {
+                    metrics.increment_check_tx_removed_failed_execution();
+                }
+                _ => (),
             }
-            RemovalReason::FailedPrepareProposal(_) => {
-                metrics.increment_check_tx_removed_failed_execution();
-                return Err(removal_reason.into_check_tx_response());
+            Some(response::CheckTx::from(removal_reason))
+        }
+        None => {
+            if mempool.is_tracked(tx_id).await {
+                Some(response::CheckTx::default())
+            } else {
+                None
             }
-            _ => return Err(removal_reason.into_check_tx_response()),
         }
     };
 
-    metrics.record_check_tx_duration_seconds_check_removed(start_removal_check.elapsed());
+    metrics.record_check_tx_duration_seconds_recheck(start.elapsed());
 
-    Ok(())
-}
-
-/// Performs stateless checks on the transaction.
-///
-/// Returns an `Err(response::CheckTx)` if the transaction fails any of the checks.
-/// Otherwise, it returns the [`Transaction`] to be inserted into the mempool.
-#[instrument(skip_all)]
-async fn stateless_checks<S: StateRead>(
-    tx: Bytes,
-    state: &S,
-    metrics: &'static Metrics,
-) -> Result<Transaction, response::CheckTx> {
-    let start_parsing = Instant::now();
-
-    let tx_len = tx.len();
-
-    if tx_len > MAX_TX_SIZE {
-        metrics.increment_check_tx_removed_too_large();
-        return Err(error_response(
-            AbciErrorCode::TRANSACTION_TOO_LARGE,
-            format!(
-                "transaction size too large; allowed: {MAX_TX_SIZE} bytes, got {}",
-                tx.len()
-            ),
-        ));
-    }
-
-    let raw_signed_tx = match raw::Transaction::decode(tx) {
-        Ok(tx) => tx,
-        Err(e) => {
-            return Err(error_response(
-                AbciErrorCode::INVALID_PARAMETER,
-                format!(
-                    "failed decoding bytes as a protobuf {}: {e:#}",
-                    raw::Transaction::full_name()
-                ),
-            ));
-        }
-    };
-    let signed_tx = match Transaction::try_from_raw(raw_signed_tx) {
-        Ok(tx) => tx,
-        Err(e) => {
-            return Err(error_response(
-                AbciErrorCode::INVALID_PARAMETER,
-                format!("the provided transaction could not be validated: {e:?}",),
-            ));
-        }
-    };
-
-    let finished_parsing = Instant::now();
-    metrics.record_check_tx_duration_seconds_parse_tx(
-        finished_parsing.saturating_duration_since(start_parsing),
-    );
-
-    if let Err(e) = signed_tx.check_stateless().await {
-        metrics.increment_check_tx_removed_failed_stateless();
-        return Err(error_response(
-            AbciErrorCode::INVALID_PARAMETER,
-            format!("transaction failed stateless check: {e:#}"),
-        ));
-    };
-
-    let finished_check_stateless = Instant::now();
-    metrics.record_check_tx_duration_seconds_check_stateless(
-        finished_check_stateless.saturating_duration_since(finished_parsing),
-    );
-
-    if let Err(e) = transaction::check_chain_id_mempool(&signed_tx, &state).await {
-        return Err(error_response(
-            AbciErrorCode::INVALID_CHAIN_ID,
-            format!("failed verifying chain id: {e:#}"),
-        ));
-    }
-
-    metrics.record_check_tx_duration_seconds_check_chain_id(finished_check_stateless.elapsed());
-
-    // NOTE: decide if worth moving to post-insertion, would have to recalculate cost
-    metrics.record_transaction_in_mempool_size_bytes(tx_len);
-
-    Ok(signed_tx)
+    rsp
 }
 
 /// Attempts to insert the transaction into the mempool.
-///
-/// Returns a `Err(response::CheckTx)` with an error code and message if the transaction fails
-/// insertion into the mempool.
 #[instrument(skip_all)]
 async fn insert_into_mempool<S: StateRead>(
     mempool: &AppMempool,
     state: &S,
-    signed_tx: Transaction,
+    tx: CheckedTransaction,
     metrics: &'static Metrics,
 ) -> Result<(), response::CheckTx> {
-    let start_convert_address = Instant::now();
-
-    // TODO: just use address bytes directly https://github.com/astriaorg/astria/issues/1620
-    // generate address for the signed transaction
-    let address = match state
-        .try_base_prefixed(signed_tx.verification_key().address_bytes())
-        .await
-        .context("failed to generate address for signed transaction")
-    {
-        Err(err) => {
-            return Err(error_response(
-                AbciErrorCode::INTERNAL_ERROR,
-                format!("failed to generate address because: {err:#}"),
-            ));
-        }
-        Ok(address) => address,
-    };
-
-    let finished_convert_address = Instant::now();
-    metrics.record_check_tx_duration_seconds_convert_address(
-        finished_convert_address.saturating_duration_since(start_convert_address),
-    );
+    let address_bytes = *tx.address_bytes();
 
     // fetch current account nonce
-    let current_account_nonce = match state
-        .get_account_nonce(&address)
+    let start_fetch_nonce = Instant::now();
+    let current_account_nonce = state
+        .get_account_nonce(&address_bytes)
         .await
-        .wrap_err("failed fetching nonce for account")
-    {
-        Err(err) => {
-            return Err(error_response(
+        .map_err(|error| {
+            error_response(
                 AbciErrorCode::INTERNAL_ERROR,
-                format!("failed to fetch account nonce because: {err:#}"),
-            ));
-        }
-        Ok(nonce) => nonce,
-    };
+                format!(
+                    "failed to get nonce for account `{}` from storage: {error:#}",
+                    BASE64_STANDARD.encode(address_bytes)
+                ),
+            )
+        })?;
 
     let finished_fetch_nonce = Instant::now();
     metrics.record_check_tx_duration_seconds_fetch_nonce(
-        finished_fetch_nonce.saturating_duration_since(finished_convert_address),
+        finished_fetch_nonce.saturating_duration_since(start_fetch_nonce),
     );
 
     // grab cost of transaction
-    let transaction_cost = match transaction::get_total_transaction_cost(&signed_tx, &state)
-        .await
-        .context("failed fetching cost of the transaction")
-    {
-        Err(err) => {
-            return Err(error_response(
-                AbciErrorCode::INTERNAL_ERROR,
-                format!("failed to fetch cost of the transaction because: {err:#}"),
-            ));
-        }
-        Ok(transaction_cost) => transaction_cost,
-    };
+    let transaction_cost = tx.total_costs(state).await.map_err(|error| {
+        error_response(
+            AbciErrorCode::INTERNAL_ERROR,
+            format!("failed to calculate cost of the transaction: {error:#}"),
+        )
+    })?;
 
     let finished_fetch_tx_cost = Instant::now();
     metrics.record_check_tx_duration_seconds_fetch_tx_cost(
@@ -460,42 +383,40 @@ async fn insert_into_mempool<S: StateRead>(
     );
 
     // grab current account's balances
-    let current_account_balance: HashMap<IbcPrefixed, u128> =
-        match get_account_balances(&state, &address)
+    let current_account_balances =
+        get_account_balances(&state, &address_bytes)
             .await
-            .with_context(|| "failed fetching balances for account `{address}`")
-        {
-            Err(err) => {
-                return Err(error_response(
+            .map_err(|error| {
+                error_response(
                     AbciErrorCode::INTERNAL_ERROR,
-                    format!("failed to fetch account balances because: {err:#}"),
-                ));
-            }
-            Ok(account_balance) => account_balance,
-        };
+                    format!(
+                        "failed to get balances for account `{}` from storage: {error:#}",
+                        BASE64_STANDARD.encode(address_bytes)
+                    ),
+                )
+            })?;
 
     let finished_fetch_balances = Instant::now();
     metrics.record_check_tx_duration_seconds_fetch_balances(
         finished_fetch_balances.saturating_duration_since(finished_fetch_tx_cost),
     );
 
-    let actions_count = signed_tx.actions().len();
+    let actions_count = tx.checked_actions().len();
+    let tx_length = tx.encoded_bytes().len();
 
-    if let Err(err) = mempool
+    mempool
         .insert(
-            Arc::new(signed_tx),
+            Arc::new(tx),
             current_account_nonce,
-            current_account_balance,
+            current_account_balances,
             transaction_cost,
         )
-        .await
-    {
-        return Err(err.into_check_tx_response());
-    }
+        .await?;
 
     metrics
         .record_check_tx_duration_seconds_insert_to_app_mempool(finished_fetch_balances.elapsed());
     metrics.record_actions_per_transaction_in_mempool(actions_count);
+    metrics.record_transaction_in_mempool_size_bytes(tx_length);
 
     Ok(())
 }

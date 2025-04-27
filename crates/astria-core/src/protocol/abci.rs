@@ -18,7 +18,7 @@ impl AbciErrorCode {
     pub const INVALID_CHAIN_ID: Self = Self(unsafe { NonZeroU32::new_unchecked(7) });
     pub const VALUE_NOT_FOUND: Self = Self(unsafe { NonZeroU32::new_unchecked(8) });
     pub const TRANSACTION_EXPIRED: Self = Self(unsafe { NonZeroU32::new_unchecked(9) });
-    pub const TRANSACTION_FAILED: Self = Self(unsafe { NonZeroU32::new_unchecked(10) });
+    pub const TRANSACTION_FAILED_EXECUTION: Self = Self(unsafe { NonZeroU32::new_unchecked(10) });
     pub const TRANSACTION_INSERTION_FAILED: Self = Self(unsafe { NonZeroU32::new_unchecked(11) });
     pub const LOWER_NONCE_INVALIDATED: Self = Self(unsafe { NonZeroU32::new_unchecked(12) });
     pub const BAD_REQUEST: Self = Self(unsafe { NonZeroU32::new_unchecked(13) });
@@ -26,6 +26,7 @@ impl AbciErrorCode {
     pub const NONCE_TAKEN: Self = Self(unsafe { NonZeroU32::new_unchecked(15) });
     pub const ACCOUNT_SIZE_LIMIT: Self = Self(unsafe { NonZeroU32::new_unchecked(16) });
     pub const PARKED_FULL: Self = Self(unsafe { NonZeroU32::new_unchecked(17) });
+    pub const TRANSACTION_FAILED_CHECK_TX: Self = Self(unsafe { NonZeroU32::new_unchecked(18) });
     // NOTE: When adding a new code, ensure it is added to `ALL_CODES` in the `tests` module below.
 }
 
@@ -49,7 +50,7 @@ impl AbciErrorCode {
             Self::INVALID_CHAIN_ID => "the provided chain id was invalid".into(),
             Self::VALUE_NOT_FOUND => "the requested value was not found".into(),
             Self::TRANSACTION_EXPIRED => "the transaction expired in the app's mempool".into(),
-            Self::TRANSACTION_FAILED => {
+            Self::TRANSACTION_FAILED_EXECUTION => {
                 "the transaction failed to execute in prepare_proposal()".into()
             }
             Self::TRANSACTION_INSERTION_FAILED => {
@@ -65,6 +66,7 @@ impl AbciErrorCode {
                 "the account has reached the maximum number of parked transactions".into()
             }
             Self::PARKED_FULL => "the mempool is out of space for more parked transactions".into(),
+            Self::TRANSACTION_FAILED_CHECK_TX => "the transaction failed check tx".into(),
             Self(other) => {
                 format!("invalid error code {other}: should be unreachable (this is a bug)")
             }
@@ -84,7 +86,7 @@ mod tests {
 
     use super::*;
 
-    const ALL_CODES: [AbciErrorCode; 17] = [
+    const ALL_CODES: [AbciErrorCode; 18] = [
         AbciErrorCode::UNKNOWN_PATH,
         AbciErrorCode::INVALID_PARAMETER,
         AbciErrorCode::INTERNAL_ERROR,
@@ -94,7 +96,7 @@ mod tests {
         AbciErrorCode::INVALID_CHAIN_ID,
         AbciErrorCode::VALUE_NOT_FOUND,
         AbciErrorCode::TRANSACTION_EXPIRED,
-        AbciErrorCode::TRANSACTION_FAILED,
+        AbciErrorCode::TRANSACTION_FAILED_EXECUTION,
         AbciErrorCode::TRANSACTION_INSERTION_FAILED,
         AbciErrorCode::LOWER_NONCE_INVALIDATED,
         AbciErrorCode::BAD_REQUEST,
@@ -102,6 +104,7 @@ mod tests {
         AbciErrorCode::NONCE_TAKEN,
         AbciErrorCode::ACCOUNT_SIZE_LIMIT,
         AbciErrorCode::PARKED_FULL,
+        AbciErrorCode::TRANSACTION_FAILED_CHECK_TX,
     ];
 
     #[test]

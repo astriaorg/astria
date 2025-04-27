@@ -229,6 +229,12 @@ impl From<Transfer> for Action {
     }
 }
 
+impl From<ValidatorUpdate> for Action {
+    fn from(value: ValidatorUpdate) -> Self {
+        Self::ValidatorUpdate(value)
+    }
+}
+
 impl From<SudoAddressChange> for Action {
     fn from(value: SudoAddressChange) -> Self {
         Self::SudoAddressChange(value)
@@ -316,12 +322,6 @@ impl From<CurrencyPairsChange> for Action {
 impl From<MarketsChange> for Action {
     fn from(value: MarketsChange) -> Self {
         Self::MarketsChange(value)
-    }
-}
-
-impl From<ValidatorUpdate> for Action {
-    fn from(value: ValidatorUpdate) -> Self {
-        Self::ValidatorUpdate(value)
     }
 }
 
