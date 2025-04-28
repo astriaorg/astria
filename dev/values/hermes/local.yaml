@@ -11,8 +11,8 @@ secretProvider:
 chains:
   sequencer-test-chain-0:
     type: Astria
-    rpcAddr: http://single-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657
-    grpcAddr: http://single-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080
+    rpcAddr: http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657
+    grpcAddr: http://node0-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080
     rpcTimeout: 15s
     ccvConsumerChain: false
     accountPrefix: not_used

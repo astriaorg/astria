@@ -67,6 +67,9 @@ class SequencerController:
             upgrade_activation_height
         )
         run_subprocess(args, msg=f"deploying {self.name}")
+        if self.name == "single":
+            # Adjust name to match moniker
+            self.name = "node0"
         self._wait_for_deploy(timeout_secs=600)
         (self.address, self.pub_key, self.power) = self._check_reported_name_and_get_node_info()
         print(f"{self.name}: running")
