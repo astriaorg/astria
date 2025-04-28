@@ -42,6 +42,7 @@ jiff.workspace = true
 tryhard.workspace = true
 serde_json.workspace = true
 futures.workspace = true
+tiny-bip39 = "2.0.0"
 
 [dependencies.astria-sequencer-client]
 package = "astria-sequencer-client"
