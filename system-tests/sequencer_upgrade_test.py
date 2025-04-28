@@ -82,7 +82,7 @@ deploy_sequencer_fn = lambda seq_node: seq_node.deploy_sequencer(
     upgrade_name=upgrade_name,
 )
 futures = [executor.submit(deploy_sequencer_fn, node) for node in nodes]
-futures.append(executor.submit(lambda: evm.deploy_rollup(upgrade_image_tag, sequencer_node_name="node0")))
+futures.append(executor.submit(lambda: evm.deploy_rollup(upgrade_image_tag)))
 done, _ = concurrent.futures.wait(futures, return_when=FIRST_EXCEPTION)
 for completed_future in done:
     completed_future.result()
