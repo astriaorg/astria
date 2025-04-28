@@ -9,9 +9,9 @@ use astria_sequencer_client::{
 use clap::Subcommand;
 use color_eyre::eyre::{
     self,
+    Ok,
     WrapErr as _,
 };
-use rand::rngs::OsRng;
 
 #[derive(Debug, clap::Args)]
 pub(super) struct Command {
@@ -44,11 +44,43 @@ struct Create {
     /// The address prefix
     #[arg(long, default_value = "astria")]
     prefix: String,
+    /// Optional mnemonic to use for key generation.
+    #[arg(long = "from-mnemonic", default_value = None)]
+    mnemonic: Option<String>,
+    /// Mnemonic length.
+    #[arg(long, default_value = "24")]
+    mnemonic_length: u8,
 }
 
 impl Create {
     fn run(self) -> eyre::Result<()> {
-        let signing_key = SigningKey::new(OsRng);
+        let bip39_mnemonic = match self.mnemonic {
+            Some(mnemonic) => {
+                bip39::Mnemonic::validate(&mnemonic, bip39::Language::English)
+                    .wrap_err("phrase verification failed")?;
+                bip39::Mnemonic::from_phrase(&mnemonic, bip39::Language::English)
+                    .wrap_err("failed to create mnemonic from phrase")?
+            }
+            None => {
+                let mnemonic_type = match self.mnemonic_length {
+                    12 => bip39::MnemonicType::Words12,
+                    15 => bip39::MnemonicType::Words15,
+                    18 => bip39::MnemonicType::Words18,
+                    21 => bip39::MnemonicType::Words21,
+                    24 => bip39::MnemonicType::Words24,
+                    _ => return Err(eyre::eyre!("Invalid mnemonic length")),
+                };
+                bip39::Mnemonic::new(mnemonic_type, bip39::Language::English)
+            }
+        };
+
+        let seed = bip39::Seed::new(&bip39_mnemonic, "");
+        let seed_bytes: [u8; 32] = seed.as_bytes()[0..32]
+            .try_into()
+            .wrap_err("failed to convert seed to 32 bytes")?;
+
+        let signing_key = SigningKey::from(seed_bytes);
+
         let pretty_signing_key = hex::encode(signing_key.as_bytes());
         let pretty_verifying_key = hex::encode(signing_key.verification_key().as_bytes());
 
@@ -61,6 +93,7 @@ impl Create {
         println!();
         // TODO: don't print private keys to CLI, prefer writing to file:
         // https://github.com/astriaorg/astria/issues/594
+        println!("Mnemonic:    {bip39_mnemonic}");
         println!("Private Key: {pretty_signing_key}");
         println!("Public Key:  {pretty_verifying_key}");
         println!("Address:     {pretty_address}");
