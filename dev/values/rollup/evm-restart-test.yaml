@@ -3,8 +3,8 @@ global:
   dev: true
   evmChainId: 1337
   rollupName: astria
-  sequencerRpc: http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657
-  sequencerGrpc: http://node0-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080
+  sequencerRpc: http://single-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657
+  sequencerGrpc: http://single-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080
   sequencerChainId: sequencer-test-chain-0
   celestiaChainId: celestia-local-0
 
