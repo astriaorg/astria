@@ -254,32 +254,13 @@ hyperlane-agents rollupName=defaultRollupName agentConfig=defaultHypAgentConfig 
 # Deploy Smoke Test
 ####################
 [doc("
-Deploys all components necessary for local end-to-end (including rollup and Celestia)
-smoke test and awaits their readiness.
-Usage:
-  just deploy smoke-test <TAG> (default: '')
+Deploys prerequisites for running the smoke test.
 ")]
-smoke-test tag=defaultTag:
+smoke-test tag=defaultTag: generate-system-test-protos
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
   @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
-  @helm dependency update charts/sequencer > /dev/null
-  @helm dependency update charts/evm-stack > /dev/null
-  @echo "Setting up single astria sequencer..." && helm install \
-    -n astria-validator-single single-sequencer-chart charts/sequencer \
-    -f dev/values/validators/all.yml \
-    -f dev/values/validators/single.yml \
-    -f dev/values/validators/aspen.upgrade.yml \
-    {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
-    --create-namespace > /dev/null
-  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart charts/evm-stack -f dev/values/rollup/dev.yaml \
-    {{ if tag != '' { replace('--set evm-rollup.images.conductor.tag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
-    --set blockscout-stack.enabled=false \
-    --set postgresql.enabled=false \
-    --set evm-faucet.enabled=false > /dev/null
   @just wait-for celestia-local
-  @just wait-for sequencer
-  @just wait-for rollup
 
 
 # Deploy EVM Rollup Restart Test
@@ -453,7 +434,7 @@ ibc-test-timeout-refund tag=defaultTag:
 Generates Python files from the protobuf sources for the system-tests.
 ")]
 generate-system-test-protos:
-  buf generate --template system-tests/buf.gen.yaml
+  @buf generate --template system-tests/buf.gen.yaml
 
 
 # Deploy Upgrade Test

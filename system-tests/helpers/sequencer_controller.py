@@ -23,7 +23,7 @@ class SequencerController:
 
     def __init__(self, node_name):
         self.name = node_name
-        if node_name == "node0":
+        if node_name == "node0" or node_name == "single":
             self.namespace = "astria-dev-cluster"
             self.rpc_url = "http://rpc.sequencer.localdev.me"
             self.grpc_url = "grpc.sequencer.localdev.me:80"

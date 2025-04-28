@@ -16,6 +16,11 @@ import aspen_upgrade_checks
 import time
 from concurrent.futures import FIRST_EXCEPTION
 from helpers.astria_cli import Cli
+from helpers.defaults import (
+    EVM_DESTINATION_ADDRESS,
+    SEQUENCER_WITHDRAWER_ADDRESS,
+    BRIDGE_TX_HASH,
+)
 from helpers.evm_controller import EvmController
 from helpers.sequencer_controller import SequencerController
 from helpers.utils import update_chart_dependencies, check_change_infos
@@ -26,9 +31,6 @@ NUM_NODES = 5
 PRE_UPGRADE_IMAGE_TAGS = {
     "aspen": ("2.0.1", "1.0.1"),
 }
-EVM_DESTINATION_ADDRESS = "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
-ACCOUNT = "astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504"
-BRIDGE_TX_HASH = "0x326c3910da4c96c5a40ba1505fc338164b659729f2f975ccb07e8794c96b66f6"
 
 parser = argparse.ArgumentParser(prog="upgrade_test", description="Runs the sequencer upgrade test.")
 parser.add_argument(
@@ -291,7 +293,7 @@ expected_evm_balance = 9000000000000000000
 evm.wait_until_balance(EVM_DESTINATION_ADDRESS, expected_evm_balance, timeout_secs=60)
 print("bridge out evm success")
 expected_balance = 1000000000
-cli.wait_until_balance(ACCOUNT, expected_balance, timeout_secs=60, sequencer_name="node3")
+cli.wait_until_balance(SEQUENCER_WITHDRAWER_ADDRESS, expected_balance, timeout_secs=60, sequencer_name="node3")
 print("bridge out sequencer success")
 print("testing tx finalization")
 tx_block_number = evm.get_tx_block_number(BRIDGE_TX_HASH)

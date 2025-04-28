@@ -214,8 +214,10 @@ jobs:
           TAG=sha-$(git rev-parse --short HEAD)
           just deploy cluster
           kubectl create secret generic regcred --from-file=.dockerconfigjson=$HOME/.docker/config.json --type=kubernetes.io/dockerconfigjson
-          echo -e "\n\nDeploying with astria images tagged $TAG"
-          just deploy smoke-test $TAG
+          just deploy smoke-test
+          cd system-tests
+          uv venv
+          uv pip install -r requirements.txt
       - name: Run Smoke test
         timeout-minutes: 3
         run: |

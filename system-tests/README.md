@@ -56,7 +56,7 @@ Or install packages directly (not recommended):
 uv pip install argparse requests google google-api-core grpcio python-on-whales
 ```
 
-## Running the Upgrade Test
+## Running Tests
 
 For now, it requires an environment to be set up via `just` commands prior to
 execution.
@@ -70,14 +70,15 @@ just clean helm
 
 # Set up the test environment
 just deploy cluster # only needs to be run first time
-just deploy upgrade-test
+just deploy [TEST_NAME]
+
+# Current Python tests:
+#   - upgrade-test
+#   - smoke-test
 
 # Run the test
-just run upgrade-test
+just run [TEST_NAME] <IMAGE_TAG> # e.g. 'latest', 'local', 'pr-2000'
 ```
-
-This invokes the `sequencer_upgrade_test.py` script with the args
-`--image-tag latest` and `--upgrade-name aspen`.
 
 To run the upgrade test using local builds:
 
@@ -88,17 +89,9 @@ just clean helm
 # Set up the test environment
 just deploy cluster # only needs to be run first time
 cargo check
-just docker-build-and-load astria-sequencer-relayer
-just docker-build-and-load astria-sequencer
-just docker-build-and-load astria-composer
-just docker-build-and-load astria-conductor
-just docker-build-and-load astria-cli
-just docker-build-and-load astria-bridge-withdrawer
-just deploy upgrade-test
+just docker-build-and-load-all
+just deploy [TEST_NAME]
 
 # Run the test
-just run upgrade-test local
+just run [TEST_NAME] local
 ```
-
-This invokes the `sequencer_upgrade_test.py` script with the args
-`--image-tag local` and `--upgrade-name aspen`.

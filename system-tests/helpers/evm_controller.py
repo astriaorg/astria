@@ -1,4 +1,5 @@
 import requests
+from .defaults import EVM_DESTINATION_ADDRESS
 from .utils import run_subprocess, wait_for_statefulset_rollout, Retryer
 
 class EvmController:
@@ -26,7 +27,7 @@ class EvmController:
     # Methods calling rollup's JSON-RPC server
     # ========================================
 
-    def get_balance(self, address):
+    def get_balance(self, address=EVM_DESTINATION_ADDRESS):
         """
         Queries the rollup's JSON-RPC server for the balance of the given account.
 
@@ -137,7 +138,7 @@ class EvmController:
             "astria-chain-chart",
             "charts/evm-stack",
             "--values=dev/values/rollup/dev.yaml",
-            f"--set=evm-rollup.images.conductor.devTag={image_tag}",
+            f"--set=evm-rollup.images.conductor.tag={image_tag}",
             f"--set=composer.images.composer.devTag={image_tag}",
             f"--set=evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag={image_tag}",
             "--set=blockscout-stack.enabled=false",
