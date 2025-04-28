@@ -229,7 +229,7 @@ jobs:
         run: |
           TAG=sha-$(git rev-parse --short HEAD)
           just run smoke-test $TAG
-  smoke-test-evm-rollup-restart:
+  smoke-test-evm-restart:
     needs: [run_checker, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli]
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
     runs-on: buildjet-8vcpu-ubuntu-2204
@@ -247,19 +247,22 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Setup Smoke Test Environment
+      - name: Setup EVM Restart Test Environment
         timeout-minutes: 10
         run: |
           TAG=sha-$(git rev-parse --short HEAD)
           just deploy cluster
           kubectl create secret generic regcred --from-file=.dockerconfigjson=$HOME/.docker/config.json --type=kubernetes.io/dockerconfigjson
           echo -e "\n\nDeploying with astria images tagged $TAG"
-          just deploy evm-rollup-restart-test $TAG
-      - name: Run Smoke test
+          just deploy evm-restart-test
+          cd system-tests
+          uv venv
+          uv pip install -r requirements.txt
+      - name: Run EVM Restart Test
         timeout-minutes: 3
         run: |
           TAG=sha-$(git rev-parse --short HEAD)
-          just run evm-rollup-restart-test $TAG
+          just run evm-restart-test $TAG
 
   smoke-cli:
     needs: [run_checker, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli]
