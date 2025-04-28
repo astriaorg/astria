@@ -54,24 +54,25 @@ struct Create {
 
 impl Create {
     fn run(self) -> eyre::Result<()> {
-        let bip39_mnemonic = match self.mnemonic {
-            Some(mnemonic) => {
-                bip39::Mnemonic::validate(&mnemonic, bip39::Language::English)
-                    .wrap_err("phrase verification failed")?;
-                bip39::Mnemonic::from_phrase(&mnemonic, bip39::Language::English)
-                    .wrap_err("failed to create mnemonic from phrase")?
-            }
-            None => {
-                let mnemonic_type = match self.mnemonic_length {
-                    12 => bip39::MnemonicType::Words12,
-                    15 => bip39::MnemonicType::Words15,
-                    18 => bip39::MnemonicType::Words18,
-                    21 => bip39::MnemonicType::Words21,
-                    24 => bip39::MnemonicType::Words24,
-                    _ => return Err(eyre::eyre!("Invalid mnemonic length")),
-                };
-                bip39::Mnemonic::new(mnemonic_type, bip39::Language::English)
-            }
+        let bip39_mnemonic = if let Some(mnemonic) = self.mnemonic {
+            bip39::Mnemonic::validate(&mnemonic, bip39::Language::English)
+                .wrap_err("phrase verification failed")?;
+            bip39::Mnemonic::from_phrase(&mnemonic, bip39::Language::English)
+                .wrap_err("failed to create mnemonic")?
+        } else {
+            let mnemonic_type = match self.mnemonic_length {
+                12 => bip39::MnemonicType::Words12,
+                15 => bip39::MnemonicType::Words15,
+                18 => bip39::MnemonicType::Words18,
+                21 => bip39::MnemonicType::Words21,
+                24 => bip39::MnemonicType::Words24,
+                _ => {
+                    return Err(eyre::eyre!(
+                        "mnemonic length must be one of: 12, 15, 18, 21, or 24"
+                    ))
+                }
+            };
+            bip39::Mnemonic::new(mnemonic_type, bip39::Language::English)
         };
 
         let seed = bip39::Seed::new(&bip39_mnemonic, "");
