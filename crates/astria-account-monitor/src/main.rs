@@ -56,7 +56,7 @@ async fn main() -> ExitCode {
         },
         res = &mut account_monitor => {
             match res {
-                Ok(_) => ExitCode::SUCCESS,
+                Ok(()) => ExitCode::SUCCESS,
                 Err(error) => {
                     eprintln!("account monitor exited unexpectedly:\n {error}");
                     ExitCode::FAILURE
