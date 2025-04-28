@@ -44,24 +44,11 @@ impl Resources {
 
         Ok(())
     }
-
-    #[track_caller]
-    fn check_create_account(self) -> Result<()> {
-        let mut cmd = new_create_account_command()?;
-        cmd.assert()
-            .success()
-            .stdout(predicate::str::contains("Mnemonic:"))
-            .stdout(predicate::str::contains("Private Key:"))
-            .stdout(predicate::str::contains("Address:"))
-            .stdout(predicate::str::contains("Public Key:"));
-
-        Ok(())
-    }
 }
 
 fn new_create_account_command() -> Result<Command> {
     // astria-cli sequencer account create command
-    let mut cmd = Command::cargo_bin(format!(env!("CARGO_PKG_NAME")))?;
+    let mut cmd = Command::cargo_bin(env!("CARGO_PKG_NAME"))?;
     cmd.arg("sequencer").arg("account").arg("create");
     Ok(cmd)
 }
@@ -74,8 +61,15 @@ fn should_reconstruct_account() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
-fn should_create_account() -> Result<(), Box<dyn std::error::Error>> {
-    let resources: Resources = Resources::new("create_account")?;
-    resources.check_create_account()?;
+#[track_caller]
+fn should_create_account() -> Result<()> {
+    let mut cmd = new_create_account_command()?;
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("Mnemonic:"))
+        .stdout(predicate::str::contains("Private Key:"))
+        .stdout(predicate::str::contains("Address:"))
+        .stdout(predicate::str::contains("Public Key:"));
+
     Ok(())
 }
