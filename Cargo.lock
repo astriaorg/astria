@@ -621,8 +621,10 @@ dependencies = [
 name = "astria-cli"
 version = "0.6.0"
 dependencies = [
+ "assert_cmd",
  "astria-bridge-contracts",
  "astria-core",
+ "astria-eyre",
  "astria-sequencer-client",
  "clap",
  "clap-stdin",
@@ -634,6 +636,7 @@ dependencies = [
  "ibc-types",
  "jiff",
  "pbjson-types",
+ "predicates",
  "prost",
  "rand 0.8.5",
  "serde",
