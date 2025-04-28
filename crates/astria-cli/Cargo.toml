@@ -24,6 +24,7 @@ astria-bridge-contracts = { path = "../astria-bridge-contracts", features = [
   "tracing",
 ] }
 astria-core = { path = "../astria-core", features = ["serde"] }
+astria-eyre = { path = "../astria-eyre" }
 
 clap = { workspace = true, features = ["derive", "env"] }
 ethers = { workspace = true, features = ["ws"] }
@@ -43,6 +44,10 @@ tryhard.workspace = true
 serde_json.workspace = true
 futures.workspace = true
 tiny-bip39 = "2.0.0"
+
+[dev-dependencies]
+assert_cmd = "2.0.14"
+predicates = "3.1.0"
 
 [dependencies.astria-sequencer-client]
 package = "astria-sequencer-client"
