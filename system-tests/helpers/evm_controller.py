@@ -14,13 +14,13 @@ class EvmController:
     # Methods managing and querying the rollup's k8s container
     # ========================================================
 
-    def deploy_rollup(self, image_tag):
+    def deploy_rollup(self, image_tag, sequencer_node_name="single"):
         """
         Deploys a new EVM rollup on the cluster using the specified image tag.
 
         The EVM node, composer, conductor and bridge-withdrawer are installed via `helm install`.
         """
-        run_subprocess(self._helm_args("install", image_tag), msg="deploying rollup")
+        run_subprocess(self._helm_args("install", image_tag, sequencer_node_name=sequencer_node_name), msg="deploying rollup")
         wait_for_statefulset_rollout("rollup", "astria-geth", "astria-dev-cluster", 600)
 
     # ========================================
@@ -130,7 +130,7 @@ class EvmController:
     # Private methods
     # ===============
 
-    def _helm_args(self, subcommand, image_tag):
+    def _helm_args(self, subcommand, image_tag, sequencer_node_name):
         return [
             "helm",
             subcommand,
@@ -138,6 +138,8 @@ class EvmController:
             "astria-chain-chart",
             "charts/evm-stack",
             "--values=dev/values/rollup/dev.yaml",
+            f"--set=global.sequencerRpc=http://{sequencer_node_name}-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657",
+            f"--set=global.sequencerGrpc=http://{sequencer_node_name}-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:8080",
             f"--set=evm-rollup.images.conductor.tag={image_tag}",
             f"--set=composer.images.composer.devTag={image_tag}",
             f"--set=evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag={image_tag}",

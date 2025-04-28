@@ -259,7 +259,7 @@ jobs:
         timeout-minutes: 3
         run: |
           TAG=sha-$(git rev-parse --short HEAD)
-          just run smoke-test $TAG
+          just run evm-rollup-restart-test $TAG
 
   smoke-cli:
     needs: [run_checker, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli]

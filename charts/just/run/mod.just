@@ -57,6 +57,107 @@ smoke-test tag=defaultDockerTag:
     --image-tag {{ if tag != '' { tag } else { 'latest' } }} \
 
 
+# Run EVM Rollup Restart Test
+##############################
+[doc("
+Runs end-to-end test of Astria stack and EVM rollup, including bridge in/out and
+TX finalization.
+Usage:
+  just run smoke-test <TAG> (default: '')
+")]
+evm-rollup-restart-test tag=defaultTag:
+  #!/usr/bin/env bash
+  set -e
+  ASTRIA_CLI_IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
+  MAX_CHECKS=30
+
+  # Checking starting balance
+  BALANCE=$(just evm get-balance {{evm_destination_address}})
+  if [ $BALANCE -ne 0 ]; then
+    echo "Starting balance is not correct"
+    exit 1
+  fi
+
+  echo "Testing Bridge In..."
+  just init rollup-bridge {{tag}}
+  CHECKS=0
+  EXPECTED_BALANCE=$(echo "{{sequencer_transfer_amount}} * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
+  while (( $CHECKS < $MAX_CHECKS )); do
+    CHECKS=$((CHECKS+1))
+    BALANCE=$(just evm get-balance {{evm_destination_address}})
+    echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
+    if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
+      echo "Bridge In success"
+      break
+    else
+      sleep 1
+    fi
+  done
+  if (( $CHECKS >= $MAX_CHECKS )); then
+    echo "Bridge In failure"
+    exit 1
+  fi
+
+  echo "Testing Bridge Out..."
+  just evm send-raw-transaction {{bridge_tx_bytes}}
+  TRANSFERED_BALANCE=$(echo "1 * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
+  EXPECTED_BALANCE=$(echo "$EXPECTED_BALANCE - $TRANSFERED_BALANCE" | bc)
+  CHECKS=0
+  while (( $CHECKS < $MAX_CHECKS )); do
+    CHECKS=$((CHECKS+1))
+    BALANCE=$(just evm get-balance {{evm_destination_address}})
+    echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
+    if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
+      echo "Bridge Out EVM success"
+      break
+    else
+      sleep 1
+    fi
+  done
+  if (( $CHECKS >= $MAX_CHECKS )); then
+    echo "Bridge Out EVM failure"
+    exit 1
+  fi
+  CHECKS=0
+  EXPECTED_BALANCE=$(echo "1 * {{sequencer_base_amount}}" | bc)
+  while (( $CHECKS < $MAX_CHECKS )); do
+    CHECKS=$((CHECKS+1))
+    BALANCE=$(docker run --rm --network host $ASTRIA_CLI_IMAGE sequencer account balance astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504 --sequencer-url {{sequencer_rpc_url}}  | awk '/nria/{print $(NF-1)}')
+    echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
+    if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
+      echo "Bridge Out Sequencer success"
+      break
+    else
+      sleep 1
+    fi
+  done
+  if (( $CHECKS >= $MAX_CHECKS )); then
+    echo "Bridge Out Sequencer failure"
+    exit 1
+  fi
+
+  echo "Testing TX Finalization"
+  CHECKS=0
+  BLOCK_NUM_HEX=$(just evm get-transaction-receipt {{bridge_tx_hash}} | jq -r '.blockNumber')
+  BLOCK_NUM=$(just evm::hex-to-dec $BLOCK_NUM_HEX)
+  while (( $CHECKS < $MAX_CHECKS )); do
+    CHECKS=$((CHECKS+1))
+    FINALIZED_BLOCK=$(just evm get-block-by-number finalized | jq -r '.number')
+    FINALIZED_BLOCK=$(just evm::hex-to-dec $FINALIZED_BLOCK)
+    echo "Check $CHECKS, Finalized block: $FINALIZED_BLOCK, Expected: $BLOCK_NUM"
+    if [ $FINALIZED_BLOCK -ge $BLOCK_NUM ]; then
+      echo "Finalization success"
+      break
+    else
+      sleep 1
+    fi
+  done
+  if (( $CHECKS >= $MAX_CHECKS )); then
+    echo "Finalization failure"
+    exit 1
+  fi
+  exit 0
+
 # Run Smoke Test CLI
 #####################
 evm_contract_address := "0xA58639fB5458e65E4fA917FF951C390292C24A15"
