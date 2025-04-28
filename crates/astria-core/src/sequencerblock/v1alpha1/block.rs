@@ -1121,7 +1121,11 @@ impl FilteredSequencerBlock {
                 .map(RollupTransactions::into_raw)
                 .collect(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
-            all_rollup_ids: self.all_rollup_ids.iter().map(RollupId::to_raw).collect(),
+            all_rollup_ids: self
+                .all_rollup_ids
+                .iter()
+                .map(|id| Bytes::copy_from_slice(id.as_ref()))
+                .collect(),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
         }
     }
@@ -1206,7 +1210,7 @@ impl FilteredSequencerBlock {
 
         let all_rollup_ids: Vec<RollupId> = all_rollup_ids
             .into_iter()
-            .map(RollupId::try_from_raw)
+            .map(|bytes| RollupId::try_from_slice(&bytes))
             .collect::<Result<_, _>>()
             .map_err(FilteredSequencerBlockError::invalid_rollup_id)?;
 
