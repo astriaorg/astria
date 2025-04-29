@@ -34,7 +34,6 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{
-    info,
     instrument,
     warn,
 };
@@ -52,6 +51,42 @@ pub struct AccountMonitor {
     shutdown_token: CancellationToken,
     task: Option<JoinHandle<eyre::Result<()>>>,
 }
+
+impl AccountMonitor {
+    /// Spawns the Account Monitor service.
+    ///
+    /// # Errors
+    /// Returns an error if the Auctioneer cannot be initialized.
+    pub fn spawn(cfg: Config, metrics: &'static Metrics) -> eyre::Result<Self> {
+        let shutdown_token = CancellationToken::new();
+        let inner = Inner::new(cfg, metrics)?;
+        let task = tokio::spawn(inner.run());
+
+        Ok(Self {
+            shutdown_token,
+            task: Some(task),
+        })
+    }
+
+    pub fn shutdown(self) {
+        self.shutdown_token.cancel();
+    }
+}
+
+impl Future for AccountMonitor {
+    type Output = eyre::Result<()>;
+
+    fn poll(mut self: Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<Self::Output> {
+        use futures::future::FutureExt as _;
+
+        let task = self
+            .task
+            .as_mut()
+            .expect("auctioneer must not be polled after shutdown");
+        task.poll_unpin(ctx).map(flatten_join_result)
+    }
+}
+
 struct Inner {
     shutdown_token: CancellationToken,
     sequencer_abci_client: sequencer_client::HttpClient,
@@ -103,57 +138,21 @@ impl Inner {
         poll_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
         loop {
-            if self.shutdown_token.is_cancelled() {
-                info!("received shutdown signal");
-                break;
+            tokio::select! {
+                biased;
+                () = self.shutdown_token.cancelled() => {
+                    return Ok(())
+                }
+                _ = poll_timer.tick() => {
+                    fetch_all_info(
+                        self.metrics,
+                        &self.sequencer_abci_client,
+                        &self.sequencer_accounts,
+                        &self.sequencer_asset,
+                    );
+                }
             }
-
-            poll_timer.tick().await;
-
-            fetch_all_info(
-                self.metrics,
-                &self.sequencer_abci_client,
-                &self.sequencer_accounts,
-                &self.sequencer_asset,
-            );
         }
-
-        Ok(())
-    }
-}
-
-impl AccountMonitor {
-    /// Spawns the Account Monitor service.
-    ///
-    /// # Errors
-    /// Returns an error if the Auctioneer cannot be initialized.
-    pub fn spawn(cfg: Config, metrics: &'static Metrics) -> eyre::Result<Self> {
-        let shutdown_token = CancellationToken::new();
-        let inner = Inner::new(cfg, metrics)?;
-        let task = tokio::spawn(inner.run());
-
-        Ok(Self {
-            shutdown_token,
-            task: Some(task),
-        })
-    }
-
-    pub fn shutdown(self) {
-        self.shutdown_token.cancel();
-    }
-}
-
-impl Future for AccountMonitor {
-    type Output = eyre::Result<()>;
-
-    fn poll(mut self: Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<Self::Output> {
-        use futures::future::FutureExt as _;
-
-        let task = self
-            .task
-            .as_mut()
-            .expect("auctioneer must not be polled after shutdown");
-        task.poll_unpin(ctx).map(flatten_join_result)
     }
 }
 
