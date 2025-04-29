@@ -8,7 +8,7 @@ participant Composer
 participant Conductor
 participant Sequencer
 participant Relayer
-database DA
+database Celestia
 
 group Setup
 Rollup Node<-Conductor: CreateExecutionSession
@@ -39,7 +39,7 @@ Sequencer->Sequencer: Build Block/Consensus
 parallel on
 Sequencer-->Conductor: NewBlock Height N
 Relayer<--Sequencer: NewBlock Height N
-note right of Relayer: Blocks are queued for batch write,\nsince sequencer produces blocks\nfaster than DA.
+note right of Relayer: Blocks are queued for batch write,\nsince sequencer produces blocks\nfaster than Celestia.
 parallel off
 end
 
@@ -55,15 +55,15 @@ end
 Wallet->Rollup Node: Get Tx
 Wallet<--Rollup Node: Soft Commit Tx (executed)
 
-group DA submission & update
-Relayer -> DA: Post Batch (0->N)
-activate DA
-note left of DA: Posted blobs only return after\ninclusion. We run a loop to post\nqueued blocks after inflight\nrequest returns
-DA-->Relayer: Batch Success (0->N)
-deactivate DA
+group Celestia submission & update
+Relayer -> Celestia: Post Batch (0->N)
+activate Celestia
+note left of Celestia: Posted blobs only return after\ninclusion. We run a loop to post\nqueued blocks after inflight\nrequest returns
+Celestia-->Relayer: Batch Success (0->N)
+deactivate Celestia
 
-Conductor->DA: Get Batch
-Conductor<--DA: Batch Blocks (0 -> N)
+Conductor->Celestia: Get Batch
+Conductor<--Celestia: Batch Blocks (0 -> N)
 Conductor->Rollup Node: UpdateCommitmentState (Firm N)
 end
 

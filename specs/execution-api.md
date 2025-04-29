@@ -58,20 +58,19 @@ been reached for a given block. Upon receipt of the executed block, Conductor ca
 
 - `SoftOnly`
   - upon receiving a new sequencer block N from the Sequencer:
-    - `ExecuteBlock` will be called with data from the sequencer block N, then
+    - `ExecuteBlock` will be called with data from the Sequencer block N, then
     - `UpdateCommitmentState` will be called to update the `soft` block to N
 - `FirmOnly`
   - conductor does not need to listen for new blocks from Sequencer
-  - upon reading a new Sequencer block N from Celestia
+  - upon reading a new Sequencer block N from Celestia:
     - `ExecuteBlock` will be called with data from the Sequencer block N
     - `UpdateCommitmentState` will be called to update `firm` and `soft` blocks
       to N
 - `SoftAndFirm`
-  - upon receiving a new sequencer block N from the Sequencer:
-    - `ExecuteBlock` will be called with data from the sequencer block N, then
+  - upon receiving a new Sequencer block N from the Sequencer:
+    - `ExecuteBlock` will be called with data from the Sequencer block N, then
     - `UpdateCommitmentState` will be called to update the `soft` block to N
-  - upon reading new blocks from Celestia containing all of blocks K->N, where K
-    is some arbitrary ancestor of N
+  - upon reading Sequencer block N from Celestia:
     - `UpdateCommitmentState` will be called to update the `firm` block to N
 
 Note: For our EVM rollup, we map the `CommitmentState` to the `ForkchoiceRule`:
