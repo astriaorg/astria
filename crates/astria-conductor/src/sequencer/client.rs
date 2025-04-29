@@ -39,10 +39,9 @@ impl SequencerGrpcClient {
         let uri: Uri = sequencer_uri
             .parse()
             .wrap_err("failed parsing provided string as Uri")?;
-        let mut endpoint = Endpoint::from(uri.clone());
-        if uri.scheme() == Some(&http::uri::Scheme::HTTPS) {
-            endpoint = endpoint.tls_config(ClientTlsConfig::new().with_enabled_roots())?;
-        }
+        let endpoint = Endpoint::from(uri.clone())
+            .tls_config(ClientTlsConfig::new().with_enabled_roots())
+            .wrap_err("failed to configure TLS for sequencer client")?;
         let inner = SequencerServiceClient::new(endpoint.connect_lazy());
         Ok(Self {
             inner,
