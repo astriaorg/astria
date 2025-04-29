@@ -90,7 +90,9 @@ or skipping Celestia heights. As such, the Celestia heights correlating to Seque
 commitments may not increase linearly, and a range of heights must be searched.
 Conductor begins fetching at `CommitmentState.lowest_celestia_search_height`, continuing
 searching for firm commitments until it reaches `lowest_celestia_search_height +
-ExecutionSessionParameters.celestia_search_height_max_look_ahead`.
+ExecutionSessionParameters.celestia_search_height_max_look_ahead`. This also allows
+for Conductor to be resilient against any potentially missing Sequencer blocks
+on Celestia or Sequencer blocks which end up out of order on Celestia.
 
 ## Rollup Implementation Details
 
