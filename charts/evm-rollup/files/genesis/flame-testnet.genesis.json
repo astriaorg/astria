@@ -61,7 +61,7 @@
         "eip1559Params": {
           "baseFeeChangeDenominator": 250,
           "elasticityMultiplier": 6,
-          "minBaseFee": 1000000000
+          "minBaseFee": 18000000000
         }
       },
       "dtia": {
