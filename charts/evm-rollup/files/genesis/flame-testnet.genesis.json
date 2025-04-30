@@ -22,6 +22,7 @@
       "init": {
         "height": 1,
         "feeCollector": "0xF09cA27323E25ff7Cee792b108D8521864F3a337",
+        "extraDataOverride": "0xd78c666c616d652d6461776e2d3182fe36832d0a0f823a98",
         "sequencer": {
           "chainId": "dawn-1",
           "addressPrefix": "astria",
@@ -43,6 +44,7 @@
       },
       "uusdc": {
         "height": 120292,
+        "extraDataOverride": "0xd78c666c616d652d6461776e2d3182fe36832d0a0f823a98",
         "bridgeAddresses": [
           {
             "assetDenom": "transfer/channel-1/uusdc",
@@ -58,6 +60,7 @@
       },
       "eip1559_set": {
         "height": 223000,
+        "extraDataOverride": "0xd78c666c616d652d6461776e2d3182fe36832d0a0f823a98",
         "eip1559Params": {
           "baseFeeChangeDenominator": 250,
           "elasticityMultiplier": 6,
@@ -66,6 +69,7 @@
       },
       "dtia": {
         "height": 1077477,
+        "extraDataOverride": "0xd78c666c616d652d6461776e2d3182fe36832d0a0f823a98",
         "bridgeAddresses": [
           {
             "assetDenom": "transfer/channel-4/factory/neutron1tkr6mtll5e2z53ze2urnc3ld3tq3dam2rchezc5lg9c237ft66gqtw94jm/drop",
@@ -81,10 +85,19 @@
       },
       "eip1559_update": {
         "height": 3755000,
+        "extraDataOverride": "0xd78c666c616d652d6461776e2d3182fe36832d0a0f823a98",
         "eip1559Params": {
           "baseFeeChangeDenominator": 250,
           "elasticityMultiplier": 6,
           "minBaseFee": 1000000000
+        }
+      },
+      "extra_data_update": {
+        "height": 7203230,
+        "celestia":  {
+          "chainId": "mocha-4",
+          "startHeight": 5915119,
+          "searchHeightMaxLookAhead": 15000
         }
       }
     }
