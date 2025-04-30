@@ -5,6 +5,10 @@ Namepsace to deploy elements into.
 {{- default .Release.Namespace .Values.global.namespaceOverride | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
+{{- define "celestiaNode.image" -}}
+{{ .Values.images.node }}{{ if eq .Values.config.network "mocha-4" }}-mocha{{ end }}
+{{- end }}
+
 {{/*
 Define the base label
 */}}
