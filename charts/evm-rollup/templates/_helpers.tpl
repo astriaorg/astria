@@ -122,7 +122,7 @@ The log level represented as a number
 Full image paths for Astria built images
 */}}
 {{- define "rollup.image" -}}
-{{ include "rollup.repos.geth" }}:{{ include "rollup.tags.geth" . }}
+{{ include "rollup.repos.geth" . }}:{{ include "rollup.tags.geth" . }}
 {{- end }}
 
 {{- define "conductor.image" -}}
