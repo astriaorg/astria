@@ -27,13 +27,12 @@ pub struct Metrics {
     check_tx_duration_seconds_parse_tx: Histogram,
     check_tx_duration_seconds_check_stateless: Histogram,
     check_tx_duration_seconds_fetch_nonce: Histogram,
-    check_tx_duration_seconds_check_tracked: Histogram,
     check_tx_duration_seconds_check_chain_id: Histogram,
-    check_tx_duration_seconds_check_removed: Histogram,
     check_tx_duration_seconds_convert_address: Histogram,
     check_tx_duration_seconds_fetch_balances: Histogram,
     check_tx_duration_seconds_fetch_tx_cost: Histogram,
     check_tx_duration_seconds_insert_to_app_mempool: Histogram,
+    check_tx_duration_seconds_transaction_status: Histogram,
     actions_per_transaction_in_mempool: Histogram,
     transaction_in_mempool_size_bytes: Histogram,
     transactions_in_mempool_total: Gauge,
@@ -107,18 +106,8 @@ impl Metrics {
         self.check_tx_duration_seconds_fetch_nonce.record(duration);
     }
 
-    pub(crate) fn record_check_tx_duration_seconds_check_tracked(&self, duration: Duration) {
-        self.check_tx_duration_seconds_check_tracked
-            .record(duration);
-    }
-
     pub(crate) fn record_check_tx_duration_seconds_check_chain_id(&self, duration: Duration) {
         self.check_tx_duration_seconds_check_chain_id
-            .record(duration);
-    }
-
-    pub(crate) fn record_check_tx_duration_seconds_check_removed(&self, duration: Duration) {
-        self.check_tx_duration_seconds_check_removed
             .record(duration);
     }
 
@@ -142,6 +131,11 @@ impl Metrics {
         duration: Duration,
     ) {
         self.check_tx_duration_seconds_insert_to_app_mempool
+            .record(duration);
+    }
+
+    pub(crate) fn record_check_tx_duration_seconds_transaction_status(&self, duration: Duration) {
+        self.check_tx_duration_seconds_transaction_status
             .record(duration);
     }
 
@@ -299,15 +293,13 @@ impl telemetry::Metrics for Metrics {
                 "The amount of time taken in seconds to fetch an account's nonce",
             )?
             .register()?;
-
-        let check_tx_duration_seconds_check_tracked = builder
+        let check_tx_duration_seconds_transaction_status = builder
             .new_histogram_factory(
-                CHECK_TX_DURATION_SECONDS_CHECK_TRACKED,
-                "The amount of time taken in seconds to check if the transaction is already in \
-                 the mempool",
+                CHECK_TX_DURATION_SECONDS_TRANSACTION_STATUS,
+                "The amount of time taken in seconds to check the transaction status in the \
+                 app-side mempool",
             )?
             .register()?;
-
         let check_tx_removed_failed_stateless = builder
             .new_counter_factory(
                 CHECK_TX_REMOVED_FAILED_STATELESS,
@@ -327,8 +319,6 @@ impl telemetry::Metrics for Metrics {
             .register_with_labels(&[(CHECK_TX_STAGE, "stateless check".to_string())])?;
         let check_tx_duration_seconds_check_chain_id = check_tx_duration_factory
             .register_with_labels(&[(CHECK_TX_STAGE, "chain id check".to_string())])?;
-        let check_tx_duration_seconds_check_removed = check_tx_duration_factory
-            .register_with_labels(&[(CHECK_TX_STAGE, "check for removal".to_string())])?;
         let check_tx_duration_seconds_insert_to_app_mempool = check_tx_duration_factory
             .register_with_labels(&[(CHECK_TX_STAGE, "insert to app mempool".to_string())])?;
 
@@ -418,13 +408,12 @@ impl telemetry::Metrics for Metrics {
             check_tx_duration_seconds_parse_tx,
             check_tx_duration_seconds_check_stateless,
             check_tx_duration_seconds_fetch_nonce,
-            check_tx_duration_seconds_check_tracked,
             check_tx_duration_seconds_check_chain_id,
-            check_tx_duration_seconds_check_removed,
             check_tx_duration_seconds_convert_address,
             check_tx_duration_seconds_fetch_balances,
             check_tx_duration_seconds_fetch_tx_cost,
             check_tx_duration_seconds_insert_to_app_mempool,
+            check_tx_duration_seconds_transaction_status,
             actions_per_transaction_in_mempool,
             transaction_in_mempool_size_bytes,
             transactions_in_mempool_total,
@@ -456,6 +445,7 @@ metric_names!(const METRICS_NAMES:
     CHECK_TX_DURATION_SECONDS_CONVERT_ADDRESS,
     CHECK_TX_DURATION_SECONDS_FETCH_BALANCES,
     CHECK_TX_DURATION_SECONDS_FETCH_NONCE,
+    CHECK_TX_DURATION_SECONDS_TRANSACTION_STATUS,
     CHECK_TX_DURATION_SECONDS_FETCH_TX_COST,
     CHECK_TX_DURATION_SECONDS_CHECK_TRACKED,
     ACTIONS_PER_TRANSACTION_IN_MEMPOOL,

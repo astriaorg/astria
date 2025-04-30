@@ -5,6 +5,7 @@
 #![expect(non_camel_case_types, reason = "for benchmark")]
 
 use std::{
+    collections::HashSet,
     sync::Arc,
     time::Duration,
 };
@@ -114,7 +115,7 @@ fn init_mempool<T: MempoolSize>() -> Mempool {
                 .insert(
                     tx.clone(),
                     0,
-                    account_mock_balance.clone(),
+                    &account_mock_balance.clone(),
                     tx_mock_cost.clone(),
                 )
                 .await
@@ -169,7 +170,7 @@ fn insert<T: MempoolSize>(bencher: divan::Bencher) {
         .bench_values(move |(mempool, tx, mock_balances, mock_tx_cost)| {
             runtime.block_on(async {
                 mempool
-                    .insert(tx, 0, mock_balances, mock_tx_cost)
+                    .insert(tx, 0, &mock_balances, mock_tx_cost)
                     .await
                     .unwrap();
             });
@@ -257,7 +258,7 @@ fn check_removed_comet_bft(bencher: divan::Bencher) {
         })
         .bench_values(move |(mempool, tx_hash)| {
             runtime.block_on(async {
-                mempool.check_removed_comet_bft(tx_hash).await.unwrap();
+                mempool.remove_from_removal_cache(tx_hash).await.unwrap();
             });
         });
 }
@@ -299,7 +300,9 @@ fn run_maintenance<T: MempoolSize>(bencher: divan::Bencher) {
         .with_inputs(|| init_mempool::<T>())
         .bench_values(move |mempool| {
             runtime.block_on(async {
-                mempool.run_maintenance(&mock_state, false, vec![], 1).await;
+                mempool
+                    .run_maintenance(&mock_state, false, HashSet::new(), 1)
+                    .await;
             });
         });
 }
@@ -341,7 +344,9 @@ fn run_maintenance_tx_recosting<T: MempoolSize>(bencher: divan::Bencher) {
         .with_inputs(|| init_mempool::<T>())
         .bench_values(move |mempool| {
             runtime.block_on(async {
-                mempool.run_maintenance(&mock_state, true, vec![], 1).await;
+                mempool
+                    .run_maintenance(&mock_state, true, HashSet::new(), 1)
+                    .await;
             });
         });
 }

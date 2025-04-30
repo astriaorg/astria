@@ -4,6 +4,7 @@ use std::{
         hash_map,
         BTreeMap,
         HashMap,
+        HashSet,
     },
     fmt,
     mem,
@@ -198,6 +199,25 @@ impl fmt::Display for InsertionError {
             }
             InsertionError::ParkedSizeLimit => {
                 write!(f, "parked container size limit reached")
+            }
+        }
+    }
+}
+
+impl From<InsertionError> for tonic::Status {
+    fn from(err: InsertionError) -> Self {
+        match err {
+            InsertionError::AlreadyPresent | InsertionError::NonceTaken => {
+                tonic::Status::already_exists(err.to_string())
+            }
+            InsertionError::NonceTooLow | InsertionError::NonceGap => {
+                tonic::Status::invalid_argument(err.to_string())
+            }
+            InsertionError::AccountSizeLimit | InsertionError::ParkedSizeLimit => {
+                tonic::Status::resource_exhausted(err.to_string())
+            }
+            InsertionError::AccountBalanceTooLow => {
+                tonic::Status::failed_precondition(err.to_string())
             }
         }
     }
@@ -681,7 +701,7 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
         &mut self,
         address: &[u8; 20],
         current_account_nonce: u32,
-        included_txs: &Vec<[u8; TRANSACTION_ID_LEN]>,
+        txs_included_in_block: &HashSet<[u8; TRANSACTION_ID_LEN]>,
         block_number: u64,
     ) -> Vec<([u8; TRANSACTION_ID_LEN], RemovalReason)> {
         // Take the collection for this account out of `self` temporarily if it exists.
@@ -695,7 +715,7 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
         let mut removed_txs: Vec<([u8; 32], RemovalReason)> = split_off
             .into_values()
             .map(|ttx| {
-                if included_txs.contains(&ttx.tx_hash) {
+                if txs_included_in_block.contains(&ttx.tx_hash) {
                     // We only need to check stale transactions for inclusion, since all executed
                     // transactions will be stale
                     (ttx.tx_hash, RemovalReason::Included(block_number))
@@ -1840,20 +1860,25 @@ mod tests {
         let mut removed_txs = pending_txs.clean_account_stale_expired(
             astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             0,
-            &vec![],
+            &HashSet::new(),
             0,
         );
         removed_txs.extend(pending_txs.clean_account_stale_expired(
             astria_address_from_hex_string(BOB_ADDRESS).as_bytes(),
             1,
-            &vec![],
+            &HashSet::new(),
             0,
         ));
         removed_txs.extend(pending_txs.clean_account_stale_expired(
             astria_address_from_hex_string(CAROL_ADDRESS).as_bytes(),
             4,
             // should remove transactions 0 and 1 with `RemovalReason::Indluded(9)`
-            &vec![ttx_s2_0.tx_hash, ttx_s2_1.tx_hash],
+            &{
+                let mut included_txs = HashSet::new();
+                included_txs.insert(ttx_s2_0.tx_hash);
+                included_txs.insert(ttx_s2_1.tx_hash);
+                included_txs
+            },
             INCLUDED_TX_BLOCK_NUMBER,
         ));
 
@@ -1940,13 +1965,13 @@ mod tests {
         let mut removed_txs = pending_txs.clean_account_stale_expired(
             astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             0,
-            &vec![],
+            &HashSet::new(),
             1,
         );
         removed_txs.extend(pending_txs.clean_account_stale_expired(
             astria_address_from_hex_string(BOB_ADDRESS).as_bytes(),
             0,
-            &vec![],
+            &HashSet::new(),
             1,
         ));
 

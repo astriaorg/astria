@@ -8,29 +8,31 @@ pub struct GetTransactionStatusRequest {
 }
 impl ::prost::Name for GetTransactionStatusRequest {
     const NAME: &'static str = "GetTransactionStatusRequest";
-    const PACKAGE: &'static str = "astria.mempool.v1alpha1";
+    const PACKAGE: &'static str = "astria.mempool.v1";
     fn full_name() -> ::prost::alloc::string::String {
-        "astria.mempool.v1alpha1.GetTransactionStatusRequest".into()
+        "astria.mempool.v1.GetTransactionStatusRequest".into()
     }
     fn type_url() -> ::prost::alloc::string::String {
-        "/astria.mempool.v1alpha1.GetTransactionStatusRequest".into()
+        "/astria.mempool.v1.GetTransactionStatusRequest".into()
     }
 }
 /// A request to submit a transaction directly to the Astria Sequencer's mempool.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SubmitTransactionRequest {
     /// The transaction to be submitted.
-    #[prost(bytes = "bytes", tag = "1")]
-    pub transaction: ::prost::bytes::Bytes,
+    #[prost(message, optional, tag = "1")]
+    pub transaction: ::core::option::Option<
+        super::super::protocol::transaction::v1::Transaction,
+    >,
 }
 impl ::prost::Name for SubmitTransactionRequest {
     const NAME: &'static str = "SubmitTransactionRequest";
-    const PACKAGE: &'static str = "astria.mempool.v1alpha1";
+    const PACKAGE: &'static str = "astria.mempool.v1";
     fn full_name() -> ::prost::alloc::string::String {
-        "astria.mempool.v1alpha1.SubmitTransactionRequest".into()
+        "astria.mempool.v1.SubmitTransactionRequest".into()
     }
     fn type_url() -> ::prost::alloc::string::String {
-        "/astria.mempool.v1alpha1.SubmitTransactionRequest".into()
+        "/astria.mempool.v1.SubmitTransactionRequest".into()
     }
 }
 /// `TransactionStatus` is a resource which represents the status of a transaction
@@ -54,6 +56,67 @@ pub struct TransactionStatus {
 }
 /// Nested message and enum types in `TransactionStatus`.
 pub mod transaction_status {
+    /// Status representing a pending transaction in the Astria Sequencer's mempool.
+    #[derive(Clone, Copy, PartialEq, ::prost::Message)]
+    pub struct Pending {}
+    impl ::prost::Name for Pending {
+        const NAME: &'static str = "Pending";
+        const PACKAGE: &'static str = "astria.mempool.v1";
+        fn full_name() -> ::prost::alloc::string::String {
+            "astria.mempool.v1.TransactionStatus.Pending".into()
+        }
+        fn type_url() -> ::prost::alloc::string::String {
+            "/astria.mempool.v1.TransactionStatus.Pending".into()
+        }
+    }
+    /// Status representing a parked transaction in the Astria Sequencer's mempool.
+    #[derive(Clone, Copy, PartialEq, ::prost::Message)]
+    pub struct Parked {}
+    impl ::prost::Name for Parked {
+        const NAME: &'static str = "Parked";
+        const PACKAGE: &'static str = "astria.mempool.v1";
+        fn full_name() -> ::prost::alloc::string::String {
+            "astria.mempool.v1.TransactionStatus.Parked".into()
+        }
+        fn type_url() -> ::prost::alloc::string::String {
+            "/astria.mempool.v1.TransactionStatus.Parked".into()
+        }
+    }
+    /// Status representing a removed transaction in the Astria Sequencer's mempool.
+    #[derive(Clone, PartialEq, ::prost::Message)]
+    pub struct Removed {
+        /// The reason for the transaction's removal from the mempool.
+        #[prost(string, tag = "1")]
+        pub reason: ::prost::alloc::string::String,
+    }
+    impl ::prost::Name for Removed {
+        const NAME: &'static str = "Removed";
+        const PACKAGE: &'static str = "astria.mempool.v1";
+        fn full_name() -> ::prost::alloc::string::String {
+            "astria.mempool.v1.TransactionStatus.Removed".into()
+        }
+        fn type_url() -> ::prost::alloc::string::String {
+            "/astria.mempool.v1.TransactionStatus.Removed".into()
+        }
+    }
+    /// Status representing a transaction which has been included in a block and is
+    /// no longer in the Astria Sequencer's mempool.
+    #[derive(Clone, Copy, PartialEq, ::prost::Message)]
+    pub struct Included {
+        /// The number of the block in which the transaction was included.
+        #[prost(uint64, tag = "1")]
+        pub block_number: u64,
+    }
+    impl ::prost::Name for Included {
+        const NAME: &'static str = "Included";
+        const PACKAGE: &'static str = "astria.mempool.v1";
+        fn full_name() -> ::prost::alloc::string::String {
+            "astria.mempool.v1.TransactionStatus.Included".into()
+        }
+        fn type_url() -> ::prost::alloc::string::String {
+            "/astria.mempool.v1.TransactionStatus.Included".into()
+        }
+    }
     /// The status of the transaction. Can be one of:
     /// - `Pending`: The transaction is pending inclusion in a block.
     /// - `Parked`: The transaction is parked and will not be proposed until both:
@@ -66,84 +129,23 @@ pub mod transaction_status {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Status {
         #[prost(message, tag = "2")]
-        Pending(super::Pending),
+        Pending(Pending),
         #[prost(message, tag = "3")]
-        Parked(super::Parked),
+        Parked(Parked),
         #[prost(message, tag = "4")]
-        Removed(super::Removed),
+        Removed(Removed),
         #[prost(message, tag = "5")]
-        Included(super::Included),
+        Included(Included),
     }
 }
 impl ::prost::Name for TransactionStatus {
     const NAME: &'static str = "TransactionStatus";
-    const PACKAGE: &'static str = "astria.mempool.v1alpha1";
+    const PACKAGE: &'static str = "astria.mempool.v1";
     fn full_name() -> ::prost::alloc::string::String {
-        "astria.mempool.v1alpha1.TransactionStatus".into()
+        "astria.mempool.v1.TransactionStatus".into()
     }
     fn type_url() -> ::prost::alloc::string::String {
-        "/astria.mempool.v1alpha1.TransactionStatus".into()
-    }
-}
-/// Status representing a pending transaction in the Astria Sequencer's mempool.
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct Pending {}
-impl ::prost::Name for Pending {
-    const NAME: &'static str = "Pending";
-    const PACKAGE: &'static str = "astria.mempool.v1alpha1";
-    fn full_name() -> ::prost::alloc::string::String {
-        "astria.mempool.v1alpha1.Pending".into()
-    }
-    fn type_url() -> ::prost::alloc::string::String {
-        "/astria.mempool.v1alpha1.Pending".into()
-    }
-}
-/// Status representing a parked transaction in the Astria Sequencer's mempool.
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct Parked {}
-impl ::prost::Name for Parked {
-    const NAME: &'static str = "Parked";
-    const PACKAGE: &'static str = "astria.mempool.v1alpha1";
-    fn full_name() -> ::prost::alloc::string::String {
-        "astria.mempool.v1alpha1.Parked".into()
-    }
-    fn type_url() -> ::prost::alloc::string::String {
-        "/astria.mempool.v1alpha1.Parked".into()
-    }
-}
-/// Status representing a removed transaction in the Astria Sequencer's mempool.
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Removed {
-    /// The reason for the transaction's removal from the mempool.
-    #[prost(string, tag = "1")]
-    pub reason: ::prost::alloc::string::String,
-}
-impl ::prost::Name for Removed {
-    const NAME: &'static str = "Removed";
-    const PACKAGE: &'static str = "astria.mempool.v1alpha1";
-    fn full_name() -> ::prost::alloc::string::String {
-        "astria.mempool.v1alpha1.Removed".into()
-    }
-    fn type_url() -> ::prost::alloc::string::String {
-        "/astria.mempool.v1alpha1.Removed".into()
-    }
-}
-/// Status representing a transaction which has been included in a block and is
-/// no longer in the Astria Sequencer's mempool.
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct Included {
-    /// The number of the block in which the transaction was included.
-    #[prost(uint64, tag = "1")]
-    pub block_number: u64,
-}
-impl ::prost::Name for Included {
-    const NAME: &'static str = "Included";
-    const PACKAGE: &'static str = "astria.mempool.v1alpha1";
-    fn full_name() -> ::prost::alloc::string::String {
-        "astria.mempool.v1alpha1.Included".into()
-    }
-    fn type_url() -> ::prost::alloc::string::String {
-        "/astria.mempool.v1alpha1.Included".into()
+        "/astria.mempool.v1.TransactionStatus".into()
     }
 }
 /// A response to a request to submit a transaction to the Astria Sequencer's mempool,
@@ -156,12 +158,12 @@ pub struct SubmitTransactionResponse {
 }
 impl ::prost::Name for SubmitTransactionResponse {
     const NAME: &'static str = "SubmitTransactionResponse";
-    const PACKAGE: &'static str = "astria.mempool.v1alpha1";
+    const PACKAGE: &'static str = "astria.mempool.v1";
     fn full_name() -> ::prost::alloc::string::String {
-        "astria.mempool.v1alpha1.SubmitTransactionResponse".into()
+        "astria.mempool.v1.SubmitTransactionResponse".into()
     }
     fn type_url() -> ::prost::alloc::string::String {
-        "/astria.mempool.v1alpha1.SubmitTransactionResponse".into()
+        "/astria.mempool.v1.SubmitTransactionResponse".into()
     }
 }
 /// Generated client implementations.
@@ -177,8 +179,16 @@ pub mod mempool_service_client {
     use tonic::codegen::*;
     use tonic::codegen::http::Uri;
     /// `MempoolService` is a gRPC service which provides access to the Astria Sequencer's
-    /// mempool. It allows clients to get various information about the mempool, transaction
-    /// status, and submit transactions directly to the mempool.
+    /// app-side mempool. It allows clients to query a transaction's status and submit
+    /// transactions directly to the mempool.
+    ///
+    /// Submission to the app-side mempool via `MempoolService` is notably different
+    /// than submission directly to CometBFT, and users should consider the implications
+    /// of this when deciding how to submit transactions. If the transaction is accepted
+    /// into the mempool, it will not be gossiped to any other nodes, and hence will
+    /// not be persisted until it is executed and included in a block. As such, if the
+    /// Sequencer in question is stopped, any transactions submitted directly to the
+    /// app-side mempool which have not been executed will be lost.
     #[derive(Debug, Clone)]
     pub struct MempoolServiceClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -259,7 +269,8 @@ pub mod mempool_service_client {
             self.inner = self.inner.max_encoding_message_size(limit);
             self
         }
-        /// `GetTransactionStatus` returns the status of a transaction in the mempool.
+        /// `GetTransactionStatus` returns the status of a transaction in the app-side
+        /// mempool.
         pub async fn get_transaction_status(
             &mut self,
             request: impl tonic::IntoRequest<super::GetTransactionStatusRequest>,
@@ -277,13 +288,13 @@ pub mod mempool_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.mempool.v1alpha1.MempoolService/GetTransactionStatus",
+                "/astria.mempool.v1.MempoolService/GetTransactionStatus",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
-                        "astria.mempool.v1alpha1.MempoolService",
+                        "astria.mempool.v1.MempoolService",
                         "GetTransactionStatus",
                     ),
                 );
@@ -308,13 +319,13 @@ pub mod mempool_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.mempool.v1alpha1.MempoolService/SubmitTransaction",
+                "/astria.mempool.v1.MempoolService/SubmitTransaction",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
-                        "astria.mempool.v1alpha1.MempoolService",
+                        "astria.mempool.v1.MempoolService",
                         "SubmitTransaction",
                     ),
                 );
@@ -336,7 +347,8 @@ pub mod mempool_service_server {
     /// Generated trait containing gRPC methods that should be implemented for use with MempoolServiceServer.
     #[async_trait]
     pub trait MempoolService: std::marker::Send + std::marker::Sync + 'static {
-        /// `GetTransactionStatus` returns the status of a transaction in the mempool.
+        /// `GetTransactionStatus` returns the status of a transaction in the app-side
+        /// mempool.
         async fn get_transaction_status(
             self: std::sync::Arc<Self>,
             request: tonic::Request<super::GetTransactionStatusRequest>,
@@ -355,8 +367,16 @@ pub mod mempool_service_server {
         >;
     }
     /// `MempoolService` is a gRPC service which provides access to the Astria Sequencer's
-    /// mempool. It allows clients to get various information about the mempool, transaction
-    /// status, and submit transactions directly to the mempool.
+    /// app-side mempool. It allows clients to query a transaction's status and submit
+    /// transactions directly to the mempool.
+    ///
+    /// Submission to the app-side mempool via `MempoolService` is notably different
+    /// than submission directly to CometBFT, and users should consider the implications
+    /// of this when deciding how to submit transactions. If the transaction is accepted
+    /// into the mempool, it will not be gossiped to any other nodes, and hence will
+    /// not be persisted until it is executed and included in a block. As such, if the
+    /// Sequencer in question is stopped, any transactions submitted directly to the
+    /// app-side mempool which have not been executed will be lost.
     #[derive(Debug)]
     pub struct MempoolServiceServer<T> {
         inner: Arc<T>,
@@ -433,7 +453,7 @@ pub mod mempool_service_server {
         }
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             match req.uri().path() {
-                "/astria.mempool.v1alpha1.MempoolService/GetTransactionStatus" => {
+                "/astria.mempool.v1.MempoolService/GetTransactionStatus" => {
                     #[allow(non_camel_case_types)]
                     struct GetTransactionStatusSvc<T: MempoolService>(pub Arc<T>);
                     impl<
@@ -482,7 +502,7 @@ pub mod mempool_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria.mempool.v1alpha1.MempoolService/SubmitTransaction" => {
+                "/astria.mempool.v1.MempoolService/SubmitTransaction" => {
                     #[allow(non_camel_case_types)]
                     struct SubmitTransactionSvc<T: MempoolService>(pub Arc<T>);
                     impl<
@@ -561,7 +581,7 @@ pub mod mempool_service_server {
         }
     }
     /// Generated gRPC service name
-    pub const SERVICE_NAME: &str = "astria.mempool.v1alpha1.MempoolService";
+    pub const SERVICE_NAME: &str = "astria.mempool.v1.MempoolService";
     impl<T> tonic::server::NamedService for MempoolServiceServer<T> {
         const NAME: &'static str = SERVICE_NAME;
     }

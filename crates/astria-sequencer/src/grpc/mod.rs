@@ -6,7 +6,7 @@ use std::{
 use astria_core::{
     generated::{
         astria::{
-            mempool::v1alpha1::mempool_service_server::MempoolServiceServer,
+            mempool::v1::mempool_service_server::MempoolServiceServer,
             sequencerblock::v1::sequencer_service_server::SequencerServiceServer,
         },
         price_feed::{

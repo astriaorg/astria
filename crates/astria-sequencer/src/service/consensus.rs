@@ -420,7 +420,7 @@ mod tests {
             .insert(
                 signed_tx.clone(),
                 0,
-                mock_balances(0, 0),
+                &mock_balances(0, 0),
                 mock_tx_cost(0, 0, 0),
             )
             .await
@@ -569,7 +569,7 @@ mod tests {
             .insert(
                 signed_tx.clone(),
                 0,
-                mock_balances(0, 0),
+                &mock_balances(0, 0),
                 mock_tx_cost(0, 0, 0),
             )
             .await

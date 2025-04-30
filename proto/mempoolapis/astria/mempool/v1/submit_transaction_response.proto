@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package astria.mempool.v1alpha1;
+package astria.mempool.v1;
 
-import "astria/mempool/v1alpha1/transaction_status.proto";
+import "astria/mempool/v1/transaction_status.proto";
 
 // A response to a request to submit a transaction to the Astria Sequencer's mempool,
 // containing the status of the transaction in the mempool.

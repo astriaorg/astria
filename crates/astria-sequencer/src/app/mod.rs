@@ -20,15 +20,13 @@ mod tests_execute_transaction;
 pub(crate) mod vote_extension;
 
 use std::{
+    collections::HashSet,
     sync::Arc,
     time::Instant,
 };
 
 use astria_core::{
-    primitive::v1::{
-        TransactionId,
-        TRANSACTION_ID_LEN,
-    },
+    primitive::v1::TRANSACTION_ID_LEN,
     protocol::{
         abci::AbciErrorCode,
         genesis::v1::GenesisAppState,
@@ -206,11 +204,8 @@ pub(crate) struct App {
     // to the mempool to recost all transactions.
     recost_mempool: bool,
 
-    // the current `StagedWriteBatch` which contains the rocksdb write batch
-    // of the current block being executed, created from the state delta,
-    // and set after `finalize_block`.
     // this is committed to the state when `commit` is called, and set to `None`.
-    write_batch: Option<StagedWriteBatch>,
+    write_batch: Option<WriteBatch>,
 
     // the currently committed `AppHash` of the application state.
     // set whenever `commit` is called.
@@ -229,6 +224,16 @@ pub(crate) struct App {
     vote_extension_handler: vote_extension::Handler,
 
     metrics: &'static Metrics,
+}
+
+/// A wrapper around [`StagedWriteBatch`] which includes other information necessary for commitment.
+struct WriteBatch {
+    /// The current `StagedWriteBatch` which contains the rocksdb write batch
+    /// of the current block being executed, created from the state delta,
+    /// and set after `finalize_block`.
+    write_batch: StagedWriteBatch,
+    /// The hashes of all transactions executed in the block for which this write batch is made.
+    executed_tx_hashes: HashSet<[u8; TRANSACTION_ID_LEN]>,
 }
 
 impl App {
@@ -335,7 +340,7 @@ impl App {
         state_tx.apply();
 
         let app_hash = self
-            .prepare_commit(storage)
+            .prepare_commit(storage, HashSet::new())
             .await
             .wrap_err("failed to prepare commit")?;
         debug!(app_hash = %telemetry::display::base64(&app_hash), "init_chain completed");
@@ -485,16 +490,6 @@ impl App {
         let response = abci::response::PrepareProposal {
             txs,
         };
-
-        // Put executed transaction hashes into nonverifiable state for use in mempool maintenance
-        let mut state_delta = self
-            .state
-            .try_begin_transaction()
-            .expect("state Arc should not be referenced elsewhere");
-        state_delta
-            .put_executed_transaction_hashes(signed_txs_included.iter().map(|tx| tx.id()).collect())
-            .wrap_err("failed to put executed transaction hashes into state")?;
-        state_delta.apply();
 
         // Generate the prepared proposal fingerprint.
         self.execution_state
@@ -1271,6 +1266,7 @@ impl App {
         // FIXME: refactor to avoid cloning the finalize block
         let finalize_block_arc = Arc::new(finalize_block.clone());
 
+        let mut executed_tx_hashes = HashSet::new();
         if !skip_execution {
             // we haven't executed anything yet, so set up the state for execution.
             let block_data = BlockData {
@@ -1294,10 +1290,13 @@ impl App {
                 Vec::with_capacity(expanded_block_data.user_submitted_transactions.len());
             for tx in &expanded_block_data.user_submitted_transactions {
                 match self.execute_transaction(tx.clone()).await {
-                    Ok(events) => tx_results.push(ExecTxResult {
-                        events,
-                        ..Default::default()
-                    }),
+                    Ok(events) => {
+                        tx_results.push(ExecTxResult {
+                            events,
+                            ..Default::default()
+                        });
+                        executed_tx_hashes.insert(tx.id().get());
+                    }
                     Err(e) => {
                         // this is actually a protocol error, as only valid txs should be finalized
                         tracing::error!(
@@ -1344,9 +1343,9 @@ impl App {
                  just now or during the proposal phase",
             );
 
-        // prepare the `StagedWriteBatch` for a later commit.
+        // prepare the `WriteBatch` for a later commit.
         let app_hash = self
-            .prepare_commit(storage)
+            .prepare_commit(storage, executed_tx_hashes)
             .await
             .wrap_err("failed to prepare commit")?;
         all_events.extend(events);
@@ -1364,7 +1363,11 @@ impl App {
     }
 
     #[instrument(skip_all, err(level = Level::WARN))]
-    async fn prepare_commit(&mut self, storage: Storage) -> Result<AppHash> {
+    async fn prepare_commit(
+        &mut self,
+        storage: Storage,
+        executed_tx_hashes: HashSet<[u8; TRANSACTION_ID_LEN]>,
+    ) -> Result<AppHash> {
         // extract the state we've built up to so we can prepare it as a `StagedWriteBatch`.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
         let mut state = Arc::try_unwrap(std::mem::replace(&mut self.state, Arc::new(dummy_state)))
@@ -1396,7 +1399,10 @@ impl App {
             .to_vec()
             .try_into()
             .wrap_err("failed to convert app hash")?;
-        self.write_batch = Some(write_batch);
+        self.write_batch = Some(WriteBatch {
+            write_batch,
+            executed_tx_hashes,
+        });
         Ok(app_hash)
     }
 
@@ -1537,11 +1543,16 @@ impl App {
 
     #[instrument(name = "App::commit", skip_all)]
     pub(crate) async fn commit(&mut self, storage: Storage) -> Result<ShouldShutDown> {
+        let WriteBatch {
+            write_batch,
+            executed_tx_hashes,
+        } = self.write_batch.take().expect(
+            "write batch must be set, as `finalize_block` is always called before `commit`",
+        );
+
         // Commit the pending writes, clearing the state.
         let app_hash = storage
-            .commit_batch(self.write_batch.take().expect(
-                "write batch must be set, as `finalize_block` is always called before `commit`",
-            ))
+            .commit_batch(write_batch)
             .expect("must be able to successfully commit to storage");
         tracing::debug!(
             app_hash = %telemetry::display::hex(&app_hash),
@@ -1567,19 +1578,12 @@ impl App {
             .get_block_height()
             .await
             .expect("block height must exist in state");
-        let included_txs = storage
-            .latest_snapshot()
-            .get_executed_transaction_hashes()
-            .unwrap_or_default()
-            .into_iter()
-            .map(TransactionId::get)
-            .collect();
 
         update_mempool_after_finalization(
             &mut self.mempool,
             &self.state,
             self.recost_mempool,
-            included_txs,
+            executed_tx_hashes,
             block_height,
         )
         .await;
@@ -1699,11 +1703,11 @@ async fn update_mempool_after_finalization<S: StateRead>(
     mempool: &mut Mempool,
     state: &S,
     recost: bool,
-    included_txs: Vec<[u8; TRANSACTION_ID_LEN]>,
+    txs_included_in_block: HashSet<[u8; TRANSACTION_ID_LEN]>,
     block_height: u64,
 ) {
     mempool
-        .run_maintenance(state, recost, included_txs, block_height)
+        .run_maintenance(state, recost, txs_included_in_block, block_height)
         .await;
 }
 

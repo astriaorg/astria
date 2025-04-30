@@ -1,4 +1,3 @@
-use astria_core::primitive::v1::TransactionId;
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
@@ -121,11 +120,6 @@ pub(crate) trait StateReadExt: StateRead {
             })
             .wrap_err("invalid consensus params bytes")
     }
-
-    #[instrument(skip_all)]
-    fn get_executed_transaction_hashes(&self) -> Option<Vec<TransactionId>> {
-        self.object_get(keys::EXECUTED_TRANSACTION_HASHES)
-    }
 }
 
 impl<T: StateRead> StateReadExt for T {}
@@ -184,12 +178,6 @@ pub(crate) trait StateWriteExt: StateWrite {
             .serialize()
             .wrap_err("failed to serialize consensus params")?;
         self.nonverifiable_put_raw(keys::CONSENSUS_PARAMS.into(), bytes);
-        Ok(())
-    }
-
-    #[instrument(skip_all)]
-    fn put_executed_transaction_hashes(&mut self, hashes: Vec<TransactionId>) -> Result<()> {
-        self.object_put(keys::EXECUTED_TRANSACTION_HASHES, hashes);
         Ok(())
     }
 }
@@ -494,33 +482,5 @@ mod tests {
             state.get_consensus_params().await.unwrap(),
             Some(updated_params),
         );
-    }
-
-    #[tokio::test]
-    async fn put_and_get_executed_transaction_hashes() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        // doesn't exist at first
-        assert!(state.get_executed_transaction_hashes().is_none());
-
-        // can write new
-        let mut hashes = vec![TransactionId::new([1; 32]), TransactionId::new([2; 32])];
-        state
-            .put_executed_transaction_hashes(hashes.clone())
-            .unwrap();
-        assert_eq!(state.get_executed_transaction_hashes(), Some(hashes),);
-
-        // can rewrite with new value
-        hashes = vec![TransactionId::new([3; 32]), TransactionId::new([4; 32])];
-        state
-            .put_executed_transaction_hashes(hashes.clone())
-            .unwrap();
-        assert_eq!(state.get_executed_transaction_hashes(), Some(hashes),);
-
-        // can rewrite with empty value
-        state.put_executed_transaction_hashes(vec![]).unwrap();
-        assert_eq!(state.get_executed_transaction_hashes(), Some(vec![]),);
     }
 }

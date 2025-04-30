@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package astria.mempool.v1alpha1;
+package astria.mempool.v1;
 
 // `TransactionStatus` is a resource which represents the status of a transaction
 // in the Astria Sequencer's mempool.
@@ -23,23 +23,23 @@ message TransactionStatus {
     Removed removed = 4;
     Included included = 5;
   }
-}
 
-// Status representing a pending transaction in the Astria Sequencer's mempool.
-message Pending {}
+  // Status representing a pending transaction in the Astria Sequencer's mempool.
+  message Pending {}
 
-// Status representing a parked transaction in the Astria Sequencer's mempool.
-message Parked {}
+  // Status representing a parked transaction in the Astria Sequencer's mempool.
+  message Parked {}
 
-// Status representing a removed transaction in the Astria Sequencer's mempool.
-message Removed {
-  // The reason for the transaction's removal from the mempool.
-  string reason = 1;
-}
+  // Status representing a removed transaction in the Astria Sequencer's mempool.
+  message Removed {
+    // The reason for the transaction's removal from the mempool.
+    string reason = 1;
+  }
 
-// Status representing a transaction which has been included in a block and is
-// no longer in the Astria Sequencer's mempool.
-message Included {
-  // The number of the block in which the transaction was included.
-  uint64 block_number = 1;
+  // Status representing a transaction which has been included in a block and is
+  // no longer in the Astria Sequencer's mempool.
+  message Included {
+    // The number of the block in which the transaction was included.
+    uint64 block_number = 1;
+  }
 }

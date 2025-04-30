@@ -163,7 +163,7 @@ impl Mempool {
         &self,
         tx: Arc<Transaction>,
         current_account_nonce: u32,
-        current_account_balances: HashMap<IbcPrefixed, u128>,
+        current_account_balances: &HashMap<IbcPrefixed, u128>,
         transaction_cost: HashMap<IbcPrefixed, u128>,
     ) -> Result<(), InsertionError> {
         self.inner.write().await.insert(
@@ -198,15 +198,16 @@ impl Mempool {
             .remove_tx_invalid(signed_tx, reason);
     }
 
-    /// Checks if a transaction was flagged to be removed from the `CometBFT` mempool. Will
-    /// remove the transaction from the cache if it is present.
+    /// Rremoves the transaction from the CometBFT removal cache if it is present.
     #[instrument(skip_all, fields(tx_hash = %hex::encode(tx_hash)))]
-    pub(crate) async fn check_removed_comet_bft(&self, tx_hash: [u8; 32]) -> Option<RemovalReason> {
-        self.inner.write().await.check_removed_comet_bft(tx_hash)
+    pub(crate) async fn remove_from_removal_cache(
+        &self,
+        tx_hash: [u8; 32],
+    ) -> Option<RemovalReason> {
+        self.inner.write().await.remove_from_removal_cache(tx_hash)
     }
 
-    /// Returns true if the transaction is tracked as inserted.
-    #[instrument(skip_all, fields(tx_hash = %hex::encode(tx_hash)))]
+    #[cfg(test)]
     pub(crate) async fn is_tracked(&self, tx_hash: [u8; 32]) -> bool {
         self.inner.read().await.is_tracked(tx_hash)
     }
@@ -222,13 +223,13 @@ impl Mempool {
         &self,
         state: &S,
         recost: bool,
-        included_txs: Vec<[u8; TRANSACTION_ID_LEN]>,
+        txs_included_in_block: HashSet<[u8; TRANSACTION_ID_LEN]>,
         block_number: u64,
     ) {
         self.inner
             .write()
             .await
-            .run_maintenance(state, recost, included_txs, block_number)
+            .run_maintenance(state, recost, txs_included_in_block, block_number)
             .await;
     }
 
@@ -304,19 +305,17 @@ impl MempoolInner {
 
     /// Returns the number of transactions in the mempool.
     #[must_use]
-    #[instrument(skip_all)]
     pub(crate) fn len(&self) -> usize {
         self.contained_txs.len()
     }
 
     /// Inserts a transaction into the mempool and does not allow for transaction replacement.
     /// Will return the reason for insertion failure if failure occurs.
-    #[instrument(skip_all, fields(tx_hash = %tx.id(), current_account_nonce), err(level = Level::DEBUG))]
     pub(crate) fn insert(
         &mut self,
         tx: Arc<Transaction>,
         current_account_nonce: u32,
-        current_account_balances: HashMap<IbcPrefixed, u128>,
+        current_account_balances: &HashMap<IbcPrefixed, u128>,
         transaction_cost: HashMap<IbcPrefixed, u128>,
     ) -> Result<(), InsertionError> {
         let timemarked_tx = TimemarkedTransaction::new(tx, transaction_cost);
@@ -326,14 +325,14 @@ impl MempoolInner {
         match self.pending.add(
             timemarked_tx.clone(),
             current_account_nonce,
-            &current_account_balances,
+            current_account_balances,
         ) {
             Err(InsertionError::NonceGap | InsertionError::AccountBalanceTooLow) => {
                 // try to add to parked queue
                 match self.parked.add(
                     timemarked_tx,
                     current_account_nonce,
-                    &current_account_balances,
+                    current_account_balances,
                 ) {
                     Ok(()) => {
                         // log current size of parked
@@ -372,7 +371,7 @@ impl MempoolInner {
                     let tx_id = ttx.id();
                     if let Err(error) =
                         self.pending
-                            .add(ttx, current_account_nonce, &current_account_balances)
+                            .add(ttx, current_account_nonce, current_account_balances)
                     {
                         self.contained_txs.remove(&timemarked_tx.id());
                         error!(
@@ -404,7 +403,6 @@ impl MempoolInner {
     ///
     /// This function should only be used to remove invalid/failing transactions and not executed
     /// transactions. Executed transactions will be removed in the `run_maintenance()` function.
-    #[instrument(skip_all, fields(tx_hash = %signed_tx.id()))]
     pub(crate) fn remove_tx_invalid(&mut self, signed_tx: Arc<Transaction>, reason: RemovalReason) {
         let tx_hash = signed_tx.id().get();
         let address = *signed_tx.verification_key().address_bytes();
@@ -435,15 +433,12 @@ impl MempoolInner {
         }
     }
 
-    /// Checks if a transaction was flagged to be removed from the `CometBFT` mempool. Will
-    /// remove the transaction from the cache if it is present.
-    #[instrument(skip_all, fields(tx_hash = %hex::encode(tx_hash)))]
-    pub(crate) fn check_removed_comet_bft(&mut self, tx_hash: [u8; 32]) -> Option<RemovalReason> {
+    /// Removes the transaction from the CometBFT removal cache if it is present.
+    pub(crate) fn remove_from_removal_cache(&mut self, tx_hash: [u8; 32]) -> Option<RemovalReason> {
         self.comet_bft_removal_cache.remove(tx_hash)
     }
 
-    /// Returns true if the transaction is tracked as inserted.
-    #[instrument(skip_all, fields(tx_hash = %hex::encode(tx_hash)))]
+    #[cfg(test)]
     pub(crate) fn is_tracked(&self, tx_hash: [u8; 32]) -> bool {
         self.contained_txs.contains(&tx_hash)
     }
@@ -454,12 +449,11 @@ impl MempoolInner {
     ///
     /// All removed transactions are added to the CometBFT removal cache to aid with CometBFT
     /// mempool maintenance.
-    #[instrument(skip_all)]
     pub(crate) async fn run_maintenance<S: accounts::StateReadExt>(
         &mut self,
         state: &S,
         recost: bool,
-        included_txs: Vec<[u8; TRANSACTION_ID_LEN]>,
+        txs_included_in_block: HashSet<[u8; TRANSACTION_ID_LEN]>,
         block_number: u64,
     ) {
         let mut removed_txs = Vec::<([u8; 32], RemovalReason)>::new();
@@ -507,7 +501,7 @@ impl MempoolInner {
             removed_txs.extend(self.pending.clean_account_stale_expired(
                 address,
                 current_nonce,
-                &included_txs,
+                &txs_included_in_block,
                 block_number,
             ));
             if recost {
@@ -517,7 +511,7 @@ impl MempoolInner {
             removed_txs.extend(self.parked.clean_account_stale_expired(
                 address,
                 current_nonce,
-                &included_txs,
+                &txs_included_in_block,
                 block_number,
             ));
             if recost {
@@ -585,7 +579,6 @@ impl MempoolInner {
     /// does not take into account gapped nonces in the parked queue. For example, if the
     /// pending queue for an account has nonces [0,1] and the parked queue has [3], [1] will be
     /// returned.
-    #[instrument(skip_all, fields(address = %telemetry::display::base64(address)))]
     pub(crate) fn pending_nonce(&self, address: &[u8; 20]) -> Option<u32> {
         self.pending.pending_nonce(address)
     }
@@ -661,7 +654,7 @@ mod tests {
         let tx1 = MockTxBuilder::new().nonce(1).build();
         assert!(
             mempool
-                .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .insert(tx1.clone(), 0, &account_balances.clone(), tx_cost.clone())
                 .await
                 .is_ok(),
             "should be able to insert nonce 1 transaction into mempool"
@@ -671,7 +664,7 @@ mod tests {
         // try to insert again
         assert_eq!(
             mempool
-                .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .insert(tx1.clone(), 0, &account_balances.clone(), tx_cost.clone())
                 .await
                 .unwrap_err(),
             InsertionError::AlreadyPresent,
@@ -688,7 +681,7 @@ mod tests {
                 .insert(
                     tx1_replacement.clone(),
                     0,
-                    account_balances.clone(),
+                    &account_balances.clone(),
                     tx_cost.clone(),
                 )
                 .await
@@ -701,7 +694,7 @@ mod tests {
         let tx0 = MockTxBuilder::new().nonce(0).build();
         assert_eq!(
             mempool
-                .insert(tx0.clone(), 1, account_balances, tx_cost)
+                .insert(tx0.clone(), 1, &account_balances, tx_cost)
                 .await
                 .unwrap_err(),
             InsertionError::NonceTooLow,
@@ -725,7 +718,7 @@ mod tests {
         let tx1 = MockTxBuilder::new().nonce(1).build();
         assert!(
             mempool
-                .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .insert(tx1.clone(), 0, &account_balances.clone(), tx_cost.clone())
                 .await
                 .is_ok(),
             "should be able to insert nonce 1 transaction into mempool"
@@ -735,7 +728,7 @@ mod tests {
         let tx2 = MockTxBuilder::new().nonce(2).build();
         assert!(
             mempool
-                .insert(tx2.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .insert(tx2.clone(), 0, &account_balances.clone(), tx_cost.clone())
                 .await
                 .is_ok(),
             "should be able to insert nonce 2 transaction into mempool"
@@ -745,7 +738,7 @@ mod tests {
         let tx0 = MockTxBuilder::new().nonce(0).build();
         assert!(
             mempool
-                .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .insert(tx0.clone(), 0, &account_balances.clone(), tx_cost.clone())
                 .await
                 .is_ok(),
             "should be able to insert nonce 0 transaction into mempool"
@@ -755,7 +748,7 @@ mod tests {
         let tx4 = MockTxBuilder::new().nonce(4).build();
         assert!(
             mempool
-                .insert(tx4.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .insert(tx4.clone(), 0, &account_balances.clone(), tx_cost.clone())
                 .await
                 .is_ok(),
             "should be able to insert nonce 4 transaction into mempool"
@@ -791,7 +784,9 @@ mod tests {
             mock_balances(100, 100),
         );
 
-        mempool.run_maintenance(&mock_state, false, vec![], 0).await;
+        mempool
+            .run_maintenance(&mock_state, false, HashSet::new(), 0)
+            .await;
 
         // assert mempool at 1
         assert_eq!(mempool.len().await, 1);
@@ -818,19 +813,19 @@ mod tests {
         let tx4 = MockTxBuilder::new().nonce(4).build();
 
         mempool
-            .insert(tx1.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .insert(tx1.clone(), 1, &initial_balances.clone(), tx_cost.clone())
             .await
             .unwrap();
         mempool
-            .insert(tx2.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .insert(tx2.clone(), 1, &initial_balances.clone(), tx_cost.clone())
             .await
             .unwrap();
         mempool
-            .insert(tx3.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .insert(tx3.clone(), 1, &initial_balances.clone(), tx_cost.clone())
             .await
             .unwrap();
         mempool
-            .insert(tx4.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .insert(tx4.clone(), 1, &initial_balances.clone(), tx_cost.clone())
             .await
             .unwrap();
 
@@ -858,7 +853,9 @@ mod tests {
             mock_balances(3, 0),
         );
 
-        mempool.run_maintenance(&mock_state, false, vec![], 0).await;
+        mempool
+            .run_maintenance(&mock_state, false, HashSet::new(), 0)
+            .await;
 
         // see builder queue now contains them
         let builder_queue = mempool.builder_queue().await;
@@ -885,19 +882,19 @@ mod tests {
         let tx4 = MockTxBuilder::new().nonce(4).build();
 
         mempool
-            .insert(tx1.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .insert(tx1.clone(), 1, &initial_balances.clone(), tx_cost.clone())
             .await
             .unwrap();
         mempool
-            .insert(tx2.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .insert(tx2.clone(), 1, &initial_balances.clone(), tx_cost.clone())
             .await
             .unwrap();
         mempool
-            .insert(tx3.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .insert(tx3.clone(), 1, &initial_balances.clone(), tx_cost.clone())
             .await
             .unwrap();
         mempool
-            .insert(tx4.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .insert(tx4.clone(), 1, &initial_balances.clone(), tx_cost.clone())
             .await
             .unwrap();
 
@@ -924,7 +921,9 @@ mod tests {
             mock_balances(1, 0),
         );
 
-        mempool.run_maintenance(&mock_state, false, vec![], 0).await;
+        mempool
+            .run_maintenance(&mock_state, false, HashSet::new(), 0)
+            .await;
 
         // see builder queue now contains single transactions
         let builder_queue = mempool.builder_queue().await;
@@ -945,7 +944,9 @@ mod tests {
             mock_balances(3, 0),
         );
 
-        mempool.run_maintenance(&mock_state, false, vec![], 0).await;
+        mempool
+            .run_maintenance(&mock_state, false, HashSet::new(), 0)
+            .await;
 
         let builder_queue = mempool.builder_queue().await;
         assert_eq!(
@@ -966,7 +967,7 @@ mod tests {
         let tx0 = MockTxBuilder::new().nonce(0).build();
         assert!(
             mempool
-                .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .insert(tx0.clone(), 0, &account_balances.clone(), tx_cost.clone())
                 .await
                 .is_ok(),
             "should be able to insert nonce 0 transaction into mempool"
@@ -974,7 +975,7 @@ mod tests {
         let tx1 = MockTxBuilder::new().nonce(1).build();
         assert!(
             mempool
-                .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .insert(tx1.clone(), 0, &account_balances.clone(), tx_cost.clone())
                 .await
                 .is_ok(),
             "should be able to insert nonce 1 transaction into mempool"
@@ -982,7 +983,7 @@ mod tests {
         let tx3 = MockTxBuilder::new().nonce(3).build();
         assert!(
             mempool
-                .insert(tx3.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .insert(tx3.clone(), 0, &account_balances.clone(), tx_cost.clone())
                 .await
                 .is_ok(),
             "should be able to insert nonce 3 transaction into mempool"
@@ -990,7 +991,7 @@ mod tests {
         let tx4 = MockTxBuilder::new().nonce(4).build();
         assert!(
             mempool
-                .insert(tx4.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .insert(tx4.clone(), 0, &account_balances.clone(), tx_cost.clone())
                 .await
                 .is_ok(),
             "should be able to insert nonce 4 transaction into mempool"
@@ -998,7 +999,7 @@ mod tests {
         let tx5 = MockTxBuilder::new().nonce(5).build();
         assert!(
             mempool
-                .insert(tx5.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .insert(tx5.clone(), 0, &account_balances.clone(), tx_cost.clone())
                 .await
                 .is_ok(),
             "should be able to insert nonce 5 transaction into mempool"
@@ -1037,23 +1038,23 @@ mod tests {
         // assert that all were added to the cometbft removal cache
         // and the expected reasons were tracked
         assert!(matches!(
-            mempool.check_removed_comet_bft(tx0.id().get()).await,
+            mempool.remove_from_removal_cache(tx0.id().get()).await,
             Some(RemovalReason::FailedPrepareProposal(_))
         ));
         assert!(matches!(
-            mempool.check_removed_comet_bft(tx1.id().get()).await,
+            mempool.remove_from_removal_cache(tx1.id().get()).await,
             Some(RemovalReason::FailedPrepareProposal(_))
         ));
         assert!(matches!(
-            mempool.check_removed_comet_bft(tx3.id().get()).await,
+            mempool.remove_from_removal_cache(tx3.id().get()).await,
             Some(RemovalReason::LowerNonceInvalidated)
         ));
         assert!(matches!(
-            mempool.check_removed_comet_bft(tx4.id().get()).await,
+            mempool.remove_from_removal_cache(tx4.id().get()).await,
             Some(RemovalReason::FailedPrepareProposal(_))
         ));
         assert!(matches!(
-            mempool.check_removed_comet_bft(tx5.id().get()).await,
+            mempool.remove_from_removal_cache(tx5.id().get()).await,
             Some(RemovalReason::LowerNonceInvalidated)
         ));
     }
@@ -1070,7 +1071,7 @@ mod tests {
         let tx0 = MockTxBuilder::new().nonce(0).build();
         assert!(
             mempool
-                .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .insert(tx0.clone(), 0, &account_balances.clone(), tx_cost.clone())
                 .await
                 .is_ok(),
             "should be able to insert nonce 0 transaction into mempool"
@@ -1078,7 +1079,7 @@ mod tests {
         let tx1 = MockTxBuilder::new().nonce(1).build();
         assert!(
             mempool
-                .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .insert(tx1.clone(), 0, &account_balances.clone(), tx_cost.clone())
                 .await
                 .is_ok(),
             "should be able to insert nonce 1 transaction into mempool"
@@ -1094,7 +1095,7 @@ mod tests {
                 .insert(
                     tx100.clone(),
                     100,
-                    account_balances.clone(),
+                    &account_balances.clone(),
                     tx_cost.clone(),
                 )
                 .await
@@ -1110,7 +1111,7 @@ mod tests {
                 .insert(
                     tx101.clone(),
                     100,
-                    account_balances.clone(),
+                    &account_balances.clone(),
                     tx_cost.clone(),
                 )
                 .await
@@ -1211,14 +1212,14 @@ mod tests {
 
         // check that the parked transaction is in the tracked set
         mempool
-            .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .insert(tx1.clone(), 0, &account_balances.clone(), tx_cost.clone())
             .await
             .unwrap();
         assert!(mempool.is_tracked(tx1.id().get()).await);
 
         // check that the pending transaction is in the tracked set
         mempool
-            .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .insert(tx0.clone(), 0, &account_balances.clone(), tx_cost.clone())
             .await
             .unwrap();
         assert!(mempool.is_tracked(tx0.id().get()).await);
@@ -1244,11 +1245,11 @@ mod tests {
         let tx1 = MockTxBuilder::new().nonce(1).build();
 
         mempool
-            .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .insert(tx1.clone(), 0, &account_balances.clone(), tx_cost.clone())
             .await
             .unwrap();
         mempool
-            .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .insert(tx0.clone(), 0, &account_balances.clone(), tx_cost.clone())
             .await
             .unwrap();
 
@@ -1259,7 +1260,9 @@ mod tests {
             astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             2,
         );
-        mempool.run_maintenance(&mock_state, false, vec![], 0).await;
+        mempool
+            .run_maintenance(&mock_state, false, HashSet::new(), 0)
+            .await;
 
         // check that the transactions are not in the tracked set
         assert!(!mempool.is_tracked(tx0.id().get()).await);
@@ -1277,12 +1280,12 @@ mod tests {
         let tx1 = MockTxBuilder::new().nonce(1).build();
 
         mempool
-            .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .insert(tx1.clone(), 0, &account_balances.clone(), tx_cost.clone())
             .await
             .unwrap();
 
         mempool
-            .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .insert(tx0.clone(), 0, &account_balances.clone(), tx_cost.clone())
             .await
             .unwrap();
 
@@ -1296,11 +1299,11 @@ mod tests {
 
         // re-insert the transactions into the mempool
         mempool
-            .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .insert(tx0.clone(), 0, &account_balances.clone(), tx_cost.clone())
             .await
             .unwrap();
         mempool
-            .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .insert(tx1.clone(), 0, &account_balances.clone(), tx_cost.clone())
             .await
             .unwrap();
 
@@ -1320,14 +1323,14 @@ mod tests {
         let tx1 = MockTxBuilder::new().nonce(2).build();
 
         mempool
-            .insert(tx1.clone(), 0, account_balances.clone(), tx_cost.clone())
+            .insert(tx1.clone(), 0, &account_balances.clone(), tx_cost.clone())
             .await
             .unwrap();
 
         // size limit fails as expected
         assert_eq!(
             mempool
-                .insert(tx0.clone(), 0, account_balances.clone(), tx_cost.clone())
+                .insert(tx0.clone(), 0, &account_balances.clone(), tx_cost.clone())
                 .await
                 .unwrap_err(),
             InsertionError::ParkedSizeLimit,
@@ -1350,19 +1353,19 @@ mod tests {
         let tx4 = MockTxBuilder::new().nonce(4).build();
 
         mempool
-            .insert(tx1.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .insert(tx1.clone(), 1, &initial_balances.clone(), tx_cost.clone())
             .await
             .unwrap();
         mempool
-            .insert(tx2.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .insert(tx2.clone(), 1, &initial_balances.clone(), tx_cost.clone())
             .await
             .unwrap();
         mempool
-            .insert(tx3.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .insert(tx3.clone(), 1, &initial_balances.clone(), tx_cost.clone())
             .await
             .unwrap();
         mempool
-            .insert(tx4.clone(), 1, initial_balances.clone(), tx_cost.clone())
+            .insert(tx4.clone(), 1, &initial_balances.clone(), tx_cost.clone())
             .await
             .unwrap();
 
@@ -1386,13 +1389,12 @@ mod tests {
             mock_balances(0, 0),
         );
 
+        let mut included_txs = HashSet::new();
+        included_txs.insert(tx1.id().get());
+        included_txs.insert(tx2.id().get());
+
         mempool
-            .run_maintenance(
-                &mock_state,
-                false,
-                vec![tx1.id().get(), tx2.id().get()],
-                INCLUDED_TX_BLOCK_NUMBER,
-            )
+            .run_maintenance(&mock_state, false, included_txs, INCLUDED_TX_BLOCK_NUMBER)
             .await;
 
         // see builder queue now contains single transactions

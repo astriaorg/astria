@@ -9,7 +9,7 @@ impl serde::Serialize for GetTransactionStatusRequest {
         if !self.transaction_hash.is_empty() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.mempool.v1alpha1.GetTransactionStatusRequest", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.mempool.v1.GetTransactionStatusRequest", len)?;
         if !self.transaction_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
             #[allow(clippy::needless_borrows_for_generic_args)]
@@ -66,7 +66,7 @@ impl<'de> serde::Deserialize<'de> for GetTransactionStatusRequest {
             type Value = GetTransactionStatusRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.mempool.v1alpha1.GetTransactionStatusRequest")
+                formatter.write_str("struct astria.mempool.v1.GetTransactionStatusRequest")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<GetTransactionStatusRequest, V::Error>
@@ -91,336 +91,7 @@ impl<'de> serde::Deserialize<'de> for GetTransactionStatusRequest {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.mempool.v1alpha1.GetTransactionStatusRequest", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for Included {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if self.block_number != 0 {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.mempool.v1alpha1.Included", len)?;
-        if self.block_number != 0 {
-            #[allow(clippy::needless_borrow)]
-            #[allow(clippy::needless_borrows_for_generic_args)]
-            struct_ser.serialize_field("blockNumber", ToString::to_string(&self.block_number).as_str())?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for Included {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "block_number",
-            "blockNumber",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            BlockNumber,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "blockNumber" | "block_number" => Ok(GeneratedField::BlockNumber),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = Included;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.mempool.v1alpha1.Included")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<Included, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut block_number__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::BlockNumber => {
-                            if block_number__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("blockNumber"));
-                            }
-                            block_number__ = 
-                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
-                            ;
-                        }
-                    }
-                }
-                Ok(Included {
-                    block_number: block_number__.unwrap_or_default(),
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.mempool.v1alpha1.Included", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for Parked {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let len = 0;
-        let struct_ser = serializer.serialize_struct("astria.mempool.v1alpha1.Parked", len)?;
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for Parked {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                            Err(serde::de::Error::unknown_field(value, FIELDS))
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = Parked;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.mempool.v1alpha1.Parked")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<Parked, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                while map_.next_key::<GeneratedField>()?.is_some() {
-                    let _ = map_.next_value::<serde::de::IgnoredAny>()?;
-                }
-                Ok(Parked {
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.mempool.v1alpha1.Parked", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for Pending {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let len = 0;
-        let struct_ser = serializer.serialize_struct("astria.mempool.v1alpha1.Pending", len)?;
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for Pending {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                            Err(serde::de::Error::unknown_field(value, FIELDS))
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = Pending;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.mempool.v1alpha1.Pending")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<Pending, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                while map_.next_key::<GeneratedField>()?.is_some() {
-                    let _ = map_.next_value::<serde::de::IgnoredAny>()?;
-                }
-                Ok(Pending {
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.mempool.v1alpha1.Pending", FIELDS, GeneratedVisitor)
-    }
-}
-impl serde::Serialize for Removed {
-    #[allow(deprecated)]
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut len = 0;
-        if !self.reason.is_empty() {
-            len += 1;
-        }
-        let mut struct_ser = serializer.serialize_struct("astria.mempool.v1alpha1.Removed", len)?;
-        if !self.reason.is_empty() {
-            struct_ser.serialize_field("reason", &self.reason)?;
-        }
-        struct_ser.end()
-    }
-}
-impl<'de> serde::Deserialize<'de> for Removed {
-    #[allow(deprecated)]
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        const FIELDS: &[&str] = &[
-            "reason",
-        ];
-
-        #[allow(clippy::enum_variant_names)]
-        enum GeneratedField {
-            Reason,
-        }
-        impl<'de> serde::Deserialize<'de> for GeneratedField {
-            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct GeneratedVisitor;
-
-                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-                    type Value = GeneratedField;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(formatter, "expected one of: {:?}", &FIELDS)
-                    }
-
-                    #[allow(unused_variables)]
-                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
-                    where
-                        E: serde::de::Error,
-                    {
-                        match value {
-                            "reason" => Ok(GeneratedField::Reason),
-                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
-                        }
-                    }
-                }
-                deserializer.deserialize_identifier(GeneratedVisitor)
-            }
-        }
-        struct GeneratedVisitor;
-        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = Removed;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.mempool.v1alpha1.Removed")
-            }
-
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<Removed, V::Error>
-                where
-                    V: serde::de::MapAccess<'de>,
-            {
-                let mut reason__ = None;
-                while let Some(k) = map_.next_key()? {
-                    match k {
-                        GeneratedField::Reason => {
-                            if reason__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("reason"));
-                            }
-                            reason__ = Some(map_.next_value()?);
-                        }
-                    }
-                }
-                Ok(Removed {
-                    reason: reason__.unwrap_or_default(),
-                })
-            }
-        }
-        deserializer.deserialize_struct("astria.mempool.v1alpha1.Removed", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.mempool.v1.GetTransactionStatusRequest", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for SubmitTransactionRequest {
@@ -431,14 +102,12 @@ impl serde::Serialize for SubmitTransactionRequest {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if !self.transaction.is_empty() {
+        if self.transaction.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.mempool.v1alpha1.SubmitTransactionRequest", len)?;
-        if !self.transaction.is_empty() {
-            #[allow(clippy::needless_borrow)]
-            #[allow(clippy::needless_borrows_for_generic_args)]
-            struct_ser.serialize_field("transaction", pbjson::private::base64::encode(&self.transaction).as_str())?;
+        let mut struct_ser = serializer.serialize_struct("astria.mempool.v1.SubmitTransactionRequest", len)?;
+        if let Some(v) = self.transaction.as_ref() {
+            struct_ser.serialize_field("transaction", v)?;
         }
         struct_ser.end()
     }
@@ -490,7 +159,7 @@ impl<'de> serde::Deserialize<'de> for SubmitTransactionRequest {
             type Value = SubmitTransactionRequest;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.mempool.v1alpha1.SubmitTransactionRequest")
+                formatter.write_str("struct astria.mempool.v1.SubmitTransactionRequest")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<SubmitTransactionRequest, V::Error>
@@ -504,18 +173,16 @@ impl<'de> serde::Deserialize<'de> for SubmitTransactionRequest {
                             if transaction__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("transaction"));
                             }
-                            transaction__ = 
-                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
-                            ;
+                            transaction__ = map_.next_value()?;
                         }
                     }
                 }
                 Ok(SubmitTransactionRequest {
-                    transaction: transaction__.unwrap_or_default(),
+                    transaction: transaction__,
                 })
             }
         }
-        deserializer.deserialize_struct("astria.mempool.v1alpha1.SubmitTransactionRequest", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.mempool.v1.SubmitTransactionRequest", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for SubmitTransactionResponse {
@@ -529,7 +196,7 @@ impl serde::Serialize for SubmitTransactionResponse {
         if self.status.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.mempool.v1alpha1.SubmitTransactionResponse", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.mempool.v1.SubmitTransactionResponse", len)?;
         if let Some(v) = self.status.as_ref() {
             struct_ser.serialize_field("status", v)?;
         }
@@ -583,7 +250,7 @@ impl<'de> serde::Deserialize<'de> for SubmitTransactionResponse {
             type Value = SubmitTransactionResponse;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.mempool.v1alpha1.SubmitTransactionResponse")
+                formatter.write_str("struct astria.mempool.v1.SubmitTransactionResponse")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<SubmitTransactionResponse, V::Error>
@@ -606,7 +273,7 @@ impl<'de> serde::Deserialize<'de> for SubmitTransactionResponse {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.mempool.v1alpha1.SubmitTransactionResponse", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.mempool.v1.SubmitTransactionResponse", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for TransactionStatus {
@@ -623,7 +290,7 @@ impl serde::Serialize for TransactionStatus {
         if self.status.is_some() {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.mempool.v1alpha1.TransactionStatus", len)?;
+        let mut struct_ser = serializer.serialize_struct("astria.mempool.v1.TransactionStatus", len)?;
         if !self.transaction_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
             #[allow(clippy::needless_borrows_for_generic_args)]
@@ -708,7 +375,7 @@ impl<'de> serde::Deserialize<'de> for TransactionStatus {
             type Value = TransactionStatus;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.mempool.v1alpha1.TransactionStatus")
+                formatter.write_str("struct astria.mempool.v1.TransactionStatus")
             }
 
             fn visit_map<V>(self, mut map_: V) -> std::result::Result<TransactionStatus, V::Error>
@@ -763,6 +430,335 @@ impl<'de> serde::Deserialize<'de> for TransactionStatus {
                 })
             }
         }
-        deserializer.deserialize_struct("astria.mempool.v1alpha1.TransactionStatus", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.mempool.v1.TransactionStatus", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for transaction_status::Included {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.block_number != 0 {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.mempool.v1.TransactionStatus.Included", len)?;
+        if self.block_number != 0 {
+            #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
+            struct_ser.serialize_field("blockNumber", ToString::to_string(&self.block_number).as_str())?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for transaction_status::Included {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "block_number",
+            "blockNumber",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            BlockNumber,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "blockNumber" | "block_number" => Ok(GeneratedField::BlockNumber),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = transaction_status::Included;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.mempool.v1.TransactionStatus.Included")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<transaction_status::Included, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut block_number__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::BlockNumber => {
+                            if block_number__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("blockNumber"));
+                            }
+                            block_number__ = 
+                                Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
+                            ;
+                        }
+                    }
+                }
+                Ok(transaction_status::Included {
+                    block_number: block_number__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.mempool.v1.TransactionStatus.Included", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for transaction_status::Parked {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let len = 0;
+        let struct_ser = serializer.serialize_struct("astria.mempool.v1.TransactionStatus.Parked", len)?;
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for transaction_status::Parked {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                            Err(serde::de::Error::unknown_field(value, FIELDS))
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = transaction_status::Parked;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.mempool.v1.TransactionStatus.Parked")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<transaction_status::Parked, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                while map_.next_key::<GeneratedField>()?.is_some() {
+                    let _ = map_.next_value::<serde::de::IgnoredAny>()?;
+                }
+                Ok(transaction_status::Parked {
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.mempool.v1.TransactionStatus.Parked", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for transaction_status::Pending {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let len = 0;
+        let struct_ser = serializer.serialize_struct("astria.mempool.v1.TransactionStatus.Pending", len)?;
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for transaction_status::Pending {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                            Err(serde::de::Error::unknown_field(value, FIELDS))
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = transaction_status::Pending;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.mempool.v1.TransactionStatus.Pending")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<transaction_status::Pending, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                while map_.next_key::<GeneratedField>()?.is_some() {
+                    let _ = map_.next_value::<serde::de::IgnoredAny>()?;
+                }
+                Ok(transaction_status::Pending {
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.mempool.v1.TransactionStatus.Pending", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for transaction_status::Removed {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.reason.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.mempool.v1.TransactionStatus.Removed", len)?;
+        if !self.reason.is_empty() {
+            struct_ser.serialize_field("reason", &self.reason)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for transaction_status::Removed {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "reason",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Reason,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "reason" => Ok(GeneratedField::Reason),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = transaction_status::Removed;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.mempool.v1.TransactionStatus.Removed")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<transaction_status::Removed, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut reason__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Reason => {
+                            if reason__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("reason"));
+                            }
+                            reason__ = Some(map_.next_value()?);
+                        }
+                    }
+                }
+                Ok(transaction_status::Removed {
+                    reason: reason__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.mempool.v1.TransactionStatus.Removed", FIELDS, GeneratedVisitor)
     }
 }

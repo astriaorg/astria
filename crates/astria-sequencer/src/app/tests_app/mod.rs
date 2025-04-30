@@ -253,7 +253,9 @@ async fn app_commit() {
     }
 
     // commit should write the changes to the underlying storage
-    app.prepare_commit(storage.clone()).await.unwrap();
+    app.prepare_commit(storage.clone(), HashSet::new())
+        .await
+        .unwrap();
     app.commit(storage.clone()).await.unwrap();
 
     let snapshot = storage.latest_snapshot();
@@ -374,7 +376,9 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         )
         .unwrap();
     app.apply(state_tx);
-    app.prepare_commit(storage.clone()).await.unwrap();
+    app.prepare_commit(storage.clone(), HashSet::new())
+        .await
+        .unwrap();
     app.commit(storage.clone()).await.unwrap();
 
     let amount = 100;
@@ -474,7 +478,9 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         .put_bridge_account_ibc_asset(&bridge_address, &asset)
         .unwrap();
     app.apply(state_tx);
-    app.prepare_commit(storage.clone()).await.unwrap();
+    app.prepare_commit(storage.clone(), HashSet::new())
+        .await
+        .unwrap();
     app.commit(storage.clone()).await.unwrap();
 
     let amount = 100;
@@ -541,7 +547,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     // this will reset the app state.
     // this simulates executing the same block as a validator (specifically the proposer).
     app.mempool
-        .insert(signed_tx, 0, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
+        .insert(signed_tx, 0, &mock_balances(0, 0), mock_tx_cost(0, 0, 0))
         .await
         .unwrap();
 
@@ -567,7 +573,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     assert_eq!(prepare_proposal_result.txs, finalize_block.txs);
 
     app.mempool
-        .run_maintenance(&app.state, false, vec![], 0)
+        .run_maintenance(&app.state, false, HashSet::new(), 0)
         .await;
 
     assert_eq!(app.mempool.len().await, 0);
@@ -653,7 +659,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         .insert(
             Arc::new(tx_pass),
             0,
-            mock_balances(0, 0),
+            &mock_balances(0, 0),
             mock_tx_cost(0, 0, 0),
         )
         .await
@@ -662,7 +668,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         .insert(
             Arc::new(tx_overflow),
             0,
-            mock_balances(0, 0),
+            &mock_balances(0, 0),
             mock_tx_cost(0, 0, 0),
         )
         .await
@@ -690,7 +696,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
 
     // run maintence to clear out transactions
     app.mempool
-        .run_maintenance(&app.state, false, vec![], 0)
+        .run_maintenance(&app.state, false, HashSet::new(), 0)
         .await;
 
     // see only first tx made it in
@@ -742,7 +748,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         .insert(
             Arc::new(tx_pass),
             0,
-            mock_balances(0, 0),
+            &mock_balances(0, 0),
             mock_tx_cost(0, 0, 0),
         )
         .await
@@ -751,7 +757,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         .insert(
             Arc::new(tx_overflow),
             0,
-            mock_balances(0, 0),
+            &mock_balances(0, 0),
             mock_tx_cost(0, 0, 0),
         )
         .await
@@ -779,7 +785,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
 
     // run maintence to clear out transactions
     app.mempool
-        .run_maintenance(&app.state, false, vec![], 0)
+        .run_maintenance(&app.state, false, HashSet::new(), 0)
         .await;
 
     // see only first tx made it in
@@ -992,7 +998,9 @@ async fn app_proposal_fingerprint_triggers_update() {
         .put_bridge_account_ibc_asset(&bridge_address, &asset)
         .unwrap();
     app.apply(state_tx);
-    app.prepare_commit(storage.clone()).await.unwrap();
+    app.prepare_commit(storage.clone(), HashSet::new())
+        .await
+        .unwrap();
     app.commit(storage.clone()).await.unwrap();
 
     // Commit should clear the fingerprint
@@ -1104,7 +1112,7 @@ async fn app_proposal_fingerprint_triggers_update() {
         .insert(
             signed_tx.clone(),
             0,
-            mock_balances(0, 0),
+            &mock_balances(0, 0),
             mock_tx_cost(0, 0, 0),
         )
         .await
@@ -1194,7 +1202,9 @@ async fn app_oracle_price_update_events_in_finalize_block() {
         .put_currency_pair_state(currency_pair.clone(), currency_pair_state)
         .unwrap();
     app.apply(state_tx);
-    app.prepare_commit(storage.clone()).await.unwrap();
+    app.prepare_commit(storage.clone(), HashSet::new())
+        .await
+        .unwrap();
     app.commit(storage.clone()).await.unwrap();
 
     let mut prices = std::collections::BTreeMap::new();

@@ -1,27 +1,25 @@
 use std::sync::Arc;
 
 use astria_core::{
-    generated::mempool::v1alpha1::{
+    generated::mempool::v1::{
         mempool_service_server::MempoolService,
-        transaction_status::Status as RawTransactionStatus,
+        transaction_status::{
+            Included as RawIncluded,
+            Parked as RawParked,
+            Pending as RawPending,
+            Removed as RawRemoved,
+            Status as RawTransactionStatus,
+        },
         GetTransactionStatusRequest,
-        Included as RawIncluded,
-        Parked as RawParked,
-        Pending as RawPending,
-        Removed as RawRemoved,
         SubmitTransactionRequest,
         SubmitTransactionResponse,
         TransactionStatus as TransactionStatusResponse,
     },
     primitive::v1::TRANSACTION_ID_LEN,
+    protocol::transaction::v1::Transaction,
 };
 use bytes::Bytes;
 use cnidarium::Storage;
-use sha2::Digest;
-use tendermint::abci::{
-    request,
-    Code,
-};
 use tonic::{
     Request,
     Response,
@@ -33,7 +31,7 @@ use crate::{
         Mempool,
         TransactionStatus,
     },
-    service::mempool::handle_check_tx,
+    service::mempool::check_tx,
     Metrics,
 };
 
@@ -69,31 +67,27 @@ impl MempoolService for Server {
         self: Arc<Self>,
         request: Request<SubmitTransactionRequest>,
     ) -> Result<Response<SubmitTransactionResponse>, Status> {
-        let tx_bytes = request.into_inner().transaction;
-        let check_tx = request::CheckTx {
-            tx: tx_bytes.clone(),
-            kind: request::CheckTxKind::New,
-        };
+        let tx: Transaction = request
+            .into_inner()
+            .transaction
+            .ok_or_else(|| Status::invalid_argument("Transaction is empty"))?
+            .try_into()
+            .map_err(|err| {
+                Status::invalid_argument(format!("Raw transaction is invalid: {err}"))
+            })?;
 
-        let rsp = handle_check_tx(
-            check_tx,
+        let tx_hash_bytes = tx.id().get().to_vec().into();
+
+        check_tx(
+            tx,
             self.storage.latest_snapshot(),
             &self.mempool,
             self.metrics,
         )
-        .await;
-        if let Code::Err(_) = rsp.code {
-            return Err(Status::internal(format!(
-                "Transaction failed CheckTx: {}",
-                rsp.log
-            )));
-        };
+        .await
+        .map_err(Status::from)?;
 
-        let status = get_transaction_status(
-            &self.mempool,
-            Bytes::from(sha2::Sha256::digest(&tx_bytes).to_vec()),
-        )
-        .await?;
+        let status = get_transaction_status(&self.mempool, tx_hash_bytes).await?;
 
         Ok(Response::new(SubmitTransactionResponse {
             status: Some(status),
@@ -134,7 +128,10 @@ async fn get_transaction_status(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::{
+        HashMap,
+        HashSet,
+    };
 
     use astria_core::{
         primitive::v1::{
@@ -152,7 +149,6 @@ mod tests {
         Protobuf as _,
     };
     use cnidarium::StateDelta;
-    use prost::Message as _;
     use telemetry::Metrics as _;
 
     use super::*;
@@ -199,7 +195,7 @@ mod tests {
         let tx_hash_bytes: Bytes = tx.id().get().to_vec().into();
         // Should be inserted into Pending
         mempool
-            .insert(tx.clone(), nonce, HashMap::default(), HashMap::default())
+            .insert(tx.clone(), nonce, &HashMap::default(), HashMap::default())
             .await
             .unwrap();
 
@@ -234,7 +230,7 @@ mod tests {
             .insert(
                 tx.clone(),
                 nonce.saturating_sub(1),
-                HashMap::default(),
+                &HashMap::default(),
                 HashMap::default(),
             )
             .await
@@ -264,7 +260,7 @@ mod tests {
         let tx = Arc::new(make_transaction(nonce));
         let tx_hash_bytes: Bytes = tx.id().get().to_vec().into();
         mempool
-            .insert(tx.clone(), nonce, HashMap::default(), HashMap::default())
+            .insert(tx.clone(), nonce, &HashMap::default(), HashMap::default())
             .await
             .unwrap();
 
@@ -310,15 +306,17 @@ mod tests {
         let tx = Arc::new(make_transaction(nonce));
         let tx_hash_bytes: Bytes = tx.id().get().to_vec().into();
         mempool
-            .insert(tx.clone(), nonce, HashMap::default(), HashMap::default())
+            .insert(tx.clone(), nonce, &HashMap::default(), HashMap::default())
             .await
             .unwrap();
         let block_number = 100;
+        let mut included_txs = HashSet::new();
+        included_txs.insert(tx.id().get());
         mempool
             .run_maintenance(
                 &storage.latest_snapshot(),
                 false,
-                vec![tx.id().get()],
+                included_txs,
                 block_number,
             )
             .await;
@@ -413,7 +411,7 @@ mod tests {
         let tx = Arc::new(make_transaction(nonce));
 
         let req = SubmitTransactionRequest {
-            transaction: tx.to_raw().encode_to_vec().into(),
+            transaction: Some(tx.to_raw()),
         };
         let rsp = server
             .submit_transaction(Request::new(req))
@@ -457,16 +455,16 @@ mod tests {
         let tx = Arc::new(make_transaction(nonce));
 
         let req = SubmitTransactionRequest {
-            transaction: tx.to_raw().encode_to_vec().into(),
+            transaction: Some(tx.to_raw()),
         };
         let rsp = server
             .submit_transaction(Request::new(req))
             .await
             .unwrap_err();
-        assert_eq!(rsp.code(), tonic::Code::Internal);
+        assert_eq!(rsp.code(), tonic::Code::InvalidArgument);
         assert_eq!(
             rsp.message(),
-            "Transaction failed CheckTx: given nonce has already been used previously".to_string()
+            "given nonce has already been used previously".to_string()
         );
     }
 }

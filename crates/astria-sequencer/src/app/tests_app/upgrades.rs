@@ -412,7 +412,7 @@ async fn execute_block_99(proposer: &mut Node, validator: &mut Node, non_validat
         .insert(
             signed_transfer_tx(0),
             0,
-            mock_balances(0, 0),
+            &mock_balances(0, 0),
             mock_tx_cost(0, 0, 0),
         )
         .await
@@ -429,7 +429,7 @@ async fn execute_block_99(proposer: &mut Node, validator: &mut Node, non_validat
         .insert(
             signed_validator_update_tx(block_99_validator_update.clone(), 0),
             0,
-            mock_balances(0, 0),
+            &mock_balances(0, 0),
             mock_tx_cost(0, 0, 0),
         )
         .await
@@ -515,7 +515,7 @@ async fn execute_block_100(proposer: &mut Node, validator: &mut Node, non_valida
         .insert(
             signed_transfer_tx(1),
             1,
-            mock_balances(0, 0),
+            &mock_balances(0, 0),
             mock_tx_cost(0, 0, 0),
         )
         .await
@@ -532,7 +532,7 @@ async fn execute_block_100(proposer: &mut Node, validator: &mut Node, non_valida
         .insert(
             signed_validator_update_tx(block_100_validator_update.clone(), 1),
             1,
-            mock_balances(0, 0),
+            &mock_balances(0, 0),
             mock_tx_cost(0, 0, 0),
         )
         .await
@@ -625,7 +625,7 @@ async fn execute_block_101(proposer: &mut Node, validator: &mut Node, non_valida
         .insert(
             signed_transfer_tx(2),
             2,
-            mock_balances(0, 0),
+            &mock_balances(0, 0),
             mock_tx_cost(0, 0, 0),
         )
         .await
@@ -642,7 +642,7 @@ async fn execute_block_101(proposer: &mut Node, validator: &mut Node, non_valida
         .insert(
             signed_validator_update_tx(block_101_validator_update.clone(), 2),
             2,
-            mock_balances(0, 0),
+            &mock_balances(0, 0),
             mock_tx_cost(0, 0, 0),
         )
         .await
@@ -744,7 +744,7 @@ async fn execute_block_102(proposer: &mut Node, validator: &mut Node, non_valida
         .insert(
             signed_transfer_tx(3),
             3,
-            mock_balances(0, 0),
+            &mock_balances(0, 0),
             mock_tx_cost(0, 0, 0),
         )
         .await

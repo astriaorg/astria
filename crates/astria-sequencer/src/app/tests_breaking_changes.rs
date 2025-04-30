@@ -10,7 +10,10 @@
 //! If changes are made to the execution results of these actions, manual testing is required.
 
 use std::{
-    collections::HashMap,
+    collections::{
+        HashMap,
+        HashSet,
+    },
     str::FromStr as _,
     sync::Arc,
 };
@@ -116,7 +119,9 @@ async fn app_finalize_block_snapshot() {
 
     // the state changes must be committed, as `finalize_block` will execute the
     // changes on the latest snapshot, not the app's `StateDelta`.
-    app.prepare_commit(storage.clone()).await.unwrap();
+    app.prepare_commit(storage.clone(), HashSet::new())
+        .await
+        .unwrap();
     app.commit(storage.clone()).await.unwrap();
 
     let amount = 100;
@@ -414,7 +419,9 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     let sudo_address = app.state.get_sudo_address().await.unwrap();
     app.end_block(height.value(), &sudo_address).await.unwrap();
 
-    app.prepare_commit(storage.clone()).await.unwrap();
+    app.prepare_commit(storage.clone(), HashSet::new())
+        .await
+        .unwrap();
     app.commit(storage.clone()).await.unwrap();
 
     insta::assert_json_snapshot!(
