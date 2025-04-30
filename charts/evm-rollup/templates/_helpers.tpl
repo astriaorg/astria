@@ -24,13 +24,20 @@ files/genesis/{{ include "rollup.type" . }}.genesis.json
 {{- end -}}
 {{- end }}
 
+{{- define "rollup.repos.geth" -}}
+{{- $rollupType := (include "rollup.type" . ) -}}
+{{- if or (eq $rollupType "custom") .Values.global.dev -}}{{ .Values.images.geth.repo }}
+{{- else if hasPrefix "flame-" $rollupType -}}ghcr.io/astriaorg/astria-geth
+{{- else if hasPrefix "forma-" $rollupType -}}ghcr.io/forma-dev/forma-geth
+{{- end -}}
+
 {{- define "rollup.tags.geth" -}}
 {{- $rollupType := (include "rollup.type" . ) -}}
 {{- if or (eq $rollupType "custom") .Values.global.dev -}}{{ .Values.images.geth.tag }}
 {{- else if eq $rollupType "flame-mainnet" -}}1.1.0
 {{- else if eq $rollupType "flame-testnet" -}}1.1.0
 {{- else if eq $rollupType "flame-devnet" -}}2.0.0-beta.1
-{{- else if eq $rollupType "forma-sketchpad" -}}2.0.0-beta.1
+{{- else if eq $rollupType "forma-sketchpad" -}}2.0.0-beta.1-forma-dev.1
 {{- end -}}
 {{- end }}
 
@@ -40,7 +47,7 @@ files/genesis/{{ include "rollup.type" . }}.genesis.json
 {{- else if eq $rollupType "flame-mainnet" -}}1.1.0
 {{- else if eq $rollupType "flame-testnet" -}}1.1.0
 {{- else if eq $rollupType "flame-devnet" -}}2.0.0-rc.1
-{{- else if eq $rollupType "forma-sketchpad" -}}pr-
+{{- else if eq $rollupType "forma-sketchpad" -}}sha-3640bf9ba17e521cff1ccf8709cc59cadbef5454
 {{- end -}}
 {{- end }}
 
@@ -114,7 +121,7 @@ The log level represented as a number
 Full image paths for Astria built images
 */}}
 {{- define "rollup.image" -}}
-{{ .Values.images.geth.repo }}:{{ include "rollup.tags.geth" . }}
+{{ include "rollup.repos.geth" }}:{{ include "rollup.tags.geth" . }}
 {{- end }}
 
 {{- define "conductor.image" -}}
