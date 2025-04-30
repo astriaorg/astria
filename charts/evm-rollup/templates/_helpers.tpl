@@ -30,6 +30,7 @@ files/genesis/{{ include "rollup.type" . }}.genesis.json
 {{- else if hasPrefix "flame-" $rollupType -}}ghcr.io/astriaorg/astria-geth
 {{- else if hasPrefix "forma-" $rollupType -}}ghcr.io/forma-dev/forma-geth
 {{- end -}}
+{{- end }}
 
 {{- define "rollup.tags.geth" -}}
 {{- $rollupType := (include "rollup.type" . ) -}}
