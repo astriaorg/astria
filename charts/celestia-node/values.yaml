@@ -20,7 +20,7 @@ config:
 
 images:
   pullPolicy: IfNotPresent
-  node: ghcr.io/celestiaorg/celestia-node:v0.18.3-mocha
+  node: ghcr.io/celestiaorg/celestia-node:v0.22.2
 
 ports:
   celestia:
