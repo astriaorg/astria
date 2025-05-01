@@ -17,25 +17,24 @@ const_format = { workspace = true }
 itertools = { workspace = true }
 jiff = { workspace = true, optional = true }
 
-metrics = "0.23.0"
-metrics-exporter-prometheus = { version = "0.15.0", default-features = false, features = [
+metrics = "0.24.1"
+metrics-exporter-prometheus = { version = "0.16.2", default-features = false, features = [
   "http-listener",
 ] }
 # When updating ensure that `opentelemetry-semantic-conventions` matches
 # that used by `opentelemetry-otlp`.
-opentelemetry = "0.22.0"
-opentelemetry-otlp = { version = "0.15.0", features = ["gzip-tonic"] }
-opentelemetry-semantic-conventions = "0.14.0"
-opentelemetry-stdout = { version = "0.3.0", features = ["trace"] }
-opentelemetry_sdk = { version = "0.22.1", features = ["rt-tokio"] }
+opentelemetry = "0.27.1"
+opentelemetry-otlp = { version = "0.27.0", features = ["gzip-tonic"] }
+opentelemetry-semantic-conventions = "0.27.0"
+opentelemetry_sdk = { version = "0.27.1", features = ["rt-tokio"] }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 serde_with = { version = "3.7.0", optional = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
-tracing-opentelemetry = "0.23.0"
-tracing-subscriber = { version = "0.3.17", features = [
+tracing-opentelemetry = "0.28.0"
+tracing-subscriber = { version = "0.3.19", features = [
   "fmt",
   "env-filter",
   "json",

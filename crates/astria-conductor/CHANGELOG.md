@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0-rc.1] - 2025-04-22
+
+### Added
+
+- Include price feed oracle data in transactions when sequencer network
+  provides it [#2085](https://github.com/astriaorg/astria/pull/2085).
+
+### Changed
+
+- Upgrade to `astria.execution.v2` APIs, implement execution sessions, remove env
+  vars for setting chain IDs [#2006](https://github.com/astriaorg/astria/pull/2006).
+
+### Fixed
+
+- Update `crossbeam-channel` dependency to resolve cargo audit warning [#2106](https://github.com/astriaorg/astria/pull/2106).
+
 ## [1.1.0] - 2025-03-06
 
 ### Changed
@@ -364,7 +380,8 @@ address [#721](https://github.com/astriaorg/astria/pull/721).
 
 - Initial release.
 
-[unreleased]: https://github.com/astriaorg/astria/compare/conductor-v1.0.0...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/conductor-v2.0.0-rc.1...HEAD
+[2.0.0-rc.1]: https://github.com/astriaorg/astria/compare/conductor-v1.1.0...conductor-v2.0.0-rc.1
 [1.1.0]: https://github.com/astriaorg/astria/compare/conductor-v1.0.0...conductor-v1.1.0
 [1.0.0]: https://github.com/astriaorg/astria/compare/conductor-v1.0.0-rc.2...conductor-v1.0.0
 [1.0.0-rc.2]: https://github.com/astriaorg/astria/compare/conductor-v1.0.0-rc.1...conductor-v1.0.0-rc.2

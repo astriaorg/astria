@@ -25,6 +25,10 @@ use astria_core::{
         Ics20WithdrawalFromRollup,
     },
     sequencerblock::v1::block::Deposit,
+    upgrades::v1::aspen::{
+        Aspen,
+        IbcAcknowledgementFailureChange,
+    },
 };
 use astria_eyre::{
     anyhow::{
@@ -92,6 +96,7 @@ use crate::{
         StateWriteExt as _,
     },
     transaction::StateReadExt as _,
+    upgrades::StateReadExt as _,
     utils::create_deposit_event,
 };
 
@@ -365,14 +370,25 @@ impl AppHandlerExecute for Ics20Transfer {
     ) -> anyhow::Result<()> {
         use penumbra_ibc::component::packet::WriteAcknowledgement as _;
 
+        let use_new_error_format = state
+            .get_upgrade_change_info(&Aspen::NAME, &IbcAcknowledgementFailureChange::NAME)
+            .await
+            .map_err(|err| eyre_to_anyhow(err).context("failed to read upgrade info"))?
+            .is_some();
+
         let ack = match receive_tokens(&mut state, &msg.packet).await {
             Ok(()) => TokenTransferAcknowledgement::success(),
             Err(e) => {
-                tracing::debug!(
+                tracing::warn!(
                     error = AsRef::<dyn std::error::Error>::as_ref(&e),
                     "failed to execute ics20 transfer"
                 );
-                TokenTransferAcknowledgement::Error(format!("{e:#}"))
+                let error_message = if use_new_error_format {
+                    "ics20 transfer failed".to_string()
+                } else {
+                    format!("{e:#}")
+                };
+                TokenTransferAcknowledgement::Error(error_message)
             }
         };
 

@@ -5,12 +5,14 @@ use astria_core::protocol::{
         BridgeSudoChange,
         BridgeTransfer,
         BridgeUnlock,
+        CurrencyPairsChange,
         FeeAssetChange,
         FeeChange,
         IbcRelayerChange,
         IbcSudoChange,
         Ics20Withdrawal,
         InitBridgeAccount,
+        MarketsChange,
         RecoverIbcClient,
         RollupDataSubmission,
         SudoAddressChange,
@@ -50,6 +52,8 @@ enum ValueImpl {
     SudoAddressChangeFees(FeeComponents),
     BridgeTransferFees(FeeComponents),
     RecoverIbcClientFees(FeeComponents),
+    CurrencyPairsChangeFees(FeeComponents),
+    MarketsChangeFees(FeeComponents),
 }
 
 macro_rules! impl_from_for_fee_storage {
@@ -115,6 +119,8 @@ impl_from_for_fee_storage!(
     DomainFeeComponents<SudoAddressChange> => SudoAddressChangeFees,
     DomainFeeComponents<BridgeTransfer> => BridgeTransferFees,
     DomainFeeComponents<RecoverIbcClient> => RecoverIbcClientFees,
+    DomainFeeComponents<CurrencyPairsChange> => CurrencyPairsChangeFees,
+    DomainFeeComponents<MarketsChange> => MarketsChangeFees,
 );
 
 #[cfg(test)]
@@ -194,6 +200,18 @@ mod tests {
         assert_snapshot!(
             "value_impl_bridge_transfer_fees",
             value_impl_borsh_as_hex!(BridgeTransferFees),
+        );
+        assert_snapshot!(
+            "value_impl_recover_client_fees",
+            value_impl_borsh_as_hex!(RecoverIbcClientFees),
+        );
+        assert_snapshot!(
+            "value_impl_currency_pairs_change_fees",
+            value_impl_borsh_as_hex!(CurrencyPairsChangeFees),
+        );
+        assert_snapshot!(
+            "value_impl_markets_change_fees",
+            value_impl_borsh_as_hex!(MarketsChangeFees),
         );
     }
 

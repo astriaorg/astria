@@ -5,7 +5,9 @@ package astria.protocol.transaction.v1;
 import "astria/primitive/v1/types.proto";
 import "astria/protocol/fees/v1/types.proto";
 import "astria_vendored/penumbra/core/component/ibc/v1/ibc.proto";
-import "astria_vendored/tendermint/abci/types.proto";
+import "astria_vendored/tendermint/crypto/keys.proto";
+import "connect/marketmap/v2/market.proto";
+import "connect/types/v2/currency_pair.proto";
 
 message Action {
   oneof value {
@@ -24,14 +26,18 @@ message Action {
     astria_vendored.penumbra.core.component.ibc.v1.IbcRelay ibc = 21;
     Ics20Withdrawal ics20_withdrawal = 22;
 
-    // POA sudo actions are defined on 50-60
+    // POA sudo actions are defined on 50-70
     SudoAddressChange sudo_address_change = 50;
-    astria_vendored.tendermint.abci.ValidatorUpdate validator_update = 51;
+    ValidatorUpdate validator_update = 51;
     IbcRelayerChange ibc_relayer_change = 52;
     FeeAssetChange fee_asset_change = 53;
     FeeChange fee_change = 55;
     IbcSudoChange ibc_sudo_change = 56;
     RecoverIbcClient recover_ibc_client = 57;
+
+    // Price feed actions are defined on 71-80
+    CurrencyPairsChange currency_pairs_change = 71;
+    MarketsChange markets_change = 72;
   }
 }
 
@@ -237,6 +243,15 @@ message BridgeTransfer {
   string rollup_withdrawal_event_id = 7;
 }
 
+message ValidatorUpdate {
+  // the ed25519 public key of the validator
+  astria_vendored.tendermint.crypto.PublicKey pub_key = 1;
+  // the amount of power to assign the validator
+  int64 power = 2;
+  // an optional name for the validator. to opt for no name, leave blank
+  string name = 3;
+}
+
 message FeeChange {
   // the new fee components values
   oneof fee_components {
@@ -256,6 +271,8 @@ message FeeChange {
     astria.protocol.fees.v1.ValidatorUpdateFeeComponents validator_update = 14;
     astria.protocol.fees.v1.BridgeTransferFeeComponents bridge_transfer = 15;
     astria.protocol.fees.v1.RecoverIbcClientFeeComponents recover_ibc_client = 16;
+    astria.protocol.fees.v1.CurrencyPairsChangeFeeComponents currency_pairs_change = 17;
+    astria.protocol.fees.v1.MarketsChangeFeeComponents markets_change = 18;
   }
 }
 
@@ -279,4 +296,30 @@ message RecoverIbcClient {
   // the substitute client identifier for the client which will replace the subject
   // client
   string replacement_client_id = 2;
+}
+
+// Add or remove currency pairs to/from the price feed oracle.
+message CurrencyPairsChange {
+  oneof value {
+    CurrencyPairs addition = 1;
+    CurrencyPairs removal = 2;
+  }
+}
+
+message CurrencyPairs {
+  repeated connect.types.v2.CurrencyPair pairs = 1;
+}
+
+// Either creates, removes or updates existing price feed markets.
+message MarketsChange {
+  oneof action {
+    Markets creation = 1;
+    Markets removal = 2;
+    Markets update = 3;
+  }
+}
+
+// A list of markets for creation, updating, or removal.
+message Markets {
+  repeated connect.marketmap.v2.Market markets = 1;
 }

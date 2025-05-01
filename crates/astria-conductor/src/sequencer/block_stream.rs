@@ -1,5 +1,6 @@
 use std::{
     error::Error as StdError,
+    num::NonZeroU64,
     pin::Pin,
     task::Poll,
 };
@@ -35,6 +36,7 @@ struct Heights {
     rollup_expects: u64,
     greatest_requested_height: Option<u64>,
     latest_observed_sequencer_height: Option<u64>,
+    stop_height: Option<NonZeroU64>,
     max_ahead: u64,
 }
 
@@ -49,7 +51,11 @@ impl Heights {
         let not_too_far_ahead =
             potential_height < (self.rollup_expects.saturating_add(self.max_ahead));
         let height_exists_on_sequencer = potential_height <= latest_observed_sequencer_height;
-        if not_too_far_ahead && height_exists_on_sequencer {
+        let stop_height_reached = self
+            .stop_height
+            .map_or(false, |stop_height| potential_height > stop_height.into());
+
+        if not_too_far_ahead && height_exists_on_sequencer && !stop_height_reached {
             Some(potential_height)
         } else {
             None
@@ -148,12 +154,14 @@ impl BlocksFromHeightStream {
     pub(super) fn new(
         rollup_id: RollupId,
         first_height: Height,
+        last_height: Option<NonZeroU64>,
         client: SequencerGrpcClient,
     ) -> Self {
         let heights = Heights {
             rollup_expects: first_height.value(),
             latest_observed_sequencer_height: None,
             greatest_requested_height: None,
+            stop_height: last_height,
             max_ahead: 128,
         };
         Self {
@@ -273,6 +281,8 @@ async fn fetch_block(
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU64;
+
     use super::Heights;
 
     #[test]
@@ -281,6 +291,7 @@ mod tests {
             rollup_expects: 5,
             greatest_requested_height: None,
             latest_observed_sequencer_height: Some(6),
+            stop_height: None,
             max_ahead: 3,
         };
         let next = heights.next_height_to_fetch();
@@ -306,7 +317,21 @@ mod tests {
             rollup_expects: 4,
             greatest_requested_height: Some(5),
             latest_observed_sequencer_height: Some(6),
+            stop_height: None,
             max_ahead: 2,
+        };
+        let next = heights.next_height_to_fetch();
+        assert_eq!(None, next);
+    }
+
+    #[test]
+    fn next_height_is_none_if_last_height_reached() {
+        let heights = Heights {
+            rollup_expects: 4,
+            greatest_requested_height: Some(6),
+            latest_observed_sequencer_height: Some(6),
+            stop_height: Some(NonZeroU64::new(6).unwrap()),
+            max_ahead: 5,
         };
         let next = heights.next_height_to_fetch();
         assert_eq!(None, next);
@@ -318,6 +343,7 @@ mod tests {
             rollup_expects: 4,
             greatest_requested_height: Some(5),
             latest_observed_sequencer_height: Some(5),
+            stop_height: None,
             max_ahead: 2,
         };
         let next = heights.next_height_to_fetch();
@@ -330,6 +356,7 @@ mod tests {
             rollup_expects: 5,
             greatest_requested_height: None,
             latest_observed_sequencer_height: None,
+            stop_height: None,
             max_ahead: 3,
         };
         let next = heights.next_height_to_fetch();

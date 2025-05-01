@@ -13,7 +13,6 @@ global:
   rollupName: ""
   evmChainId: ""
   sequencerChainId: ""
-  celestiaChainId: ""
   otel:
     endpoint: ""
     tracesEndpoint: ""
@@ -27,12 +26,9 @@ evm-rollup:
   genesis:
     rollupName: "{{ .Values.global.rollupName }}"
     chainId: "{{ .Values.global.evmChainId }}"
-  config:
-    conductor:
-      sequencerChainId: "{{ .Values.global.sequencerChainId }}"
-      celestiaChainId: "{{ .Values.global.celestiaChainId }}"
-      sequencerRpc: "{{ .Values.global.sequencerRpc }}"
-      sequencerGrpc: "{{ .Values.global.sequencerGrpc }}"
+  conductor:
+    sequencerRpc: "{{ .Values.global.sequencerRpc }}"
+    sequencerGrpc: "{{ .Values.global.sequencerGrpc }}"
   otel:
     endpoint: "{{ .Values.global.otel.endpoint }}"
     tracesEndpoint: "{{ .Values.global.otel.tracesEndpoint }}"
