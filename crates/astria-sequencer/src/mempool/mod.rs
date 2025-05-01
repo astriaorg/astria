@@ -227,11 +227,6 @@ impl Mempool {
         self.inner.write().await.remove_from_removal_cache(tx_hash);
     }
 
-    #[cfg(test)]
-    pub(crate) async fn is_tracked(&self, tx_hash: [u8; 32]) -> bool {
-        self.inner.read().await.is_tracked(tx_hash)
-    }
-
     /// Updates stored transactions to reflect current blockchain state. Will remove transactions
     /// that have stale nonces or are expired. Will also shift transation between pending and
     /// parked to relfect changes in account balances.
@@ -272,6 +267,11 @@ impl Mempool {
     #[cfg(test)]
     pub(crate) async fn removal_cache(&self) -> HashMap<[u8; 32], RemovalReason> {
         self.inner.read().await.removal_cache()
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn is_tracked(&self, tx_hash: [u8; 32]) -> bool {
+        self.inner.read().await.is_tracked(tx_hash)
     }
 }
 
@@ -419,11 +419,6 @@ impl MempoolInner {
 
     fn remove_from_removal_cache(&mut self, tx_hash: [u8; 32]) {
         self.comet_bft_removal_cache.remove(tx_hash);
-    }
-
-    #[cfg(test)]
-    fn is_tracked(&self, tx_hash: [u8; 32]) -> bool {
-        self.contained_txs.contains(&tx_hash)
     }
 
     async fn run_maintenance<S: accounts::StateReadExt>(
@@ -578,6 +573,11 @@ impl MempoolInner {
     #[cfg(test)]
     fn removal_cache(&self) -> HashMap<[u8; 32], RemovalReason> {
         self.comet_bft_removal_cache.cache.clone()
+    }
+
+    #[cfg(test)]
+    fn is_tracked(&self, tx_hash: [u8; 32]) -> bool {
+        self.contained_txs.contains(&tx_hash)
     }
 }
 
