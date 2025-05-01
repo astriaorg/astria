@@ -67,6 +67,9 @@ been reached for a given block. Upon receipt of the executed block, Conductor ca
     - `UpdateCommitmentState` will be called to update `firm` and `soft` blocks
       to N
 - `SoftAndFirm`
+  - **NOTE:** the regular operation of Conductor is such that "soft" blocks from
+    Sequencer are received prior to their "firm" Celestia counterparts, but Conductor
+    is capable of handling the reverse scenario as well due to the logic below.
   - upon receiving a new Sequencer block N from the Sequencer:
     - if Sequencer block `N` has not yet been read from Celestia (this is considered
       normal operation):
