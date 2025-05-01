@@ -138,6 +138,8 @@ async fn two_rollup_data_submissions_single_bundle() {
         fee_asset: "nria".parse().unwrap(),
     };
 
+    // Submit transactions concurrently so that the block timer does not tick between them and they
+    // are bundled
     let submit_fut_1 = {
         let mut client = composer_client.clone();
         let seq0 = seq0.clone();
@@ -151,7 +153,6 @@ async fn two_rollup_data_submissions_single_bundle() {
                 .unwrap()
         }
     };
-
     let submit_fut_2 = {
         let mut client = composer_client.clone();
         let seq1 = seq1.clone();
