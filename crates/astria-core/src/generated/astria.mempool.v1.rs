@@ -35,6 +35,79 @@ impl ::prost::Name for SubmitTransactionRequest {
         "/astria.mempool.v1.SubmitTransactionRequest".into()
     }
 }
+/// A response to a request to submit a transaction to the Astria Sequencer's mempool,
+/// containing the outcome of the submission.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SubmitTransactionResponse {
+    /// The transaction hash.
+    #[prost(bytes = "bytes", tag = "1")]
+    pub transaction_hash: ::prost::bytes::Bytes,
+    /// The outcome of the successful transaction submission. Can be one of:
+    /// - `AddedToPendingQueue`: The transaction was added to the pending queue.
+    /// - `AddedToParkedQueue`: The transaction was added to the parked queue.
+    /// - `AlreadyInPendingQueue`: The transaction was already in the pending queue.
+    /// - `AlreadyInParkedQueue`: The transaction was already in the parked queue.
+    #[prost(enumeration = "submit_transaction_response::Outcome", tag = "2")]
+    pub outcome: i32,
+}
+/// Nested message and enum types in `SubmitTransactionResponse`.
+pub mod submit_transaction_response {
+    #[derive(
+        Clone,
+        Copy,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+        ::prost::Enumeration
+    )]
+    #[repr(i32)]
+    pub enum Outcome {
+        Unspecified = 0,
+        AddedToParkedQueue = 1,
+        AddedToPendingQueue = 2,
+        AlreadyInParkedQueue = 3,
+        AlreadyInPendingQueue = 4,
+    }
+    impl Outcome {
+        /// String value of the enum field names used in the ProtoBuf definition.
+        ///
+        /// The values are not transformed in any way and thus are considered stable
+        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        pub fn as_str_name(&self) -> &'static str {
+            match self {
+                Self::Unspecified => "OUTCOME_UNSPECIFIED",
+                Self::AddedToParkedQueue => "OUTCOME_ADDED_TO_PARKED_QUEUE",
+                Self::AddedToPendingQueue => "OUTCOME_ADDED_TO_PENDING_QUEUE",
+                Self::AlreadyInParkedQueue => "OUTCOME_ALREADY_IN_PARKED_QUEUE",
+                Self::AlreadyInPendingQueue => "OUTCOME_ALREADY_IN_PENDING_QUEUE",
+            }
+        }
+        /// Creates an enum from field names used in the ProtoBuf definition.
+        pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+            match value {
+                "OUTCOME_UNSPECIFIED" => Some(Self::Unspecified),
+                "OUTCOME_ADDED_TO_PARKED_QUEUE" => Some(Self::AddedToParkedQueue),
+                "OUTCOME_ADDED_TO_PENDING_QUEUE" => Some(Self::AddedToPendingQueue),
+                "OUTCOME_ALREADY_IN_PARKED_QUEUE" => Some(Self::AlreadyInParkedQueue),
+                "OUTCOME_ALREADY_IN_PENDING_QUEUE" => Some(Self::AlreadyInPendingQueue),
+                _ => None,
+            }
+        }
+    }
+}
+impl ::prost::Name for SubmitTransactionResponse {
+    const NAME: &'static str = "SubmitTransactionResponse";
+    const PACKAGE: &'static str = "astria.mempool.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        "astria.mempool.v1.SubmitTransactionResponse".into()
+    }
+    fn type_url() -> ::prost::alloc::string::String {
+        "/astria.mempool.v1.SubmitTransactionResponse".into()
+    }
+}
 /// `TransactionStatus` is a resource which represents the status of a transaction
 /// in the Astria Sequencer's mempool.
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -49,8 +122,9 @@ pub struct TransactionStatus {
     ///      - The sender has sufficient balance to pay for the transaction.
     /// - `Removed`: The transaction has been removed from the mempool. Includes
     ///        reason for removal.
-    /// - `Included`: The transaction has been included in a block. Includes hash
-    ///        hash and number of the block in which the transaction was finalized.
+    /// - `IncludedInSequencerBlock`: The transaction has been included in a
+    ///        sequencer block. Specifies the block height in which the transaction
+    ///        was included.
     #[prost(oneof = "transaction_status::Status", tags = "2, 3, 4, 5")]
     pub status: ::core::option::Option<transaction_status::Status>,
 }
@@ -102,19 +176,19 @@ pub mod transaction_status {
     /// Status representing a transaction which has been included in a block and is
     /// no longer in the Astria Sequencer's mempool.
     #[derive(Clone, Copy, PartialEq, ::prost::Message)]
-    pub struct Included {
-        /// The number of the block in which the transaction was included.
+    pub struct IncludedInSequencerBlock {
+        /// The height of the block in which the transaction was included.
         #[prost(uint64, tag = "1")]
-        pub block_number: u64,
+        pub height: u64,
     }
-    impl ::prost::Name for Included {
-        const NAME: &'static str = "Included";
+    impl ::prost::Name for IncludedInSequencerBlock {
+        const NAME: &'static str = "IncludedInSequencerBlock";
         const PACKAGE: &'static str = "astria.mempool.v1";
         fn full_name() -> ::prost::alloc::string::String {
-            "astria.mempool.v1.TransactionStatus.Included".into()
+            "astria.mempool.v1.TransactionStatus.IncludedInSequencerBlock".into()
         }
         fn type_url() -> ::prost::alloc::string::String {
-            "/astria.mempool.v1.TransactionStatus.Included".into()
+            "/astria.mempool.v1.TransactionStatus.IncludedInSequencerBlock".into()
         }
     }
     /// The status of the transaction. Can be one of:
@@ -124,8 +198,9 @@ pub mod transaction_status {
     ///      - The sender has sufficient balance to pay for the transaction.
     /// - `Removed`: The transaction has been removed from the mempool. Includes
     ///        reason for removal.
-    /// - `Included`: The transaction has been included in a block. Includes hash
-    ///        hash and number of the block in which the transaction was finalized.
+    /// - `IncludedInSequencerBlock`: The transaction has been included in a
+    ///        sequencer block. Specifies the block height in which the transaction
+    ///        was included.
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Status {
         #[prost(message, tag = "2")]
@@ -135,7 +210,7 @@ pub mod transaction_status {
         #[prost(message, tag = "4")]
         Removed(Removed),
         #[prost(message, tag = "5")]
-        Included(Included),
+        IncludedInSequencerBlock(IncludedInSequencerBlock),
     }
 }
 impl ::prost::Name for TransactionStatus {
@@ -146,24 +221,6 @@ impl ::prost::Name for TransactionStatus {
     }
     fn type_url() -> ::prost::alloc::string::String {
         "/astria.mempool.v1.TransactionStatus".into()
-    }
-}
-/// A response to a request to submit a transaction to the Astria Sequencer's mempool,
-/// containing the status of the transaction in the mempool.
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SubmitTransactionResponse {
-    /// The status of the transaction submitted to the mempool.
-    #[prost(message, optional, tag = "1")]
-    pub status: ::core::option::Option<TransactionStatus>,
-}
-impl ::prost::Name for SubmitTransactionResponse {
-    const NAME: &'static str = "SubmitTransactionResponse";
-    const PACKAGE: &'static str = "astria.mempool.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        "astria.mempool.v1.SubmitTransactionResponse".into()
-    }
-    fn type_url() -> ::prost::alloc::string::String {
-        "/astria.mempool.v1.SubmitTransactionResponse".into()
     }
 }
 /// Generated client implementations.

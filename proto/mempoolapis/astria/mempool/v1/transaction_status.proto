@@ -15,13 +15,14 @@ message TransactionStatus {
   //     - The sender has sufficient balance to pay for the transaction.
   // - `Removed`: The transaction has been removed from the mempool. Includes
   //       reason for removal.
-  // - `Included`: The transaction has been included in a block. Includes hash
-  //       hash and number of the block in which the transaction was finalized.
+  // - `IncludedInSequencerBlock`: The transaction has been included in a
+  //       sequencer block. Specifies the block height in which the transaction
+  //       was included.
   oneof status {
     Pending pending = 2;
     Parked parked = 3;
     Removed removed = 4;
-    Included included = 5;
+    IncludedInSequencerBlock included_in_sequencer_block = 5;
   }
 
   // Status representing a pending transaction in the Astria Sequencer's mempool.
@@ -38,8 +39,8 @@ message TransactionStatus {
 
   // Status representing a transaction which has been included in a block and is
   // no longer in the Astria Sequencer's mempool.
-  message Included {
-    // The number of the block in which the transaction was included.
-    uint64 block_number = 1;
+  message IncludedInSequencerBlock {
+    // The height of the block in which the transaction was included.
+    uint64 height = 1;
   }
 }

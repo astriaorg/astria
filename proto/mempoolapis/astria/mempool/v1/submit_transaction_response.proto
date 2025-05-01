@@ -2,11 +2,24 @@ syntax = "proto3";
 
 package astria.mempool.v1;
 
-import "astria/mempool/v1/transaction_status.proto";
-
 // A response to a request to submit a transaction to the Astria Sequencer's mempool,
-// containing the status of the transaction in the mempool.
+// containing the outcome of the submission.
 message SubmitTransactionResponse {
-  // The status of the transaction submitted to the mempool.
-  TransactionStatus status = 1;
+  // The transaction hash.
+  bytes transaction_hash = 1;
+
+  // The outcome of the successful transaction submission. Can be one of:
+  // - `AddedToPendingQueue`: The transaction was added to the pending queue.
+  // - `AddedToParkedQueue`: The transaction was added to the parked queue.
+  // - `AlreadyInPendingQueue`: The transaction was already in the pending queue.
+  // - `AlreadyInParkedQueue`: The transaction was already in the parked queue.
+  Outcome outcome = 2;
+
+  enum Outcome {
+    OUTCOME_UNSPECIFIED = 0;
+    OUTCOME_ADDED_TO_PARKED_QUEUE = 1;
+    OUTCOME_ADDED_TO_PENDING_QUEUE = 2;
+    OUTCOME_ALREADY_IN_PARKED_QUEUE = 3;
+    OUTCOME_ALREADY_IN_PENDING_QUEUE = 4;
+  }
 }

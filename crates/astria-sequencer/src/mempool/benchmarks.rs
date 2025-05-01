@@ -258,7 +258,7 @@ fn check_removed_comet_bft(bencher: divan::Bencher) {
         })
         .bench_values(move |(mempool, tx_hash)| {
             runtime.block_on(async {
-                mempool.remove_from_removal_cache(tx_hash).await.unwrap();
+                mempool.remove_from_removal_cache(tx_hash).await;
             });
         });
 }

@@ -24,11 +24,12 @@ use cnidarium::{
     StateRead,
     Storage,
 };
-pub(crate) use error::CheckTxError;
 use futures::{
     Future,
     FutureExt,
 };
+use into_check_tx_response::IntoCheckTxResponse as _;
+pub(crate) use outcome::CheckTxOutcome;
 use prost::{
     Message as _,
     Name as _,
@@ -56,7 +57,7 @@ use crate::{
     app::StateReadExt as _,
     mempool::{
         get_account_balances,
-        InsertionError,
+        InsertionStatus,
         Mempool as AppMempool,
         RemovalReason,
         TransactionStatus,
@@ -65,104 +66,12 @@ use crate::{
     transaction,
 };
 
-mod error;
+mod into_check_tx_response;
+mod outcome;
 #[cfg(test)]
 mod tests;
 
 const MAX_TX_SIZE: usize = 256_000; // 256 KB
-
-pub(crate) trait IntoCheckTxResponse {
-    fn into_check_tx_response(self) -> response::CheckTx;
-}
-
-impl IntoCheckTxResponse for RemovalReason {
-    fn into_check_tx_response(self) -> response::CheckTx {
-        match self {
-            RemovalReason::Expired => response::CheckTx {
-                code: Code::Err(AbciErrorCode::TRANSACTION_EXPIRED.value()),
-                info: AbciErrorCode::TRANSACTION_EXPIRED.to_string(),
-                log: "transaction expired in the app's mempool".into(),
-                ..response::CheckTx::default()
-            },
-            RemovalReason::FailedPrepareProposal(err) => response::CheckTx {
-                code: Code::Err(AbciErrorCode::TRANSACTION_FAILED.value()),
-                info: AbciErrorCode::TRANSACTION_FAILED.to_string(),
-                log: format!("transaction failed execution because: {err}"),
-                ..response::CheckTx::default()
-            },
-            RemovalReason::NonceStale => response::CheckTx {
-                code: Code::Err(AbciErrorCode::INVALID_NONCE.value()),
-                info: "transaction removed from app mempool due to stale nonce".into(),
-                log: "transaction from app mempool due to stale nonce".into(),
-                ..response::CheckTx::default()
-            },
-            RemovalReason::LowerNonceInvalidated => response::CheckTx {
-                code: Code::Err(AbciErrorCode::LOWER_NONCE_INVALIDATED.value()),
-                info: AbciErrorCode::LOWER_NONCE_INVALIDATED.to_string(),
-                log: "transaction removed from app mempool due to lower nonce being invalidated"
-                    .into(),
-                ..response::CheckTx::default()
-            },
-            RemovalReason::Included(block_number) => response::CheckTx {
-                code: Code::Err(AbciErrorCode::TRANSACTION_PREVIOUSLY_INCLUDED.value()),
-                info: AbciErrorCode::TRANSACTION_PREVIOUSLY_INCLUDED.to_string(),
-                log: format!(
-                    "transaction removed from app mempool because it was included in block \
-                     {block_number}"
-                ),
-                ..response::CheckTx::default()
-            },
-        }
-    }
-}
-
-impl IntoCheckTxResponse for InsertionError {
-    fn into_check_tx_response(self) -> response::CheckTx {
-        match self {
-            InsertionError::AlreadyPresent => response::CheckTx {
-                code: Code::Err(AbciErrorCode::ALREADY_PRESENT.value()),
-                info: AbciErrorCode::ALREADY_PRESENT.to_string(),
-                log: InsertionError::AlreadyPresent.to_string(),
-                ..response::CheckTx::default()
-            },
-            InsertionError::NonceTooLow => response::CheckTx {
-                code: Code::Err(AbciErrorCode::INVALID_NONCE.value()),
-                info: AbciErrorCode::INVALID_NONCE.to_string(),
-                log: InsertionError::NonceTooLow.to_string(),
-                ..response::CheckTx::default()
-            },
-            InsertionError::NonceTaken => response::CheckTx {
-                code: Code::Err(AbciErrorCode::NONCE_TAKEN.value()),
-                info: AbciErrorCode::NONCE_TAKEN.to_string(),
-                log: InsertionError::NonceTaken.to_string(),
-                ..response::CheckTx::default()
-            },
-            InsertionError::AccountSizeLimit => response::CheckTx {
-                code: Code::Err(AbciErrorCode::ACCOUNT_SIZE_LIMIT.value()),
-                info: AbciErrorCode::ACCOUNT_SIZE_LIMIT.to_string(),
-                log: InsertionError::AccountSizeLimit.to_string(),
-                ..response::CheckTx::default()
-            },
-            InsertionError::ParkedSizeLimit => response::CheckTx {
-                code: Code::Err(AbciErrorCode::PARKED_FULL.value()),
-                info: AbciErrorCode::PARKED_FULL.info(),
-                log: "transaction failed insertion because parked container is full".into(),
-                ..response::CheckTx::default()
-            },
-            InsertionError::AccountBalanceTooLow | InsertionError::NonceGap => {
-                // NOTE: these are handled interally by the mempool and don't
-                // block transaction inclusion in the mempool. they shouldn't
-                // be bubbled up to the client.
-                response::CheckTx {
-                    code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
-                    info: AbciErrorCode::INTERNAL_ERROR.info(),
-                    log: "transaction failed insertion because of an internal error".into(),
-                    ..response::CheckTx::default()
-                }
-            }
-        }
-    }
-}
 
 fn error_response(abci_error_code: AbciErrorCode, log: String) -> response::CheckTx {
     response::CheckTx {
@@ -241,30 +150,26 @@ pub(crate) async fn handle_check_tx_request<S: StateRead>(
 
     let signed_tx = match convert_bytes_to_signed_tx(tx, metrics).await {
         Ok(tx) => tx,
-        Err(err) => return err.into(),
+        Err(err) => return err.into_check_tx_response(),
     };
 
-    match check_tx(signed_tx.clone(), state, mempool, metrics).await {
-        // Don't error if the transaction is already in the mempool
-        Ok(()) | Err(CheckTxError::Tracked) => response::CheckTx::default(),
-        Err(CheckTxError::RemovedFromMempool(reason)) => {
-            // This statement should never fail, since we have a different `CheckTxError` variant
-            // for included transactions.
-            if !matches!(reason, RemovalReason::Included { .. }) {
-                match reason {
-                    RemovalReason::Expired => metrics.increment_check_tx_removed_expired(),
-                    RemovalReason::FailedPrepareProposal(_) => {
-                        metrics.increment_check_tx_removed_failed_execution();
-                    }
-                    _ => {}
-                };
-                mempool
-                    .remove_from_removal_cache(signed_tx.id().get())
-                    .await;
+    let outcome = check_tx(signed_tx.clone(), state, mempool, metrics).await;
+    if let CheckTxOutcome::RemovedFromMempool(reason) = outcome {
+        match reason {
+            RemovalReason::Expired => {
+                metrics.increment_check_tx_removed_expired();
             }
-            CheckTxError::RemovedFromMempool(reason).into()
-        }
-        Err(err) => err.into(),
+            RemovalReason::FailedPrepareProposal(_) => {
+                metrics.increment_check_tx_removed_failed_execution();
+            }
+            _ => {}
+        };
+        mempool
+            .remove_from_removal_cache(signed_tx.id().get())
+            .await;
+        reason.into_check_tx_response()
+    } else {
+        outcome.into_check_tx_response()
     }
 }
 
@@ -273,58 +178,66 @@ pub(crate) async fn handle_check_tx_request<S: StateRead>(
 /// from it, performing stateless checks, and inserting the transaction into the
 /// mempool.
 ///
-/// The function will return `Ok(())` if the transaction:
-/// - Is already in the appside mempool
-/// - Passes stateless checks and insertion into the mempool is successful
-///
-/// # Errors
-/// - if the transaction has been removed from the app's mempool (will throw error once)
-/// - if the transaction fails stateless checks
-/// - if the transaction fails insertion into the mempool
+/// Returns a [`CheckTxOutcome`] indicating the result of the operation.
 pub(crate) async fn check_tx<S: StateRead>(
     tx: Transaction,
     state: S,
     mempool: &AppMempool,
     metrics: &'static Metrics,
-) -> Result<(), CheckTxError> {
+) -> CheckTxOutcome {
     let tx_hash = tx.id().get();
 
     let tx_status_start = Instant::now();
-    let res = match mempool.transaction_status(&tx_hash).await {
-        Some(TransactionStatus::Parked | TransactionStatus::Pending) => Err(CheckTxError::Tracked),
-        Some(TransactionStatus::Included(block_number)) => Err(CheckTxError::Included {
-            block_number,
+    let outcome = match mempool.transaction_status(&tx_hash).await {
+        Some(TransactionStatus::Parked) => Some(CheckTxOutcome::AlreadyInParked),
+        Some(TransactionStatus::Pending) => Some(CheckTxOutcome::AlreadyInPending),
+        Some(TransactionStatus::IncludedInBlock(height)) => Some(CheckTxOutcome::IncludedInBlock {
+            height,
         }),
-        Some(TransactionStatus::Removed(reason)) => Err(CheckTxError::RemovedFromMempool(reason)),
-        None => Ok(()),
+        Some(TransactionStatus::Removed(reason)) => {
+            Some(CheckTxOutcome::RemovedFromMempool(reason))
+        }
+        None => None,
     };
     metrics.record_check_tx_duration_seconds_transaction_status(tx_status_start.elapsed());
-    res?;
+    if let Some(outcome) = outcome {
+        return outcome;
+    }
 
     // perform stateless checks
-    stateless_checks(tx.clone(), &state, metrics).await?;
+    if let Err(outcome) = stateless_checks(tx.clone(), &state, metrics).await {
+        return outcome;
+    }
 
     // attempt to insert the transaction into the mempool
-    insert_into_mempool(mempool, &state, tx.clone(), metrics).await?;
+    let insertion_status = match insert_into_mempool(mempool, &state, tx.clone(), metrics).await {
+        Ok(status) => status,
+        Err(outcome) => {
+            return outcome;
+        }
+    };
 
     metrics.record_transaction_in_mempool_size_bytes(tx.to_raw().encoded_len());
     metrics.set_transactions_in_mempool_total(mempool.len().await);
 
-    Ok(())
+    match insertion_status {
+        InsertionStatus::AddedToParked => CheckTxOutcome::AddedToParked,
+        InsertionStatus::AddedToPending => CheckTxOutcome::AddedToPending,
+    }
 }
 
 #[instrument(skip_all)]
 async fn convert_bytes_to_signed_tx(
     tx: Bytes,
     metrics: &'static Metrics,
-) -> Result<Transaction, CheckTxError> {
+) -> Result<Transaction, CheckTxOutcome> {
     let start_parsing = Instant::now();
 
     let tx_len = tx.len();
 
     if tx_len > MAX_TX_SIZE {
         metrics.increment_check_tx_removed_too_large();
-        return Err(CheckTxError::TransactionTooLarge {
+        return Err(CheckTxOutcome::TransactionTooLarge {
             max_size: MAX_TX_SIZE,
             actual_size: tx_len,
         });
@@ -333,7 +246,7 @@ async fn convert_bytes_to_signed_tx(
     let raw_signed_tx = match raw::Transaction::decode(tx) {
         Ok(tx) => tx,
         Err(err) => {
-            return Err(CheckTxError::InvalidTransactionBytes {
+            return Err(CheckTxOutcome::InvalidTransactionBytes {
                 name: raw::Transaction::full_name(),
                 source: err,
             });
@@ -343,7 +256,7 @@ async fn convert_bytes_to_signed_tx(
     let signed_tx = match Transaction::try_from_raw(raw_signed_tx) {
         Ok(tx) => tx,
         Err(err) => {
-            return Err(CheckTxError::InvalidTransactionProtobuf {
+            return Err(CheckTxOutcome::InvalidTransactionProtobuf {
                 source: err,
             });
         }
@@ -362,12 +275,12 @@ async fn stateless_checks<S: StateRead>(
     signed_tx: Transaction,
     state: &S,
     metrics: &'static Metrics,
-) -> Result<(), CheckTxError> {
+) -> Result<(), CheckTxOutcome> {
     let start_check_stateless = Instant::now();
 
     if let Err(err) = signed_tx.check_stateless().await {
         metrics.increment_check_tx_removed_failed_stateless();
-        return Err(CheckTxError::FailedStatelessChecks {
+        return Err(CheckTxOutcome::FailedStatelessChecks {
             source: err,
         });
     };
@@ -380,12 +293,12 @@ async fn stateless_checks<S: StateRead>(
     let expected_chain_id = state
         .get_chain_id()
         .await
-        .map_err(|err| CheckTxError::InternalError {
+        .map_err(|err| CheckTxOutcome::InternalError {
             source: err,
         })?
         .to_string();
     if expected_chain_id != signed_tx.chain_id() {
-        return Err(CheckTxError::InvalidChainId {
+        return Err(CheckTxOutcome::InvalidChainId {
             expected: expected_chain_id.to_string(),
             actual: signed_tx.chain_id().to_string(),
         });
@@ -406,7 +319,7 @@ async fn insert_into_mempool<S: StateRead>(
     state: &S,
     signed_tx: Transaction,
     metrics: &'static Metrics,
-) -> Result<(), CheckTxError> {
+) -> Result<InsertionStatus, CheckTxOutcome> {
     let start_convert_address = Instant::now();
 
     // TODO: just use address bytes directly https://github.com/astriaorg/astria/issues/1620
@@ -417,7 +330,7 @@ async fn insert_into_mempool<S: StateRead>(
         .context("failed to generate address for signed transaction")
     {
         Err(err) => {
-            return Err(CheckTxError::InternalError {
+            return Err(CheckTxOutcome::InternalError {
                 source: err,
             });
         }
@@ -436,7 +349,7 @@ async fn insert_into_mempool<S: StateRead>(
         .wrap_err("failed fetching nonce for account")
     {
         Err(err) => {
-            return Err(CheckTxError::InternalError {
+            return Err(CheckTxOutcome::InternalError {
                 source: err,
             });
         }
@@ -454,7 +367,7 @@ async fn insert_into_mempool<S: StateRead>(
         .context("failed fetching cost of the transaction")
     {
         Err(err) => {
-            return Err(CheckTxError::InternalError {
+            return Err(CheckTxOutcome::InternalError {
                 source: err,
             });
         }
@@ -473,7 +386,7 @@ async fn insert_into_mempool<S: StateRead>(
             .with_context(|| "failed fetching balances for account `{address}`")
         {
             Err(err) => {
-                return Err(CheckTxError::InternalError {
+                return Err(CheckTxOutcome::InternalError {
                     source: err,
                 });
             }
@@ -487,7 +400,7 @@ async fn insert_into_mempool<S: StateRead>(
 
     let actions_count = signed_tx.actions().len();
 
-    if let Err(err) = mempool
+    let insertion_status = mempool
         .insert(
             Arc::new(signed_tx),
             current_account_nonce,
@@ -495,13 +408,11 @@ async fn insert_into_mempool<S: StateRead>(
             transaction_cost,
         )
         .await
-    {
-        return Err(CheckTxError::FailedInsertion(err));
-    }
+        .map_err(CheckTxOutcome::FailedInsertion)?;
 
     metrics
         .record_check_tx_duration_seconds_insert_to_app_mempool(finished_fetch_balances.elapsed());
     metrics.record_actions_per_transaction_in_mempool(actions_count);
 
-    Ok(())
+    Ok(insertion_status)
 }

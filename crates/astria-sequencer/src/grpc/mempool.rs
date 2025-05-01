@@ -4,7 +4,7 @@ use astria_core::{
     generated::mempool::v1::{
         mempool_service_server::MempoolService,
         transaction_status::{
-            Included as RawIncluded,
+            IncludedInSequencerBlock as RawIncludedInSequencerBlock,
             Parked as RawParked,
             Pending as RawPending,
             Removed as RawRemoved,
@@ -31,7 +31,10 @@ use crate::{
         Mempool,
         TransactionStatus,
     },
-    service::mempool::check_tx,
+    service::mempool::{
+        check_tx,
+        CheckTxOutcome,
+    },
     Metrics,
 };
 
@@ -78,19 +81,18 @@ impl MempoolService for Server {
 
         let tx_hash_bytes = tx.id().get().to_vec().into();
 
-        check_tx(
+        let outcome = check_tx(
             tx,
             self.storage.latest_snapshot(),
             &self.mempool,
             self.metrics,
         )
         .await
-        .map_err(Status::from)?;
-
-        let status = get_transaction_status(&self.mempool, tx_hash_bytes).await?;
+        .try_into_raw_outcome()?;
 
         Ok(Response::new(SubmitTransactionResponse {
-            status: Some(status),
+            transaction_hash: tx_hash_bytes,
+            outcome,
         }))
     }
 }
@@ -113,17 +115,72 @@ async fn get_transaction_status(
                 reason: reason.to_string(),
             }))
         }
-        Some(TransactionStatus::Included(block_number)) => {
-            Some(RawTransactionStatus::Included(RawIncluded {
-                block_number,
-            }))
-        }
+        Some(TransactionStatus::IncludedInBlock(height)) => Some(
+            RawTransactionStatus::IncludedInSequencerBlock(RawIncludedInSequencerBlock {
+                height,
+            }),
+        ),
         None => None,
     };
     Ok(TransactionStatusResponse {
         transaction_hash: tx_hash_bytes,
         status,
     })
+}
+
+trait TryIntoRawOutcome {
+    fn try_into_raw_outcome(self) -> Result<i32, Status>;
+}
+
+impl TryIntoRawOutcome for CheckTxOutcome {
+    fn try_into_raw_outcome(self) -> Result<i32, Status> {
+        match self {
+            CheckTxOutcome::AddedToParked => Ok(1),
+            CheckTxOutcome::AddedToPending => Ok(2),
+            CheckTxOutcome::AlreadyInParked => Ok(3),
+            CheckTxOutcome::AlreadyInPending => Ok(4),
+            CheckTxOutcome::FailedStatelessChecks {
+                source,
+            } => Err(tonic::Status::invalid_argument(format!(
+                "transaction failed stateless checks: {source}"
+            ))),
+            CheckTxOutcome::FailedInsertion(err) => Err(err.into()),
+            CheckTxOutcome::IncludedInBlock {
+                height,
+            } => Err(tonic::Status::failed_precondition(format!(
+                "transaction has already been included in block {height}"
+            ))),
+            CheckTxOutcome::InternalError {
+                source,
+            } => Err(tonic::Status::internal(format!("internal error: {source}"))),
+            CheckTxOutcome::InvalidChainId {
+                expected,
+                actual,
+            } => Err(tonic::Status::invalid_argument(format!(
+                "invalid chain id; expected: {expected}, got: {actual}"
+            ))),
+            CheckTxOutcome::InvalidTransactionProtobuf {
+                source,
+            } => Err(tonic::Status::invalid_argument(format!(
+                "invalid transaction protobuf: {source}"
+            ))),
+            CheckTxOutcome::InvalidTransactionBytes {
+                name,
+                source,
+            } => Err(tonic::Status::invalid_argument(format!(
+                "failed decoding bytes as a protobuf {name}: {source}"
+            ))),
+            CheckTxOutcome::RemovedFromMempool(removal_reason) => Err(tonic::Status::not_found(
+                format!("transaction has been removed from the app-side mempool: {removal_reason}"),
+            )),
+            CheckTxOutcome::TransactionTooLarge {
+                max_size,
+                actual_size,
+            } => Err(tonic::Status::invalid_argument(format!(
+                "transaction size too large; allowed: {max_size} bytes, got {actual_size}"
+            ))),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -134,6 +191,7 @@ mod tests {
     };
 
     use astria_core::{
+        generated::mempool::v1::submit_transaction_response::Outcome,
         primitive::v1::{
             RollupId,
             ROLLUP_ID_LEN,
@@ -309,16 +367,11 @@ mod tests {
             .insert(tx.clone(), nonce, &HashMap::default(), HashMap::default())
             .await
             .unwrap();
-        let block_number = 100;
+        let height = 100;
         let mut included_txs = HashSet::new();
         included_txs.insert(tx.id().get());
         mempool
-            .run_maintenance(
-                &storage.latest_snapshot(),
-                false,
-                included_txs,
-                block_number,
-            )
+            .run_maintenance(&storage.latest_snapshot(), false, included_txs, height)
             .await;
 
         let req = GetTransactionStatusRequest {
@@ -332,9 +385,11 @@ mod tests {
         assert_eq!(rsp.transaction_hash, tx_hash_bytes);
         assert_eq!(
             rsp.status,
-            Some(RawTransactionStatus::Included(RawIncluded {
-                block_number
-            }))
+            Some(RawTransactionStatus::IncludedInSequencerBlock(
+                RawIncludedInSequencerBlock {
+                    height
+                }
+            ))
         );
     }
 
@@ -418,12 +473,8 @@ mod tests {
             .await
             .unwrap()
             .into_inner();
-        let status = rsp.status.expect("status should be present");
-        assert_eq!(status.transaction_hash, Bytes::from(tx.id().get().to_vec()));
-        assert_eq!(
-            status.status,
-            Some(RawTransactionStatus::Pending(RawPending {}))
-        );
+        assert_eq!(rsp.transaction_hash, Bytes::from(tx.id().get().to_vec()));
+        assert_eq!(rsp.outcome, Outcome::AddedToPendingQueue as i32,);
     }
 
     #[tokio::test]

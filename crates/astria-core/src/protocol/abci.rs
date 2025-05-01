@@ -26,8 +26,8 @@ impl AbciErrorCode {
     pub const NONCE_TAKEN: Self = Self(unsafe { NonZeroU32::new_unchecked(15) });
     pub const ACCOUNT_SIZE_LIMIT: Self = Self(unsafe { NonZeroU32::new_unchecked(16) });
     pub const PARKED_FULL: Self = Self(unsafe { NonZeroU32::new_unchecked(17) });
-    pub const TRANSACTION_PREVIOUSLY_INCLUDED: Self = Self(unsafe { NonZeroU32::new_unchecked(18) });
-    pub const FAILED_STATELESS_CHECKS: Self = Self(unsafe { NonZeroU32::new_unchecked(19) });
+    pub const TRANSACTION_INCLUDED_IN_BLOCK: Self = Self(unsafe { NonZeroU32::new_unchecked(18) });
+    pub const TRANSACTION_FAILED_CHECK_TX: Self = Self(unsafe { NonZeroU32::new_unchecked(19) });
     pub const INVALID_TRANSACTION_BYTES: Self = Self(unsafe { NonZeroU32::new_unchecked(20) });
     pub const INVALID_TRANSACTION: Self = Self(unsafe { NonZeroU32::new_unchecked(21) });
     // NOTE: When adding a new code, ensure it is added to `ALL_CODES` in the `tests` module below.
@@ -69,10 +69,10 @@ impl AbciErrorCode {
                 "the account has reached the maximum number of parked transactions".into()
             }
             Self::PARKED_FULL => "the mempool is out of space for more parked transactions".into(),
-            Self::TRANSACTION_PREVIOUSLY_INCLUDED => "the transaction was removed from the \
-                                                      mempool after being included in a block"
+            Self::TRANSACTION_INCLUDED_IN_BLOCK => "the transaction was removed from the mempool \
+                                                    after being included in a block"
                 .into(),
-            Self::FAILED_STATELESS_CHECKS => "the transaction failed stateless checks".into(),
+            Self::TRANSACTION_FAILED_CHECK_TX => "the transaction failed stateless checks".into(),
             Self::INVALID_TRANSACTION_BYTES => "the provided transaction bytes were invalid".into(),
             Self::INVALID_TRANSACTION => "the provided transaction was invalid".into(),
             Self(other) => {
@@ -112,8 +112,8 @@ mod tests {
         AbciErrorCode::NONCE_TAKEN,
         AbciErrorCode::ACCOUNT_SIZE_LIMIT,
         AbciErrorCode::PARKED_FULL,
-        AbciErrorCode::TRANSACTION_PREVIOUSLY_INCLUDED,
-        AbciErrorCode::FAILED_STATELESS_CHECKS,
+        AbciErrorCode::TRANSACTION_INCLUDED_IN_BLOCK,
+        AbciErrorCode::TRANSACTION_FAILED_CHECK_TX,
         AbciErrorCode::INVALID_TRANSACTION_BYTES,
         AbciErrorCode::INVALID_TRANSACTION,
     ];

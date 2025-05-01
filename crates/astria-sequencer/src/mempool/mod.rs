@@ -51,7 +51,7 @@ pub(crate) enum RemovalReason {
     NonceStale,
     LowerNonceInvalidated,
     FailedPrepareProposal(String),
-    Included(u64),
+    IncludedInBlock(u64),
 }
 
 impl std::fmt::Display for RemovalReason {
@@ -63,8 +63,8 @@ impl std::fmt::Display for RemovalReason {
             RemovalReason::FailedPrepareProposal(reason) => {
                 write!(f, "failed prepare proposal: {reason}")
             }
-            RemovalReason::Included(block_number) => {
-                write!(f, "included in block {block_number}")
+            RemovalReason::IncludedInBlock(block_height) => {
+                write!(f, "included in sequencer block {block_height}")
             }
         }
     }
@@ -84,7 +84,7 @@ const REMOVAL_CACHE_SIZE: usize = 50_000;
 /// This is useful for when a transaction fails execution or when
 /// a transaction is invalidated due to mempool removal policies.
 #[derive(Clone)]
-pub(crate) struct RemovalCache {
+struct RemovalCache {
     cache: HashMap<[u8; 32], RemovalReason>,
     remove_queue: VecDeque<[u8; 32]>,
     max_size: NonZeroUsize,
@@ -135,8 +135,31 @@ impl RemovalCache {
     }
 }
 
-/// [`Mempool`] is a wrapper around [`MempoolInner`] to provide coarse-grained locking and avoid
-/// race conditions between the mempool's different caches.
+/// [`Mempool`] is an account-based structure for maintaining transactions for execution which is
+/// safe and cheap to clone.
+///
+/// The transactions are split between pending and parked, where pending transactions are ready for
+/// execution and parked transactions could be executable in the future.
+///
+/// The mempool exposes the pending transactions through `builder_queue()`, which returns a copy of
+/// all pending transactions sorted in the order in which they should be executed. The sort order
+/// is firstly by the difference between the transaction nonce and the account's current nonce
+/// (ascending), and then by time first seen (ascending).
+///
+/// The mempool implements the following policies:
+/// 1. Nonce replacement is not allowed.
+/// 2. Accounts cannot have more than `MAX_PARKED_TXS_PER_ACCOUNT` transactions in their parked
+///    queues.
+/// 3. There is no account limit on pending transactions.
+/// 4. Transactions will expire and can be removed after `TX_TTL` time.
+/// 5. If an account has a transaction removed for being invalid or expired, all transactions for
+///    that account with a higher nonce will be removed as well. This is due to the fact that we do
+///    not execute failing transactions, so a transaction 'failing' will mean that further account
+///    nonces will not be able to execute either.
+///
+/// Future extensions to this mempool can include:
+/// - maximum mempool size
+/// - account balance aware pending queue
 #[derive(Clone)]
 pub(crate) struct Mempool {
     inner: Arc<RwLock<MempoolInner>>,
@@ -165,7 +188,7 @@ impl Mempool {
         current_account_nonce: u32,
         current_account_balances: &HashMap<IbcPrefixed, u128>,
         transaction_cost: HashMap<IbcPrefixed, u128>,
-    ) -> Result<(), InsertionError> {
+    ) -> Result<InsertionStatus, InsertionError> {
         self.inner.write().await.insert(
             tx,
             current_account_nonce,
@@ -198,13 +221,10 @@ impl Mempool {
             .remove_tx_invalid(signed_tx, reason);
     }
 
-    /// Rremoves the transaction from the CometBFT removal cache if it is present.
+    /// Removes the transaction from the CometBFT removal cache if it is present.
     #[instrument(skip_all, fields(tx_hash = %hex::encode(tx_hash)))]
-    pub(crate) async fn remove_from_removal_cache(
-        &self,
-        tx_hash: [u8; 32],
-    ) -> Option<RemovalReason> {
-        self.inner.write().await.remove_from_removal_cache(tx_hash)
+    pub(crate) async fn remove_from_removal_cache(&self, tx_hash: [u8; 32]) {
+        self.inner.write().await.remove_from_removal_cache(tx_hash);
     }
 
     #[cfg(test)]
@@ -242,45 +262,26 @@ impl Mempool {
         self.inner.read().await.pending_nonce(address)
     }
 
-    #[cfg(test)]
-    pub(crate) async fn removal_cache(&self) -> HashMap<[u8; 32], RemovalReason> {
-        self.inner.read().await.removal_cache()
-    }
-
     pub(crate) async fn transaction_status(
         &self,
         tx_hash: &[u8; TRANSACTION_ID_LEN],
     ) -> Option<TransactionStatus> {
         self.inner.read().await.transaction_status(tx_hash)
     }
+
+    #[cfg(test)]
+    pub(crate) async fn removal_cache(&self) -> HashMap<[u8; 32], RemovalReason> {
+        self.inner.read().await.removal_cache()
+    }
 }
 
-/// [`MempoolInner`] is an account-based structure for maintaining transactions for execution.
-///
-/// The transactions are split between pending and parked, where pending transactions are ready for
-/// execution and parked transactions could be executable in the future.
-///
-/// The mempool exposes the pending transactions through `builder_queue()`, which returns a copy of
-/// all pending transactions sorted in the order in which they should be executed. The sort order
-/// is firstly by the difference between the transaction nonce and the account's current nonce
-/// (ascending), and then by time first seen (ascending).
-///
-/// The mempool implements the following policies:
-/// 1. Nonce replacement is not allowed.
-/// 2. Accounts cannot have more than `MAX_PARKED_TXS_PER_ACCOUNT` transactions in their parked
-///    queues.
-/// 3. There is no account limit on pending transactions.
-/// 4. Transactions will expire and can be removed after `TX_TTL` time.
-/// 5. If an account has a transaction removed for being invalid or expired, all transactions for
-///    that account with a higher nonce will be removed as well. This is due to the fact that we do
-///    not execute failing transactions, so a transaction 'failing' will mean that further account
-///    nonces will not be able to execute either.
-///
-/// Future extensions to this mempool can include:
-/// - maximum mempool size
-/// - account balance aware pending queue
-#[derive(Clone)]
-pub(crate) struct MempoolInner {
+#[derive(Debug)]
+pub(crate) enum InsertionStatus {
+    AddedToParked,
+    AddedToPending,
+}
+
+struct MempoolInner {
     pending: PendingTransactions,
     parked: ParkedTransactions<MAX_PARKED_TXS_PER_ACCOUNT>,
     comet_bft_removal_cache: RemovalCache,
@@ -290,7 +291,7 @@ pub(crate) struct MempoolInner {
 
 impl MempoolInner {
     #[must_use]
-    pub(crate) fn new(metrics: &'static Metrics, parked_max_tx_count: usize) -> Self {
+    fn new(metrics: &'static Metrics, parked_max_tx_count: usize) -> Self {
         Self {
             pending: PendingTransactions::new(TX_TTL),
             parked: ParkedTransactions::new(TX_TTL, parked_max_tx_count),
@@ -303,21 +304,18 @@ impl MempoolInner {
         }
     }
 
-    /// Returns the number of transactions in the mempool.
     #[must_use]
-    pub(crate) fn len(&self) -> usize {
+    fn len(&self) -> usize {
         self.contained_txs.len()
     }
 
-    /// Inserts a transaction into the mempool and does not allow for transaction replacement.
-    /// Will return the reason for insertion failure if failure occurs.
-    pub(crate) fn insert(
+    fn insert(
         &mut self,
         tx: Arc<Transaction>,
         current_account_nonce: u32,
         current_account_balances: &HashMap<IbcPrefixed, u128>,
         transaction_cost: HashMap<IbcPrefixed, u128>,
-    ) -> Result<(), InsertionError> {
+    ) -> Result<InsertionStatus, InsertionError> {
         let timemarked_tx = TimemarkedTransaction::new(tx, transaction_cost);
         let id = timemarked_tx.id();
 
@@ -341,18 +339,12 @@ impl MempoolInner {
 
                         // track in contained txs
                         self.contained_txs.insert(id);
-                        Ok(())
+                        Ok(InsertionStatus::AddedToParked)
                     }
                     Err(err) => Err(err),
                 }
             }
-            error @ Err(
-                InsertionError::AlreadyPresent
-                | InsertionError::NonceTooLow
-                | InsertionError::NonceTaken
-                | InsertionError::AccountSizeLimit
-                | InsertionError::ParkedSizeLimit,
-            ) => error,
+            Err(error) => Err(error),
             Ok(()) => {
                 // check parked for txs able to be promoted
                 let to_promote = self.parked.find_promotables(
@@ -386,24 +378,16 @@ impl MempoolInner {
                 // track in contained txs
                 self.contained_txs.insert(timemarked_tx.id());
 
-                Ok(())
+                Ok(InsertionStatus::AddedToPending)
             }
         }
     }
 
-    /// Returns a copy of all transactions and their hashes ready for execution, sorted first by the
-    /// difference between a transaction and the account's current nonce and then by the time that
-    /// the transaction was first seen by the appside mempool.
-    pub(crate) fn builder_queue(&self) -> Vec<([u8; 32], Arc<Transaction>)> {
+    fn builder_queue(&self) -> Vec<([u8; 32], Arc<Transaction>)> {
         self.pending.builder_queue()
     }
 
-    /// Removes the target transaction and all transactions for associated account with higher
-    /// nonces.
-    ///
-    /// This function should only be used to remove invalid/failing transactions and not executed
-    /// transactions. Executed transactions will be removed in the `run_maintenance()` function.
-    pub(crate) fn remove_tx_invalid(&mut self, signed_tx: Arc<Transaction>, reason: RemovalReason) {
+    fn remove_tx_invalid(&mut self, signed_tx: Arc<Transaction>, reason: RemovalReason) {
         let tx_hash = signed_tx.id().get();
         let address = *signed_tx.verification_key().address_bytes();
 
@@ -433,23 +417,16 @@ impl MempoolInner {
         }
     }
 
-    /// Removes the transaction from the CometBFT removal cache if it is present.
-    pub(crate) fn remove_from_removal_cache(&mut self, tx_hash: [u8; 32]) -> Option<RemovalReason> {
-        self.comet_bft_removal_cache.remove(tx_hash)
+    fn remove_from_removal_cache(&mut self, tx_hash: [u8; 32]) {
+        self.comet_bft_removal_cache.remove(tx_hash);
     }
 
     #[cfg(test)]
-    pub(crate) fn is_tracked(&self, tx_hash: [u8; 32]) -> bool {
+    fn is_tracked(&self, tx_hash: [u8; 32]) -> bool {
         self.contained_txs.contains(&tx_hash)
     }
 
-    /// Updates stored transactions to reflect current blockchain state. Will remove transactions
-    /// that have stale nonces or are expired. Will also shift transation between pending and
-    /// parked to relfect changes in account balances.
-    ///
-    /// All removed transactions are added to the CometBFT removal cache to aid with CometBFT
-    /// mempool maintenance.
-    pub(crate) async fn run_maintenance<S: accounts::StateReadExt>(
+    async fn run_maintenance<S: accounts::StateReadExt>(
         &mut self,
         state: &S,
         recost: bool,
@@ -575,23 +552,11 @@ impl MempoolInner {
         }
     }
 
-    /// Returns the highest pending nonce for the given address if it exists in the mempool. Note:
-    /// does not take into account gapped nonces in the parked queue. For example, if the
-    /// pending queue for an account has nonces [0,1] and the parked queue has [3], [1] will be
-    /// returned.
-    pub(crate) fn pending_nonce(&self, address: &[u8; 20]) -> Option<u32> {
+    fn pending_nonce(&self, address: &[u8; 20]) -> Option<u32> {
         self.pending.pending_nonce(address)
     }
 
-    #[cfg(test)]
-    pub(crate) fn removal_cache(&self) -> HashMap<[u8; 32], RemovalReason> {
-        self.comet_bft_removal_cache.cache.clone()
-    }
-
-    pub(crate) fn transaction_status(
-        &self,
-        tx_hash: &[u8; TRANSACTION_ID_LEN],
-    ) -> Option<TransactionStatus> {
+    fn transaction_status(&self, tx_hash: &[u8; TRANSACTION_ID_LEN]) -> Option<TransactionStatus> {
         if self.contained_txs.contains(tx_hash) {
             if self.pending.contains_tx(tx_hash) {
                 Some(TransactionStatus::Pending)
@@ -600,8 +565,8 @@ impl MempoolInner {
             }
         } else if let Some(reason) = self.comet_bft_removal_cache.cache.get(tx_hash) {
             match reason {
-                RemovalReason::Included(block_number) => {
-                    Some(TransactionStatus::Included(*block_number))
+                RemovalReason::IncludedInBlock(block_number) => {
+                    Some(TransactionStatus::IncludedInBlock(*block_number))
                 }
                 _ => Some(TransactionStatus::Removed(reason.clone())),
             }
@@ -609,13 +574,18 @@ impl MempoolInner {
             None
         }
     }
+
+    #[cfg(test)]
+    fn removal_cache(&self) -> HashMap<[u8; 32], RemovalReason> {
+        self.comet_bft_removal_cache.cache.clone()
+    }
 }
 
 pub(crate) enum TransactionStatus {
     Pending,
     Parked,
     Removed(RemovalReason),
-    Included(u64),
+    IncludedInBlock(u64),
 }
 
 #[cfg(test)]
@@ -1034,29 +1004,6 @@ mod tests {
             .remove_tx_invalid(tx0.clone(), removal_reason.clone())
             .await;
         assert_eq!(mempool.len().await, 0);
-
-        // assert that all were added to the cometbft removal cache
-        // and the expected reasons were tracked
-        assert!(matches!(
-            mempool.remove_from_removal_cache(tx0.id().get()).await,
-            Some(RemovalReason::FailedPrepareProposal(_))
-        ));
-        assert!(matches!(
-            mempool.remove_from_removal_cache(tx1.id().get()).await,
-            Some(RemovalReason::FailedPrepareProposal(_))
-        ));
-        assert!(matches!(
-            mempool.remove_from_removal_cache(tx3.id().get()).await,
-            Some(RemovalReason::LowerNonceInvalidated)
-        ));
-        assert!(matches!(
-            mempool.remove_from_removal_cache(tx4.id().get()).await,
-            Some(RemovalReason::FailedPrepareProposal(_))
-        ));
-        assert!(matches!(
-            mempool.remove_from_removal_cache(tx5.id().get()).await,
-            Some(RemovalReason::LowerNonceInvalidated)
-        ));
     }
 
     #[tokio::test]
@@ -1413,12 +1360,12 @@ mod tests {
         );
         assert_eq!(
             *removal_cache.get(&tx1.id().get()).unwrap(),
-            RemovalReason::Included(INCLUDED_TX_BLOCK_NUMBER),
+            RemovalReason::IncludedInBlock(INCLUDED_TX_BLOCK_NUMBER),
             "removal reason should be included"
         );
         assert_eq!(
             *removal_cache.get(&tx2.id().get()).unwrap(),
-            RemovalReason::Included(INCLUDED_TX_BLOCK_NUMBER),
+            RemovalReason::IncludedInBlock(INCLUDED_TX_BLOCK_NUMBER),
             "removal reason should be included"
         );
     }

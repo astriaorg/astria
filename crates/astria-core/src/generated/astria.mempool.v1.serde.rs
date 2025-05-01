@@ -193,12 +193,22 @@ impl serde::Serialize for SubmitTransactionResponse {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if self.status.is_some() {
+        if !self.transaction_hash.is_empty() {
+            len += 1;
+        }
+        if self.outcome != 0 {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.mempool.v1.SubmitTransactionResponse", len)?;
-        if let Some(v) = self.status.as_ref() {
-            struct_ser.serialize_field("status", v)?;
+        if !self.transaction_hash.is_empty() {
+            #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
+            struct_ser.serialize_field("transactionHash", pbjson::private::base64::encode(&self.transaction_hash).as_str())?;
+        }
+        if self.outcome != 0 {
+            let v = submit_transaction_response::Outcome::try_from(self.outcome)
+                .map_err(|_| serde::ser::Error::custom(format!("Invalid variant {}", self.outcome)))?;
+            struct_ser.serialize_field("outcome", &v)?;
         }
         struct_ser.end()
     }
@@ -210,12 +220,15 @@ impl<'de> serde::Deserialize<'de> for SubmitTransactionResponse {
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "status",
+            "transaction_hash",
+            "transactionHash",
+            "outcome",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            Status,
+            TransactionHash,
+            Outcome,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -237,7 +250,8 @@ impl<'de> serde::Deserialize<'de> for SubmitTransactionResponse {
                         E: serde::de::Error,
                     {
                         match value {
-                            "status" => Ok(GeneratedField::Status),
+                            "transactionHash" | "transaction_hash" => Ok(GeneratedField::TransactionHash),
+                            "outcome" => Ok(GeneratedField::Outcome),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -257,23 +271,113 @@ impl<'de> serde::Deserialize<'de> for SubmitTransactionResponse {
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut status__ = None;
+                let mut transaction_hash__ = None;
+                let mut outcome__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::Status => {
-                            if status__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("status"));
+                        GeneratedField::TransactionHash => {
+                            if transaction_hash__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("transactionHash"));
                             }
-                            status__ = map_.next_value()?;
+                            transaction_hash__ = 
+                                Some(map_.next_value::<::pbjson::private::BytesDeserialize<_>>()?.0)
+                            ;
+                        }
+                        GeneratedField::Outcome => {
+                            if outcome__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("outcome"));
+                            }
+                            outcome__ = Some(map_.next_value::<submit_transaction_response::Outcome>()? as i32);
                         }
                     }
                 }
                 Ok(SubmitTransactionResponse {
-                    status: status__,
+                    transaction_hash: transaction_hash__.unwrap_or_default(),
+                    outcome: outcome__.unwrap_or_default(),
                 })
             }
         }
         deserializer.deserialize_struct("astria.mempool.v1.SubmitTransactionResponse", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for submit_transaction_response::Outcome {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let variant = match self {
+            Self::Unspecified => "OUTCOME_UNSPECIFIED",
+            Self::AddedToParkedQueue => "OUTCOME_ADDED_TO_PARKED_QUEUE",
+            Self::AddedToPendingQueue => "OUTCOME_ADDED_TO_PENDING_QUEUE",
+            Self::AlreadyInParkedQueue => "OUTCOME_ALREADY_IN_PARKED_QUEUE",
+            Self::AlreadyInPendingQueue => "OUTCOME_ALREADY_IN_PENDING_QUEUE",
+        };
+        serializer.serialize_str(variant)
+    }
+}
+impl<'de> serde::Deserialize<'de> for submit_transaction_response::Outcome {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "OUTCOME_UNSPECIFIED",
+            "OUTCOME_ADDED_TO_PARKED_QUEUE",
+            "OUTCOME_ADDED_TO_PENDING_QUEUE",
+            "OUTCOME_ALREADY_IN_PARKED_QUEUE",
+            "OUTCOME_ALREADY_IN_PENDING_QUEUE",
+        ];
+
+        struct GeneratedVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = submit_transaction_response::Outcome;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(formatter, "expected one of: {:?}", &FIELDS)
+            }
+
+            fn visit_i64<E>(self, v: i64) -> std::result::Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                i32::try_from(v)
+                    .ok()
+                    .and_then(|x| x.try_into().ok())
+                    .ok_or_else(|| {
+                        serde::de::Error::invalid_value(serde::de::Unexpected::Signed(v), &self)
+                    })
+            }
+
+            fn visit_u64<E>(self, v: u64) -> std::result::Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                i32::try_from(v)
+                    .ok()
+                    .and_then(|x| x.try_into().ok())
+                    .ok_or_else(|| {
+                        serde::de::Error::invalid_value(serde::de::Unexpected::Unsigned(v), &self)
+                    })
+            }
+
+            fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                match value {
+                    "OUTCOME_UNSPECIFIED" => Ok(submit_transaction_response::Outcome::Unspecified),
+                    "OUTCOME_ADDED_TO_PARKED_QUEUE" => Ok(submit_transaction_response::Outcome::AddedToParkedQueue),
+                    "OUTCOME_ADDED_TO_PENDING_QUEUE" => Ok(submit_transaction_response::Outcome::AddedToPendingQueue),
+                    "OUTCOME_ALREADY_IN_PARKED_QUEUE" => Ok(submit_transaction_response::Outcome::AlreadyInParkedQueue),
+                    "OUTCOME_ALREADY_IN_PENDING_QUEUE" => Ok(submit_transaction_response::Outcome::AlreadyInPendingQueue),
+                    _ => Err(serde::de::Error::unknown_variant(value, FIELDS)),
+                }
+            }
+        }
+        deserializer.deserialize_any(GeneratedVisitor)
     }
 }
 impl serde::Serialize for TransactionStatus {
@@ -307,8 +411,8 @@ impl serde::Serialize for TransactionStatus {
                 transaction_status::Status::Removed(v) => {
                     struct_ser.serialize_field("removed", v)?;
                 }
-                transaction_status::Status::Included(v) => {
-                    struct_ser.serialize_field("included", v)?;
+                transaction_status::Status::IncludedInSequencerBlock(v) => {
+                    struct_ser.serialize_field("includedInSequencerBlock", v)?;
                 }
             }
         }
@@ -327,7 +431,8 @@ impl<'de> serde::Deserialize<'de> for TransactionStatus {
             "pending",
             "parked",
             "removed",
-            "included",
+            "included_in_sequencer_block",
+            "includedInSequencerBlock",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -336,7 +441,7 @@ impl<'de> serde::Deserialize<'de> for TransactionStatus {
             Pending,
             Parked,
             Removed,
-            Included,
+            IncludedInSequencerBlock,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -362,7 +467,7 @@ impl<'de> serde::Deserialize<'de> for TransactionStatus {
                             "pending" => Ok(GeneratedField::Pending),
                             "parked" => Ok(GeneratedField::Parked),
                             "removed" => Ok(GeneratedField::Removed),
-                            "included" => Ok(GeneratedField::Included),
+                            "includedInSequencerBlock" | "included_in_sequencer_block" => Ok(GeneratedField::IncludedInSequencerBlock),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -415,11 +520,11 @@ impl<'de> serde::Deserialize<'de> for TransactionStatus {
                             status__ = map_.next_value::<::std::option::Option<_>>()?.map(transaction_status::Status::Removed)
 ;
                         }
-                        GeneratedField::Included => {
+                        GeneratedField::IncludedInSequencerBlock => {
                             if status__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("included"));
+                                return Err(serde::de::Error::duplicate_field("includedInSequencerBlock"));
                             }
-                            status__ = map_.next_value::<::std::option::Option<_>>()?.map(transaction_status::Status::Included)
+                            status__ = map_.next_value::<::std::option::Option<_>>()?.map(transaction_status::Status::IncludedInSequencerBlock)
 ;
                         }
                     }
@@ -433,7 +538,7 @@ impl<'de> serde::Deserialize<'de> for TransactionStatus {
         deserializer.deserialize_struct("astria.mempool.v1.TransactionStatus", FIELDS, GeneratedVisitor)
     }
 }
-impl serde::Serialize for transaction_status::Included {
+impl serde::Serialize for transaction_status::IncludedInSequencerBlock {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -441,32 +546,31 @@ impl serde::Serialize for transaction_status::Included {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if self.block_number != 0 {
+        if self.height != 0 {
             len += 1;
         }
-        let mut struct_ser = serializer.serialize_struct("astria.mempool.v1.TransactionStatus.Included", len)?;
-        if self.block_number != 0 {
+        let mut struct_ser = serializer.serialize_struct("astria.mempool.v1.TransactionStatus.IncludedInSequencerBlock", len)?;
+        if self.height != 0 {
             #[allow(clippy::needless_borrow)]
             #[allow(clippy::needless_borrows_for_generic_args)]
-            struct_ser.serialize_field("blockNumber", ToString::to_string(&self.block_number).as_str())?;
+            struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
         }
         struct_ser.end()
     }
 }
-impl<'de> serde::Deserialize<'de> for transaction_status::Included {
+impl<'de> serde::Deserialize<'de> for transaction_status::IncludedInSequencerBlock {
     #[allow(deprecated)]
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "block_number",
-            "blockNumber",
+            "height",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            BlockNumber,
+            Height,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -488,7 +592,7 @@ impl<'de> serde::Deserialize<'de> for transaction_status::Included {
                         E: serde::de::Error,
                     {
                         match value {
-                            "blockNumber" | "block_number" => Ok(GeneratedField::BlockNumber),
+                            "height" => Ok(GeneratedField::Height),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -498,35 +602,35 @@ impl<'de> serde::Deserialize<'de> for transaction_status::Included {
         }
         struct GeneratedVisitor;
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = transaction_status::Included;
+            type Value = transaction_status::IncludedInSequencerBlock;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("struct astria.mempool.v1.TransactionStatus.Included")
+                formatter.write_str("struct astria.mempool.v1.TransactionStatus.IncludedInSequencerBlock")
             }
 
-            fn visit_map<V>(self, mut map_: V) -> std::result::Result<transaction_status::Included, V::Error>
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<transaction_status::IncludedInSequencerBlock, V::Error>
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut block_number__ = None;
+                let mut height__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::BlockNumber => {
-                            if block_number__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("blockNumber"));
+                        GeneratedField::Height => {
+                            if height__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("height"));
                             }
-                            block_number__ = 
+                            height__ = 
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
                     }
                 }
-                Ok(transaction_status::Included {
-                    block_number: block_number__.unwrap_or_default(),
+                Ok(transaction_status::IncludedInSequencerBlock {
+                    height: height__.unwrap_or_default(),
                 })
             }
         }
-        deserializer.deserialize_struct("astria.mempool.v1.TransactionStatus.Included", FIELDS, GeneratedVisitor)
+        deserializer.deserialize_struct("astria.mempool.v1.TransactionStatus.IncludedInSequencerBlock", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for transaction_status::Parked {

@@ -718,7 +718,7 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
                 if txs_included_in_block.contains(&ttx.tx_hash) {
                     // We only need to check stale transactions for inclusion, since all executed
                     // transactions will be stale
-                    (ttx.tx_hash, RemovalReason::Included(block_number))
+                    (ttx.tx_hash, RemovalReason::IncludedInBlock(block_number))
                 } else {
                     (ttx.tx_hash, RemovalReason::NonceStale)
                 }
@@ -1920,7 +1920,10 @@ mod tests {
         for (hash, reason) in removed_txs {
             if hash == ttx_s2_0.tx_hash || hash == ttx_s2_1.tx_hash {
                 assert!(
-                    matches!(reason, RemovalReason::Included(INCLUDED_TX_BLOCK_NUMBER)),
+                    matches!(
+                        reason,
+                        RemovalReason::IncludedInBlock(INCLUDED_TX_BLOCK_NUMBER)
+                    ),
                     "removal reason should be included(9)"
                 );
             } else {
