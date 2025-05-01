@@ -68,10 +68,20 @@ been reached for a given block. Upon receipt of the executed block, Conductor ca
       to N
 - `SoftAndFirm`
   - upon receiving a new Sequencer block N from the Sequencer:
-    - `ExecuteBlock` will be called with data from the Sequencer block N, then
-    - `UpdateCommitmentState` will be called to update the `soft` block to N
+    - if Sequencer block `N` has not yet been read from Celestia (this is considered
+      normal operation):
+      - `ExecuteBlock` will be called with data from the Sequencer block N, then
+      - `UpdateCommitmentState` will be called to update the `soft` block to N
+    - if Sequencer block `N` has already been read from Celestia:
+      - Block is skipped
   - upon reading Sequencer block N from Celestia:
-    - `UpdateCommitmentState` will be called to update the `firm` block to N
+    - if Sequencer block N has already been read from the Sequencer (this is expected
+      to be regular operation):
+      - `UpdateCommitmentState` will be called to update the `firm` block to N
+    - if Sequencer block N has not yet been read from Sequencer:
+      - `ExecuteBlock` will be called with data from the Sequencer block N, then
+      - `UpdateCommitmentState` will be called to update the `firm` and `soft`
+        blocks to N
 
 Note: For our EVM rollup, we map the `CommitmentState` to the `ForkchoiceRule`:
 
