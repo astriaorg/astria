@@ -29,7 +29,7 @@
           "startHeight": 68734
         },
         "celestia": {
-          "chainId": "mocha-4",
+          "chainId": "celestia",
           "startHeight": 2658919,
           "searchHeightMaxLookAhead": 43200
         },
@@ -127,6 +127,14 @@
           "baseFeeChangeDenominator": 250,
           "elasticityMultiplier": 6,
           "minBaseFee": 10000000000
+        }
+      },
+      "extraDataUpdate": {
+        "height": 7173061,
+        "celestia":  {
+          "chainId": "celestia",
+          "startHeight": 5203606,
+          "searchHeightMaxLookAhead": 43200
         }
       }
     }
