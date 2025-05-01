@@ -1,4 +1,4 @@
-kubeProxyReplacement: strict
+kubeProxyReplacement: true
 k8sServiceHost: astria-dev-cluster-control-plane # use master node in kind network
 k8sServicePort: 6443               # use api server port
 hostServices:
@@ -13,6 +13,9 @@ image:
   pullPolicy: IfNotPresent
 ipam:
   mode: kubernetes
+bandwidthManager:
+  enabled: true
+  bbr: true
 hubble:
   enabled: false
   relay:
