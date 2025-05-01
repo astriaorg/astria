@@ -69,6 +69,7 @@ thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt", "tracing"] }
 tokio-util = { workspace = true, features = ["rt"] }
 tonic = { workspace = true }
+tonic-web = { workspace = true }
 tracing = { workspace = true }
 tryhard = { workspace = true }
 
