@@ -10,6 +10,7 @@ use tokio::signal::unix::{
     signal,
     SignalKind,
 };
+use tracing::warn;
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -51,14 +52,24 @@ async fn main() -> ExitCode {
 
     tokio::select! {
         _ = sigterm.recv() => {
-            account_monitor.shutdown();
-            ExitCode::SUCCESS
+            match account_monitor.shutdown().await {
+                Ok(()) => {
+                    ExitCode::SUCCESS
+                }
+                Err(err) => {
+                    eprintln!("failed to shutdown account monitor:\n {err}");
+                    ExitCode::FAILURE
+                }
+            }
         },
         res = &mut account_monitor => {
             match res {
-                Ok(()) => ExitCode::SUCCESS,
-                Err(error) => {
-                    eprintln!("account monitor exited unexpectedly:\n {error}");
+                Ok(()) => {
+                    eprintln!("account monitor exited unexpectedly");
+                    ExitCode::FAILURE
+                }
+                Err(err) => {
+                    eprintln!("account monitor exited unexpectedly with an error:\n {err}");
                     ExitCode::FAILURE
                 }
             }
