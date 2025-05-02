@@ -174,6 +174,8 @@ geth:
       value: "{{ .Values.ports.wsRPC }}"
     ws.origins:
       value: "*"
+    ws.api:
+      value: eth,txpool
     grpc: {}
     grpc.addr:
       value: 0.0.0.0
