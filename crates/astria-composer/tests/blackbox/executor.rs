@@ -28,7 +28,7 @@ use crate::helper::{
 /// `block_timer` has ticked
 #[tokio::test]
 async fn bundle_triggered_by_block_timer() {
-    let test_composer = spawn_composer(&["test1"], None, true).await;
+    let test_composer = spawn_composer(&["test1"], None, vec![], true).await;
     let mut composer_client = GrpcCollectorServiceClient::connect(format!(
         "http://{}",
         test_composer.grpc_collector_addr
@@ -113,7 +113,7 @@ async fn bundle_triggered_by_block_timer() {
 /// sequencer.
 #[tokio::test]
 async fn two_rollup_data_submissions_single_bundle() {
-    let test_composer = spawn_composer(&["test1"], None, true).await;
+    let test_composer = spawn_composer(&["test1"], None, vec![], true).await;
     let composer_client = GrpcCollectorServiceClient::connect(format!(
         "http://{}",
         test_composer.grpc_collector_addr
@@ -223,7 +223,7 @@ async fn two_rollup_data_submissions_single_bundle() {
 #[tokio::test]
 async fn chain_id_mismatch_returns_error() {
     let bad_chain_id = "bad_id";
-    let test_composer = spawn_composer(&["test1"], Some(bad_chain_id), false).await;
+    let test_composer = spawn_composer(&["test1"], Some(bad_chain_id), vec![], false).await;
     let expected_err_msg =
         format!("expected chain ID `{TEST_CHAIN_ID}`, but received `{bad_chain_id}`");
     let err = test_composer.composer.await.unwrap().unwrap_err();
