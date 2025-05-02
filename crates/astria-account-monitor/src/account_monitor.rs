@@ -68,8 +68,13 @@ impl AccountMonitor {
         })
     }
 
-    pub fn shutdown(self) {
+    /// Shuts down Account Monitor.
+    ///
+    /// # Errors
+    /// Returns an error if an error occured during shutdown.
+    pub async fn shutdown(self) -> eyre::Result<()> {
         self.shutdown_token.cancel();
+        self.await
     }
 }
 
@@ -141,7 +146,7 @@ impl Inner {
             tokio::select! {
                 biased;
                 () = self.shutdown_token.cancelled() => {
-                    return Ok(())
+                    return Ok(());
                 }
                 _ = poll_timer.tick() => {
                     fetch_all_info(
