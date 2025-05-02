@@ -10,7 +10,6 @@ use tokio::signal::unix::{
     signal,
     SignalKind,
 };
-use tracing::warn;
 
 #[tokio::main]
 async fn main() -> ExitCode {
