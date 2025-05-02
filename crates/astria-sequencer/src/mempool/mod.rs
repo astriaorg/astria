@@ -1237,8 +1237,9 @@ mod tests {
         let pending_tx_2 = MockTxBuilder::new().nonce(2).build();
         // different chain ID so that this transaction's hash is different than the failing tx
         let pending_tx_3 = TimemarkedTransaction::new(
-            MockTxBuilder::new_with_chain_id("different chain id".to_string())
+            MockTxBuilder::new()
                 .nonce(3)
+                .chain_id("different-chain-id")
                 .build(),
             tx_cost.clone(),
         );
