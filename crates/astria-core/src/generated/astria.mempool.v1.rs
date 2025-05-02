@@ -66,10 +66,10 @@ pub mod submit_transaction_response {
     #[repr(i32)]
     pub enum Outcome {
         Unspecified = 0,
-        AddedToParkedQueue = 1,
-        AddedToPendingQueue = 2,
-        AlreadyInParkedQueue = 3,
-        AlreadyInPendingQueue = 4,
+        AddedToPendingQueue = 1,
+        AddedToParkedQueue = 2,
+        AlreadyInPendingQueue = 3,
+        AlreadyInParkedQueue = 4,
     }
     impl Outcome {
         /// String value of the enum field names used in the ProtoBuf definition.
@@ -79,20 +79,20 @@ pub mod submit_transaction_response {
         pub fn as_str_name(&self) -> &'static str {
             match self {
                 Self::Unspecified => "OUTCOME_UNSPECIFIED",
-                Self::AddedToParkedQueue => "OUTCOME_ADDED_TO_PARKED_QUEUE",
                 Self::AddedToPendingQueue => "OUTCOME_ADDED_TO_PENDING_QUEUE",
-                Self::AlreadyInParkedQueue => "OUTCOME_ALREADY_IN_PARKED_QUEUE",
+                Self::AddedToParkedQueue => "OUTCOME_ADDED_TO_PARKED_QUEUE",
                 Self::AlreadyInPendingQueue => "OUTCOME_ALREADY_IN_PENDING_QUEUE",
+                Self::AlreadyInParkedQueue => "OUTCOME_ALREADY_IN_PARKED_QUEUE",
             }
         }
         /// Creates an enum from field names used in the ProtoBuf definition.
         pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
             match value {
                 "OUTCOME_UNSPECIFIED" => Some(Self::Unspecified),
-                "OUTCOME_ADDED_TO_PARKED_QUEUE" => Some(Self::AddedToParkedQueue),
                 "OUTCOME_ADDED_TO_PENDING_QUEUE" => Some(Self::AddedToPendingQueue),
-                "OUTCOME_ALREADY_IN_PARKED_QUEUE" => Some(Self::AlreadyInParkedQueue),
+                "OUTCOME_ADDED_TO_PARKED_QUEUE" => Some(Self::AddedToParkedQueue),
                 "OUTCOME_ALREADY_IN_PENDING_QUEUE" => Some(Self::AlreadyInPendingQueue),
+                "OUTCOME_ALREADY_IN_PARKED_QUEUE" => Some(Self::AlreadyInParkedQueue),
                 _ => None,
             }
         }

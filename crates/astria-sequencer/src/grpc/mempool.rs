@@ -3,6 +3,7 @@ use std::sync::Arc;
 use astria_core::{
     generated::mempool::v1::{
         mempool_service_server::MempoolService,
+        submit_transaction_response::Outcome as RawOutcome,
         transaction_status::{
             IncludedInSequencerBlock as RawIncludedInSequencerBlock,
             Parked as RawParked,
@@ -29,6 +30,7 @@ use tonic::{
 use crate::{
     mempool::{
         Mempool,
+        RemovalReason,
         TransactionStatus,
     },
     service::mempool::{
@@ -81,18 +83,18 @@ impl MempoolService for Server {
 
         let tx_hash_bytes = tx.id().get().to_vec().into();
 
-        let outcome = check_tx(
+        let outcome: RawOutcome = check_tx(
             tx,
             self.storage.latest_snapshot(),
             &self.mempool,
             self.metrics,
         )
         .await
-        .try_into_raw_outcome()?;
+        .try_into()?;
 
         Ok(Response::new(SubmitTransactionResponse {
             transaction_hash: tx_hash_bytes,
-            outcome,
+            outcome: outcome as i32,
         }))
     }
 }
@@ -110,16 +112,16 @@ async fn get_transaction_status(
     let status = match mempool.transaction_status(&tx_hash).await {
         Some(TransactionStatus::Pending) => Some(RawTransactionStatus::Pending(RawPending {})),
         Some(TransactionStatus::Parked) => Some(RawTransactionStatus::Parked(RawParked {})),
+        Some(TransactionStatus::Removed(RemovalReason::IncludedInBlock(height))) => Some(
+            RawTransactionStatus::IncludedInSequencerBlock(RawIncludedInSequencerBlock {
+                height,
+            }),
+        ),
         Some(TransactionStatus::Removed(reason)) => {
             Some(RawTransactionStatus::Removed(RawRemoved {
                 reason: reason.to_string(),
             }))
         }
-        Some(TransactionStatus::IncludedInBlock(height)) => Some(
-            RawTransactionStatus::IncludedInSequencerBlock(RawIncludedInSequencerBlock {
-                height,
-            }),
-        ),
         None => None,
     };
     Ok(TransactionStatusResponse {
@@ -128,28 +130,21 @@ async fn get_transaction_status(
     })
 }
 
-trait TryIntoRawOutcome {
-    fn try_into_raw_outcome(self) -> Result<i32, Status>;
-}
+impl TryFrom<CheckTxOutcome> for RawOutcome {
+    type Error = Status;
 
-impl TryIntoRawOutcome for CheckTxOutcome {
-    fn try_into_raw_outcome(self) -> Result<i32, Status> {
-        match self {
-            CheckTxOutcome::AddedToParked => Ok(1),
-            CheckTxOutcome::AddedToPending => Ok(2),
-            CheckTxOutcome::AlreadyInParked => Ok(3),
-            CheckTxOutcome::AlreadyInPending => Ok(4),
+    fn try_from(value: CheckTxOutcome) -> Result<RawOutcome, Self::Error> {
+        match value {
+            CheckTxOutcome::AddedToPending => Ok(RawOutcome::AddedToPendingQueue),
+            CheckTxOutcome::AddedToParked => Ok(RawOutcome::AddedToParkedQueue),
+            CheckTxOutcome::AlreadyInPending => Ok(RawOutcome::AlreadyInPendingQueue),
+            CheckTxOutcome::AlreadyInParked => Ok(RawOutcome::AlreadyInParkedQueue),
             CheckTxOutcome::FailedStatelessChecks {
                 source,
             } => Err(tonic::Status::invalid_argument(format!(
                 "transaction failed stateless checks: {source}"
             ))),
             CheckTxOutcome::FailedInsertion(err) => Err(err.into()),
-            CheckTxOutcome::IncludedInBlock {
-                height,
-            } => Err(tonic::Status::failed_precondition(format!(
-                "transaction has already been included in block {height}"
-            ))),
             CheckTxOutcome::InternalError {
                 source,
             } => Err(tonic::Status::internal(format!("internal error: {source}"))),

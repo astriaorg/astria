@@ -8,17 +8,14 @@ use crate::mempool::{
 
 #[derive(Debug)]
 pub(crate) enum CheckTxOutcome {
-    AddedToParked,
     AddedToPending,
-    AlreadyInParked,
+    AddedToParked,
     AlreadyInPending,
+    AlreadyInParked,
     FailedStatelessChecks {
         source: Report,
     },
     FailedInsertion(InsertionError),
-    IncludedInBlock {
-        height: u64,
-    },
     InternalError {
         source: Report,
     },

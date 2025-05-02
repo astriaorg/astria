@@ -138,7 +138,7 @@ impl Service<MempoolRequest> for Mempool {
 /// - if conversion of raw transaction bytes to a signed transaction fails
 /// - if [`check_tx`] fails
 #[instrument(skip_all)]
-pub(crate) async fn handle_check_tx_request<S: StateRead>(
+async fn handle_check_tx_request<S: StateRead>(
     req: request::CheckTx,
     state: S,
     mempool: &AppMempool,
@@ -148,7 +148,7 @@ pub(crate) async fn handle_check_tx_request<S: StateRead>(
         tx, ..
     } = req;
 
-    let signed_tx = match convert_bytes_to_signed_tx(tx, metrics).await {
+    let signed_tx = match parse_tx(tx, metrics).await {
         Ok(tx) => tx,
         Err(err) => return err.into_check_tx_response(),
     };
@@ -191,9 +191,6 @@ pub(crate) async fn check_tx<S: StateRead>(
     let outcome = match mempool.transaction_status(&tx_hash).await {
         Some(TransactionStatus::Parked) => Some(CheckTxOutcome::AlreadyInParked),
         Some(TransactionStatus::Pending) => Some(CheckTxOutcome::AlreadyInPending),
-        Some(TransactionStatus::IncludedInBlock(height)) => Some(CheckTxOutcome::IncludedInBlock {
-            height,
-        }),
         Some(TransactionStatus::Removed(reason)) => {
             Some(CheckTxOutcome::RemovedFromMempool(reason))
         }
@@ -227,10 +224,7 @@ pub(crate) async fn check_tx<S: StateRead>(
 }
 
 #[instrument(skip_all)]
-async fn convert_bytes_to_signed_tx(
-    tx: Bytes,
-    metrics: &'static Metrics,
-) -> Result<Transaction, CheckTxOutcome> {
+async fn parse_tx(tx: Bytes, metrics: &'static Metrics) -> Result<Transaction, CheckTxOutcome> {
     let start_parsing = Instant::now();
 
     let tx_len = tx.len();

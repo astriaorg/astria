@@ -72,12 +72,6 @@ impl IntoCheckTxResponse for CheckTxOutcome {
                 format!("transaction failed check tx: {source}"),
             ),
             CheckTxOutcome::FailedInsertion(err) => err.into_check_tx_response(),
-            CheckTxOutcome::IncludedInBlock {
-                height,
-            } => error_response(
-                AbciErrorCode::TRANSACTION_INCLUDED_IN_BLOCK,
-                format!("transaction has already been included in block {height}"),
-            ),
             CheckTxOutcome::InternalError {
                 source,
             } => error_response(

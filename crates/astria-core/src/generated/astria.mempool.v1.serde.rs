@@ -308,10 +308,10 @@ impl serde::Serialize for submit_transaction_response::Outcome {
     {
         let variant = match self {
             Self::Unspecified => "OUTCOME_UNSPECIFIED",
-            Self::AddedToParkedQueue => "OUTCOME_ADDED_TO_PARKED_QUEUE",
             Self::AddedToPendingQueue => "OUTCOME_ADDED_TO_PENDING_QUEUE",
-            Self::AlreadyInParkedQueue => "OUTCOME_ALREADY_IN_PARKED_QUEUE",
+            Self::AddedToParkedQueue => "OUTCOME_ADDED_TO_PARKED_QUEUE",
             Self::AlreadyInPendingQueue => "OUTCOME_ALREADY_IN_PENDING_QUEUE",
+            Self::AlreadyInParkedQueue => "OUTCOME_ALREADY_IN_PARKED_QUEUE",
         };
         serializer.serialize_str(variant)
     }
@@ -324,10 +324,10 @@ impl<'de> serde::Deserialize<'de> for submit_transaction_response::Outcome {
     {
         const FIELDS: &[&str] = &[
             "OUTCOME_UNSPECIFIED",
-            "OUTCOME_ADDED_TO_PARKED_QUEUE",
             "OUTCOME_ADDED_TO_PENDING_QUEUE",
-            "OUTCOME_ALREADY_IN_PARKED_QUEUE",
+            "OUTCOME_ADDED_TO_PARKED_QUEUE",
             "OUTCOME_ALREADY_IN_PENDING_QUEUE",
+            "OUTCOME_ALREADY_IN_PARKED_QUEUE",
         ];
 
         struct GeneratedVisitor;
@@ -369,10 +369,10 @@ impl<'de> serde::Deserialize<'de> for submit_transaction_response::Outcome {
             {
                 match value {
                     "OUTCOME_UNSPECIFIED" => Ok(submit_transaction_response::Outcome::Unspecified),
-                    "OUTCOME_ADDED_TO_PARKED_QUEUE" => Ok(submit_transaction_response::Outcome::AddedToParkedQueue),
                     "OUTCOME_ADDED_TO_PENDING_QUEUE" => Ok(submit_transaction_response::Outcome::AddedToPendingQueue),
-                    "OUTCOME_ALREADY_IN_PARKED_QUEUE" => Ok(submit_transaction_response::Outcome::AlreadyInParkedQueue),
+                    "OUTCOME_ADDED_TO_PARKED_QUEUE" => Ok(submit_transaction_response::Outcome::AddedToParkedQueue),
                     "OUTCOME_ALREADY_IN_PENDING_QUEUE" => Ok(submit_transaction_response::Outcome::AlreadyInPendingQueue),
+                    "OUTCOME_ALREADY_IN_PARKED_QUEUE" => Ok(submit_transaction_response::Outcome::AlreadyInParkedQueue),
                     _ => Err(serde::de::Error::unknown_variant(value, FIELDS)),
                 }
             }

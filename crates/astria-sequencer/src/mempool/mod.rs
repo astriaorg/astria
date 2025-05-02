@@ -558,15 +558,11 @@ impl MempoolInner {
             } else {
                 Some(TransactionStatus::Parked)
             }
-        } else if let Some(reason) = self.comet_bft_removal_cache.cache.get(tx_hash) {
-            match reason {
-                RemovalReason::IncludedInBlock(block_number) => {
-                    Some(TransactionStatus::IncludedInBlock(*block_number))
-                }
-                _ => Some(TransactionStatus::Removed(reason.clone())),
-            }
         } else {
-            None
+            self.comet_bft_removal_cache
+                .cache
+                .get(tx_hash)
+                .map(|reason| TransactionStatus::Removed(reason.clone()))
         }
     }
 
@@ -585,7 +581,6 @@ pub(crate) enum TransactionStatus {
     Pending,
     Parked,
     Removed(RemovalReason),
-    IncludedInBlock(u64),
 }
 
 #[cfg(test)]
