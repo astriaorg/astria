@@ -14,6 +14,7 @@ use astria_core::{
     },
     protocol::transaction::v1::action::RollupDataSubmission,
 };
+use futures::future::join;
 use tokio::time;
 
 use crate::helper::{
@@ -113,7 +114,7 @@ async fn bundle_triggered_by_block_timer() {
 #[tokio::test]
 async fn two_rollup_data_submissions_single_bundle() {
     let test_composer = spawn_composer(&["test1"], None, true).await;
-    let mut composer_client = GrpcCollectorServiceClient::connect(format!(
+    let composer_client = GrpcCollectorServiceClient::connect(format!(
         "http://{}",
         test_composer.grpc_collector_addr
     ))
@@ -137,33 +138,43 @@ async fn two_rollup_data_submissions_single_bundle() {
         fee_asset: "nria".parse().unwrap(),
     };
 
+    // Submit transactions concurrently so that the block timer does not tick between them and they
+    // are bundled
+    let submit_fut_1 = {
+        let mut client = composer_client.clone();
+        let seq0 = seq0.clone();
+        async move {
+            client
+                .submit_rollup_transaction(SubmitRollupTransactionRequest {
+                    rollup_id: Some(seq0.rollup_id.into_raw()),
+                    data: seq0.data.clone(),
+                })
+                .await
+                .unwrap()
+        }
+    };
+    let submit_fut_2 = {
+        let mut client = composer_client.clone();
+        let seq1 = seq1.clone();
+        async move {
+            client
+                .submit_rollup_transaction(SubmitRollupTransactionRequest {
+                    rollup_id: Some(seq1.rollup_id.into_raw()),
+                    data: seq1.data.clone(),
+                })
+                .await
+                .unwrap()
+        }
+    };
+
     // make sure at least one block has passed so that the executor will submit the bundle
     // despite it not being full
     time::pause();
     let submission_timeout =
         Duration::from_millis(test_composer.cfg.block_time_ms.saturating_add(100));
-    time::timeout(submission_timeout, async {
-        composer_client
-            .submit_rollup_transaction(SubmitRollupTransactionRequest {
-                rollup_id: Some(seq0.rollup_id.into_raw()),
-                data: seq0.data.clone(),
-            })
-            .await
-            .expect(
-                "rollup transactions should have been submitted successfully to grpc collector",
-            );
-        composer_client
-            .submit_rollup_transaction(SubmitRollupTransactionRequest {
-                rollup_id: Some(seq1.rollup_id.into_raw()),
-                data: seq1.data.clone(),
-            })
-            .await
-            .expect(
-                "rollup transactions should have been submitted successfully to grpc collector",
-            );
-    })
-    .await
-    .unwrap();
+    time::timeout(submission_timeout, join(submit_fut_1, submit_fut_2))
+        .await
+        .unwrap();
     time::advance(Duration::from_millis(test_composer.cfg.block_time_ms)).await;
     time::resume();
 
