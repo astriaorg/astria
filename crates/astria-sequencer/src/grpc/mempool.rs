@@ -2,10 +2,9 @@ use std::sync::Arc;
 
 use astria_core::{
     generated::mempool::v1::{
-        mempool_service_server::MempoolService,
-        submit_transaction_response::Outcome as RawOutcome,
+        transaction_service_server::TransactionService,
         transaction_status::{
-            IncludedInSequencerBlock as RawIncludedInSequencerBlock,
+            Executed as RawExecuted,
             Parked as RawParked,
             Pending as RawPending,
             Removed as RawRemoved,
@@ -57,7 +56,7 @@ impl Server {
 }
 
 #[async_trait::async_trait]
-impl MempoolService for Server {
+impl TransactionService for Server {
     async fn get_transaction_status(
         self: Arc<Self>,
         request: Request<GetTransactionStatusRequest>,
@@ -83,7 +82,7 @@ impl MempoolService for Server {
 
         let tx_hash_bytes = tx.id().get().to_vec().into();
 
-        let outcome: RawOutcome = check_tx(
+        let submission_outcome: SubmissionOutcome = check_tx(
             tx,
             self.storage.latest_snapshot(),
             &self.mempool,
@@ -93,8 +92,11 @@ impl MempoolService for Server {
         .try_into()?;
 
         Ok(Response::new(SubmitTransactionResponse {
-            transaction_hash: tx_hash_bytes,
-            outcome: outcome as i32,
+            status: Some(TransactionStatusResponse {
+                transaction_hash: tx_hash_bytes,
+                status: Some(submission_outcome.status),
+            }),
+            duplicate: submission_outcome.duplicate,
         }))
     }
 }
@@ -112,11 +114,11 @@ async fn get_transaction_status(
     let status = match mempool.transaction_status(&tx_hash).await {
         Some(TransactionStatus::Pending) => Some(RawTransactionStatus::Pending(RawPending {})),
         Some(TransactionStatus::Parked) => Some(RawTransactionStatus::Parked(RawParked {})),
-        Some(TransactionStatus::Removed(RemovalReason::IncludedInBlock(height))) => Some(
-            RawTransactionStatus::IncludedInSequencerBlock(RawIncludedInSequencerBlock {
+        Some(TransactionStatus::Removed(RemovalReason::IncludedInBlock(height))) => {
+            Some(RawTransactionStatus::Executed(RawExecuted {
                 height,
-            }),
-        ),
+            }))
+        }
         Some(TransactionStatus::Removed(reason)) => {
             Some(RawTransactionStatus::Removed(RawRemoved {
                 reason: reason.to_string(),
@@ -130,15 +132,32 @@ async fn get_transaction_status(
     })
 }
 
-impl TryFrom<CheckTxOutcome> for RawOutcome {
+struct SubmissionOutcome {
+    status: RawTransactionStatus,
+    duplicate: bool,
+}
+
+impl TryFrom<CheckTxOutcome> for SubmissionOutcome {
     type Error = Status;
 
-    fn try_from(value: CheckTxOutcome) -> Result<RawOutcome, Self::Error> {
+    fn try_from(value: CheckTxOutcome) -> Result<SubmissionOutcome, Self::Error> {
         match value {
-            CheckTxOutcome::AddedToPending => Ok(RawOutcome::AddedToPendingQueue),
-            CheckTxOutcome::AddedToParked => Ok(RawOutcome::AddedToParkedQueue),
-            CheckTxOutcome::AlreadyInPending => Ok(RawOutcome::AlreadyInPendingQueue),
-            CheckTxOutcome::AlreadyInParked => Ok(RawOutcome::AlreadyInParkedQueue),
+            CheckTxOutcome::AddedToPending => Ok(SubmissionOutcome {
+                status: RawTransactionStatus::Pending(RawPending {}),
+                duplicate: false,
+            }),
+            CheckTxOutcome::AddedToParked => Ok(SubmissionOutcome {
+                status: RawTransactionStatus::Parked(RawParked {}),
+                duplicate: false,
+            }),
+            CheckTxOutcome::AlreadyInPending => Ok(SubmissionOutcome {
+                status: RawTransactionStatus::Pending(RawPending {}),
+                duplicate: true,
+            }),
+            CheckTxOutcome::AlreadyInParked => Ok(SubmissionOutcome {
+                status: RawTransactionStatus::Parked(RawParked {}),
+                duplicate: true,
+            }),
             CheckTxOutcome::FailedStatelessChecks {
                 source,
             } => Err(tonic::Status::invalid_argument(format!(
@@ -186,7 +205,6 @@ mod tests {
     };
 
     use astria_core::{
-        generated::mempool::v1::submit_transaction_response::Outcome,
         primitive::v1::{
             RollupId,
             ROLLUP_ID_LEN,
@@ -380,11 +398,9 @@ mod tests {
         assert_eq!(rsp.transaction_hash, tx_hash_bytes);
         assert_eq!(
             rsp.status,
-            Some(RawTransactionStatus::IncludedInSequencerBlock(
-                RawIncludedInSequencerBlock {
-                    height
-                }
-            ))
+            Some(RawTransactionStatus::Executed(RawExecuted {
+                height
+            }))
         );
     }
 
@@ -468,8 +484,63 @@ mod tests {
             .await
             .unwrap()
             .into_inner();
-        assert_eq!(rsp.transaction_hash, Bytes::from(tx.id().get().to_vec()));
-        assert_eq!(rsp.outcome, Outcome::AddedToPendingQueue as i32,);
+        assert_eq!(
+            rsp.status.clone().unwrap().transaction_hash,
+            Bytes::from(tx.id().get().to_vec())
+        );
+        assert_eq!(
+            rsp.status.unwrap().status.unwrap(),
+            RawTransactionStatus::Pending(RawPending {})
+        );
+        assert!(!rsp.duplicate);
+    }
+
+    #[tokio::test]
+    async fn submit_transaction_returns_duplicate_if_already_in_mempool() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+        let mut state_delta = StateDelta::new(storage.latest_snapshot());
+        let nonce = 1u32;
+        state_delta
+            .put_account_nonce(&get_alice_signing_key().address_bytes(), nonce)
+            .unwrap();
+        state_delta
+            .put_fees(FeeComponents::<RollupDataSubmission>::new(0, 0))
+            .unwrap();
+        state_delta.put_base_prefix("astria".to_string()).unwrap();
+        state_delta
+            .put_chain_id_and_revision_number(
+                tendermint::chain::Id::try_from(TEST_CHAIN_ID.to_string()).unwrap(),
+            )
+            .unwrap();
+        storage.commit(state_delta).await.unwrap();
+
+        let server = Arc::new(Server::new(storage.clone(), mempool.clone(), metrics));
+
+        let tx = Arc::new(make_transaction(nonce));
+        mempool
+            .insert(tx.clone(), nonce, &HashMap::default(), HashMap::default())
+            .await
+            .unwrap();
+
+        let req = SubmitTransactionRequest {
+            transaction: Some(tx.to_raw()),
+        };
+        let rsp = server
+            .submit_transaction(Request::new(req))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(
+            rsp.status.clone().unwrap().transaction_hash,
+            Bytes::from(tx.id().get().to_vec())
+        );
+        assert_eq!(
+            rsp.status.unwrap().status.unwrap(),
+            RawTransactionStatus::Pending(RawPending {})
+        );
+        assert!(rsp.duplicate);
     }
 
     #[tokio::test]

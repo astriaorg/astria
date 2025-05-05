@@ -35,79 +35,6 @@ impl ::prost::Name for SubmitTransactionRequest {
         "/astria.mempool.v1.SubmitTransactionRequest".into()
     }
 }
-/// A response to a request to submit a transaction to the Astria Sequencer's mempool,
-/// containing the outcome of the submission.
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SubmitTransactionResponse {
-    /// The transaction hash.
-    #[prost(bytes = "bytes", tag = "1")]
-    pub transaction_hash: ::prost::bytes::Bytes,
-    /// The outcome of the successful transaction submission. Can be one of:
-    /// - `AddedToPendingQueue`: The transaction was added to the pending queue.
-    /// - `AddedToParkedQueue`: The transaction was added to the parked queue.
-    /// - `AlreadyInPendingQueue`: The transaction was already in the pending queue.
-    /// - `AlreadyInParkedQueue`: The transaction was already in the parked queue.
-    #[prost(enumeration = "submit_transaction_response::Outcome", tag = "2")]
-    pub outcome: i32,
-}
-/// Nested message and enum types in `SubmitTransactionResponse`.
-pub mod submit_transaction_response {
-    #[derive(
-        Clone,
-        Copy,
-        Debug,
-        PartialEq,
-        Eq,
-        Hash,
-        PartialOrd,
-        Ord,
-        ::prost::Enumeration
-    )]
-    #[repr(i32)]
-    pub enum Outcome {
-        Unspecified = 0,
-        AddedToPendingQueue = 1,
-        AddedToParkedQueue = 2,
-        AlreadyInPendingQueue = 3,
-        AlreadyInParkedQueue = 4,
-    }
-    impl Outcome {
-        /// String value of the enum field names used in the ProtoBuf definition.
-        ///
-        /// The values are not transformed in any way and thus are considered stable
-        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-        pub fn as_str_name(&self) -> &'static str {
-            match self {
-                Self::Unspecified => "OUTCOME_UNSPECIFIED",
-                Self::AddedToPendingQueue => "OUTCOME_ADDED_TO_PENDING_QUEUE",
-                Self::AddedToParkedQueue => "OUTCOME_ADDED_TO_PARKED_QUEUE",
-                Self::AlreadyInPendingQueue => "OUTCOME_ALREADY_IN_PENDING_QUEUE",
-                Self::AlreadyInParkedQueue => "OUTCOME_ALREADY_IN_PARKED_QUEUE",
-            }
-        }
-        /// Creates an enum from field names used in the ProtoBuf definition.
-        pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
-            match value {
-                "OUTCOME_UNSPECIFIED" => Some(Self::Unspecified),
-                "OUTCOME_ADDED_TO_PENDING_QUEUE" => Some(Self::AddedToPendingQueue),
-                "OUTCOME_ADDED_TO_PARKED_QUEUE" => Some(Self::AddedToParkedQueue),
-                "OUTCOME_ALREADY_IN_PENDING_QUEUE" => Some(Self::AlreadyInPendingQueue),
-                "OUTCOME_ALREADY_IN_PARKED_QUEUE" => Some(Self::AlreadyInParkedQueue),
-                _ => None,
-            }
-        }
-    }
-}
-impl ::prost::Name for SubmitTransactionResponse {
-    const NAME: &'static str = "SubmitTransactionResponse";
-    const PACKAGE: &'static str = "astria.mempool.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        "astria.mempool.v1.SubmitTransactionResponse".into()
-    }
-    fn type_url() -> ::prost::alloc::string::String {
-        "/astria.mempool.v1.SubmitTransactionResponse".into()
-    }
-}
 /// `TransactionStatus` is a resource which represents the status of a transaction
 /// in the Astria Sequencer's mempool.
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -121,10 +48,9 @@ pub struct TransactionStatus {
     ///      - The transaction's nonce matches the sender's next nonce.
     ///      - The sender has sufficient balance to pay for the transaction.
     /// - `Removed`: The transaction has been removed from the mempool. Includes
-    ///        reason for removal.
-    /// - `IncludedInSequencerBlock`: The transaction has been included in a
-    ///        sequencer block. Specifies the block height in which the transaction
-    ///        was included.
+    ///       reason for removal.
+    /// - `Executed`: The transaction has been included in a sequencer block. Specifies
+    ///       the block height in which the transaction was included.
     #[prost(oneof = "transaction_status::Status", tags = "2, 3, 4, 5")]
     pub status: ::core::option::Option<transaction_status::Status>,
 }
@@ -173,22 +99,22 @@ pub mod transaction_status {
             "/astria.mempool.v1.TransactionStatus.Removed".into()
         }
     }
-    /// Status representing a transaction which has been included in a block and is
-    /// no longer in the Astria Sequencer's mempool.
+    /// Status representing a transaction which has been executed and is no longer
+    /// in the Astria Sequencer's mempool.
     #[derive(Clone, Copy, PartialEq, ::prost::Message)]
-    pub struct IncludedInSequencerBlock {
+    pub struct Executed {
         /// The height of the block in which the transaction was included.
         #[prost(uint64, tag = "1")]
         pub height: u64,
     }
-    impl ::prost::Name for IncludedInSequencerBlock {
-        const NAME: &'static str = "IncludedInSequencerBlock";
+    impl ::prost::Name for Executed {
+        const NAME: &'static str = "Executed";
         const PACKAGE: &'static str = "astria.mempool.v1";
         fn full_name() -> ::prost::alloc::string::String {
-            "astria.mempool.v1.TransactionStatus.IncludedInSequencerBlock".into()
+            "astria.mempool.v1.TransactionStatus.Executed".into()
         }
         fn type_url() -> ::prost::alloc::string::String {
-            "/astria.mempool.v1.TransactionStatus.IncludedInSequencerBlock".into()
+            "/astria.mempool.v1.TransactionStatus.Executed".into()
         }
     }
     /// The status of the transaction. Can be one of:
@@ -197,10 +123,9 @@ pub mod transaction_status {
     ///      - The transaction's nonce matches the sender's next nonce.
     ///      - The sender has sufficient balance to pay for the transaction.
     /// - `Removed`: The transaction has been removed from the mempool. Includes
-    ///        reason for removal.
-    /// - `IncludedInSequencerBlock`: The transaction has been included in a
-    ///        sequencer block. Specifies the block height in which the transaction
-    ///        was included.
+    ///       reason for removal.
+    /// - `Executed`: The transaction has been included in a sequencer block. Specifies
+    ///       the block height in which the transaction was included.
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Status {
         #[prost(message, tag = "2")]
@@ -210,7 +135,7 @@ pub mod transaction_status {
         #[prost(message, tag = "4")]
         Removed(Removed),
         #[prost(message, tag = "5")]
-        IncludedInSequencerBlock(IncludedInSequencerBlock),
+        Executed(Executed),
     }
 }
 impl ::prost::Name for TransactionStatus {
@@ -223,9 +148,30 @@ impl ::prost::Name for TransactionStatus {
         "/astria.mempool.v1.TransactionStatus".into()
     }
 }
+/// A response to a request to submit a transaction to the Astria Sequencer's mempool,
+/// containing the outcome of the submission.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SubmitTransactionResponse {
+    /// The status of the submitted transaction.
+    #[prost(message, optional, tag = "1")]
+    pub status: ::core::option::Option<TransactionStatus>,
+    /// Whether or not the transaction was already in the mempool.
+    #[prost(bool, tag = "2")]
+    pub duplicate: bool,
+}
+impl ::prost::Name for SubmitTransactionResponse {
+    const NAME: &'static str = "SubmitTransactionResponse";
+    const PACKAGE: &'static str = "astria.mempool.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        "astria.mempool.v1.SubmitTransactionResponse".into()
+    }
+    fn type_url() -> ::prost::alloc::string::String {
+        "/astria.mempool.v1.SubmitTransactionResponse".into()
+    }
+}
 /// Generated client implementations.
 #[cfg(feature = "client")]
-pub mod mempool_service_client {
+pub mod transaction_service_client {
     #![allow(
         unused_variables,
         dead_code,
@@ -235,11 +181,11 @@ pub mod mempool_service_client {
     )]
     use tonic::codegen::*;
     use tonic::codegen::http::Uri;
-    /// `MempoolService` is a gRPC service which provides access to the Astria Sequencer's
+    /// `TransactionService` is a gRPC service which provides access to the Astria Sequencer's
     /// app-side mempool. It allows clients to query a transaction's status and submit
     /// transactions directly to the mempool.
     ///
-    /// Submission to the app-side mempool via `MempoolService` is notably different
+    /// Submission to the app-side mempool via `TransactionService` is notably different
     /// than submission directly to CometBFT, and users should consider the implications
     /// of this when deciding how to submit transactions. If the transaction is accepted
     /// into the mempool, it will not be gossiped to any other nodes, and hence will
@@ -247,10 +193,10 @@ pub mod mempool_service_client {
     /// Sequencer in question is stopped, any transactions submitted directly to the
     /// app-side mempool which have not been executed will be lost.
     #[derive(Debug, Clone)]
-    pub struct MempoolServiceClient<T> {
+    pub struct TransactionServiceClient<T> {
         inner: tonic::client::Grpc<T>,
     }
-    impl MempoolServiceClient<tonic::transport::Channel> {
+    impl TransactionServiceClient<tonic::transport::Channel> {
         /// Attempt to create a new client by connecting to a given endpoint.
         pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
         where
@@ -261,7 +207,7 @@ pub mod mempool_service_client {
             Ok(Self::new(conn))
         }
     }
-    impl<T> MempoolServiceClient<T>
+    impl<T> TransactionServiceClient<T>
     where
         T: tonic::client::GrpcService<tonic::body::BoxBody>,
         T::Error: Into<StdError>,
@@ -279,7 +225,7 @@ pub mod mempool_service_client {
         pub fn with_interceptor<F>(
             inner: T,
             interceptor: F,
-        ) -> MempoolServiceClient<InterceptedService<T, F>>
+        ) -> TransactionServiceClient<InterceptedService<T, F>>
         where
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
@@ -293,7 +239,7 @@ pub mod mempool_service_client {
                 http::Request<tonic::body::BoxBody>,
             >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
         {
-            MempoolServiceClient::new(InterceptedService::new(inner, interceptor))
+            TransactionServiceClient::new(InterceptedService::new(inner, interceptor))
         }
         /// Compress requests with the given encoding.
         ///
@@ -345,13 +291,13 @@ pub mod mempool_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.mempool.v1.MempoolService/GetTransactionStatus",
+                "/astria.mempool.v1.TransactionService/GetTransactionStatus",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
-                        "astria.mempool.v1.MempoolService",
+                        "astria.mempool.v1.TransactionService",
                         "GetTransactionStatus",
                     ),
                 );
@@ -376,13 +322,13 @@ pub mod mempool_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.mempool.v1.MempoolService/SubmitTransaction",
+                "/astria.mempool.v1.TransactionService/SubmitTransaction",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
-                        "astria.mempool.v1.MempoolService",
+                        "astria.mempool.v1.TransactionService",
                         "SubmitTransaction",
                     ),
                 );
@@ -392,7 +338,7 @@ pub mod mempool_service_client {
 }
 /// Generated server implementations.
 #[cfg(feature = "server")]
-pub mod mempool_service_server {
+pub mod transaction_service_server {
     #![allow(
         unused_variables,
         dead_code,
@@ -401,9 +347,9 @@ pub mod mempool_service_server {
         clippy::let_unit_value,
     )]
     use tonic::codegen::*;
-    /// Generated trait containing gRPC methods that should be implemented for use with MempoolServiceServer.
+    /// Generated trait containing gRPC methods that should be implemented for use with TransactionServiceServer.
     #[async_trait]
-    pub trait MempoolService: std::marker::Send + std::marker::Sync + 'static {
+    pub trait TransactionService: std::marker::Send + std::marker::Sync + 'static {
         /// `GetTransactionStatus` returns the status of a transaction in the app-side
         /// mempool.
         async fn get_transaction_status(
@@ -423,11 +369,11 @@ pub mod mempool_service_server {
             tonic::Status,
         >;
     }
-    /// `MempoolService` is a gRPC service which provides access to the Astria Sequencer's
+    /// `TransactionService` is a gRPC service which provides access to the Astria Sequencer's
     /// app-side mempool. It allows clients to query a transaction's status and submit
     /// transactions directly to the mempool.
     ///
-    /// Submission to the app-side mempool via `MempoolService` is notably different
+    /// Submission to the app-side mempool via `TransactionService` is notably different
     /// than submission directly to CometBFT, and users should consider the implications
     /// of this when deciding how to submit transactions. If the transaction is accepted
     /// into the mempool, it will not be gossiped to any other nodes, and hence will
@@ -435,14 +381,14 @@ pub mod mempool_service_server {
     /// Sequencer in question is stopped, any transactions submitted directly to the
     /// app-side mempool which have not been executed will be lost.
     #[derive(Debug)]
-    pub struct MempoolServiceServer<T> {
+    pub struct TransactionServiceServer<T> {
         inner: Arc<T>,
         accept_compression_encodings: EnabledCompressionEncodings,
         send_compression_encodings: EnabledCompressionEncodings,
         max_decoding_message_size: Option<usize>,
         max_encoding_message_size: Option<usize>,
     }
-    impl<T> MempoolServiceServer<T> {
+    impl<T> TransactionServiceServer<T> {
         pub fn new(inner: T) -> Self {
             Self::from_arc(Arc::new(inner))
         }
@@ -493,9 +439,9 @@ pub mod mempool_service_server {
             self
         }
     }
-    impl<T, B> tonic::codegen::Service<http::Request<B>> for MempoolServiceServer<T>
+    impl<T, B> tonic::codegen::Service<http::Request<B>> for TransactionServiceServer<T>
     where
-        T: MempoolService,
+        T: TransactionService,
         B: Body + std::marker::Send + 'static,
         B::Error: Into<StdError> + std::marker::Send + 'static,
     {
@@ -510,11 +456,11 @@ pub mod mempool_service_server {
         }
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             match req.uri().path() {
-                "/astria.mempool.v1.MempoolService/GetTransactionStatus" => {
+                "/astria.mempool.v1.TransactionService/GetTransactionStatus" => {
                     #[allow(non_camel_case_types)]
-                    struct GetTransactionStatusSvc<T: MempoolService>(pub Arc<T>);
+                    struct GetTransactionStatusSvc<T: TransactionService>(pub Arc<T>);
                     impl<
-                        T: MempoolService,
+                        T: TransactionService,
                     > tonic::server::UnaryService<super::GetTransactionStatusRequest>
                     for GetTransactionStatusSvc<T> {
                         type Response = super::TransactionStatus;
@@ -528,7 +474,7 @@ pub mod mempool_service_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as MempoolService>::get_transaction_status(
+                                <T as TransactionService>::get_transaction_status(
                                         inner,
                                         request,
                                     )
@@ -559,11 +505,11 @@ pub mod mempool_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria.mempool.v1.MempoolService/SubmitTransaction" => {
+                "/astria.mempool.v1.TransactionService/SubmitTransaction" => {
                     #[allow(non_camel_case_types)]
-                    struct SubmitTransactionSvc<T: MempoolService>(pub Arc<T>);
+                    struct SubmitTransactionSvc<T: TransactionService>(pub Arc<T>);
                     impl<
-                        T: MempoolService,
+                        T: TransactionService,
                     > tonic::server::UnaryService<super::SubmitTransactionRequest>
                     for SubmitTransactionSvc<T> {
                         type Response = super::SubmitTransactionResponse;
@@ -577,7 +523,10 @@ pub mod mempool_service_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as MempoolService>::submit_transaction(inner, request)
+                                <T as TransactionService>::submit_transaction(
+                                        inner,
+                                        request,
+                                    )
                                     .await
                             };
                             Box::pin(fut)
@@ -625,7 +574,7 @@ pub mod mempool_service_server {
             }
         }
     }
-    impl<T> Clone for MempoolServiceServer<T> {
+    impl<T> Clone for TransactionServiceServer<T> {
         fn clone(&self) -> Self {
             let inner = self.inner.clone();
             Self {
@@ -638,8 +587,8 @@ pub mod mempool_service_server {
         }
     }
     /// Generated gRPC service name
-    pub const SERVICE_NAME: &str = "astria.mempool.v1.MempoolService";
-    impl<T> tonic::server::NamedService for MempoolServiceServer<T> {
+    pub const SERVICE_NAME: &str = "astria.mempool.v1.TransactionService";
+    impl<T> tonic::server::NamedService for TransactionServiceServer<T> {
         const NAME: &'static str = SERVICE_NAME;
     }
 }

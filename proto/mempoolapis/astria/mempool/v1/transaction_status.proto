@@ -14,15 +14,14 @@ message TransactionStatus {
   //     - The transaction's nonce matches the sender's next nonce.
   //     - The sender has sufficient balance to pay for the transaction.
   // - `Removed`: The transaction has been removed from the mempool. Includes
-  //       reason for removal.
-  // - `IncludedInSequencerBlock`: The transaction has been included in a
-  //       sequencer block. Specifies the block height in which the transaction
-  //       was included.
+  //      reason for removal.
+  // - `Executed`: The transaction has been included in a sequencer block. Specifies
+  //      the block height in which the transaction was included.
   oneof status {
     Pending pending = 2;
     Parked parked = 3;
     Removed removed = 4;
-    IncludedInSequencerBlock included_in_sequencer_block = 5;
+    Executed executed = 5;
   }
 
   // Status representing a pending transaction in the Astria Sequencer's mempool.
@@ -37,9 +36,9 @@ message TransactionStatus {
     string reason = 1;
   }
 
-  // Status representing a transaction which has been included in a block and is
-  // no longer in the Astria Sequencer's mempool.
-  message IncludedInSequencerBlock {
+  // Status representing a transaction which has been executed and is no longer
+  // in the Astria Sequencer's mempool.
+  message Executed {
     // The height of the block in which the transaction was included.
     uint64 height = 1;
   }

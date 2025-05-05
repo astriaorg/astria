@@ -6,7 +6,7 @@ use std::{
 use astria_core::{
     generated::{
         astria::{
-            mempool::v1::mempool_service_server::MempoolServiceServer,
+            mempool::v1::transaction_service_server::TransactionServiceServer,
             sequencerblock::v1::sequencer_service_server::SequencerServiceServer,
         },
         price_feed::{
@@ -167,7 +167,7 @@ pub(crate) async fn serve(
         .add_optional_service(optimistic_block_service)
         .add_service(MarketMapQueryServer::new(market_map_api))
         .add_service(OracleQueryServer::new(oracle_api))
-        .add_service(MempoolServiceServer::new(mempool_api));
+        .add_service(TransactionServiceServer::new(mempool_api));
 
     info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
 
