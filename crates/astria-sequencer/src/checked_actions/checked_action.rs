@@ -65,7 +65,10 @@ use super::{
     CheckedValidatorUpdate,
 };
 use crate::{
-    accounts::StateWriteExt as _,
+    accounts::{
+        InsufficientFunds,
+        StateWriteExt as _,
+    },
     fees::{
         FeeHandler,
         StateWriteExt as _,
@@ -547,7 +550,7 @@ where
         .decrease_balance(tx_signer, fee_asset, total_fee)
         .await
         .map_err(|source| {
-            if source.to_string().contains("insufficient funds") {
+            if source.downcast_ref::<InsufficientFunds>().is_some() {
                 CheckedActionFeeError::InsufficientBalanceToPayFee {
                     account: *tx_signer,
                     asset: fee_asset.clone(),
@@ -741,5 +744,45 @@ impl From<CheckedAction> for CheckedMarketsChange {
             panic!("expected MarketsChange");
         };
         wrapped_action
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::{
+        dummy_rollup_data_submission,
+        Fixture,
+    };
+
+    #[tokio::test]
+    async fn should_report_insufficient_funds() {
+        astria_eyre::install().unwrap();
+        let mut fixture = Fixture::default_initialized().await;
+        let tx_signer = [20; ADDRESS_LENGTH];
+        let action = dummy_rollup_data_submission();
+        let expected_fees = super::super::utils::fee(&action, fixture.state())
+            .await
+            .expect("should get fees")
+            .expect("fees should be `Some`");
+
+        let error = pay_fee(&action, &tx_signer, 1, fixture.state_mut())
+            .await
+            .unwrap_err();
+
+        match error {
+            CheckedActionExecutionError::Fee(
+                CheckedActionFeeError::InsufficientBalanceToPayFee {
+                    account,
+                    asset,
+                    amount,
+                },
+            ) => {
+                assert_eq!(account, tx_signer);
+                assert_eq!(asset, *expected_fees.0);
+                assert_eq!(amount, expected_fees.1);
+            }
+            _ => panic!("should be fee error, got {error:?}"),
+        };
     }
 }
