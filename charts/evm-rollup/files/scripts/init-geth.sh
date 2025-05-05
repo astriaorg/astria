@@ -27,6 +27,11 @@ elif [ "{{ .Values.geth.snapshot.restore.enabled }}" = "true" ]; then
   exec geth --datadir "$data_dir/" init $home_dir/genesis.json
 fi
 
+{{if .Values.geth.staticNodes -}}
+# copy static nodes to data dir
+cp /scripts/static-nodes.json $data_dir/static-nodes.json
+{{- end }}
+
 echo "Geth initialized"
 
 NODEKEY=$(cat $data_dir/geth/nodekey)

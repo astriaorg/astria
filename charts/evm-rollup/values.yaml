@@ -156,6 +156,7 @@ geth:
   p2p:
     enabled: false
     staticIP: ""
+  staticNodes: []
   flags:
     datadir:
       value: '{{ include "rollup.gethDataDir" . }}'
