@@ -91,7 +91,11 @@ spec:
               name: execution-grpc
             {{- if .Values.geth.p2p.enabled }}
             - containerPort: {{ .Values.ports.p2p }}
-              name: p2p
+              name: tcp-p2p
+              protocol: TCP
+            - containerPort: {{ .Values.ports.p2p }}
+              name: udp-p2p
+              protocol: UDP
             {{- end }}
             {{- if .Values.metrics.enabled }}
             - containerPort: {{ .Values.ports.metrics }}

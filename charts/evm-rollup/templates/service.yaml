@@ -26,7 +26,7 @@ spec:
   ports:
     - name: p2p-tcp-svc
       port: {{ .Values.ports.p2p }}
-      targetPort: p2p
+      targetPort: tcp-p2p
       protocol: TCP
   type: LoadBalancer
   loadBalancerIP: "{{ .Values.geth.p2p.staticIP }}"
@@ -42,7 +42,7 @@ spec:
   ports:
     - name: p2p-udp-svc
       port: {{ .Values.ports.p2p }}
-      targetPort: p2p
+      targetPort: udp-p2p
       protocol: UDP
   type: LoadBalancer
   loadBalancerIP: "{{ .Values.geth.p2p.staticIP }}"
