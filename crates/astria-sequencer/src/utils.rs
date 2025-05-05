@@ -1,5 +1,5 @@
 use astria_core::{
-    generated::astria_vendored::tendermint::abci as raw,
+    generated::astria::protocol::transaction::v1 as raw,
     protocol::transaction::v1::action::ValidatorUpdate,
     sequencerblock::v1::block::Deposit,
     Protobuf as _,
@@ -22,6 +22,7 @@ pub(crate) fn cometbft_to_sequencer_validator(
     ValidatorUpdate::try_from_raw(raw::ValidatorUpdate {
         power,
         pub_key: pub_key.map(pubkey::cometbft_to_astria),
+        name: String::new(),
     })
     .wrap_err("failed converting cometbft validator update to astria validator update")
 }
@@ -50,9 +51,10 @@ pub(crate) fn create_deposit_event(deposit: &Deposit) -> abci::Event {
 pub(crate) fn sequencer_to_cometbft_validator(
     value: ValidatorUpdate,
 ) -> Result<tendermint::validator::Update> {
-    let astria_core::generated::astria_vendored::tendermint::abci::ValidatorUpdate {
+    let raw::ValidatorUpdate {
         pub_key,
         power,
+        ..
     } = value.into_raw();
     tendermint_proto::abci::ValidatorUpdate {
         pub_key: pub_key.map(pubkey::astria_to_cometbft),

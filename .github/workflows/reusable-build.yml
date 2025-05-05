@@ -23,7 +23,7 @@ jobs:
       matrix:
         include:
           - target: x86_64-unknown-linux-gnu
-            os: buildjet-4vcpu-ubuntu-2004
+            os: depot-ubuntu-24.04-4
             build-tool: cargo
           - target: aarch64-apple-darwin
             os: macos-latest

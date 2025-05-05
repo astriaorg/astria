@@ -1,5 +1,8 @@
 use std::{
-    collections::HashMap,
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     io::Write,
     net::{
         IpAddr,
@@ -30,7 +33,10 @@ use astria_core::{
     Protobuf as _,
 };
 use astria_eyre::eyre;
-use ethers::prelude::Transaction as EthersTransaction;
+use ethers::{
+    prelude::Transaction as EthersTransaction,
+    types::H160,
+};
 use mock_grpc_sequencer::MockGrpcSequencer;
 use prost::Message as _;
 use serde_json::json;
@@ -81,7 +87,6 @@ static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
         no_otel: false,
         no_metrics: false,
         metrics_http_listener_addr: String::new(),
-        pretty_print: false,
         grpc_addr: SocketAddr::new(IpAddr::from([0, 0, 0, 0]), 0),
         fee_asset: Denom::IbcPrefixed(IbcPrefixed::new([0; 32])),
     };
@@ -89,9 +94,7 @@ static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
         telemetry::configure()
             .set_no_otel(true)
-            .set_stdout_writer(std::io::stdout)
             .set_force_stdout(true)
-            .set_pretty_print(true)
             .set_filter_directives(&filter_directives)
             .try_init::<Metrics>(&config)
             .unwrap();
@@ -122,6 +125,7 @@ pub struct TestComposer {
 pub async fn spawn_composer(
     rollup_ids: &[&str],
     sequencer_chain_id: Option<&str>,
+    txs_in_pool: Vec<EthersTransaction>,
     loop_until_ready: bool,
 ) -> TestComposer {
     LazyLock::force(&TELEMETRY);
@@ -129,7 +133,13 @@ pub async fn spawn_composer(
     let mut rollup_nodes = HashMap::new();
     let mut rollups = String::new();
     for id in rollup_ids {
-        let geth = Geth::spawn().await;
+        let mut pending_map = BTreeMap::new();
+        let mut nonce_map = BTreeMap::new();
+        for (index, tx) in txs_in_pool.iter().enumerate() {
+            nonce_map.insert(index.to_string(), tx.clone());
+        }
+        pending_map.insert(H160::zero(), nonce_map);
+        let geth = Geth::spawn_with_pending_txs(pending_map).await;
         let execution_url = format!("ws://{}", geth.local_addr());
         rollup_nodes.insert((*id).to_string(), geth);
         rollups.push_str(&format!("{id}::{execution_url},"));
@@ -157,7 +167,6 @@ pub async fn spawn_composer(
         force_stdout: false,
         no_metrics: true,
         metrics_http_listener_addr: String::new(),
-        pretty_print: true,
         grpc_addr: "127.0.0.1:0".parse().unwrap(),
         fee_asset: "nria".parse().unwrap(),
     };
@@ -290,6 +299,7 @@ pub async fn mount_matcher_verifying_tx_integrity(
             data: vec![].into(),
             log: String::new(),
             hash: tendermint::Hash::Sha256([0; 32]),
+            codespace: String::new(),
         }),
         None,
     );
@@ -328,6 +338,7 @@ pub async fn mount_broadcast_tx_sync_mock(
             data: vec![].into(),
             log: String::new(),
             hash: tendermint::Hash::Sha256([0; 32]),
+            codespace: String::new(),
         }),
         None,
     );
@@ -358,6 +369,7 @@ pub async fn mount_broadcast_tx_sync_invalid_nonce_mock(
             data: vec![].into(),
             log: String::new(),
             hash: tendermint::Hash::Sha256([0; 32]),
+            codespace: String::new(),
         }),
         None,
     );
@@ -387,6 +399,7 @@ pub async fn mount_broadcast_tx_sync_nonce_taken_mock(
             data: vec![].into(),
             log: String::new(),
             hash: tendermint::Hash::Sha256([0; 32]),
+            codespace: String::new(),
         }),
         None,
     );
@@ -420,6 +433,7 @@ pub async fn mount_broadcast_tx_sync_rollup_data_submissions_mock(
             data: vec![].into(),
             log: String::new(),
             hash: tendermint::Hash::Sha256([0; 32]),
+            codespace: String::new(),
         }),
         None,
     );

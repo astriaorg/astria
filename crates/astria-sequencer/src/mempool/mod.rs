@@ -29,6 +29,7 @@ use tokio::{
 use tracing::{
     error,
     instrument,
+    warn,
     Level,
 };
 pub(crate) use transactions_container::InsertionError;
@@ -58,7 +59,7 @@ const TX_TTL: Duration = Duration::from_secs(240);
 const MAX_PARKED_TXS_PER_ACCOUNT: usize = 15;
 /// Max number of transactions to keep in the removal cache. Should be larger than the max number of
 /// transactions allowed in the cometBFT mempool.
-const REMOVAL_CACHE_SIZE: usize = 4096;
+const REMOVAL_CACHE_SIZE: usize = 50_000;
 
 /// `RemovalCache` is used to signal to `CometBFT` that a
 /// transaction can be removed from the `CometBFT` mempool.
@@ -95,12 +96,21 @@ impl RemovalCache {
         };
 
         if self.remove_queue.len() == usize::from(self.max_size) {
-            // make space for the new transaction by removing the oldest transaction
+            // This should not happen if `REMOVAL_CACHE_SIZE` is >= CometBFT's configured mempool
+            // size.
+            //
+            // Make space for the new transaction by removing the oldest transaction.
             let removed_tx = self
                 .remove_queue
                 .pop_front()
                 .expect("cache should contain elements");
-            // remove transaction from cache if it is present
+            warn!(
+                tx_hash = %telemetry::display::hex(&removed_tx),
+                removal_cache_size = REMOVAL_CACHE_SIZE,
+                "popped transaction from appside mempool removal cache, CometBFT will not remove \
+                this transaction from its mempool - removal cache size possibly too low"
+            );
+            // Remove transaction from cache if it is present.
             self.cache.remove(&removed_tx);
         }
         self.remove_queue.push_back(tx_hash);
@@ -417,16 +427,16 @@ impl Mempool {
 
             if demotion_txs.is_empty() {
                 // nothing to demote, check for transactions to promote
-                let highest_pending_nonce = pending
+                let pending_nonce = pending
                     .pending_nonce(address)
-                    .map_or(current_nonce, |nonce| nonce.saturating_add(1));
+                    .map_or(current_nonce, |nonce| nonce);
 
                 let remaining_balances =
                     pending.subtract_contained_costs(address, current_balances.clone());
-                let promtion_txs =
-                    parked.find_promotables(address, highest_pending_nonce, &remaining_balances);
+                let promotion_txs =
+                    parked.find_promotables(address, pending_nonce, &remaining_balances);
 
-                for tx in promtion_txs {
+                for tx in promotion_txs {
                     let tx_id = tx.id();
                     if let Err(error) = pending.add(tx, current_nonce, &current_balances) {
                         // NOTE: this shouldn't happen. Promotions should never fail. This also
@@ -999,14 +1009,14 @@ mod tests {
                 .pending_nonce(astria_address_from_hex_string(ALICE_ADDRESS).as_bytes())
                 .await
                 .unwrap(),
-            1
+            2
         );
         assert_eq!(
             mempool
                 .pending_nonce(astria_address_from_hex_string(BOB_ADDRESS).as_bytes())
                 .await
                 .unwrap(),
-            101
+            102
         );
 
         // Check the pending nonce for an address with no txs is `None`.

@@ -61,14 +61,12 @@ impl Metrics {
             .record(block_count);
     }
 
-    pub(crate) fn absolute_set_executed_firm_block_number(&self, block_number: u32) {
-        self.executed_firm_block_number
-            .absolute(u64::from(block_number));
+    pub(crate) fn absolute_set_executed_firm_block_number(&self, block_number: u64) {
+        self.executed_firm_block_number.absolute(block_number);
     }
 
-    pub(crate) fn absolute_set_executed_soft_block_number(&self, block_number: u32) {
-        self.executed_soft_block_number
-            .absolute(u64::from(block_number));
+    pub(crate) fn absolute_set_executed_soft_block_number(&self, block_number: u64) {
+        self.executed_soft_block_number.absolute(block_number);
     }
 
     pub(crate) fn record_transactions_per_executed_block(&self, tx_count: usize) {

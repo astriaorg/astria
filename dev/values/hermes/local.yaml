@@ -57,9 +57,8 @@ chains:
         filename: celestia.json
         key: token
     eventSource:
-      mode: push
-      url: ws://celestia-app-service.astria-dev-cluster.svc.cluster.local:26657/websocket
-      batchDelay: 200ms
+      mode: pull
+      interval: 1s
     gasDenom: "utia"
     gasPrice: 0.0026
     gasMultiplier: 1.2

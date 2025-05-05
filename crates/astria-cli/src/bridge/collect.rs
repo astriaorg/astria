@@ -269,8 +269,8 @@ async fn connect_to_rollup(rollup_endpoint: &str) -> eyre::Result<Arc<Provider<W
         .on_retry(
             |attempt, next_delay: Option<Duration>, error: &ProviderError| {
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
-                    .map(tracing::field::display);
+                    .and_then(|delay| jiff::SignedDuration::try_from(delay).ok())
+                    .map(|signed_duration| tracing::field::display(format!("{signed_duration:#}")));
                 warn!(
                     attempt,
                     wait_duration,

@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/app/storage/values/mod.rs
+expression: "borsh_then_hex(&ValueImpl::BlockTimestamp(tendermint::Time::unix_epoch().into()))"
+---
+0300000000000000000000000000000000

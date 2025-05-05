@@ -1,0 +1,13 @@
+syntax = 'proto3';
+
+package astria.execution.v2;
+
+import "astria/execution/v2/commitment_state.proto";
+
+// The CommitmentState to set, must include complete state.
+message UpdateCommitmentStateRequest {
+  // The session which the commitment state is being updated within.
+  string session_id = 1;
+  // The new commitment state to set.
+  CommitmentState commitment_state = 2;
+}

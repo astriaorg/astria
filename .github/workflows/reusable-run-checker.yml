@@ -93,6 +93,7 @@ jobs:
               - 'proto/primitives/**'
               - 'proto/protocolapis/**'
               - 'proto/sequencerblockapis/**'
+              - 'proto/upgrades/**'
             rust:
               - '**/*.rs'
             toml:

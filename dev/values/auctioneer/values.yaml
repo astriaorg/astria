@@ -1,0 +1,28 @@
+global:
+  namespaceOverride: ""
+  replicaCount: 1
+  # Whether to use tty readable logging for astria services, when false use json.
+  useTTY: true
+  dev: true
+
+config:
+  sequencerGrpcEndpoint: "http://node0-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080"
+  sequencerAbciEndpoint: "http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657"
+  sequencerChainId: "sequencer-test-chain-0"
+  sequencerPrivateKey:
+    devContent: "b8da3289343cb92a235af079d74bae435f16272df38b9ab3ab468e62c632e2f8"
+  feeAssetDenomination: "nria"
+  sequencerAddressPrefix: astria
+  rollupGrpcEndpoint: "http://astria-evm-service.astria-dev-cluster.svc.cluster.local:50051"
+  rollupId: "astria"
+  latencyMarginMs: 1000
+  logLevel: "debug"
+
+otel:
+  enabled: false
+
+metrics:
+  enabled: false
+
+serviceMonitor:
+  enabled: false

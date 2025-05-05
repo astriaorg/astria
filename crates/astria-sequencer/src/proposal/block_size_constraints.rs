@@ -3,6 +3,7 @@ use astria_eyre::eyre::{
     eyre,
     OptionExt as _,
     Result,
+    WrapErr,
 };
 
 use super::commitment::GeneratedCommitments;
@@ -11,7 +12,7 @@ use super::commitment::GeneratedCommitments;
 const MAX_SEQUENCE_DATA_BYTES_PER_BLOCK: usize = 256_000;
 
 /// Struct for organizing block size constraints in prepare proposal
-#[derive(serde::Serialize)]
+#[derive(Copy, Clone, serde::Serialize)]
 pub(crate) struct BlockSizeConstraints {
     max_size_sequencer: usize,
     max_size_cometbft: usize,
@@ -20,8 +21,15 @@ pub(crate) struct BlockSizeConstraints {
 }
 
 impl BlockSizeConstraints {
-    pub(crate) fn new(cometbft_max_size: usize) -> Result<Self> {
-        if cometbft_max_size < GeneratedCommitments::TOTAL_SIZE {
+    pub(crate) fn new(cometbft_max_size: i64, uses_data_item_enum: bool) -> Result<Self> {
+        let cometbft_max_size = usize::try_from(cometbft_max_size)
+            .wrap_err("failed to convert cometbft_max_size to usize")?;
+        let commitments_size = if uses_data_item_enum {
+            GeneratedCommitments::<true>::total_size()
+        } else {
+            GeneratedCommitments::<false>::total_size()
+        };
+        if cometbft_max_size < commitments_size {
             return Err(eyre!(
                 "cometbft_max_size must be at least GeneratedCommitments::TOTAL_SIZE"
             ));
@@ -31,7 +39,7 @@ impl BlockSizeConstraints {
             max_size_sequencer: MAX_SEQUENCE_DATA_BYTES_PER_BLOCK,
             max_size_cometbft: cometbft_max_size,
             current_size_sequencer: 0,
-            current_size_cometbft: GeneratedCommitments::TOTAL_SIZE,
+            current_size_cometbft: commitments_size,
         })
     }
 
@@ -40,7 +48,7 @@ impl BlockSizeConstraints {
             max_size_sequencer: MAX_SEQUENCE_DATA_BYTES_PER_BLOCK,
             max_size_cometbft: usize::MAX,
             current_size_sequencer: 0,
-            current_size_cometbft: GeneratedCommitments::TOTAL_SIZE,
+            current_size_cometbft: GeneratedCommitments::<true>::total_size(),
         }
     }
 
@@ -89,9 +97,11 @@ mod tests {
 
     #[test]
     fn cometbft_checks() {
-        let mut block_size_constraints =
-            BlockSizeConstraints::new(10 + GeneratedCommitments::TOTAL_SIZE)
-                .expect("should be able to create block constraints with this size");
+        let mut block_size_constraints = BlockSizeConstraints::new(
+            10 + i64::try_from(GeneratedCommitments::<true>::total_size()).unwrap(),
+            true,
+        )
+        .expect("should be able to create block constraints with this size");
         assert!(
             block_size_constraints.cometbft_has_space(10),
             "cometBFT has space"
@@ -112,9 +122,11 @@ mod tests {
 
     #[test]
     fn sequencer_checks() {
-        let mut block_size_constraints =
-            BlockSizeConstraints::new(GeneratedCommitments::TOTAL_SIZE)
-                .expect("should be able to create block constraints with this size");
+        let mut block_size_constraints = BlockSizeConstraints::new(
+            i64::try_from(GeneratedCommitments::<true>::total_size()).unwrap(),
+            true,
+        )
+        .expect("should be able to create block constraints with this size");
         assert!(
             block_size_constraints.sequencer_has_space(MAX_SEQUENCE_DATA_BYTES_PER_BLOCK),
             "sequencer has space"

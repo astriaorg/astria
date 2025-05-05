@@ -150,6 +150,18 @@ impl ActionHandler for Transaction {
                     .check_stateless()
                     .await
                     .wrap_err("stateless check failed for BridgeSudoChange action")?,
+                Action::RecoverIbcClient(act) => act
+                    .check_stateless()
+                    .await
+                    .wrap_err("stateless check failed for RecoverIbcClient action")?,
+                Action::CurrencyPairsChange(act) => act
+                    .check_stateless()
+                    .await
+                    .wrap_err("stateless check failed for CurrencyPairsChange action")?,
+                Action::MarketsChange(act) => act
+                    .check_stateless()
+                    .await
+                    .wrap_err("stateless check failed for MarketsChange action")?,
             }
         }
         Ok(())
@@ -279,6 +291,15 @@ impl ActionHandler for Transaction {
                 Action::BridgeSudoChange(act) => check_execute_and_pay_fees(act, &mut state)
                     .await
                     .wrap_err("failed executing bridge sudo change")?,
+                Action::RecoverIbcClient(act) => check_execute_and_pay_fees(act, &mut state)
+                    .await
+                    .wrap_err("failed executing recover ibc client")?,
+                Action::CurrencyPairsChange(act) => check_execute_and_pay_fees(act, &mut state)
+                    .await
+                    .wrap_err("failed executing currency pairs change")?,
+                Action::MarketsChange(act) => check_execute_and_pay_fees(act, &mut state)
+                    .await
+                    .wrap_err("failed executing markets change")?,
             }
         }
 

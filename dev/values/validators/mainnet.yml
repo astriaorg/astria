@@ -1,0 +1,54 @@
+global:
+  dev: true
+  network: mainnet
+
+moniker: "jordan-main-test"
+
+sequencer:
+  optimisticBlockApis:
+    # set to true to enable optimistic block APIs
+    enabled: false
+cometbft:
+  secrets:
+    nodeKey:
+      devContent:
+        priv_key:
+          value: HGWRtLbV8WLGFgbYhaGyaLe++DC+DBoc7O3bri81vs2ZlpR28IFfQScoO1aNOE/ygs8LIPM9UzLzbaab4VMggQ==
+    privValidatorKey:
+      devContent:
+        address: 091E47761C58C474534F4D414AF104A6CAF90C22
+        pub_key:
+          value: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
+        priv_key:
+          value: dGOTAweQV8Do9P2n+A8m5EnboDrlxgD3dg4vrYpdIRqVXnv6saza9pzua+QYc/WgEUYc8kzdr5agDN4UMIkM1Q==
+  config:
+    p2p:
+      # List of nodes to keep persistent connections to
+      persistentPeers:
+        - 472667f76caa59499d023836f34305fb1b879202@34.146.155.71:26656
+        - 7c63e5951433cd144dcd28ff822b696294e747ce@35.243.92.67:26656
+        - 845cd82094c83188af13f3a6a33cf825a2764ba2@34.84.168.120:26656
+        - 2c5f26275c1b2f09712792d19247f83095b2e21a@34.84.217.48:26656
+
+resources:
+  cometbft:
+    requests:
+      cpu: 1000m
+      memory: 500Mi
+    limits:
+      cpu: 1000m
+      memory: 500Mi
+  sequencer:
+    requests:
+      cpu: 1000m
+      memory: 500Mi
+    limits:
+      cpu: 1000m
+      memory: 500Mi
+
+storage:
+  enabled: true
+
+ingress:
+  rpc:
+    enabled: true

@@ -19,6 +19,7 @@ use crate::{
         benchmark_and_test_utils::{
             mock_balances,
             mock_tx_cost,
+            AppInitializer,
         },
         App,
     },
@@ -37,7 +38,7 @@ const MAX_TIME: Duration = Duration::from_secs(120);
 ///
 /// Taken from the actual value seen in `prepare_proposal.max_tx_bytes` when handling
 /// `prepare_proposal` during stress testing using spamoor.
-const COMETBFT_MAX_TX_BYTES: usize = 22_019_254;
+const COMETBFT_MAX_TX_BYTES: i64 = 22_019_254;
 
 struct Fixture {
     app: App,
@@ -70,11 +71,10 @@ impl Fixture {
         )
         .unwrap();
 
-        let (app, storage) = crate::app::benchmark_and_test_utils::initialize_app_with_storage(
-            Some(genesis_state),
-            vec![],
-        )
-        .await;
+        let (app, storage) = AppInitializer::new()
+            .with_genesis_state(genesis_state)
+            .init()
+            .await;
 
         let mock_balances = mock_balances(0, 0);
         let mock_tx_cost = mock_tx_cost(0, 0, 0);
@@ -100,12 +100,12 @@ fn prepare_proposal_tx_execution(bencher: divan::Bencher) {
         .unwrap();
     let mut fixture = runtime.block_on(async { Fixture::new().await });
     bencher
-        .with_inputs(|| BlockSizeConstraints::new(COMETBFT_MAX_TX_BYTES).unwrap())
+        .with_inputs(|| BlockSizeConstraints::new(COMETBFT_MAX_TX_BYTES, true).unwrap())
         .bench_local_refs(|constraints| {
             let (_tx_bytes, included_txs) = runtime.block_on(async {
                 fixture
                     .app
-                    .prepare_proposal_tx_execution(constraints)
+                    .prepare_proposal_tx_execution(*constraints)
                     .await
                     .unwrap()
             });

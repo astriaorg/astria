@@ -1,0 +1,6 @@
+---
+source: crates/astria-core/src/upgrades/v1/aspen.rs
+assertion_line: 319
+expression: serialized_ibc_acknowledgement_failure_change
+---
+0a000000000000000200000000000000

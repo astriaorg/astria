@@ -11,7 +11,8 @@ use astria_eyre::eyre::WrapErr as _;
 use cnidarium::Storage;
 use futures::{
     Future,
-    FutureExt,
+    FutureExt as _,
+    TryFutureExt as _,
 };
 use penumbra_tower_trace::v038::RequestExt as _;
 use tendermint::v0_38::abci::{
@@ -23,6 +24,7 @@ use tendermint::v0_38::abci::{
     InfoRequest,
     InfoResponse,
 };
+use tokio::try_join;
 use tower::Service;
 use tower_abci::BoxError;
 use tracing::{
@@ -89,23 +91,23 @@ impl Info {
     async fn handle_info_request(self, request: InfoRequest) -> Result<InfoResponse, BoxError> {
         match request {
             InfoRequest::Info(_) => {
-                let block_height = self
-                    .storage
-                    .latest_snapshot()
-                    .get_block_height()
-                    .await
-                    .unwrap_or(0);
-                let app_hash = self
-                    .storage
-                    .latest_snapshot()
-                    .root_hash()
-                    .await
-                    .map_err(anyhow_to_eyre)
-                    .wrap_err("failed to get app hash")?;
+                let snapshot = self.storage.latest_snapshot();
+
+                let block_height_fut = snapshot.get_block_height().unwrap_or_else(|_| 0).map(Ok);
+                let app_hash_fut = snapshot.root_hash().map_err(anyhow_to_eyre);
+                let app_version_fut = snapshot.get_consensus_params();
+
+                let (block_height, app_hash, maybe_consensus_params) =
+                    try_join!(block_height_fut, app_hash_fut, app_version_fut)
+                        .wrap_err("failed to fetch info")?;
+
+                let app_version = maybe_consensus_params
+                    .and_then(|consensus_params| consensus_params.version)
+                    .map_or(1, |version_params| version_params.app);
 
                 let response = InfoResponse::Info(response::Info {
                     version: env!("CARGO_PKG_VERSION").to_string(),
-                    app_version: 1,
+                    app_version,
                     last_block_height: u32::try_from(block_height)
                         .expect("block height must fit into u32")
                         .into(),
@@ -187,6 +189,7 @@ mod tests {
                 IbcSudoChange,
                 Ics20Withdrawal,
                 InitBridgeAccount,
+                RecoverIbcClient,
                 RollupDataSubmission,
                 SudoAddressChange,
                 Transfer,
@@ -200,6 +203,11 @@ mod tests {
     };
     use penumbra_ibc::IbcRelay;
     use prost::Message as _;
+    use tendermint::v0_38::abci::{
+        request,
+        InfoRequest,
+        InfoResponse,
+    };
 
     use super::*;
     use crate::{
@@ -477,6 +485,10 @@ mod tests {
                 "base": 6,
                 "multiplier": 6
               },
+              "recover_ibc_client": {
+                "base": 0,
+                "multiplier": 0
+              },
               "rollup_data_submission": {
                 "base": 11,
                 "multiplier": 11
@@ -529,6 +541,9 @@ mod tests {
             .unwrap();
         state
             .put_fees(FeeComponents::<Ics20Withdrawal>::new(10, 10))
+            .unwrap();
+        state
+            .put_fees(FeeComponents::<RecoverIbcClient>::new(0, 0))
             .unwrap();
         state
             .put_fees(FeeComponents::<RollupDataSubmission>::new(11, 11))

@@ -53,6 +53,7 @@ pub(super) fn reconstruct_blocks_from_verified_blobs(
         if let Some(header_blob) =
             remove_header_blob_matching_rollup_blob(&mut header_blobs, &rollup)
         {
+            let extended_commit_info = header_blob.extended_commit_info().cloned();
             let UncheckedSubmittedMetadata {
                 block_hash,
                 header,
@@ -63,6 +64,7 @@ pub(super) fn reconstruct_blocks_from_verified_blobs(
                 block_hash,
                 header,
                 transactions: rollup.into_unchecked().transactions,
+                extended_commit_info,
             });
         } else {
             let reason = if header_blobs.contains_key(rollup.sequencer_block_hash()) {
@@ -90,6 +92,7 @@ pub(super) fn reconstruct_blocks_from_verified_blobs(
             reconstructed_blocks.push(ReconstructedBlock {
                 celestia_height,
                 block_hash: *header_blob.block_hash(),
+                extended_commit_info: header_blob.extended_commit_info().cloned(),
                 header: header_blob.into_unchecked().header,
                 transactions: vec![],
             });

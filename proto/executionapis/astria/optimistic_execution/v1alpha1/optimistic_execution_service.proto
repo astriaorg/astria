@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package astria.optimistic_execution.v1alpha1;
+
+import "astria/optimistic_execution/v1alpha1/execute_optimistic_block_stream_request.proto";
+import "astria/optimistic_execution/v1alpha1/execute_optimistic_block_stream_response.proto";
+
+service OptimisticExecutionService {
+  // Stream blocks from the Auctioneer to Geth for optimistic execution. Geth will stream back
+  // metadata from the executed blocks.
+  rpc ExecuteOptimisticBlockStream(stream ExecuteOptimisticBlockStreamRequest) returns (stream ExecuteOptimisticBlockStreamResponse);
+}

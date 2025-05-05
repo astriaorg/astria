@@ -24,7 +24,7 @@ spec:
         fsGroupChangePolicy: "OnRootMismatch"
       initContainers:
         - name: init-{{ $label }}
-          image: {{ .Values.images.node }}
+          image: {{ include "celestiaNode.image" . }}
           command: [/bin/celestia, "{{ .Values.config.type }}", init]
           args:
             - --node.store
@@ -35,7 +35,7 @@ spec:
               mountPath: /celestia
       containers:
         - name: {{ $label }}
-          image: {{ .Values.images.node }}
+          image: {{ include "celestiaNode.image" . }}
           command: ["/celestia/scripts/start-node.sh"]
           securityContext:
             runAsUser: 10001

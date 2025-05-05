@@ -7,6 +7,7 @@ use astria_core::{
     sequencerblock::v1::block::Deposit,
 };
 use astria_eyre::eyre::{
+    bail,
     ensure,
     OptionExt as _,
     Result,
@@ -43,6 +44,18 @@ impl ActionHandler for BridgeLock {
 
     #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn check_and_execute<S: StateWrite>(&self, state: S) -> Result<()> {
+        let from = state
+            .get_transaction_context()
+            .expect("transaction source must be present in state when executing an action")
+            .address_bytes();
+        if state
+            .is_a_bridge_account(&from)
+            .await
+            .wrap_err("failed to check if signer is a bridge account")?
+        {
+            bail!("bridge accounts cannot send bridge locks");
+        }
+
         state
             .ensure_base_prefix(&self.to)
             .await
@@ -356,5 +369,39 @@ mod tests {
                 .unwrap_err(),
             "mapping from IBC prefixed bridge asset to trace prefixed not found",
         );
+    }
+
+    #[tokio::test]
+    async fn bridge_lock_fails_if_signer_is_bridge_address() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        let from_address = astria_address(&[1; 20]);
+
+        state.put_transaction_context(TransactionContext {
+            address_bytes: *from_address.address_bytes(),
+            transaction_id: TransactionId::new([0; 32]),
+            position_in_transaction: 0,
+        });
+        state
+            .put_bridge_account_rollup_id(&from_address, [0; 32].into())
+            .unwrap();
+
+        let bridge_lock_action = BridgeLock {
+            to: astria_address(&[3; 20]),
+            amount: 100,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+            destination_chain_address: "ethan_was_here".to_string(),
+        };
+
+        let err = bridge_lock_action
+            .check_and_execute(&mut state)
+            .await
+            .unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("bridge accounts cannot send bridge locks"));
     }
 }

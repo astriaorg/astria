@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/grpc/storage/keys.rs
+expression: upgrade_change_hashes_by_hash(&HASH)
+---
+grpc/upgrade_change_hashes/AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=

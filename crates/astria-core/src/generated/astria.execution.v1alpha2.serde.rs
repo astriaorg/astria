@@ -206,10 +206,12 @@ impl serde::Serialize for Block {
         }
         if !self.hash.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("hash", pbjson::private::base64::encode(&self.hash).as_str())?;
         }
         if !self.parent_block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("parentBlockHash", pbjson::private::base64::encode(&self.parent_block_hash).as_str())?;
         }
         if let Some(v) = self.timestamp.as_ref() {
@@ -350,6 +352,7 @@ impl serde::Serialize for BlockIdentifier {
                 }
                 block_identifier::Identifier::BlockHash(v) => {
                     #[allow(clippy::needless_borrow)]
+                    #[allow(clippy::needless_borrows_for_generic_args)]
                     struct_ser.serialize_field("blockHash", pbjson::private::base64::encode(&v).as_str())?;
                 }
             }
@@ -467,6 +470,7 @@ impl serde::Serialize for CommitmentState {
         }
         if self.base_celestia_height != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("baseCelestiaHeight", ToString::to_string(&self.base_celestia_height).as_str())?;
         }
         struct_ser.end()
@@ -590,6 +594,7 @@ impl serde::Serialize for ExecuteBlockRequest {
         let mut struct_ser = serializer.serialize_struct("astria.execution.v1alpha2.ExecuteBlockRequest", len)?;
         if !self.prev_block_hash.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("prevBlockHash", pbjson::private::base64::encode(&self.prev_block_hash).as_str())?;
         }
         if !self.transactions.is_empty() {
@@ -725,6 +730,7 @@ impl serde::Serialize for GenesisInfo {
         }
         if self.celestia_block_variance != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("celestiaBlockVariance", ToString::to_string(&self.celestia_block_variance).as_str())?;
         }
         struct_ser.end()

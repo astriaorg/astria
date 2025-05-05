@@ -1,0 +1,66 @@
+// Source for generating `execution_api_sequencer.png` from sequencediagram.org
+
+title TX Flow
+
+actor Wallet
+participant Rollup Node
+participant Composer
+participant Conductor
+participant Sequencer
+participant Relayer
+database DA
+
+group Setup
+parallel on
+Sequencer<-Relayer: WS Subscribe NewBlocks
+Conductor->Sequencer: WS Subscribe NewBlocks
+Rollup Node<-Composer: WS Subscribe Txs
+parallel off
+end
+
+group TX Submission
+Wallet->Rollup Node: Rollup Tx
+Wallet<--Rollup Node: Tx Hash
+Rollup Node-->Composer: Rollup Tx
+Composer->Composer:Wrap/Bundle Tx(s)
+Composer->Sequencer: Sequencer Tx
+end
+
+Wallet->Rollup Node: Get Tx
+Wallet<--Rollup Node: Pending Tx
+
+group Sequencer Block Building
+Sequencer->Sequencer: Build Block/Consensus
+parallel on
+Sequencer-->Conductor: NewBlock Height N
+Relayer<--Sequencer: NewBlock Height N
+note right of Relayer: Blocks are queued for batch write,\nsince sequencer produces blocks\nfaster than DA.
+parallel off
+end
+
+group Derivation of Rollup Block
+Conductor->Rollup Node: ExecuteBlock(Block N)
+activate Rollup Node
+note left of Rollup Node:Execute Block
+Conductor<--Rollup Node: New Rollup Block
+deactivate Rollup Node
+Conductor->Rollup Node: UpdateCommitmentState (Soft N)
+end
+
+Wallet->Rollup Node: Get Tx
+Wallet<--Rollup Node: Soft Commit Tx (executed)
+
+group DA submission & update
+Relayer -> DA: Post Batch (0->N)
+activate DA
+note left of DA: Posted blobs only return after\ninclusion. We run a loop to post\nqueued blocks after inflight\nrequest returns
+DA-->Relayer: Batch Success (0->N)
+deactivate DA
+
+Conductor->DA: Get Batch
+Conductor<--DA: Batch Blocks (0 -> N)
+Conductor->Rollup Node: UpdateCommitmentState (Firm N)
+end
+
+Wallet->Rollup Node: Get Tx
+Wallet<--Rollup Node: Firm Commit Tx

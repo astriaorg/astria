@@ -14,10 +14,15 @@ use astria_conductor::{
 use astria_core::{
     brotli::compress_bytes,
     generated::astria::{
-        execution::v1::GenesisInfo,
+        execution::v2::{
+            CommitmentState,
+            ExecutedBlockMetadata,
+            ExecutionSession,
+        },
         sequencerblock::v1::FilteredSequencerBlock,
     },
     primitive::v1::RollupId,
+    sequencerblock::v1::block,
 };
 use astria_grpc_mock::response::error_response;
 use base64::{
@@ -53,6 +58,7 @@ pub static ROLLUP_ID_BYTES: Bytes = Bytes::from_static(ROLLUP_ID.as_bytes());
 
 pub const SEQUENCER_CHAIN_ID: &str = "test_sequencer-1000";
 pub const CELESTIA_CHAIN_ID: &str = "test_celestia-1000";
+pub const EXECUTION_SESSION_ID: &str = "test_execution_session";
 
 pub const INITIAL_SOFT_HASH: [u8; 64] = [1; 64];
 pub const INITIAL_FIRM_HASH: [u8; 64] = [1; 64];
@@ -64,9 +70,7 @@ static TELEMETRY: LazyLock<()> = LazyLock::new(|| {
         println!("initializing telemetry");
         let _ = telemetry::configure()
             .set_no_otel(true)
-            .set_stdout_writer(std::io::stdout)
             .set_force_stdout(true)
-            .set_pretty_print(true)
             .set_filter_directives(&filter_directives)
             .try_init::<Metrics>(&())
             .unwrap();
@@ -196,12 +200,10 @@ impl TestConductor {
         .await;
     }
 
-    pub async fn mount_get_block(&self, number: u32) {
-        use astria_core::generated::astria::execution::v1::{
-            block_identifier::Identifier,
-            BlockIdentifier,
-            GetBlockRequest,
-        };
+    pub async fn mount_get_executed_block_metadata<S: serde::Serialize>(
+        &self,
+        number: u32,
+    ) {
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
             response::constant_response,
@@ -347,49 +349,22 @@ impl TestConductor {
         mount_genesis(&self.mock_http, chain_id).await;
     }
 
-    pub async fn mount_get_genesis_info(&self, genesis_info: GenesisInfo) {
-        use astria_core::generated::astria::execution::v1::GetGenesisInfoRequest;
-        astria_grpc_mock::Mock::for_rpc_given(
-            "get_genesis_info",
-            astria_grpc_mock::matcher::message_type::<GetGenesisInfoRequest>(),
-        )
-        .respond_with(astria_grpc_mock::response::constant_response(genesis_info))
-        .expect(1..)
-        .mount(&self.mock_grpc.mock_server)
-        .await;
-    }
-
-    pub async fn mount_get_commitment_state(
-        &mut self,
-        firm_number: u32,
-        soft_number: u32,
-        base_celestia_height: u64,
+    pub async fn mount_create_execution_session(
+        &self,
+        execution_session: ExecutionSession,
+        up_to_n_times: u64,
+        expected_calls: u64,
     ) {
-        use astria_core::generated::astria::execution::v1::GetCommitmentStateRequest;
-
-        self.state.firm_number = firm_number;
-        let commitment_state = commitment_state!(
-            firm: (
-                number: firm_number,
-                hash: [self.state.firm_initializer; 64],
-                parent: [self.state.firm_initializer.saturating_sub(1); 64],
-            ),
-            soft: (
-                number: soft_number,
-                hash: [self.state.soft_initializer; 64],
-                parent: [self.state.soft_initializer.saturating_sub(1); 64],
-            ),
-            base_celestia_height: base_celestia_height,
-        );
-
+        use astria_core::generated::astria::execution::v2::CreateExecutionSessionRequest;
         astria_grpc_mock::Mock::for_rpc_given(
-            "get_commitment_state",
-            astria_grpc_mock::matcher::message_type::<GetCommitmentStateRequest>(),
+            "create_execution_session",
+            astria_grpc_mock::matcher::message_type::<CreateExecutionSessionRequest>(),
         )
         .respond_with(astria_grpc_mock::response::constant_response(
-            commitment_state,
+            execution_session,
         ))
-        .expect(1..)
+        .up_to_n_times(up_to_n_times)
+        .expect(expected_calls)
         .mount(&self.mock_grpc.mock_server)
         .await;
     }
@@ -399,6 +374,7 @@ impl TestConductor {
         mock_name: Option<&str>,
         number: u32,
     ) -> astria_grpc_mock::MockGuard {
+        use astria_core::generated::astria::execution::v2::ExecuteBlockResponse;
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
             response::constant_response,
@@ -423,7 +399,7 @@ impl TestConductor {
         if let Some(name) = mock_name {
             mock = mock.with_name(name);
         }
-        mock.expect(1)
+        mock.expect(expected_calls)
             .mount_as_scoped(&self.mock_grpc.mock_server)
             .await
     }
@@ -457,7 +433,7 @@ impl TestConductor {
         base_celestia_height: u64,
         expected_calls: u64,
     ) -> astria_grpc_mock::MockGuard {
-        use astria_core::generated::astria::execution::v1::UpdateCommitmentStateRequest;
+        use astria_core::generated::astria::execution::v2::UpdateCommitmentStateRequest;
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
             response::constant_response,
@@ -492,6 +468,7 @@ impl TestConductor {
         let mut mock = Mock::for_rpc_given(
             "update_commitment_state",
             message_partial_pbjson(&UpdateCommitmentStateRequest {
+                session_id: EXECUTION_SESSION_ID.to_string(),
                 commitment_state: Some(commitment_state.clone()),
             }),
         )
@@ -624,8 +601,6 @@ pub(crate) fn make_config() -> Config {
         sequencer_cometbft_url: "http://127.0.0.1:26657".into(),
         sequencer_requests_per_second: 500,
         sequencer_block_time_ms: 2000,
-        expected_celestia_chain_id: CELESTIA_CHAIN_ID.into(),
-        expected_sequencer_chain_id: SEQUENCER_CHAIN_ID.into(),
         execution_rpc_url: "http://127.0.0.1:50051".into(),
         log: "info".into(),
         execution_commit_level: astria_conductor::config::CommitLevel::SoftAndFirm,
@@ -633,7 +608,6 @@ pub(crate) fn make_config() -> Config {
         no_otel: false,
         no_metrics: true,
         metrics_http_listener_addr: String::new(),
-        pretty_print: false,
     }
 }
 
@@ -650,7 +624,7 @@ pub fn make_sequencer_block(height: u32) -> astria_core::sequencerblock::v1::Seq
     }
 
     astria_core::protocol::test_utils::ConfigureSequencerBlock {
-        block_hash: Some(repeat_bytes_of_u32_as_array(height)),
+        block_hash: Some(block::Hash::new(repeat_bytes_of_u32_as_array(height))),
         chain_id: Some(crate::SEQUENCER_CHAIN_ID.to_string()),
         height,
         sequence_data: vec![(crate::ROLLUP_ID, data())],
@@ -694,11 +668,21 @@ pub fn make_blobs(heights: &[u32]) -> Blobs {
 
     let raw_header_list = ::prost::Message::encode_to_vec(&header_list);
     let head_list_compressed = compress_bytes(&raw_header_list).unwrap();
-    let header = Blob::new(sequencer_namespace(), head_list_compressed).unwrap();
+    let header = Blob::new(
+        sequencer_namespace(),
+        head_list_compressed,
+        celestia_types::AppVersion::V3,
+    )
+    .unwrap();
 
     let raw_rollup_data_list = ::prost::Message::encode_to_vec(&rollup_data_list);
     let rollup_data_list_compressed = compress_bytes(&raw_rollup_data_list).unwrap();
-    let rollup = Blob::new(rollup_namespace(), rollup_data_list_compressed).unwrap();
+    let rollup = Blob::new(
+        rollup_namespace(),
+        rollup_data_list_compressed,
+        celestia_types::AppVersion::V3,
+    )
+    .unwrap();
 
     Blobs {
         header,

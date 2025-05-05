@@ -12,12 +12,13 @@ use tracing::{
     instrument,
 };
 
-use super::state::State;
+use super::{
+    signer,
+    state::State,
+    Batch,
+};
 use crate::{
-    bridge_withdrawer::{
-        startup,
-        submitter::Batch,
-    },
+    bridge_withdrawer::startup,
     metrics::Metrics,
 };
 
@@ -46,10 +47,14 @@ impl Handle {
 pub(crate) struct Builder {
     pub(crate) shutdown_token: CancellationToken,
     pub(crate) startup_handle: startup::InfoHandle,
-    pub(crate) sequencer_key_path: String,
-    pub(crate) sequencer_address_prefix: String,
     pub(crate) sequencer_cometbft_client: sequencer_client::HttpClient,
     pub(crate) sequencer_grpc_client: SequencerServiceClient<tonic::transport::Channel>,
+    pub(crate) no_frost_threshold_signing: bool,
+    pub(crate) frost_min_signers: usize,
+    pub(crate) frost_public_key_package_path: String,
+    pub(crate) frost_participant_endpoints: crate::config::FrostParticipantEndpoints,
+    pub(crate) sequencer_key_path: String,
+    pub(crate) sequencer_address_prefix: String,
     pub(crate) state: Arc<State>,
     pub(crate) metrics: &'static Metrics,
 }
@@ -60,19 +65,28 @@ impl Builder {
         let Self {
             shutdown_token,
             startup_handle,
-            sequencer_key_path,
-            sequencer_address_prefix,
             sequencer_cometbft_client,
             sequencer_grpc_client,
+            no_frost_threshold_signing,
+            frost_min_signers,
+            frost_public_key_package_path,
+            frost_participant_endpoints,
+            sequencer_key_path,
+            sequencer_address_prefix,
             state,
             metrics,
         } = self;
 
-        let signer = super::signer::SequencerKey::builder()
-            .path(sequencer_key_path)
-            .prefix(sequencer_address_prefix)
-            .try_build()
-            .wrap_err("failed to load sequencer private key")?;
+        let signer = signer::Builder {
+            no_frost_threshold_signing,
+            frost_min_signers,
+            frost_public_key_package_path,
+            frost_participant_endpoints,
+            sequencer_key_path,
+            sequencer_address_prefix,
+        }
+        .try_build()
+        .wrap_err("failed to make signer")?;
         info!(address = %signer.address(), "loaded sequencer signer");
 
         let (batches_tx, batches_rx) = tokio::sync::mpsc::channel(BATCH_QUEUE_SIZE);

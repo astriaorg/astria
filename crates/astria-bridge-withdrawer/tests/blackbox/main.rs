@@ -90,7 +90,7 @@ async fn native_ics20_withdraw_success() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[ignore = "needs anvil to be present in $PATH; see gith&ub.com/foundry-rs/foundry for how to \
+#[ignore = "needs anvil to be present in $PATH; see github.com/foundry-rs/foundry for how to \
             install"]
 async fn erc20_sequencer_withdraw_success() {
     let test_env = TestBridgeWithdrawerConfig::erc20_sequencer_withdraw_config()
@@ -170,6 +170,45 @@ async fn erc20_ics20_withdraw_success() {
         .await;
 
     assert_contract_receipt_action_matches_broadcast_action::<Ics20, Erc20>(
+        &broadcast_guard.received_requests().await,
+        &receipt,
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "needs anvil to be present in $PATH; see github.com/foundry-rs/foundry for how to \
+            install"]
+async fn native_sequencer_withdraw_threshold_signing_success() {
+    let config = TestBridgeWithdrawerConfig {
+        threshold_signer_count: 3,
+        ..Default::default()
+    };
+    let test_env = config.spawn().await;
+
+    test_env
+        .mount_pending_nonce_response(1, "process batch 1")
+        .await;
+    let broadcast_guard = test_env
+        .mount_broadcast_tx_sync_success_response_as_scoped()
+        .await;
+
+    // send a native sequencer withdrawal tx to the rollup
+    let value = 1_000_000.into();
+    let recipient = default_sequencer_address();
+    let receipt = test_env
+        .ethereum
+        .send_sequencer_withdraw_transaction(value, recipient)
+        .await;
+
+    test_env
+        .timeout_ms(
+            2_000,
+            "batch 1 execution",
+            broadcast_guard.wait_until_satisfied(),
+        )
+        .await;
+
+    assert_contract_receipt_action_matches_broadcast_action::<BridgeUnlock, NativeAsset>(
         &broadcast_guard.received_requests().await,
         &receipt,
     );

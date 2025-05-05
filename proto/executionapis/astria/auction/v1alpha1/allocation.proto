@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package astria.auction.v1alpha1;
+
+import "google/protobuf/any.proto";
+
+// The Allocation message is submitted by the Auctioneer to the rollup as a
+// `RollupDataSubmission` on the sequencer.
+// The rollup will verify the signature and public key against its configuration,
+// then unbundle the body into rollup transactions and execute them first in the
+// block.
+message Allocation {
+  // The Ed25519 signature of the Auctioneer, to be verified against config by the
+  // rollup.
+  bytes signature = 1;
+  // The Ed25519 public key of the Auctioneer, to be verified against config by the
+  // rollup.
+  bytes public_key = 2;
+  // The bid that was allocated the winning slot by the Auctioneer. This is a
+  // google.protobuf.Any to avoid decoding and re-encoding after receiving an Allocation
+  // over the wire and checking if signature and public key match the signed bid.
+  // Implementors are expected to read and write an encoded Bid into this field.
+  google.protobuf.Any bid = 3;
+}

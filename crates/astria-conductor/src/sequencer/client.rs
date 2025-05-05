@@ -16,6 +16,7 @@ use astria_eyre::eyre::{
 };
 use tonic::transport::{
     Channel,
+    ClientTlsConfig,
     Endpoint,
     Uri,
 };
@@ -38,7 +39,9 @@ impl SequencerGrpcClient {
         let uri: Uri = sequencer_uri
             .parse()
             .wrap_err("failed parsing provided string as Uri")?;
-        let endpoint = Endpoint::from(uri.clone());
+        let endpoint = Endpoint::from(uri.clone())
+            .tls_config(ClientTlsConfig::new().with_enabled_roots())
+            .wrap_err("failed to configure TLS for sequencer client")?;
         let inner = SequencerServiceClient::new(endpoint.connect_lazy());
         Ok(Self {
             inner,
@@ -74,7 +77,7 @@ impl SequencerGrpcClient {
             .on_retry(
                 |attempt: u32, next_delay: Option<Duration>, error: &tonic::Status| {
                     let wait_duration = next_delay
-                        .map(humantime::format_duration)
+                        .map(telemetry::display::format_duration)
                         .map(tracing::field::display);
                     warn!(
                         parent: &span,

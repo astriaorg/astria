@@ -23,18 +23,22 @@ pub use metrics::Metrics;
 use opentelemetry::{
     global,
     trace::TracerProvider as _,
+    InstrumentationScope,
 };
 use opentelemetry_sdk::{
     runtime::Tokio,
     trace::TracerProvider,
 };
-use opentelemetry_stdout::SpanExporter;
 use tracing_subscriber::{
     filter::{
         LevelFilter,
         ParseError,
     },
-    fmt::format::FmtSpan,
+    fmt::{
+        format::FmtSpan,
+        writer::BoxMakeWriter,
+        MakeWriter,
+    },
     layer::SubscriberExt as _,
     util::{
         SubscriberInitExt as _,
@@ -91,43 +95,11 @@ pub fn configure() -> Config {
     Config::new()
 }
 
-struct BoxedMakeWriter(Box<dyn MakeWriter + Send + Sync + 'static>);
-
-impl BoxedMakeWriter {
-    fn new<M>(make_writer: M) -> Self
-    where
-        M: MakeWriter + Send + Sync + 'static,
-    {
-        Self(Box::new(make_writer))
-    }
-}
-
-pub trait MakeWriter {
-    fn make_writer(&self) -> Box<dyn std::io::Write + Send + Sync + 'static>;
-}
-
-impl<F, W> MakeWriter for F
-where
-    F: Fn() -> W,
-    W: std::io::Write + Send + Sync + 'static,
-{
-    fn make_writer(&self) -> Box<dyn std::io::Write + Send + Sync + 'static> {
-        Box::new((self)())
-    }
-}
-
-impl MakeWriter for BoxedMakeWriter {
-    fn make_writer(&self) -> Box<dyn std::io::Write + Send + Sync + 'static> {
-        self.0.make_writer()
-    }
-}
-
 pub struct Config {
     filter_directives: String,
     force_stdout: bool,
     no_otel: bool,
-    pretty_print: bool,
-    stdout_writer: BoxedMakeWriter,
+    stdout_writer: BoxMakeWriter,
     metrics_config_builder: Option<metrics::ConfigBuilder>,
 }
 
@@ -138,8 +110,7 @@ impl Config {
             filter_directives: String::new(),
             force_stdout: false,
             no_otel: false,
-            pretty_print: false,
-            stdout_writer: BoxedMakeWriter::new(std::io::stdout),
+            stdout_writer: BoxMakeWriter::new(std::io::stdout),
             metrics_config_builder: None,
         }
     }
@@ -165,26 +136,20 @@ impl Config {
     }
 
     #[must_use = "telemetry must be initialized to be useful"]
-    pub fn set_pretty_print(mut self, pretty_print: bool) -> Self {
-        self.pretty_print = pretty_print;
+    pub fn set_metrics(mut self, listening_addr: &str, service_name: &str) -> Self {
+        let config_builder = metrics::ConfigBuilder::new()
+            .set_service_name(service_name)
+            .set_listening_address(listening_addr);
+        self.metrics_config_builder = Some(config_builder);
         self
     }
 
     #[must_use = "telemetry must be initialized to be useful"]
     pub fn set_stdout_writer<M>(mut self, stdout_writer: M) -> Self
     where
-        M: MakeWriter + Send + Sync + 'static,
+        M: for<'a> MakeWriter<'a> + Send + Sync + 'static,
     {
-        self.stdout_writer = BoxedMakeWriter::new(stdout_writer);
-        self
-    }
-
-    #[must_use = "telemetry must be initialized to be useful"]
-    pub fn set_metrics(mut self, listening_addr: &str, service_name: &str) -> Self {
-        let config_builder = metrics::ConfigBuilder::new()
-            .set_service_name(service_name)
-            .set_listening_address(listening_addr);
-        self.metrics_config_builder = Some(config_builder);
+        self.stdout_writer = BoxMakeWriter::new(stdout_writer);
         self
     }
 
@@ -198,7 +163,6 @@ impl Config {
             filter_directives,
             force_stdout,
             no_otel,
-            pretty_print,
             stdout_writer,
             metrics_config_builder,
         } = self;
@@ -220,43 +184,36 @@ impl Config {
             //      OTEL_EXPORTER_OTLP_TRACES_COMPRESSION
             //      OTEL_EXPORTER_OTLP_HEADERS
             //      OTEL_EXPORTER_OTLP_TRACE_HEADERS
-            let otel_exporter = opentelemetry_otlp::new_exporter()
-                .tonic()
-                .build_span_exporter()
+            let otel_exporter = opentelemetry_otlp::SpanExporter::builder()
+                .with_tonic()
+                .build()
                 .map_err(Error::otlp)?;
             tracer_provider = tracer_provider.with_batch_exporter(otel_exporter, Tokio);
         }
 
-        let mut pretty_printer = None;
+        let mut formatter = None;
         if force_stdout || std::io::stdout().is_terminal() {
-            if pretty_print {
-                pretty_printer = Some(
-                    tracing_subscriber::fmt::layer()
-                        .compact()
-                        .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE),
-                );
-            } else {
-                tracer_provider = tracer_provider.with_simple_exporter(
-                    SpanExporter::builder()
-                        .with_writer(stdout_writer.make_writer())
-                        .build(),
-                );
-            }
+            formatter = Some(
+                tracing_subscriber::fmt::layer()
+                    .compact()
+                    .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
+                    .with_writer(stdout_writer),
+            );
         }
         let tracer_provider = tracer_provider.build();
 
-        let tracer = tracer_provider.versioned_tracer(
-            "astria-telemetry",
-            Some(env!("CARGO_PKG_VERSION")),
-            Some(opentelemetry_semantic_conventions::SCHEMA_URL),
-            None,
+        let tracer = tracer_provider.tracer_with_scope(
+            InstrumentationScope::builder("astria_telemetry")
+                .with_version(env!("CARGO_PKG_VERSION"))
+                .with_schema_url(opentelemetry_semantic_conventions::SCHEMA_URL)
+                .build(),
         );
         let _ = global::set_tracer_provider(tracer_provider);
 
         let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
         tracing_subscriber::registry()
             .with(otel_layer)
-            .with(pretty_printer)
+            .with(formatter)
             .with(env_filter)
             .try_init()
             .map_err(Error::init_subscriber)?;

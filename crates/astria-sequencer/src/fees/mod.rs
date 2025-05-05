@@ -7,12 +7,15 @@ use astria_core::{
             BridgeSudoChange,
             BridgeTransfer,
             BridgeUnlock,
+            CurrencyPairsChange,
             FeeAssetChange,
             FeeChange,
             IbcRelayerChange,
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
+            MarketsChange,
+            RecoverIbcClient,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
@@ -470,6 +473,72 @@ impl FeeHandler for IbcRelay {
 
     fn snake_case_name() -> &'static str {
         "ibc_relay"
+    }
+
+    fn variable_component(&self) -> u128 {
+        0
+    }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        None
+    }
+}
+
+impl FeeHandler for RecoverIbcClient {
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "recover_ibc_client"
+    }
+
+    fn variable_component(&self) -> u128 {
+        0
+    }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        None
+    }
+}
+
+impl FeeHandler for CurrencyPairsChange {
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "currency_pairs_change"
+    }
+
+    fn variable_component(&self) -> u128 {
+        0
+    }
+
+    fn fee_asset(&self) -> Option<&asset::Denom> {
+        None
+    }
+}
+
+impl FeeHandler for MarketsChange {
+    fn name() -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "markets_change"
     }
 
     fn variable_component(&self) -> u128 {

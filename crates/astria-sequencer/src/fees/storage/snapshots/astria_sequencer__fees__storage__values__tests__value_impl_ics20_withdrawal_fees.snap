@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/fees/storage/values.rs
+expression: value_impl_discriminant!(Ics20WithdrawalFees)
+---
+020100000000000000000000000000000002000000000000000000000000000000

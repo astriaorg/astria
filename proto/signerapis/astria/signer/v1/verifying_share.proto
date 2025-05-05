@@ -1,0 +1,11 @@
+syntax = 'proto3';
+
+package astria.signer.v1;
+
+message VerifyingShare {
+  // the verifying share (partial public key) of the participant.
+  // this is used for the coordinator to determine the identifier of the participant.
+  // TODO: do we need to verify this (ie. have the server send back a signed message
+  // with the verifying share)?
+  bytes verifying_share = 1;
+}

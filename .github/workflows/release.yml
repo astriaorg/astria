@@ -106,6 +106,14 @@ jobs:
       package-name: 'bridge-withdrawer'
       display-name: 'EVM Bridge Withdrawer'
 
+  auctioneer:
+    needs: run_checker
+    if: needs.run_checker.outputs.run_release_services == 'true'
+    uses: ./.github/workflows/reusable-release-cargo.yml
+    with:
+      package-name: 'auctioneer'
+      display-name: 'Auctioneer'
+
   cli:
     needs: run_checker
     if: needs.run_checker.outputs.run_release_services == 'true'
@@ -115,7 +123,7 @@ jobs:
       display-name: 'CLI'
 
   release:
-    needs: [proto, conductor, composer, sequencer, sequencer-relayer, cli, bridge-withdrawer]
+    needs: [proto, conductor, composer, sequencer, sequencer-relayer, cli, bridge-withdrawer, auctioneer]
     if: ${{ always() && !cancelled() }}
     uses: ./.github/workflows/reusable-success.yml
     with:

@@ -20,7 +20,7 @@ use crate::helper::{
 
 #[tokio::test]
 async fn tx_from_one_rollup_is_received_by_sequencer() {
-    let test_composer = spawn_composer(&[], None, true).await;
+    let test_composer = spawn_composer(&[], None, vec![], true).await;
     let rollup_id = RollupId::from_unhashed_bytes("test1");
     let expected_chain_ids = vec![rollup_id];
     let mock_guard =
@@ -56,7 +56,7 @@ async fn invalid_nonce_causes_resubmission_under_different_nonce() {
     // Spawn a composer with a mock sequencer and a mock rollup node
     // Initial nonce is 0
     let rollup_id = RollupId::from_unhashed_bytes("test1");
-    let test_composer = spawn_composer(&[], None, true).await;
+    let test_composer = spawn_composer(&[], None, vec![], true).await;
 
     // Reject the first transaction for invalid nonce
     let invalid_nonce_guard =
@@ -112,7 +112,7 @@ async fn single_rollup_tx_payload_integrity() {
     // Spawn a composer with a mock sequencer and a mock rollup node
     // Initial nonce is 0
     let rollup_id = RollupId::from_unhashed_bytes("test1");
-    let test_composer = spawn_composer(&[], None, true).await;
+    let test_composer = spawn_composer(&[], None, vec![], true).await;
 
     let tx: Transaction = serde_json::from_str(TEST_ETH_TX_JSON).unwrap();
     let mock_guard =

@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/oracles/price_feed/oracle/storage/keys.rs
+expression: NEXT_CURRENCY_PAIR_ID
+---
+price_feed/oracle/next_currency_pair_id

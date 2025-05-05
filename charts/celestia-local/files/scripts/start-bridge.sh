@@ -35,8 +35,7 @@ exec celestia bridge start \
   --rpc.skip-auth \
   --node.store "$home_dir/bridge" \
   --core.ip 0.0.0.0 \
-  --core.rpc.port "$celestia_app_host_port" \
-  --core.grpc.port "$celestia_app_grpc_port" \
+  --core.port "$celestia_app_grpc_port" \
   --gateway \
   --gateway.addr 0.0.0.0 \
   --gateway.port "$bridge_host_port" \

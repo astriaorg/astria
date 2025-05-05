@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/assets/storage/values.rs
+expression: "borsh_then_hex(&ValueImpl::TracePrefixedDenom((&\"test_denom\".to_string().parse::<DomainTracePrefixed>().unwrap()).into()))"
+---
+00000000000a000000746573745f64656e6f6d
