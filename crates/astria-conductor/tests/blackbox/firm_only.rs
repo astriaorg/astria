@@ -5,7 +5,13 @@ use astria_conductor::{
     Conductor,
     Config,
 };
-use astria_core::generated::astria::execution::v2::CreateExecutionSessionRequest;
+use astria_core::generated::{
+    astria::execution::v2::CreateExecutionSessionRequest,
+    execution::v2::{
+        CommitmentState,
+        ExecutionSession,
+    },
+};
 use futures::future::{
     join,
     join4,
@@ -23,14 +29,16 @@ use wiremock::{
 };
 
 use crate::{
+    block_metadata,
     celestia_network_head,
-    execution_session,
+    execution_session_parameters,
     helpers::{
         make_config,
         spawn_conductor,
         MockGrpc,
         CELESTIA_BEARER_TOKEN,
         CELESTIA_CHAIN_ID,
+        EXECUTION_SESSION_ID,
         SEQUENCER_CHAIN_ID,
     },
     mount_celestia_blobs,
@@ -56,16 +64,8 @@ async fn simple() {
             celestia_max_look_ahead: 10,
         ),
         commitment_state: (
-            firm: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
-            soft: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
+            firm_number: 1,
+            soft_number: 1,
             lowest_celestia_search_height: 1,
         )
     );
@@ -93,22 +93,11 @@ async fn simple() {
     let execute_block = mount_execute_block!(
         test_conductor,
         number: 2,
-        hash: "2",
-        parent: "1",
     );
 
     let update_commitment_state = mount_firm_update_commitment_state!(
         test_conductor,
-        firm: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
-        soft: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
+        number: 2,
         lowest_celestia_search_height: 1,
     );
 
@@ -139,16 +128,8 @@ async fn submits_two_heights_in_succession() {
             celestia_max_look_ahead: 10,
         ),
         commitment_state: (
-            firm: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
-            soft: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
+            firm_number: 1,
+            soft_number: 1,
             lowest_celestia_search_height: 1,
         ),
     );
@@ -183,44 +164,22 @@ async fn submits_two_heights_in_succession() {
     let execute_block_number_2 = mount_execute_block!(
         test_conductor,
         number: 2,
-        hash: "2",
-        parent: "1",
     );
 
     let update_commitment_state_number_2 = mount_firm_update_commitment_state!(
         test_conductor,
-        firm: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
-        soft: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
+        number: 2,
         lowest_celestia_search_height: 1,
     );
 
     let execute_block_number_3 = mount_execute_block!(
         test_conductor,
         number: 3,
-        hash: "3",
-        parent: "2",
     );
 
     let update_commitment_state_number_3 = mount_firm_update_commitment_state!(
         test_conductor,
-        firm: (
-            number: 3,
-            hash: "3",
-            parent: "2",
-        ),
-        soft: (
-            number: 3,
-            hash: "3",
-            parent: "2",
-        ),
+        number: 3,
         lowest_celestia_search_height: 1,
     );
 
@@ -253,16 +212,8 @@ async fn skips_already_executed_heights() {
             celestia_max_look_ahead: 10,
         ),
         commitment_state: (
-            firm: (
-                number: 5,
-                hash: "1",
-                parent: "0",
-            ),
-            soft: (
-                number: 5,
-                hash: "1",
-                parent: "0",
-            ),
+            firm_number: 5,
+            soft_number: 5,
             lowest_celestia_search_height: 1,
         ),
     );
@@ -294,22 +245,11 @@ async fn skips_already_executed_heights() {
     let execute_block = mount_execute_block!(
         test_conductor,
         number: 6,
-        hash: "2",
-        parent: "1",
     );
 
     let update_commitment_state = mount_firm_update_commitment_state!(
         test_conductor,
-        firm: (
-            number: 6,
-            hash: "2",
-            parent: "1",
-        ),
-        soft: (
-            number: 6,
-            hash: "2",
-            parent: "1",
-        ),
+        number: 6,
         lowest_celestia_search_height: 1,
     );
 
@@ -340,16 +280,8 @@ async fn fetch_from_later_celestia_height() {
             celestia_max_look_ahead: 10,
         ),
         commitment_state: (
-            firm: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
-            soft: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
+            firm_number: 1,
+            soft_number: 1,
             lowest_celestia_search_height: 4,
         ),
     );
@@ -377,22 +309,11 @@ async fn fetch_from_later_celestia_height() {
     let execute_block = mount_execute_block!(
         test_conductor,
         number: 2,
-        hash: "2",
-        parent: "1",
     );
 
     let update_commitment_state = mount_firm_update_commitment_state!(
         test_conductor,
-        firm: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
-        soft: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
+        number: 2,
         lowest_celestia_search_height: 4,
     );
 
@@ -450,27 +371,28 @@ async fn exits_on_celestia_chain_id_mismatch() {
         "create_execution_session",
         matcher::message_type::<CreateExecutionSessionRequest>(),
     )
-    .respond_with(GrpcResponse::constant_response(execution_session!(
-        execution_session_parameters: (
+    .respond_with(GrpcResponse::constant_response(ExecutionSession {
+        session_id: EXECUTION_SESSION_ID.to_string(),
+        execution_session_parameters: Some(execution_session_parameters!(
             rollup_start_block_number: 2,
             rollup_end_block_number: 9,
             sequencer_start_block_height: 3,
             celestia_max_look_ahead: 10,
-        ),
-        commitment_state: (
-            firm: (
+        )),
+        commitment_state: Some(CommitmentState {
+            firm_executed_block_metadata: Some(block_metadata!(
                 number: 1,
                 hash: "1",
                 parent: "0",
-            ),
-            soft: (
+            )),
+            soft_executed_block_metadata: Some(block_metadata!(
                 number: 1,
                 hash: "1",
                 parent: "0",
-            ),
+            )),
             lowest_celestia_search_height: 1,
-        )
-    )))
+        }),
+    }))
     .expect(0..)
     .mount(&mock_grpc.mock_server)
     .await;
@@ -531,10 +453,9 @@ async fn exits_on_celestia_chain_id_mismatch() {
 ///    block has already been executed.
 /// 7. Mount `execute_block` and `update_commitment_state` for firm block 4, awaiting their
 ///    satisfaction.
-#[expect(clippy::too_many_lines, reason = "All lines reasonably necessary")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn restarts_after_reaching_stop_block_height() {
-    let test_conductor = spawn_conductor(CommitLevel::FirmOnly).await;
+    let mut test_conductor = spawn_conductor(CommitLevel::FirmOnly).await;
 
     mount_create_execution_session!(
         test_conductor,
@@ -545,16 +466,8 @@ async fn restarts_after_reaching_stop_block_height() {
             celestia_max_look_ahead: 10,
         ),
         commitment_state: (
-            firm: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
-            soft: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
+            firm_number: 1,
+            soft_number: 1,
             lowest_celestia_search_height: 1,
         ),
         up_to_n_times: 1, // Only respond once, since a new execution session is needed after restart.
@@ -586,24 +499,13 @@ async fn restarts_after_reaching_stop_block_height() {
         test_conductor,
         mock_name: "execute_block_1",
         number: 2,
-        hash: "2",
-        parent: "1",
         expected_calls: 1, // should not be called again upon restart
     );
 
-    let update_commitment_state_1 = mount_update_commitment_state!(
+    let update_commitment_state_1 = mount_firm_update_commitment_state!(
         test_conductor,
         mock_name: "update_commitment_state_1",
-        firm: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
-        soft: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
+        number: 2,
         lowest_celestia_search_height: 1,
         expected_calls: 1, // should not be called again upon restart
     );
@@ -631,16 +533,8 @@ async fn restarts_after_reaching_stop_block_height() {
             celestia_max_look_ahead: 10,
         ),
         commitment_state: (
-            firm: (
-                number: 2,
-                hash: "2",
-                parent: "1",
-            ),
-            soft: (
-                number: 2,
-                hash: "2",
-                parent: "1",
-            ),
+            firm_number: 2,
+            soft_number: 2,
             lowest_celestia_search_height: 1,
         ),
     );
@@ -649,24 +543,13 @@ async fn restarts_after_reaching_stop_block_height() {
         test_conductor,
         mock_name: "execute_block_2",
         number: 3,
-        hash: "3",
-        parent: "2",
         expected_calls: 1,
     );
 
-    let update_commitment_state_2 = mount_update_commitment_state!(
+    let update_commitment_state_2 = mount_firm_update_commitment_state!(
         test_conductor,
         mock_name: "update_commitment_state_2",
-        firm: (
-            number: 3,
-            hash: "3",
-            parent: "2",
-        ),
-        soft: (
-            number: 3,
-            hash: "3",
-            parent: "2",
-        ),
+        number: 3,
         lowest_celestia_search_height: 1,
         expected_calls: 1,
     );

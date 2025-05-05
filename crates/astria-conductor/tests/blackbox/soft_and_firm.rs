@@ -15,6 +15,7 @@ use crate::{
     mount_create_execution_session,
     mount_execute_block,
     mount_execute_block_tonic_code,
+    mount_firm_update_commitment_state,
     mount_get_executed_block_metadata,
     mount_get_filtered_sequencer_block,
     mount_sequencer_commit,
@@ -46,16 +47,8 @@ async fn executes_soft_first_then_updates_firm() {
             celestia_max_look_ahead: 10,
         ),
         commitment_state: (
-            firm: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
-            soft: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
+            firm_number: 1,
+            soft_number: 1,
             lowest_celestia_search_height: 1,
         )
     );
@@ -80,22 +73,11 @@ async fn executes_soft_first_then_updates_firm() {
     let execute_block = mount_execute_block!(
         test_conductor,
         number: 2,
-        hash: "2",
-        parent: "1",
     );
 
     let update_commitment_state_soft = mount_soft_update_commitment_state!(
         test_conductor,
-        firm: (
-            number: 1,
-            hash: "1",
-            parent: "0",
-        ),
-        soft: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
+        number: 2,
         lowest_celestia_search_height: 1,
     );
 
@@ -128,16 +110,7 @@ async fn executes_soft_first_then_updates_firm() {
 
     let update_commitment_state_firm = mount_firm_update_commitment_state!(
         test_conductor,
-        firm: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
-        soft: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
+        number: 2,
         lowest_celestia_search_height: 1,
     );
 
@@ -178,16 +151,8 @@ async fn executes_firm_then_soft_at_next_height() {
             celestia_max_look_ahead: 10,
         ),
         commitment_state: (
-            firm: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
-            soft: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
+            firm_number: 1,
+            soft_number: 1,
             lowest_celestia_search_height: 1,
         )
     );
@@ -220,8 +185,6 @@ async fn executes_firm_then_soft_at_next_height() {
     let execute_block = mount_execute_block!(
         test_conductor,
         number: 2,
-        hash: "2",
-        parent: "1",
     );
 
     // Mount soft block at current height with a slight delay
@@ -240,16 +203,7 @@ async fn executes_firm_then_soft_at_next_height() {
 
     let update_commitment_state_firm = mount_firm_update_commitment_state!(
         test_conductor,
-        firm: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
-        soft: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
+        number: 2,
         lowest_celestia_search_height: 1,
     );
 
@@ -262,16 +216,7 @@ async fn executes_firm_then_soft_at_next_height() {
     let _stale_update_soft_commitment_state = mount_soft_update_commitment_state!(
         test_conductor,
         mock_name: "should_be_ignored_update_commitment_state_soft",
-        firm: (
-            number: 1,
-            hash: "1",
-            parent: "0",
-        ),
-        soft: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
+        number: 2,
         lowest_celestia_search_height: 1,
         expected_calls: 0,
     );
@@ -292,22 +237,11 @@ async fn executes_firm_then_soft_at_next_height() {
     let execute_block = mount_execute_block!(
         test_conductor,
         number: 3,
-        hash: "3",
-        parent: "2",
     );
 
     let update_commitment_state_soft = mount_soft_update_commitment_state!(
         test_conductor,
-        firm: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
-        soft: (
-            number: 3,
-            hash: "3",
-            parent: "2",
-        ),
+        number: 3,
         lowest_celestia_search_height: 1,
     );
 
@@ -329,6 +263,7 @@ async fn executes_firm_then_soft_at_next_height() {
 async fn missing_block_is_fetched_for_updating_firm_commitment() {
     let mut test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
 
+    test_conductor.put_rollup_state_hashes(1, 2);
     mount_create_execution_session!(
         test_conductor,
         execution_session_parameters: (
@@ -338,16 +273,8 @@ async fn missing_block_is_fetched_for_updating_firm_commitment() {
             celestia_max_look_ahead: 10,
         ),
         commitment_state: (
-            firm: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
-            soft: (
-                number: 2,
-                hash: "2",
-                parent: "1",
-            ),
+            firm_number: 1,
+            soft_number: 2,
             lowest_celestia_search_height: 1,
         )
     );
@@ -362,8 +289,6 @@ async fn missing_block_is_fetched_for_updating_firm_commitment() {
     mount_get_executed_block_metadata!(
         test_conductor,
         number: 2,
-        hash: "2",
-        parent: "1",
     );
 
     mount_celestia_header_network_head!(
@@ -386,16 +311,7 @@ async fn missing_block_is_fetched_for_updating_firm_commitment() {
 
     let update_commitment_state_firm = mount_firm_update_commitment_state!(
         test_conductor,
-        firm: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
-        soft: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
+        number: 2,
         lowest_celestia_search_height: 1,
     );
 
@@ -414,22 +330,11 @@ async fn missing_block_is_fetched_for_updating_firm_commitment() {
     let execute_block_soft = mount_execute_block!(
         test_conductor,
         number: 3,
-        hash: "3",
-        parent: "2",
     );
 
     let update_commitment_state_soft = mount_soft_update_commitment_state!(
         test_conductor,
-        firm: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
-        soft: (
-            number: 3,
-            hash: "3",
-            parent: "2",
-        ),
+        number: 3,
         lowest_celestia_search_height: 1,
     );
 
@@ -454,7 +359,7 @@ async fn missing_block_is_fetched_for_updating_firm_commitment() {
 /// case of a restart. This response is mounted to cause the conductor to restart.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn restarts_on_permission_denied() {
-    let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
+    let mut test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
 
     mount_create_execution_session!(
         test_conductor,
@@ -465,16 +370,8 @@ async fn restarts_on_permission_denied() {
             celestia_max_look_ahead: 10,
         ),
         commitment_state: (
-            firm: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
-            soft: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
+            firm_number: 1,
+            soft_number: 1,
             lowest_celestia_search_height: 1,
         ),
         expected_calls: 2,
@@ -530,37 +427,17 @@ async fn restarts_on_permission_denied() {
     let execute_block = mount_execute_block!(
         test_conductor,
         number: 2,
-        hash: "2",
-        parent: "1",
     );
 
     let update_commitment_state_soft = mount_soft_update_commitment_state!(
         test_conductor,
-        firm: (
-            number: 1,
-            hash: "1",
-            parent: "0",
-        ),
-        soft: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
+        number: 2,
         lowest_celestia_search_height: 1,
     );
 
     let update_commitment_state_firm = mount_firm_update_commitment_state!(
         test_conductor,
-        firm: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
-        soft: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
+        number: 2,
         lowest_celestia_search_height: 1,
     );
 
@@ -603,7 +480,7 @@ async fn restarts_on_permission_denied() {
 )]
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn restarts_after_reaching_soft_stop_height_first() {
-    let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
+    let mut test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
 
     mount_create_execution_session!(
         test_conductor,
@@ -614,16 +491,8 @@ async fn restarts_after_reaching_soft_stop_height_first() {
             celestia_max_look_ahead: 10,
         ),
         commitment_state: (
-            firm: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
-            soft: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
+            firm_number: 1,
+            soft_number: 1,
             lowest_celestia_search_height: 1,
         ),
         up_to_n_times: 1, // We only respond once since a new execution session is needed after restart
@@ -671,41 +540,21 @@ async fn restarts_after_reaching_soft_stop_height_first() {
         test_conductor,
         mock_name: "execute_block_1",
         number: 2,
-        hash: "2",
-        parent: "1",
         expected_calls: 1, // This should not be called again after restart
     );
 
-    let update_commitment_state_soft_1 = mount_update_commitment_state!(
+    let update_commitment_state_soft_1 = mount_soft_update_commitment_state!(
         test_conductor,
         mock_name: "update_commitment_state_soft_1",
-        firm: (
-            number: 1,
-            hash: "1",
-            parent: "0",
-        ),
-        soft: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
+        number: 2,
         lowest_celestia_search_height: 1,
         expected_calls: 1,
     );
 
-    let update_commitment_state_firm_1 = mount_update_commitment_state!(
+    let update_commitment_state_firm_1 = mount_firm_update_commitment_state!(
         test_conductor,
         mock_name: "update_commitment_state_firm_1",
-        firm: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
-        soft: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
+        number: 2,
         lowest_celestia_search_height: 1,
         expected_calls: 1, // Should not be called again after restart
     );
@@ -719,7 +568,7 @@ async fn restarts_after_reaching_soft_stop_height_first() {
         ),
     )
     .await
-    .expect("conductor should have updated the firm commitment state within 1000ms");
+    .expect("conductor should have updated the commitment state within 1000ms");
 
     mount_create_execution_session!(
         test_conductor,
@@ -730,16 +579,8 @@ async fn restarts_after_reaching_soft_stop_height_first() {
             celestia_max_look_ahead: 10,
         ),
         commitment_state: (
-            firm: (
-                number: 2,
-                hash: "2",
-                parent: "1",
-            ),
-            soft: (
-                number: 2,
-                hash: "2",
-                parent: "1",
-            ),
+            firm_number: 2,
+            soft_number: 2,
             lowest_celestia_search_height: 1,
         ),
     );
@@ -748,42 +589,22 @@ async fn restarts_after_reaching_soft_stop_height_first() {
         test_conductor,
         mock_name: "execute_block_2",
         number: 3,
-        hash: "3",
-        parent: "2",
         expected_calls: 1,
     );
 
     // This condition should be satisfied, since there is a delay on the firm block response
-    let update_commitment_state_soft_2 = mount_update_commitment_state!(
+    let update_commitment_state_soft_2 = mount_soft_update_commitment_state!(
         test_conductor,
         mock_name: "update_commitment_state_soft_2",
-        firm: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
-        soft: (
-            number: 3,
-            hash: "3",
-            parent: "2",
-        ),
+        number: 3,
         lowest_celestia_search_height: 1,
         expected_calls: 1,
     );
 
-    let update_commitment_state_firm_2 = mount_update_commitment_state!(
+    let update_commitment_state_firm_2 = mount_firm_update_commitment_state!(
         test_conductor,
         mock_name: "update_commitment_state_firm_2",
-        firm: (
-            number: 3,
-            hash: "3",
-            parent: "2",
-        ),
-        soft: (
-            number: 3,
-            hash: "3",
-            parent: "2",
-        ),
+        number: 3,
         lowest_celestia_search_height: 1,
         expected_calls: 1,
     );
@@ -827,7 +648,7 @@ async fn restarts_after_reaching_soft_stop_height_first() {
 )]
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn restarts_after_reaching_firm_stop_height_first() {
-    let test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
+    let mut test_conductor = spawn_conductor(CommitLevel::SoftAndFirm).await;
 
     mount_create_execution_session!(
         test_conductor,
@@ -838,16 +659,8 @@ async fn restarts_after_reaching_firm_stop_height_first() {
             celestia_max_look_ahead: 10,
         ),
         commitment_state: (
-            firm: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
-            soft: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
+            firm_number: 1,
+            soft_number: 1,
             lowest_celestia_search_height: 1,
         ),
         up_to_n_times: 1, // We only respond once since a new execution session is needed after restart
@@ -895,42 +708,22 @@ async fn restarts_after_reaching_firm_stop_height_first() {
         test_conductor,
         mock_name: "execute_block_1",
         number: 2,
-        hash: "2",
-        parent: "1",
         expected_calls: 1, // This should not be called again after restart
     );
 
     // Should not be called since the firm block will be received first
-    let _update_commitment_state_soft_1 = mount_update_commitment_state!(
+    let _update_commitment_state_soft_1 = mount_soft_update_commitment_state!(
         test_conductor,
         mock_name: "update_commitment_state_soft_1",
-        firm: (
-            number: 1,
-            hash: "1",
-            parent: "0",
-        ),
-        soft: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
+        number: 2,
         lowest_celestia_search_height: 1,
         expected_calls: 0,
     );
 
-    let update_commitment_state_firm_1 = mount_update_commitment_state!(
+    let update_commitment_state_firm_1 = mount_firm_update_commitment_state!(
         test_conductor,
         mock_name: "update_commitment_state_firm_1",
-        firm: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
-        soft: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
+        number: 2,
         lowest_celestia_search_height: 1,
         expected_calls: 1, // Should not be called again after restart
     );
@@ -954,16 +747,8 @@ async fn restarts_after_reaching_firm_stop_height_first() {
             celestia_max_look_ahead: 10,
         ),
         commitment_state: (
-            firm: (
-                number: 2,
-                hash: "2",
-                parent: "1",
-            ),
-            soft: (
-                number: 2,
-                hash: "2",
-                parent: "1",
-            ),
+            firm_number: 2,
+            soft_number: 2,
             lowest_celestia_search_height: 1,
         ),
     );
@@ -972,42 +757,22 @@ async fn restarts_after_reaching_firm_stop_height_first() {
         test_conductor,
         mock_name: "execute_block_2",
         number: 3,
-        hash: "3",
-        parent: "2",
         expected_calls: 1,
     );
 
     // This condition does not need to be satisfied, since firm block may fire first after restart
-    let _update_commitment_state_soft_2 = mount_update_commitment_state!(
+    let _update_commitment_state_soft_2 = mount_soft_update_commitment_state!(
         test_conductor,
         mock_name: "update_commitment_state_soft_2",
-        firm: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
-        soft: (
-            number: 3,
-            hash: "3",
-            parent: "2",
-        ),
+        number: 3,
         lowest_celestia_search_height: 1,
         expected_calls: 0..=1,
     );
 
-    let update_commitment_state_firm_2 = mount_update_commitment_state!(
+    let update_commitment_state_firm_2 = mount_firm_update_commitment_state!(
         test_conductor,
         mock_name: "update_commitment_state_firm_2",
-        firm: (
-            number: 3,
-            hash: "3",
-            parent: "2",
-        ),
-        soft: (
-            number: 3,
-            hash: "3",
-            parent: "2",
-        ),
+        number: 3,
         lowest_celestia_search_height: 1,
         expected_calls: 1,
     );
