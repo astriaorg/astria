@@ -26,3 +26,8 @@ elif [ "{{ .Values.geth.snapshot.restore.enabled }}" = "true" ]; then
 
   exec geth --datadir "$data_dir/" init $home_dir/genesis.json
 fi
+
+echo "Geth initialized"
+
+NODEKEY=$(cat $home_dir/nodekey)
+echo "Nodekey: $NODEKEY"
