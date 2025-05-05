@@ -89,6 +89,10 @@ spec:
               name: ws-rpc
             - containerPort: {{ .Values.ports.executionGRPC }}
               name: execution-grpc
+            {{- if .Values.geth.p2p.enabled }}
+            - containerPort: {{ .Values.ports.p2p }}
+              name: p2p
+            {{- end }}
             {{- if .Values.metrics.enabled }}
             - containerPort: {{ .Values.ports.metrics }}
               name: geth-metr

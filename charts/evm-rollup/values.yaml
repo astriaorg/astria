@@ -153,6 +153,9 @@ geth:
           enabled: false
           # rclone destination to upload the snapshot to (in the form of remote:path)
           destination: ""
+  p2p:
+    enabled: false
+    staticIP: ""
   flags:
     datadir:
       value: '{{ include "rollup.gethDataDir" . }}'
@@ -393,3 +396,4 @@ ports:
   executionGRPC: 50051
   metrics: 6060
   conductorMetrics: 9000
+  p2p: 30303
