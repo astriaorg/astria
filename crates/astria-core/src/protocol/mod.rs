@@ -24,7 +24,7 @@ pub mod test_utils;
 /// [`RollupData::SequencedData`] and groups them by [`RollupId`].
 ///
 /// TODO: This can all be done in-place once <https://github.com/rust-lang/rust/issues/80552> is stabilized.
-pub fn group_rollup_data_submissions_in_signed_transaction_transactions_by_rollup_id<'a, I>(
+pub fn group_rollup_data_submissions_by_rollup_id<'a, I>(
     rollup_data_bytes: I,
 ) -> IndexMap<RollupId, Vec<Bytes>>
 where

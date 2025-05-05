@@ -32,6 +32,7 @@ use crate::{
         BOB_ADDRESS,
         CAROL,
         CAROL_ADDRESS,
+        TEN_QUINTILLION,
     },
 };
 
@@ -49,8 +50,8 @@ async fn trigger_cleaning() {
         .build()
         .await;
 
-    let mempool = fixture.mempool();
-    mempool
+    fixture
+        .mempool()
         .insert(
             tx_trigger.clone(),
             0,
@@ -155,8 +156,8 @@ async fn do_not_trigger_cleaning() {
         .build()
         .await;
 
-    let mempool = fixture.mempool();
-    mempool
+    fixture
+        .mempool()
         .insert(tx_fail, 0, dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
         .await
         .unwrap();
@@ -195,7 +196,7 @@ async fn maintenance_recosting_promotes() {
     // fee is reduced to 1 nria.
     fixture
         .chain_initializer()
-        .with_genesis_accounts(vec![(*ALICE_ADDRESS, 10_u128.pow(19)), (*BOB_ADDRESS, 2)])
+        .with_genesis_accounts(vec![(*ALICE_ADDRESS, TEN_QUINTILLION), (*BOB_ADDRESS, 2)])
         .init()
         .await;
 
@@ -368,7 +369,7 @@ async fn maintenance_funds_added_promotes() {
     // Alice is the only funded account at genesis.
     fixture
         .chain_initializer()
-        .with_genesis_accounts(vec![(*ALICE_ADDRESS, 10_u128.pow(19))])
+        .with_genesis_accounts(vec![(*ALICE_ADDRESS, TEN_QUINTILLION)])
         .init()
         .await;
 

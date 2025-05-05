@@ -20,7 +20,7 @@ use astria_core::{
 use astria_eyre::eyre::{
     eyre,
     Result,
-    WrapErr,
+    WrapErr as _,
 };
 use tokio::time::{
     Duration,
@@ -887,7 +887,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        fees::StateWriteExt,
+        checked_actions::CheckedAction,
+        fees::StateWriteExt as _,
         test_utils::{
             denom_0,
             denom_1,
@@ -1785,16 +1786,30 @@ mod tests {
         );
 
         // update the fees for `RollupDataSubmission` and recost transactions
+        let base_fee = 1000;
+        let multiplier = 2000;
         fixture
             .state_mut()
-            .put_fees(FeeComponents::<RollupDataSubmission>::new(1000, 2000))
+            .put_fees(FeeComponents::<RollupDataSubmission>::new(
+                base_fee, multiplier,
+            ))
             .unwrap();
         pending_txs
             .recost_transactions(&ALICE_ADDRESS_BYTES, fixture.state())
             .await;
 
         // transaction should have been recosted
-        assert_ne!(
+        let rollup_data_len = match &ttx.checked_tx.checked_actions()[0] {
+            CheckedAction::RollupDataSubmission(checked_action) => {
+                u128::try_from(checked_action.action().data.len()).unwrap()
+            }
+            _ => panic!("should be rollup data submission"),
+        };
+        let expected_cost = base_fee
+            .checked_add(multiplier.checked_mul(rollup_data_len).unwrap())
+            .unwrap();
+
+        assert_eq!(
             pending_txs
                 .txs
                 .get(&*ALICE_ADDRESS_BYTES)
@@ -1805,7 +1820,7 @@ mod tests {
                 .costs()
                 .get(&denom_0().to_ibc_prefixed())
                 .unwrap(),
-            &0,
+            &expected_cost,
             "cost should be updated"
         );
     }

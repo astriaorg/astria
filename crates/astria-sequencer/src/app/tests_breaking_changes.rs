@@ -64,6 +64,7 @@ use crate::{
         IBC_SUDO_ADDRESS,
         SUDO,
         SUDO_ADDRESS,
+        TEN_QUINTILLION,
     },
 };
 
@@ -170,9 +171,9 @@ async fn app_legacy_execute_transactions_with_every_action_snapshot() {
     fixture
         .legacy_chain_initializer()
         .with_genesis_accounts(vec![
-            (*ALICE_ADDRESS, 10_u128.pow(19)),
-            (*BOB_ADDRESS, 10_u128.pow(19)),
-            (*CAROL_ADDRESS, 10_u128.pow(19)),
+            (*ALICE_ADDRESS, TEN_QUINTILLION),
+            (*BOB_ADDRESS, TEN_QUINTILLION),
+            (*CAROL_ADDRESS, TEN_QUINTILLION),
             (*IBC_SUDO_ADDRESS, 1_000_000_000),
             (*SUDO_ADDRESS, 1_000_000_000),
         ])

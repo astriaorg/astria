@@ -90,6 +90,7 @@ mod ics20_withdrawal_builder;
 
 pub(crate) const ASTRIA_PREFIX: &str = "astria";
 pub(crate) const ASTRIA_COMPAT_PREFIX: &str = "astriacompat";
+pub(crate) const TEN_QUINTILLION: u128 = 10_u128.pow(19);
 
 /// By default, [`Fixture`] uses `ALICE` as a funded validator.
 pub(crate) static ALICE: LazyLock<SigningKey> = LazyLock::new(|| {
@@ -190,6 +191,12 @@ pub(crate) fn transactions_with_extended_commit_info_and_commitments(
     txs_with_commit_info
 }
 
+/// Returns a `BridgeLock` action with the following dummy values:
+///   * `to`: `astria_address(&[50; ADDRESS_LENGTH])`
+///   * `amount`: 100
+///   * `asset`: nria
+///   * `fee_asset`: nria
+///   * `destination_chain_address`: "test-chain"
 pub(crate) fn dummy_bridge_lock() -> BridgeLock {
     BridgeLock {
         to: astria_address(&[50; ADDRESS_LENGTH]),
@@ -200,6 +207,11 @@ pub(crate) fn dummy_bridge_lock() -> BridgeLock {
     }
 }
 
+/// Returns a `BridgeSudoChange` action with the following dummy values:
+///   * `bridge_address`: `astria_address(&[99; ADDRESS_LENGTH])`
+///   * `new_sudo_address`: `Some(astria_address(&[98; ADDRESS_LENGTH]))`
+///   * `new_withdrawer_address`: `Some(astria_address(&[97; ADDRESS_LENGTH]))`
+///   * `fee_asset`: `"test".parse()`
 pub(crate) fn dummy_bridge_sudo_change() -> BridgeSudoChange {
     BridgeSudoChange {
         bridge_address: astria_address(&[99; ADDRESS_LENGTH]),
@@ -209,6 +221,14 @@ pub(crate) fn dummy_bridge_sudo_change() -> BridgeSudoChange {
     }
 }
 
+/// Returns a `BridgeTransfer` action with the following dummy values:
+///   * `to`: `astria_address(&[99; ADDRESS_LENGTH])`
+///   * `amount`: 100
+///   * `fee_asset`: nria
+///   * `destination_chain_address`: "test-chain"
+///   * `bridge_address`: `astria_address(&[50; ADDRESS_LENGTH])`
+///   * `rollup_block_number`: 10
+///   * `rollup_withdrawal_event_id`: "a-rollup-defined-hash"
 pub(crate) fn dummy_bridge_transfer() -> BridgeTransfer {
     BridgeTransfer {
         to: astria_address(&[99; ADDRESS_LENGTH]),
@@ -221,6 +241,14 @@ pub(crate) fn dummy_bridge_transfer() -> BridgeTransfer {
     }
 }
 
+/// Returns a `BridgeUnlock` action with the following dummy values:
+///   * `to`: `astria_address(&[3; ADDRESS_LENGTH])`
+///   * `amount`: 100
+///   * `fee_asset`: nria
+///   * `memo`: "rollup memo"
+///   * `bridge_address`: `astria_address(&[50; ADDRESS_LENGTH])`
+///   * `rollup_block_number`: 10
+///   * `rollup_withdrawal_event_id`: "a-rollup-defined-hash"
 pub(crate) fn dummy_bridge_unlock() -> BridgeUnlock {
     BridgeUnlock {
         to: astria_address(&[3; ADDRESS_LENGTH]),
@@ -233,10 +261,12 @@ pub(crate) fn dummy_bridge_unlock() -> BridgeUnlock {
     }
 }
 
+/// Returns a `CurrencyPairsChange::Addition` action with a dummy value of "TIA/USD" and "ETH/USD".
 pub(crate) fn dummy_currency_pairs_change() -> CurrencyPairsChange {
     CurrencyPairsChange::Addition(vec!["TIA/USD".parse().unwrap(), "ETH/USD".parse().unwrap()])
 }
 
+/// Returns an `IbcRelay::CreateClient` action with dummy values.
 pub(crate) fn dummy_ibc_relay() -> IbcRelay {
     use ibc_proto::{
         google::protobuf::{
@@ -271,6 +301,7 @@ pub(crate) fn dummy_ibc_relay() -> IbcRelay {
     })
 }
 
+/// Returns a `ClientState` with dummy values.
 pub(crate) fn dummy_ibc_client_state(rev_height: u64) -> ClientState {
     let version = 2;
     let chain_id = ibc_types::core::connection::ChainId::new("test".to_string(), version);
@@ -301,10 +332,18 @@ pub(crate) fn dummy_ibc_client_state(rev_height: u64) -> ClientState {
     .unwrap()
 }
 
+/// Returns an `Ics20Withdrawal` action constructed from an [`Ics20WithdrawalBuilder`] using its
+/// default values.
 pub(crate) fn dummy_ics20_withdrawal() -> Ics20Withdrawal {
     Ics20WithdrawalBuilder::new().build()
 }
 
+/// Returns an `InitBridgeAccount` action with the following dummy values:
+///   * `rollup_id`: `[1; 32]`
+///   * `asset`: `"test".parse()`
+///   * `fee_asset`: `"test".parse()`
+///   * `sudo_address`: `Some(astria_address(&[2; ADDRESS_LENGTH]))`
+///   * `withdrawer_address`: `Some(astria_address(&[3; ADDRESS_LENGTH]))`
 pub(crate) fn dummy_init_bridge_account() -> InitBridgeAccount {
     InitBridgeAccount {
         rollup_id: RollupId::new([1; 32]),
@@ -315,6 +354,20 @@ pub(crate) fn dummy_init_bridge_account() -> InitBridgeAccount {
     }
 }
 
+/// Returns a `MarketsChange::Creation` action with the following dummy value as the single `Market`
+/// entry:
+///    * `ticker`:
+///      * `currency_pair`: "TIA/USD"
+///      * `decimals`: 9
+///      * `min_provider_count`: 2
+///      * `enabled`: true
+///      * `metadata_json`: "dummy ticker"
+///    * `provider_configs` (one entry as follows):
+///      * `name`: `coingecko_api`
+///      * `off_chain_ticker`: "celestia/usd"
+///      * `normalize_by_pair`: `None`
+///      * `invert`: false
+///      * `metadata_json`: "dummy provider"
 pub(crate) fn dummy_markets_change() -> MarketsChange {
     MarketsChange::Creation(vec![Market {
         ticker: dummy_ticker("TIA/USD", "dummy ticker"),
@@ -328,6 +381,9 @@ pub(crate) fn dummy_markets_change() -> MarketsChange {
     }])
 }
 
+/// Returns a `RecoverIbcClient` action with the following dummy values:
+///   * `client_id`: "test-id", 0
+///   * `replacement_client_id`: "test-id", 1
 pub(crate) fn dummy_recover_ibc_client() -> RecoverIbcClient {
     use ibc_types::core::client::{
         ClientId,
@@ -340,6 +396,10 @@ pub(crate) fn dummy_recover_ibc_client() -> RecoverIbcClient {
     }
 }
 
+/// Returns a `RollupDataSubmission` action with the following dummy values:
+///   * `rollup_id`: `[1; 32]`
+///   * `data`: `[1, 2, 3]`
+///   * `fee_asset`: nria
 pub(crate) fn dummy_rollup_data_submission() -> RollupDataSubmission {
     RollupDataSubmission {
         rollup_id: RollupId::new([1; 32]),
@@ -348,6 +408,10 @@ pub(crate) fn dummy_rollup_data_submission() -> RollupDataSubmission {
     }
 }
 
+/// Returns a `Ticker` with the following dummy values:
+///   * `decimals`: 9
+///   * `min_provider_count`: 2
+///   * `enabled`: true
 pub(crate) fn dummy_ticker(currency_pair: &str, metadata: &str) -> Ticker {
     Ticker {
         currency_pair: currency_pair.parse().unwrap(),
@@ -358,6 +422,11 @@ pub(crate) fn dummy_ticker(currency_pair: &str, metadata: &str) -> Ticker {
     }
 }
 
+/// Returns a `Transfer` action with the following dummy values:
+///   * `to`: `astria_address(&[50; ADDRESS_LENGTH])`
+///   * `fee_asset`: nria
+///   * `asset`: nria
+///   * `amount`: 100
 pub(crate) fn dummy_transfer() -> Transfer {
     Transfer {
         to: astria_address(&[50; ADDRESS_LENGTH]),

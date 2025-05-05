@@ -862,18 +862,18 @@ impl App {
         };
 
         // check sequencer size constraints
-        let tx_sequence_data_bytes = tx
+        let tx_sequence_data_length = tx
             .rollup_data_bytes()
             .map(|(_rollup_id, data)| data.len())
             .sum();
         if !proposal_info
             .block_size_constraints()
-            .sequencer_has_space(tx_sequence_data_bytes)
+            .sequencer_has_space(tx_sequence_data_length)
         {
             debug!(
                 tx_id = %tx.id(),
                 block_size_constraints = %json(&proposal_info.block_size_constraints()),
-                tx_data_bytes = tx_sequence_data_bytes,
+                tx_data_length = tx_sequence_data_length,
                 "{debug_msg}: max block sequenced data limit reached"
             );
             match proposal_info {
@@ -925,7 +925,7 @@ impl App {
                 });
                 proposal_info
                     .block_size_constraints_mut()
-                    .sequencer_checked_add(tx_sequence_data_bytes)
+                    .sequencer_checked_add(tx_sequence_data_length)
                     .wrap_err("error growing sequencer block size")?;
                 proposal_info
                     .block_size_constraints_mut()
@@ -974,10 +974,7 @@ impl App {
                             mempool
                                 .remove_tx_invalid(
                                     tx,
-                                    RemovalReason::FailedPrepareProposal(format!(
-                                        "{:#}",
-                                        Report::new(error)
-                                    )),
+                                    RemovalReason::FailedPrepareProposal(error.to_string()),
                                 )
                                 .await;
                         }

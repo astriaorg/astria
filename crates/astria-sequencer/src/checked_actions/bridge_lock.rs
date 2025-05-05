@@ -81,7 +81,10 @@ impl<const PURE_LOCK: bool> CheckedBridgeLockImpl<PURE_LOCK> {
         let allowed_asset = state
             .get_bridge_account_ibc_asset(&action.to)
             .await
-            .wrap_err("failed to get bridge account asset ID; account is not a bridge account")?;
+            .wrap_err(
+                "failed to get bridge account asset ID; destination account is not a bridge \
+                 account",
+            )?;
         ensure!(
             allowed_asset == action.asset.to_ibc_prefixed(),
             "asset ID is not authorized for transfer to bridge account",

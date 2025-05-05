@@ -12,12 +12,10 @@
 //!
 //! If construction succeeds, the immutable checks are never rerun.
 //!
-//! The mutable checks are rerun by a checked action when:
-//! 1. The transaction holding the action is the target of a `CheckTx` call (TBD).
-//! 2. The transaction holding the action is being executed.
+//! The mutable checks are rerun by a checked action when the transaction holding the action is
+//! being executed.
 //!
-//! Failure in case 1 results in removal of the transaction from the Mempool.  Failure in case 2
-//! results in a failed transaction execution and also removal from the Mempool.
+//! Failure in this case results in a failed transaction execution and removal from the Mempool.
 
 mod action_ref;
 mod bridge_lock;

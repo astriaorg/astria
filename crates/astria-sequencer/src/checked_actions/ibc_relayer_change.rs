@@ -189,7 +189,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn should_fail_execution_if_signer_is_not_bridge_sudo_address() {
+    async fn should_fail_execution_if_signer_is_not_ibc_sudo_address() {
         let mut fixture = Fixture::default_initialized().await;
         let tx_signer = *IBC_SUDO_ADDRESS_BYTES;
 

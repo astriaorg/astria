@@ -1092,8 +1092,8 @@ async fn app_proposal_fingerprint_triggers_update() {
     // - after process_proposal, fingerprint should be updated to include the block hash indicating
     //   that the proposal execution data was utilized.
     // - the finalize block fingerprint should match
-    let mempool = fixture.mempool();
-    mempool
+    fixture
+        .mempool()
         .insert(tx, 0, dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
         .await
         .unwrap();

@@ -110,10 +110,7 @@ impl AssetTransfer for CheckedFeeAssetChange {
 
 #[cfg(test)]
 mod tests {
-    use astria_core::{
-        primitive::v1::asset::Denom,
-        protocol::transaction::v1::action::SudoAddressChange,
-    };
+    use astria_core::protocol::transaction::v1::action::SudoAddressChange;
 
     use super::*;
     use crate::{
@@ -121,15 +118,12 @@ mod tests {
         test_utils::{
             assert_error_contains,
             astria_address,
+            denom_1,
             nria,
             Fixture,
             SUDO_ADDRESS_BYTES,
         },
     };
-
-    fn test_asset() -> Denom {
-        "test".parse().unwrap()
-    }
 
     async fn get_allowed_fee_assets(fixture: &Fixture) -> Vec<IbcPrefixed> {
         fixture
@@ -147,7 +141,7 @@ mod tests {
         let tx_signer = [2_u8; ADDRESS_LEN];
         assert_ne!(tx_signer, *SUDO_ADDRESS_BYTES);
 
-        let addition_action = FeeAssetChange::Addition(test_asset());
+        let addition_action = FeeAssetChange::Addition(denom_1());
         let err = fixture
             .new_checked_action(addition_action, tx_signer)
             .await
@@ -157,7 +151,7 @@ mod tests {
             "transaction signer not authorized to change fee assets",
         );
 
-        let removal_action = FeeAssetChange::Removal(test_asset());
+        let removal_action = FeeAssetChange::Removal(denom_1());
         let err = fixture
             .new_checked_action(removal_action, tx_signer)
             .await
@@ -174,14 +168,14 @@ mod tests {
 
         // Construct the addition and removal checked actions while the sudo address is still the
         // tx signer so construction succeeds.
-        let addition_action = FeeAssetChange::Addition(test_asset());
+        let addition_action = FeeAssetChange::Addition(denom_1());
         let checked_addition_action: CheckedFeeAssetChange = fixture
             .new_checked_action(addition_action, *SUDO_ADDRESS_BYTES)
             .await
             .unwrap()
             .into();
 
-        let removal_action = FeeAssetChange::Removal(test_asset());
+        let removal_action = FeeAssetChange::Removal(denom_1());
         let checked_removal_action: CheckedFeeAssetChange = fixture
             .new_checked_action(removal_action, *SUDO_ADDRESS_BYTES)
             .await
@@ -248,9 +242,9 @@ mod tests {
         let mut fixture = Fixture::default_initialized().await;
 
         let allowed_fee_assets = get_allowed_fee_assets(&fixture).await;
-        assert!(!allowed_fee_assets.contains(&test_asset().to_ibc_prefixed()));
+        assert!(!allowed_fee_assets.contains(&denom_1().to_ibc_prefixed()));
 
-        let action = FeeAssetChange::Addition(test_asset());
+        let action = FeeAssetChange::Addition(denom_1());
         let checked_action: CheckedFeeAssetChange = fixture
             .new_checked_action(action, *SUDO_ADDRESS_BYTES)
             .await
@@ -260,7 +254,7 @@ mod tests {
         checked_action.execute(fixture.state_mut()).await.unwrap();
 
         let allowed_fee_assets = get_allowed_fee_assets(&fixture).await;
-        assert!(allowed_fee_assets.contains(&test_asset().to_ibc_prefixed()));
+        assert!(allowed_fee_assets.contains(&denom_1().to_ibc_prefixed()));
     }
 
     #[tokio::test]
@@ -268,13 +262,13 @@ mod tests {
         let mut fixture = Fixture::default_initialized().await;
         fixture
             .state_mut()
-            .put_allowed_fee_asset(&test_asset())
+            .put_allowed_fee_asset(&denom_1())
             .unwrap();
 
         let allowed_fee_assets = get_allowed_fee_assets(&fixture).await;
-        assert!(allowed_fee_assets.contains(&test_asset().to_ibc_prefixed()));
+        assert!(allowed_fee_assets.contains(&denom_1().to_ibc_prefixed()));
 
-        let action = FeeAssetChange::Removal(test_asset());
+        let action = FeeAssetChange::Removal(denom_1());
         let checked_action: CheckedFeeAssetChange = fixture
             .new_checked_action(action, *SUDO_ADDRESS_BYTES)
             .await
@@ -284,6 +278,6 @@ mod tests {
         checked_action.execute(fixture.state_mut()).await.unwrap();
 
         let allowed_fee_assets = get_allowed_fee_assets(&fixture).await;
-        assert!(!allowed_fee_assets.contains(&test_asset().to_ibc_prefixed()));
+        assert!(!allowed_fee_assets.contains(&denom_1().to_ibc_prefixed()));
     }
 }

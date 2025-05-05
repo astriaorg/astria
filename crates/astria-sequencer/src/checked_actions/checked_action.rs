@@ -74,13 +74,6 @@ use crate::{
     storage::StoredValue,
 };
 
-fn init_error(action_name: &'static str, source: eyre::Report) -> CheckedActionInitialCheckError {
-    CheckedActionInitialCheckError {
-        action_name,
-        source,
-    }
-}
-
 /// An enum of all the various checked action types.
 #[derive(Debug)]
 pub(crate) enum CheckedAction {
@@ -110,7 +103,7 @@ impl CheckedAction {
     ) -> Result<Self, CheckedActionInitialCheckError> {
         let action_name = action.name();
         let checked_action = CheckedRollupDataSubmission::new(action)
-            .map_err(|source| init_error(action_name, source))?;
+            .map_err(|source| CheckedActionInitialCheckError::new(action_name, source))?;
         Ok(Self::RollupDataSubmission(checked_action))
     }
 
@@ -122,7 +115,7 @@ impl CheckedAction {
         let action_name = action.name();
         let checked_action = CheckedTransfer::new(action, tx_signer, state)
             .await
-            .map_err(|source| init_error(action_name, source))?;
+            .map_err(|source| CheckedActionInitialCheckError::new(action_name, source))?;
         Ok(Self::Transfer(checked_action))
     }
 
@@ -134,7 +127,7 @@ impl CheckedAction {
         let action_name = action.name();
         let checked_action = CheckedValidatorUpdate::new(action, tx_signer, state)
             .await
-            .map_err(|source| init_error(action_name, source))?;
+            .map_err(|source| CheckedActionInitialCheckError::new(action_name, source))?;
         Ok(Self::ValidatorUpdate(checked_action))
     }
 
@@ -146,7 +139,7 @@ impl CheckedAction {
         let action_name = action.name();
         let checked_action = CheckedSudoAddressChange::new(action, tx_signer, state)
             .await
-            .map_err(|source| init_error(action_name, source))?;
+            .map_err(|source| CheckedActionInitialCheckError::new(action_name, source))?;
         Ok(Self::SudoAddressChange(checked_action))
     }
 
@@ -158,7 +151,7 @@ impl CheckedAction {
         let action_name = action.name();
         let checked_action = CheckedIbcRelay::new(action, tx_signer, state)
             .await
-            .map_err(|source| init_error(action_name, source))?;
+            .map_err(|source| CheckedActionInitialCheckError::new(action_name, source))?;
         Ok(Self::IbcRelay(checked_action))
     }
 
@@ -170,7 +163,7 @@ impl CheckedAction {
         let action_name = action.name();
         let checked_action = CheckedIbcSudoChange::new(action, tx_signer, state)
             .await
-            .map_err(|source| init_error(action_name, source))?;
+            .map_err(|source| CheckedActionInitialCheckError::new(action_name, source))?;
         Ok(Self::IbcSudoChange(checked_action))
     }
 
@@ -182,7 +175,7 @@ impl CheckedAction {
         let action_name = action.name();
         let checked_action = CheckedIcs20Withdrawal::new(action, tx_signer, state)
             .await
-            .map_err(|source| init_error(action_name, source))?;
+            .map_err(|source| CheckedActionInitialCheckError::new(action_name, source))?;
         Ok(Self::Ics20Withdrawal(Box::new(checked_action)))
     }
 
@@ -194,7 +187,7 @@ impl CheckedAction {
         let action_name = action.name();
         let checked_action = CheckedIbcRelayerChange::new(action, tx_signer, state)
             .await
-            .map_err(|source| init_error(action_name, source))?;
+            .map_err(|source| CheckedActionInitialCheckError::new(action_name, source))?;
         Ok(Self::IbcRelayerChange(checked_action))
     }
 
@@ -206,7 +199,7 @@ impl CheckedAction {
         let action_name = action.name();
         let checked_action = CheckedFeeAssetChange::new(action, tx_signer, state)
             .await
-            .map_err(|source| init_error(action_name, source))?;
+            .map_err(|source| CheckedActionInitialCheckError::new(action_name, source))?;
         Ok(Self::FeeAssetChange(checked_action))
     }
 
@@ -218,7 +211,7 @@ impl CheckedAction {
         let action_name = action.name();
         let checked_action = CheckedInitBridgeAccount::new(action, tx_signer, state)
             .await
-            .map_err(|source| init_error(action_name, source))?;
+            .map_err(|source| CheckedActionInitialCheckError::new(action_name, source))?;
         Ok(Self::InitBridgeAccount(checked_action))
     }
 
@@ -233,7 +226,7 @@ impl CheckedAction {
         let checked_action =
             CheckedBridgeLock::new(action, tx_signer, tx_id, position_in_tx, state)
                 .await
-                .map_err(|source| init_error(action_name, source))?;
+                .map_err(|source| CheckedActionInitialCheckError::new(action_name, source))?;
         Ok(Self::BridgeLock(checked_action))
     }
 
@@ -245,7 +238,7 @@ impl CheckedAction {
         let action_name = action.name();
         let checked_action = CheckedBridgeUnlock::new(action, tx_signer, state)
             .await
-            .map_err(|source| init_error(action_name, source))?;
+            .map_err(|source| CheckedActionInitialCheckError::new(action_name, source))?;
         Ok(Self::BridgeUnlock(checked_action))
     }
 
@@ -257,7 +250,7 @@ impl CheckedAction {
         let action_name = action.name();
         let checked_action = CheckedBridgeSudoChange::new(action, tx_signer, state)
             .await
-            .map_err(|source| init_error(action_name, source))?;
+            .map_err(|source| CheckedActionInitialCheckError::new(action_name, source))?;
         Ok(Self::BridgeSudoChange(checked_action))
     }
 
@@ -272,7 +265,7 @@ impl CheckedAction {
         let checked_action =
             CheckedBridgeTransfer::new(action, tx_signer, tx_id, position_in_tx, state)
                 .await
-                .map_err(|source| init_error(action_name, source))?;
+                .map_err(|source| CheckedActionInitialCheckError::new(action_name, source))?;
         Ok(Self::BridgeTransfer(Box::new(checked_action)))
     }
 
@@ -284,7 +277,7 @@ impl CheckedAction {
         let action_name = action.name();
         let checked_action = CheckedFeeChange::new(action, tx_signer, state)
             .await
-            .map_err(|source| init_error(action_name, source))?;
+            .map_err(|source| CheckedActionInitialCheckError::new(action_name, source))?;
         Ok(Self::FeeChange(checked_action))
     }
 
@@ -296,7 +289,7 @@ impl CheckedAction {
         let action_name = action.name();
         let checked_action = CheckedRecoverIbcClient::new(action, tx_signer, state)
             .await
-            .map_err(|source| init_error(action_name, source))?;
+            .map_err(|source| CheckedActionInitialCheckError::new(action_name, source))?;
         Ok(Self::RecoverIbcClient(checked_action))
     }
 
@@ -308,7 +301,7 @@ impl CheckedAction {
         let action_name = action.name();
         let checked_action = CheckedCurrencyPairsChange::new(action, tx_signer, state)
             .await
-            .map_err(|source| init_error(action_name, source))?;
+            .map_err(|source| CheckedActionInitialCheckError::new(action_name, source))?;
         Ok(Self::CurrencyPairsChange(checked_action))
     }
 
@@ -320,7 +313,7 @@ impl CheckedAction {
         let action_name = action.name();
         let checked_action = CheckedMarketsChange::new(action, tx_signer, state)
             .await
-            .map_err(|source| init_error(action_name, source))?;
+            .map_err(|source| CheckedActionInitialCheckError::new(action_name, source))?;
         Ok(Self::MarketsChange(checked_action))
     }
 
@@ -532,7 +525,7 @@ impl CheckedAction {
     }
 }
 
-#[instrument(skip_all, err(level = Level::DEBUG))]
+#[instrument(skip_all, fields(action = %action.name()), err(level = Level::DEBUG))]
 async fn pay_fee<'a, F, S>(
     action: &'a F,
     tx_signer: &[u8; ADDRESS_LENGTH],

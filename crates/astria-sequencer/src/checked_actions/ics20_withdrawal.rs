@@ -166,7 +166,9 @@ impl CheckedIcs20Withdrawal {
                     &rollup_withdrawal.rollup_withdrawal_event_id,
                 )
                 .await
-                .wrap_err("withdrawal event already processed")?
+                .wrap_err(
+                    "failed to read bridge account withdrawal event block height from storage",
+                )?
             {
                 bail!(
                     "withdrawal event ID `{}` used by block number {existing_block_num}",

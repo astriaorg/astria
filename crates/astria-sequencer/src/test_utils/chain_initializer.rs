@@ -28,6 +28,7 @@ use super::{
     CAROL_ADDRESS,
     IBC_SUDO_ADDRESS,
     SUDO_ADDRESS,
+    TEN_QUINTILLION,
 };
 use crate::test_utils::{
     astria_address,
@@ -216,15 +217,15 @@ fn dummy_genesis_state() -> RawGenesisAppState {
     let accounts = vec![
         RawAccount {
             address: Some(ALICE_ADDRESS.to_raw()),
-            balance: Some(10_u128.pow(19).into()),
+            balance: Some(TEN_QUINTILLION.into()),
         },
         RawAccount {
             address: Some(BOB_ADDRESS.to_raw()),
-            balance: Some(10_u128.pow(19).into()),
+            balance: Some(TEN_QUINTILLION.into()),
         },
         RawAccount {
             address: Some(CAROL_ADDRESS.to_raw()),
-            balance: Some(10_u128.pow(19).into()),
+            balance: Some(TEN_QUINTILLION.into()),
         },
     ];
     let ibc_parameters = RawIbcParameters {

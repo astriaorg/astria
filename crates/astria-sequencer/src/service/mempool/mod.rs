@@ -104,62 +104,6 @@ impl From<InsertionError> for response::CheckTx {
     }
 }
 
-// impl From<CheckedTransactionExecutionError> for response::CheckTx {
-//     fn from(error: CheckedTransactionExecutionError) -> Self {
-//         let abci_error_code = match &error {
-//             CheckedTransactionExecutionError::TooLarge {
-//                 ..
-//             }
-//             | CheckedTransactionExecutionError::ActionIndexOverflowed => {
-//                 AbciErrorCode::TRANSACTION_TOO_LARGE
-//             }
-//             CheckedTransactionExecutionError::Decode(_)
-//             | CheckedTransactionExecutionError::Convert(_)
-//             | CheckedTransactionExecutionError::CheckedAction(
-//                 CheckedActionExecutionError::ActionDisabled {
-//                     ..
-//                 }
-//                 | CheckedActionExecutionError::FeeAssetIsNotAllowed {
-//                     ..
-//                 },
-//             ) => AbciErrorCode::BAD_REQUEST,
-//             CheckedTransactionExecutionError::ChainIdMismatch {
-//                 ..
-//             } => AbciErrorCode::INVALID_CHAIN_ID,
-//             CheckedTransactionExecutionError::InvalidNonce {
-//                 ..
-//             }
-//             | CheckedTransactionExecutionError::NonceOverflowed => AbciErrorCode::INVALID_NONCE,
-//             CheckedTransactionExecutionError::CheckedAction(
-//                 CheckedActionExecutionError::InitialCheck {
-//                     ..
-//                 }
-//                 | CheckedActionExecutionError::MutableCheck {
-//                     ..
-//                 },
-//             ) => AbciErrorCode::TRANSACTION_FAILED_CHECK_TX,
-//             CheckedTransactionExecutionError::CheckedAction(
-//                 CheckedActionExecutionError::Execution {
-//                     ..
-//                 }
-//                 | CheckedActionExecutionError::InsufficientBalanceToPayFee {
-//                     ..
-//                 },
-//             ) => AbciErrorCode::TRANSACTION_FAILED_EXECUTION,
-//             CheckedTransactionExecutionError::CheckedAction(
-//                 CheckedActionExecutionError::InternalError {
-//                     ..
-//                 },
-//             )
-//             | CheckedTransactionExecutionError::InternalError {
-//                 ..
-//             } => AbciErrorCode::INTERNAL_ERROR,
-//         };
-//
-//         error_response(abci_error_code, error)
-//     }
-// }
-
 #[expect(clippy::needless_pass_by_value, reason = "more ergonomic to call")]
 fn error_response<T: ToString>(abci_error_code: AbciErrorCode, log: T) -> response::CheckTx {
     response::CheckTx {

@@ -18,7 +18,7 @@ use astria_core::{
         Transaction,
         TransactionParams,
     },
-    Protobuf,
+    Protobuf as _,
 };
 use bytes::Bytes;
 use cnidarium::{
@@ -225,9 +225,9 @@ impl CheckedTransaction {
 
     /// Executes the actions in this transaction.
     ///
-    /// Returns an error if the current nance for the transaction's signer in `state` is different
-    /// to this transaction's nonce. Also returns an error if any action fails execution or cannot
-    /// pay the required execution costs.
+    /// Returns an error if the current nonce for the transaction's signer in `state` is different
+    /// to this transaction's nonce. Also returns an error if any action fails execution, or the
+    /// signer cannot pay the required execution costs.
     pub(super) async fn execute<S: StateWrite>(
         &self,
         mut state: S,
@@ -281,7 +281,6 @@ impl CheckedTransaction {
                 CheckedTransactionExecutionError::internal("failed updating nonce", source)
             })?;
 
-        // FIXME: this should create one span per `check_and_execute`
         let tx_signer = *self.verification_key.address_bytes();
         for (index, action) in self.actions.iter().enumerate() {
             let index = u64::try_from(index)

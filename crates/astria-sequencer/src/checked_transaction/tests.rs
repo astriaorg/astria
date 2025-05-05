@@ -4,20 +4,15 @@ use astria_core::{
         TransactionBody as RawTransactionBody,
         TransactionParams as RawTransactionParams,
     },
-    primitive::v1::{
-        asset::Denom,
-        RollupId,
-    },
+    primitive::v1::RollupId,
     protocol::transaction::v1::{
         action::{
-            BridgeLock,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
         },
         TransactionBodyBuilder,
     },
-    sequencerblock::v1::block::Deposit,
 };
 use prost::Name as _;
 
@@ -25,6 +20,7 @@ use super::*;
 use crate::{
     fees::StateReadExt as _,
     test_utils::{
+        denom_1,
         nria,
         Fixture,
         ALICE,
@@ -32,13 +28,9 @@ use crate::{
         ALICE_ADDRESS_BYTES,
         BOB_ADDRESS,
         SUDO,
+        TEN_QUINTILLION,
     },
-    utils::create_deposit_event,
 };
-
-fn test_asset() -> Denom {
-    "test".parse().unwrap()
-}
 
 #[tokio::test]
 async fn should_fail_construction_if_tx_too_large() {
@@ -262,7 +254,7 @@ async fn should_execute_transfer() {
 
     assert_eq!(
         fixture.get_nria_balance(&*BOB_ADDRESS).await,
-        value + 10u128.pow(19)
+        value + TEN_QUINTILLION
     );
     let transfer_base = fixture
         .state()
@@ -273,7 +265,7 @@ async fn should_execute_transfer() {
         .base();
     assert_eq!(
         fixture.get_nria_balance(&*ALICE_ADDRESS).await,
-        10u128.pow(19) - (value + transfer_base),
+        TEN_QUINTILLION - (value + transfer_base),
     );
     assert_eq!(
         fixture
@@ -302,7 +294,7 @@ async fn should_execute_transfer_not_native_token() {
 
     fixture
         .state_mut()
-        .put_account_balance(&*ALICE_ADDRESS, &test_asset(), value)
+        .put_account_balance(&*ALICE_ADDRESS, &denom_1(), value)
         .unwrap();
 
     // transfer funds from Alice to Bob; use native token for fee payment
@@ -311,7 +303,7 @@ async fn should_execute_transfer_not_native_token() {
         .with_action(Transfer {
             to: *BOB_ADDRESS,
             amount: value,
-            asset: test_asset(),
+            asset: denom_1(),
             fee_asset: nria().into(),
         })
         .with_signer(ALICE.clone())
@@ -321,12 +313,12 @@ async fn should_execute_transfer_not_native_token() {
 
     assert_eq!(
         fixture.get_nria_balance(&*BOB_ADDRESS).await,
-        10u128.pow(19), // genesis balance
+        TEN_QUINTILLION, // genesis balance
     );
     assert_eq!(
         fixture
             .state()
-            .get_account_balance(&*BOB_ADDRESS, &test_asset())
+            .get_account_balance(&*BOB_ADDRESS, &denom_1())
             .await
             .unwrap(),
         value, // transferred amount
@@ -341,12 +333,12 @@ async fn should_execute_transfer_not_native_token() {
         .base();
     assert_eq!(
         fixture.get_nria_balance(&*ALICE_ADDRESS).await,
-        10u128.pow(19) - transfer_base, // genesis balance - fee
+        TEN_QUINTILLION - transfer_base, // genesis balance - fee
     );
     assert_eq!(
         fixture
             .state()
-            .get_account_balance(&*ALICE_ADDRESS, &test_asset())
+            .get_account_balance(&*ALICE_ADDRESS, &denom_1())
             .await
             .unwrap(),
         0, // 0 since all funds of `asset` were transferred
@@ -368,45 +360,6 @@ async fn should_execute_transfer_not_native_token() {
             .unwrap(),
         1
     );
-}
-
-#[tokio::test]
-async fn execution_should_record_deposit_event() {
-    let mut fixture = Fixture::default_initialized().await;
-    fixture.bridge_initializer(*BOB_ADDRESS).init().await;
-
-    let action = BridgeLock {
-        to: *BOB_ADDRESS,
-        amount: 1,
-        asset: nria().into(),
-        fee_asset: nria().into(),
-        destination_chain_address: "test_chain_address".to_string(),
-    };
-    let tx = fixture
-        .checked_tx_builder()
-        .with_action(action)
-        .with_signer(ALICE.clone())
-        .build()
-        .await;
-
-    let expected_deposit = Deposit {
-        bridge_address: *BOB_ADDRESS,
-        rollup_id: [1; 32].into(),
-        amount: 1,
-        asset: nria().into(),
-        destination_chain_address: "test_chain_address".to_string(),
-        source_transaction_id: *tx.id(),
-        source_action_index: 0,
-    };
-    let expected_deposit_event = create_deposit_event(&expected_deposit);
-
-    tx.execute(fixture.state_mut()).await.unwrap();
-    let events = fixture.into_events();
-    let event = events
-        .iter()
-        .find(|event| event.kind == "tx.deposit")
-        .expect("should have deposit event");
-    assert_eq!(*event, expected_deposit_event);
 }
 
 #[tokio::test]

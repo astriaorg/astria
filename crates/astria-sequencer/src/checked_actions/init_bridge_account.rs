@@ -46,9 +46,6 @@ impl CheckedInitBridgeAccount {
         state: S,
     ) -> Result<Self> {
         // Run immutable checks for base prefix.
-        //
-        // TODO(Fraser): Should we do `ensure_base_prefix(tx_signer)`? Note, that would be a
-        //               consensus breaking change.
         if let Some(sudo_address) = &action.sudo_address {
             state
                 .ensure_base_prefix(sudo_address)

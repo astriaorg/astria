@@ -169,10 +169,7 @@ impl AssetTransfer for CheckedMarketsChange {
 #[cfg(test)]
 mod tests {
     use astria_core::{
-        oracles::price_feed::market_map::v2::{
-            Market,
-            ProviderConfig,
-        },
+        oracles::price_feed::market_map::v2::Market,
         protocol::transaction::v1::action::SudoAddressChange,
     };
 
@@ -189,34 +186,24 @@ mod tests {
         },
     };
 
-    fn provider(currency_pair: &str) -> ProviderConfig {
-        ProviderConfig {
-            name: "coingecko_api".to_string(),
-            off_chain_ticker: currency_pair.to_string(),
-            normalize_by_pair: None,
-            invert: false,
-            metadata_json: "dummy provider".to_string(),
-        }
-    }
-
     fn new_creation_action(currency_pair: &str) -> MarketsChange {
         MarketsChange::Creation(vec![Market {
             ticker: dummy_ticker(currency_pair, "ticker metadata"),
-            provider_configs: vec![provider(currency_pair)],
+            provider_configs: vec![],
         }])
     }
 
     fn new_removal_action(currency_pair: &str) -> MarketsChange {
         MarketsChange::Removal(vec![Market {
             ticker: dummy_ticker(currency_pair, "ticker metadata"),
-            provider_configs: vec![provider(currency_pair)],
+            provider_configs: vec![],
         }])
     }
 
     fn new_update_action(currency_pair: &str) -> MarketsChange {
         MarketsChange::Update(vec![Market {
             ticker: dummy_ticker(currency_pair, "ticker metadata"),
-            provider_configs: vec![provider(currency_pair)],
+            provider_configs: vec![],
         }])
     }
 
@@ -526,11 +513,11 @@ mod tests {
         let action = MarketsChange::Removal(vec![
             Market {
                 ticker: dummy_ticker(&existing_pair_to_remove, "ticker metadata"),
-                provider_configs: vec![provider(&existing_pair_to_remove)],
+                provider_configs: vec![],
             },
             Market {
                 ticker: dummy_ticker(&non_existing_pair_to_remove, "ticker metadata"),
-                provider_configs: vec![provider(&non_existing_pair_to_remove)],
+                provider_configs: vec![],
             },
         ]);
         let checked_action: CheckedMarketsChange = fixture

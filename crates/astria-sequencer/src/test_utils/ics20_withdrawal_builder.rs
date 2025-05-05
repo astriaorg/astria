@@ -20,6 +20,13 @@ fn new_rollup_withdrawal() -> Ics20WithdrawalFromRollup {
 }
 
 /// A builder for an [`Ics20Withdrawal`].
+///
+/// By default, the following values are used:
+///   * `amount`: 1
+///   * `return_address`: `astria_address(&[1; ADDRESS_LENGTH])`
+///   * `timeout_time`: 100,000,000,000
+///   * `bridge_address`: `None`
+///   * `rollup_withdrawal`: `None`
 pub(crate) struct Ics20WithdrawalBuilder {
     amount: u128,
     return_address: Address,

@@ -14,6 +14,15 @@ pub(crate) struct CheckedActionInitialCheckError {
     pub(super) source: eyre::Report,
 }
 
+impl CheckedActionInitialCheckError {
+    pub(super) fn new(action_name: &'static str, source: eyre::Report) -> Self {
+        Self {
+            action_name,
+            source,
+        }
+    }
+}
+
 #[derive(Debug, Error)]
 #[error("`{action_name}` action failed mutable check")]
 pub(crate) struct CheckedActionMutableCheckError {

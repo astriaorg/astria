@@ -5,7 +5,7 @@ use std::{
 
 use astria_core::{
     primitive::v1::RollupId,
-    protocol::group_rollup_data_submissions_in_signed_transaction_transactions_by_rollup_id,
+    protocol::group_rollup_data_submissions_by_rollup_id,
     sequencerblock::v1::block::{
         DataItem,
         Deposit,
@@ -86,10 +86,7 @@ pub(crate) fn generate_rollup_datas_commitment<const USES_DATA_ITEM_ENUM: bool>(
     let rollup_data_bytes = checked_txs
         .iter()
         .flat_map(|checked_tx| checked_tx.rollup_data_bytes());
-    let mut rollup_ids_to_txs =
-        group_rollup_data_submissions_in_signed_transaction_transactions_by_rollup_id(
-            rollup_data_bytes,
-        );
+    let mut rollup_ids_to_txs = group_rollup_data_submissions_by_rollup_id(rollup_data_bytes);
 
     for (rollup_id, deposit) in deposits {
         rollup_ids_to_txs
