@@ -14,13 +14,13 @@ class EvmController:
     # Methods managing and querying the rollup's k8s container
     # ========================================================
 
-    def deploy_rollup(self, image_tag, evm_restart=False):
+    def deploy_rollup(self, image_tag, values_defined_image=False, evm_restart=False):
         """
         Deploys a new EVM rollup on the cluster using the specified image tag.
 
         The EVM node, composer, conductor and bridge-withdrawer are installed via `helm install`.
         """
-        run_subprocess(self._helm_args("install", image_tag, evm_restart=evm_restart), msg="deploying rollup")
+        run_subprocess(self._helm_args("install", image_tag, values_defined_image, evm_restart=evm_restart), msg="deploying rollup")
         wait_for_statefulset_rollout("rollup", "astria-geth", "astria-dev-cluster", 600)
 
     # ========================================
@@ -130,22 +130,24 @@ class EvmController:
     # Private methods
     # ===============
 
-    def _helm_args(self, subcommand, image_tag, evm_restart):
+    def _helm_args(self, subcommand, image_tag, values_defined_image, evm_restart):
         values = "evm-restart-test" if evm_restart else "dev"
-        return [
+        args = [
             "helm",
             subcommand,
             "-n=astria-dev-cluster",
             "astria-chain-chart",
             "charts/evm-stack",
             f"--values=dev/values/rollup/{values}.yaml",
-            f"--set=evm-rollup.images.conductor.tag={image_tag}",
-            f"--set=composer.images.composer.devTag={image_tag}",
-            f"--set=evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag={image_tag}",
             "--set=blockscout-stack.enabled=false",
             "--set=postgresql.enabled=false",
             "--set=evm-faucet.enabled=false",
         ]
+        if not values_defined_image:
+            args.append(f"--set=evm-rollup.images.conductor.tag={image_tag}")
+            args.append(f"--set=composer.images.composer.devTag={image_tag}")
+            args.append(f"--set=evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag={image_tag}")
+        return args
 
     def _try_send_json_rpc_request(self, method, *params):
         """

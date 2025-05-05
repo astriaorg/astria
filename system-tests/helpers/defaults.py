@@ -11,9 +11,6 @@ TRANSFER_AMOUNT = 10
 
 # Sequencer Defaults
 #####################
-SEQUENCER_BRIDGE_ADDRESS = "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
-SEQUENCER_BRIDGE_P_KEY = "dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0"
-SEQUENCER_FUNDS_P_KEY = "934ab488f9e1900f6a08f50605ce1409ca9d95ebdc400dafc2e8a4306419fd52"
 # corresponds to destination address in bridge_tx_bytes
 SEQUENCER_WITHDRAWER_ADDRESS = "astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504"
 

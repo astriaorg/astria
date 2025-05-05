@@ -3,14 +3,14 @@ from python_on_whales.exceptions import DockerException
 from .defaults import (
     BASE_AMOUNT,
     TRANSFER_AMOUNT,
-    SEQUENCER_BRIDGE_ADDRESS,
-    SEQUENCER_BRIDGE_P_KEY,
-    SEQUENCER_FUNDS_P_KEY,
     EVM_DESTINATION_ADDRESS
 )
 from .utils import Retryer
 
 SEQUENCER_RPC_POD_PORT = 26657
+SEQUENCER_BRIDGE_ADDRESS = "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
+SEQUENCER_BRIDGE_SIGNING_KEY = "dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0"
+SEQUENCER_FUNDS_SIGNING_KEY = "934ab488f9e1900f6a08f50605ce1409ca9d95ebdc400dafc2e8a4306419fd52"
 
 class Cli:
     """
@@ -52,7 +52,7 @@ class Cli:
             )
         print(f"current balance: {balance}, finished waiting")
 
-    def init_bridge_account(self, sequencer_name, private_key=SEQUENCER_BRIDGE_P_KEY):
+    def init_bridge_account(self, sequencer_name, private_key=SEQUENCER_BRIDGE_SIGNING_KEY):
         try:
             self._try_exec_sequencer_command_with_retry(
                 "init-bridge-account",
@@ -72,7 +72,7 @@ class Cli:
         amount=(TRANSFER_AMOUNT*BASE_AMOUNT),
         bridge_address=SEQUENCER_BRIDGE_ADDRESS,
         destination_address=EVM_DESTINATION_ADDRESS,
-        private_key=SEQUENCER_FUNDS_P_KEY
+        private_key=SEQUENCER_FUNDS_SIGNING_KEY
     ):
         try:
             self._try_exec_sequencer_command_with_retry(

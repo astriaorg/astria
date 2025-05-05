@@ -31,11 +31,32 @@ from termcolor import colored
 
 parser = argparse.ArgumentParser(prog="smoke_test", description="Runs the smoke test.")
 parser.add_argument(
-    "-t", "--image-tag",
+    "-s", "--sequencer-image-tag",
     help=
-        "The image tag to use, e.g. 'latest', 'local', 'pr-2000'.",
-    metavar="TAG",
+        "The image tag to use for Sequencer, e.g. 'latest', 'local', 'pr-2000'.",
+    metavar="SEQUENCER_TAG",
     required=True
+)
+parser.add_argument(
+    "-r", "--sequencer-relayer-image-tag",
+    help=
+        "The image tag to use for Sequencer Relayer, e.g. 'latest', 'local', 'pr-2000'.",
+    metavar="RELAYER_TAG",
+    required=True
+)
+parser.add_argument(
+    "-d", "--default-image-tag",
+    help=
+        "The image tag to use for all other components than Sequencer and Sequencer\
+            Relayer, e.g. 'latest', 'local', 'pr-2000'.",
+    metavar="DEFAULT_TAG",
+    required=True
+)
+parser.add_argument(
+    "-v", "--use-values-image-tags",
+    help=
+        "Set to true to use image tags defined in the components' `values.yaml` files.",
+    action="store_true"
 )
 parser.add_argument(
     "--evm-restart",
@@ -43,12 +64,19 @@ parser.add_argument(
     action="store_true"
 )
 args = vars(parser.parse_args())
-image_tag = args["image_tag"]
+sequencer_image_tag = args["sequencer_image_tag"]
+sequencer_relayer_image_tag = args["sequencer_relayer_image_tag"]
+default_image_tag = args["default_image_tag"]
+use_values_image_tags = args["use_values_image_tags"]
 evm_restart = args["evm_restart"]
+
+overridden = colored(" (overridden)", "yellow") if use_values_image_tags else ""
 
 print(colored("################################################################################", "light_blue"))
 print(colored("Running Astria Stack smoke test", "light_blue"))
-print(colored(f"  * image tag: {image_tag}", "light_blue"))
+print(colored(f"  * sequencer image tag: {sequencer_image_tag}", "light_blue") + overridden)
+print(colored(f"  * sequencer relayer image tag: {sequencer_relayer_image_tag}", "light_blue") + overridden)
+print(colored(f"  * default image tag: {default_image_tag}", "light_blue") + overridden)
 print(colored("################################################################################", "light_blue"))
 
 # Update chart dependencies.
@@ -61,8 +89,13 @@ print(colored("Deploying Sequencer and EVM Rollup...", "blue"))
 executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 sequencer_node = SequencerController("single")
 evm = EvmController()
-deploy_sequencer_fn = lambda seq_node: seq_node.deploy_sequencer(image_tag, image_tag, enable_price_feed=False)
-deploy_evm_fn = lambda evm_node: evm_node.deploy_rollup(image_tag, evm_restart=evm_restart)
+deploy_sequencer_fn = lambda seq_node: seq_node.deploy_sequencer(
+    sequencer_image_tag,
+    sequencer_relayer_image_tag,
+    use_values_image_tags,
+    enable_price_feed=False
+    )
+deploy_evm_fn = lambda evm_node: evm_node.deploy_rollup(default_image_tag, evm_restart=evm_restart)
 futures = [executor.submit(deploy_sequencer_fn, sequencer_node),
            executor.submit(deploy_evm_fn, evm)]
 done, _ = concurrent.futures.wait(futures, return_when=FIRST_EXCEPTION, timeout=600)
@@ -73,7 +106,7 @@ wait_until_height = 4 if evm_restart else 1
 sequencer_node.wait_until_chain_at_height(wait_until_height, 60)
 
 # Instantiate CLI
-cli = Cli(image_tag)
+cli = Cli(default_image_tag)
 
 # Check starting balance
 print(colored("Checking starting balance...", "blue"))

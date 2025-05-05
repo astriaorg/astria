@@ -40,13 +40,17 @@ bridge_tx_hash := "0x326c3910da4c96c5a40ba1505fc338164b659729f2f975ccb07e8794c96
 
 # Run Smoke Test
 #################
+use_custom_tags := 'false'
 [doc("
 Runs end-to-end test of Astria stack and EVM rollup, including bridge in/out and
 TX finalization.
+NOTE: 'CUSTOM_TAGS' directs the test to ignore the given tags and use those which
+are defined by the individual components' values files.
 Usage:
-  just run smoke-test <TAG> (default: 'local')
+  just run smoke-test <SEQUENCER_TAG> <RELAYER_TAG> <DEFAULT_TAG> <CUSTOM_TAGS>
+    (defaults: '', '', '', 'false')
 ")]
-smoke-test tag=defaultDockerTag:
+smoke-test sequencer_tag=defaultTag relayer_tag=defaultTag default_tag=defaultTag custom_tags=use_custom_tags:
   #!/usr/bin/env bash
   if [ -d "system-tests/.venv" ]; then
     echo "Found Python virtual environment, activating it..."
@@ -54,7 +58,10 @@ smoke-test tag=defaultDockerTag:
     uv pip install -r system-tests/requirements.txt
   fi
   python3 system-tests/smoke_test.py \
-    --image-tag {{ if tag != '' { tag } else { 'latest' } }}
+    -s {{ if sequencer_tag != '' { sequencer_tag } else { 'latest' } }} \
+    -r {{ if relayer_tag != '' { relayer_tag } else { 'latest' } }} \
+    -d {{ if default_tag != '' { default_tag } else { 'latest' } }} \
+    {{ if custom_tags == 'true' { '-v' } else {''} }}
 
 
 # Run EVM Restart Test
@@ -62,10 +69,13 @@ smoke-test tag=defaultDockerTag:
 [doc("
 Runs end-to-end test of Astria stack and EVM rollup, including bridge in/out and
 TX finalization, with a fork defined on the EVM at height 5.
+NOTE: 'CUSTOM_TAGS' directs the test to ignore the given tags and use those which
+are defined by the individual components' values files.
 Usage:
-  just run evm-restart-test <TAG> (default: '')
+  just run evm-restart-test <SEQUENCER_TAG> <RELAYER_TAG> <DEFAULT_TAG> <CUSTOM_TAGS>
+    (defaults: '', '', '', 'false')
 ")]
-evm-restart-test tag=defaultDockerTag:
+evm-restart-test sequencer_tag=defaultTag relayer_tag=defaultTag default_tag=defaultTag custom_tags=use_custom_tags:
   #!/usr/bin/env bash
   if [ -d "system-tests/.venv" ]; then
     echo "Found Python virtual environment, activating it..."
@@ -73,7 +83,10 @@ evm-restart-test tag=defaultDockerTag:
     uv pip install -r system-tests/requirements.txt
   fi
   python3 system-tests/smoke_test.py \
-    --image-tag {{ if tag != '' { tag } else { 'latest' } }} \
+    -s {{ if sequencer_tag != '' { sequencer_tag } else { 'latest' } }} \
+    -r {{ if relayer_tag != '' { relayer_tag } else { 'latest' } }} \
+    -d {{ if default_tag != '' { default_tag } else { 'latest' } }} \
+    {{ if custom_tags == 'true' { '-v' } else {''} }} \
     --evm-restart
 
 # Run Smoke Test CLI

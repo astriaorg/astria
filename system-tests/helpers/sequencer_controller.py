@@ -41,6 +41,7 @@ class SequencerController:
             self,
             sequencer_image_tag,
             relayer_image_tag,
+            values_defined_images=False,
             enable_price_feed=True,
             upgrade_name=None,
             upgrade_activation_height=None,
@@ -62,6 +63,7 @@ class SequencerController:
             "install",
             sequencer_image_tag,
             relayer_image_tag,
+            values_defined_images,
             enable_price_feed,
             upgrade_name,
             upgrade_activation_height
@@ -313,6 +315,7 @@ class SequencerController:
             subcommand,
             sequencer_image_tag,
             relayer_image_tag,
+            values_defined_images,
             enable_price_feed,
             upgrade_name,
             upgrade_activation_height,
@@ -325,11 +328,12 @@ class SequencerController:
             "charts/sequencer",
             "--values=dev/values/validators/all.yml",
             f"--values=dev/values/validators/{self.name}.yml",
-            f"--set=images.sequencer.tag={sequencer_image_tag}",
-            f"--set=sequencer-relayer.images.sequencerRelayer.tag={relayer_image_tag}",
             f"--set=sequencer.priceFeed.enabled={enable_price_feed}",
             "--set=sequencer.abciUDS=false",
         ]
+        if not values_defined_images:
+            args.append(f"--set=images.sequencer.tag={sequencer_image_tag}")
+            args.append(f"--set=sequencer-relayer.images.sequencerRelayer.tag={relayer_image_tag}")
         if subcommand == "install":
             args.append("--create-namespace")
         if upgrade_name:
