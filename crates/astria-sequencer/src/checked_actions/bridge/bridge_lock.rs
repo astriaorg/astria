@@ -258,25 +258,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn should_fail_construction_if_bridge_account_rollup_id_not_found() {
-        let mut fixture = Fixture::default_initialized().await;
-
-        let action = dummy_bridge_lock();
-        fixture
-            .bridge_initializer(action.to)
-            .with_no_rollup_id()
-            .init()
-            .await;
-
-        let err = fixture
-            .new_checked_action(action, *SUDO_ADDRESS_BYTES)
-            .await
-            .unwrap_err();
-
-        assert_error_contains(&err, "bridge lock must be sent to a bridge account");
-    }
-
-    #[tokio::test]
     async fn should_fail_construction_if_asset_mapping_fails() {
         let mut fixture = Fixture::default_initialized().await;
 

@@ -386,24 +386,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn should_fail_construction_if_withdrawer_address_not_set() {
-        let mut fixture = Fixture::default_initialized().await;
-
-        let action = dummy_bridge_unlock();
-        fixture
-            .bridge_initializer(action.bridge_address)
-            .with_no_withdrawer_address()
-            .init()
-            .await;
-        let err = fixture
-            .new_checked_action(action, *SUDO_ADDRESS_BYTES)
-            .await
-            .unwrap_err();
-
-        assert_error_contains(&err, "bridge account must have a withdrawer address set");
-    }
-
-    #[tokio::test]
     async fn should_fail_construction_if_signer_is_not_authorized() {
         let mut fixture = Fixture::default_initialized().await;
 

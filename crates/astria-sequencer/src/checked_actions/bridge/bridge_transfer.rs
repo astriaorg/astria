@@ -307,24 +307,6 @@ pub(super) mod tests {
     }
 
     #[tokio::test]
-    async fn should_fail_construction_if_withdrawer_address_not_set() {
-        let mut fixture = Fixture::default_initialized().await;
-
-        let action = dummy_bridge_transfer();
-        fixture
-            .bridge_initializer(action.bridge_address)
-            .with_no_withdrawer_address()
-            .init()
-            .await;
-        let err = fixture
-            .new_checked_action(action, *SUDO_ADDRESS_BYTES)
-            .await
-            .unwrap_err();
-
-        assert_error_contains(&err, "bridge account must have a withdrawer address set");
-    }
-
-    #[tokio::test]
     async fn should_fail_construction_if_signer_is_not_authorized() {
         let mut fixture = Fixture::default_initialized().await;
 
@@ -399,29 +381,6 @@ pub(super) mod tests {
             &err,
             "asset ID is not authorized for transfer to bridge account",
         );
-    }
-
-    #[tokio::test]
-    async fn should_fail_construction_if_destination_rollup_id_not_found() {
-        let mut fixture = Fixture::default_initialized().await;
-
-        let action = dummy_bridge_transfer();
-        fixture
-            .bridge_initializer(action.bridge_address)
-            .init()
-            .await;
-        fixture
-            .bridge_initializer(action.to)
-            .with_no_rollup_id()
-            .init()
-            .await;
-
-        let err = fixture
-            .new_checked_action(action, *SUDO_ADDRESS_BYTES)
-            .await
-            .unwrap_err();
-
-        assert_error_contains(&err, "bridge lock must be sent to a bridge account");
     }
 
     #[tokio::test]

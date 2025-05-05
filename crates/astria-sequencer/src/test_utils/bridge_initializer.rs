@@ -1,17 +1,25 @@
-use astria_core::primitive::v1::{
-    asset::Denom,
-    Address,
-    RollupId,
-    ADDRESS_LEN,
+use astria_core::{
+    primitive::v1::{
+        asset::Denom,
+        Address,
+        RollupId,
+        TransactionId,
+        ADDRESS_LEN,
+    },
+    protocol::transaction::v1::action::InitBridgeAccount,
 };
 
 use super::{
+    astria_address,
     Fixture,
     SUDO_ADDRESS,
 };
 use crate::{
-    accounts::AddressBytes,
-    bridge::StateWriteExt as _,
+    accounts::{
+        AddressBytes,
+        StateWriteExt as _,
+    },
+    fees::StateReadExt as _,
     test_utils::nria,
 };
 
@@ -28,10 +36,7 @@ use crate::{
 pub(crate) struct BridgeInitializer<'a> {
     fixture: &'a mut Fixture,
     bridge_address: Address,
-    rollup_id: Option<RollupId>,
-    asset: Denom,
-    sudo_address: [u8; ADDRESS_LEN],
-    withdrawer_address: Option<[u8; ADDRESS_LEN]>,
+    action: InitBridgeAccount,
 }
 
 impl<'a> BridgeInitializer<'a> {
@@ -39,35 +44,28 @@ impl<'a> BridgeInitializer<'a> {
         Self {
             fixture,
             bridge_address,
-            rollup_id: Some(RollupId::new([1; 32])),
-            asset: nria().into(),
-            sudo_address: *SUDO_ADDRESS.address_bytes(),
-            withdrawer_address: Some(*SUDO_ADDRESS.address_bytes()),
+            action: InitBridgeAccount {
+                rollup_id: RollupId::new([1; 32]),
+                asset: nria().into(),
+                fee_asset: nria().into(),
+                sudo_address: Some(*SUDO_ADDRESS),
+                withdrawer_address: Some(*SUDO_ADDRESS),
+            },
         }
     }
 
     pub(crate) fn with_asset<T: Into<Denom>>(mut self, asset: T) -> Self {
-        self.asset = asset.into();
+        self.action.asset = asset.into();
         self
     }
 
     pub(crate) fn with_rollup_id(mut self, rollup_id: RollupId) -> Self {
-        self.rollup_id = Some(rollup_id);
-        self
-    }
-
-    pub(crate) fn with_no_rollup_id(mut self) -> Self {
-        self.rollup_id = None;
+        self.action.rollup_id = rollup_id;
         self
     }
 
     pub(crate) fn with_withdrawer_address(mut self, withdrawer_address: [u8; ADDRESS_LEN]) -> Self {
-        self.withdrawer_address = Some(withdrawer_address);
-        self
-    }
-
-    pub(crate) fn with_no_withdrawer_address(mut self) -> Self {
-        self.withdrawer_address = None;
+        self.action.withdrawer_address = Some(astria_address(&withdrawer_address));
         self
     }
 
@@ -75,29 +73,30 @@ impl<'a> BridgeInitializer<'a> {
         let Self {
             fixture,
             bridge_address,
-            rollup_id,
-            asset,
-            sudo_address,
-            withdrawer_address,
+            action,
         } = self;
 
         let mut state_delta = fixture.app.new_state_delta();
-        if let Some(rollup_id) = rollup_id {
+        let checked_action = fixture
+            .new_checked_action(action, *bridge_address.address_bytes())
+            .await
+            .unwrap();
+        // Add balance to cover the execution costs.
+        if let Some(fees) = state_delta.get_fees::<InitBridgeAccount>().await.unwrap() {
             state_delta
-                .put_bridge_account_rollup_id(&bridge_address, rollup_id)
+                .put_account_balance(&bridge_address, &nria(), fees.base())
                 .unwrap();
         }
-        state_delta
-            .put_bridge_account_ibc_asset(&bridge_address, &asset)
+        checked_action
+            .execute_and_pay_fees(
+                &mut state_delta,
+                bridge_address.address_bytes(),
+                &TransactionId::new([1; 32]),
+                0,
+            )
+            .await
             .unwrap();
-        state_delta
-            .put_bridge_account_sudo_address(&bridge_address, sudo_address)
-            .unwrap();
-        if let Some(withdrawer_address) = withdrawer_address {
-            state_delta
-                .put_bridge_account_withdrawer_address(&bridge_address, withdrawer_address)
-                .unwrap();
-        }
+
         fixture
             .app
             .apply_and_commit(state_delta, fixture.storage())
