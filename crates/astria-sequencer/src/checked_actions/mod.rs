@@ -18,10 +18,8 @@
 //! Failure in this case results in a failed transaction execution and removal from the Mempool.
 
 mod action_ref;
-mod bridge_lock;
+mod bridge;
 mod bridge_sudo_change;
-mod bridge_transfer;
-mod bridge_unlock;
 mod checked_action;
 mod currency_pairs_change;
 mod error;
@@ -53,10 +51,12 @@ use astria_core::{
     crypto::ADDRESS_LENGTH,
     primitive::v1::asset::IbcPrefixed,
 };
-pub(crate) use bridge_lock::CheckedBridgeLock;
+pub(crate) use bridge::{
+    CheckedBridgeLock,
+    CheckedBridgeTransfer,
+    CheckedBridgeUnlock,
+};
 pub(crate) use bridge_sudo_change::CheckedBridgeSudoChange;
-pub(crate) use bridge_transfer::CheckedBridgeTransfer;
-pub(crate) use bridge_unlock::CheckedBridgeUnlock;
 pub(crate) use checked_action::CheckedAction;
 pub(crate) use currency_pairs_change::CheckedCurrencyPairsChange;
 pub(crate) use error::{

@@ -26,10 +26,6 @@ use tracing::{
     Level,
 };
 
-use super::{
-    AssetTransfer,
-    TransactionSignerAddressBytes,
-};
 use crate::{
     accounts::StateWriteExt as _,
     address::StateReadExt as _,
@@ -37,6 +33,10 @@ use crate::{
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
+    },
+    checked_actions::{
+        AssetTransfer,
+        TransactionSignerAddressBytes,
     },
     utils::create_deposit_event,
 };
@@ -64,7 +64,7 @@ pub(crate) struct CheckedBridgeLockImpl<const PURE_LOCK: bool> {
 
 impl<const PURE_LOCK: bool> CheckedBridgeLockImpl<PURE_LOCK> {
     #[instrument(skip_all, err(level = Level::DEBUG))]
-    pub(super) async fn new<S: StateRead>(
+    pub(in crate::checked_actions) async fn new<S: StateRead>(
         action: BridgeLock,
         tx_signer: [u8; ADDRESS_LEN],
         tx_id: TransactionId,
@@ -128,7 +128,10 @@ impl<const PURE_LOCK: bool> CheckedBridgeLockImpl<PURE_LOCK> {
     }
 
     #[instrument(skip_all, err(level = Level::DEBUG))]
-    pub(super) async fn run_mutable_checks<S: StateRead>(&self, state: S) -> Result<()> {
+    pub(in crate::checked_actions) async fn run_mutable_checks<S: StateRead>(
+        &self,
+        state: S,
+    ) -> Result<()> {
         if PURE_LOCK
             && state
                 .is_a_bridge_account(&self.tx_signer)
@@ -141,20 +144,23 @@ impl<const PURE_LOCK: bool> CheckedBridgeLockImpl<PURE_LOCK> {
         Ok(())
     }
 
+    pub(in crate::checked_actions) fn action(&self) -> &BridgeLock {
+        &self.action
+    }
+
     pub(super) fn record_deposit<S: StateWrite>(&self, mut state: S) {
         let deposit_abci_event = create_deposit_event(&self.deposit);
         state.cache_deposit_event(self.deposit.clone());
         state.record(deposit_abci_event);
     }
-
-    pub(super) fn action(&self) -> &BridgeLock {
-        &self.action
-    }
 }
 
 impl CheckedBridgeLockImpl<true> {
     #[instrument(skip_all, err(level = Level::DEBUG))]
-    pub(super) async fn execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+    pub(in crate::checked_actions) async fn execute<S: StateWrite>(
+        &self,
+        mut state: S,
+    ) -> Result<()> {
         self.run_mutable_checks(&state).await?;
 
         state
@@ -194,13 +200,13 @@ mod tests {
         protocol::transaction::v1::action::*,
     };
 
-    use super::{
-        super::test_utils::address_with_prefix,
-        *,
-    };
+    use super::*;
     use crate::{
         assets::StateWriteExt as _,
-        checked_actions::CheckedInitBridgeAccount,
+        checked_actions::{
+            test_utils::address_with_prefix,
+            CheckedInitBridgeAccount,
+        },
         test_utils::{
             assert_error_contains,
             astria_address,

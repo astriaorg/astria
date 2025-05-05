@@ -1,14 +1,16 @@
 use astria_core::{
     primitive::v1::{
         asset::IbcPrefixed,
+        TransactionId,
         ADDRESS_LEN,
     },
-    protocol::transaction::v1::action::BridgeUnlock,
+    protocol::transaction::v1::action::{
+        BridgeLock,
+        BridgeTransfer,
+        BridgeUnlock,
+    },
 };
 use astria_eyre::eyre::{
-    bail,
-    ensure,
-    OptionExt as _,
     Result,
     WrapErr as _,
 };
@@ -22,82 +24,73 @@ use tracing::{
 };
 
 use super::{
-    AssetTransfer,
-    TransactionSignerAddressBytes,
+    super::AssetTransfer,
+    bridge_lock::CheckedBridgeLockImpl,
+    bridge_unlock::CheckedBridgeUnlockImpl,
 };
-use crate::{
-    accounts::StateWriteExt as _,
-    address::StateReadExt as _,
-    bridge::{
-        StateReadExt as _,
-        StateWriteExt as _,
-    },
-};
+use crate::accounts::StateWriteExt as _;
 
-pub(crate) type CheckedBridgeUnlock = CheckedBridgeUnlockImpl<true>;
-
-/// This struct provides the implementation details of the checked bridge unlock action.
-///
-/// It is also used to perform checks on a bridge transfer action, which is essentially a cross
-/// between a bridge unlock and a bridge lock.
-///
-/// A `BridgeUnlock` action does not allow unlocking to a bridge account, whereas `BridgeTransfer`
-/// requires the `to` account to be a bridge one. Hence a bridge unlock is implemented via
-/// `CheckedBridgeUnlockImpl<true>` and has methods to allow checking AND executing the action,
-/// while the checks relevant to a bridge transfer are implemented via
-/// `CheckedBridgeUnlockImpl<false>`, where this has no method supporting execution.
 #[derive(Debug)]
-pub(crate) struct CheckedBridgeUnlockImpl<const PURE_UNLOCK: bool> {
-    action: BridgeUnlock,
-    tx_signer: TransactionSignerAddressBytes,
-    bridge_account_ibc_asset: IbcPrefixed,
+pub(crate) struct CheckedBridgeTransfer {
+    action: BridgeTransfer,
+    checked_bridge_unlock: CheckedBridgeUnlockImpl<false>,
+    checked_bridge_lock: CheckedBridgeLockImpl<false>,
 }
 
-impl<const PURE_UNLOCK: bool> CheckedBridgeUnlockImpl<PURE_UNLOCK> {
+impl CheckedBridgeTransfer {
     #[instrument(skip_all, err(level = Level::DEBUG))]
-    pub(super) async fn new<S: StateRead>(
-        action: BridgeUnlock,
+    pub(in crate::checked_actions) async fn new<S: StateRead>(
+        action: BridgeTransfer,
         tx_signer: [u8; ADDRESS_LEN],
+        tx_id: TransactionId,
+        position_in_tx: u64,
         state: S,
     ) -> Result<Self> {
-        // TODO(https://github.com/astriaorg/astria/issues/1430): move stateless checks to the
-        // `BridgeUnlock` parsing.
-        ensure!(action.amount > 0, "amount must be greater than zero");
-        ensure!(
-            action.memo.len() <= 64,
-            "memo must not be more than 64 bytes"
-        );
-        ensure!(
-            !action.rollup_withdrawal_event_id.is_empty(),
-            "rollup withdrawal event id must be non-empty",
-        );
-        ensure!(
-            action.rollup_withdrawal_event_id.len() <= 256,
-            "rollup withdrawal event id must not be more than 256 bytes",
-        );
-        ensure!(
-            action.rollup_block_number > 0,
-            "rollup block number must be greater than zero",
-        );
+        let BridgeTransfer {
+            to,
+            amount,
+            fee_asset,
+            destination_chain_address,
+            bridge_address,
+            rollup_block_number,
+            rollup_withdrawal_event_id,
+        } = action.clone();
 
-        state
-            .ensure_base_prefix(&action.to)
-            .await
-            .wrap_err("destination address has an unsupported prefix")?;
-        state
-            .ensure_base_prefix(&action.bridge_address)
-            .await
-            .wrap_err("source address has an unsupported prefix")?;
+        let bridge_unlock = BridgeUnlock {
+            to,
+            amount,
+            memo: String::new(),
+            rollup_withdrawal_event_id,
+            rollup_block_number,
+            fee_asset: fee_asset.clone(),
+            bridge_address,
+        };
+        let checked_bridge_unlock =
+            CheckedBridgeUnlockImpl::<false>::new(bridge_unlock, tx_signer, &state)
+                .await
+                .wrap_err("failed to construct checked bridge unlock for bridge transfer")?;
 
-        let bridge_account_ibc_asset = state
-            .get_bridge_account_ibc_asset(&action.bridge_address)
-            .await
-            .wrap_err("failed to get bridge account asset ID; account is not a bridge account")?;
+        let bridge_lock = BridgeLock {
+            to,
+            amount,
+            asset: checked_bridge_unlock.bridge_account_ibc_asset().into(),
+            fee_asset,
+            destination_chain_address,
+        };
+        let checked_bridge_lock = CheckedBridgeLockImpl::<false>::new(
+            bridge_lock,
+            tx_signer,
+            tx_id,
+            position_in_tx,
+            &state,
+        )
+        .await
+        .wrap_err("failed to construct checked bridge lock for bridge transfer")?;
 
         let checked_action = Self {
             action,
-            tx_signer: tx_signer.into(),
-            bridge_account_ibc_asset,
+            checked_bridge_unlock,
+            checked_bridge_lock,
         };
         checked_action.run_mutable_checks(state).await?;
 
@@ -105,118 +98,84 @@ impl<const PURE_UNLOCK: bool> CheckedBridgeUnlockImpl<PURE_UNLOCK> {
     }
 
     #[instrument(skip_all, err(level = Level::DEBUG))]
-    pub(super) async fn run_mutable_checks<S: StateRead>(&self, state: S) -> Result<()> {
-        if PURE_UNLOCK
-            && state
-                .is_a_bridge_account(&self.action.to)
-                .await
-                .wrap_err("failed to check if `to` address is a bridge account")?
-        {
-            bail!("bridge accounts cannot receive bridge unlocks");
-        }
-
-        let withdrawer = state
-            .get_bridge_account_withdrawer_address(&self.action.bridge_address)
+    pub(in crate::checked_actions) async fn run_mutable_checks<S: StateRead>(
+        &self,
+        state: S,
+    ) -> Result<()> {
+        self.checked_bridge_unlock
+            .run_mutable_checks(&state)
             .await
-            .wrap_err("failed to get bridge account withdrawer address")?
-            .ok_or_eyre("bridge account must have a withdrawer address set")?;
-        ensure!(
-            *self.tx_signer.as_bytes() == withdrawer,
-            "signer is not the authorized withdrawer for the bridge account",
-        );
-
-        if let Some(existing_block_num) = state
-            .get_withdrawal_event_block_for_bridge_account(
-                &self.action.bridge_address,
-                &self.action.rollup_withdrawal_event_id,
-            )
+            .wrap_err("mutable checks for bridge unlock failed for bridge transfer")?;
+        self.checked_bridge_lock
+            .run_mutable_checks(&state)
             .await
-            .wrap_err("failed to read withdrawal event block number from storage")?
-        {
-            bail!(
-                "withdrawal event ID `{}` used by block number {existing_block_num}",
-                self.action.rollup_withdrawal_event_id
-            );
-        }
-
-        Ok(())
+            .wrap_err("mutable checks for bridge lock failed for bridge transfer")
     }
 
-    pub(super) fn record_withdrawal_event<S: StateWrite>(&self, mut state: S) -> Result<()> {
+    #[instrument(skip_all, err(level = Level::DEBUG))]
+    pub(in crate::checked_actions) async fn execute<S: StateWrite>(
+        &self,
+        mut state: S,
+    ) -> Result<()> {
+        self.run_mutable_checks(&state).await?;
+
+        let from = &self.checked_bridge_unlock.action().bridge_address;
+        let to = &self.checked_bridge_unlock.action().to;
+        let asset = self.checked_bridge_unlock.bridge_account_ibc_asset();
+        let amount = self.checked_bridge_unlock.action().amount;
+
         state
-            .put_withdrawal_event_block_for_bridge_account(
-                &self.action.bridge_address,
-                &self.action.rollup_withdrawal_event_id,
-                self.action.rollup_block_number,
-            )
-            .wrap_err("failed to write withdrawal event block number to storage")
+            .decrease_balance(from, asset, amount)
+            .await
+            .wrap_err("failed to decrease bridge account balance")?;
+        state
+            .increase_balance(to, asset, amount)
+            .await
+            .wrap_err("failed to increase destination account balance")?;
+
+        self.checked_bridge_lock.record_deposit(&mut state);
+        self.checked_bridge_unlock.record_withdrawal_event(state)
     }
 
-    pub(super) fn action(&self) -> &BridgeUnlock {
+    pub(in crate::checked_actions) fn action(&self) -> &BridgeTransfer {
         &self.action
     }
 }
 
-impl CheckedBridgeUnlockImpl<true> {
-    #[instrument(skip_all, err(level = Level::DEBUG))]
-    pub(super) async fn execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
-        self.run_mutable_checks(&state).await?;
-
-        state
-            .decrease_balance(
-                &self.action.bridge_address,
-                &self.bridge_account_ibc_asset,
-                self.action.amount,
-            )
-            .await
-            .wrap_err("failed to decrease bridge account balance")?;
-        state
-            .increase_balance(
-                &self.action.to,
-                &self.bridge_account_ibc_asset,
-                self.action.amount,
-            )
-            .await
-            .wrap_err("failed to increase destination account balance")?;
-
-        self.record_withdrawal_event(state)
-    }
-}
-
-impl CheckedBridgeUnlockImpl<false> {
-    pub(super) fn bridge_account_ibc_asset(&self) -> &IbcPrefixed {
-        &self.bridge_account_ibc_asset
-    }
-}
-
-impl AssetTransfer for CheckedBridgeUnlock {
+impl AssetTransfer for CheckedBridgeTransfer {
     fn transfer_asset_and_amount(&self) -> Option<(IbcPrefixed, u128)> {
-        Some((self.bridge_account_ibc_asset, self.action.amount))
+        self.checked_bridge_lock.transfer_asset_and_amount()
     }
 }
 
-// NOTE: unit tests here cover only `CheckedBridgeUnlockImpl<true>`.  Test coverage of
-// `CheckedBridgeUnlockImpl<false>` is in `checked_actions::bridge_transfer`.
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use astria_core::{
-        primitive::v1::RollupId,
+        primitive::v1::{
+            asset::{
+                Denom,
+                IbcPrefixed,
+            },
+            RollupId,
+        },
         protocol::transaction::v1::action::*,
     };
 
-    use super::{
-        super::test_utils::address_with_prefix,
-        *,
-    };
+    use super::*;
     use crate::{
+        bridge::{
+            StateReadExt as _,
+            StateWriteExt as _,
+        },
         checked_actions::{
+            test_utils::address_with_prefix,
             CheckedBridgeSudoChange,
-            CheckedInitBridgeAccount,
+            CheckedBridgeUnlock,
         },
         test_utils::{
             assert_error_contains,
             astria_address,
-            dummy_bridge_unlock,
+            dummy_bridge_transfer,
             nria,
             Fixture,
             ASTRIA_PREFIX,
@@ -228,9 +187,9 @@ mod tests {
     async fn should_fail_construction_if_amount_is_zero() {
         let fixture = Fixture::default_initialized().await;
 
-        let action = BridgeUnlock {
+        let action = BridgeTransfer {
             amount: 0,
-            ..dummy_bridge_unlock()
+            ..dummy_bridge_transfer()
         };
         let err = fixture
             .new_checked_action(action, *SUDO_ADDRESS_BYTES)
@@ -241,28 +200,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn should_fail_construction_if_memo_too_long() {
-        let fixture = Fixture::default_initialized().await;
-
-        let action = BridgeUnlock {
-            memo: ['a'; 65].into_iter().collect(),
-            ..dummy_bridge_unlock()
-        };
-        let err = fixture
-            .new_checked_action(action, *SUDO_ADDRESS_BYTES)
-            .await
-            .unwrap_err();
-
-        assert_error_contains(&err, "memo must not be more than 64 bytes");
-    }
-
-    #[tokio::test]
     async fn should_fail_construction_if_rollup_withdrawal_event_id_empty() {
         let fixture = Fixture::default_initialized().await;
 
-        let action = BridgeUnlock {
+        let action = BridgeTransfer {
             rollup_withdrawal_event_id: String::new(),
-            ..dummy_bridge_unlock()
+            ..dummy_bridge_transfer()
         };
         let err = fixture
             .new_checked_action(action, *SUDO_ADDRESS_BYTES)
@@ -276,9 +219,9 @@ mod tests {
     async fn should_fail_construction_if_rollup_withdrawal_event_id_too_long() {
         let fixture = Fixture::default_initialized().await;
 
-        let action = BridgeUnlock {
+        let action = BridgeTransfer {
             rollup_withdrawal_event_id: ['a'; 257].into_iter().collect(),
-            ..dummy_bridge_unlock()
+            ..dummy_bridge_transfer()
         };
         let err = fixture
             .new_checked_action(action, *SUDO_ADDRESS_BYTES)
@@ -295,9 +238,9 @@ mod tests {
     async fn should_fail_construction_if_rollup_block_number_is_zero() {
         let fixture = Fixture::default_initialized().await;
 
-        let action = BridgeUnlock {
+        let action = BridgeTransfer {
             rollup_block_number: 0,
-            ..dummy_bridge_unlock()
+            ..dummy_bridge_transfer()
         };
         let err = fixture
             .new_checked_action(action, *SUDO_ADDRESS_BYTES)
@@ -312,9 +255,9 @@ mod tests {
         let fixture = Fixture::default_initialized().await;
 
         let prefix = "different_prefix";
-        let action = BridgeUnlock {
+        let action = BridgeTransfer {
             to: address_with_prefix([2; ADDRESS_LEN], prefix),
-            ..dummy_bridge_unlock()
+            ..dummy_bridge_transfer()
         };
         let err = fixture
             .new_checked_action(action, *SUDO_ADDRESS_BYTES)
@@ -332,9 +275,9 @@ mod tests {
         let fixture = Fixture::default_initialized().await;
 
         let prefix = "different_prefix";
-        let action = BridgeUnlock {
+        let action = BridgeTransfer {
             bridge_address: address_with_prefix([50; ADDRESS_LEN], prefix),
-            ..dummy_bridge_unlock()
+            ..dummy_bridge_transfer()
         };
         let err = fixture
             .new_checked_action(action, *SUDO_ADDRESS_BYTES)
@@ -351,7 +294,7 @@ mod tests {
     async fn should_fail_construction_if_bridge_account_not_initialized() {
         let fixture = Fixture::default_initialized().await;
 
-        let action = dummy_bridge_unlock();
+        let action = dummy_bridge_transfer();
         let err = fixture
             .new_checked_action(action, *SUDO_ADDRESS_BYTES)
             .await
@@ -364,28 +307,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn should_fail_construction_if_to_address_is_bridge_account() {
-        let mut fixture = Fixture::default_initialized().await;
-
-        let action = dummy_bridge_unlock();
-        fixture
-            .bridge_initializer(action.bridge_address)
-            .init()
-            .await;
-        fixture.bridge_initializer(action.to).init().await;
-        let err = fixture
-            .new_checked_action(action, *SUDO_ADDRESS_BYTES)
-            .await
-            .unwrap_err();
-
-        assert_error_contains(&err, "bridge accounts cannot receive bridge unlocks");
-    }
-
-    #[tokio::test]
     async fn should_fail_construction_if_withdrawer_address_not_set() {
         let mut fixture = Fixture::default_initialized().await;
 
-        let action = dummy_bridge_unlock();
+        let action = dummy_bridge_transfer();
         fixture
             .bridge_initializer(action.bridge_address)
             .with_no_withdrawer_address()
@@ -403,7 +328,7 @@ mod tests {
     async fn should_fail_construction_if_signer_is_not_authorized() {
         let mut fixture = Fixture::default_initialized().await;
 
-        let action = dummy_bridge_unlock();
+        let action = dummy_bridge_transfer();
         fixture
             .bridge_initializer(action.bridge_address)
             .with_withdrawer_address([2; 20])
@@ -424,7 +349,7 @@ mod tests {
     async fn should_fail_construction_if_withdrawal_event_id_already_used() {
         let mut fixture = Fixture::default_initialized().await;
 
-        let action = dummy_bridge_unlock();
+        let action = dummy_bridge_transfer();
         fixture
             .bridge_initializer(action.bridge_address)
             .init()
@@ -451,60 +376,94 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn should_fail_execution_if_to_address_is_bridge_account() {
+    async fn should_fail_construction_if_destination_asset_not_same_as_source() {
         let mut fixture = Fixture::default_initialized().await;
 
-        // Construct a checked bridge unlock while the `to` account is not a bridge account.
-        let action = dummy_bridge_unlock();
+        let action = dummy_bridge_transfer();
         fixture
             .bridge_initializer(action.bridge_address)
             .init()
             .await;
-        let to_address = action.to.bytes();
-        let checked_action: CheckedBridgeUnlock = fixture
-            .new_checked_action(action.clone(), *SUDO_ADDRESS_BYTES)
-            .await
-            .unwrap()
-            .into();
+        fixture
+            .bridge_initializer(action.to)
+            .with_asset(IbcPrefixed::new([10; 32]))
+            .init()
+            .await;
 
-        // Initialize the `to` account as a bridge account.
-        let init_bridge_account = InitBridgeAccount {
-            rollup_id: RollupId::new([2; 32]),
-            asset: "test".parse().unwrap(),
-            fee_asset: "test".parse().unwrap(),
-            sudo_address: None,
-            withdrawer_address: None,
-        };
-        let checked_init_bridge_account: CheckedInitBridgeAccount = fixture
-            .new_checked_action(init_bridge_account, to_address)
-            .await
-            .unwrap()
-            .into();
-        checked_init_bridge_account
-            .execute(fixture.state_mut())
-            .await
-            .unwrap();
-
-        // Try to execute the checked bridge unlock now - should fail due to `to` account now
-        // existing.
-        let err = checked_action
-            .execute(fixture.state_mut())
+        let err = fixture
+            .new_checked_action(action, *SUDO_ADDRESS_BYTES)
             .await
             .unwrap_err();
-        assert_error_contains(&err, "bridge accounts cannot receive bridge unlocks");
+
+        assert_error_contains(
+            &err,
+            "asset ID is not authorized for transfer to bridge account",
+        );
+    }
+
+    #[tokio::test]
+    async fn should_fail_construction_if_destination_rollup_id_not_found() {
+        let mut fixture = Fixture::default_initialized().await;
+
+        let action = dummy_bridge_transfer();
+        fixture
+            .bridge_initializer(action.bridge_address)
+            .init()
+            .await;
+        fixture
+            .bridge_initializer(action.to)
+            .with_no_rollup_id()
+            .init()
+            .await;
+
+        let err = fixture
+            .new_checked_action(action, *SUDO_ADDRESS_BYTES)
+            .await
+            .unwrap_err();
+
+        assert_error_contains(&err, "bridge lock must be sent to a bridge account");
+    }
+
+    #[tokio::test]
+    async fn should_fail_construction_if_asset_mapping_fails() {
+        let mut fixture = Fixture::default_initialized().await;
+
+        let action = dummy_bridge_transfer();
+        let asset = IbcPrefixed::new([10; 32]);
+        fixture
+            .bridge_initializer(action.bridge_address)
+            .with_asset(asset)
+            .init()
+            .await;
+        fixture
+            .bridge_initializer(action.to)
+            .with_asset(asset)
+            .init()
+            .await;
+
+        let err = fixture
+            .new_checked_action(action, *SUDO_ADDRESS_BYTES)
+            .await
+            .unwrap_err();
+
+        assert_error_contains(
+            &err,
+            "mapping from IBC prefixed bridge asset to trace prefixed not found",
+        );
     }
 
     #[tokio::test]
     async fn should_fail_execution_if_signer_is_not_authorized() {
         let mut fixture = Fixture::default_initialized().await;
 
-        // Construct a checked bridge unlock while the tx signer is the authorized withdrawer.
-        let action = dummy_bridge_unlock();
+        // Construct a checked bridge transfer while the tx signer is the authorized withdrawer.
+        let action = dummy_bridge_transfer();
         fixture
             .bridge_initializer(action.bridge_address)
             .init()
             .await;
-        let checked_action: CheckedBridgeUnlock = fixture
+        fixture.bridge_initializer(action.to).init().await;
+        let checked_action: CheckedBridgeTransfer = fixture
             .new_checked_action(action.clone(), *SUDO_ADDRESS_BYTES)
             .await
             .unwrap()
@@ -527,7 +486,7 @@ mod tests {
             .await
             .unwrap();
 
-        // Try to execute the checked bridge unlock now - should fail due to tx signer no longer
+        // Try to execute the checked bridge transfer now - should fail due to tx signer no longer
         // being the authorized withdrawer.
         let err = checked_action
             .execute(fixture.state_mut())
@@ -543,40 +502,49 @@ mod tests {
     async fn should_fail_execution_if_withdrawal_event_id_already_used() {
         let mut fixture = Fixture::default_initialized().await;
 
-        // Construct two checked bridge unlocks while the withdrawal event ID has not been used.
-        let action_1 = dummy_bridge_unlock();
-        let event_id = action_1.rollup_withdrawal_event_id.clone();
+        // Construct a checked bridge transfer while the withdrawal event ID is unused.
+        let action = dummy_bridge_transfer();
         fixture
-            .bridge_initializer(action_1.bridge_address)
+            .bridge_initializer(action.bridge_address)
             .init()
             .await;
-        let checked_action_1: CheckedBridgeUnlock = fixture
-            .new_checked_action(action_1.clone(), *SUDO_ADDRESS_BYTES)
-            .await
-            .unwrap()
-            .into();
-        let action_2 = BridgeUnlock {
-            rollup_block_number: action_1.rollup_block_number.checked_add(1).unwrap(),
-            ..action_1.clone()
-        };
-        let checked_action_2: CheckedBridgeUnlock = fixture
-            .new_checked_action(action_2.clone(), *SUDO_ADDRESS_BYTES)
+        fixture.bridge_initializer(action.to).init().await;
+        let checked_action: CheckedBridgeTransfer = fixture
+            .new_checked_action(action.clone(), *SUDO_ADDRESS_BYTES)
             .await
             .unwrap()
             .into();
 
-        // Execute the first bridge unlock to write the withdrawal event ID to state. Need to
-        // provide the bridge account with sufficient balance.
+        // Execute a bridge unlock with the same withdrawal event ID.
+        let bridge_unlock = BridgeUnlock {
+            to: astria_address(&[3; ADDRESS_LEN]),
+            amount: 1,
+            fee_asset: nria().into(),
+            bridge_address: action.bridge_address,
+            memo: "a".to_string(),
+            rollup_block_number: 8,
+            rollup_withdrawal_event_id: action.rollup_withdrawal_event_id.clone(),
+        };
+        let checked_bridge_unlock: CheckedBridgeUnlock = fixture
+            .new_checked_action(bridge_unlock.clone(), *SUDO_ADDRESS_BYTES)
+            .await
+            .unwrap()
+            .into();
+
+        // Provide the bridge account with sufficient balance to execute the bridge unlock.
         fixture
             .state_mut()
-            .increase_balance(&action_1.bridge_address, &nria(), action_1.amount)
+            .increase_balance(&bridge_unlock.bridge_address, &nria(), bridge_unlock.amount)
             .await
             .unwrap();
-        checked_action_1.execute(fixture.state_mut()).await.unwrap();
+        checked_bridge_unlock
+            .execute(fixture.state_mut())
+            .await
+            .unwrap();
 
-        // Try to execute the second checked bridge unlock now with the same withdrawal event ID -
-        // should fail due to the ID being used already.
-        let err = checked_action_2
+        // Try to execute the checked bridge transfer now with the same withdrawal event ID - should
+        // fail due to the ID being used already.
+        let err = checked_action
             .execute(fixture.state_mut())
             .await
             .unwrap_err();
@@ -584,8 +552,8 @@ mod tests {
         assert_error_contains(
             &err,
             &format!(
-                "withdrawal event ID `{event_id}` used by block number {}",
-                action_1.rollup_block_number
+                "withdrawal event ID `{}` used by block number {}",
+                action.rollup_withdrawal_event_id, bridge_unlock.rollup_block_number
             ),
         );
     }
@@ -594,12 +562,13 @@ mod tests {
     async fn should_fail_execution_if_bridge_account_has_insufficient_balance() {
         let mut fixture = Fixture::default_initialized().await;
 
-        let action = dummy_bridge_unlock();
+        let action = dummy_bridge_transfer();
         fixture
             .bridge_initializer(action.bridge_address)
             .init()
             .await;
-        let checked_action: CheckedBridgeUnlock = fixture
+        fixture.bridge_initializer(action.to).init().await;
+        let checked_action: CheckedBridgeTransfer = fixture
             .new_checked_action(action.clone(), *SUDO_ADDRESS_BYTES)
             .await
             .unwrap()
@@ -616,14 +585,22 @@ mod tests {
     async fn should_execute() {
         let mut fixture = Fixture::default_initialized().await;
 
-        // Construct the checked bridge unlock while the account has insufficient balance to ensure
-        // balance checks are only part of execution.
-        let action = dummy_bridge_unlock();
+        // Construct the checked bridge transfer while the account has insufficient balance to
+        // ensure balance checks are only part of execution.
+        let action = dummy_bridge_transfer();
+        let rollup_id = RollupId::new([7; 32]);
+        let asset = nria();
         fixture
             .bridge_initializer(action.bridge_address)
+            .with_asset(asset.clone())
             .init()
             .await;
-        let checked_action: CheckedBridgeUnlock = fixture
+        fixture
+            .bridge_initializer(action.to)
+            .with_rollup_id(rollup_id)
+            .init()
+            .await;
+        let checked_action: CheckedBridgeTransfer = fixture
             .new_checked_action(action.clone(), *SUDO_ADDRESS_BYTES)
             .await
             .unwrap()
@@ -659,5 +636,30 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(rollup_block_number, Some(action.rollup_block_number));
+
+        // Check the deposit is recorded.
+        let deposits = fixture
+            .state()
+            .get_cached_block_deposits()
+            .get(&rollup_id)
+            .unwrap()
+            .clone();
+        assert_eq!(deposits.len(), 1);
+        let deposit = &deposits[0];
+        assert_eq!(deposit.bridge_address, action.to);
+        assert_eq!(deposit.rollup_id, rollup_id);
+        assert_eq!(deposit.amount, action.amount);
+        assert_eq!(deposit.asset, Denom::from(asset));
+        assert_eq!(
+            deposit.destination_chain_address,
+            action.destination_chain_address
+        );
+        assert_eq!(deposit.source_transaction_id.get(), [11; 32]);
+        assert_eq!(deposit.source_action_index, 11);
+
+        // Check the deposit event is cached.
+        let deposit_events = fixture.into_events();
+        assert_eq!(deposit_events.len(), 1);
+        assert_eq!(deposit_events[0].kind, "tx.deposit");
     }
 }
