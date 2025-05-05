@@ -95,6 +95,7 @@ class SequencerController:
             "upgrade",
             sequencer_image_tag,
             relayer_image_tag,
+            values_defined_images=False,
             enable_price_feed=enable_price_feed,
             upgrade_name=upgrade_name,
             upgrade_activation_height=activation_height
