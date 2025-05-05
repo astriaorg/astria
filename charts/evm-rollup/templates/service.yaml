@@ -47,6 +47,25 @@ spec:
   type: LoadBalancer
   loadBalancerIP: "{{ .Values.geth.p2p.staticIP }}"
 ---
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ include "rollup.name" . }}-internal-p2p
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  selector:
+    app: {{ include "rollup.appName" . }}
+  clusterIP: None
+  ports:
+    - name: internal-p2p-tcp-svc
+      port: {{ .Values.ports.p2p }}
+      targetPort: tcp-p2p
+      protocol: TCP
+    - name: internal-p2p-udp-svc
+      port: {{ .Values.ports.p2p }}
+      targetPort: udp-p2p
+      protocol: UDP
+---
 {{- end }}
 {{- if .Values.metrics.enabled }}
 kind: Service
