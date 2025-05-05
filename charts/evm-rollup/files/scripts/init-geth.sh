@@ -29,5 +29,5 @@ fi
 
 echo "Geth initialized"
 
-NODEKEY=$(cat $home_dir/nodekey)
+NODEKEY=$(cat $data_dir/geth/nodekey)
 echo "Nodekey: $NODEKEY"
