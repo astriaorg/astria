@@ -18,7 +18,7 @@ spec:
 kind: Service
 apiVersion: v1
 metadata:
-  name: {{ include "rollup.name" . }}-p2p-service
+  name: {{ include "rollup.name" . }}-p2p-tcp-service
   namespace: {{ include "rollup.namespace" . }}
 spec:
   selector:
@@ -28,6 +28,18 @@ spec:
       port: {{ .Values.ports.p2p }}
       targetPort: p2p
       protocol: TCP
+  type: LoadBalancer
+  loadBalancerIP: "{{ .Values.geth.p2p.staticIP }}"
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ include "rollup.name" . }}-p2p-udp-service
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  selector:
+    app: {{ include "rollup.appName" . }}
+  ports:
     - name: p2p-udp-svc
       port: {{ .Values.ports.p2p }}
       targetPort: p2p
