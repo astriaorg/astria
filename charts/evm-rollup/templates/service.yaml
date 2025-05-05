@@ -26,7 +26,6 @@ spec:
   ports:
     - name: p2p-tcp-svc
       port: {{ .Values.ports.p2p }}
-      nodePort: {{ .Values.ports.p2p }}
       targetPort: tcp-p2p
       protocol: TCP
   type: LoadBalancer
@@ -43,7 +42,6 @@ spec:
   ports:
     - name: p2p-udp-svc
       port: {{ .Values.ports.p2p }}
-      nodePort: {{ .Values.ports.p2p }}
       targetPort: udp-p2p
       protocol: UDP
   type: LoadBalancer
