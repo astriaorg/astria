@@ -375,6 +375,12 @@ impl Fixture {
         CheckedTxBuilder::new(self)
     }
 
+    /// Returns the current block height as held in the `App`'s state delta.
+    pub(crate) async fn block_height(&self) -> Height {
+        let height = self.state().get_block_height().await.unwrap();
+        Height::try_from(height).unwrap()
+    }
+
     /// Returns the given account's balance of nria.
     pub(crate) async fn get_nria_balance<TAddress: AddressBytes>(
         &self,

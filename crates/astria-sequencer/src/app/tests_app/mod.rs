@@ -278,9 +278,8 @@ async fn app_commit() {
 
 #[tokio::test]
 async fn app_transfer_block_fees_to_sudo() {
-    let mut fixture = Fixture::uninitialized(None).await;
-    fixture.chain_initializer().init().await;
-    let height = fixture.run_until_aspen_applied().await;
+    let mut fixture = Fixture::default_initialized().await;
+    let height = fixture.block_height().await.increment();
 
     // transfer funds from Alice to Bob; use native token for fee payment
     let amount = 333_333;
@@ -338,9 +337,8 @@ async fn app_transfer_block_fees_to_sudo() {
 
 #[tokio::test]
 async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
-    let mut fixture = Fixture::uninitialized(None).await;
-    fixture.chain_initializer().init().await;
-    let height = fixture.run_until_aspen_applied().await;
+    let mut fixture = Fixture::default_initialized().await;
+    let height = fixture.block_height().await.increment();
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -453,9 +451,8 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     reason = "it's a test, so allow a lot of lines"
 )]
 async fn app_execution_results_match_proposal_vs_after_proposal() {
-    let mut fixture = Fixture::uninitialized(None).await;
-    fixture.chain_initializer().init().await;
-    let height = fixture.run_until_aspen_applied().await;
+    let mut fixture = Fixture::default_initialized().await;
+    let height = fixture.block_height().await.increment();
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -622,9 +619,8 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
 
 #[tokio::test]
 async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
-    let mut fixture = Fixture::uninitialized(None).await;
-    fixture.chain_initializer().init().await;
-    let height = fixture.run_until_aspen_applied().await;
+    let mut fixture = Fixture::default_initialized().await;
+    let height = fixture.block_height().await.increment();
 
     // create txs which will cause cometBFT overflow
     let tx_pass = fixture
@@ -705,9 +701,8 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
 
 #[tokio::test]
 async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
-    let mut fixture = Fixture::uninitialized(None).await;
-    fixture.chain_initializer().init().await;
-    let height = fixture.run_until_aspen_applied().await;
+    let mut fixture = Fixture::default_initialized().await;
+    let height = fixture.block_height().await.increment();
 
     // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
     let tx_pass = fixture
@@ -787,9 +782,8 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
 
 #[tokio::test]
 async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
-    let mut fixture = Fixture::uninitialized(None).await;
-    fixture.chain_initializer().init().await;
-    let height = fixture.run_until_aspen_applied().await;
+    let mut fixture = Fixture::default_initialized().await;
+    let height = fixture.block_height().await.increment();
 
     // create txs which will cause sequencer overflow (max is currently 256_000 bytes)
     let tx_pass = fixture
@@ -843,9 +837,8 @@ async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
 
 #[tokio::test]
 async fn app_process_proposal_transaction_fails_to_execute_fails() {
-    let mut fixture = Fixture::uninitialized(None).await;
-    fixture.chain_initializer().init().await;
-    let height = fixture.run_until_aspen_applied().await;
+    let mut fixture = Fixture::default_initialized().await;
+    let height = fixture.block_height().await.increment();
 
     // Create txs which will cause transaction execution failure.
     // Temporarily make Alice the sudo address to construct the checked tx.
@@ -977,9 +970,8 @@ async fn app_end_block_validator_updates() {
     reason = "it's a test, so allow a lot of lines"
 )]
 async fn app_proposal_fingerprint_triggers_update() {
-    let mut fixture = Fixture::uninitialized(None).await;
-    fixture.chain_initializer().init().await;
-    let height = fixture.run_until_aspen_applied().await;
+    let mut fixture = Fixture::default_initialized().await;
+    let height = fixture.block_height().await.increment();
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
     fixture

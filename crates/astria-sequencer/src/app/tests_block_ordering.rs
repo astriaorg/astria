@@ -107,9 +107,8 @@ async fn new_unbundleable_sudo_tx(fixture: &Fixture, nonce: u32) -> Arc<CheckedT
 
 #[tokio::test]
 async fn app_process_proposal_ordering_ok() {
-    let mut fixture = Fixture::uninitialized(None).await;
-    fixture.chain_initializer().init().await;
-    let height = fixture.run_until_aspen_applied().await;
+    let fixture = Fixture::default_initialized().await;
+    let height = fixture.block_height().await.increment();
 
     // create transactions that should pass with expected ordering
     let txs = vec![
@@ -146,9 +145,8 @@ async fn app_process_proposal_ordering_ok() {
 async fn app_process_proposal_ordering_fail() {
     // Tests that process proposal will reject blocks that contain transactions that are out of
     // order.
-    let mut fixture = Fixture::uninitialized(None).await;
-    fixture.chain_initializer().init().await;
-    let height = fixture.run_until_aspen_applied().await;
+    let fixture = Fixture::default_initialized().await;
+    let height = fixture.block_height().await.increment();
 
     // create transactions that should fail due to incorrect ordering
     let txs = vec![
@@ -195,9 +193,8 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
     //
     // The block building process should handle this in a way that allows the transactions to
     // both eventually be included.
-    let mut fixture = Fixture::uninitialized(None).await;
-    fixture.chain_initializer().init().await;
-    let height = fixture.run_until_aspen_applied().await;
+    let fixture = Fixture::default_initialized().await;
+    let height = fixture.block_height().await.increment();
 
     // create transactions that should fail due to incorrect ordering if both are included in the
     // same block

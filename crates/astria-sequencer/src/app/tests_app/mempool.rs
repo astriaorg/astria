@@ -39,9 +39,8 @@ use crate::{
 #[tokio::test]
 async fn trigger_cleaning() {
     // check that cleaning is triggered by the prepare, process, and finalize block flows
-    let mut fixture = Fixture::uninitialized(None).await;
-    fixture.chain_initializer().init().await;
-    let height = fixture.run_until_aspen_applied().await;
+    let mut fixture = Fixture::default_initialized().await;
+    let height = fixture.block_height().await.increment();
 
     // create tx which will cause mempool cleaning flag to be set
     let tx_trigger = fixture
@@ -138,9 +137,8 @@ async fn trigger_cleaning() {
 
 #[tokio::test]
 async fn do_not_trigger_cleaning() {
-    let mut fixture = Fixture::uninitialized(None).await;
-    fixture.chain_initializer().init().await;
-    let height = fixture.run_until_aspen_applied().await;
+    let mut fixture = Fixture::default_initialized().await;
+    let height = fixture.block_height().await.increment();
 
     // create tx which will fail execution and not trigger flag
     // (change sudo to Alice for checked tx construction, but don't commit the change to sudo
