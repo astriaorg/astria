@@ -153,9 +153,14 @@ geth:
           enabled: false
           # rclone destination to upload the snapshot to (in the form of remote:path)
           destination: ""
+  # Enable p2p services for geth. Will create an internal headless service for p2p communication
   p2p:
     enabled: false
-    staticIP: ""
+    # Setting this will create an external passthrough Network Load Balancer for p2p communication
+    # and enable the p2p service to be publicly accessible
+    staticExternalIP: ""
+  # Set the contents of a config.toml file to be used by geth.
+  # This value can be templated.
   configToml: ""
   flags:
     datadir:
