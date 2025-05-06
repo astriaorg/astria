@@ -59,9 +59,9 @@ data:
   restore-snapshot.sh: |
     {{- tpl (.Files.Get "files/scripts/restore-snapshot.sh") $ | nindent 4 }}
   {{- end }}
-  {{- if .Values.geth.staticNodes }}
-  static-nodes.json: |
-    {{- .Values.geth.staticNodes | toJson | nindent 4 }}
+  {{- if .Values.geth.configToml }}
+  config.toml: |
+    {{- .Values.geth.configToml | nindent 4 }}
   {{- end }}
 ---
 {{- if or

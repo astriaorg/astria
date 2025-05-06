@@ -27,9 +27,9 @@ elif [ "{{ .Values.geth.snapshot.restore.enabled }}" = "true" ]; then
   exec geth --datadir "$data_dir/" init $home_dir/genesis.json
 fi
 
-{{if .Values.geth.staticNodes -}}
-# copy static nodes to data dir
-cp -f /scripts/static-nodes.json $data_dir/geth/static-nodes.json
+{{if .Values.geth.configToml -}}
+# copy config to home dir
+cp -f /scripts/config.toml $home_dir/config.toml
 {{- end }}
 
 echo "Geth initialized"

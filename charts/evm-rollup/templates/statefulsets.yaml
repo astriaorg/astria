@@ -67,6 +67,9 @@ spec:
           command: [ "geth" ]
           args:
             - --networkid={{ include "rollup.networkId" . }}
+            {{- if .Values.geth.configToml }}
+            - --config={{ include "rollup.gethHomeDir" . }}/config.toml
+            {{- end }}
             {{- range $name, $arg := .Values.geth.flags }}
             {{- $noCondition := not (hasKey $arg "condition") }}
             {{- if or ($noCondition) (eq (tpl $arg.condition $) "true") }}
