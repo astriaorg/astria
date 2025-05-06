@@ -39,15 +39,13 @@ class SequencerController:
 
     def deploy_sequencer(
             self,
-            sequencer_image_tag,
-            relayer_image_tag,
-            values_defined_images=False,
+            image_tags,
             enable_price_feed=True,
             upgrade_name=None,
             upgrade_activation_height=None,
     ):
         """
-        Deploys a new sequencer on the cluster using the specified image tag.
+        Deploys a new sequencer on the cluster using the specified image tags.
 
         The sequencer (and associated sequencer-relayer) are installed via `helm install`, then
         when the rollout has completed.
@@ -61,9 +59,7 @@ class SequencerController:
         """
         args = self._helm_args(
             "install",
-            sequencer_image_tag,
-            relayer_image_tag,
-            values_defined_images,
+            image_tags,
             enable_price_feed,
             upgrade_name,
             upgrade_activation_height
@@ -76,7 +72,7 @@ class SequencerController:
         (self.address, self.pub_key, self.power) = self._check_reported_name_and_get_node_info()
         print(f"{self.name}: running")
 
-    def stage_upgrade(self, sequencer_image_tag, relayer_image_tag, enable_price_feed, upgrade_name, activation_height):
+    def stage_upgrade(self, image_tags, enable_price_feed, upgrade_name, activation_height):
         """
         Updates the sequencer and sequencer-relayer in the cluster.
 
@@ -93,9 +89,7 @@ class SequencerController:
         # for sequencer and sequencer-relayer.
         args = self._helm_args(
             "upgrade",
-            sequencer_image_tag,
-            relayer_image_tag,
-            values_defined_images=False,
+            image_tags,
             enable_price_feed=enable_price_feed,
             upgrade_name=upgrade_name,
             upgrade_activation_height=activation_height
@@ -314,9 +308,7 @@ class SequencerController:
     def _helm_args(
             self,
             subcommand,
-            sequencer_image_tag,
-            relayer_image_tag,
-            values_defined_images,
+            image_tags,
             enable_price_feed,
             upgrade_name,
             upgrade_activation_height,
@@ -332,9 +324,10 @@ class SequencerController:
             f"--set=sequencer.priceFeed.enabled={enable_price_feed}",
             "--set=sequencer.abciUDS=false",
         ]
-        if not values_defined_images:
-            args.append(f"--set=images.sequencer.tag={sequencer_image_tag}")
-            args.append(f"--set=sequencer-relayer.images.sequencerRelayer.tag={relayer_image_tag}")
+        if "sequencer" in image_tags:
+            args.append(f"--set=images.sequencer.tag={image_tags['sequencer']}")
+        if "sequencer-relayer" in image_tags:
+            args.append(f"--set=sequencer-relayer.images.sequencerRelayer.tag={image_tags['sequencer-relayer']}")
         if subcommand == "install":
             args.append("--create-namespace")
         if upgrade_name:

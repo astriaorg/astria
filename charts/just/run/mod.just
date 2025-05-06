@@ -8,7 +8,6 @@ mod ibc-test
 # Set the working directory for all recipes to the project's root.
 set working-directory := "../../../"
 
-
 _default_run:
   @just --list run
 
@@ -44,13 +43,17 @@ use_custom_tags := 'false'
 [doc("
 Runs end-to-end test of Astria stack and EVM rollup, including bridge in/out and
 TX finalization.
-NOTE: 'CUSTOM_TAGS' directs the test to ignore the given tags and use those which
-are defined by the individual components' values files.
-Usage:
-  just run smoke-test <SEQUENCER_TAG> <RELAYER_TAG> <DEFAULT_TAG> <CUSTOM_TAGS>
-    (defaults: '', '', '', 'false')
+NOTE: Image tags can be specified for the different components by setting their
+default variables defined in `defaults.just` from the command line. Any image tags
+not specified will default to the ones defined in the `values.yaml` files.
+Examples:
+  just run evm-restart-test (uses image tags specified in `values.yaml` files)
+  just --set sequencer_image_tag latest \\
+    run evm-restart-test (specifies image tag for the sequencer)
+  just sequencer_image_tag=latest \\
+    run evm-restart-test (less verbose way to specify image tag)
 ")]
-smoke-test sequencer_tag=defaultTag relayer_tag=defaultTag default_tag=defaultTag custom_tags=use_custom_tags:
+smoke-test:
   #!/usr/bin/env bash
   if [ -d "system-tests/.venv" ]; then
     echo "Found Python virtual environment, activating it..."
@@ -58,10 +61,13 @@ smoke-test sequencer_tag=defaultTag relayer_tag=defaultTag default_tag=defaultTa
     uv pip install -r system-tests/requirements.txt
   fi
   python3 system-tests/smoke_test.py \
-    -s {{ if sequencer_tag != '' { sequencer_tag } else { 'latest' } }} \
-    -r {{ if relayer_tag != '' { relayer_tag } else { 'latest' } }} \
-    -d {{ if default_tag != '' { default_tag } else { 'latest' } }} \
-    {{ if custom_tags == 'true' { '-v' } else {''} }}
+    {{ if bridge_withdrawer_image_tag != '' { replace('-i bridge-withdrawer=#', '#', bridge_withdrawer_image_tag) } else { '' } }} \
+    {{ if cli_image_tag != '' { replace('-i cli=#', '#', cli_image_tag) } else { '' } }} \
+    {{ if composer_image_tag != '' { replace('-i composer=#', '#', composer_image_tag) } else { '' } }} \
+    {{ if conductor_image_tag != '' { replace('-i conductor=#', '#', conductor_image_tag) } else { '' } }} \
+    {{ if geth_image_tag != '' { replace('-i geth=#', '#', geth_image_tag) } else { '' } }} \
+    {{ if sequencer_image_tag != '' { replace('-i sequencer=#', '#', sequencer_image_tag) } else { '' } }} \
+    {{ if sequencer_relayer_image_tag != '' { replace('-i sequencer-relayer=#', '#', sequencer_relayer_image_tag) } else { '' } }}
 
 
 # Run EVM Restart Test
@@ -69,13 +75,17 @@ smoke-test sequencer_tag=defaultTag relayer_tag=defaultTag default_tag=defaultTa
 [doc("
 Runs end-to-end test of Astria stack and EVM rollup, including bridge in/out and
 TX finalization, with a fork defined on the EVM at height 5.
-NOTE: 'CUSTOM_TAGS' directs the test to ignore the given tags and use those which
-are defined by the individual components' values files.
-Usage:
-  just run evm-restart-test <SEQUENCER_TAG> <RELAYER_TAG> <DEFAULT_TAG> <CUSTOM_TAGS>
-    (defaults: '', '', '', 'false')
+NOTE: Image tags can be specified for the different components by setting their
+default variables defined in `defaults.just` from the command line. Any image tags
+not specified will default to the ones defined in the `values.yaml` files.
+Examples:
+  just run evm-restart-test (uses image tags specified in `values.yaml` files)
+  just --set sequencer_image_tag latest \\
+    run evm-restart-test (specifies image tag for the sequencer)
+  just sequencer_image_tag=latest \\
+    run evm-restart-test (less verbose way to specify image tag)
 ")]
-evm-restart-test sequencer_tag=defaultTag relayer_tag=defaultTag default_tag=defaultTag custom_tags=use_custom_tags:
+evm-restart-test:
   #!/usr/bin/env bash
   if [ -d "system-tests/.venv" ]; then
     echo "Found Python virtual environment, activating it..."
@@ -83,10 +93,13 @@ evm-restart-test sequencer_tag=defaultTag relayer_tag=defaultTag default_tag=def
     uv pip install -r system-tests/requirements.txt
   fi
   python3 system-tests/smoke_test.py \
-    -s {{ if sequencer_tag != '' { sequencer_tag } else { 'latest' } }} \
-    -r {{ if relayer_tag != '' { relayer_tag } else { 'latest' } }} \
-    -d {{ if default_tag != '' { default_tag } else { 'latest' } }} \
-    {{ if custom_tags == 'true' { '-v' } else {''} }} \
+    {{ if bridge_withdrawer_image_tag != '' { replace('-i bridge-withdrawer=#', '#', bridge_withdrawer_image_tag) } else { '' } }} \
+    {{ if cli_image_tag != '' { replace('-i cli=#', '#', cli_image_tag) } else { '' } }} \
+    {{ if composer_image_tag != '' { replace('-i composer=#', '#', composer_image_tag) } else { '' } }} \
+    {{ if conductor_image_tag != '' { replace('-i conductor=#', '#', conductor_image_tag) } else { '' } }} \
+    {{ if geth_image_tag != '' { replace('-i geth=#', '#', geth_image_tag) } else { '' } }} \
+    {{ if sequencer_image_tag != '' { replace('-i sequencer=#', '#', sequencer_image_tag) } else { '' } }} \
+    {{ if sequencer_relayer_image_tag != '' { replace('-i sequencer-relayer=#', '#', sequencer_relayer_image_tag) } else { '' } }} \
     --evm-restart
 
 # Run Smoke Test CLI
@@ -102,7 +115,7 @@ smoke-cli tag=defaultTag:
   #!/usr/bin/env bash
   set -e
 
-  ASTRIA_CLI_IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
+  ASTRIA_CLI_IMAGE="{{cli_url}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
   MAX_CHECKS=30
 
   # Checking starting balance

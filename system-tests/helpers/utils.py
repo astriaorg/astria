@@ -1,5 +1,16 @@
 import subprocess
 import time
+from typing import Dict, List, Tuple, Optional, Union
+
+VALID_COMPONENTS = [
+    "sequencer",
+    "sequencer-relayer",
+    "conductor",
+    "composer",
+    "bridge-withdrawer",
+    "geth",
+    "cli",
+    ]
 
 def run_subprocess(args, msg):
     """
@@ -14,6 +25,28 @@ def run_subprocess(args, msg):
         try_run_subprocess(args, msg)
     except RuntimeError as error:
         raise SystemExit(error)
+
+def parse_image_tags(image_tags: List[str]) -> Dict[str, str]:
+    """
+    Parses a list of image tag arguments in the format 'component=tag'.
+
+    Example:
+        ['sequencer=local', 'conductor=latest'] -> {'sequencer': 'local', 'conductor': 'latest'}
+
+    Returns a dictionary mapping component names to their image tags.
+
+    On error, raises a `ValueError` with a message indicating the expected format.
+    """
+    result = {}
+    for tag_spec in image_tags:
+        try:
+            component, tag = tag_spec.split('=', 1)
+            if component not in VALID_COMPONENTS:
+                raise ValueError(f"Invalid component name: {component}. Valid components are: {VALID_COMPONENTS}")
+            result[component] = tag
+        except ValueError:
+            raise ValueError(f"Invalid image tag format: {tag_spec}. Expected format: 'component=tag'")
+    return result
 
 def try_run_subprocess(args, msg):
     """
@@ -113,3 +146,22 @@ class Retryer:
 
     def seconds_remaining(self):
         return self.timeout_instant - time.monotonic()
+
+
+def parse_image_tags(image_tags: List[str]) -> Dict[str, str]:
+    """
+    Parses a list of image tag arguments in the format 'component=tag'.
+
+    Example:
+        ['sequencer=local', 'conductor=latest'] -> {'sequencer': 'local', 'conductor': 'latest'}
+
+    Returns a dictionary mapping component names to their image tags.
+    """
+    result = {}
+    for tag_spec in image_tags:
+        try:
+            component, tag = tag_spec.split('=', 1)
+            result[component] = tag
+        except ValueError:
+            raise ValueError(f"Invalid image tag format: {tag_spec}. Expected format: 'component=tag'")
+    return result

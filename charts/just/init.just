@@ -31,7 +31,7 @@ rollup-bridge tag=defaultTag rollupName=defaultRollupName evmDestinationAddress=
   FEE_ASSET="nria"
   TRANSFER_AMOUNT=$(echo "{{transferAmount}} * {{sequencer_base_amount}}" | bc)
 
-  IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
+  IMAGE="{{cli_url}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
 
   docker run --rm --network host $IMAGE sequencer init-bridge-account \
     --rollup-name {{rollupName}} \
@@ -61,7 +61,7 @@ Usage:
 ibc-bridge privateKey asset feeAsset tag=defaultTag rollupName=defaultRollupName:
   @echo "Initializing IBC bridge accoung for rollup {{rollupName}} with asset {{asset}} \
     and feeAsset {{feeAsset}}..."
-  @docker run --rm --network host {{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }} sequencer init-bridge-account \
+  @docker run --rm --network host {{cli_url}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }} sequencer init-bridge-account \
     --rollup-name {{ rollupName }} \
     --private-key {{ privateKey }} \
     --sequencer.chain-id {{ sequencer_chain_id }} \

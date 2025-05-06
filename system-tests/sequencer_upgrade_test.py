@@ -27,9 +27,9 @@ from helpers.utils import update_chart_dependencies, check_change_infos
 
 # The number of sequencer validator nodes to use in the test.
 NUM_NODES = 5
-# A map of upgrade name to sequencer, relayer image to use for running BEFORE the given upgrade is executed.
+# A map of upgrade name to image tag to use for running BEFORE the given upgrade is executed.
 PRE_UPGRADE_IMAGE_TAGS = {
-    "aspen": ("2.0.1", "1.0.1"),
+    "aspen": {"sequencer": "2.0.1", "sequencer-relayer": "1.0.1"},
 }
 
 parser = argparse.ArgumentParser(prog="upgrade_test", description="Runs the sequencer upgrade test.")
@@ -75,8 +75,7 @@ print(f"starting {len(nodes)} sequencers and the evm rollup")
 executor = concurrent.futures.ThreadPoolExecutor(NUM_NODES + 1)
 
 deploy_sequencer_fn = lambda seq_node: seq_node.deploy_sequencer(
-    PRE_UPGRADE_IMAGE_TAGS[upgrade_name][0],
-    PRE_UPGRADE_IMAGE_TAGS[upgrade_name][1],
+    PRE_UPGRADE_IMAGE_TAGS[upgrade_name],
     # Enabled for all but sequencer 2.
     enable_price_feed=(seq_node.name != "node2"),
     upgrade_name=upgrade_name,
@@ -158,8 +157,7 @@ missed_upgrade_node = nodes.pop()
 print(f"not upgrading {missed_upgrade_node.name} until the rest have executed the upgrade")
 for node in nodes:
     node.stage_upgrade(
-        upgrade_image_tag,
-        upgrade_image_tag,
+        {"sequencer": upgrade_image_tag, "sequencer-relayer": upgrade_image_tag},
         enable_price_feed=(node.name != "node2"),
         upgrade_name=upgrade_name,
         activation_height=upgrade_activation_height,
@@ -185,8 +183,7 @@ print(f"{missed_upgrade_node.name} lagging as expected; now upgrading")
 
 # Now stage the upgrade on this lagging node and ensure it catches up.
 missed_upgrade_node.stage_upgrade(
-    upgrade_image_tag,
-    upgrade_image_tag,
+    {"sequencer": upgrade_image_tag, "sequencer-relayer": upgrade_image_tag},
     enable_price_feed=True,
     upgrade_name=upgrade_name,
     activation_height=upgrade_activation_height
@@ -203,8 +200,7 @@ nodes.append(missed_upgrade_node)
 new_node = SequencerController(f"node{NUM_NODES - 1}")
 print(f"starting a new sequencer")
 new_node.deploy_sequencer(
-    upgrade_image_tag,
-    upgrade_image_tag,
+    {"sequencer": upgrade_image_tag, "sequencer-relayer": upgrade_image_tag},
     upgrade_name=upgrade_name,
     upgrade_activation_height=upgrade_activation_height
 )
