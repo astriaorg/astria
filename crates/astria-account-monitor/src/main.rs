@@ -63,7 +63,7 @@ async fn main() -> ExitCode {
                 Ok("received shutdown signal")
         },
         res = &mut account_monitor => {
-            res.and_then(|()| Err(eyre::eyre!("auctioneer task exited unexpectedly")))
+            res.and_then(|()| Err(eyre::eyre!("account monitor task exited unexpectedly")))
         }
     };
 
