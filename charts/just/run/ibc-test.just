@@ -59,7 +59,7 @@ default tag=defaultTag:
   just run ibc-test do-ibc-transfer {{defaultNamespace}} {{compat_address}}
 
   # check that sequencer balance updated correctly
-  ASTRIA_CLI_IMAGE="{{cli_url}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
+  ASTRIA_CLI_IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
   EXPECTED_BALANCE=$(echo "1 * {{transfer_amount}}" | bc)
   for i in {1..50}
   do
@@ -128,7 +128,7 @@ without-native tag=defaultTag:
   #!/usr/bin/env bash
   set -e
 
-  ASTRIA_CLI_IMAGE="{{cli_url}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
+  ASTRIA_CLI_IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
 
   # Execute the transfer from Celestia to the Rollup
   just run ibc-test do-ibc-transfer {{defaultNamespace}} {{sequencer_sudo_address}}
@@ -208,7 +208,7 @@ timeout-refund tag=defaultTag:
   just run ibc-test do-ibc-transfer {{defaultNamespace}} {{compat_address}}
 
   # check that sequencer balance updated correctly
-  ASTRIA_CLI_IMAGE="{{cli_url}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
+  ASTRIA_CLI_IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
   EXPECTED_BALANCE=$(echo "1 * {{transfer_amount}}" | bc)
   for i in {1..50}
   do

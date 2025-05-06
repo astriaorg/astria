@@ -91,7 +91,7 @@ smoke-cli tag=defaultTag:
   #!/usr/bin/env bash
   set -e
 
-  ASTRIA_CLI_IMAGE="{{cli_url}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
+  ASTRIA_CLI_IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
   MAX_CHECKS=30
 
   # Checking starting balance
