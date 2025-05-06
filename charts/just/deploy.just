@@ -256,7 +256,7 @@ hyperlane-agents rollupName=defaultRollupName agentConfig=defaultHypAgentConfig 
 [doc("
 Deploys prerequisites for running the smoke test.
 ")]
-smoke-test tag=defaultTag: generate-system-test-protos
+smoke-test: generate-system-test-protos
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
   @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null

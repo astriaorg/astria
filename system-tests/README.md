@@ -61,8 +61,7 @@ uv pip install argparse requests google google-api-core grpcio python-on-whales
 For now, it requires an environment to be set up via `just` commands prior to
 execution.
 
-To run the sequencer upgrade test where the binaries used to execute the upgrade
-are as per the `latest` tag:
+To run a system test:
 
 ```shell
 # If previously run, clean up
@@ -73,11 +72,14 @@ just deploy cluster # only needs to be run first time
 just deploy [TEST_NAME]
 
 # Current Python tests:
-#   - upgrade-test
+#   - evm-restart-test
 #   - smoke-test
+#   - upgrade-test
 
-# Run the test
-just run [TEST_NAME] <IMAGE_TAG> # e.g. 'latest', 'local', 'pr-2000'
+# Run the desired test
+just run upgrade-test <IMAGE_TAG> # e.g. 'latest', 'local', 'pr-2000'
+just run smoke-test <FLAGS> # e.g. --image-tag sequencer=latest
+just run evm-restart-test <FLAGS>
 ```
 
 To run the upgrade test using local builds:
@@ -92,6 +94,10 @@ cargo check
 just docker-build-and-load-all
 just deploy [TEST_NAME]
 
-# Run the test
-just run [TEST_NAME] local
+# Run the desired test
+just run upgrade-test local
+just run smoke-test -i sequencer=local -i sequencer-relayer=local -i bridge-withdrawer=local\
+    -i composer=local -i conductor=local -i cli=local
+just run evm-restart-test -i sequencer=local -i sequencer-relayer=local -i bridge-withdrawer=local\
+    -i composer=local -i conductor=local -i cli=local
 ```

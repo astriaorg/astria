@@ -8,6 +8,7 @@ mod ibc-test
 # Set the working directory for all recipes to the project's root.
 set working-directory := "../../../"
 
+
 _default_run:
   @just --list run
 
