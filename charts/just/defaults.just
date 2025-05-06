@@ -29,17 +29,3 @@ sequencer_bridge_pkey     := "dfa7108e38ab71f89f356c72afc38600d5758f11a8c3371647
 sequencer_chain_id        := "sequencer-test-chain-0"
 
 cli_url := "ghcr.io/astriaorg/astria-cli"
-
-# These variables are default image tags for the different components used in the
-# Python e2e tests. They can be set from the command line like so:
-#     just --set sequencer_image_tag latest \
-#         run smoke-test
-#     just sequencer_image_tag=latest \
-#         run smoke-test
-bridge_withdrawer_image_tag := ""
-cli_image_tag := ""
-composer_image_tag := ""
-conductor_image_tag := ""
-geth_image_tag := ""
-sequencer_image_tag := ""
-sequencer_relayer_image_tag := ""

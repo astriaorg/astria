@@ -39,35 +39,23 @@ bridge_tx_hash := "0x326c3910da4c96c5a40ba1505fc338164b659729f2f975ccb07e8794c96
 
 # Run Smoke Test
 #################
-use_custom_tags := 'false'
 [doc("
 Runs end-to-end test of Astria stack and EVM rollup, including bridge in/out and
 TX finalization.
-NOTE: Image tags can be specified for the different components by setting their
-default variables defined in `defaults.just` from the command line. Any image tags
-not specified will default to the ones defined in the `values.yaml` files.
+NOTE: Image tags can be specified for the different components by passing the flag
+`-i <component=tag>` to the command line. Pass `--help` for more info.
 Examples:
-  just run evm-restart-test (uses image tags specified in `values.yaml` files)
-  just --set sequencer_image_tag latest \\
-    run evm-restart-test (specifies image tag for the sequencer)
-  just sequencer_image_tag=latest \\
-    run evm-restart-test (less verbose way to specify image tag)
+  just run smoke-test (uses image tags specified in `values.yaml` files)
+  just run smoke-test -i sequencer=local (specifies image tag for the sequencer)
 ")]
-smoke-test:
+smoke-test *FLAGS:
   #!/usr/bin/env bash
   if [ -d "system-tests/.venv" ]; then
     echo "Found Python virtual environment, activating it..."
     source system-tests/.venv/bin/activate
     uv pip install -r system-tests/requirements.txt
   fi
-  python3 system-tests/smoke_test.py \
-    {{ if bridge_withdrawer_image_tag != '' { replace('-i bridge-withdrawer=#', '#', bridge_withdrawer_image_tag) } else { '' } }} \
-    {{ if cli_image_tag != '' { replace('-i cli=#', '#', cli_image_tag) } else { '' } }} \
-    {{ if composer_image_tag != '' { replace('-i composer=#', '#', composer_image_tag) } else { '' } }} \
-    {{ if conductor_image_tag != '' { replace('-i conductor=#', '#', conductor_image_tag) } else { '' } }} \
-    {{ if geth_image_tag != '' { replace('-i geth=#', '#', geth_image_tag) } else { '' } }} \
-    {{ if sequencer_image_tag != '' { replace('-i sequencer=#', '#', sequencer_image_tag) } else { '' } }} \
-    {{ if sequencer_relayer_image_tag != '' { replace('-i sequencer-relayer=#', '#', sequencer_relayer_image_tag) } else { '' } }}
+  python3 system-tests/smoke_test.py {{FLAGS}}
 
 
 # Run EVM Restart Test
@@ -75,32 +63,20 @@ smoke-test:
 [doc("
 Runs end-to-end test of Astria stack and EVM rollup, including bridge in/out and
 TX finalization, with a fork defined on the EVM at height 5.
-NOTE: Image tags can be specified for the different components by setting their
-default variables defined in `defaults.just` from the command line. Any image tags
-not specified will default to the ones defined in the `values.yaml` files.
+NOTE: Image tags can be specified for the different components by passing the flag
+`-i <component=tag>` to the command line. Pass `--help` for more info.
 Examples:
   just run evm-restart-test (uses image tags specified in `values.yaml` files)
-  just --set sequencer_image_tag latest \\
-    run evm-restart-test (specifies image tag for the sequencer)
-  just sequencer_image_tag=latest \\
-    run evm-restart-test (less verbose way to specify image tag)
+  just run evm-restart-test -i sequencer=local (specifies image tag for the sequencer)
 ")]
-evm-restart-test:
+evm-restart-test *FLAGS:
   #!/usr/bin/env bash
   if [ -d "system-tests/.venv" ]; then
     echo "Found Python virtual environment, activating it..."
     source system-tests/.venv/bin/activate
     uv pip install -r system-tests/requirements.txt
   fi
-  python3 system-tests/smoke_test.py \
-    {{ if bridge_withdrawer_image_tag != '' { replace('-i bridge-withdrawer=#', '#', bridge_withdrawer_image_tag) } else { '' } }} \
-    {{ if cli_image_tag != '' { replace('-i cli=#', '#', cli_image_tag) } else { '' } }} \
-    {{ if composer_image_tag != '' { replace('-i composer=#', '#', composer_image_tag) } else { '' } }} \
-    {{ if conductor_image_tag != '' { replace('-i conductor=#', '#', conductor_image_tag) } else { '' } }} \
-    {{ if geth_image_tag != '' { replace('-i geth=#', '#', geth_image_tag) } else { '' } }} \
-    {{ if sequencer_image_tag != '' { replace('-i sequencer=#', '#', sequencer_image_tag) } else { '' } }} \
-    {{ if sequencer_relayer_image_tag != '' { replace('-i sequencer-relayer=#', '#', sequencer_relayer_image_tag) } else { '' } }} \
-    --evm-restart
+  python3 system-tests/smoke_test.py {{FLAGS}} --evm-restart
 
 # Run Smoke Test CLI
 #####################
