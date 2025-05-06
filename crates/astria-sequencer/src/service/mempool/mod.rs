@@ -210,6 +210,9 @@ async fn handle_check_tx<S: StateRead>(
                     metrics.increment_check_tx_failed_action_checks();
                     AbciErrorCode::BAD_REQUEST
                 }
+                CheckedTransactionInitialCheckError::InvalidNonce {
+                    ..
+                } => AbciErrorCode::INVALID_NONCE,
                 CheckedTransactionInitialCheckError::ChainIdMismatch {
                     ..
                 } => {

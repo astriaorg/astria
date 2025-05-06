@@ -33,6 +33,12 @@ pub(crate) enum CheckedTransactionInitialCheckError {
     Convert(#[source] TransactionError),
 
     #[error(
+        "invalid transaction nonce; current nonce `{current_nonce}`, transaction nonce \
+         `{tx_nonce}`"
+    )]
+    InvalidNonce { current_nonce: u32, tx_nonce: u32 },
+
+    #[error(
         "transaction for wrong chain; expected chain id `{expected}`, transaction chain id \
          `{tx_chain_id}`"
     )]

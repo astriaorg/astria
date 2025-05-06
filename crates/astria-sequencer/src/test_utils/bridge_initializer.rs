@@ -88,7 +88,7 @@ impl<'a> BridgeInitializer<'a> {
                 .unwrap();
         }
         checked_action
-            .execute_and_pay_fees(
+            .pay_fees_and_execute(
                 &mut state_delta,
                 bridge_address.address_bytes(),
                 &TransactionId::new([1; 32]),

@@ -257,7 +257,10 @@ async fn bridge_lock_fee_calculation_works_as_expected() {
             .wrap_err("failed execution")
             .unwrap_err()
     );
-    assert_error_contains(&error, "failed due to insufficient funds");
+    assert_error_contains(
+        &error,
+        &format!("insufficient {} balance in account", test_asset()),
+    );
 
     // enough balance; should pass
     let expected_deposit_fee =

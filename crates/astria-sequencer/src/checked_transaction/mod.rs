@@ -10,7 +10,6 @@ use astria_core::{
         asset::IbcPrefixed,
         RollupId,
         TransactionId,
-        ADDRESS_LEN,
     },
     protocol::transaction::v1::{
         Action,
@@ -105,6 +104,24 @@ impl CheckedTransaction {
             .map_err(CheckedTransactionInitialCheckError::Decode)?;
         let tx = Transaction::try_from_raw(raw_tx)
             .map_err(CheckedTransactionInitialCheckError::Convert)?;
+
+        let current_nonce =
+            state
+                .get_account_nonce(tx.address_bytes())
+                .await
+                .map_err(|source| {
+                    CheckedTransactionInitialCheckError::internal(
+                        "failed to read nonce from storage",
+                        source,
+                    )
+                })?;
+        let tx_nonce = tx.nonce();
+        if tx_nonce < current_nonce {
+            return Err(CheckedTransactionInitialCheckError::InvalidNonce {
+                current_nonce,
+                tx_nonce,
+            });
+        };
 
         let tx_id = TransactionId::new(sha2::Sha256::digest(&tx_bytes).into());
         let tx_chain_id = tx.chain_id().to_string();
@@ -286,7 +303,7 @@ impl CheckedTransaction {
             let index = u64::try_from(index)
                 .map_err(|_| CheckedTransactionExecutionError::ActionIndexOverflowed)?;
             action
-                .execute_and_pay_fees(&mut state, &tx_signer, &self.tx_id, index)
+                .pay_fees_and_execute(&mut state, &tx_signer, &self.tx_id, index)
                 .await?;
         }
         Ok(())
@@ -294,7 +311,7 @@ impl CheckedTransaction {
 }
 
 impl AddressBytes for CheckedTransaction {
-    fn address_bytes(&self) -> &[u8; ADDRESS_LEN] {
+    fn address_bytes(&self) -> &[u8; ADDRESS_LENGTH] {
         self.verification_key.address_bytes()
     }
 }
