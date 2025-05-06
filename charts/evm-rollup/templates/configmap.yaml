@@ -61,7 +61,7 @@ data:
   {{- end }}
   {{- if .Values.geth.configToml }}
   config.toml: |
-    {{- .Values.geth.configToml | nindent 4 }}
+    {{- tpl .Values.geth.configToml $ | nindent 4 }}
   {{- end }}
 ---
 {{- if or
