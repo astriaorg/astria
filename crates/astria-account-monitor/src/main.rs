@@ -5,10 +5,19 @@ use astria_account_monitor::{
     AccountMonitor,
     BUILD_INFO,
 };
-use astria_eyre::eyre::WrapErr as _;
+use astria_eyre::{
+    eyre,
+    eyre::WrapErr as _,
+};
 use tokio::signal::unix::{
     signal,
     SignalKind,
+};
+use tracing::{
+    error,
+    info,
+    instrument,
+    warn,
 };
 
 #[tokio::main]
@@ -49,29 +58,33 @@ async fn main() -> ExitCode {
     let mut sigterm = signal(SignalKind::terminate())
         .expect("setting a SIGTERM listener should always work on Unix");
 
-    tokio::select! {
+    let exit_reasion = tokio::select! {
         _ = sigterm.recv() => {
-            match account_monitor.shutdown().await {
-                Ok(()) => {
-                    ExitCode::SUCCESS
-                }
-                Err(err) => {
-                    eprintln!("failed to shutdown account monitor:\n {err}");
-                    ExitCode::FAILURE
-                }
-            }
+                Ok("received shutdown signal")
         },
         res = &mut account_monitor => {
-            match res {
-                Ok(()) => {
-                    eprintln!("account monitor exited unexpectedly");
-                    ExitCode::FAILURE
-                }
-                Err(err) => {
-                    eprintln!("account monitor exited unexpectedly with an error:\n {err}");
-                    ExitCode::FAILURE
-                }
-            }
+            res.and_then(|()| Err(eyre::eyre!("auctioneer task exited unexpectedly")))
         }
-    }
+    };
+
+    shutdown(exit_reasion, account_monitor).await
+}
+
+#[instrument(skip_all)]
+async fn shutdown(reason: eyre::Result<&'static str>, service: AccountMonitor) -> ExitCode {
+    let message = "shutting down";
+    let exit_code = match reason {
+        Ok(reason) => {
+            info!(reason, message);
+            if let Err(error) = service.shutdown().await {
+                warn!(%error, "encountered errors during shutdown");
+            };
+            ExitCode::SUCCESS
+        }
+        Err(reason) => {
+            error!(%reason, message);
+            ExitCode::FAILURE
+        }
+    };
+    exit_code
 }
