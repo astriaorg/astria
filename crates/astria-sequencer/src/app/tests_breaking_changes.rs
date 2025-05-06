@@ -11,10 +11,15 @@
 
 use std::{
     collections::HashMap,
+    str::FromStr as _,
     sync::Arc,
 };
 
 use astria_core::{
+    oracles::price_feed::{
+        market_map::v2::Market,
+        types::v2::CurrencyPair,
+    },
     primitive::v1::{
         Address,
         RollupId,
@@ -26,9 +31,14 @@ use astria_core::{
                 BridgeLock,
                 BridgeSudoChange,
                 BridgeUnlock,
+                CurrencyPairsChange,
+                FeeAssetChange,
                 IbcRelayerChange,
                 IbcSudoChange,
+                InitBridgeAccount,
+                MarketsChange,
                 RollupDataSubmission,
+                SudoAddressChange,
                 Transfer,
                 ValidatorUpdate,
             },
@@ -40,10 +50,7 @@ use astria_core::{
     Protobuf,
 };
 use cnidarium::StateDelta;
-use prost::{
-    bytes::Bytes,
-    Message as _,
-};
+use prost::bytes::Bytes;
 use tendermint::{
     abci,
     abci::types::CommitInfo,
@@ -56,8 +63,8 @@ use crate::{
     app::{
         benchmark_and_test_utils::{
             default_genesis_accounts,
-            initialize_app_with_storage,
             proto_genesis_state,
+            AppInitializer,
             BOB_ADDRESS,
             CAROL_ADDRESS,
             JUDY_ADDRESS,
@@ -66,7 +73,8 @@ use crate::{
             get_alice_signing_key,
             get_bridge_signing_key,
             get_judy_signing_key,
-            initialize_app,
+            run_until_aspen_applied,
+            transactions_with_extended_commit_info_and_commitments,
         },
     },
     authority::StateReadExt as _,
@@ -74,22 +82,24 @@ use crate::{
         astria_address,
         astria_address_from_hex_string,
         nria,
+        verification_key,
         ASTRIA_PREFIX,
     },
     bridge::StateWriteExt as _,
-    proposal::commitment::generate_rollup_datas_commitment,
+    test_utils::example_ticker_from_currency_pair,
 };
 
 #[tokio::test]
 async fn app_genesis_snapshot() {
-    let app = initialize_app(None, vec![]).await;
-    insta::assert_json_snapshot!("app_hash_at_genesis", app.app_hash.as_bytes());
+    let (app, _storage) = AppInitializer::new().init().await;
+    insta::assert_json_snapshot!("app_hash_at_genesis", hex::encode(app.app_hash.as_bytes()));
 }
 
 #[tokio::test]
 async fn app_finalize_block_snapshot() {
     let alice = get_alice_signing_key();
-    let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+    let (mut app, storage) = AppInitializer::new().init().await;
+    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -107,7 +117,7 @@ async fn app_finalize_block_snapshot() {
     // the state changes must be committed, as `finalize_block` will execute the
     // changes on the latest snapshot, not the app's `StateDelta`.
     app.prepare_commit(storage.clone()).await.unwrap();
-    app.commit(storage.clone()).await;
+    app.commit(storage.clone()).await.unwrap();
 
     let amount = 100;
     let lock_action = BridgeLock {
@@ -141,17 +151,20 @@ async fn app_finalize_block_snapshot() {
         source_action_index: starting_index_of_action,
     };
     let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
-    let commitments = generate_rollup_datas_commitment(&[signed_tx.clone()], deposits.clone());
 
     let timestamp = Time::unix_epoch();
     let block_hash = Hash::try_from([99u8; 32].to_vec()).unwrap();
     let finalize_block = abci::request::FinalizeBlock {
         hash: block_hash,
-        height: 1u32.into(),
+        height,
         time: timestamp,
         next_validators_hash: Hash::default(),
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-        txs: commitments.into_transactions(vec![signed_tx.to_raw().encode_to_vec().into()]),
+        txs: transactions_with_extended_commit_info_and_commitments(
+            height,
+            &[Arc::new(signed_tx)],
+            Some(deposits),
+        ),
         decided_last_commit: CommitInfo {
             votes: vec![],
             round: Round::default(),
@@ -162,8 +175,11 @@ async fn app_finalize_block_snapshot() {
     app.finalize_block(finalize_block.clone(), storage.clone())
         .await
         .unwrap();
-    app.commit(storage.clone()).await;
-    insta::assert_json_snapshot!("app_hash_finalize_block", app.app_hash.as_bytes());
+    app.commit(storage.clone()).await.unwrap();
+    insta::assert_json_snapshot!(
+        "app_hash_finalize_block",
+        hex::encode(app.app_hash.as_bytes())
+    );
 }
 
 // Note: this tests every action except for `Ics20Withdrawal` and `IbcRelay`.
@@ -173,12 +189,6 @@ async fn app_finalize_block_snapshot() {
 #[expect(clippy::too_many_lines, reason = "it's a test")]
 #[tokio::test]
 async fn app_execute_transaction_with_every_action_snapshot() {
-    use astria_core::protocol::transaction::v1::action::{
-        FeeAssetChange,
-        InitBridgeAccount,
-        SudoAddressChange,
-    };
-
     let alice = get_alice_signing_key();
     let bridge = get_bridge_signing_key();
     let bridge_withdrawer = get_judy_signing_key();
@@ -221,12 +231,17 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     }
     .try_into()
     .unwrap();
-    let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;
+    let (mut app, storage) = AppInitializer::new()
+        .with_genesis_state(genesis_state)
+        .init()
+        .await;
+    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
 
     // setup for ValidatorUpdate action
     let update = ValidatorUpdate {
+        name: "test_validator".parse().unwrap(),
         power: 100,
-        verification_key: crate::benchmark_and_test_utils::verification_key(1),
+        verification_key: verification_key(1),
     };
 
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -252,6 +267,8 @@ async fn app_execute_transaction_with_every_action_snapshot() {
         .try_build()
         .unwrap();
 
+    let currency_pair_tia = CurrencyPair::from_str("TIA/USD").unwrap();
+    let currency_pair_eth = CurrencyPair::from_str("ETH/USD").unwrap();
     let tx_bundleable_sudo = TransactionBody::builder()
         .actions(vec![
             IbcRelayerChange::Addition(bob_address).into(),
@@ -260,6 +277,39 @@ async fn app_execute_transaction_with_every_action_snapshot() {
             FeeAssetChange::Addition("test-0".parse().unwrap()).into(),
             FeeAssetChange::Addition("test-1".parse().unwrap()).into(),
             FeeAssetChange::Removal("test-0".parse().unwrap()).into(),
+            CurrencyPairsChange::Addition(vec![
+                currency_pair_tia.clone(),
+                currency_pair_eth.clone(),
+            ])
+            .into(),
+            CurrencyPairsChange::Removal(vec![currency_pair_eth.clone()]).into(),
+            MarketsChange::Creation(vec![Market {
+                ticker: example_ticker_from_currency_pair(
+                    "testAssetOne",
+                    "testAssetTwo",
+                    "create market".to_string(),
+                ),
+                provider_configs: vec![],
+            }])
+            .into(),
+            MarketsChange::Update(vec![Market {
+                ticker: example_ticker_from_currency_pair(
+                    "testAssetOne",
+                    "testAssetTwo",
+                    "update market".to_string(),
+                ),
+                provider_configs: vec![],
+            }])
+            .into(),
+            MarketsChange::Removal(vec![Market {
+                ticker: example_ticker_from_currency_pair(
+                    "testAssetOne",
+                    "testAssetTwo",
+                    "remove market".to_string(),
+                ),
+                provider_configs: vec![],
+            }])
+            .into(),
         ])
         .nonce(1)
         .chain_id("test")
@@ -362,10 +412,13 @@ async fn app_execute_transaction_with_every_action_snapshot() {
     app.execute_transaction(signed_tx).await.unwrap();
 
     let sudo_address = app.state.get_sudo_address().await.unwrap();
-    app.end_block(1, &sudo_address).await.unwrap();
+    app.end_block(height.value(), &sudo_address).await.unwrap();
 
     app.prepare_commit(storage.clone()).await.unwrap();
-    app.commit(storage.clone()).await;
+    app.commit(storage.clone()).await.unwrap();
 
-    insta::assert_json_snapshot!("app_hash_execute_every_action", app.app_hash.as_bytes());
+    insta::assert_json_snapshot!(
+        "app_hash_execute_every_action",
+        hex::encode(app.app_hash.as_bytes())
+    );
 }

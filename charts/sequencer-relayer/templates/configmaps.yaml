@@ -15,7 +15,6 @@ data:
   ASTRIA_SEQUENCER_RELAYER_NO_METRICS: "{{ not .Values.config.relayer.metrics.enabled }}"
   ASTRIA_SEQUENCER_RELAYER_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.metrics }}"
   ASTRIA_SEQUENCER_RELAYER_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
-  ASTRIA_SEQUENCER_RELAYER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   NO_COLOR: "{{ .Values.global.useTTY }}"
   ASTRIA_SEQUENCER_RELAYER_NO_OTEL: "{{ not .Values.otel.enabled }}"
   OTEL_EXPORTER_OTLP_ENDPOINT: "{{ tpl .Values.otel.endpoint . }}"
@@ -29,6 +28,7 @@ data:
   ASTRIA_SEQUENCER_RELAYER_SEQUENCER_CHAIN_ID: "{{ include "sequencer-relayer.sequencerChainId" . }}"
   ASTRIA_SEQUENCER_RELAYER_CELESTIA_CHAIN_ID: "{{ include "sequencer-relayer.celestiaChainId" . }}"
   {{- if not .Values.global.dev }}
+  ASTRIA_SEQUENCER_RELAYER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   {{- else }}
   {{- end }}
 ---

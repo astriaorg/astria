@@ -1,19 +1,15 @@
 {{- $ingressApiIsStable := eq (include "external-ingress.isStable" .) "true" -}}
 {{- $ingressSupportsIngressClassName := eq (include "external-ingress.supportsIngressClassName" .) "true" -}}
 {{- $ingressSupportsPathType := eq (include "external-ingress.supportsPathType" .) "true" -}}
-
 {{- range $name, $ingress := .Values.ingress }}
 {{- $serviceName := $ingress.service -}}
 {{- $_ := hasKey $.Values.services $serviceName | required "ingress.service must be one of the chart services" -}}
 {{- $servicePort := $ingress.port -}}
 {{- $ingressPath := default "/" $ingress.path -}}
 {{- $ingressPathType := default "Prefix" $ingress.pathType -}}
-{{- $extraPaths := $ingress.extraPaths -}}
+{{- $specificPaths := $ingress.paths -}}
 {{- $ingressClassName := default "nginx" $ingress.className }}
-{{- $servicePort := $ingress.port -}}
-{{- $ingressPath := default "/" $ingress.path -}}
-{{- $ingressPathType := default "Prefix" $ingress.pathType -}}
-{{- $extraPaths := $ingress.extraPaths -}}
+{{- $paths := default (list (dict "path" "/" "pathType" "Prefix")) $ingress.paths -}}
 {{- $ingressClassName := default "nginx" $ingress.className }}
 apiVersion: {{ include "external-ingress.apiVersion" $ }}
 kind: Ingress
@@ -48,12 +44,10 @@ spec:
     - host: {{ tpl $host $ }}
       http:
         paths:
-          {{- with $extraPaths }}
-          {{- toYaml . | nindent 10 }}
-          {{- end }}
-          - path: {{ $ingressPath }}
+          {{- range $path := $paths }}
+          - path: {{ $path.path }}
             {{- if $ingressSupportsPathType }}
-            pathType: {{ $ingressPathType }}
+            pathType: {{ $path.pathType }}
             {{- end }}
             backend:
               {{- if $ingressApiIsStable }}
@@ -65,6 +59,7 @@ spec:
               serviceName: {{ tpl $serviceName $ }}
               servicePort: {{ tpl $servicePort $ }}
               {{- end }}
+          {{- end }}
     {{- end }}
   {{- end }}
   {{- if $ingress.tls }}

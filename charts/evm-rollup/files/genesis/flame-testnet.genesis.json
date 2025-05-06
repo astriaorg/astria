@@ -1,0 +1,83 @@
+{
+  "config": {
+    "chainId": 16604737732183,
+    "homesteadBlock": 0,
+    "eip150Block": 0,
+    "eip155Block": 0,
+    "eip158Block": 0,
+    "byzantiumBlock": 0,
+    "constantinopleBlock": 0,
+    "petersburgBlock": 0,
+    "istanbulBlock": 0,
+    "berlinBlock": 0,
+    "londonBlock": 0,
+    "shanghaiTime": 0,
+    "cancunTime": 1741395000,
+    "terminalTotalDifficulty": 0,
+    "terminalTotalDifficultyPassed": true,
+    "ethash": {},
+    "astriaOverrideGenesisExtraData": true,
+    "astriaSequencerInitialHeight": 65078,
+    "astriaRollupName": "flame-dawn-1",
+    "astriaCelestiaInitialHeight": 2951695,
+    "astriaCelestiaHeightVariance": 15000,
+    "astriaBridgeAddresses": [
+      {
+        "assetDenom": "transfer/channel-0/utia",
+        "assetPrecision": 6,
+        "bridgeAddress": "astria1lepnry7tlpzvrukp5xej4v5wp532k2f94vxqnr",
+        "senderAddress": "0x0000000000000000000000000000000000000000",
+        "startHeight": 1
+      },
+      {
+        "assetDenom": "transfer/channel-1/uusdc",
+        "assetPrecision": 6,
+        "bridgeAddress": "astria1u6ewl0tejz0df2l6tzc7k2degx6mqsjahldqxd",
+        "erc20asset": {
+          "contractAddress": "0x6e18cE6Ec3Fc7b8E3EcFca4fA35e25F3f6FA879a",
+          "contractPrecision": 18
+        },
+        "senderAddress": "0xea9d2B36A562ee176c43312397c1b4279ee2343a",
+        "startHeight": 120292
+      },
+      {
+        "assetDenom": "transfer/channel-4/factory/neutron1tkr6mtll5e2z53ze2urnc3ld3tq3dam2rchezc5lg9c237ft66gqtw94jm/drop",
+        "assetPrecision": 6,
+        "bridgeAddress": "astria1j7juyc9nv6tlv0la74a9rrm7v72y3x336mgxvk",
+        "erc20asset": {
+          "contractAddress": "0x0F0C3207a9fE9B7e8AaE4bb83E865C91A13Fd8a7",
+          "contractPrecision": 18
+        },
+        "senderAddress": "0xea9d2B36A562ee176c43312397c1b4279ee2343a",
+        "startHeight": 1077477
+      }
+    ],
+    "astriaFeeCollectors": {
+      "1": "0xF09cA27323E25ff7Cee792b108D8521864F3a337"
+    },
+    "astriaEIP1559Params": {
+      "223000": {
+        "baseFeeChangeDenominator": 250,
+        "elasticityMultiplier": 6,
+        "minBaseFee": 18000000000
+      },
+      "3755000": {
+        "baseFeeChangeDenominator": 250,
+        "elasticityMultiplier": 6,
+        "minBaseFee": 1000000000
+      }
+    },
+    "astriaSequencerAddressPrefix": "astria",
+    "astriaAuctioneerAddresses": {
+      "3460000": "astria10gu50zl559s0tkpjt45plzcj0c7zyavl0jun6v"
+    }
+  },
+  "difficulty": "0",
+  "gasLimit": "50000000",
+  "alloc": {
+    "0x4e59b44847b379578588920cA78FbF26c0B4956C": {
+      "balance": "0",
+      "code": "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3"
+    }
+  }
+}

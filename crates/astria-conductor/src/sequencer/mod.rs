@@ -15,6 +15,7 @@ use futures::{
         self,
         BoxFuture,
         Fuse,
+        FusedFuture as _,
     },
     FutureExt as _,
     StreamExt as _,
@@ -44,6 +45,7 @@ use tracing::{
 use crate::{
     block_cache::BlockCache,
     sequencer::block_stream::BlocksFromHeightStream,
+    state::StateReceiver,
 };
 
 mod block_stream;
@@ -52,8 +54,6 @@ mod client;
 mod reporting;
 pub(crate) use builder::Builder;
 pub(crate) use client::SequencerGrpcClient;
-
-use crate::executor::StateReceiver;
 
 /// [`Reader`] reads Sequencer blocks and forwards them to the [`crate::Executor`] task.
 ///
@@ -73,9 +73,6 @@ pub(crate) struct Reader {
     /// The reader will wait `sequencer_block_time` before querying the network for its latest
     /// height.
     sequencer_block_time: Duration,
-
-    /// The chain ID of the sequencer network the reader should be communicating with.
-    expected_sequencer_chain_id: String,
 
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
@@ -99,13 +96,13 @@ impl Reader {
 
     #[instrument(skip_all, err)]
     async fn initialize(&mut self) -> eyre::Result<()> {
+        let expected_sequencer_chain_id = self.rollup_state.sequencer_chain_id();
         let actual_sequencer_chain_id =
             get_sequencer_chain_id(self.sequencer_cometbft_client.clone())
                 .await
                 .wrap_err("failed to get chain ID from Sequencer")?;
-        let expected_sequencer_chain_id = &self.expected_sequencer_chain_id;
         ensure!(
-            self.expected_sequencer_chain_id == actual_sequencer_chain_id.as_str(),
+            expected_sequencer_chain_id == actual_sequencer_chain_id.as_str(),
             "expected chain id `{expected_sequencer_chain_id}` does not match actual: \
              `{actual_sequencer_chain_id}`"
         );
@@ -152,6 +149,7 @@ impl RunningReader {
         } = reader;
 
         let next_expected_height = rollup_state.next_expected_soft_sequencer_height();
+        let sequencer_stop_height = rollup_state.sequencer_stop_height();
 
         let latest_height_stream =
             sequencer_cometbft_client.stream_latest_height(sequencer_block_time);
@@ -162,6 +160,7 @@ impl RunningReader {
         let blocks_from_heights = BlocksFromHeightStream::new(
             rollup_state.rollup_id(),
             next_expected_height,
+            sequencer_stop_height,
             sequencer_grpc_client,
         );
 
@@ -186,9 +185,11 @@ impl RunningReader {
     }
 
     async fn run_loop(&mut self) -> eyre::Result<&'static str> {
-        use futures::future::FusedFuture as _;
-
         loop {
+            if self.has_reached_stop_height() {
+                return Ok("stop height reached");
+            }
+
             select! {
                 biased;
 
@@ -286,6 +287,17 @@ impl RunningReader {
         self.blocks_from_heights
             .set_next_expected_height_if_greater(next_height);
         self.block_cache.drop_obsolete(next_height);
+    }
+
+    /// The stop height is reached if a) the next height to be forwarded would be greater
+    /// than the stop height, and b) there is no block currently in flight.
+    fn has_reached_stop_height(&self) -> bool {
+        self.rollup_state
+            .sequencer_stop_height()
+            .map_or(false, |height| {
+                self.block_cache.next_height_to_pop() > height.get()
+                    && self.enqueued_block.is_terminated()
+            })
     }
 }
 

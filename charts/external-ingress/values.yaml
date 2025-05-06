@@ -1,13 +1,13 @@
 global:
   namespaceOverride: ""
 
-services:
+services: {}
 #  evm-rpc:
 #    externalServiceName: astria-evm-service.astria-dev-cluster.svc.cluster.local
 #  evm-faucet:
 #    externalServiceName: astria-faucet-service.astria-dev-cluster.svc.cluster.local
 
-ingress:
+ingress: {}
 #  rpc:
 #    service: evm-rpc
 #    port: 8545

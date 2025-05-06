@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use bytes::Bytes;
 use indexmap::IndexMap;
 use transaction::v1::Transaction;
@@ -11,6 +13,7 @@ pub mod bridge;
 pub mod fees;
 pub mod genesis;
 pub mod memos;
+pub mod price_feed;
 pub mod transaction;
 
 #[cfg(any(feature = "test-utils", test))]
@@ -21,14 +24,14 @@ pub mod test_utils;
 ///
 /// TODO: This can all be done in-place once <https://github.com/rust-lang/rust/issues/80552> is stabilized.
 pub fn group_rollup_data_submissions_in_signed_transaction_transactions_by_rollup_id(
-    transactions: &[Transaction],
+    transactions: &[Arc<Transaction>],
 ) -> IndexMap<RollupId, Vec<Bytes>> {
     use prost::Message as _;
 
     use crate::sequencerblock::v1::block::RollupData;
 
     let mut map = IndexMap::new();
-    for action in transactions.iter().flat_map(Transaction::actions) {
+    for action in transactions.iter().flat_map(|tx| tx.actions()) {
         if let Some(action) = action.as_rollup_data_submission() {
             let txs_for_rollup: &mut Vec<Bytes> = map.entry(action.rollup_id).or_insert(vec![]);
             let rollup_data = RollupData::SequencedData(action.data.clone());

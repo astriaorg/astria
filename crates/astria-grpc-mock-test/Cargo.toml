@@ -19,4 +19,4 @@ tonic.workspace = true
 
 [dev-dependencies]
 astria-grpc-mock = { path = "../astria-grpc-mock" }
-tokio-stream = { version = "0.1.15", features = ["net"] }
+tokio-stream = { workspace = true, features = ["net"] }

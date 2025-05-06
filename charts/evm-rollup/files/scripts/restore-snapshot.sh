@@ -5,18 +5,18 @@ set -o errexit -o nounset
 rm -rf "$data_dir/geth"
 mkdir -p "$data_dir/geth"
 
-SNAPSHOT="{{ .Values.config.geth.snapshot.restore.source }}"
+SNAPSHOT="{{ .Values.geth.snapshot.restore.source }}"
 SNAPSHOT_FILE=$(basename "$SNAPSHOT")
 
 echo "💿 Copying snapshot from $SNAPSHOT"
 
 rclone copy -vv \
-  {{ .Values.config.geth.snapshot.restore.source }} \
+  {{ .Values.geth.snapshot.restore.source }} \
   "$data_dir/snapshot-load/"
 
-{{if .Values.config.geth.snapshot.restore.checksum -}}
+{{if .Values.geth.snapshot.restore.checksum -}}
 echo "🕵️ Verifying snapshot checksum..."
-EXPECTED_CHECKSUM="{{ .Values.config.geth.snapshot.restore.checksum }}"
+EXPECTED_CHECKSUM="{{ .Values.geth.snapshot.restore.checksum }}"
 ACTUAL_CHECKSUM=$(sha256sum "$data_dir/snapshot-load/$SNAPSHOT_FILE" | cut -d ' ' -f 1)
 
 if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then

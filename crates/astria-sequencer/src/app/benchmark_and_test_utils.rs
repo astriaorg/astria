@@ -17,18 +17,24 @@ use astria_core::{
             BridgeSudoChange,
             BridgeTransfer,
             BridgeUnlock,
+            CurrencyPairsChange,
             FeeAssetChange,
             FeeChange,
             IbcRelayerChange,
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
+            MarketsChange,
             RecoverIbcClient,
             RollupDataSubmission,
             SudoAddressChange,
             Transfer,
             ValidatorUpdate,
         },
+    },
+    upgrades::{
+        test_utils::UpgradesBuilder,
+        v1::Upgrades,
     },
     Protobuf,
 };
@@ -90,6 +96,8 @@ pub(crate) fn default_fees() -> astria_core::protocol::genesis::v1::GenesisFees 
         sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0)),
         ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0)),
         recover_ibc_client: Some(FeeComponents::<RecoverIbcClient>::new(0, 0)),
+        currency_pairs_change: Some(FeeComponents::<CurrencyPairsChange>::new(0, 0)),
+        markets_change: Some(FeeComponents::<MarketsChange>::new(0, 0)),
     }
 }
 
@@ -106,7 +114,7 @@ pub(crate) fn proto_genesis_state(
             .map(Protobuf::into_raw)
             .collect(),
         authority_sudo_address: Some(astria_address_from_hex_string(JUDY_ADDRESS).to_raw()),
-        chain_id: "test-1".to_string(),
+        chain_id: "test".to_string(),
         ibc_sudo_address: Some(astria_address_from_hex_string(TED_ADDRESS).to_raw()),
         ibc_relayer_addresses: vec![],
         native_asset_base_denomination: nria().to_string(),
@@ -120,35 +128,72 @@ pub(crate) fn proto_genesis_state(
     }
 }
 
-pub(crate) fn genesis_state() -> GenesisAppState {
+pub(crate) fn get_test_genesis_state() -> GenesisAppState {
     proto_genesis_state().try_into().unwrap()
 }
 
-pub(crate) async fn initialize_app_with_storage(
+#[derive(Default)]
+pub(crate) struct AppInitializer {
     genesis_state: Option<GenesisAppState>,
     genesis_validators: Vec<ValidatorUpdate>,
-) -> (App, Storage) {
-    let storage = cnidarium::TempStorage::new()
+    upgrades: Option<Upgrades>,
+}
+
+impl AppInitializer {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    pub(crate) fn with_genesis_state(mut self, state: GenesisAppState) -> Self {
+        self.genesis_state = Some(state);
+        self
+    }
+
+    #[cfg_attr(not(test), expect(dead_code, reason = "not used in benchmarks"))]
+    pub(crate) fn with_genesis_validators(
+        mut self,
+        genesis_validators: Vec<ValidatorUpdate>,
+    ) -> Self {
+        self.genesis_validators = genesis_validators;
+        self
+    }
+
+    #[cfg_attr(not(test), expect(dead_code, reason = "not used in benchmarks"))]
+    pub(crate) fn with_upgrades(mut self, upgrades: Upgrades) -> Self {
+        self.upgrades = Some(upgrades);
+        self
+    }
+
+    pub(crate) async fn init(self) -> (App, Storage) {
+        let storage = cnidarium::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+        let upgrades_handler = self
+            .upgrades
+            .unwrap_or_else(|| UpgradesBuilder::new().set_aspen(Some(1)).build())
+            .into();
+        let ve_handler = crate::app::vote_extension::Handler::new(None);
+        let mut app = App::new(snapshot, mempool, upgrades_handler, ve_handler, metrics)
+            .await
+            .unwrap();
+
+        let genesis_state = self.genesis_state.unwrap_or_else(get_test_genesis_state);
+
+        app.init_chain(
+            storage.clone(),
+            genesis_state,
+            self.genesis_validators,
+            "test".to_string(),
+        )
         .await
-        .expect("failed to create temp storage backing chain state");
-    let snapshot = storage.latest_snapshot();
-    let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-    let mempool = Mempool::new(metrics, 100);
-    let mut app = App::new(snapshot, mempool, metrics).await.unwrap();
+        .unwrap();
+        app.commit(storage.clone()).await.unwrap();
 
-    let genesis_state = genesis_state.unwrap_or_else(self::genesis_state);
-
-    app.init_chain(
-        storage.clone(),
-        genesis_state,
-        genesis_validators,
-        "test".to_string(),
-    )
-    .await
-    .unwrap();
-    app.commit(storage.clone()).await;
-
-    (app, storage.clone())
+        (app, storage.clone())
+    }
 }
 
 pub(crate) fn default_genesis_accounts() -> Vec<Account> {
@@ -370,6 +415,18 @@ pub(crate) async fn mock_state_getter() -> StateDelta<Snapshot> {
     state
         .put_fees(recover_ibc_client_fees)
         .wrap_err("failed to initiate recover ibc client fee components")
+        .unwrap();
+
+    let currency_pairs_change_fees = FeeComponents::<CurrencyPairsChange>::new(0, 0);
+    state
+        .put_fees(currency_pairs_change_fees)
+        .wrap_err("failed to initiate currency pairs change fee components")
+        .unwrap();
+
+    let markets_change_fees = FeeComponents::<MarketsChange>::new(0, 0);
+    state
+        .put_fees(markets_change_fees)
+        .wrap_err("failed to initiate markets change fee components")
         .unwrap();
 
     // put denoms as allowed fee asset

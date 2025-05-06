@@ -4,11 +4,11 @@
 
 import 'charts/just/mod.just'
 
-# Kubetail usage. '$just --list kubetail' for more...
+# Kubetail usage. 'just --list kubetail' for more...
 mod kubetail 'dev/just/kubetail.just'
-# ArgoCD usage. '$just --list argo' for more...
+# ArgoCD usage. 'just --list argo' for more...
 mod argo 'dev/just/argo.just'
-# Helm usage. '$just --list helm' for more...
+# Helm usage. 'just --list helm' for more...
 mod helm 'dev/just/helm.just'
 
 _default:
@@ -25,9 +25,9 @@ Builds docker image for the crate. Defaults to 'local' tag.
 NOTE: `_crate_short_name` is invoked as dependency of this command so that failure to pass a valid
 binary will produce a meaningful error message.
 Usage:
-  $just docker-build [crate] <tag> <repo_name> (defaults: 'local', 'ghcr.io/astriaorg')
+  just docker-build [crate] <tag> <repo_name> (defaults: 'local', 'ghcr.io/astriaorg')
 Example:
-  $just docker-build astria-sequencer
+  just docker-build astria-sequencer
 ")]
 docker-build crate tag=default_docker_tag repo_name=default_repo_name: (_crate_short_name crate "quiet")
   #!/usr/bin/env sh
@@ -44,9 +44,9 @@ Builds and loads docker image for the crate. Defaults to 'local' tag.
 NOTE: `_crate_short_name` is invoked as dependency of this command so that failure to pass a valid
 binary will produce a meaningful error message.
 Usage:
-  $just docker-build-and-load [crate] <tag> <repo_name> (defaults: 'local', 'ghcr.io/astriaorg')
+  just docker-build-and-load [crate] <tag> <repo_name> (defaults: 'local', 'ghcr.io/astriaorg')
 Example:
-  $just docker-build-and-load astria-sequencer
+  just docker-build-and-load astria-sequencer
 ")]
 docker-build-and-load crate tag=default_docker_tag repo_name=default_repo_name: (_crate_short_name crate "quiet")
   #!/usr/bin/env sh
@@ -65,7 +65,7 @@ _crate_short_name crate quiet="":
   set -eu
   case {{crate}} in
     astria-auctioneer) short_name=auctioneer ;;
-    astria-bridge-withdrawer) short_name=bridge-withdrawer ;;
+    astria-bridge-withdrawer) short_name=evm-bridge-withdrawer ;;
     astria-cli) short_name=astria-cli ;;
     astria-composer) short_name=composer ;;
     astria-conductor) short_name=conductor ;;
@@ -210,3 +210,4 @@ _lint-proto:
   buf breaking proto/sequencerblockapis --against 'buf.build/astria/sequencerblock-apis'
   buf breaking proto/protocolapis --against 'buf.build/astria/protocol-apis'
   buf breaking proto/composerapis --against 'buf.build/astria/composer-apis'
+  buf breaking proto/upgrades --against 'buf.build/astria/upgrades'

@@ -100,7 +100,7 @@ async fn fetch_blobs_with_retry(
         .custom_backoff(FetchBlobsRetryStrategy::new(Duration::from_millis(100)))
         .max_delay(Duration::from_secs(20))
         .on_retry(
-            |attempt: u32, next_delay: Option<Duration>, error: &jsonrpsee::core::Error| {
+            |attempt: u32, next_delay: Option<Duration>, error: &jsonrpsee::core::ClientError| {
                 number_attempts.store(attempt, std::sync::atomic::Ordering::Relaxed);
                 let wait_duration = next_delay
                     .map(telemetry::display::format_duration)
@@ -120,9 +120,8 @@ async fn fetch_blobs_with_retry(
         let client = client.clone();
         async move {
             match client.blob_get_all(height, &[namespace]).await {
-                Ok(blobs) => Ok(blobs),
-                Err(err) if is_blob_not_found(&err) => Ok(vec![]),
-                Err(err) if is_null_blobs(&err) => Ok(vec![]),
+                Ok(Some(blobs)) => Ok(blobs),
+                Ok(None) => Ok(vec![]),
                 Err(err) => Err(err),
             }
         }
@@ -144,10 +143,10 @@ impl FetchBlobsRetryStrategy {
     }
 }
 
-impl<'a> BackoffStrategy<'a, jsonrpsee::core::Error> for FetchBlobsRetryStrategy {
+impl<'a> BackoffStrategy<'a, jsonrpsee::core::ClientError> for FetchBlobsRetryStrategy {
     type Output = RetryPolicy;
 
-    fn delay(&mut self, _attempt: u32, error: &'a jsonrpsee::core::Error) -> Self::Output {
+    fn delay(&mut self, _attempt: u32, error: &'a jsonrpsee::core::ClientError) -> Self::Output {
         if should_retry(error) {
             let prev_delay = self.delay;
             self.delay = self.delay.saturating_mul(2);
@@ -158,25 +157,9 @@ impl<'a> BackoffStrategy<'a, jsonrpsee::core::Error> for FetchBlobsRetryStrategy
     }
 }
 
-fn should_retry(error: &jsonrpsee::core::Error) -> bool {
+fn should_retry(error: &jsonrpsee::core::ClientError) -> bool {
     matches!(
         error,
-        jsonrpsee::core::Error::Transport(_) | jsonrpsee::core::Error::RequestTimeout,
+        jsonrpsee::core::ClientError::Transport(_) | jsonrpsee::core::ClientError::RequestTimeout,
     )
-}
-
-// For celestia-node v0.14.1 and below
-fn is_blob_not_found(error: &jsonrpsee::core::Error) -> bool {
-    let jsonrpsee::core::Error::Call(error) = error else {
-        return false;
-    };
-    error.code() == 1 && error.message().contains("blob: not found")
-}
-
-// For celestia-node v0.15.0 and newer
-fn is_null_blobs(error: &jsonrpsee::core::Error) -> bool {
-    let jsonrpsee::core::Error::ParseError(error) = error else {
-        return false;
-    };
-    error.to_string().contains("invalid type: null")
 }

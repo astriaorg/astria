@@ -1,6 +1,7 @@
 mod block_height;
 mod block_timestamp;
 mod chain_id;
+mod consensus_params;
 mod revision_number;
 mod storage_version;
 
@@ -13,6 +14,7 @@ pub(in crate::app) use self::{
     block_height::BlockHeight,
     block_timestamp::BlockTimestamp,
     chain_id::ChainId,
+    consensus_params::ConsensusParams,
     revision_number::RevisionNumber,
     storage_version::StorageVersion,
 };
@@ -27,6 +29,7 @@ enum ValueImpl<'a> {
     BlockHeight(BlockHeight),
     BlockTimestamp(BlockTimestamp),
     StorageVersion(StorageVersion),
+    ConsensusParams(ConsensusParams),
 }
 
 #[cfg(test)]

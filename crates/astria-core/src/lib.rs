@@ -1,4 +1,5 @@
 pub use astria_core_crypto as crypto;
+pub use pbjson_types::Timestamp;
 use prost::Name;
 
 #[cfg(not(target_pointer_width = "64"))]
@@ -13,11 +14,12 @@ compile_error!(
     reason = "cannot prevent allow attributes in generated files"
 )]
 pub mod generated;
-
 pub mod execution;
+pub mod oracles;
 pub mod primitive;
 pub mod protocol;
 pub mod sequencerblock;
+pub mod upgrades;
 
 #[cfg(feature = "brotli")]
 pub mod brotli;

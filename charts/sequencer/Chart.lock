@@ -1,6 +1,6 @@
 dependencies:
 - name: sequencer-relayer
   repository: file://../sequencer-relayer
-  version: 1.0.4
-digest: sha256:cfae0759f2bcf6000235d57489acf720de0a98e6d190d357ee5bd76adcb8c92f
-generated: "2025-03-14T16:59:02.356555-07:00"
+  version: 1.0.5
+digest: sha256:32be830ef0829fe7cd080a65813eadad4da133a427d4988ac224b8c07d68a1ca
+generated: "2025-04-06T13:41:28.906207+02:00"

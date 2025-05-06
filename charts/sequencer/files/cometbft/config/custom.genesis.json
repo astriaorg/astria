@@ -108,7 +108,7 @@
       {{- if $index }},{{- end }}
       {
         "address": {{ include "sequencer.address" $value.address }},
-        "balance": {{ include "sequencer.toUint128Proto" ( toString $value.balance | replace "\"" "" ) }} 
+        "balance": {{ include "sequencer.toUint128Proto" ( toString $value.balance | replace "\"" "" ) }}
       }
       {{- end }}
     ],
@@ -120,9 +120,6 @@
       {{ include "sequencer.address" $value }}
       {{- end }}
     ]
-    {{- if not .Values.global.dev }}
-    {{- else }}
-    {{- end }}
   },
   "chain_id": "{{ .Values.genesis.chainId }}",
   "consensus_params": {
@@ -141,7 +138,7 @@
       ]
     },
     "version": {
-      "app": "0"
+      "app": "{{ .Values.genesis.consensusParams.appVersion }}"
     }
   },
   "genesis_time": "{{ .Values.genesis.genesisTime }}",

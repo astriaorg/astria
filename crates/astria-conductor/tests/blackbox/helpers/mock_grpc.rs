@@ -3,34 +3,40 @@ use std::{
     sync::Arc,
 };
 
-use astria_core::generated::astria::{
-    execution::v1::{
-        execution_service_server::{
-            ExecutionService,
-            ExecutionServiceServer,
+use astria_core::generated::{
+    astria::{
+        execution::v2::{
+            execution_service_server::{
+                ExecutionService,
+                ExecutionServiceServer,
+            },
+            CommitmentState,
+            CreateExecutionSessionRequest,
+            ExecuteBlockRequest,
+            ExecuteBlockResponse,
+            ExecutedBlockMetadata,
+            ExecutionSession,
+            GetExecutedBlockMetadataRequest,
+            UpdateCommitmentStateRequest,
         },
-        BatchGetBlocksRequest,
-        BatchGetBlocksResponse,
-        Block,
-        CommitmentState,
-        ExecuteBlockRequest,
-        GenesisInfo,
-        GetBlockRequest,
-        GetCommitmentStateRequest,
-        GetGenesisInfoRequest,
-        UpdateCommitmentStateRequest,
+        sequencerblock::v1::{
+            sequencer_service_server::{
+                SequencerService,
+                SequencerServiceServer,
+            },
+            FilteredSequencerBlock,
+            GetFilteredSequencerBlockRequest,
+            GetPendingNonceRequest,
+            GetPendingNonceResponse,
+            GetSequencerBlockRequest,
+            SequencerBlock,
+        },
     },
     sequencerblock::v1::{
-        sequencer_service_server::{
-            SequencerService,
-            SequencerServiceServer,
-        },
-        FilteredSequencerBlock,
-        GetFilteredSequencerBlockRequest,
-        GetPendingNonceRequest,
-        GetPendingNonceResponse,
-        GetSequencerBlockRequest,
-        SequencerBlock,
+        GetUpgradesInfoRequest,
+        GetUpgradesInfoResponse,
+        GetValidatorNameRequest,
+        GetValidatorNameResponse,
     },
 };
 use astria_eyre::eyre::{
@@ -119,6 +125,20 @@ impl SequencerService for SequencerServiceImpl {
     ) -> tonic::Result<Response<GetPendingNonceResponse>> {
         unimplemented!()
     }
+
+    async fn get_upgrades_info(
+        self: Arc<Self>,
+        _request: Request<GetUpgradesInfoRequest>,
+    ) -> tonic::Result<Response<GetUpgradesInfoResponse>> {
+        unimplemented!()
+    }
+
+    async fn get_validator_name(
+        self: Arc<Self>,
+        _request: Request<GetValidatorNameRequest>,
+    ) -> tonic::Result<Response<GetValidatorNameResponse>> {
+        unimplemented!()
+    }
 }
 
 macro_rules! define_and_impl_service {
@@ -145,10 +165,8 @@ macro_rules! define_and_impl_service {
 }
 
 define_and_impl_service!(impl ExecutionService for ExecutionServiceImpl {
-    (get_block: GetBlockRequest => Block)
-    (get_genesis_info: GetGenesisInfoRequest => GenesisInfo)
-    (batch_get_blocks: BatchGetBlocksRequest => BatchGetBlocksResponse)
-    (execute_block: ExecuteBlockRequest => Block)
-    (get_commitment_state: GetCommitmentStateRequest => CommitmentState)
+    (get_executed_block_metadata: GetExecutedBlockMetadataRequest => ExecutedBlockMetadata)
+    (create_execution_session: CreateExecutionSessionRequest => ExecutionSession)
+    (execute_block: ExecuteBlockRequest => ExecuteBlockResponse)
     (update_commitment_state: UpdateCommitmentStateRequest => CommitmentState)
 });

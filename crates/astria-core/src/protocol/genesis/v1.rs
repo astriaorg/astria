@@ -26,12 +26,14 @@ use crate::{
             BridgeSudoChange,
             BridgeTransfer,
             BridgeUnlock,
+            CurrencyPairsChange,
             FeeAssetChange,
             FeeChange,
             IbcRelayerChange,
             IbcSudoChange,
             Ics20Withdrawal,
             InitBridgeAccount,
+            MarketsChange,
             RecoverIbcClient,
             RollupDataSubmission,
             SudoAddressChange,
@@ -146,6 +148,7 @@ impl GenesisAppState {
         for (i, address) in self.ibc_relayer_addresses.iter().enumerate() {
             self.ensure_address_has_base_prefix(address, &format!(".ibc_relayer_addresses[{i}]"))?;
         }
+
         Ok(())
     }
 }
@@ -597,16 +600,15 @@ pub struct GenesisFees {
     pub sudo_address_change: Option<FeeComponents<SudoAddressChange>>,
     pub ibc_sudo_change: Option<FeeComponents<IbcSudoChange>>,
     pub recover_ibc_client: Option<FeeComponents<RecoverIbcClient>>,
+    pub currency_pairs_change: Option<FeeComponents<CurrencyPairsChange>>,
+    pub markets_change: Option<FeeComponents<MarketsChange>>,
 }
 
 impl Protobuf for GenesisFees {
     type Error = FeesError;
     type Raw = raw::GenesisFees;
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "barring use of a macro, all lines are necessary"
-    )]
+    #[expect(clippy::too_many_lines, reason = "there are a lot of fee variants")]
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let Self::Raw {
             rollup_data_submission,
@@ -625,103 +627,98 @@ impl Protobuf for GenesisFees {
             sudo_address_change,
             ibc_sudo_change,
             recover_ibc_client,
+            currency_pairs_change,
+            markets_change,
         } = raw;
         let rollup_data_submission = rollup_data_submission
-            .clone()
             .map(FeeComponents::<RollupDataSubmission>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("rollup_data_submission", e))?;
 
         let transfer = transfer
-            .clone()
             .map(FeeComponents::<Transfer>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("transfer", e))?;
 
         let ics20_withdrawal = ics20_withdrawal
-            .clone()
             .map(FeeComponents::<Ics20Withdrawal>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("ics20_withdrawal", e))?;
 
         let init_bridge_account = init_bridge_account
-            .clone()
             .map(FeeComponents::<InitBridgeAccount>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("init_bridge_account", e))?;
 
         let bridge_lock = bridge_lock
-            .clone()
             .map(FeeComponents::<BridgeLock>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("bridge_lock", e))?;
 
         let bridge_unlock = bridge_unlock
-            .clone()
             .map(FeeComponents::<BridgeUnlock>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("bridge_unlock", e))?;
 
         let bridge_transfer = bridge_transfer
-            .clone()
             .map(FeeComponents::<BridgeTransfer>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("bridge_transfer", e))?;
 
         let bridge_sudo_change = bridge_sudo_change
-            .clone()
             .map(FeeComponents::<BridgeSudoChange>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("bridge_sudo_change", e))?;
 
         let ibc_relay = ibc_relay
-            .clone()
             .map(FeeComponents::<IbcRelay>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("ibc_relay", e))?;
 
         let validator_update = validator_update
-            .clone()
             .map(FeeComponents::<ValidatorUpdate>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("validator_update", e))?;
 
         let fee_asset_change = fee_asset_change
-            .clone()
             .map(FeeComponents::<FeeAssetChange>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("fee_asset_change", e))?;
 
         let fee_change = FeeComponents::<FeeChange>::try_from_raw(
-            fee_change
-                .clone()
-                .ok_or_else(|| Self::Error::field_not_set("fee_change"))?,
+            fee_change.ok_or_else(|| Self::Error::field_not_set("fee_change"))?,
         )
         .map_err(|e| FeesError::fee_components("fee_change", e))?;
 
         let ibc_relayer_change = ibc_relayer_change
-            .clone()
             .map(FeeComponents::<IbcRelayerChange>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("ibc_relayer_change", e))?;
 
         let sudo_address_change = sudo_address_change
-            .clone()
             .map(FeeComponents::<SudoAddressChange>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("sudo_address_change", e))?;
 
         let ibc_sudo_change = ibc_sudo_change
-            .clone()
             .map(FeeComponents::<IbcSudoChange>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("ibc_sudo_change", e))?;
 
         let recover_ibc_client = recover_ibc_client
-            .clone()
             .map(FeeComponents::<RecoverIbcClient>::try_from_raw)
             .transpose()
             .map_err(|e| FeesError::fee_components("recover_ibc_client", e))?;
+
+        let currency_pairs_change = currency_pairs_change
+            .map(FeeComponents::<CurrencyPairsChange>::try_from_raw)
+            .transpose()
+            .map_err(|e| FeesError::fee_components("currency_pairs_change", e))?;
+
+        let markets_change = markets_change
+            .map(FeeComponents::<MarketsChange>::try_from_raw)
+            .transpose()
+            .map_err(|e| FeesError::fee_components("markets_change", e))?;
 
         Ok(Self {
             rollup_data_submission,
@@ -740,6 +737,8 @@ impl Protobuf for GenesisFees {
             sudo_address_change,
             ibc_sudo_change,
             recover_ibc_client,
+            currency_pairs_change,
+            markets_change,
         })
     }
 
@@ -761,6 +760,8 @@ impl Protobuf for GenesisFees {
             sudo_address_change,
             ibc_sudo_change,
             recover_ibc_client,
+            currency_pairs_change,
+            markets_change,
         } = self;
         Self::Raw {
             transfer: transfer.map(|act| FeeComponents::<Transfer>::to_raw(&act)),
@@ -790,6 +791,9 @@ impl Protobuf for GenesisFees {
                 .map(|act| FeeComponents::<IbcSudoChange>::to_raw(&act)),
             recover_ibc_client: recover_ibc_client
                 .map(|act| FeeComponents::<RecoverIbcClient>::to_raw(&act)),
+            currency_pairs_change: currency_pairs_change
+                .map(|act| FeeComponents::<CurrencyPairsChange>::to_raw(&act)),
+            markets_change: markets_change.map(|act| FeeComponents::<MarketsChange>::to_raw(&act)),
         }
     }
 }
@@ -864,6 +868,31 @@ mod tests {
             .unwrap()
     }
 
+    fn genesis_fees() -> raw::GenesisFees {
+        raw::GenesisFees {
+            transfer: Some(FeeComponents::<Transfer>::new(12, 0).to_raw()),
+            rollup_data_submission: Some(
+                FeeComponents::<RollupDataSubmission>::new(32, 1).to_raw(),
+            ),
+            init_bridge_account: Some(FeeComponents::<InitBridgeAccount>::new(48, 0).to_raw()),
+            bridge_lock: Some(FeeComponents::<BridgeLock>::new(12, 1).to_raw()),
+            bridge_unlock: Some(FeeComponents::<BridgeUnlock>::new(12, 0).to_raw()),
+            bridge_transfer: Some(FeeComponents::<BridgeTransfer>::new(24, 0).to_raw()),
+            bridge_sudo_change: Some(FeeComponents::<BridgeSudoChange>::new(24, 0).to_raw()),
+            ics20_withdrawal: Some(FeeComponents::<Ics20Withdrawal>::new(24, 0).to_raw()),
+            ibc_relay: Some(FeeComponents::<IbcRelay>::new(0, 0).to_raw()),
+            validator_update: Some(FeeComponents::<ValidatorUpdate>::new(0, 0).to_raw()),
+            fee_asset_change: Some(FeeComponents::<FeeAssetChange>::new(0, 0).to_raw()),
+            fee_change: Some(FeeComponents::<FeeChange>::new(0, 0).to_raw()),
+            ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0).to_raw()),
+            sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0).to_raw()),
+            ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0).to_raw()),
+            recover_ibc_client: Some(FeeComponents::<RecoverIbcClient>::new(0, 0).to_raw()),
+            currency_pairs_change: Some(FeeComponents::<CurrencyPairsChange>::new(0, 0).to_raw()),
+            markets_change: Some(FeeComponents::<MarketsChange>::new(0, 0).to_raw()),
+        }
+    }
+
     fn proto_genesis_state() -> raw::GenesisAppState {
         raw::GenesisAppState {
             accounts: vec![
@@ -895,26 +924,7 @@ mod tests {
                 outbound_ics20_transfers_enabled: true,
             }),
             allowed_fee_assets: vec!["nria".into()],
-            fees: Some(raw::GenesisFees {
-                transfer: Some(FeeComponents::<Transfer>::new(12, 0).to_raw()),
-                rollup_data_submission: Some(
-                    FeeComponents::<RollupDataSubmission>::new(32, 1).to_raw(),
-                ),
-                init_bridge_account: Some(FeeComponents::<InitBridgeAccount>::new(48, 0).to_raw()),
-                bridge_lock: Some(FeeComponents::<BridgeLock>::new(12, 1).to_raw()),
-                bridge_unlock: Some(FeeComponents::<BridgeUnlock>::new(12, 0).to_raw()),
-                bridge_transfer: Some(FeeComponents::<BridgeTransfer>::new(24, 0).to_raw()),
-                bridge_sudo_change: Some(FeeComponents::<BridgeSudoChange>::new(24, 0).to_raw()),
-                ics20_withdrawal: Some(FeeComponents::<Ics20Withdrawal>::new(24, 0).to_raw()),
-                ibc_relay: Some(FeeComponents::<IbcRelay>::new(0, 0).to_raw()),
-                validator_update: Some(FeeComponents::<ValidatorUpdate>::new(0, 0).to_raw()),
-                fee_asset_change: Some(FeeComponents::<FeeAssetChange>::new(0, 0).to_raw()),
-                fee_change: Some(FeeComponents::<FeeChange>::new(0, 0).to_raw()),
-                ibc_relayer_change: Some(FeeComponents::<IbcRelayerChange>::new(0, 0).to_raw()),
-                sudo_address_change: Some(FeeComponents::<SudoAddressChange>::new(0, 0).to_raw()),
-                ibc_sudo_change: Some(FeeComponents::<IbcSudoChange>::new(0, 0).to_raw()),
-                recover_ibc_client: Some(FeeComponents::<RecoverIbcClient>::new(0, 0).to_raw()),
-            }),
+            fees: Some(genesis_fees()),
         }
     }
 

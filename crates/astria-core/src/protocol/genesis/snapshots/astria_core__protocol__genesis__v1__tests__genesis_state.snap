@@ -141,6 +141,14 @@ expression: genesis_state()
     "recoverIbcClient": {
       "base": {},
       "multiplier": {}
+    },
+    "currencyPairsChange": {
+      "base": {},
+      "multiplier": {}
+    },
+    "marketsChange": {
+      "base": {},
+      "multiplier": {}
     }
   }
 }

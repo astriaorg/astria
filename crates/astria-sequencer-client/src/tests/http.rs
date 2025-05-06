@@ -182,7 +182,7 @@ async fn get_latest_nonce() {
     let _guard = register_abci_query_response(
         &server,
         &format!("accounts/nonce/{}", alice_address()),
-        expected_response.clone(),
+        expected_response,
     )
     .await;
 
@@ -362,6 +362,7 @@ async fn submit_tx_sync() {
         data: vec![].into(),
         log: String::new(),
         hash: Hash::Sha256([0; 32]),
+        codespace: String::new(),
     };
     let _guard = register_broadcast_tx_sync_response(&server, server_response.clone()).await;
     let signed_tx = create_signed_transaction();

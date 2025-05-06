@@ -1,26 +1,34 @@
 //! A minimal mocked geth jsonrpc server for black box testing.
 //!
-//! At the moment, this mock only supports the `eth_subscribe`
+//! At the moment, this mock supports the `eth_subscribe`
 //! RPC with the parameters `["newPendingTransaction", true]` to allow
 //! subscribing to full new pending transactions using the
 //! [`ethers::providers::Middleware::subscribe_full_pendings_txs`] high
-//! level abstraction.
+//! level abstraction. The mock also supports the `txpool_content` RPC to allow for observing the
+//! entire contents of the mocked tx pool. Notably, the mock does **not** update the tx pool when
+//! new transactions are pushed. The intended use of the mock tx pool is to be checked only upon
+//! startup of the client.
 //!
 //! The intended use for the mock is to:
 //!
 //! 1. spawn a server with [`Geth::spawn`];
 //! 2. establish a websocket connection using its local socket address at [`MockGet::local_addr`],
 //!    for example with [`Provider::<Ws>::connect`];
-//! 3. subscribe to its mocked `eth_subscribe` JSONRPC using
+//! 3. call the `txpool_content` RPC using [`Middleware::txpool_content`] to obtain currently
+//!    pending transactions
+//! 4. subscribe to its mocked `eth_subscribe` JSONRPC using
 //!    [`Middleware::subscribe_full_pending_txs`];
-//! 4. push new transactions into the server using [`Geth::push_tx`], which will subsequently be
+//! 5. push new transactions into the server using [`Geth::push_tx`], which will subsequently be
 //!    sent to all subscribers and can be observed by the client.
 //!
 //! # Examples
 //!
 //! ```
 //! # tokio_test::block_on( async {
-//! use std::time::Duration;
+//! use std::{
+//!     collections::BTreeMap,
+//!     time::Duration,
+//! };
 //!
 //! use astria_test_utils::mock::Geth;
 //! use ethers::{
@@ -30,12 +38,26 @@
 //!         StreamExt as _,
 //!         Ws,
 //!     },
-//!     types::Transaction,
+//!     types::{
+//!         Transaction,
+//!         H160,
+//!     },
 //! };
 //!
 //! println!("connecting!!");
-//! let mock_geth = Geth::spawn().await;
+//! let mut pending_txs = BTreeMap::new();
+//! let mut account_txs = BTreeMap::new();
+//! account_txs.insert("0".to_string(), Transaction::default());
+//! pending_txs.insert(H160::zero(), account_txs);
+//! let mock_geth = Geth::spawn_with_pending_txs(pending_txs.clone()).await;
 //! let server_addr = mock_geth.local_addr();
+//!
+//! let geth_client = Provider::<Ws>::connect(format!("ws://{server_addr}"))
+//!     .await
+//!     .expect("client should be able to connect to local ws server");
+//!
+//! let txpool_content = geth_client.txpool_content().await.unwrap();
+//! assert_eq!(txpool_content.pending, pending_txs);
 //!
 //! tokio::spawn(async move {
 //!     loop {
@@ -46,9 +68,6 @@
 //!     }
 //! });
 //!
-//! let geth_client = Provider::<Ws>::connect(format!("ws://{server_addr}"))
-//!     .await
-//!     .expect("client should be able to connect to local ws server");
 //! let mut new_txs = geth_client
 //!     .subscribe_full_pending_txs()
 //!     .await
@@ -60,14 +79,21 @@
 //! # });
 //! ```
 
-use std::net::SocketAddr;
+use std::{
+    collections::BTreeMap,
+    net::SocketAddr,
+};
 
 #[expect(
     clippy::module_name_repetitions,
     reason = "naming is helpful for clarity here"
 )]
 pub use __rpc_traits::GethServer;
-use ethers::types::Transaction;
+use ethers::types::{
+    Transaction,
+    TxpoolContent,
+    H160,
+};
 use jsonrpsee::{
     core::{
         async_trait,
@@ -85,6 +111,7 @@ use tokio::sync::broadcast::{
     error::SendError,
     Sender,
 };
+use tracing::instrument;
 
 #[derive(Debug)]
 pub struct RandomU256IdProvider;
@@ -109,6 +136,7 @@ impl IdProvider for RandomU256IdProvider {
 }
 
 mod __rpc_traits {
+    use ethers::types::TxpoolContent;
     use jsonrpsee::{
         core::SubscriptionResult,
         proc_macros::rpc,
@@ -121,6 +149,9 @@ mod __rpc_traits {
         #[subscription(name = "eth_subscribe", item = Transaction, unsubscribe = "eth_unsubscribe")]
         async fn eth_subscribe(&self, target: String, full_txs: Option<bool>)
             -> SubscriptionResult;
+
+        #[method(name = "txpool_content")]
+        async fn txpool_content(&self) -> Result<TxpoolContent, ErrorObjectOwned>;
 
         #[method(name = "net_version")]
         async fn net_version(&self) -> Result<String, ErrorObjectOwned>;
@@ -144,6 +175,7 @@ impl From<Transaction> for SubscriptionCommand {
     reason = "naming is helpful for clarity here"
 )]
 pub struct GethImpl {
+    starting_tx_pool: TxpoolContent,
     command: Sender<SubscriptionCommand>,
 }
 
@@ -185,6 +217,11 @@ impl GethServer for GethImpl {
         }
     }
 
+    #[instrument(skip_all, level = "trace")]
+    async fn txpool_content(&self) -> Result<TxpoolContent, ErrorObjectOwned> {
+        Ok(self.starting_tx_pool.clone())
+    }
+
     async fn net_version(&self) -> Result<String, ErrorObjectOwned> {
         Ok("mock_geth".into())
     }
@@ -210,6 +247,17 @@ impl Geth {
     ///
     /// Panics if the server fails to start.
     pub async fn spawn() -> Self {
+        Self::spawn_with_pending_txs(BTreeMap::default()).await
+    }
+
+    /// Spawns a new mocked geth server with the given pending transactions in the tx pool.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the server fails to start.
+    pub async fn spawn_with_pending_txs(
+        pending_txs: BTreeMap<H160, BTreeMap<String, Transaction>>,
+    ) -> Self {
         use jsonrpsee::server::Server;
         let server = Server::builder()
             .ws_only()
@@ -222,6 +270,10 @@ impl Geth {
             .expect("server should have a local addr");
         let (command, _) = channel(256);
         let mock_geth_impl = GethImpl {
+            starting_tx_pool: TxpoolContent {
+                pending: pending_txs,
+                queued: BTreeMap::default(),
+            },
             command: command.clone(),
         };
         let handle = server.start(mock_geth_impl.into_rpc());

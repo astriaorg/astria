@@ -40,6 +40,10 @@ pub struct Metrics {
     transactions_in_mempool_parked: Gauge,
     mempool_recosted: Counter,
     internal_logic_error: Counter,
+    extended_commit_info_bytes: Histogram,
+    extend_vote_duration_seconds: Histogram,
+    extend_vote_failure_count: Counter,
+    verify_vote_extension_failure_count: Counter,
 }
 
 impl Metrics {
@@ -163,6 +167,22 @@ impl Metrics {
 
     pub(crate) fn increment_internal_logic_error(&self) {
         self.internal_logic_error.increment(1);
+    }
+
+    pub(crate) fn record_extended_commit_info_bytes(&self, count: usize) {
+        self.extended_commit_info_bytes.record(count);
+    }
+
+    pub(crate) fn record_extend_vote_duration_seconds(&self, duration: Duration) {
+        self.extend_vote_duration_seconds.record(duration);
+    }
+
+    pub(crate) fn increment_extend_vote_failure_count(&self) {
+        self.extend_vote_failure_count.increment(1);
+    }
+
+    pub(crate) fn increment_verify_vote_extension_failure_count(&self) {
+        self.verify_vote_extension_failure_count.increment(1);
     }
 }
 
@@ -355,6 +375,34 @@ impl telemetry::Metrics for Metrics {
             )?
             .register()?;
 
+        let extended_commit_info_bytes = builder
+            .new_histogram_factory(
+                EXTENDED_COMMIT_INFO_BYTES,
+                "The number of bytes in the extended commit info of the block",
+            )?
+            .register()?;
+
+        let extend_vote_duration_seconds = builder
+            .new_histogram_factory(
+                EXTEND_VOTE_DURATION_SECONDS,
+                "The amount of time taken in seconds to successfully create a vote extension",
+            )?
+            .register()?;
+
+        let extend_vote_failure_count = builder
+            .new_counter_factory(
+                EXTEND_VOTE_FAILURE_COUNT,
+                "The number of times the app has failed to extend the vote",
+            )?
+            .register()?;
+
+        let verify_vote_extension_failure_count = builder
+            .new_counter_factory(
+                VERIFY_VOTE_EXTENSION_FAILURE_COUNT,
+                "The number of times the app has failed to verify extended votes",
+            )?
+            .register()?;
+
         Ok(Self {
             prepare_proposal_excluded_transactions_cometbft_space,
             prepare_proposal_excluded_transactions_sequencer_space,
@@ -383,6 +431,10 @@ impl telemetry::Metrics for Metrics {
             transactions_in_mempool_parked,
             mempool_recosted,
             internal_logic_error,
+            extended_commit_info_bytes,
+            extend_vote_duration_seconds,
+            extend_vote_failure_count,
+            verify_vote_extension_failure_count,
         })
     }
 }
@@ -411,32 +463,16 @@ metric_names!(const METRICS_NAMES:
     TRANSACTIONS_IN_MEMPOOL_TOTAL,
     TRANSACTIONS_IN_MEMPOOL_PARKED,
     MEMPOOL_RECOSTED,
-    INTERNAL_LOGIC_ERROR
+    INTERNAL_LOGIC_ERROR,
+    EXTENDED_COMMIT_INFO_BYTES,
+    EXTEND_VOTE_DURATION_SECONDS,
+    EXTEND_VOTE_FAILURE_COUNT,
+    VERIFY_VOTE_EXTENSION_FAILURE_COUNT,
 );
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
-        CHECK_TX_DURATION_SECONDS,
-        CHECK_TX_REMOVED_ACCOUNT_BALANCE,
-        CHECK_TX_REMOVED_EXPIRED,
-        CHECK_TX_REMOVED_FAILED_EXECUTION,
-        CHECK_TX_REMOVED_FAILED_STATELESS,
-        CHECK_TX_REMOVED_TOO_LARGE,
-        INTERNAL_LOGIC_ERROR,
-        MEMPOOL_RECOSTED,
-        PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS,
-        PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
-        PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION,
-        PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE,
-        PROCESS_PROPOSAL_SKIPPED_PROPOSAL,
-        PROPOSAL_DEPOSITS,
-        PROPOSAL_TRANSACTIONS,
-        TRANSACTIONS_IN_MEMPOOL_PARKED,
-        TRANSACTIONS_IN_MEMPOOL_TOTAL,
-        TRANSACTION_IN_MEMPOOL_SIZE_BYTES,
-    };
+    use super::*;
 
     #[track_caller]
     fn assert_const(actual: &'static str, suffix: &str) {
@@ -503,5 +539,12 @@ mod tests {
         );
         assert_const(MEMPOOL_RECOSTED, "mempool_recosted");
         assert_const(INTERNAL_LOGIC_ERROR, "internal_logic_error");
+        assert_const(EXTENDED_COMMIT_INFO_BYTES, "extended_commit_info_bytes");
+        assert_const(EXTEND_VOTE_DURATION_SECONDS, "extend_vote_duration_seconds");
+        assert_const(EXTEND_VOTE_FAILURE_COUNT, "extend_vote_failure_count");
+        assert_const(
+            VERIFY_VOTE_EXTENSION_FAILURE_COUNT,
+            "verify_vote_extension_failure_count",
+        );
     }
 }

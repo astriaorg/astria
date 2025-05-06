@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/authority/storage/values.rs
+expression: "borsh_then_hex(&ValueImpl::ValidatorCount(ValidatorCount(0)))"
+---
+020000000000000000

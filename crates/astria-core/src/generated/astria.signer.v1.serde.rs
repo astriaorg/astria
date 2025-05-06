@@ -15,10 +15,12 @@ impl serde::Serialize for CommitmentWithIdentifier {
         let mut struct_ser = serializer.serialize_struct("astria.signer.v1.CommitmentWithIdentifier", len)?;
         if !self.commitment.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("commitment", pbjson::private::base64::encode(&self.commitment).as_str())?;
         }
         if !self.participant_identifier.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("participantIdentifier", pbjson::private::base64::encode(&self.participant_identifier).as_str())?;
         }
         struct_ser.end()
@@ -207,6 +209,7 @@ impl serde::Serialize for ExecuteRoundTwoRequest {
         }
         if !self.message.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("message", pbjson::private::base64::encode(&self.message).as_str())?;
         }
         if self.request_identifier != 0 {
@@ -403,6 +406,7 @@ impl serde::Serialize for RoundOneResponse {
         let mut struct_ser = serializer.serialize_struct("astria.signer.v1.RoundOneResponse", len)?;
         if !self.commitment.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("commitment", pbjson::private::base64::encode(&self.commitment).as_str())?;
         }
         if self.request_identifier != 0 {
@@ -514,6 +518,7 @@ impl serde::Serialize for RoundTwoResponse {
         let mut struct_ser = serializer.serialize_struct("astria.signer.v1.RoundTwoResponse", len)?;
         if !self.signature_share.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("signatureShare", pbjson::private::base64::encode(&self.signature_share).as_str())?;
         }
         struct_ser.end()
@@ -609,6 +614,7 @@ impl serde::Serialize for VerifyingShare {
         let mut struct_ser = serializer.serialize_struct("astria.signer.v1.VerifyingShare", len)?;
         if !self.verifying_share.is_empty() {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("verifyingShare", pbjson::private::base64::encode(&self.verifying_share).as_str())?;
         }
         struct_ser.end()

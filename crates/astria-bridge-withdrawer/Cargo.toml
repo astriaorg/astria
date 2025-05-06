@@ -9,13 +9,13 @@ repository = "https://github.com/astriaorg/astria"
 homepage = "https://astria.org"
 
 [dependencies]
-http = "0.2.9"
 frost-ed25519 = { version = "2.1.0" }
 
 axum = { workspace = true }
 futures = { workspace = true }
 hex.workspace = true
 ethers = { workspace = true, features = ["ws"] }
+http = { workspace = true }
 hyper = { workspace = true }
 ibc-types = { workspace = true }
 pbjson-types = { workspace = true }
