@@ -54,7 +54,7 @@ evm_restart = args["evm_restart"]
 print(colored("################################################################################", "light_blue"))
 print(colored("Running Astria Stack smoke test", "light_blue"))
 for component, tag in image_tags.items():
-    print(colored(f"  * {component} image tag: {tag}", "light_blue"))
+    print(colored(f"  * specified {component} image tag: {tag}", "light_blue"))
 print(colored("################################################################################", "light_blue"))
 
 # Update chart dependencies.

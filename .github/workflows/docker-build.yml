@@ -234,8 +234,7 @@ jobs:
             -i bridge-withdrawer=$TAG \
             -i composer=$TAG \
             -i conductor=$TAG \
-            -i cli=$TAG \
-            -i geth=$TAG
+            -i cli=$TAG
   smoke-test-evm-restart:
     needs: [run_checker, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli]
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
@@ -281,8 +280,7 @@ jobs:
             -i bridge-withdrawer=$TAG \
             -i composer=$TAG \
             -i conductor=$TAG \
-            -i cli=$TAG \
-            -i geth=$TAG
+            -i cli=$TAG
 
   smoke-cli:
     needs: [run_checker, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli]
