@@ -29,7 +29,7 @@ fi
 
 {{if .Values.geth.staticNodes -}}
 # copy static nodes to data dir
-cp /scripts/static-nodes.json $data_dir/static-nodes.json
+cp -f /scripts/static-nodes.json $data_dir/geth/static-nodes.json
 {{- end }}
 
 echo "Geth initialized"
