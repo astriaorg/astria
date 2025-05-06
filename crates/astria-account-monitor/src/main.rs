@@ -73,7 +73,7 @@ async fn main() -> ExitCode {
 #[instrument(skip_all)]
 async fn shutdown(reason: eyre::Result<&'static str>, service: AccountMonitor) -> ExitCode {
     let message = "shutting down";
-    let exit_code = match reason {
+    match reason {
         Ok(reason) => {
             info!(reason, message);
             if let Err(error) = service.shutdown().await {
@@ -85,6 +85,5 @@ async fn shutdown(reason: eyre::Result<&'static str>, service: AccountMonitor) -
             error!(%reason, message);
             ExitCode::FAILURE
         }
-    };
-    exit_code
+    }
 }
