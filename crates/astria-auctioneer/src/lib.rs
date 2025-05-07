@@ -51,6 +51,7 @@
 //! the cached nonce of the last successful submission.
 
 use std::{
+    fmt::Display,
     future::Future,
     task::Poll,
 };
@@ -59,8 +60,11 @@ mod auctioneer;
 mod bid;
 mod block;
 mod build_info;
+mod bundle;
 pub mod config;
+mod jsonrpc_server;
 pub(crate) mod metrics;
+pub mod orderpool;
 mod rollup_channel;
 mod sequencer_channel;
 mod sequencer_key;
@@ -143,5 +147,32 @@ fn flatten_join_result<T>(res: Result<eyre::Result<T>, JoinError>) -> eyre::Resu
         Ok(Ok(val)) => Ok(val),
         Ok(Err(err)) => Err(err).wrap_err("task returned with error"),
         Err(err) => Err(err).wrap_err("task panicked"),
+    }
+}
+
+struct DisplayOr<'a, T: ?Sized, U> {
+    value: Option<&'a T>,
+    if_none: U,
+}
+
+impl<'a, T: Display, U: Display> Display for DisplayOr<'a, T, U> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.value {
+            Some(val) => val.fmt(f),
+            None => self.if_none.fmt(f),
+        }
+    }
+}
+
+trait OptionalExt<T> {
+    fn display_or<'a, 'b, U: Display>(&'a self, if_none: U) -> DisplayOr<'a, T, U>;
+}
+
+impl<T: Display> OptionalExt<T> for Option<T> {
+    fn display_or<'a, U: Display>(&'a self, if_none: U) -> DisplayOr<'a, T, U> {
+        DisplayOr {
+            value: self.as_ref(),
+            if_none,
+        }
     }
 }

@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use astria_core::primitive::v1::asset;
 use serde::{
     Deserialize,
@@ -24,6 +26,8 @@ pub struct Config {
     /// The endpoint for the rollup gRPC service used for the optimistic execution and bundle
     /// streams
     pub rollup_grpc_endpoint: String,
+    /// Address where the rollup serves its eth RPC, especially `eth_simulateV1`.
+    pub rollup_ethereum_rpc_endpoint: String,
     /// The rollup ID used to filter the proposed blocks stream
     pub rollup_id: String,
     /// The amount of time in miliseconds to wait after a commit before closing the auction for
@@ -39,6 +43,8 @@ pub struct Config {
     pub no_metrics: bool,
     /// The endpoint which will be listened on for serving prometheus metrics
     pub metrics_http_listener_addr: String,
+    // The socket address on which auctioneer will serve JSONRPCs like `eth_sendBundle`
+    pub jsonrpc_listen_addr: SocketAddr,
 }
 
 impl config::Config for Config {
