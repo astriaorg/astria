@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeSet,
     fmt::Display,
     str::FromStr,
 };
@@ -2579,8 +2580,8 @@ enum RecoverIbcClientErrorKind {
 
 #[derive(Debug, Clone)]
 pub enum CurrencyPairsChange {
-    Addition(Vec<CurrencyPair>),
-    Removal(Vec<CurrencyPair>),
+    Addition(BTreeSet<CurrencyPair>),
+    Removal(BTreeSet<CurrencyPair>),
 }
 
 impl Protobuf for CurrencyPairsChange {
