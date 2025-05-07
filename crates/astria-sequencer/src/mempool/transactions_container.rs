@@ -4,7 +4,6 @@ use std::{
         hash_map,
         BTreeMap,
         HashMap,
-        HashSet,
     },
     fmt,
     mem,
@@ -14,6 +13,7 @@ use std::{
 use astria_core::{
     primitive::v1::{
         asset::IbcPrefixed,
+        TransactionId,
         TRANSACTION_ID_LEN,
     },
     protocol::transaction::v1::{
@@ -25,6 +25,7 @@ use astria_eyre::eyre::{
     eyre,
     Result,
 };
+use tendermint::abci::types::ExecTxResult;
 use tokio::time::{
     Duration,
     Instant,
@@ -701,7 +702,7 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
         &mut self,
         address: &[u8; 20],
         current_account_nonce: u32,
-        txs_included_in_block: &HashSet<[u8; TRANSACTION_ID_LEN]>,
+        txs_included_in_block: &HashMap<TransactionId, ExecTxResult>,
         block_number: u64,
     ) -> Vec<([u8; TRANSACTION_ID_LEN], RemovalReason)> {
         // Take the collection for this account out of `self` temporarily if it exists.
@@ -715,10 +716,16 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
         let mut removed_txs: Vec<([u8; 32], RemovalReason)> = split_off
             .into_values()
             .map(|ttx| {
-                if txs_included_in_block.contains(&ttx.tx_hash) {
+                if let Some(result) = txs_included_in_block.get(&TransactionId::new(ttx.tx_hash)) {
                     // We only need to check stale transactions for inclusion, since all executed
                     // transactions will be stale
-                    (ttx.tx_hash, RemovalReason::IncludedInBlock(block_number))
+                    (
+                        ttx.tx_hash,
+                        RemovalReason::IncludedInBlock {
+                            height: block_number,
+                            result: result.clone(),
+                        },
+                    )
                 } else {
                     (ttx.tx_hash, RemovalReason::NonceStale)
                 }
@@ -1860,13 +1867,13 @@ mod tests {
         let mut removed_txs = pending_txs.clean_account_stale_expired(
             astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             0,
-            &HashSet::new(),
+            &HashMap::new(),
             0,
         );
         removed_txs.extend(pending_txs.clean_account_stale_expired(
             astria_address_from_hex_string(BOB_ADDRESS).as_bytes(),
             1,
-            &HashSet::new(),
+            &HashMap::new(),
             0,
         ));
         removed_txs.extend(pending_txs.clean_account_stale_expired(
@@ -1874,9 +1881,15 @@ mod tests {
             4,
             // should remove transactions 0 and 1 with `RemovalReason::Indluded(9)`
             &{
-                let mut included_txs = HashSet::new();
-                included_txs.insert(ttx_s2_0.tx_hash);
-                included_txs.insert(ttx_s2_1.tx_hash);
+                let mut included_txs = HashMap::new();
+                included_txs.insert(
+                    TransactionId::new(ttx_s2_0.tx_hash),
+                    ExecTxResult::default(),
+                );
+                included_txs.insert(
+                    TransactionId::new(ttx_s2_1.tx_hash),
+                    ExecTxResult::default(),
+                );
                 included_txs
             },
             INCLUDED_TX_BLOCK_NUMBER,
@@ -1922,9 +1935,13 @@ mod tests {
                 assert!(
                     matches!(
                         reason,
-                        RemovalReason::IncludedInBlock(INCLUDED_TX_BLOCK_NUMBER)
+                        RemovalReason::IncludedInBlock {
+                            height: INCLUDED_TX_BLOCK_NUMBER,
+                            ..
+                        }
                     ),
-                    "removal reason should be included(9)"
+                    "removal reason should be IncludedInBlock{{ height: INCLUDED_TX_BLOCK_NUMBER \
+                     , .. }}"
                 );
             } else {
                 assert_eq!(
@@ -1968,13 +1985,13 @@ mod tests {
         let mut removed_txs = pending_txs.clean_account_stale_expired(
             astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             0,
-            &HashSet::new(),
+            &HashMap::new(),
             1,
         );
         removed_txs.extend(pending_txs.clean_account_stale_expired(
             astria_address_from_hex_string(BOB_ADDRESS).as_bytes(),
             0,
-            &HashSet::new(),
+            &HashMap::new(),
             1,
         ));
 

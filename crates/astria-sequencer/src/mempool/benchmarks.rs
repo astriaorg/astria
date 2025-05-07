@@ -5,7 +5,7 @@
 #![expect(non_camel_case_types, reason = "for benchmark")]
 
 use std::{
-    collections::HashSet,
+    collections::HashMap,
     sync::Arc,
     time::Duration,
 };
@@ -301,7 +301,7 @@ fn run_maintenance<T: MempoolSize>(bencher: divan::Bencher) {
         .bench_values(move |mempool| {
             runtime.block_on(async {
                 mempool
-                    .run_maintenance(&mock_state, false, HashSet::new(), 1)
+                    .run_maintenance(&mock_state, false, HashMap::new(), 1)
                     .await;
             });
         });
@@ -345,7 +345,7 @@ fn run_maintenance_tx_recosting<T: MempoolSize>(bencher: divan::Bencher) {
         .bench_values(move |mempool| {
             runtime.block_on(async {
                 mempool
-                    .run_maintenance(&mock_state, true, HashSet::new(), 1)
+                    .run_maintenance(&mock_state, true, HashMap::new(), 1)
                     .await;
             });
         });
