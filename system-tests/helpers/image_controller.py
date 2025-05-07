@@ -27,14 +27,10 @@ class ImageController:
 
     def __init__(self, image_tags: List[str]):
         """
-        Parses a list of image tag arguments in the format 'component=tag'.
+        Parses a list of image tag arguments in the format 'component=tag' to be stored in the controller.
 
         Example:
             ['sequencer=local', 'conductor=latest'] -> {'sequencer': 'local', 'conductor': 'latest'}
-
-        Returns a dictionary mapping component names to their image tags.
-
-        On error, raises a `ValueError` with a message indicating the expected format.
         """
         self.image_tags = {}
         for tag_spec in image_tags:
