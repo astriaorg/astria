@@ -39,7 +39,7 @@ class SequencerController:
 
     def deploy_sequencer(
             self,
-            image_tags,
+            image_controller,
             enable_price_feed=True,
             upgrade_name=None,
             upgrade_activation_height=None,
@@ -59,7 +59,7 @@ class SequencerController:
         """
         args = self._helm_args(
             "install",
-            image_tags,
+            image_controller,
             enable_price_feed,
             upgrade_name,
             upgrade_activation_height
@@ -72,7 +72,7 @@ class SequencerController:
         (self.address, self.pub_key, self.power) = self._check_reported_name_and_get_node_info()
         print(f"{self.name}: running")
 
-    def stage_upgrade(self, image_tags, enable_price_feed, upgrade_name, activation_height):
+    def stage_upgrade(self, image_controller, enable_price_feed, upgrade_name, activation_height):
         """
         Updates the sequencer and sequencer-relayer in the cluster.
 
@@ -89,7 +89,7 @@ class SequencerController:
         # for sequencer and sequencer-relayer.
         args = self._helm_args(
             "upgrade",
-            image_tags,
+            image_controller,
             enable_price_feed=enable_price_feed,
             upgrade_name=upgrade_name,
             upgrade_activation_height=activation_height
@@ -308,7 +308,7 @@ class SequencerController:
     def _helm_args(
             self,
             subcommand,
-            image_tags,
+            image_controller,
             enable_price_feed,
             upgrade_name,
             upgrade_activation_height,
@@ -324,10 +324,12 @@ class SequencerController:
             f"--set=sequencer.priceFeed.enabled={enable_price_feed}",
             "--set=sequencer.abciUDS=false",
         ]
-        if "sequencer" in image_tags:
-            args.append(f"--set=images.sequencer.tag={image_tags['sequencer']}")
-        if "sequencer-relayer" in image_tags:
-            args.append(f"--set=sequencer-relayer.images.sequencerRelayer.tag={image_tags['sequencer-relayer']}")
+        sequencer_image_tag = image_controller.sequencer_image_tag()
+        if sequencer_image_tag is not None:
+            args.append(f"--set=images.sequencer.tag={sequencer_image_tag}")
+        relayer_image_tag = image_controller.sequencer_relayer_image_tag()
+        if relayer_image_tag is not None:
+            args.append(f"--set=sequencer-relayer.images.sequencerRelayer.tag={relayer_image_tag}")
         if subcommand == "install":
             args.append("--create-namespace")
         if upgrade_name:

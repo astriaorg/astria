@@ -25,21 +25,13 @@ from helpers.defaults import (
     TRANSFER_AMOUNT,
 )
 from helpers.evm_controller import EvmController
+from helpers.image_controller import ImageController
 from helpers.sequencer_controller import SequencerController
-from helpers.utils import parse_image_tags, update_chart_dependencies
+from helpers.utils import update_chart_dependencies
 from termcolor import colored
 
 parser = argparse.ArgumentParser(prog="smoke_test", description="Runs the smoke test.")
-parser.add_argument(
-    "-i", "--image-tag",
-    help=
-        "Image tag in the format 'component=pr-2000', e.g. 'sequencer=local'. Can \
-            be specified multiple times. Available components: sequencer, sequencer-relayer, \
-            composer, conductor, bridge-withdrawer, geth, cli.",
-    metavar="COMPONENT=TAG",
-    action="append",
-    default=[]
-)
+ImageController.add_argument(parser)
 parser.add_argument(
     "--evm-restart",
     help="Option to trigger a restart of the EVM rollup mid-way through the test.",
@@ -48,12 +40,12 @@ parser.add_argument(
 args = vars(parser.parse_args())
 
 # Process image tags
-image_tags = parse_image_tags(args["image_tag"])
+image_controller = ImageController(args["image_tag"])
 evm_restart = args["evm_restart"]
 
 print(colored("################################################################################", "light_blue"))
 print(colored("Running Astria Stack smoke test", "light_blue"))
-for component, tag in image_tags.items():
+for component, tag in image_controller.image_tags.items():
     print(colored(f"  * specified {component} image tag: {tag}", "light_blue"))
 print(colored("################################################################################", "light_blue"))
 
@@ -68,10 +60,10 @@ executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 sequencer_node = SequencerController("single")
 evm = EvmController()
 deploy_sequencer_fn = lambda seq_node: seq_node.deploy_sequencer(
-    image_tags,
+    image_controller,
     enable_price_feed=False
     )
-deploy_evm_fn = lambda evm_node: evm_node.deploy_rollup(image_tags, evm_restart=evm_restart)
+deploy_evm_fn = lambda evm_node: evm_node.deploy_rollup(image_controller, evm_restart=evm_restart)
 futures = [executor.submit(deploy_sequencer_fn, sequencer_node),
            executor.submit(deploy_evm_fn, evm)]
 done, _ = concurrent.futures.wait(futures, return_when=FIRST_EXCEPTION, timeout=600)
@@ -82,7 +74,9 @@ wait_until_height = 4 if evm_restart else 1
 sequencer_node.wait_until_chain_at_height(wait_until_height, 60)
 
 # Instantiate CLI
-cli_image = image_tags["cli"] if "cli" in image_tags else "latest"
+cli_image = image_controller.cli_image_tag()
+if cli_image is None:
+    cli_image = "latest"
 cli = Cli(cli_image)
 
 # Check starting balance

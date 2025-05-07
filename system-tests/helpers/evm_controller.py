@@ -14,13 +14,13 @@ class EvmController:
     # Methods managing and querying the rollup's k8s container
     # ========================================================
 
-    def deploy_rollup(self, image_tags, evm_restart=False):
+    def deploy_rollup(self, image_controller, evm_restart=False):
         """
         Deploys a new EVM rollup on the cluster using the specified image tags.
 
         The EVM node, composer, conductor and bridge-withdrawer are installed via `helm install`.
         """
-        run_subprocess(self._helm_args("install", image_tags, evm_restart=evm_restart), msg="deploying rollup")
+        run_subprocess(self._helm_args("install", image_controller, evm_restart=evm_restart), msg="deploying rollup")
         wait_for_statefulset_rollout("rollup", "astria-geth", "astria-dev-cluster", 600)
 
     # ========================================
@@ -130,7 +130,7 @@ class EvmController:
     # Private methods
     # ===============
 
-    def _helm_args(self, subcommand, image_tags, evm_restart):
+    def _helm_args(self, subcommand, image_controller, evm_restart):
         values = "evm-restart-test" if evm_restart else "dev"
         args = [
             "helm",
@@ -143,14 +143,18 @@ class EvmController:
             "--set=postgresql.enabled=false",
             "--set=evm-faucet.enabled=false",
         ]
-        if "conductor" in image_tags:
-            args.append(f"--set=evm-rollup.images.conductor.tag={image_tags['conductor']}")
-        if "composer" in image_tags:
-            args.append(f"--set=composer.images.composer.devTag={image_tags['composer']}")
-        if "bridge-withdrawer" in image_tags:
-            args.append(f"--set=evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag={image_tags['bridge-withdrawer']}")
-        if "geth" in image_tags:
-            args.append(f"--set=evm-rollup.images.geth.tag={image_tags['geth']}")
+        conductor_image_tag = image_controller.conductor_image_tag()
+        if conductor_image_tag is not None:
+            args.append(f"--set=evm-rollup.images.conductor.tag={conductor_image_tag}")
+        composer_image_tag = image_controller.composer_image_tag()
+        if composer_image_tag is not None:
+            args.append(f"--set=composer.images.composer.devTag={composer_image_tag}")
+        bridge_withdrawer_image_tag = image_controller.bridge_withdrawer_image_tag()
+        if bridge_withdrawer_image_tag is not None:
+            args.append(f"--set=evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag={bridge_withdrawer_image_tag}")
+        geth_image_tag = image_controller.geth_image_tag()
+        if geth_image_tag is not None:
+            args.append(f"--set=evm-rollup.images.geth.tag={geth_image_tag}")
         return args
 
     def _try_send_json_rpc_request(self, method, *params):
