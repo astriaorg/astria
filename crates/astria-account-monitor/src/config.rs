@@ -8,9 +8,12 @@ use std::{
 
 use astria_core::primitive::v1::asset::Denom;
 use sequencer_client::Address;
-use serde::Deserialize;
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 /// The high-level config for creating an astria-account-monitor service.
 pub struct Config {
     /// Log level. One of debug, info, warn, or error
@@ -41,7 +44,7 @@ pub struct Config {
     pub metrics_http_listener_addr: String,
 }
 
-#[derive(Debug, Clone, Hash)]
+#[derive(Debug, Clone, Hash, Serialize)]
 pub struct Asset {
     /// The asset ID of the sequencer chain to monitor.
     pub asset: Denom,
@@ -67,7 +70,7 @@ impl Display for Asset {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SequencerAccountsToMonitor(Vec<Account>);
 
 impl<'de> Deserialize<'de> for SequencerAccountsToMonitor {
@@ -150,6 +153,15 @@ impl<'de> Deserialize<'de> for Account {
     {
         let s = Cow::<'_, str>::deserialize(deserializer)?;
         s.parse().map_err(serde::de::Error::custom)
+    }
+}
+
+impl Serialize for Account {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.address.to_string())
     }
 }
 
