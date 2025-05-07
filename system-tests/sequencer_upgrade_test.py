@@ -22,15 +22,15 @@ from helpers.defaults import (
     BRIDGE_TX_HASH,
 )
 from helpers.evm_controller import EvmController
+from helpers.image_controller import ImageController
 from helpers.sequencer_controller import SequencerController
 from helpers.utils import update_chart_dependencies, check_change_infos
 
 # The number of sequencer validator nodes to use in the test.
 NUM_NODES = 5
 # A map of upgrade name to image tag to use for running BEFORE the given upgrade is executed.
-PRE_UPGRADE_IMAGE_TAGS = {
-    "aspen": {"sequencer": "2.0.1", "sequencer-relayer": "1.0.1"},
-}
+PRE_UPGRADE_IMAGE_TAGS = ["sequencer=2.0.1", "sequencer-relayer=1.0.1"]
+pre_upgrade_image_controller = ImageController(PRE_UPGRADE_IMAGE_TAGS)
 
 parser = argparse.ArgumentParser(prog="upgrade_test", description="Runs the sequencer upgrade test.")
 parser.add_argument(
@@ -55,7 +55,7 @@ upgrade_name = args["upgrade_name"].lower()
 print("################################################################################")
 print("Running sequencer upgrade test")
 print(f"  * upgraded container image tag: {upgrade_image_tag}")
-print(f"  * pre-upgrade container image tags: {PRE_UPGRADE_IMAGE_TAGS[upgrade_name]}")
+print(f"  * pre-upgrade container image tags: {PRE_UPGRADE_IMAGE_TAGS}")
 print(f"  * upgrade name: {upgrade_name}")
 print("################################################################################")
 
@@ -75,13 +75,13 @@ print(f"starting {len(nodes)} sequencers and the evm rollup")
 executor = concurrent.futures.ThreadPoolExecutor(NUM_NODES + 1)
 
 deploy_sequencer_fn = lambda seq_node: seq_node.deploy_sequencer(
-    PRE_UPGRADE_IMAGE_TAGS[upgrade_name],
+    pre_upgrade_image_controller,
     # Enabled for all but sequencer 2.
     enable_price_feed=(seq_node.name != "node2"),
     upgrade_name=upgrade_name,
 )
 futures = [executor.submit(deploy_sequencer_fn, node) for node in nodes]
-futures.append(executor.submit(lambda: evm.deploy_rollup(upgrade_image_tag)))
+futures.append(executor.submit(lambda: evm.deploy_rollup(pre_upgrade_image_controller)))
 done, _ = concurrent.futures.wait(futures, return_when=FIRST_EXCEPTION)
 for completed_future in done:
     completed_future.result()
