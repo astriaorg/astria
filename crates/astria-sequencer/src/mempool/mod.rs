@@ -51,6 +51,7 @@ pub(crate) enum RemovalReason {
     NonceStale,
     LowerNonceInvalidated,
     FailedPrepareProposal(String),
+    InternalError,
 }
 
 /// How long transactions are considered valid in the mempool.
@@ -276,12 +277,18 @@ impl Mempool {
                 // promote the transactions
                 for ttx in to_promote {
                     let tx_id = ttx.id();
-                    if let Err(error) =
-                        pending.add(ttx, current_account_nonce, &current_account_balances)
-                    {
-                        // NOTE: this branch is not expected to be hit so grabbing the lock inside
+                    if let Err(error) = pending.add(
+                        ttx.clone(),
+                        current_account_nonce,
+                        &current_account_balances,
+                    ) {
+                        // NOTE: this branch is not expected to be hit so grabbing the locks inside
                         // of the loop is more performant.
-                        self.lock_contained_txs().await.remove(timemarked_tx.id());
+                        self.lock_contained_txs().await.remove(tx_id);
+                        self.comet_bft_removal_cache
+                            .write()
+                            .await
+                            .add(tx_id, RemovalReason::InternalError);
                         error!(
                             current_account_nonce,
                             tx_hash = %telemetry::display::hex(&tx_id),
@@ -1215,6 +1222,85 @@ mod tests {
                 .unwrap_err(),
             InsertionError::ParkedSizeLimit,
             "size limit should be enforced"
+        );
+    }
+
+    #[tokio::test]
+    async fn insert_promoted_tx_removed_if_its_insertion_fails() {
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+        let account_balances = mock_balances(100, 100);
+        let tx_cost = mock_tx_cost(10, 10, 0);
+
+        let pending_tx_1 =
+            TimemarkedTransaction::new(MockTxBuilder::new().nonce(1).build(), tx_cost.clone());
+        let pending_tx_2 = MockTxBuilder::new().nonce(2).build();
+        // different chain ID so that this transaction's hash is different than the failing tx
+        let pending_tx_3 = TimemarkedTransaction::new(
+            MockTxBuilder::new()
+                .nonce(3)
+                .chain_id("different-chain-id")
+                .build(),
+            tx_cost.clone(),
+        );
+        let failure_tx =
+            TimemarkedTransaction::new(MockTxBuilder::new().nonce(3).build(), tx_cost.clone());
+
+        let mut pending = mempool.pending.write().await;
+        let mut parked = mempool.parked.write().await;
+
+        // Add tx nonce 1 into pending
+        pending
+            .add(pending_tx_1.clone(), 1, &account_balances)
+            .unwrap();
+
+        // Force transactions with nonce 3 into both pending and parked, such that the parked one
+        // will fail on promotion
+        parked
+            .add(failure_tx.clone(), 1, &account_balances)
+            .unwrap();
+        pending
+            .add(pending_tx_3.clone(), 3, &account_balances)
+            .unwrap();
+
+        drop(pending);
+        drop(parked);
+
+        let mut contained_txs = mempool.contained_txs.write().await;
+        contained_txs.insert(pending_tx_1.id());
+        contained_txs.insert(failure_tx.id());
+        contained_txs.insert(pending_tx_3.id());
+
+        drop(contained_txs);
+
+        let comet_bft_removal_cache = mempool.comet_bft_removal_cache.read().await;
+        let contained_txs = mempool.contained_txs.read().await;
+
+        assert_eq!(comet_bft_removal_cache.cache.len(), 0);
+        assert_eq!(contained_txs.len(), 3);
+
+        drop(contained_txs);
+        drop(comet_bft_removal_cache);
+
+        // Insert tx nonce 2 to mempool, prompting promotion of tx nonce 3 from parked to pending,
+        // which should fail
+        mempool
+            .insert(pending_tx_2, 2, account_balances, tx_cost)
+            .await
+            .unwrap();
+
+        let comet_bft_removal_cache = mempool.comet_bft_removal_cache.read().await;
+        let contained_txs = mempool.contained_txs.read().await;
+
+        assert_eq!(comet_bft_removal_cache.cache.len(), 1);
+        assert!(
+            comet_bft_removal_cache.cache.contains_key(&failure_tx.id()),
+            "CometBFT removal cache should contain the failed tx"
+        );
+        assert_eq!(mempool.contained_txs.read().await.len(), 3);
+        assert!(
+            !contained_txs.contains(&failure_tx.id()),
+            "contained txs should not contain the failed tx id"
         );
     }
 }
