@@ -64,6 +64,7 @@ _crate_short_name crate quiet="":
   #!/usr/bin/env sh
   set -eu
   case {{crate}} in
+    astria-account-monitor) short_name=account-monitor ;;
     astria-auctioneer) short_name=auctioneer ;;
     astria-bridge-withdrawer) short_name=evm-bridge-withdrawer ;;
     astria-cli) short_name=astria-cli ;;
