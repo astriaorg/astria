@@ -5,20 +5,18 @@ use std::{
 
 use astria_core::generated::{
     astria::{
-        execution::v1::{
+        execution::v2::{
             execution_service_server::{
                 ExecutionService,
                 ExecutionServiceServer,
             },
-            BatchGetBlocksRequest,
-            BatchGetBlocksResponse,
-            Block,
             CommitmentState,
+            CreateExecutionSessionRequest,
             ExecuteBlockRequest,
-            GenesisInfo,
-            GetBlockRequest,
-            GetCommitmentStateRequest,
-            GetGenesisInfoRequest,
+            ExecuteBlockResponse,
+            ExecutedBlockMetadata,
+            ExecutionSession,
+            GetExecutedBlockMetadataRequest,
             UpdateCommitmentStateRequest,
         },
         sequencerblock::v1::{
@@ -167,10 +165,8 @@ macro_rules! define_and_impl_service {
 }
 
 define_and_impl_service!(impl ExecutionService for ExecutionServiceImpl {
-    (get_block: GetBlockRequest => Block)
-    (get_genesis_info: GetGenesisInfoRequest => GenesisInfo)
-    (batch_get_blocks: BatchGetBlocksRequest => BatchGetBlocksResponse)
-    (execute_block: ExecuteBlockRequest => Block)
-    (get_commitment_state: GetCommitmentStateRequest => CommitmentState)
+    (get_executed_block_metadata: GetExecutedBlockMetadataRequest => ExecutedBlockMetadata)
+    (create_execution_session: CreateExecutionSessionRequest => ExecutionSession)
+    (execute_block: ExecuteBlockRequest => ExecuteBlockResponse)
     (update_commitment_state: UpdateCommitmentStateRequest => CommitmentState)
 });

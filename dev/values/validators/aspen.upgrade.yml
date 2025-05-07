@@ -3,7 +3,7 @@ upgrades:
     enabled: true
     baseInfo:
       activationHeight: 1
-      appVersion: 2
+      appVersion: 3
     priceFeed:
       nextId: "2"
       markets:

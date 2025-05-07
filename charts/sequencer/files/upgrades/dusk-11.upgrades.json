@@ -1,1 +1,21 @@
-{}
+{
+  "aspen": {
+    "baseInfo": {
+      "activationHeight": "14372000",
+      "appVersion": "3"
+    },
+    "priceFeedChange": {
+      "marketMapGenesis": {
+        "marketMap": {
+          "markets": {}
+        }
+      },
+      "oracleGenesis": {
+        "currencyPairGenesis": [],
+        "nextId": "0"
+      }
+    },
+    "validatorUpdateActionChange": {},
+    "ibcAcknowledgementFailureChange": {}
+  }
+}

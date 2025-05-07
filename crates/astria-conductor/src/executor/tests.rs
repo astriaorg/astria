@@ -1,11 +1,10 @@
 use astria_core::{
     self,
-    execution::v1::{
-        Block,
-        CommitmentState,
-        GenesisInfo,
+    execution::v2::{
+        ExecutedBlockMetadata,
+        ExecutionSession,
     },
-    generated::astria::execution::v1 as raw,
+    generated::astria::execution::v2 as raw,
     protocol::price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
     Protobuf as _,
 };
@@ -31,28 +30,28 @@ use super::{
         StateReceiver,
         StateSender,
     },
-    RollupId,
 };
-use crate::config::CommitLevel;
+use crate::{
+    config::CommitLevel,
+    test_utils::make_execution_session_parameters,
+};
 
-const ROLLUP_ID: RollupId = RollupId::new([42u8; 32]);
-
-fn make_block(number: u32) -> raw::Block {
-    raw::Block {
+fn make_block_metadata(number: u64) -> raw::ExecutedBlockMetadata {
+    raw::ExecutedBlockMetadata {
         number,
-        hash: Bytes::from_static(&[0u8; 32]),
-        parent_block_hash: Bytes::from_static(&[0u8; 32]),
+        hash: hex::encode([0u8; 32]).to_string(),
+        parent_hash: hex::encode([0u8; 32]).to_string(),
         timestamp: Some(pbjson_types::Timestamp {
             seconds: 0,
             nanos: 0,
         }),
-        sequencer_block_hash: Bytes::new(),
+        sequencer_block_hash: String::new(),
     }
 }
 
 struct MakeState {
-    firm: u32,
-    soft: u32,
+    firm: u64,
+    soft: u64,
 }
 
 fn make_state(
@@ -61,36 +60,38 @@ fn make_state(
         soft,
     }: MakeState,
 ) -> (StateSender, StateReceiver) {
-    let genesis_info = GenesisInfo::try_from_raw(raw::GenesisInfo {
-        rollup_id: Some(ROLLUP_ID.to_raw()),
-        sequencer_genesis_block_height: 1,
-        celestia_block_variance: 1,
+    let commitment_state = raw::CommitmentState {
+        firm_executed_block_metadata: Some(make_block_metadata(firm)),
+        soft_executed_block_metadata: Some(make_block_metadata(soft)),
+        lowest_celestia_search_height: 1,
+    };
+    let execution_session = ExecutionSession::try_from_raw(raw::ExecutionSession {
+        session_id: "test_execution_session".to_string(),
+        execution_session_parameters: Some(make_execution_session_parameters()),
+        commitment_state: Some(commitment_state),
     })
     .unwrap();
-    let commitment_state = CommitmentState::try_from_raw(raw::CommitmentState {
-        firm: Some(make_block(firm)),
-        soft: Some(make_block(soft)),
-        base_celestia_height: 1,
-    })
+    let state = State::try_from_execution_session(
+        &execution_session,
+        crate::config::CommitLevel::SoftAndFirm,
+    )
     .unwrap();
-    let state =
-        State::try_from_genesis_info_and_commitment_state(genesis_info, commitment_state).unwrap();
     super::state::channel(state)
 }
 
 #[track_caller]
-fn assert_contract_fulfilled(kind: super::ExecutionKind, state: MakeState, number: u32) {
-    let block = Block::try_from_raw(make_block(number)).unwrap();
+fn assert_contract_fulfilled(kind: super::ExecutionKind, state: MakeState, number: u64) {
+    let block_metadata = ExecutedBlockMetadata::try_from_raw(make_block_metadata(number)).unwrap();
     let mut state = make_state(state);
-    super::does_block_response_fulfill_contract(&mut state.0, kind, &block)
+    super::does_block_response_fulfill_contract(&mut state.0, kind, &block_metadata)
         .expect("number stored in response block must be one more than in tracked state");
 }
 
 #[track_caller]
-fn assert_contract_violated(kind: super::ExecutionKind, state: MakeState, number: u32) {
-    let block = Block::try_from_raw(make_block(number)).unwrap();
+fn assert_contract_violated(kind: super::ExecutionKind, state: MakeState, number: u64) {
+    let block_metadata = ExecutedBlockMetadata::try_from_raw(make_block_metadata(number)).unwrap();
     let mut state = make_state(state);
-    super::does_block_response_fulfill_contract(&mut state.0, kind, &block).expect_err(
+    super::does_block_response_fulfill_contract(&mut state.0, kind, &block_metadata).expect_err(
         "number stored in response block must not be one more than in tracked
 state",
     );

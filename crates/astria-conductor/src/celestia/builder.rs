@@ -15,8 +15,8 @@ use super::{
     ReconstructedBlock,
 };
 use crate::{
-    executor::StateReceiver,
     metrics::Metrics,
+    state::StateReceiver,
 };
 
 pub(crate) struct Builder {
@@ -27,8 +27,6 @@ pub(crate) struct Builder {
     pub(crate) rollup_state: StateReceiver,
     pub(crate) sequencer_cometbft_client: SequencerClient,
     pub(crate) sequencer_requests_per_second: u32,
-    pub(crate) expected_celestia_chain_id: String,
-    pub(crate) expected_sequencer_chain_id: String,
     pub(crate) shutdown: CancellationToken,
     pub(crate) metrics: &'static Metrics,
 }
@@ -42,8 +40,6 @@ impl Builder {
             celestia_token,
             sequencer_cometbft_client,
             sequencer_requests_per_second,
-            expected_celestia_chain_id,
-            expected_sequencer_chain_id,
             shutdown,
             metrics,
             firm_blocks,
@@ -60,8 +56,6 @@ impl Builder {
             rollup_state,
             sequencer_cometbft_client,
             sequencer_requests_per_second,
-            expected_celestia_chain_id,
-            expected_sequencer_chain_id,
             shutdown,
             metrics,
         })

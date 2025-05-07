@@ -54,6 +54,12 @@ impl IntoCheckTxResponse for RemovalReason {
                 ),
                 ..response::CheckTx::default()
             },
+            RemovalReason::InternalError => response::CheckTx {
+                code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
+                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
+                log: "transaction removed from app mempool due to internal error".to_string(),
+                ..response::CheckTx::default()
+            },
         }
     }
 }

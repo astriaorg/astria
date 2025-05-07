@@ -61,10 +61,10 @@ Usage:
   just deploy cluster <NAMESPACE> <ENABLE_HUBBLE> (defaults: 'astria-dev-cluster', 'false')
 ")]
 cluster namespace=defaultNamespace enableHubble=hubbleEnabled:
-  @kind create cluster --image kindest/node:v1.28.9 --config dev/kubernetes/kind-cluster-config.yml
+  @kind create cluster --image kindest/node:v1.33.0 --config dev/kubernetes/kind-cluster-config.yml
   @just deploy::helm-add-if-not-exist cilium https://helm.cilium.io/ > /dev/null
   @echo "Installing cilium..."
-  @helm install cilium cilium/cilium --version 1.15.5 \
+  @helm install cilium cilium/cilium --version 1.17.3 \
       -f dev/values/cilium.yml \
       {{ if enableHubble == "true" { '--set hubble.enabled=true --set hubble.relay.enabled=true --set hubble.ui.enabled=true --set hubble.ui.ingress.enabled=true' } else { '' } }} \
       --namespace kube-system \
@@ -273,12 +273,43 @@ smoke-test tag=defaultTag:
     {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart charts/evm-stack -f dev/values/rollup/dev.yaml \
-    {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
+    {{ if tag != '' { replace('--set evm-rollup.images.conductor.tag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
     --set blockscout-stack.enabled=false \
     --set postgresql.enabled=false \
     --set evm-faucet.enabled=false > /dev/null
   @just wait-for celestia-local
   @just wait-for sequencer
+  @just wait-for rollup
+
+
+# Deploy EVM Rollup Restart Test
+####################
+[doc("
+Deploys all components necessary for local end-to-end (including rollup and Celestia)
+EVM restart smoke test and awaits their readiness. The smoke test restarts the
+EVM at block 19.
+Usage:
+  $just deploy evm-rollup-restart-test <TAG> (default: '')
+")]
+evm-rollup-restart-test tag=defaultTag:
+  @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
+  @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
+  @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
+  @helm dependency update charts/sequencer > /dev/null
+  @helm dependency update charts/evm-stack > /dev/null
+  @echo "Setting up single astria sequencer..." && helm install \
+    -n astria-validator-single single-sequencer-chart charts/sequencer \
+    -f dev/values/validators/all.yml \
+    -f dev/values/validators/single.yml \
+    {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
+    --create-namespace > /dev/null
+  @just wait-for sequencer
+  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart charts/evm-stack -f dev/values/rollup/evm-restart-test.yaml \
+    {{ if tag != '' { replace('--set evm-rollup.images.conductor.tag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
+    --set blockscout-stack.enabled=false \
+    --set postgresql.enabled=false \
+    --set evm-faucet.enabled=false > /dev/null
+  @just wait-for celestia-local
   @just wait-for rollup
 
 
@@ -304,7 +335,7 @@ smoke-cli tag=defaultTag:
     {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart charts/evm-stack -f dev/values/rollup/dev.yaml \
-    {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=#', '#', tag) } else { '' } }} \
+    {{ if tag != '' { replace('--set evm-rollup.images.conductor.tag=# --set composer.images.composer.devTag=#', '#', tag) } else { '' } }} \
     --set blockscout-stack.enabled=false \
     --set postgresql.enabled=false \
     --set evm-bridge-withdrawer.enabled=false \
@@ -339,7 +370,7 @@ ibc-test tag=defaultTag:
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart charts/evm-stack \
     -f dev/values/rollup/dev.yaml \
     -f dev/values/rollup/ibc-bridge-test.yaml \
-    {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
+    {{ if tag != '' { replace('--set evm-rollup.images.conductor.tag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
     --set blockscout-stack.enabled=false \
     --set postgresql.enabled=false \
     --set evm-faucet.enabled=false > /dev/null
@@ -403,7 +434,7 @@ ibc-test-timeout-refund tag=defaultTag:
   @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart charts/evm-stack \
     -f dev/values/rollup/dev.yaml \
     -f dev/values/rollup/ibc-bridge-test.yaml \
-    {{ if tag != '' { replace('--set evm-rollup.images.conductor.devTag=# --set composer.images.composer.devTag=#', '#', tag) } else { '' } }} \
+    {{ if tag != '' { replace('--set evm-rollup.images.conductor.tag=# --set composer.images.composer.devTag=#', '#', tag) } else { '' } }} \
     --set blockscout-stack.enabled=false \
     --set evm-bridge-withdrawer.enabled=false \
     --set postgresql.enabled=false \

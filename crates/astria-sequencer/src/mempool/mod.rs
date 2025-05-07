@@ -51,6 +51,7 @@ pub(crate) enum RemovalReason {
     NonceStale,
     LowerNonceInvalidated,
     FailedPrepareProposal(String),
+    InternalError,
     IncludedInBlock(u64),
 }
 
@@ -62,6 +63,9 @@ impl std::fmt::Display for RemovalReason {
             RemovalReason::LowerNonceInvalidated => write!(f, "lower nonce invalidated"),
             RemovalReason::FailedPrepareProposal(reason) => {
                 write!(f, "failed prepare proposal: {reason}")
+            }
+            RemovalReason::InternalError => {
+                write!(f, "removed due to internal mempool error")
             }
             RemovalReason::IncludedInBlock(block_height) => {
                 write!(f, "included in sequencer block {block_height}")
@@ -361,11 +365,14 @@ impl MempoolInner {
                 // promote the transactions
                 for ttx in to_promote {
                     let tx_id = ttx.id();
-                    if let Err(error) =
-                        self.pending
-                            .add(ttx, current_account_nonce, current_account_balances)
-                    {
-                        self.contained_txs.remove(&timemarked_tx.id());
+                    if let Err(error) = self.pending.add(
+                        ttx.clone(),
+                        current_account_nonce,
+                        current_account_balances,
+                    ) {
+                        self.contained_txs.remove(&tx_id);
+                        self.comet_bft_removal_cache
+                            .add(tx_id, RemovalReason::InternalError);
                         error!(
                             current_account_nonce,
                             tx_hash = %telemetry::display::hex(&tx_id),
@@ -1362,6 +1369,79 @@ mod tests {
             *removal_cache.get(&tx2.id().get()).unwrap(),
             RemovalReason::IncludedInBlock(INCLUDED_TX_BLOCK_NUMBER),
             "removal reason should be included"
+        );
+    }
+
+    #[tokio::test]
+    async fn insert_promoted_tx_removed_if_its_insertion_fails() {
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, 100);
+        let account_balances = mock_balances(100, 100);
+        let tx_cost = mock_tx_cost(10, 10, 0);
+
+        let pending_tx_1 =
+            TimemarkedTransaction::new(MockTxBuilder::new().nonce(1).build(), tx_cost.clone());
+        let pending_tx_2 = MockTxBuilder::new().nonce(2).build();
+        // different chain ID so that this transaction's hash is different than the failing tx
+        let pending_tx_3 = TimemarkedTransaction::new(
+            MockTxBuilder::new()
+                .nonce(3)
+                .chain_id("different-chain-id")
+                .build(),
+            tx_cost.clone(),
+        );
+        let failure_tx =
+            TimemarkedTransaction::new(MockTxBuilder::new().nonce(3).build(), tx_cost.clone());
+
+        let mut inner = mempool.inner.write().await;
+
+        // Add tx nonce 1 into pending
+        inner
+            .pending
+            .add(pending_tx_1.clone(), 1, &account_balances)
+            .unwrap();
+
+        // Force transactions with nonce 3 into both pending and parked, such that the parked one
+        // will fail on promotion
+        inner
+            .parked
+            .add(failure_tx.clone(), 1, &account_balances)
+            .unwrap();
+        inner
+            .pending
+            .add(pending_tx_3.clone(), 3, &account_balances)
+            .unwrap();
+
+        inner.contained_txs.insert(pending_tx_1.id());
+        inner.contained_txs.insert(failure_tx.id());
+        inner.contained_txs.insert(pending_tx_3.id());
+
+        assert_eq!(inner.comet_bft_removal_cache.cache.len(), 0);
+        assert_eq!(inner.contained_txs.len(), 3);
+
+        drop(inner);
+
+        // Insert tx nonce 2 to mempool, prompting promotion of tx nonce 3 from parked to pending,
+        // which should fail
+        mempool
+            .insert(pending_tx_2, 2, &account_balances, tx_cost)
+            .await
+            .unwrap();
+
+        let inner = mempool.inner.read().await;
+
+        assert_eq!(inner.comet_bft_removal_cache.cache.len(), 1);
+        assert!(
+            inner
+                .comet_bft_removal_cache
+                .cache
+                .contains_key(&failure_tx.id()),
+            "CometBFT removal cache should contain the failed tx"
+        );
+        assert_eq!(inner.contained_txs.len(), 3);
+        assert!(
+            !inner.contained_txs.contains(&failure_tx.id()),
+            "contained txs should not contain the failed tx id"
         );
     }
 }

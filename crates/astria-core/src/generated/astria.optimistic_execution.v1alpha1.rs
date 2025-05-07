@@ -46,7 +46,9 @@ pub struct ExecuteOptimisticBlockStreamResponse {
     /// Metadata identifying the block resulting from executing a block. Includes number, hash,
     /// parent hash and timestamp.
     #[prost(message, optional, tag = "1")]
-    pub block: ::core::option::Option<super::super::execution::v1::Block>,
+    pub block: ::core::option::Option<
+        super::super::execution::v2::ExecutedBlockMetadata,
+    >,
     /// The base_sequencer_block_hash is the hash from the base sequencer block this block
     /// is based on. This is used to associate an optimistic execution result with the hash
     /// received once a sequencer block is committed.
