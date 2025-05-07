@@ -157,7 +157,7 @@ missed_upgrade_node = nodes.pop()
 print(f"not upgrading {missed_upgrade_node.name} until the rest have executed the upgrade")
 for node in nodes:
     node.stage_upgrade(
-        {"sequencer": upgrade_image_tag, "sequencer-relayer": upgrade_image_tag},
+        {f"sequencer={upgrade_image_tag}", f"sequencer-relayer={upgrade_image_tag}"},
         enable_price_feed=(node.name != "node2"),
         upgrade_name=upgrade_name,
         activation_height=upgrade_activation_height,
@@ -200,7 +200,7 @@ nodes.append(missed_upgrade_node)
 new_node = SequencerController(f"node{NUM_NODES - 1}")
 print(f"starting a new sequencer")
 new_node.deploy_sequencer(
-    {"sequencer": upgrade_image_tag, "sequencer-relayer": upgrade_image_tag},
+    ImageController("sequencer=upgrade_image_tag", "sequencer-relayer=upgrade_image_tag"),
     upgrade_name=upgrade_name,
     upgrade_activation_height=upgrade_activation_height
 )
