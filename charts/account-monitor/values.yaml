@@ -14,17 +14,13 @@ images:
 
 config:
   logLevel: "debug"
-  sequencerAddressPrefix: astria
   sequencerFeeAsset: ""
   queryIntervalMs: "10000"
   sequencerRpc: ""
   sequencerChainId: ""
   sequencerAccounts:
   #  - "astria1f9yperk95zrtv72wvf523cx9hk9m72wuqd2hfc"
-  sequencerBridgeAccounts:
-  #  - "astria13vptdafyttpmlwppt0s844efey2cpc0mevy92p"
-  #  - "astria1eg8hhey0n4untdvqqdvlyl0e7zx8wfca48kglh"
-  #  - "astria1kgxhyhvynhcwwrylkzzx6q3a8rn3tuvasxvuy8"
+
 otel:
   enabled: false
   serviceName: "account-monitor"
@@ -34,9 +30,6 @@ otel:
   tracesTimeout: "10"
   otlpHeaders: ""
   traceHeaders: ""
-
-metrics:
-  enabled: true
 
 serviceMonitor:
   # set to enable port svc and service monitor

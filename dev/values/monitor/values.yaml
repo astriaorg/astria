@@ -3,14 +3,11 @@ global:
 
 config:
   logLevel: "debug"
-  sequencerAddressPrefix: astria
   sequencerFeeAsset: "nria"
   queryIntervalMs: "10000"
   sequencerRpc: "http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657"
   sequencerChainId: "sequencer-test-chain-0"
   sequencerAccounts:
-    - "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
-  sequencerBridgeAccounts:
     - "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
 otel:
   enabled: false
@@ -21,9 +18,6 @@ otel:
   tracesTimeout: "10"
   otlpHeaders: ""
   traceHeaders: ""
-
-metrics:
-  enabled: true
 
 serviceMonitor:
   # set to enable port svc and service monitor

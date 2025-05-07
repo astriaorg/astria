@@ -1,4 +1,3 @@
-{{- if .Values.metrics.enabled }}
 kind: Service
 apiVersion: v1
 metadata:
@@ -13,4 +12,3 @@ spec:
     - name: monitor-metric
       port: {{ .Values.ports.metrics }}
       targetPort: monitor-metric
-{{- end }}

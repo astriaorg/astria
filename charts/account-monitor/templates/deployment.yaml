@@ -26,9 +26,7 @@ spec:
             - configMapRef:
                 name: account-monitor-env
           ports:
-            {{- if .Values.metrics.enabled }}
             - containerPort: {{ .Values.ports.metrics }}
               name: monitor-metric
-            {{- end }}
           resources:
             {{- toYaml .Values.resources | trim | nindent 12 }}
