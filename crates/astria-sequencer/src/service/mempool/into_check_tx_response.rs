@@ -45,12 +45,15 @@ impl IntoCheckTxResponse for RemovalReason {
                     .into(),
                 ..response::CheckTx::default()
             },
-            RemovalReason::IncludedInBlock(height) => response::CheckTx {
+            RemovalReason::IncludedInBlock {
+                height,
+                result,
+            } => response::CheckTx {
                 code: Code::Err(AbciErrorCode::TRANSACTION_INCLUDED_IN_BLOCK.value()),
                 info: AbciErrorCode::TRANSACTION_INCLUDED_IN_BLOCK.to_string(),
                 log: format!(
                     "transaction removed from app mempool because it was included in block \
-                     {height}"
+                     {height} with result: {result:?}"
                 ),
                 ..response::CheckTx::default()
             },

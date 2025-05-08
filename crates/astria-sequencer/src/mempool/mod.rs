@@ -16,12 +16,14 @@ use std::{
 use astria_core::{
     primitive::v1::{
         asset::IbcPrefixed,
+        TransactionId,
         TRANSACTION_ID_LEN,
     },
     protocol::transaction::v1::Transaction,
 };
 use astria_eyre::eyre::Result;
 pub(crate) use mempool_state::get_account_balances;
+use tendermint::abci::types::ExecTxResult;
 use tokio::{
     sync::RwLock,
     time::Duration,
@@ -52,7 +54,7 @@ pub(crate) enum RemovalReason {
     LowerNonceInvalidated,
     FailedPrepareProposal(String),
     InternalError,
-    IncludedInBlock(u64),
+    IncludedInBlock { height: u64, result: ExecTxResult },
 }
 
 impl std::fmt::Display for RemovalReason {
@@ -67,8 +69,14 @@ impl std::fmt::Display for RemovalReason {
             RemovalReason::InternalError => {
                 write!(f, "removed due to internal mempool error")
             }
-            RemovalReason::IncludedInBlock(block_height) => {
-                write!(f, "included in sequencer block {block_height}")
+            RemovalReason::IncludedInBlock {
+                height,
+                result,
+            } => {
+                write!(
+                    f,
+                    "included in sequencer block {height} with result {result:?}"
+                )
             }
         }
     }
@@ -242,7 +250,7 @@ impl Mempool {
         &self,
         state: &S,
         recost: bool,
-        txs_included_in_block: HashSet<[u8; TRANSACTION_ID_LEN]>,
+        txs_included_in_block: HashMap<TransactionId, ExecTxResult>,
         block_number: u64,
     ) {
         self.inner
@@ -432,7 +440,7 @@ impl MempoolInner {
         &mut self,
         state: &S,
         recost: bool,
-        txs_included_in_block: HashSet<[u8; TRANSACTION_ID_LEN]>,
+        txs_included_in_block: HashMap<TransactionId, ExecTxResult>,
         block_number: u64,
     ) {
         let mut removed_txs = Vec::<([u8; 32], RemovalReason)>::new();
@@ -757,7 +765,7 @@ mod tests {
         );
 
         mempool
-            .run_maintenance(&mock_state, false, HashSet::new(), 0)
+            .run_maintenance(&mock_state, false, HashMap::new(), 0)
             .await;
 
         // assert mempool at 1
@@ -826,7 +834,7 @@ mod tests {
         );
 
         mempool
-            .run_maintenance(&mock_state, false, HashSet::new(), 0)
+            .run_maintenance(&mock_state, false, HashMap::new(), 0)
             .await;
 
         // see builder queue now contains them
@@ -894,7 +902,7 @@ mod tests {
         );
 
         mempool
-            .run_maintenance(&mock_state, false, HashSet::new(), 0)
+            .run_maintenance(&mock_state, false, HashMap::new(), 0)
             .await;
 
         // see builder queue now contains single transactions
@@ -917,7 +925,7 @@ mod tests {
         );
 
         mempool
-            .run_maintenance(&mock_state, false, HashSet::new(), 0)
+            .run_maintenance(&mock_state, false, HashMap::new(), 0)
             .await;
 
         let builder_queue = mempool.builder_queue().await;
@@ -1210,7 +1218,7 @@ mod tests {
             2,
         );
         mempool
-            .run_maintenance(&mock_state, false, HashSet::new(), 0)
+            .run_maintenance(&mock_state, false, HashMap::new(), 0)
             .await;
 
         // check that the transactions are not in the tracked set
@@ -1338,9 +1346,9 @@ mod tests {
             mock_balances(0, 0),
         );
 
-        let mut included_txs = HashSet::new();
-        included_txs.insert(tx1.id().get());
-        included_txs.insert(tx2.id().get());
+        let mut included_txs = HashMap::new();
+        included_txs.insert(tx1.id(), ExecTxResult::default());
+        included_txs.insert(tx2.id(), ExecTxResult::default());
 
         mempool
             .run_maintenance(&mock_state, false, included_txs, INCLUDED_TX_BLOCK_NUMBER)
@@ -1362,12 +1370,18 @@ mod tests {
         );
         assert_eq!(
             *removal_cache.get(&tx1.id().get()).unwrap(),
-            RemovalReason::IncludedInBlock(INCLUDED_TX_BLOCK_NUMBER),
+            RemovalReason::IncludedInBlock {
+                height: INCLUDED_TX_BLOCK_NUMBER,
+                result: ExecTxResult::default()
+            },
             "removal reason should be included"
         );
         assert_eq!(
             *removal_cache.get(&tx2.id().get()).unwrap(),
-            RemovalReason::IncludedInBlock(INCLUDED_TX_BLOCK_NUMBER),
+            RemovalReason::IncludedInBlock {
+                height: INCLUDED_TX_BLOCK_NUMBER,
+                result: ExecTxResult::default()
+            },
             "removal reason should be included"
         );
     }
