@@ -147,6 +147,11 @@ Deletes local EVM bridge-withdrawer deployment.
 ")]
 bridge-withdrawer: (delete-chart "evm-bridge-withdrawer")
 
+# Delete Account Monitor
+[doc("
+Deletes local account-monitor deployment.
+")]
+account-monitor: (delete-chart "account-monitor")
 
 # Delete Hyperlane Agents
 ##########################
