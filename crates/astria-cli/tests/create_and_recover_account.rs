@@ -35,7 +35,7 @@ impl Resources {
 
     #[track_caller]
     fn check_reconstruct_account(self) -> Result<()> {
-        let mut cmd = new_create_account_command()?;
+        let mut cmd = new_account_command()?;
         cmd.arg("recover")
             .arg("--mnemonic")
             .arg(&self.input)
@@ -48,7 +48,7 @@ impl Resources {
 }
 
 #[track_caller]
-fn new_create_account_command() -> Result<Command> {
+fn new_account_command() -> Result<Command> {
     // astria-cli sequencer account create command
     let mut cmd = Command::cargo_bin(env!("CARGO_PKG_NAME"))?;
     cmd.arg("sequencer").arg("account");
@@ -57,14 +57,14 @@ fn new_create_account_command() -> Result<Command> {
 
 #[test]
 fn should_reconstruct_account() -> Result<(), Box<dyn std::error::Error>> {
-    let resources: Resources = Resources::new("create_account")?;
+    let resources: Resources = Resources::new("recover_account")?;
     resources.check_reconstruct_account()?;
     Ok(())
 }
 
 #[test]
 fn should_create_account() -> Result<()> {
-    let mut cmd = new_create_account_command()?;
+    let mut cmd = new_account_command()?;
     cmd.arg("create")
         .assert()
         .success()

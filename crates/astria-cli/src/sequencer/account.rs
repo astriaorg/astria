@@ -38,9 +38,9 @@ impl Command {
 
 #[derive(Debug, Subcommand)]
 enum SubCommand {
-    /// Generates a new ED25519 keypair.
+    /// Generates a new Ed25519 keypair.
     Create(Create),
-    /// Recovers an ED25519 keypair from a mnemonic.
+    /// Recovers an Ed25519 keypair from a mnemonic.
     Recover(Recover),
     /// Queries the Sequencer for the balances of an account.
     Balance(Balance),
@@ -54,7 +54,7 @@ struct Recover {
     #[arg(long, default_value = "astria")]
     prefix: String,
     /// The recovery mnemonic phrase, must be wrapped in quotes.
-    #[arg(long)]
+    #[arg(long, short)]
     mnemonic: String,
 }
 
@@ -96,6 +96,7 @@ struct Create {
     /// Number of words to use in the mnemonic phrase
     #[arg(
         long,
+        short = 'l',
         default_value = "24",
         value_parser(mnemonic_length_value_parser())
     )]
