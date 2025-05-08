@@ -4,6 +4,7 @@ use std::{
         hash_map,
         BTreeMap,
         HashMap,
+        HashSet,
     },
     fmt,
     mem,
@@ -11,7 +12,10 @@ use std::{
 };
 
 use astria_core::{
-    primitive::v1::asset::IbcPrefixed,
+    primitive::v1::{
+        asset::IbcPrefixed,
+        TRANSACTION_ID_LEN,
+    },
     protocol::transaction::v1::{
         action::group::Group,
         Transaction,
@@ -195,6 +199,25 @@ impl fmt::Display for InsertionError {
             }
             InsertionError::ParkedSizeLimit => {
                 write!(f, "parked container size limit reached")
+            }
+        }
+    }
+}
+
+impl From<InsertionError> for tonic::Status {
+    fn from(err: InsertionError) -> Self {
+        match err {
+            InsertionError::AlreadyPresent | InsertionError::NonceTaken => {
+                tonic::Status::already_exists(err.to_string())
+            }
+            InsertionError::NonceTooLow | InsertionError::NonceGap => {
+                tonic::Status::invalid_argument(err.to_string())
+            }
+            InsertionError::AccountSizeLimit | InsertionError::ParkedSizeLimit => {
+                tonic::Status::resource_exhausted(err.to_string())
+            }
+            InsertionError::AccountBalanceTooLow => {
+                tonic::Status::failed_precondition(err.to_string())
             }
         }
     }
@@ -496,7 +519,6 @@ pub(super) trait TransactionsForAccount: Default {
             .collect()
     }
 
-    #[cfg(test)]
     fn contains_tx(&self, tx_hash: &[u8; 32]) -> bool {
         self.txs().values().any(|ttx| ttx.tx_hash == *tx_hash)
     }
@@ -679,7 +701,9 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
         &mut self,
         address: &[u8; 20],
         current_account_nonce: u32,
-    ) -> Vec<([u8; 32], RemovalReason)> {
+        txs_included_in_block: &HashSet<[u8; TRANSACTION_ID_LEN]>,
+        block_number: u64,
+    ) -> Vec<([u8; TRANSACTION_ID_LEN], RemovalReason)> {
         // Take the collection for this account out of `self` temporarily if it exists.
         let Some(mut account_txs) = self.txs_mut().remove(address) else {
             return Vec::new();
@@ -690,7 +714,15 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
         mem::swap(&mut split_off, account_txs.txs_mut());
         let mut removed_txs: Vec<([u8; 32], RemovalReason)> = split_off
             .into_values()
-            .map(|ttx| (ttx.tx_hash, RemovalReason::NonceStale))
+            .map(|ttx| {
+                if txs_included_in_block.contains(&ttx.tx_hash) {
+                    // We only need to check stale transactions for inclusion, since all executed
+                    // transactions will be stale
+                    (ttx.tx_hash, RemovalReason::IncludedInBlock(block_number))
+                } else {
+                    (ttx.tx_hash, RemovalReason::NonceStale)
+                }
+            })
             .collect();
 
         // check for expired transactions
@@ -724,7 +756,6 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
             .sum()
     }
 
-    #[cfg(test)]
     fn contains_tx(&self, tx_hash: &[u8; 32]) -> bool {
         self.txs()
             .values()
@@ -1759,7 +1790,9 @@ mod tests {
 
     #[test]
     #[expect(clippy::too_many_lines, reason = "it's a test")]
-    fn transactions_container_clean_account_stale_expired() {
+    fn transactions_container_clean_account_stale_expired_and_included() {
+        const INCLUDED_TX_BLOCK_NUMBER: u64 = 9;
+
         let mut pending_txs = PendingTransactions::new(TX_TTL);
 
         // transactions to add to accounts
@@ -1827,14 +1860,26 @@ mod tests {
         let mut removed_txs = pending_txs.clean_account_stale_expired(
             astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             0,
+            &HashSet::new(),
+            0,
         );
         removed_txs.extend(pending_txs.clean_account_stale_expired(
             astria_address_from_hex_string(BOB_ADDRESS).as_bytes(),
             1,
+            &HashSet::new(),
+            0,
         ));
         removed_txs.extend(pending_txs.clean_account_stale_expired(
             astria_address_from_hex_string(CAROL_ADDRESS).as_bytes(),
             4,
+            // should remove transactions 0 and 1 with `RemovalReason::Indluded(9)`
+            &{
+                let mut included_txs = HashSet::new();
+                included_txs.insert(ttx_s2_0.tx_hash);
+                included_txs.insert(ttx_s2_1.tx_hash);
+                included_txs
+            },
+            INCLUDED_TX_BLOCK_NUMBER,
         ));
 
         assert_eq!(
@@ -1872,11 +1917,22 @@ mod tests {
                 .len(),
             2
         );
-        for (_, reason) in removed_txs {
-            assert!(
-                matches!(reason, RemovalReason::NonceStale),
-                "removal reason should be stale nonce"
-            );
+        for (hash, reason) in removed_txs {
+            if hash == ttx_s2_0.tx_hash || hash == ttx_s2_1.tx_hash {
+                assert!(
+                    matches!(
+                        reason,
+                        RemovalReason::IncludedInBlock(INCLUDED_TX_BLOCK_NUMBER)
+                    ),
+                    "removal reason should be included(9)"
+                );
+            } else {
+                assert_eq!(
+                    reason,
+                    RemovalReason::NonceStale,
+                    "removal reason should be stale nonce"
+                );
+            }
         }
     }
 
@@ -1912,10 +1968,14 @@ mod tests {
         let mut removed_txs = pending_txs.clean_account_stale_expired(
             astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
             0,
+            &HashSet::new(),
+            1,
         );
         removed_txs.extend(pending_txs.clean_account_stale_expired(
             astria_address_from_hex_string(BOB_ADDRESS).as_bytes(),
             0,
+            &HashSet::new(),
+            1,
         ));
 
         assert_eq!(

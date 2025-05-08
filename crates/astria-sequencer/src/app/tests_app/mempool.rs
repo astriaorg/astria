@@ -64,7 +64,7 @@ async fn trigger_cleaning() {
         .insert(
             Arc::new(tx_trigger.clone()),
             0,
-            mock_balances(0, 0),
+            &mock_balances(0, 0),
             mock_tx_cost(0, 0, 0),
         )
         .await
@@ -166,7 +166,7 @@ async fn do_not_trigger_cleaning() {
         .insert(
             Arc::new(tx_fail.clone()),
             0,
-            mock_balances(0, 0),
+            &mock_balances(0, 0),
             mock_tx_cost(0, 0, 0),
         )
         .await
@@ -242,7 +242,7 @@ async fn maintenance_recosting_promotes() {
         .insert(
             Arc::new(tx_fail_recost_funds.clone()),
             0,
-            bob_funds,
+            &bob_funds,
             tx_cost,
         )
         .await
@@ -264,7 +264,7 @@ async fn maintenance_recosting_promotes() {
     let mut tx_cost = HashMap::new();
     tx_cost.insert(nria().into(), 0);
     app.mempool
-        .insert(Arc::new(tx_recost.clone()), 0, judy_funds, tx_cost)
+        .insert(Arc::new(tx_recost.clone()), 0, &judy_funds, tx_cost)
         .await
         .unwrap();
     assert_eq!(app.mempool.len().await, 2, "two txs in mempool");
@@ -423,7 +423,7 @@ async fn maintenance_funds_added_promotes() {
         .insert(
             Arc::new(tx_fail_transfer_funds.clone()),
             0,
-            carol_funds,
+            &carol_funds,
             tx_cost,
         )
         .await
@@ -448,7 +448,7 @@ async fn maintenance_funds_added_promotes() {
     let mut tx_cost = HashMap::new();
     tx_cost.insert(nria().into(), 13);
     app.mempool
-        .insert(Arc::new(tx_fund.clone()), 0, alice_funds, tx_cost)
+        .insert(Arc::new(tx_fund.clone()), 0, &alice_funds, tx_cost)
         .await
         .unwrap();
 

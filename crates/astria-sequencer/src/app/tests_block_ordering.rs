@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use astria_core::{
     protocol::transaction::v1::action::{
         group::Group,
@@ -165,12 +167,12 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
         .build();
 
     app.mempool
-        .insert(tx_0.clone(), 0, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
+        .insert(tx_0.clone(), 0, &mock_balances(0, 0), mock_tx_cost(0, 0, 0))
         .await
         .unwrap();
 
     app.mempool
-        .insert(tx_1.clone(), 0, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
+        .insert(tx_1.clone(), 0, &mock_balances(0, 0), mock_tx_cost(0, 0, 0))
         .await
         .unwrap();
 
@@ -199,7 +201,9 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
         "expected to contain first transaction"
     );
 
-    app.mempool.run_maintenance(&app.state, false).await;
+    app.mempool
+        .run_maintenance(&app.state, false, HashSet::new(), 0)
+        .await;
     assert_eq!(
         app.mempool.len().await,
         1,
@@ -207,7 +211,9 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
     );
 
     // commit state for next prepare proposal
-    app.prepare_commit(storage.clone()).await.unwrap();
+    app.prepare_commit(storage.clone(), HashSet::new())
+        .await
+        .unwrap();
     app.commit(storage.clone()).await.unwrap();
 
     let prepare_args = PrepareProposal {
@@ -234,6 +240,8 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
         "expected to contain second transaction"
     );
 
-    app.mempool.run_maintenance(&app.state, false).await;
+    app.mempool
+        .run_maintenance(&app.state, false, HashSet::new(), 0)
+        .await;
     assert_eq!(app.mempool.len().await, 0, "mempool should be empty");
 }
