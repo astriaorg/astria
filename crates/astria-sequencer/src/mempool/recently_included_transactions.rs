@@ -143,8 +143,7 @@ mod tests {
         let bytes = seed.to_be_bytes();
         let mut destination = [0u8; TRANSACTION_ID_LEN];
 
-        let n = 8;
-        destination[..n].copy_from_slice(&bytes[..n]);
+        destination[..8].copy_from_slice(&bytes[..8]);
         TransactionId::new(destination)
     }
 
@@ -396,7 +395,10 @@ mod tests {
     async fn clean_stale_with_empty_cache() {
         let mut cache = RecentlyIncludedTransactions::new();
 
-        // Clean stale entries on empty cache should not crash
+        assert_eq!(cache.timestamped_ids.len(), 0);
+        assert_eq!(cache.transactions.len(), 0);
+
+        // Should not do anything
         cache.clean_stale();
 
         assert_eq!(cache.timestamped_ids.len(), 0);
