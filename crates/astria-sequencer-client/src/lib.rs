@@ -24,9 +24,9 @@ pub use astria_core::{
     sequencerblock::v1::SequencerBlock,
 };
 use futures_util::{
-    FutureExt,
+    FutureExt as _,
     Stream,
-    StreamExt,
+    StreamExt as _,
 };
 pub use tendermint;
 use tendermint::block::Height;

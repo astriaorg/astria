@@ -8,7 +8,7 @@ use std::fmt::{
 
 use super::{
     Action,
-    ActionName,
+    ActionName as _,
 };
 
 impl Action {

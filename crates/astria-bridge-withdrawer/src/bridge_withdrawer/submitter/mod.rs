@@ -21,7 +21,7 @@ use astria_eyre::eyre::{
     self,
     ensure,
     eyre,
-    Context,
+    Context as _,
 };
 pub(crate) use builder::Builder;
 pub(super) use builder::Handle;
@@ -35,7 +35,7 @@ use sequencer_client::{
         Client as _,
     },
     Address,
-    SequencerClientExt,
+    SequencerClientExt as _,
     Transaction,
 };
 use state::State;

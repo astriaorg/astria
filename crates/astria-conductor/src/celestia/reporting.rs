@@ -1,8 +1,8 @@
 //! Various newtype-wrappers to emit serde-serialized tracing event fields.
 use serde::ser::{
     Serialize,
-    SerializeSeq,
-    SerializeStruct,
+    SerializeSeq as _,
+    SerializeStruct as _,
 };
 
 use super::{

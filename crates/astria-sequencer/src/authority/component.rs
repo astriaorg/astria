@@ -26,7 +26,7 @@ use super::{
     ValidatorSet,
 };
 use crate::{
-    accounts::AddressBytes,
+    accounts::AddressBytes as _,
     action_handler::impls::validator_update::use_pre_aspen_validator_updates,
     component::Component,
 };

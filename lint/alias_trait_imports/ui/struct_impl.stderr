@@ -1,0 +1,14 @@
+warning: Trait `Write` is imported but not explicitly used. Consider `Write as _`.
+  --> $DIR/struct_impl.rs:4:5
+   |
+LL |     use std::fmt::Write;
+   |     ^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(alias_trait_imports)]` on by default
+help: Consider importing the trait `as _` to avoid namespace pollution: `Write as _`
+   |
+LL |     use std::fmt::Write as _;
+   |
+
+warning: 1 warning emitted
+

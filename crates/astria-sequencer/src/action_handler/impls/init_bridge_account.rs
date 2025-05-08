@@ -19,7 +19,7 @@ use crate::{
     address::StateReadExt as _,
     bridge::{
         StateReadExt as _,
-        StateWriteExt,
+        StateWriteExt as _,
     },
     transaction::StateReadExt as _,
 };

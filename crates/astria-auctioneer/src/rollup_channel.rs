@@ -22,7 +22,7 @@ use astria_eyre::eyre::{
 use futures::{
     stream::BoxStream,
     Stream,
-    StreamExt,
+    StreamExt as _,
 };
 use prost::Name as _;
 use tokio::sync::broadcast;

@@ -1,5 +1,5 @@
 use std::{
-    str::FromStr,
+    str::FromStr as _,
     sync::Arc,
 };
 

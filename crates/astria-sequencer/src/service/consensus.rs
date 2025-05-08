@@ -19,7 +19,7 @@ use tracing::{
     info,
     instrument,
     warn,
-    Instrument,
+    Instrument as _,
     Level,
 };
 

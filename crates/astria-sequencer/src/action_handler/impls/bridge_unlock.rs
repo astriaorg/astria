@@ -27,7 +27,7 @@ use crate::{
     address::StateReadExt as _,
     bridge::{
         StateReadExt as _,
-        StateWriteExt,
+        StateWriteExt as _,
     },
 };
 

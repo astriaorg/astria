@@ -27,7 +27,7 @@ use astria_core::{
         Upgrade,
         Upgrades,
     },
-    Protobuf,
+    Protobuf as _,
 };
 use bytes::Bytes;
 use cnidarium::Storage;

@@ -4,7 +4,7 @@ use astria_core::crypto::{
     Signature,
     VerificationKey,
 };
-use prost::Message;
+use prost::Message as _;
 use sequencer_client::{
     tendermint::{
         self,

@@ -3,7 +3,7 @@ use astria_eyre::eyre::{
     eyre,
     OptionExt as _,
     Result,
-    WrapErr,
+    WrapErr as _,
 };
 
 use super::commitment::GeneratedCommitments;

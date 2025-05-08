@@ -38,7 +38,7 @@ use astria_eyre::eyre::{
 use futures::{
     stream::FuturesUnordered,
     StreamExt as _,
-    TryStreamExt,
+    TryStreamExt as _,
 };
 use indexmap::IndexMap;
 use itertools::Itertools as _;

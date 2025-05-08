@@ -26,7 +26,7 @@ use cnidarium::{
 };
 use futures::{
     Future,
-    FutureExt,
+    FutureExt as _,
 };
 use into_check_tx_response::IntoCheckTxResponse as _;
 pub(crate) use outcome::CheckTxOutcome;

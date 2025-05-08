@@ -63,7 +63,7 @@ use astria_eyre::{
 };
 use bytes::Bytes;
 use cnidarium::{
-    ArcStateDeltaExt,
+    ArcStateDeltaExt as _,
     Snapshot,
     StagedWriteBatch,
     StateDelta,

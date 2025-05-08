@@ -44,7 +44,7 @@ use tracing::{
 
 use crate::{
     accounts::{
-        AddressBytes,
+        AddressBytes as _,
         StateWriteExt as _,
     },
     action_handler::ActionHandler,
@@ -52,7 +52,7 @@ use crate::{
     app::StateReadExt as _,
     bridge::{
         StateReadExt as _,
-        StateWriteExt,
+        StateWriteExt as _,
     },
     ibc::{
         StateReadExt as _,

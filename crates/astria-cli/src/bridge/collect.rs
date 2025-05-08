@@ -24,7 +24,7 @@ use color_eyre::eyre::{
 use ethers::{
     core::types::Block,
     providers::{
-        Middleware,
+        Middleware as _,
         Provider,
         ProviderError,
         StreamExt as _,

@@ -3,7 +3,7 @@ use std::{
     net::AddrParseError,
 };
 
-use itertools::Itertools;
+use itertools::Itertools as _;
 use thiserror::Error;
 
 #[cfg(doc)]

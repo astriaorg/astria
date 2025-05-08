@@ -20,7 +20,7 @@ use tracing::instrument;
 
 use crate::{
     accounts::AddressBytes as _,
-    address::StateReadExt,
+    address::StateReadExt as _,
     app::StateReadExt as _,
     assets::StateReadExt as _,
     bridge::StateReadExt as _,

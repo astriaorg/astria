@@ -131,7 +131,7 @@ impl Client {
         timestamp: Timestamp,
         sequencer_block_hash: Hash,
     ) -> eyre::Result<ExecutedBlockMetadata> {
-        use prost::Message;
+        use prost::Message as _;
 
         let transactions = transactions
             .into_iter()

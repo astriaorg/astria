@@ -1,0 +1,20 @@
+[package]
+name = "alias_trait_imports"
+version = "0.1.0"
+authors = ["https://astria.org"]
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+clippy_utils = { git = "https://github.com/rust-lang/rust-clippy", rev = "aa0d551351a9c15d8a95fdb3e2946b505893dda8" }
+dylint_linting = "3.3.0"
+async-trait = { workspace = true }
+
+[dev-dependencies]
+dylint_testing = "3.3.0"
+
+[package.metadata.rust-analyzer]
+rustc_private = true
