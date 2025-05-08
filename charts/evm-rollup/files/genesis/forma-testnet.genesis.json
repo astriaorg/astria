@@ -69,8 +69,8 @@
         "extraDataOverride": "0xdb8f666f726d612d736b6574636870616483027100831a6cd8825460",
         "eip1559Params": { "minBaseFee": 18000000000, "elasticityMultiplier": 2, "baseFeeChangeDenominator": 8 }
       },
-      "dawnMigration": {
-        "height": 100000000,
+      "palette": {
+        "height": 13763210,
         "halt": true,
         "sequencer": {
           "chainId": "dawn-1",
