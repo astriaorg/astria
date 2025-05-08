@@ -221,14 +221,10 @@ mod tests {
     use std::collections::BTreeMap;
 
     use astria_core::{
-        generated::astria::sequencerblock::v1::SequencerBlockHeader as RawSequencerBlockHeader,
+        generated::astria::sequencerblock::v1alpha1::SequencerBlockHeader as RawSequencerBlockHeader,
         primitive::v1::RollupId,
-        sequencerblock::v1::{
-            block::{
-                self,
-                ExtendedCommitInfoWithProof,
-                SequencerBlockHeader,
-            },
+        sequencerblock::v1alpha1::{
+            block::SequencerBlockHeader,
             celestia::UncheckedSubmittedMetadata,
         },
     };
@@ -351,11 +347,6 @@ mod tests {
         let data_hash = tree.root();
         let rollup_transactions_proof = tree.construct_proof(0).unwrap();
         let rollup_ids_proof = tree.construct_proof(1).unwrap();
-        let extended_commit_info_proof = tree.construct_proof(2).unwrap();
-        let extended_commit_info_with_proof = ExtendedCommitInfoWithProof::unchecked_from_parts(
-            extended_commit_info.into(),
-            extended_commit_info_proof,
-        );
 
         let (validator_set, proposer_address, commit) =
             make_test_validator_set_and_commit(1, "test-chain".try_into().unwrap());
@@ -374,13 +365,11 @@ mod tests {
         let header = SequencerBlockHeader::try_from_raw(header).unwrap();
 
         let sequencer_blob = UncheckedSubmittedMetadata {
-            block_hash: block::Hash::new([0u8; 32]),
+            block_hash: [0u8; 32],
             header,
             rollup_ids: vec![],
             rollup_transactions_proof,
             rollup_ids_proof,
-            upgrade_change_hashes: vec![],
-            extended_commit_info_with_proof: Some(extended_commit_info_with_proof),
         }
         .try_into_celestia_sequencer_blob()
         .unwrap();
@@ -408,12 +397,6 @@ mod tests {
         let data_hash = tree.root();
         let rollup_transactions_proof = tree.construct_proof(0).unwrap();
         let rollup_ids_proof = tree.construct_proof(1).unwrap();
-        let extended_commit_info_proof = tree.construct_proof(2).unwrap();
-        let extended_commit_info_with_proof = ExtendedCommitInfoWithProof::unchecked_from_parts(
-            extended_commit_info.into(),
-            extended_commit_info_proof,
-        );
-
         let (validator_set, proposer_address, commit) =
             make_test_validator_set_and_commit(1, "test-chain".try_into().unwrap());
 
@@ -431,13 +414,11 @@ mod tests {
         let header = SequencerBlockHeader::try_from_raw(header).unwrap();
 
         let sequencer_blob = UncheckedSubmittedMetadata {
-            block_hash: block::Hash::new([0u8; 32]),
+            block_hash: [0u8; 32],
             header,
             rollup_ids: vec![rollup_id],
             rollup_transactions_proof,
             rollup_ids_proof,
-            upgrade_change_hashes: vec![],
-            extended_commit_info_with_proof: Some(extended_commit_info_with_proof),
         }
         .try_into_celestia_sequencer_blob()
         .unwrap();

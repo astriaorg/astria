@@ -2,8 +2,7 @@ use std::collections::HashMap;
 
 use astria_core::{
     primitive::v1::RollupId,
-    sequencerblock::v1::{
-        block,
+    sequencerblock::v1alpha1::{
         celestia::UncheckedSubmittedMetadata,
         SubmittedMetadata,
         SubmittedRollupData,
@@ -53,7 +52,6 @@ pub(super) fn reconstruct_blocks_from_verified_blobs(
         if let Some(header_blob) =
             remove_header_blob_matching_rollup_blob(&mut header_blobs, &rollup)
         {
-            let extended_commit_info = header_blob.extended_commit_info().cloned();
             let UncheckedSubmittedMetadata {
                 block_hash,
                 header,
@@ -64,7 +62,6 @@ pub(super) fn reconstruct_blocks_from_verified_blobs(
                 block_hash,
                 header,
                 transactions: rollup.into_unchecked().transactions,
-                extended_commit_info,
             });
         } else {
             let reason = if header_blobs.contains_key(rollup.sequencer_block_hash()) {
@@ -74,7 +71,7 @@ pub(super) fn reconstruct_blocks_from_verified_blobs(
                 "no sequencer header blob matching the rollup blob's block hash found"
             };
             info!(
-                block_hash = %rollup.sequencer_block_hash(),
+                block_hash = %hex::encode(rollup.sequencer_block_hash()),
                 reason,
                 "dropping rollup blob",
             );
@@ -85,14 +82,13 @@ pub(super) fn reconstruct_blocks_from_verified_blobs(
     for header_blob in header_blobs.into_values() {
         if header_blob.contains_rollup_id(rollup_id) {
             warn!(
-                block_hash = %header_blob.block_hash(),
+                block_hash = %hex::encode(header_blob.block_hash()),
                 "sequencer header blob contains the target rollup ID, but no matching rollup blob was found; dropping it",
             );
         } else {
             reconstructed_blocks.push(ReconstructedBlock {
                 celestia_height,
                 block_hash: *header_blob.block_hash(),
-                extended_commit_info: header_blob.extended_commit_info().cloned(),
                 header: header_blob.into_unchecked().header,
                 transactions: vec![],
             });
@@ -102,7 +98,7 @@ pub(super) fn reconstruct_blocks_from_verified_blobs(
 }
 
 fn remove_header_blob_matching_rollup_blob(
-    headers: &mut HashMap<block::Hash, SubmittedMetadata>,
+    headers: &mut HashMap<[u8; 32], SubmittedMetadata>,
     rollup: &SubmittedRollupData,
 ) -> Option<SubmittedMetadata> {
     // chaining methods and returning () to use the ? operator and to not bind the value

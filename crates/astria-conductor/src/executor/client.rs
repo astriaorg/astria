@@ -11,9 +11,8 @@ use astria_core::{
             self as raw,
             execution_service_client::ExecutionServiceClient,
         },
-        sequencerblock::v1::RollupData,
+        sequencerblock::v1alpha1::RollupData,
     },
-    sequencerblock::v1::block::Hash,
     Protobuf as _,
 };
 use astria_eyre::eyre::{
@@ -129,7 +128,7 @@ impl Client {
         parent_hash: String,
         transactions: Vec<Bytes>,
         timestamp: Timestamp,
-        sequencer_block_hash: Hash,
+        sequencer_block_hash: [u8; 32],
     ) -> eyre::Result<ExecutedBlockMetadata> {
         use prost::Message;
 
@@ -144,7 +143,7 @@ impl Client {
             parent_hash,
             transactions,
             timestamp: Some(timestamp),
-            sequencer_block_hash: sequencer_block_hash.to_string(),
+            sequencer_block_hash: hex::encode(sequencer_block_hash).to_string(),
         };
         let response = tryhard::retry_fn(|| {
             let mut client = self.inner.clone();
