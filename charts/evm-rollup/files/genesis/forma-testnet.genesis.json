@@ -71,11 +71,11 @@
       },
       "palette": {
         "height": 13763210,
-        "halt": true,
+        "snapshotChecksum": "0x81cf050db3877b92f80d1dea5da11e05988e4d544fb4725dad261a8b8797a0e0",
         "sequencer": {
           "chainId": "dawn-1",
           "addressPrefix": "astria",
-          "startHeight": 100000000
+          "startHeight": 7654779
         }
       }
     },
