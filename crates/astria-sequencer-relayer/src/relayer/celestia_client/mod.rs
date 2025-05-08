@@ -22,11 +22,17 @@ use std::{
 };
 
 use astria_core::generated::{
-    celestia::v1::{
-        query_client::QueryClient as BlobQueryClient,
-        MsgPayForBlobs,
-        Params as BlobParams,
-        QueryParamsRequest as QueryBlobParamsRequest,
+    celestia::{
+        blob::v1::{
+            query_client::QueryClient as BlobQueryClient,
+            MsgPayForBlobs,
+            Params as BlobParams,
+            QueryParamsRequest as QueryBlobParamsRequest,
+        },
+        core::v1::tx::{
+            tx_client::TxClient as TxStatusClient,
+            TxStatusRequest,
+        },
     },
     cosmos::{
         auth::v1beta1::{
@@ -57,8 +63,6 @@ use astria_core::generated::{
             BroadcastTxRequest,
             BroadcastTxResponse,
             Fee,
-            GetTxRequest,
-            GetTxResponse,
             ModeInfo,
             SignDoc,
             SignerInfo,
@@ -71,7 +75,6 @@ use astria_core::generated::{
         BlobTx,
     },
 };
-use astria_eyre::eyre::Report;
 pub(super) use builder::{
     Builder as CelestiaClientBuilder,
     BuilderError,
@@ -79,6 +82,10 @@ pub(super) use builder::{
 use celestia_cost_params::CelestiaCostParams;
 pub(crate) use celestia_keys::CelestiaKeys;
 use celestia_types::Blob;
+use error::{
+    ConfirmSubmissionError,
+    TxStatusError,
+};
 pub(super) use error::{
     GrpcResponseError,
     ProtobufDecodeError,
@@ -120,25 +127,43 @@ use tracing::{
     Level,
 };
 
+use crate::Metrics;
+
 // From https://github.com/celestiaorg/cosmos-sdk/blob/v1.18.3-sdk-v0.46.14/types/errors/errors.go#L75
 const INSUFFICIENT_FEE_CODE: u32 = 13;
+
+// From https://github.com/celestiaorg/celestia-core/blob/d2ca0a2870973e17eadb62a763788bba1f04a1fb/rpc/core/tx.go#L20-L25
+const TX_STATUS_UNKNOWN: &str = "UNKNOWN";
+const TX_STATUS_PENDING: &str = "PENDING";
+const TX_STATUS_EVICTED: &str = "EVICTED";
+const TX_STATUS_COMMITTED: &str = "COMMITTED";
+
+enum TxStatus {
+    Unknown,
+    Pending,
+    Evicted,
+    Committed(i64),
+}
 
 /// A client using the gRPC interface of a remote Celestia app to submit blob data to the Celestia
 /// chain.
 ///
 /// It is constructed using a [`CelestiaClientBuilder`].
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(super) struct CelestiaClient {
     /// The inner `tonic` gRPC channel shared by the various generated gRPC clients.
     grpc_channel: Channel,
-    /// A gRPC client to broadcast and get transactions.
+    /// A gRPC client to broadcast transactions.
     tx_client: TxClient<Channel>,
+    /// A gRPC client for querying transaction status.
+    tx_status_client: TxStatusClient<Channel>,
     /// The crypto keys associated with our Celestia account.
     signing_keys: CelestiaKeys,
     /// The Bech32-encoded address of our Celestia account.
     address: Bech32Address,
     /// The Celestia network ID.
     chain_id: String,
+    metrics: &'static Metrics,
 }
 
 impl CelestiaClient {
@@ -209,8 +234,8 @@ impl CelestiaClient {
         let hex_encoded_tx_hash = self.broadcast_tx(blob_tx).await?;
         if hex_encoded_tx_hash != blob_tx_hash.to_hex() {
             // This is not a critical error. Worst case, we restart the process now and try for a
-            // short while to `GetTx` for this tx using the wrong hash, resulting in a likely
-            // duplicate submission of this set of blobs.
+            // short while to get `TxStatus` for this tx using the wrong hash, resulting in a
+            // likely duplicate submission of this set of blobs.
             warn!(
                 "tx hash `{hex_encoded_tx_hash}` returned from celestia app is not the same as \
                  the locally calculated one `{blob_tx_hash}`; submission file has invalid data"
@@ -218,15 +243,16 @@ impl CelestiaClient {
         }
         info!(tx_hash = %hex_encoded_tx_hash, "broadcast blob transaction succeeded");
 
-        let height = self.confirm_submission(hex_encoded_tx_hash).await;
-        Ok(height)
+        self.confirm_submission(hex_encoded_tx_hash)
+            .await
+            .map_err(TrySubmitError::FailedToConfirmSubmission)
     }
 
-    /// Repeatedly sends `GetTx` until a successful response is received or `timeout` duration has
-    /// elapsed.
+    /// Repeatedly sends `TxStatus` until a successful response is received or `timeout` duration
+    /// has elapsed.
     ///
     /// Returns the height of the Celestia block in which the blobs were submitted, or `None` if
-    /// timed out.
+    /// timed out or an error was returned.
     #[instrument(skip_all)]
     pub(super) async fn confirm_submission_with_timeout(
         &mut self,
@@ -236,6 +262,7 @@ impl CelestiaClient {
         tokio::time::timeout(timeout, self.confirm_submission(blob_tx_hash.to_hex()))
             .await
             .ok()
+            .and_then(Result::ok)
     }
 
     #[instrument(skip_all, err)]
@@ -322,67 +349,128 @@ impl CelestiaClient {
         lowercase_hex_encoded_tx_hash_from_response(response)
     }
 
-    /// Returns `Some(height)` if the tx submission has completed, or `None` if it is still
-    /// pending.
-    #[instrument(skip_all, err)]
-    async fn get_tx(&mut self, hex_encoded_tx_hash: String) -> Result<Option<u64>, TrySubmitError> {
-        let request = GetTxRequest {
-            hash: hex_encoded_tx_hash,
-        };
-        let response = self.tx_client.get_tx(request).await;
-        // trace-level logging, so using Debug format is ok.
-        #[cfg_attr(dylint_lib = "tracing_debug_field", allow(tracing_debug_field))]
-        {
-            trace!(?response);
+    /// Returns the response of `TxStatus` RPC call given a transaction's hash. If the transaction
+    /// is committed, the height of the block in which it was committed will be returned with
+    /// `TxStatusResponse::Committed`.
+    ///
+    /// # Errors
+    /// Returns an error in the following cases:
+    /// - The call to `TxStatus` failed.
+    /// - The status of the transaction is not recognized.
+    #[instrument(skip_all, err(level = Level::WARN))]
+    async fn tx_status(&mut self, hex_encoded_tx_hash: String) -> Result<TxStatus, TxStatusError> {
+        let response = self
+            .tx_status_client
+            .tx_status(TxStatusRequest {
+                tx_id: hex_encoded_tx_hash.clone(),
+            })
+            .await
+            .map_err(|e| TxStatusError::FailedToGetTxStatus(e.into()))?;
+        match response.get_ref().status.as_str() {
+            TX_STATUS_UNKNOWN => Ok(TxStatus::Unknown),
+            TX_STATUS_PENDING => Ok(TxStatus::Pending),
+            TX_STATUS_EVICTED => Ok(TxStatus::Evicted),
+            TX_STATUS_COMMITTED => Ok(TxStatus::Committed(response.get_ref().height)),
+            _ => Err(TxStatusError::UnfamiliarStatus {
+                status: response.get_ref().status.to_string(),
+                tx_hash: hex_encoded_tx_hash,
+            }),
         }
-        block_height_from_response(response)
     }
 
-    /// Repeatedly sends `GetTx` until a successful response is received.  Returns the height of the
-    /// Celestia block in which the blobs were submitted.
-    #[instrument(skip_all, fields(hex_encoded_tx_hash))]
-    async fn confirm_submission(&mut self, hex_encoded_tx_hash: String) -> u64 {
-        // The min seconds to sleep after receiving a GetTx response and sending the next request.
-        const MIN_POLL_INTERVAL_SECS: u64 = 1;
-        // The max seconds to sleep after receiving a GetTx response and sending the next request.
-        const MAX_POLL_INTERVAL_SECS: u64 = 12;
-        // How long to wait after starting `confirm_submission` before starting to log errors.
-        const START_LOGGING_DELAY: Duration = Duration::from_secs(12);
-        // The minimum duration between logging errors.
-        const LOG_ERROR_INTERVAL: Duration = Duration::from_secs(5);
+    /// Repeatedly calls `TxStatus` until the transaction is committed, returning the height of the
+    /// block in which the transaction was included.
+    ///
+    /// # Errors
+    /// Returns an error in the following cases:
+    /// - The transaction was evicted from the mempool.
+    /// - The status of the transaction is unknown.
+    /// - An error occurred while retrieving the transaction's status.
+    #[instrument(skip_all, fields(hex_encoded_tx_hash), err(level = Level::DEBUG))]
+    async fn confirm_submission(
+        &mut self,
+        hex_encoded_tx_hash: String,
+    ) -> Result<u64, ConfirmSubmissionError> {
+        // The minimum amount of time to sleep after receiving a TxStatus response and sending the
+        // next request.
+        const MIN_POLL_INTERVAL: Duration = Duration::from_secs(1);
+        // The maximum amount of time to sleep after receiving a TxStatus response and sending the
+        // next request.
+        const MAX_POLL_INTERVAL: Duration = Duration::from_secs(6);
+        // The amount of time to wait before switching to warn level logging instead of debug.
+        // Corresponds with the Celestia block time.
+        const START_WARN_DELAY: Duration = Duration::from_secs(6);
+        // The duration between logs.
+        const LOG_INTERVAL: Duration = Duration::from_secs(3);
+        // The maximum amount of time to wait for a transaction to be committed if its status is
+        // `UNKNOWN`. Corresponds with Celestia block time + 1 second down time.
+        const MAX_WAIT_FOR_UNKNOWN: Duration = Duration::from_secs(7);
 
         let start = Instant::now();
         let mut logged_at = start;
 
-        let mut log_if_due = |maybe_error: Option<TrySubmitError>| {
-            if start.elapsed() <= START_LOGGING_DELAY || logged_at.elapsed() <= LOG_ERROR_INTERVAL {
+        let mut log_if_due = |status: &str| {
+            if logged_at.elapsed() <= LOG_INTERVAL {
                 return;
             }
-            let reason = maybe_error.map_or(Report::msg("transaction still pending"), Report::new);
-            warn!(
-                %reason,
-                tx_hash = %hex_encoded_tx_hash,
-                elapsed_seconds = start.elapsed().as_secs_f32(),
-                "waiting to confirm blob submission"
-            );
+
+            // If elapsed time since start is under `START_WARN_DELAY`, log at debug level at a
+            // constant interval. If elapsed time since start is over `START_WARN_DELAY`, this means
+            // at least one Celestia block has passed and the transaction should have been
+            // submitted. We then start logging at the warn level.
+            if start.elapsed() > START_WARN_DELAY {
+                warn!(
+                    reason = format!("transaction status: {status}"),
+                    tx_hash = %hex_encoded_tx_hash,
+                    elapsed_seconds = start.elapsed().as_secs_f32(),
+                    "waiting to confirm blob submission"
+                );
+            } else {
+                debug!(
+                    reason = format!("transaction status: {status}"),
+                    tx_hash = %hex_encoded_tx_hash,
+                    elapsed_seconds = start.elapsed().as_secs_f32(),
+                    "waiting to confirm blob submission"
+                );
+            }
             logged_at = Instant::now();
         };
 
-        let mut sleep_secs = MIN_POLL_INTERVAL_SECS;
+        let mut poll_interval = MIN_POLL_INTERVAL;
         loop {
-            tokio::time::sleep(Duration::from_secs(sleep_secs)).await;
-            match self.get_tx(hex_encoded_tx_hash.clone()).await {
-                Ok(Some(height)) => return height,
-                Ok(None) => {
-                    sleep_secs = MIN_POLL_INTERVAL_SECS;
-                    log_if_due(None);
+            tokio::time::sleep(poll_interval).await;
+            match self.tx_status(hex_encoded_tx_hash.clone()).await {
+                Ok(TxStatus::Unknown) => {
+                    if start.elapsed() > MAX_WAIT_FOR_UNKNOWN {
+                        self.metrics
+                            .increment_celestia_unknown_status_transaction_count();
+                        return Err(ConfirmSubmissionError::StatusUnknown {
+                            tx_hash: hex_encoded_tx_hash,
+                        });
+                    }
+                    log_if_due("UNKNOWN");
+                }
+                Ok(TxStatus::Pending) => {
+                    log_if_due("PENDING");
+                }
+                Ok(TxStatus::Evicted) => {
+                    self.metrics.increment_celestia_evicted_transaction_count();
+                    return Err(ConfirmSubmissionError::Evicted {
+                        tx_hash: hex_encoded_tx_hash,
+                    });
+                }
+                Ok(TxStatus::Committed(height)) => {
+                    return height
+                        .try_into()
+                        .map_err(|_| ConfirmSubmissionError::NegativeHeight {
+                            height,
+                        })
                 }
                 Err(error) => {
-                    sleep_secs =
-                        std::cmp::min(sleep_secs.saturating_mul(2), MAX_POLL_INTERVAL_SECS);
-                    log_if_due(Some(error));
+                    return Err(ConfirmSubmissionError::TxStatus(error));
                 }
             }
+            poll_interval = std::cmp::min(poll_interval.saturating_mul(2), MAX_POLL_INTERVAL);
         }
     }
 }
@@ -492,53 +580,6 @@ fn lowercase_hex_encoded_tx_hash_from_response(
     }
     tx_response.txhash.make_ascii_lowercase();
     Ok(tx_response.txhash)
-}
-
-/// Extracts the block height from the given response if available, or `None` if the transaction is
-/// not available yet.
-fn block_height_from_response(
-    response: Result<Response<GetTxResponse>, Status>,
-) -> Result<Option<u64>, TrySubmitError> {
-    let ok_response = match response {
-        Ok(resp) => resp,
-        Err(status) => {
-            // trace-level logging, so using Debug format is ok.
-            #[cfg_attr(dylint_lib = "tracing_debug_field", allow(tracing_debug_field))]
-            {
-                trace!(?status);
-            }
-            if status.code() == tonic::Code::NotFound {
-                trace!(msg = status.message(), "transaction still pending");
-                return Ok(None);
-            }
-            return Err(TrySubmitError::FailedToGetTx(GrpcResponseError::from(
-                status,
-            )));
-        }
-    };
-    let tx_response = ok_response
-        .into_inner()
-        .tx_response
-        .ok_or_else(|| TrySubmitError::EmptyGetTxResponse)?;
-    if tx_response.code != 0 {
-        let error = TrySubmitError::GetTxResponseErrorCode {
-            tx_hash: tx_response.txhash,
-            code: tx_response.code,
-            namespace: tx_response.codespace,
-            log: tx_response.raw_log,
-        };
-        return Err(error);
-    }
-    if tx_response.height == 0 {
-        trace!(tx_hash = %tx_response.txhash, "transaction still pending");
-        return Ok(None);
-    }
-
-    let height = u64::try_from(tx_response.height)
-        .map_err(|_| TrySubmitError::GetTxResponseNegativeBlockHeight(tx_response.height))?;
-
-    debug!(tx_hash = %tx_response.txhash, height, "transaction succeeded");
-    Ok(Some(height))
 }
 
 // Copied from https://github.com/celestiaorg/celestia-app/blob/v1.4.0/x/blob/types/payforblob.go#L174
