@@ -6,7 +6,13 @@ use astria_sequencer_client::{
     HttpClient,
     SequencerClientExt as _,
 };
-use clap::Subcommand;
+use clap::{
+    builder::{
+        PossibleValuesParser,
+        TypedValueParser,
+    },
+    Subcommand,
+};
 use color_eyre::eyre::{
     self,
     Ok,
@@ -25,6 +31,7 @@ impl Command {
             SubCommand::Create(create) => create.run(),
             SubCommand::Balance(balance) => balance.run().await,
             SubCommand::Nonce(nonce) => nonce.run().await,
+            SubCommand::Recover(recover) => recover.run(),
         }
     }
 }
@@ -33,6 +40,8 @@ impl Command {
 enum SubCommand {
     /// Generates a new ED25519 keypair.
     Create(Create),
+    /// Recovers an ED25519 keypair from a mnemonic.
+    Recover(Recover),
     /// Queries the Sequencer for the balances of an account.
     Balance(Balance),
     /// Queries the Sequencer for the current nonce of an account.
@@ -40,40 +49,67 @@ enum SubCommand {
 }
 
 #[derive(Debug, clap::Args)]
+struct Recover {
+    /// The address prefix
+    #[arg(long, default_value = "astria")]
+    prefix: String,
+    /// The recovery mnemonic phrase, must be wrapped in quotes.
+    #[arg(long)]
+    mnemonic: String,
+}
+
+impl Recover {
+    fn run(self) -> eyre::Result<()> {
+        let bip39_mnemonic = bip39::Mnemonic::from_phrase(&self.mnemonic, bip39::Language::English)
+            .wrap_err("failed to recover mnemonic from phrase")?;
+        let seed = bip39::Seed::new(&bip39_mnemonic, "");
+        let seed_bytes: [u8; 32] = seed.as_bytes()[0..32]
+            .try_into()
+            .wrap_err("failed to convert seed to 32 bytes")?;
+
+        let signing_key = SigningKey::from(seed_bytes);
+
+        let pretty_signing_key = hex::encode(signing_key.as_bytes());
+        let pretty_verifying_key = hex::encode(signing_key.verification_key().as_bytes());
+
+        let pretty_address: Address = Address::builder()
+            .array(signing_key.address_bytes())
+            .prefix(&self.prefix)
+            .try_build()?;
+
+        println!("Recover Sequencer Account");
+        println!();
+        // TODO: don't print private keys to CLI, prefer writing to file:
+        // https://github.com/astriaorg/astria/issues/594
+        println!("Private Key: {pretty_signing_key}");
+        println!("Public Key:  {pretty_verifying_key}");
+        println!("Address:     {pretty_address}");
+        Ok(())
+    }
+}
+
+#[derive(Debug, clap::Args)]
 struct Create {
     /// The address prefix
     #[arg(long, default_value = "astria")]
     prefix: String,
-    /// Optional mnemonic to use for key generation.
-    #[arg(long = "from-mnemonic", default_value = None)]
-    mnemonic: Option<String>,
-    /// Mnemonic length.
-    #[arg(long, default_value = "24")]
+    /// Number of words to use in the mnemonic phrase
+    #[arg(
+        long,
+        default_value = "24",
+        value_parser(mnemonic_length_value_parser())
+    )]
     mnemonic_length: u8,
 }
 
 impl Create {
     fn run(self) -> eyre::Result<()> {
-        let bip39_mnemonic = if let Some(mnemonic) = self.mnemonic {
-            bip39::Mnemonic::validate(&mnemonic, bip39::Language::English)
-                .wrap_err("phrase verification failed")?;
-            bip39::Mnemonic::from_phrase(&mnemonic, bip39::Language::English)
-                .wrap_err("failed to create mnemonic")?
-        } else {
-            let mnemonic_type = match self.mnemonic_length {
-                12 => bip39::MnemonicType::Words12,
-                15 => bip39::MnemonicType::Words15,
-                18 => bip39::MnemonicType::Words18,
-                21 => bip39::MnemonicType::Words21,
-                24 => bip39::MnemonicType::Words24,
-                _ => {
-                    return Err(eyre::eyre!(
-                        "mnemonic length must be one of: 12, 15, 18, 21, or 24"
-                    ))
-                }
-            };
-            bip39::Mnemonic::new(mnemonic_type, bip39::Language::English)
+        let mnemonic_type = match self.mnemonic_length {
+            12 => bip39::MnemonicType::Words12,
+            24 => bip39::MnemonicType::Words24,
+            _ => unreachable!("clap arg value parsing should make this unreachable"),
         };
+        let bip39_mnemonic = bip39::Mnemonic::new(mnemonic_type, bip39::Language::English);
 
         let seed = bip39::Seed::new(&bip39_mnemonic, "");
         let seed_bytes: [u8; 32] = seed.as_bytes()[0..32]
@@ -159,4 +195,8 @@ struct ArgsInner {
     sequencer_url: String,
     /// The address of the Sequencer account
     address: Address,
+}
+
+fn mnemonic_length_value_parser() -> impl TypedValueParser {
+    PossibleValuesParser::new(["12", "24"]).map(|v| v.parse::<u8>().unwrap())
 }

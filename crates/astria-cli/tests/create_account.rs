@@ -46,6 +46,7 @@ impl Resources {
     }
 }
 
+#[track_caller]
 fn new_create_account_command() -> Result<Command> {
     // astria-cli sequencer account create command
     let mut cmd = Command::cargo_bin(env!("CARGO_PKG_NAME"))?;
@@ -61,7 +62,6 @@ fn should_reconstruct_account() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
-#[track_caller]
 fn should_create_account() -> Result<()> {
     let mut cmd = new_create_account_command()?;
     cmd.assert()
