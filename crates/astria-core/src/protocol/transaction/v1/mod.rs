@@ -235,14 +235,14 @@ impl Transaction {
     }
 
     #[must_use]
-    pub fn into_parts(self) -> (Vec<Action>, Group, TransactionParams, VerificationKey) {
+    pub fn into_parts(self) -> TransactionParts {
         let group = self.group();
-        (
-            self.body.actions.into_actions(),
+        TransactionParts {
+            actions: self.body.actions.into_actions(),
             group,
-            self.body.params,
-            self.verification_key,
-        )
+            params: self.body.params,
+            verification_key: self.verification_key,
+        }
     }
 }
 
@@ -585,6 +585,14 @@ impl TransactionParams {
     pub fn chain_id(&self) -> &str {
         &self.chain_id
     }
+}
+
+/// The parts of a [`Transaction`] used in the sequencer to convert to a checked transaction.
+pub struct TransactionParts {
+    pub actions: Vec<Action>,
+    pub group: Group,
+    pub params: TransactionParams,
+    pub verification_key: VerificationKey,
 }
 
 #[cfg(test)]

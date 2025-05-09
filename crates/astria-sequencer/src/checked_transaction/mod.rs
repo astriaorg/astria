@@ -16,6 +16,7 @@ use astria_core::{
         Group,
         Transaction,
         TransactionParams,
+        TransactionParts,
     },
     Protobuf as _,
 };
@@ -127,7 +128,12 @@ impl CheckedTransaction {
         let tx_id = TransactionId::new(sha2::Sha256::digest(&tx_bytes).into());
         let tx_chain_id = tx.chain_id().to_string();
 
-        let (unchecked_actions, group, params, verification_key) = tx.into_parts();
+        let TransactionParts {
+            actions: unchecked_actions,
+            group,
+            params,
+            verification_key,
+        } = tx.into_parts();
         let tx_signer = *verification_key.address_bytes();
         let checked_actions =
             match convert_actions(unchecked_actions, tx_signer, tx_id, state).await {
