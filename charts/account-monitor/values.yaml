@@ -1,0 +1,74 @@
+global:
+  namespaceOverride: ""
+  replicaCount: 1
+  # Whether to use tty readable logging for astria services, when false use json.
+  useTTY: false
+  dev: false
+
+images:
+  accountMonitor:
+    repo: ghcr.io/astriaorg/account-monitor
+    pullPolicy: IfNotPresent
+    tag: latest
+    devTag: latest
+
+config:
+  logLevel: "debug"
+  sequencerFeeAsset: ""
+  queryIntervalMs: "10000"
+  sequencerRpc: ""
+  sequencerChainId: ""
+  sequencerAccounts:
+  #  - "astria1f9yperk95zrtv72wvf523cx9hk9m72wuqd2hfc"
+
+otel:
+  enabled: false
+  serviceName: "account-monitor"
+  endpoint: ""
+  tracesEndpoint: ""
+  tracesCompression: "gzip"
+  tracesTimeout: "10"
+  otlpHeaders: ""
+  traceHeaders: ""
+
+serviceMonitor:
+  # set to enable port svc and service monitor
+  enabled: false
+  port: 6060
+  additionalLabels:
+    release: kube-prometheus-stack
+
+alerting:
+  enabled: false
+  interval: ""
+  additionalLabels:
+    release: kube-prometheus-stack
+  annotations: {}
+  # scrapeTimeout: 10s
+  # path: /metrics
+  prometheusRule:
+    enabled: true
+    additionalLabels:
+      release: kube-prometheus-stack
+    namespace: monitoring
+    rules:
+    - alert: Account_Monitor_Down
+      expr: up{container="account-monitor"} == 0  # Insert your query Expression
+      for: 1m  # Rough number but should be enough to init warn
+      labels:
+        severity: warning
+      annotations:
+        summary: Account Monitor is Down (instance {{ $labels.instance }})
+        description: "Account Monitor '{{ $labels.namespace }}' has disappeared from Prometheus target discovery.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 100Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# Default service ports
+ports:
+  metrics: 9000

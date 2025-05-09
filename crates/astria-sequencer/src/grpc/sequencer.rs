@@ -410,7 +410,7 @@ mod tests {
             .nonce(gapped_nonce)
             .build();
         mempool
-            .insert(tx, 0, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
+            .insert(tx, 0, &mock_balances(0, 0), mock_tx_cost(0, 0, 0))
             .await
             .unwrap();
 
@@ -421,7 +421,7 @@ mod tests {
             .build();
 
         mempool
-            .insert(tx, 0, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
+            .insert(tx, 0, &mock_balances(0, 0), mock_tx_cost(0, 0, 0))
             .await
             .unwrap();
 
@@ -432,7 +432,7 @@ mod tests {
                 .nonce(sequential_nonce)
                 .build();
         mempool
-            .insert(tx, 0, mock_balances(0, 0), mock_tx_cost(0, 0, 0))
+            .insert(tx, 0, &mock_balances(0, 0), mock_tx_cost(0, 0, 0))
             .await
             .unwrap();
 

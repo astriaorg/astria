@@ -61,10 +61,10 @@ Usage:
   just deploy cluster <NAMESPACE> <ENABLE_HUBBLE> (defaults: 'astria-dev-cluster', 'false')
 ")]
 cluster namespace=defaultNamespace enableHubble=hubbleEnabled:
-  @kind create cluster --image kindest/node:v1.28.9 --config dev/kubernetes/kind-cluster-config.yml
+  @kind create cluster --image kindest/node:v1.33.0 --config dev/kubernetes/kind-cluster-config.yml
   @just deploy::helm-add-if-not-exist cilium https://helm.cilium.io/ > /dev/null
   @echo "Installing cilium..."
-  @helm install cilium cilium/cilium --version 1.15.5 \
+  @helm install cilium cilium/cilium --version 1.17.3 \
       -f dev/values/cilium.yml \
       {{ if enableHubble == "true" { '--set hubble.enabled=true --set hubble.relay.enabled=true --set hubble.ui.enabled=true --set hubble.ui.ingress.enabled=true' } else { '' } }} \
       --namespace kube-system \
@@ -232,6 +232,15 @@ bridge-withdrawer:
     --namespace astria-dev-cluster \
     -f dev/values/withdrawer/values.yaml
 
+# Deploy Account Monitor
+[doc("
+Deploys local Account Monitor.
+")]
+account-monitor:
+  @echo "Deploying account-monitor..."
+  @helm install account-monitor-chart charts/account-monitor \
+    --namespace astria-dev-cluster \
+    -f dev/values/monitor/values.yaml
 
 # FIXME: This deployment currently fails
 # Deploy Hyperlane Agents

@@ -81,7 +81,7 @@ impl Fixture {
 
         for tx in benchmark_utils::transactions(TxTypes::AllTransfers) {
             app.mempool
-                .insert(tx.clone(), 0, mock_balances.clone(), mock_tx_cost.clone())
+                .insert(tx.clone(), 0, &mock_balances.clone(), mock_tx_cost.clone())
                 .await
                 .unwrap();
         }

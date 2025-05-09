@@ -29,7 +29,17 @@ Deletes local Sequencer and Celestia deployments.
 Usage:
   just delete astria-local <NAMESPACE> (default: 'astria-dev-cluster')
 ")]
-astria-local namespace=defaultNamespace: (delete-chart "celestia-local" namespace) (sequencer)
+astria-local namespace=defaultNamespace: delete-celestia-local sequencer
+
+
+# Delete Celestia Local
+######################
+[doc("
+Deletes local Celestia deployments.
+Usage:
+  just delete celestia-local <NAMESPACE> (default: 'astria-dev-cluster')
+")]
+celestia-local namespace=defaultNamespace: delete-celestia-local
 
 
 # Delete Graph Node
@@ -137,6 +147,11 @@ Deletes local EVM bridge-withdrawer deployment.
 ")]
 bridge-withdrawer: (delete-chart "evm-bridge-withdrawer")
 
+# Delete Account Monitor
+[doc("
+Deletes local account-monitor deployment.
+")]
+account-monitor: (delete-chart "account-monitor")
 
 # Delete Hyperlane Agents
 ##########################

@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package astria.mempool.v1;
+
+import "astria/mempool/v1/get_transaction_status_request.proto";
+import "astria/mempool/v1/submit_transaction_request.proto";
+import "astria/mempool/v1/submit_transaction_response.proto";
+import "astria/mempool/v1/transaction_status.proto";
+
+// `TransactionService` is a gRPC service which provides access to the Astria Sequencer's
+// app-side mempool. It allows clients to query a transaction's status and submit
+// transactions directly to the mempool.
+//
+// Submission to the app-side mempool via `TransactionService` is notably different
+// than submission directly to CometBFT, and users should consider the implications
+// of this when deciding how to submit transactions. If the transaction is accepted
+// into the mempool, it will not be gossiped to any other nodes, and hence will
+// not be persisted until it is executed and included in a block. As such, if the
+// Sequencer in question is stopped, any transactions submitted directly to the
+// app-side mempool which have not been executed will be lost.
+service TransactionService {
+  // `GetTransactionStatus` returns the status of a transaction in the app-side
+  // mempool.
+  rpc GetTransactionStatus(GetTransactionStatusRequest) returns (TransactionStatus);
+
+  // `SubmitTransaction` submits a transaction to the mempool and returns the
+  // status of the transaction in the mempool.
+  rpc SubmitTransaction(SubmitTransactionRequest) returns (SubmitTransactionResponse);
+}

@@ -77,6 +77,19 @@ pub mod astria {
         }
     }
 
+    #[path = ""]
+    pub mod mempool {
+        pub mod v1 {
+            include!("astria.mempool.v1.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impl {
+                use super::*;
+                include!("astria.mempool.v1.serde.rs");
+            }
+        }
+    }
+
     pub mod optimistic_execution {
         pub mod v1alpha1 {
             include!("astria.optimistic_execution.v1alpha1.rs");

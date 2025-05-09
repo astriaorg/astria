@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Fetch and submit transactions already in the rollup transaction pool before submitting
+    those coming from `eth_subscribe` [#2086](https://github.com/astriaorg/astria/pull/2086).
+
 ## [1.0.1] - 2025-03-06
 
 ### Changed

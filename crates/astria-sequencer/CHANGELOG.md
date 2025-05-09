@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Remove failed promotable instead of inserted transaction during mempool insertion
+  [#2135](https://github.com/astriaorg/astria/pull/2135).
+
 ## [3.0.0-rc.1]
 
 ### Added
@@ -37,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `astria_sequencer_extend_vote_duration_seconds`,
   `astria_sequencer_extend_vote_failure_count` and
   `astria_sequencer_verify_vote_extension_failure_count` [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Add mempool gRPC service [#2133](https://github.com/astriaorg/astria/pull/2133).
 
 ## [2.0.1]
 
