@@ -59,6 +59,10 @@ data:
   restore-snapshot.sh: |
     {{- tpl (.Files.Get "files/scripts/restore-snapshot.sh") $ | nindent 4 }}
   {{- end }}
+  {{- if .Values.geth.configToml }}
+  config.toml: |
+    {{- tpl .Values.geth.configToml $ | nindent 4 }}
+  {{- end }}
 ---
 {{- if or
   (and
