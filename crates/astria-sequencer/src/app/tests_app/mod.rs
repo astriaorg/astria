@@ -89,6 +89,7 @@ use crate::{
     oracles::price_feed::oracle::state_ext::StateWriteExt as _,
     proposal::commitment::generate_rollup_datas_commitment,
     test_utils::{
+        assert_error_contains,
         astria_address,
         dummy_balances,
         dummy_tx_costs,
@@ -889,15 +890,15 @@ async fn app_process_proposal_transaction_fails_to_execute_fails() {
         misbehavior: vec![],
     };
 
-    let result = fixture
+    let error = fixture
         .app
         .process_proposal(process_proposal.clone(), fixture.storage())
         .await
         .expect_err("expected transaction execution failure");
 
-    assert!(
-        format!("{result:?}").contains("failed to execute transactions"),
-        "process proposal should fail due transaction execution failure"
+    assert_error_contains(
+        &error,
+        "failed to construct checked transactions in process proposal",
     );
 }
 

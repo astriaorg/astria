@@ -171,9 +171,9 @@ async fn handle_check_tx_request<S: StateRead>(
     response
 }
 
-/// Performs `CheckTx` for a given serialized [`CheckedTransaction`]. This consists of checking that
-/// the transaction is not already in the app-side mempool or has been removed from it, performing
-/// checks required to convert to a `CheckedTransaction`, and inserting the transaction into the
+/// Performs `CheckTx` for a given serialized [`Transaction`]. This consists of checking that the
+/// transaction is not already in the app-side mempool or has been removed from it, performing
+/// checks required to convert to a [`CheckedTransaction`], and inserting the transaction into the
 /// mempool.
 ///
 /// Returns a [`CheckTxOutcome`] indicating the result of the operation.

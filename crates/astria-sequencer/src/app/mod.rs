@@ -632,7 +632,7 @@ impl App {
                 &self.state,
             )
             .await
-            .wrap_err("failed to execute transactions in process proposal")?;
+            .wrap_err("failed to construct checked transactions in process proposal")?;
             let (tx_results, tx_ids) = self
                 .process_proposal_tx_execution(&user_submitted_transactions, block_size_constraints)
                 .await
