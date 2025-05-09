@@ -18,7 +18,7 @@ impl AbciErrorCode {
     pub const INVALID_CHAIN_ID: Self = Self(unsafe { NonZeroU32::new_unchecked(7) });
     pub const VALUE_NOT_FOUND: Self = Self(unsafe { NonZeroU32::new_unchecked(8) });
     pub const TRANSACTION_EXPIRED: Self = Self(unsafe { NonZeroU32::new_unchecked(9) });
-    pub const TRANSACTION_FAILED: Self = Self(unsafe { NonZeroU32::new_unchecked(10) });
+    pub const TRANSACTION_FAILED_EXECUTION: Self = Self(unsafe { NonZeroU32::new_unchecked(10) });
     pub const TRANSACTION_INSERTION_FAILED: Self = Self(unsafe { NonZeroU32::new_unchecked(11) });
     pub const LOWER_NONCE_INVALIDATED: Self = Self(unsafe { NonZeroU32::new_unchecked(12) });
     pub const BAD_REQUEST: Self = Self(unsafe { NonZeroU32::new_unchecked(13) });
@@ -53,7 +53,7 @@ impl AbciErrorCode {
             Self::INVALID_CHAIN_ID => "the provided chain id was invalid".into(),
             Self::VALUE_NOT_FOUND => "the requested value was not found".into(),
             Self::TRANSACTION_EXPIRED => "the transaction expired in the app's mempool".into(),
-            Self::TRANSACTION_FAILED => {
+            Self::TRANSACTION_FAILED_EXECUTION => {
                 "the transaction failed to execute in prepare_proposal()".into()
             }
             Self::TRANSACTION_INSERTION_FAILED => {
@@ -72,7 +72,7 @@ impl AbciErrorCode {
             Self::TRANSACTION_INCLUDED_IN_BLOCK => "the transaction was removed from the mempool \
                                                     after being included in a block"
                 .into(),
-            Self::TRANSACTION_FAILED_CHECK_TX => "the transaction failed stateless checks".into(),
+            Self::TRANSACTION_FAILED_CHECK_TX => "the transaction failed check_tx".into(),
             Self::INVALID_TRANSACTION_BYTES => "the provided transaction bytes were invalid".into(),
             Self::INVALID_TRANSACTION => "the provided transaction was invalid".into(),
             Self(other) => {
@@ -104,7 +104,7 @@ mod tests {
         AbciErrorCode::INVALID_CHAIN_ID,
         AbciErrorCode::VALUE_NOT_FOUND,
         AbciErrorCode::TRANSACTION_EXPIRED,
-        AbciErrorCode::TRANSACTION_FAILED,
+        AbciErrorCode::TRANSACTION_FAILED_EXECUTION,
         AbciErrorCode::TRANSACTION_INSERTION_FAILED,
         AbciErrorCode::LOWER_NONCE_INVALIDATED,
         AbciErrorCode::BAD_REQUEST,

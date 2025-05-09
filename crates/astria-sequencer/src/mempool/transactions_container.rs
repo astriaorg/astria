@@ -12,18 +12,17 @@ use std::{
 };
 
 use astria_core::{
+    crypto::ADDRESS_LENGTH,
     primitive::v1::{
         asset::IbcPrefixed,
-        TRANSACTION_ID_LEN,
+        TransactionId,
     },
-    protocol::transaction::v1::{
-        action::group::Group,
-        Transaction,
-    },
+    protocol::transaction::v1::action::group::Group,
 };
 use astria_eyre::eyre::{
     eyre,
     Result,
+    WrapErr as _,
 };
 use tokio::time::{
     Duration,
@@ -37,43 +36,43 @@ use tracing::{
 use super::RemovalReason;
 use crate::{
     accounts,
-    transaction,
+    accounts::AddressBytes as _,
+    checked_transaction::CheckedTransaction,
 };
 
-/// `TimemarkedTransaction` is a wrapper around a signed transaction used to keep track of when that
-/// transaction was first seen in the mempool.
+/// `TimemarkedTransaction` is a wrapper around a checked transaction used to keep track of when
+/// that transaction was first seen in the mempool and its total cost to execute.
 #[derive(Clone, Debug)]
 pub(super) struct TimemarkedTransaction {
-    signed_tx: Arc<Transaction>,
-    tx_hash: [u8; 32],
+    checked_tx: Arc<CheckedTransaction>,
     time_first_seen: Instant,
-    address: [u8; 20],
-    cost: HashMap<IbcPrefixed, u128>,
+    costs: HashMap<IbcPrefixed, u128>,
 }
 
 impl TimemarkedTransaction {
-    pub(super) fn new(signed_tx: Arc<Transaction>, cost: HashMap<IbcPrefixed, u128>) -> Self {
+    pub(super) fn new(
+        checked_tx: Arc<CheckedTransaction>,
+        costs: HashMap<IbcPrefixed, u128>,
+    ) -> Self {
         Self {
-            tx_hash: signed_tx.id().get(),
-            address: *signed_tx.verification_key().address_bytes(),
-            signed_tx,
+            checked_tx,
             time_first_seen: Instant::now(),
-            cost,
+            costs,
         }
     }
 
     fn priority(&self, current_account_nonce: u32) -> Result<TransactionPriority> {
-        let Some(nonce_diff) = self.signed_tx.nonce().checked_sub(current_account_nonce) else {
+        let Some(nonce_diff) = self.checked_tx.nonce().checked_sub(current_account_nonce) else {
             return Err(eyre!(
                 "transaction nonce {} is less than current account nonce {current_account_nonce}",
-                self.signed_tx.nonce()
+                self.checked_tx.nonce()
             ));
         };
 
         Ok(TransactionPriority {
             nonce_diff,
             time_first_seen: self.time_first_seen,
-            group: self.signed_tx.group(),
+            group: self.checked_tx.group(),
         })
     }
 
@@ -81,7 +80,7 @@ impl TimemarkedTransaction {
         &self,
         available_balances: &mut HashMap<IbcPrefixed, u128>,
     ) -> Result<()> {
-        self.cost.iter().try_for_each(|(denom, cost)| {
+        self.costs.iter().try_for_each(|(denom, cost)| {
             if *cost == 0 {
                 return Ok(());
             }
@@ -96,28 +95,33 @@ impl TimemarkedTransaction {
         })
     }
 
-    fn set_cost_map(&mut self, cost_map: HashMap<IbcPrefixed, u128>) {
-        self.cost = cost_map;
+    async fn recalculate_costs<S: accounts::StateReadExt>(&mut self, state: &S) -> Result<()> {
+        self.costs = self
+            .checked_tx
+            .total_costs(state)
+            .await
+            .wrap_err("failed to recalculate tx costs")?;
+        Ok(())
     }
 
     fn is_expired(&self, now: Instant, ttl: Duration) -> bool {
         now.saturating_duration_since(self.time_first_seen) > ttl
     }
 
+    pub(super) fn id(&self) -> &TransactionId {
+        self.checked_tx.id()
+    }
+
     pub(super) fn nonce(&self) -> u32 {
-        self.signed_tx.nonce()
+        self.checked_tx.nonce()
     }
 
-    pub(super) fn address(&self) -> &[u8; 20] {
-        &self.address
+    pub(super) fn address_bytes(&self) -> &[u8; ADDRESS_LENGTH] {
+        self.checked_tx.address_bytes()
     }
 
-    pub(super) fn cost(&self) -> &HashMap<IbcPrefixed, u128> {
-        &self.cost
-    }
-
-    pub(super) fn id(&self) -> [u8; 32] {
-        self.tx_hash
+    pub(super) fn costs(&self) -> &HashMap<IbcPrefixed, u128> {
+        &self.costs
     }
 }
 
@@ -125,13 +129,13 @@ impl fmt::Display for TimemarkedTransaction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "tx_hash: {}, address: {}, signer: {}, nonce: {}, chain ID: {}, group: {}",
-            telemetry::display::base64(&self.tx_hash),
-            telemetry::display::base64(&self.address),
-            self.signed_tx.verification_key(),
-            self.signed_tx.nonce(),
-            self.signed_tx.chain_id(),
-            self.signed_tx.group(),
+            "tx_id: {}, address: {}, signer: {}, nonce: {}, chain ID: {}, group: {}",
+            self.id(),
+            telemetry::display::base64(self.address_bytes()),
+            self.checked_tx.verification_key(),
+            self.checked_tx.nonce(),
+            self.checked_tx.chain_id(),
+            self.checked_tx.group(),
         )
     }
 }
@@ -255,7 +259,7 @@ impl PendingTransactionsForAccount {
 
         'outer: for (nonce, tx) in &self.txs {
             // ensure we have enough balance to cover inclusion
-            for (denom, cost) in tx.cost() {
+            for (denom, cost) in tx.costs() {
                 if *cost == 0 {
                     continue;
                 }
@@ -290,7 +294,7 @@ impl PendingTransactionsForAccount {
     fn subtract_contained_costs(&self, account_balances: &mut HashMap<IbcPrefixed, u128>) {
         // deduct costs from current account balances
         self.txs.values().for_each(|tx| {
-            tx.cost.iter().for_each(|(denom, cost)| {
+            tx.costs.iter().for_each(|(denom, cost)| {
                 if *cost == 0 {
                     return;
                 }
@@ -328,13 +332,13 @@ impl TransactionsForAccount for PendingTransactionsForAccount {
     ) -> bool {
         // If the `ttx` nonce is 0, precondition is met iff the current account nonce is also at
         // zero
-        let Some(previous_nonce) = ttx.signed_tx.nonce().checked_sub(1) else {
+        let Some(previous_nonce) = ttx.nonce().checked_sub(1) else {
             return current_account_nonce == 0;
         };
 
         // Precondition is met if the previous nonce is in the existing txs, or if the tx's nonce
         // is equal to the account nonce
-        self.txs().contains_key(&previous_nonce) || ttx.signed_tx.nonce() == current_account_nonce
+        self.txs().contains_key(&previous_nonce) || ttx.nonce() == current_account_nonce
     }
 
     fn has_balance_to_cover(
@@ -479,8 +483,8 @@ pub(super) trait TransactionsForAccount: Default {
             return Err(InsertionError::NonceTooLow);
         }
 
-        if let Some(existing_ttx) = self.txs().get(&ttx.signed_tx.nonce()) {
-            return Err(if existing_ttx.tx_hash == ttx.tx_hash {
+        if let Some(existing_ttx) = self.txs().get(&ttx.nonce()) {
+            return Err(if existing_ttx.id() == ttx.id() {
                 InsertionError::AlreadyPresent
             } else {
                 InsertionError::NonceTaken
@@ -495,7 +499,7 @@ pub(super) trait TransactionsForAccount: Default {
             return Err(InsertionError::AccountBalanceTooLow);
         }
 
-        self.txs_mut().insert(ttx.signed_tx.nonce(), ttx);
+        self.txs_mut().insert(ttx.nonce(), ttx);
 
         Ok(())
     }
@@ -505,8 +509,8 @@ pub(super) trait TransactionsForAccount: Default {
     /// Note: the given nonce is expected to be present. If it's absent, an error is logged and no
     /// transactions are removed.
     ///
-    /// Returns the hashes of the removed transactions.
-    fn remove(&mut self, nonce: u32) -> Vec<[u8; 32]> {
+    /// Returns the IDs of the removed transactions.
+    fn remove(&mut self, nonce: u32) -> Vec<TransactionId> {
         if !self.txs().contains_key(&nonce) {
             error!(nonce, "transaction with given nonce not found");
             return Vec::new();
@@ -515,36 +519,36 @@ pub(super) trait TransactionsForAccount: Default {
         self.txs_mut()
             .split_off(&nonce)
             .values()
-            .map(|ttx| ttx.tx_hash)
+            .map(|ttx| *ttx.id())
             .collect()
     }
 
-    fn contains_tx(&self, tx_hash: &[u8; 32]) -> bool {
-        self.txs().values().any(|ttx| ttx.tx_hash == *tx_hash)
+    fn contains_tx(&self, tx_id: &TransactionId) -> bool {
+        self.txs().values().any(|ttx| ttx.id() == tx_id)
     }
 }
 
 /// A container used for managing pending transactions for multiple accounts.
 #[derive(Clone, Debug)]
 pub(super) struct PendingTransactions {
-    txs: HashMap<[u8; 20], PendingTransactionsForAccount>,
+    txs: HashMap<[u8; ADDRESS_LENGTH], PendingTransactionsForAccount>,
     tx_ttl: Duration,
 }
 
 /// A container used for managing parked transactions for multiple accounts.
 #[derive(Clone, Debug)]
 pub(super) struct ParkedTransactions<const MAX_TX_COUNT_PER_ACCOUNT: usize> {
-    txs: HashMap<[u8; 20], ParkedTransactionsForAccount<MAX_TX_COUNT_PER_ACCOUNT>>,
+    txs: HashMap<[u8; ADDRESS_LENGTH], ParkedTransactionsForAccount<MAX_TX_COUNT_PER_ACCOUNT>>,
     tx_ttl: Duration,
     max_tx_count: usize,
 }
 
 impl TransactionsContainer<PendingTransactionsForAccount> for PendingTransactions {
-    fn txs(&self) -> &HashMap<[u8; 20], PendingTransactionsForAccount> {
+    fn txs(&self) -> &HashMap<[u8; ADDRESS_LENGTH], PendingTransactionsForAccount> {
         &self.txs
     }
 
-    fn txs_mut(&mut self) -> &mut HashMap<[u8; 20], PendingTransactionsForAccount> {
+    fn txs_mut(&mut self) -> &mut HashMap<[u8; ADDRESS_LENGTH], PendingTransactionsForAccount> {
         &mut self.txs
     }
 
@@ -561,13 +565,17 @@ impl<const MAX_TX_COUNT_PER_ACCOUNT: usize>
     TransactionsContainer<ParkedTransactionsForAccount<MAX_TX_COUNT_PER_ACCOUNT>>
     for ParkedTransactions<MAX_TX_COUNT_PER_ACCOUNT>
 {
-    fn txs(&self) -> &HashMap<[u8; 20], ParkedTransactionsForAccount<MAX_TX_COUNT_PER_ACCOUNT>> {
+    fn txs(
+        &self,
+    ) -> &HashMap<[u8; ADDRESS_LENGTH], ParkedTransactionsForAccount<MAX_TX_COUNT_PER_ACCOUNT>>
+    {
         &self.txs
     }
 
     fn txs_mut(
         &mut self,
-    ) -> &mut HashMap<[u8; 20], ParkedTransactionsForAccount<MAX_TX_COUNT_PER_ACCOUNT>> {
+    ) -> &mut HashMap<[u8; ADDRESS_LENGTH], ParkedTransactionsForAccount<MAX_TX_COUNT_PER_ACCOUNT>>
+    {
         &mut self.txs
     }
 
@@ -585,16 +593,16 @@ impl<const MAX_TX_COUNT_PER_ACCOUNT: usize>
 
 /// `TransactionsContainer` is a container used for managing transactions for multiple accounts.
 pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
-    fn txs(&self) -> &HashMap<[u8; 20], T>;
+    fn txs(&self) -> &HashMap<[u8; ADDRESS_LENGTH], T>;
 
-    fn txs_mut(&mut self) -> &mut HashMap<[u8; 20], T>;
+    fn txs_mut(&mut self) -> &mut HashMap<[u8; ADDRESS_LENGTH], T>;
 
     fn tx_ttl(&self) -> Duration;
 
     fn check_total_tx_count(&self) -> Result<(), InsertionError>;
 
     /// Returns all of the currently tracked addresses.
-    fn addresses<'a>(&'a self) -> impl Iterator<Item = &'a [u8; 20]>
+    fn addresses<'a>(&'a self) -> impl Iterator<Item = &'a [u8; ADDRESS_LENGTH]>
     where
         T: 'a,
     {
@@ -604,31 +612,24 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
     /// Recosts transactions for an account.
     ///
     /// Logs an error if fails to recost a transaction.
-    #[instrument(skip_all, fields(address = %telemetry::display::base64(address)))]
+    #[instrument(skip_all, fields(address = %telemetry::display::base64(address_bytes)))]
     async fn recost_transactions<S: accounts::StateReadExt>(
         &mut self,
-        address: &[u8; 20],
+        address_bytes: &[u8; ADDRESS_LENGTH],
         state: &S,
     ) {
-        let Some(account) = self.txs_mut().get_mut(address) else {
+        let Some(account) = self.txs_mut().get_mut(address_bytes) else {
             return;
         };
 
-        for tx in account.txs_mut().values_mut() {
-            let new_cost = match transaction::get_total_transaction_cost(&tx.signed_tx, &state)
-                .await
-            {
-                Ok(res) => res,
-                Err(error) => {
-                    error!(
-                        address = %telemetry::display::base64(address),
-                        "failed to calculate new transaction cost when cleaning accounts: {error:#}"
-                    );
-                    continue;
-                }
-            };
-
-            tx.set_cost_map(new_cost);
+        for ttx in account.txs_mut().values_mut() {
+            if let Err(error) = ttx.recalculate_costs(state).await {
+                error!(
+                    address = %telemetry::display::base64(address_bytes),
+                    "failed to calculate new transaction cost when cleaning accounts: {error:#}"
+                );
+                continue;
+            }
         }
     }
 
@@ -645,7 +646,7 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
     ) -> Result<(), InsertionError> {
         self.check_total_tx_count()?;
 
-        match self.txs_mut().entry(*ttx.address()) {
+        match self.txs_mut().entry(*ttx.address_bytes()) {
             hash_map::Entry::Occupied(entry) => {
                 entry
                     .into_mut()
@@ -663,64 +664,67 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
     /// Removes the given transaction and any transactions with higher nonces for the relevant
     /// account.
     ///
-    /// If `signed_tx` existed, returns `Ok` with the hashes of the removed transactions. If
-    /// `signed_tx` was not in the collection, it is returned via `Err`.
-    fn remove(&mut self, signed_tx: Arc<Transaction>) -> Result<Vec<[u8; 32]>, Arc<Transaction>> {
-        let address = signed_tx.verification_key().address_bytes();
+    /// If `checked_tx` existed, returns `Ok` with the IDs of the removed transactions. If
+    /// `checked_tx` was not in the collection, it is returned via `Err`.
+    fn remove(
+        &mut self,
+        checked_tx: Arc<CheckedTransaction>,
+    ) -> Result<Vec<TransactionId>, Arc<CheckedTransaction>> {
+        let address_bytes = checked_tx.address_bytes();
 
         // Take the collection for this account out of `self` temporarily.
-        let Some(mut account_txs) = self.txs_mut().remove(address) else {
-            return Err(signed_tx);
+        let Some(mut account_txs) = self.txs_mut().remove(address_bytes) else {
+            return Err(checked_tx);
         };
 
-        let removed = account_txs.remove(signed_tx.nonce());
+        let removed = account_txs.remove(checked_tx.nonce());
 
         // Re-add the collection to `self` if it's not empty.
         if !account_txs.txs().is_empty() {
-            let _ = self.txs_mut().insert(*address, account_txs);
+            let _ = self.txs_mut().insert(*address_bytes, account_txs);
         }
 
         if removed.is_empty() {
-            return Err(signed_tx);
+            return Err(checked_tx);
         }
 
         Ok(removed)
     }
 
-    /// Removes all of the transactions for the given account and returns the hashes of the removed
+    /// Removes all of the transactions for the given account and returns the IDs of the removed
     /// transactions.
-    fn clear_account(&mut self, address: &[u8; 20]) -> Vec<[u8; 32]> {
+    fn clear_account(&mut self, address_bytes: &[u8; ADDRESS_LENGTH]) -> Vec<TransactionId> {
         self.txs_mut()
-            .remove(address)
-            .map(|account_txs| account_txs.txs().values().map(|ttx| ttx.tx_hash).collect())
+            .remove(address_bytes)
+            .map(|account_txs| account_txs.txs().values().map(|ttx| *ttx.id()).collect())
             .unwrap_or_default()
     }
 
     /// Cleans the specified account of stale and expired transactions.
     fn clean_account_stale_expired(
         &mut self,
-        address: &[u8; 20],
+        address_bytes: &[u8; ADDRESS_LENGTH],
         current_account_nonce: u32,
-        txs_included_in_block: &HashSet<[u8; TRANSACTION_ID_LEN]>,
-        block_number: u64,
-    ) -> Vec<([u8; TRANSACTION_ID_LEN], RemovalReason)> {
+        txs_included_in_block: &HashSet<TransactionId>,
+        block_height: u64,
+    ) -> Vec<(TransactionId, RemovalReason)> {
         // Take the collection for this account out of `self` temporarily if it exists.
-        let Some(mut account_txs) = self.txs_mut().remove(address) else {
+        let Some(mut account_txs) = self.txs_mut().remove(address_bytes) else {
             return Vec::new();
         };
 
         // clear out stale nonces
         let mut split_off = account_txs.txs_mut().split_off(&current_account_nonce);
         mem::swap(&mut split_off, account_txs.txs_mut());
-        let mut removed_txs: Vec<([u8; 32], RemovalReason)> = split_off
+        let mut removed_txs: Vec<_> = split_off
             .into_values()
             .map(|ttx| {
-                if txs_included_in_block.contains(&ttx.tx_hash) {
+                if txs_included_in_block.contains(ttx.id()) {
                     // We only need to check stale transactions for inclusion, since all executed
                     // transactions will be stale
-                    (ttx.tx_hash, RemovalReason::IncludedInBlock(block_number))
+                    (*ttx.id(), RemovalReason::IncludedInBlock(block_height))
                 } else {
-                    (ttx.tx_hash, RemovalReason::NonceStale)
+                    (*ttx.id(), RemovalReason::NonceStale)
                 }
             })
             .collect();
@@ -728,13 +732,13 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
         // check for expired transactions
         if let Some(first_tx) = account_txs.txs_mut().first_entry() {
             if first_tx.get().is_expired(Instant::now(), self.tx_ttl()) {
-                removed_txs.push((first_tx.get().tx_hash, RemovalReason::Expired));
+                removed_txs.push((*first_tx.get().id(), RemovalReason::Expired));
                 removed_txs.extend(
                     account_txs
                         .txs()
                         .values()
                         .skip(1)
-                        .map(|ttx| (ttx.tx_hash, RemovalReason::LowerNonceInvalidated)),
+                        .map(|ttx| (*ttx.id(), RemovalReason::LowerNonceInvalidated)),
                 );
                 account_txs.txs_mut().clear();
             }
@@ -742,7 +746,7 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
 
         // Re-add the collection to `self` if it's not empty.
         if !account_txs.txs().is_empty() {
-            let _ = self.txs_mut().insert(*address, account_txs);
+            let _ = self.txs_mut().insert(*address_bytes, account_txs);
         }
 
         removed_txs
@@ -756,10 +760,10 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
             .sum()
     }
 
-    fn contains_tx(&self, tx_hash: &[u8; 32]) -> bool {
+    fn contains_tx(&self, tx_id: &TransactionId) -> bool {
         self.txs()
             .values()
-            .any(|account_txs| account_txs.contains_tx(tx_hash))
+            .any(|account_txs| account_txs.contains_tx(tx_id))
     }
 }
 
@@ -775,11 +779,11 @@ impl PendingTransactions {
     /// based on the specified account's current balances.
     pub(super) fn find_demotables(
         &mut self,
-        address: &[u8; 20],
+        address_bytes: &[u8; ADDRESS_LENGTH],
         current_balances: &HashMap<IbcPrefixed, u128>,
     ) -> Vec<TimemarkedTransaction> {
         // Take the collection for this account out of `self` temporarily if it exists.
-        let Some(mut account) = self.txs.remove(address) else {
+        let Some(mut account) = self.txs.remove(address_bytes) else {
             return Vec::new();
         };
 
@@ -787,7 +791,7 @@ impl PendingTransactions {
 
         // Re-add the collection to `self` if it's not empty.
         if !account.txs().is_empty() {
-            let _ = self.txs.insert(*address, account);
+            let _ = self.txs.insert(*address_bytes, account);
         }
 
         demoted
@@ -797,38 +801,37 @@ impl PendingTransactions {
     /// transactions' costs.
     pub(super) fn subtract_contained_costs(
         &self,
-        address: &[u8; 20],
+        address_bytes: &[u8; ADDRESS_LENGTH],
         mut current_balances: HashMap<IbcPrefixed, u128>,
     ) -> HashMap<IbcPrefixed, u128> {
-        if let Some(account) = self.txs.get(address) {
+        if let Some(account) = self.txs.get(address_bytes) {
             account.subtract_contained_costs(&mut current_balances);
         };
         current_balances
     }
 
     /// Returns the highest nonce for an account.
-    pub(super) fn pending_nonce(&self, address: &[u8; 20]) -> Option<u32> {
+    pub(super) fn pending_nonce(&self, address_bytes: &[u8; ADDRESS_LENGTH]) -> Option<u32> {
         self.txs
-            .get(address)
+            .get(address_bytes)
             .and_then(PendingTransactionsForAccount::pending_account_nonce)
     }
 
     /// Returns a copy of transactions and their hashes sorted by nonce difference and then time
     /// first seen.
-    pub(super) fn builder_queue(&self) -> Vec<([u8; 32], Arc<Transaction>)> {
+    pub(super) fn builder_queue(&self) -> Vec<Arc<CheckedTransaction>> {
         // Used to hold the values in Vec for sorting.
         struct QueueEntry {
-            tx: Arc<Transaction>,
-            tx_hash: [u8; 32],
+            checked_tx: Arc<CheckedTransaction>,
             priority: TransactionPriority,
         }
 
         let mut queue = Vec::with_capacity(self.len());
         // Add all transactions to the queue.
-        for (address, account_txs) in &self.txs {
+        for (address_bytes, account_txs) in &self.txs {
             let Some(current_account_nonce) = account_txs.current_account_nonce() else {
                 error!(
-                    address = %telemetry::display::base64(address),
+                    address = %telemetry::display::base64(address_bytes),
                     "pending queue is empty during builder queue step"
                 );
                 continue;
@@ -840,15 +843,14 @@ impl PendingTransactions {
                     Err(error) => {
                         // mempool could be off due to node connectivity issues
                         error!(
-                            tx_hash = %telemetry::display::base64(&ttx.tx_hash),
+                            tx_id = %ttx.id(),
                             "failed to add pending tx to builder queue: {error:#}"
                         );
                         continue;
                     }
                 };
                 queue.push(QueueEntry {
-                    tx: ttx.signed_tx.clone(),
-                    tx_hash: ttx.tx_hash,
+                    checked_tx: ttx.checked_tx.clone(),
                     priority,
                 });
             }
@@ -860,7 +862,7 @@ impl PendingTransactions {
         queue
             .into_iter()
             .rev()
-            .map(|entry| (entry.tx_hash, entry.tx))
+            .map(|entry| entry.checked_tx)
             .collect()
     }
 }
@@ -879,12 +881,12 @@ impl<const MAX_PARKED_TXS_PER_ACCOUNT: usize> ParkedTransactions<MAX_PARKED_TXS_
     /// covered by the `available_balance`.
     pub(super) fn find_promotables(
         &mut self,
-        account: &[u8; 20],
+        address_bytes: &[u8; ADDRESS_LENGTH],
         target_nonce: u32,
         available_balance: &HashMap<IbcPrefixed, u128>,
     ) -> Vec<TimemarkedTransaction> {
         // Take the collection for this account out of `self` temporarily.
-        let Some(mut account_txs) = self.txs.remove(account) else {
+        let Some(mut account_txs) = self.txs.remove(address_bytes) else {
             return Vec::new();
         };
 
@@ -892,7 +894,7 @@ impl<const MAX_PARKED_TXS_PER_ACCOUNT: usize> ParkedTransactions<MAX_PARKED_TXS_
 
         // Re-add the collection to `self` if it's not empty.
         if !account_txs.txs().is_empty() {
-            let _ = self.txs.insert(*account, account_txs);
+            let _ = self.txs.insert(*address_bytes, account_txs);
         }
 
         removed.collect()
@@ -901,106 +903,133 @@ impl<const MAX_PARKED_TXS_PER_ACCOUNT: usize> ParkedTransactions<MAX_PARKED_TXS_
 
 #[cfg(test)]
 mod tests {
-    use astria_core::crypto::SigningKey;
+    use astria_core::{
+        crypto::SigningKey,
+        primitive::v1::RollupId,
+        protocol::{
+            fees::v1::FeeComponents,
+            transaction::v1::action::{
+                FeeAssetChange,
+                InitBridgeAccount,
+                RollupDataSubmission,
+                SudoAddressChange,
+            },
+        },
+    };
+    use bytes::Bytes;
 
     use super::*;
     use crate::{
-        app::{
-            benchmark_and_test_utils::{
-                denom_0,
-                denom_1,
-                denom_3,
-                mock_balances,
-                mock_state_getter,
-                mock_tx_cost,
-                ALICE_ADDRESS,
-                BOB_ADDRESS,
-                CAROL_ADDRESS,
-                MOCK_SEQUENCE_FEE,
-            },
-            test_utils::{
-                get_alice_signing_key,
-                get_bob_signing_key,
-                get_carol_signing_key,
-                get_judy_signing_key,
-                MockTxBuilder,
-            },
+        checked_actions::CheckedAction,
+        fees::StateWriteExt as _,
+        test_utils::{
+            denom_0,
+            denom_1,
+            denom_3,
+            dummy_balances,
+            dummy_tx_costs,
+            CheckedTxBuilder,
+            Fixture,
+            ALICE,
+            ALICE_ADDRESS_BYTES,
+            BOB,
+            BOB_ADDRESS_BYTES,
+            CAROL,
+            CAROL_ADDRESS,
+            CAROL_ADDRESS_BYTES,
+            SUDO,
         },
-        benchmark_and_test_utils::astria_address_from_hex_string,
     };
 
     const MAX_PARKED_TXS_PER_ACCOUNT: usize = 15;
     const TX_TTL: Duration = Duration::from_secs(2);
 
-    struct MockTTXBuilder {
-        nonce: u32,
-        signer: SigningKey,
-        chain_id: String,
+    struct MockTTXBuilder<'a> {
+        checked_tx_builder: CheckedTxBuilder<'a>,
+        group: Option<Group>,
         cost_map: HashMap<IbcPrefixed, u128>,
-        group: Group,
     }
 
-    impl MockTTXBuilder {
-        fn build(self) -> TimemarkedTransaction {
-            let tx = MockTxBuilder::new()
-                .nonce(self.nonce)
-                .signer(self.signer)
-                .chain_id(&self.chain_id)
-                .group(self.group)
-                .build();
+    impl<'a> MockTTXBuilder<'a> {
+        fn new(fixture: &'a Fixture) -> Self {
+            Self {
+                checked_tx_builder: fixture.checked_tx_builder().with_signer(ALICE.clone()),
+                group: None,
+                cost_map: dummy_tx_costs(0, 0, 0),
+            }
+        }
 
+        fn nonce(mut self, nonce: u32) -> Self {
+            self.checked_tx_builder = self.checked_tx_builder.with_nonce(nonce);
+            self
+        }
+
+        fn signer(mut self, signer: SigningKey) -> Self {
+            self.checked_tx_builder = self.checked_tx_builder.with_signer(signer);
+            self
+        }
+
+        fn group(mut self, group: Group) -> Self {
+            self.group = Some(group);
+            self
+        }
+
+        fn cost_map(mut self, cost_map: HashMap<IbcPrefixed, u128>) -> Self {
+            self.cost_map = cost_map;
+            self
+        }
+
+        async fn build(self) -> TimemarkedTransaction {
+            let tx = match self.group {
+                Some(Group::UnbundleableSudo) => {
+                    self.checked_tx_builder
+                        .with_action(SudoAddressChange {
+                            new_address: *CAROL_ADDRESS,
+                        })
+                        .build()
+                        .await
+                }
+                Some(Group::BundleableSudo) => {
+                    self.checked_tx_builder
+                        .with_action(FeeAssetChange::Addition(denom_0()))
+                        .build()
+                        .await
+                }
+                Some(Group::UnbundleableGeneral) => {
+                    self.checked_tx_builder
+                        .with_action(InitBridgeAccount {
+                            rollup_id: RollupId::from_unhashed_bytes("rollup-id"),
+                            asset: denom_0(),
+                            fee_asset: denom_0(),
+                            sudo_address: None,
+                            withdrawer_address: None,
+                        })
+                        .build()
+                        .await
+                }
+                Some(Group::BundleableGeneral) => {
+                    self.checked_tx_builder
+                        .with_action(RollupDataSubmission {
+                            rollup_id: RollupId::from_unhashed_bytes("rollup-id"),
+                            data: Bytes::from_static(&[0x99]),
+                            fee_asset: denom_0(),
+                        })
+                        .build()
+                        .await
+                }
+                None => self.checked_tx_builder.build().await,
+            };
+            if let Some(group) = self.group {
+                assert_eq!(group, tx.group());
+            }
             TimemarkedTransaction::new(tx, self.cost_map)
         }
-
-        fn chain_id(self, chain_id: &str) -> Self {
-            Self {
-                chain_id: chain_id.to_string(),
-                ..self
-            }
-        }
-
-        fn new() -> Self {
-            Self {
-                nonce: 0,
-                signer: get_alice_signing_key(),
-                chain_id: "test".to_string(),
-                group: Group::BundleableGeneral,
-                cost_map: mock_tx_cost(0, 0, 0),
-            }
-        }
-
-        fn nonce(self, nonce: u32) -> Self {
-            Self {
-                nonce,
-                ..self
-            }
-        }
-
-        fn signer(self, signer: SigningKey) -> Self {
-            Self {
-                signer,
-                ..self
-            }
-        }
-
-        fn group(self, group: Group) -> Self {
-            Self {
-                group,
-                ..self
-            }
-        }
-
-        fn cost_map(self, cost: HashMap<IbcPrefixed, u128>) -> Self {
-            Self {
-                cost_map: cost,
-                ..self
-            }
-        }
     }
 
-    #[test]
-    fn transaction_priority_should_error_if_invalid() {
-        let ttx = MockTTXBuilder::new().nonce(0).build();
+    #[tokio::test]
+    async fn transaction_priority_should_error_if_invalid() {
+        let fixture = Fixture::default_initialized().await;
+        let ttx = MockTTXBuilder::new(&fixture).nonce(0).build().await;
         let priority = ttx.priority(1);
 
         assert!(priority
@@ -1220,32 +1249,36 @@ mod tests {
         assert!(high == high); // asserted !(high != high) above
     }
 
-    #[test]
-    fn parked_transactions_for_account_add() {
+    #[tokio::test]
+    async fn parked_transactions_for_account_add() {
+        let fixture = Fixture::default_initialized().await;
         let mut parked_txs = ParkedTransactionsForAccount::<MAX_PARKED_TXS_PER_ACCOUNT>::new();
 
         // transactions to add
-        let ttx_1 = MockTTXBuilder::new()
+        let ttx_1 = MockTTXBuilder::new(&fixture)
             .nonce(1)
-            .cost_map(mock_tx_cost(10, 0, 0))
-            .build();
-        let ttx_3 = MockTTXBuilder::new()
+            .cost_map(dummy_tx_costs(10, 0, 0))
+            .build()
+            .await;
+        let ttx_3 = MockTTXBuilder::new(&fixture)
             .nonce(3)
-            .cost_map(mock_tx_cost(0, 10, 0))
-            .build();
-        let ttx_5 = MockTTXBuilder::new()
+            .cost_map(dummy_tx_costs(0, 10, 0))
+            .build()
+            .await;
+        let ttx_5 = MockTTXBuilder::new(&fixture)
             .nonce(5)
-            .cost_map(mock_tx_cost(0, 0, 100))
-            .build();
+            .cost_map(dummy_tx_costs(0, 0, 100))
+            .build()
+            .await;
 
         // note account doesn't have balance to cover any of them
-        let account_balances = mock_balances(1, 1);
+        let account_balances = dummy_balances(1, 1);
 
         let current_account_nonce = 2;
         parked_txs
             .add(ttx_3.clone(), current_account_nonce, &account_balances)
             .unwrap();
-        assert!(parked_txs.contains_tx(&ttx_3.tx_hash));
+        assert!(parked_txs.contains_tx(ttx_3.checked_tx.id()));
         assert_eq!(
             parked_txs
                 .add(ttx_3, current_account_nonce, &account_balances)
@@ -1267,15 +1300,16 @@ mod tests {
         );
     }
 
-    #[test]
-    fn parked_transactions_for_account_size_limit() {
+    #[tokio::test]
+    async fn parked_transactions_for_account_size_limit() {
+        let fixture = Fixture::default_initialized().await;
         let mut parked_txs = ParkedTransactionsForAccount::<2>::new();
 
         // transactions to add
-        let ttx_1 = MockTTXBuilder::new().nonce(1).build();
-        let ttx_3 = MockTTXBuilder::new().nonce(3).build();
-        let ttx_5 = MockTTXBuilder::new().nonce(5).build();
-        let account_balances = mock_balances(1, 1);
+        let ttx_1 = MockTTXBuilder::new(&fixture).nonce(1).build().await;
+        let ttx_3 = MockTTXBuilder::new(&fixture).nonce(3).build().await;
+        let ttx_5 = MockTTXBuilder::new(&fixture).nonce(5).build().await;
+        let account_balances = dummy_balances(1, 1);
 
         let current_account_nonce = 0;
         parked_txs
@@ -1294,17 +1328,18 @@ mod tests {
         );
     }
 
-    #[test]
-    fn pending_transactions_for_account_add() {
+    #[tokio::test]
+    async fn pending_transactions_for_account_add() {
+        let fixture = Fixture::default_initialized().await;
         let mut pending_txs = PendingTransactionsForAccount::new();
 
         // transactions to add, not testing balances in this unit test
-        let ttx_0 = MockTTXBuilder::new().nonce(0).build();
-        let ttx_1 = MockTTXBuilder::new().nonce(1).build();
-        let ttx_2 = MockTTXBuilder::new().nonce(2).build();
-        let ttx_3 = MockTTXBuilder::new().nonce(3).build();
+        let ttx_0 = MockTTXBuilder::new(&fixture).nonce(0).build().await;
+        let ttx_1 = MockTTXBuilder::new(&fixture).nonce(1).build().await;
+        let ttx_2 = MockTTXBuilder::new(&fixture).nonce(2).build().await;
+        let ttx_3 = MockTTXBuilder::new(&fixture).nonce(3).build().await;
 
-        let account_balances = mock_balances(1, 1);
+        let account_balances = dummy_balances(1, 1);
 
         let current_account_nonce = 1;
 
@@ -1351,41 +1386,49 @@ mod tests {
             .unwrap();
     }
 
-    #[test]
-    fn pending_transactions_for_account_add_balances() {
+    #[tokio::test]
+    async fn pending_transactions_for_account_add_balances() {
+        let fixture = Fixture::default_initialized().await;
         let mut pending_txs = PendingTransactionsForAccount::new();
 
         // transactions to add, testing balances
-        let ttx_0_too_expensive_0 = MockTTXBuilder::new()
+        let ttx_0_too_expensive_0 = MockTTXBuilder::new(&fixture)
             .nonce(0)
-            .cost_map(mock_tx_cost(11, 0, 0))
-            .build();
-        let ttx_0_too_expensive_1 = MockTTXBuilder::new()
+            .cost_map(dummy_tx_costs(11, 0, 0))
+            .build()
+            .await;
+        let ttx_0_too_expensive_1 = MockTTXBuilder::new(&fixture)
             .nonce(0)
-            .cost_map(mock_tx_cost(0, 0, 1))
-            .build();
-        let ttx_0 = MockTTXBuilder::new()
+            .cost_map(dummy_tx_costs(0, 0, 1))
+            .build()
+            .await;
+        let ttx_0 = MockTTXBuilder::new(&fixture)
             .nonce(0)
-            .cost_map(mock_tx_cost(10, 0, 0))
-            .build();
-        let ttx_1 = MockTTXBuilder::new()
+            .cost_map(dummy_tx_costs(10, 0, 0))
+            .build()
+            .await;
+        let ttx_1 = MockTTXBuilder::new(&fixture)
             .nonce(1)
-            .cost_map(mock_tx_cost(0, 10, 0))
-            .build();
-        let ttx_2 = MockTTXBuilder::new()
+            .cost_map(dummy_tx_costs(0, 10, 0))
+            .build()
+            .await;
+        let ttx_2 = MockTTXBuilder::new(&fixture)
             .nonce(2)
-            .cost_map(mock_tx_cost(0, 8, 0))
-            .build();
-        let ttx_3 = MockTTXBuilder::new()
+            .cost_map(dummy_tx_costs(0, 8, 0))
+            .build()
+            .await;
+        let ttx_3 = MockTTXBuilder::new(&fixture)
             .nonce(3)
-            .cost_map(mock_tx_cost(0, 2, 0))
-            .build();
-        let ttx_4 = MockTTXBuilder::new()
+            .cost_map(dummy_tx_costs(0, 2, 0))
+            .build()
+            .await;
+        let ttx_4 = MockTTXBuilder::new(&fixture)
             .nonce(4)
-            .cost_map(mock_tx_cost(0, 0, 1))
-            .build();
+            .cost_map(dummy_tx_costs(0, 0, 1))
+            .build()
+            .await;
 
-        let account_balances = mock_balances(10, 20);
+        let account_balances = dummy_balances(10, 20);
         let current_account_nonce = 0;
 
         // transaction exceeding account balances (asset present in balances) not allowed
@@ -1449,16 +1492,17 @@ mod tests {
         );
     }
 
-    #[test]
-    fn transactions_for_account_remove() {
+    #[tokio::test]
+    async fn transactions_for_account_remove() {
+        let fixture = Fixture::default_initialized().await;
         let mut account_txs = PendingTransactionsForAccount::new();
 
         // transactions to add
-        let ttx_0 = MockTTXBuilder::new().nonce(0).build();
-        let ttx_1 = MockTTXBuilder::new().nonce(1).build();
-        let ttx_2 = MockTTXBuilder::new().nonce(2).build();
-        let ttx_3 = MockTTXBuilder::new().nonce(3).build();
-        let account_balances = mock_balances(1, 1);
+        let ttx_0 = MockTTXBuilder::new(&fixture).nonce(0).build().await;
+        let ttx_1 = MockTTXBuilder::new(&fixture).nonce(1).build().await;
+        let ttx_2 = MockTTXBuilder::new(&fixture).nonce(2).build().await;
+        let ttx_3 = MockTTXBuilder::new(&fixture).nonce(3).build().await;
+        let account_balances = dummy_balances(1, 1);
 
         account_txs
             .add(ttx_0.clone(), 0, &account_balances)
@@ -1476,7 +1520,7 @@ mod tests {
         // remove from end will only remove end
         assert_eq!(
             account_txs.remove(3),
-            vec![ttx_3.tx_hash],
+            vec![*ttx_3.checked_tx.id()],
             "only one transaction should've been removed"
         );
         assert_eq!(account_txs.txs().len(), 3);
@@ -1492,14 +1536,19 @@ mod tests {
         // remove from start will remove all
         assert_eq!(
             account_txs.remove(0),
-            vec![ttx_0.tx_hash, ttx_1.tx_hash, ttx_2.tx_hash],
+            vec![
+                *ttx_0.checked_tx.id(),
+                *ttx_1.checked_tx.id(),
+                *ttx_2.checked_tx.id()
+            ],
             "three transactions should've been removed"
         );
         assert!(account_txs.txs().is_empty());
     }
 
-    #[test]
-    fn pending_transactions_for_account_pending_account_nonce() {
+    #[tokio::test]
+    async fn pending_transactions_for_account_pending_account_nonce() {
+        let fixture = Fixture::default_initialized().await;
         let mut pending_txs = PendingTransactionsForAccount::new();
 
         // no transactions ok
@@ -1509,10 +1558,10 @@ mod tests {
         );
 
         // transactions to add
-        let ttx_0 = MockTTXBuilder::new().nonce(0).build();
-        let ttx_1 = MockTTXBuilder::new().nonce(1).build();
-        let ttx_2 = MockTTXBuilder::new().nonce(2).build();
-        let account_balances = mock_balances(1, 1);
+        let ttx_0 = MockTTXBuilder::new(&fixture).nonce(0).build().await;
+        let ttx_1 = MockTTXBuilder::new(&fixture).nonce(1).build().await;
+        let ttx_2 = MockTTXBuilder::new(&fixture).nonce(2).build().await;
+        let account_balances = dummy_balances(1, 1);
 
         pending_txs.add(ttx_0, 0, &account_balances).unwrap();
         pending_txs.add(ttx_1, 0, &account_balances).unwrap();
@@ -1526,22 +1575,25 @@ mod tests {
         );
     }
 
-    #[test]
-    fn transactions_container_add() {
+    #[tokio::test]
+    async fn transactions_container_add() {
+        let fixture = Fixture::default_initialized().await;
         let mut pending_txs = PendingTransactions::new(TX_TTL);
         // transactions to add to accounts
-        let ttx_s0_0_0 = MockTTXBuilder::new().nonce(0).build();
-        // Same nonce and signer as `ttx_s0_0_0`, but different chain id.
-        let ttx_s0_0_1 = MockTTXBuilder::new()
+        let ttx_s0_0_0 = MockTTXBuilder::new(&fixture).nonce(0).build().await;
+        // Same nonce and signer as `ttx_s0_0_0`, but different action.
+        let ttx_s0_0_1 = MockTTXBuilder::new(&fixture)
             .nonce(0)
-            .chain_id("different-chain-id")
-            .build();
-        let ttx_s0_2_0 = MockTTXBuilder::new().nonce(2).build();
-        let ttx_s1_0_0 = MockTTXBuilder::new()
+            .group(Group::UnbundleableGeneral)
+            .build()
+            .await;
+        let ttx_s0_2_0 = MockTTXBuilder::new(&fixture).nonce(2).build().await;
+        let ttx_s1_0_0 = MockTTXBuilder::new(&fixture)
             .nonce(0)
-            .signer(get_bob_signing_key())
-            .build();
-        let account_balances = mock_balances(1, 1);
+            .signer(BOB.clone())
+            .build()
+            .await;
+        let account_balances = dummy_balances(1, 1);
 
         // transactions to add for account 1
 
@@ -1605,7 +1657,7 @@ mod tests {
         assert_eq!(
             pending_txs
                 .txs
-                .get(&astria_address_from_hex_string(ALICE_ADDRESS).bytes())
+                .get(&*ALICE_ADDRESS_BYTES)
                 .unwrap()
                 .txs()
                 .len(),
@@ -1615,7 +1667,7 @@ mod tests {
         assert_eq!(
             pending_txs
                 .txs
-                .get(&astria_address_from_hex_string(BOB_ADDRESS).bytes())
+                .get(&*BOB_ADDRESS_BYTES)
                 .unwrap()
                 .txs()
                 .len(),
@@ -1629,26 +1681,29 @@ mod tests {
         );
     }
 
-    #[test]
-    fn transactions_container_remove() {
+    #[tokio::test]
+    async fn transactions_container_remove() {
+        let fixture = Fixture::default_initialized().await;
         let mut pending_txs = PendingTransactions::new(TX_TTL);
 
         // transactions to add to accounts
-        let ttx_s0_0 = MockTTXBuilder::new().nonce(0).build();
-        let ttx_s0_1 = MockTTXBuilder::new().nonce(1).build();
-        let ttx_s1_0 = MockTTXBuilder::new()
+        let ttx_s0_0 = MockTTXBuilder::new(&fixture).nonce(0).build().await;
+        let ttx_s0_1 = MockTTXBuilder::new(&fixture).nonce(1).build().await;
+        let ttx_s1_0 = MockTTXBuilder::new(&fixture)
             .nonce(0)
-            .signer(get_bob_signing_key())
-            .build();
-        let ttx_s1_1 = MockTTXBuilder::new()
+            .signer(BOB.clone())
+            .build()
+            .await;
+        let ttx_s1_1 = MockTTXBuilder::new(&fixture)
             .nonce(1)
-            .signer(get_bob_signing_key())
-            .build();
-        let account_balances = mock_balances(1, 1);
+            .signer(BOB.clone())
+            .build()
+            .await;
+        let account_balances = dummy_balances(1, 1);
 
         // remove on empty returns the tx in Err variant.
         assert!(
-            pending_txs.remove(ttx_s0_0.signed_tx.clone()).is_err(),
+            pending_txs.remove(ttx_s0_0.checked_tx.clone()).is_err(),
             "zero transactions should be removed from non existing accounts"
         );
 
@@ -1668,8 +1723,8 @@ mod tests {
 
         // remove should remove tx and higher
         assert_eq!(
-            pending_txs.remove(ttx_s0_0.signed_tx.clone()).unwrap(),
-            vec![ttx_s0_0.tx_hash, ttx_s0_1.tx_hash],
+            pending_txs.remove(ttx_s0_0.checked_tx.clone()).unwrap(),
+            vec![*ttx_s0_0.checked_tx.id(), *ttx_s0_1.checked_tx.id()],
             "rest of transactions for account should be removed when targeting bottom nonce"
         );
         assert_eq!(pending_txs.txs.len(), 1, "empty account should be removed");
@@ -1679,33 +1734,33 @@ mod tests {
             "should only have two transactions tracked"
         );
         assert!(
-            pending_txs.contains_tx(&ttx_s1_0.tx_hash),
+            pending_txs.contains_tx(ttx_s1_0.checked_tx.id()),
             "other account should be untouched"
         );
         assert!(
-            pending_txs.contains_tx(&ttx_s1_1.tx_hash),
+            pending_txs.contains_tx(ttx_s1_1.checked_tx.id()),
             "other account should be untouched"
         );
     }
 
-    #[test]
-    fn transactions_container_clear_account() {
+    #[tokio::test]
+    async fn transactions_container_clear_account() {
+        let fixture = Fixture::default_initialized().await;
         let mut pending_txs = PendingTransactions::new(TX_TTL);
 
         // transactions to add to accounts
-        let ttx_s0_0 = MockTTXBuilder::new().nonce(0).build();
-        let ttx_s0_1 = MockTTXBuilder::new().nonce(1).build();
-        let ttx_s1_0 = MockTTXBuilder::new()
+        let ttx_s0_0 = MockTTXBuilder::new(&fixture).nonce(0).build().await;
+        let ttx_s0_1 = MockTTXBuilder::new(&fixture).nonce(1).build().await;
+        let ttx_s1_0 = MockTTXBuilder::new(&fixture)
             .nonce(0)
-            .signer(get_bob_signing_key())
-            .build();
-        let account_balances = mock_balances(1, 1);
+            .signer(BOB.clone())
+            .build()
+            .await;
+        let account_balances = dummy_balances(1, 1);
 
         // clear all on empty returns zero
         assert!(
-            pending_txs
-                .clear_account(&astria_address_from_hex_string(ALICE_ADDRESS).bytes())
-                .is_empty(),
+            pending_txs.clear_account(&ALICE_ADDRESS_BYTES).is_empty(),
             "zero transactions should be removed from clearing non existing accounts"
         );
 
@@ -1722,8 +1777,8 @@ mod tests {
 
         // clear should return all transactions
         assert_eq!(
-            pending_txs.clear_account(&astria_address_from_hex_string(ALICE_ADDRESS).bytes()),
-            vec![ttx_s0_0.tx_hash, ttx_s0_1.tx_hash],
+            pending_txs.clear_account(&ALICE_ADDRESS_BYTES),
+            vec![*ttx_s0_0.checked_tx.id(), *ttx_s0_1.checked_tx.id()],
             "all transactions should be returned from clearing account"
         );
 
@@ -1734,96 +1789,119 @@ mod tests {
             "should only have one transaction tracked"
         );
         assert!(
-            pending_txs.contains_tx(&ttx_s1_0.tx_hash),
+            pending_txs.contains_tx(ttx_s1_0.checked_tx.id()),
             "other account should be untouched"
         );
     }
 
     #[tokio::test]
     async fn transactions_container_recost_transactions() {
+        let mut fixture = Fixture::default_initialized().await;
         let mut pending_txs = PendingTransactions::new(TX_TTL);
-        let account_balances = mock_balances(1, 1);
+        let account_balances = dummy_balances(1, 1);
 
         // transaction to add to account
-        let ttx = MockTTXBuilder::new().nonce(0).build();
+        let ttx = MockTTXBuilder::new(&fixture).nonce(0).build().await;
         pending_txs.add(ttx.clone(), 0, &account_balances).unwrap();
         assert_eq!(
             pending_txs
                 .txs
-                .get(&astria_address_from_hex_string(ALICE_ADDRESS).bytes())
+                .get(&*ALICE_ADDRESS_BYTES)
                 .unwrap()
                 .txs
                 .get(&0)
                 .unwrap()
-                .cost()
+                .costs()
                 .get(&denom_0().to_ibc_prefixed())
                 .unwrap(),
             &0,
             "cost initially should be zero"
         );
 
-        // recost transactions with mock state's tx costs
-        let state = mock_state_getter().await;
+        // update the fees for `RollupDataSubmission` and recost transactions
+        let base_fee = 1000;
+        let multiplier = 2000;
+        fixture
+            .state_mut()
+            .put_fees(FeeComponents::<RollupDataSubmission>::new(
+                base_fee, multiplier,
+            ))
+            .unwrap();
         pending_txs
-            .recost_transactions(
-                astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
-                &state,
-            )
+            .recost_transactions(&ALICE_ADDRESS_BYTES, fixture.state())
             .await;
 
         // transaction should have been recosted
+        let rollup_data_len = match &ttx.checked_tx.checked_actions()[0] {
+            CheckedAction::RollupDataSubmission(checked_action) => {
+                u128::try_from(checked_action.action().data.len()).unwrap()
+            }
+            _ => panic!("should be rollup data submission"),
+        };
+        let expected_cost = base_fee
+            .checked_add(multiplier.checked_mul(rollup_data_len).unwrap())
+            .unwrap();
+
         assert_eq!(
             pending_txs
                 .txs
-                .get(&astria_address_from_hex_string(ALICE_ADDRESS).bytes())
+                .get(&*ALICE_ADDRESS_BYTES)
                 .unwrap()
                 .txs
                 .get(&0)
                 .unwrap()
-                .cost()
+                .costs()
                 .get(&denom_0().to_ibc_prefixed())
                 .unwrap(),
-            &MOCK_SEQUENCE_FEE,
-            "cost should be updated to MOCK_SEQUENCE_FEE"
+            &expected_cost,
+            "cost should be updated"
         );
     }
 
-    #[test]
+    #[tokio::test]
     #[expect(clippy::too_many_lines, reason = "it's a test")]
-    fn transactions_container_clean_account_stale_expired_and_included() {
+    async fn transactions_container_clean_account_stale_expired_and_included() {
         const INCLUDED_TX_BLOCK_NUMBER: u64 = 9;
+
+        let fixture = Fixture::default_initialized().await;
 
         let mut pending_txs = PendingTransactions::new(TX_TTL);
 
         // transactions to add to accounts
-        let ttx_s0_0 = MockTTXBuilder::new().nonce(0).build();
-        let ttx_s0_1 = MockTTXBuilder::new().nonce(1).build();
-        let ttx_s0_2 = MockTTXBuilder::new().nonce(2).build();
-        let ttx_s1_0 = MockTTXBuilder::new()
+        let ttx_s0_0 = MockTTXBuilder::new(&fixture).nonce(0).build().await;
+        let ttx_s0_1 = MockTTXBuilder::new(&fixture).nonce(1).build().await;
+        let ttx_s0_2 = MockTTXBuilder::new(&fixture).nonce(2).build().await;
+        let ttx_s1_0 = MockTTXBuilder::new(&fixture)
             .nonce(0)
-            .signer(get_bob_signing_key())
-            .build();
-        let ttx_s1_1 = MockTTXBuilder::new()
+            .signer(BOB.clone())
+            .build()
+            .await;
+        let ttx_s1_1 = MockTTXBuilder::new(&fixture)
             .nonce(1)
-            .signer(get_bob_signing_key())
-            .build();
-        let ttx_s1_2 = MockTTXBuilder::new()
+            .signer(BOB.clone())
+            .build()
+            .await;
+        let ttx_s1_2 = MockTTXBuilder::new(&fixture)
             .nonce(2)
-            .signer(get_bob_signing_key())
-            .build();
-        let ttx_s2_0 = MockTTXBuilder::new()
+            .signer(BOB.clone())
+            .build()
+            .await;
+        let ttx_s2_0 = MockTTXBuilder::new(&fixture)
             .nonce(0)
-            .signer(get_carol_signing_key())
-            .build();
-        let ttx_s2_1 = MockTTXBuilder::new()
+            .signer(CAROL.clone())
+            .build()
+            .await;
+        let ttx_s2_1 = MockTTXBuilder::new(&fixture)
             .nonce(1)
-            .signer(get_carol_signing_key())
-            .build();
-        let ttx_s2_2 = MockTTXBuilder::new()
+            .signer(CAROL.clone())
+            .build()
+            .await;
+        let ttx_s2_2 = MockTTXBuilder::new(&fixture)
             .nonce(2)
-            .signer(get_carol_signing_key())
-            .build();
-        let account_balances = mock_balances(1, 1);
+            .signer(CAROL.clone())
+            .build()
+            .await;
+        let account_balances = dummy_balances(1, 1);
 
         // add transactions
         pending_txs
@@ -1857,26 +1935,22 @@ mod tests {
         // clean accounts
         // should pop none from signing_address_0, one from signing_address_1, and all from
         // signing_address_2
-        let mut removed_txs = pending_txs.clean_account_stale_expired(
-            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
-            0,
-            &HashSet::new(),
-            0,
-        );
+        let mut removed_txs =
+            pending_txs.clean_account_stale_expired(&ALICE_ADDRESS_BYTES, 0, &HashSet::new(), 0);
         removed_txs.extend(pending_txs.clean_account_stale_expired(
-            astria_address_from_hex_string(BOB_ADDRESS).as_bytes(),
+            &BOB_ADDRESS_BYTES,
             1,
             &HashSet::new(),
             0,
         ));
         removed_txs.extend(pending_txs.clean_account_stale_expired(
-            astria_address_from_hex_string(CAROL_ADDRESS).as_bytes(),
+            &CAROL_ADDRESS_BYTES,
             4,
             // should remove transactions 0 and 1 with `RemovalReason::Indluded(9)`
             &{
                 let mut included_txs = HashSet::new();
-                included_txs.insert(ttx_s2_0.tx_hash);
-                included_txs.insert(ttx_s2_1.tx_hash);
+                included_txs.insert(*ttx_s2_0.id());
+                included_txs.insert(*ttx_s2_1.id());
                 included_txs
             },
             INCLUDED_TX_BLOCK_NUMBER,
@@ -1893,16 +1967,16 @@ mod tests {
             5,
             "5 transactions should be remaining from original 9"
         );
-        assert!(pending_txs.contains_tx(&ttx_s0_0.tx_hash));
-        assert!(pending_txs.contains_tx(&ttx_s0_1.tx_hash));
-        assert!(pending_txs.contains_tx(&ttx_s0_2.tx_hash));
-        assert!(pending_txs.contains_tx(&ttx_s1_1.tx_hash));
-        assert!(pending_txs.contains_tx(&ttx_s1_2.tx_hash));
+        assert!(pending_txs.contains_tx(ttx_s0_0.checked_tx.id()));
+        assert!(pending_txs.contains_tx(ttx_s0_1.checked_tx.id()));
+        assert!(pending_txs.contains_tx(ttx_s0_2.checked_tx.id()));
+        assert!(pending_txs.contains_tx(ttx_s1_1.checked_tx.id()));
+        assert!(pending_txs.contains_tx(ttx_s1_2.checked_tx.id()));
 
         assert_eq!(
             pending_txs
                 .txs
-                .get(&astria_address_from_hex_string(ALICE_ADDRESS).bytes())
+                .get(&*ALICE_ADDRESS_BYTES)
                 .unwrap()
                 .txs()
                 .len(),
@@ -1911,14 +1985,14 @@ mod tests {
         assert_eq!(
             pending_txs
                 .txs
-                .get(&astria_address_from_hex_string(BOB_ADDRESS).bytes())
+                .get(&*BOB_ADDRESS_BYTES)
                 .unwrap()
                 .txs()
                 .len(),
             2
         );
-        for (hash, reason) in removed_txs {
-            if hash == ttx_s2_0.tx_hash || hash == ttx_s2_1.tx_hash {
+        for (tx_id, reason) in removed_txs {
+            if tx_id == *ttx_s2_0.id() || tx_id == *ttx_s2_1.id() {
                 assert!(
                     matches!(
                         reason,
@@ -1938,20 +2012,22 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn transactions_container_clean_accounts_expired_transactions() {
+        let fixture = Fixture::default_initialized().await;
         let mut pending_txs = PendingTransactions::new(TX_TTL);
-        let account_balances = mock_balances(1, 1);
+        let account_balances = dummy_balances(1, 1);
 
         // transactions to add to accounts
-        let ttx_s0_0 = MockTTXBuilder::new().nonce(0).build();
+        let ttx_s0_0 = MockTTXBuilder::new(&fixture).nonce(0).build().await;
 
         // pass time to make first transaction stale
         tokio::time::advance(TX_TTL.saturating_add(Duration::from_nanos(1))).await;
 
-        let ttx_s0_1 = MockTTXBuilder::new().nonce(1).build();
-        let ttx_s1_0 = MockTTXBuilder::new()
+        let ttx_s0_1 = MockTTXBuilder::new(&fixture).nonce(1).build().await;
+        let ttx_s1_0 = MockTTXBuilder::new(&fixture)
             .nonce(0)
-            .signer(get_bob_signing_key())
-            .build();
+            .signer(BOB.clone())
+            .build()
+            .await;
 
         // add transactions
         pending_txs
@@ -1965,14 +2041,10 @@ mod tests {
             .unwrap();
 
         // clean accounts, all nonces should be valid
-        let mut removed_txs = pending_txs.clean_account_stale_expired(
-            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
-            0,
-            &HashSet::new(),
-            1,
-        );
+        let mut removed_txs =
+            pending_txs.clean_account_stale_expired(&ALICE_ADDRESS_BYTES, 0, &HashSet::new(), 1);
         removed_txs.extend(pending_txs.clean_account_stale_expired(
-            astria_address_from_hex_string(BOB_ADDRESS).as_bytes(),
+            &BOB_ADDRESS_BYTES,
             0,
             &HashSet::new(),
             1,
@@ -1990,70 +2062,76 @@ mod tests {
             "1 transaction should be remaining from original 3"
         );
         assert!(
-            pending_txs.contains_tx(&ttx_s1_0.tx_hash),
+            pending_txs.contains_tx(ttx_s1_0.checked_tx.id()),
             "not expired account should be untouched"
         );
 
         // check removal reasons
         assert_eq!(
             removed_txs[0],
-            (ttx_s0_0.tx_hash, RemovalReason::Expired),
+            (*ttx_s0_0.checked_tx.id(), RemovalReason::Expired),
             "first should be first pushed tx with removal reason as expired"
         );
         assert_eq!(
             removed_txs[1],
-            (ttx_s0_1.tx_hash, RemovalReason::LowerNonceInvalidated),
+            (
+                *ttx_s0_1.checked_tx.id(),
+                RemovalReason::LowerNonceInvalidated
+            ),
             "second should be second added tx with removal reason as lower nonce invalidation"
         );
     }
 
-    #[test]
-    fn pending_transactions_pending_nonce() {
+    #[tokio::test]
+    async fn pending_transactions_pending_nonce() {
+        let fixture = Fixture::default_initialized().await;
         let mut pending_txs = PendingTransactions::new(TX_TTL);
-        let account_balances = mock_balances(1, 1);
+        let account_balances = dummy_balances(1, 1);
 
         // transactions to add for account 0
-        let ttx_s0_0 = MockTTXBuilder::new().nonce(0).build();
-        let ttx_s0_1 = MockTTXBuilder::new().nonce(1).build();
+        let ttx_s0_0 = MockTTXBuilder::new(&fixture).nonce(0).build().await;
+        let ttx_s0_1 = MockTTXBuilder::new(&fixture).nonce(1).build().await;
 
         pending_txs.add(ttx_s0_0, 0, &account_balances).unwrap();
         pending_txs.add(ttx_s0_1, 0, &account_balances).unwrap();
 
         // empty account returns zero
         assert!(
-            pending_txs
-                .pending_nonce(astria_address_from_hex_string(BOB_ADDRESS).as_bytes())
-                .is_none(),
+            pending_txs.pending_nonce(&BOB_ADDRESS_BYTES).is_none(),
             "empty account should return None"
         );
 
         // non empty account returns highest nonce
         assert_eq!(
-            pending_txs.pending_nonce(astria_address_from_hex_string(ALICE_ADDRESS).as_bytes()),
+            pending_txs.pending_nonce(&ALICE_ADDRESS_BYTES),
             Some(2),
             "should return pending account nonce"
         );
     }
 
-    #[test]
-    fn pending_transactions_builder_queue() {
+    #[tokio::test]
+    async fn pending_transactions_builder_queue() {
+        let fixture = Fixture::default_initialized().await;
         let mut pending_txs = PendingTransactions::new(TX_TTL);
 
         // transactions to add to accounts
-        let ttx_s0_1 = MockTTXBuilder::new().nonce(1).build();
-        let ttx_s1_1 = MockTTXBuilder::new()
+        let ttx_s0_1 = MockTTXBuilder::new(&fixture).nonce(1).build().await;
+        let ttx_s1_1 = MockTTXBuilder::new(&fixture)
             .nonce(1)
-            .signer(get_bob_signing_key())
-            .build();
-        let ttx_s1_2 = MockTTXBuilder::new()
+            .signer(BOB.clone())
+            .build()
+            .await;
+        let ttx_s1_2 = MockTTXBuilder::new(&fixture)
             .nonce(2)
-            .signer(get_bob_signing_key())
-            .build();
-        let ttx_s1_3 = MockTTXBuilder::new()
+            .signer(BOB.clone())
+            .build()
+            .await;
+        let ttx_s1_3 = MockTTXBuilder::new(&fixture)
             .nonce(3)
-            .signer(get_bob_signing_key())
-            .build();
-        let account_balances = mock_balances(1, 1);
+            .signer(BOB.clone())
+            .build()
+            .await;
+        let account_balances = dummy_balances(1, 1);
 
         // add transactions
         pending_txs
@@ -2078,24 +2156,28 @@ mod tests {
         );
 
         // check that the transactions are in the expected order
-        let (first_tx_hash, _) = builder_queue[0];
+        let first_tx_id = builder_queue[0].id();
         assert_eq!(
-            first_tx_hash, ttx_s0_1.tx_hash,
+            first_tx_id,
+            ttx_s0_1.checked_tx.id(),
             "expected earliest transaction with lowest nonce difference (0) to be first"
         );
-        let (second_tx_hash, _) = builder_queue[1];
+        let second_tx_id = builder_queue[1].id();
         assert_eq!(
-            second_tx_hash, ttx_s1_1.tx_hash,
+            second_tx_id,
+            ttx_s1_1.checked_tx.id(),
             "expected other low nonce diff (0) to be second"
         );
-        let (third_tx_hash, _) = builder_queue[2];
+        let third_tx_id = builder_queue[2].id();
         assert_eq!(
-            third_tx_hash, ttx_s1_2.tx_hash,
+            third_tx_id,
+            ttx_s1_2.checked_tx.id(),
             "expected middle nonce diff (1) to be third"
         );
-        let (fourth_tx_hash, _) = builder_queue[3];
+        let fourth_tx_id = builder_queue[3].id();
         assert_eq!(
-            fourth_tx_hash, ttx_s1_3.tx_hash,
+            fourth_tx_id,
+            ttx_s1_3.checked_tx.id(),
             "expected highest nonce diff (2) to be last"
         );
 
@@ -2107,24 +2189,28 @@ mod tests {
         );
     }
 
-    #[test]
-    fn parked_transactions_find_promotables() {
+    #[tokio::test]
+    async fn parked_transactions_find_promotables() {
+        let fixture = Fixture::default_initialized().await;
         let mut parked_txs = ParkedTransactions::<MAX_PARKED_TXS_PER_ACCOUNT>::new(TX_TTL, 100);
 
         // transactions to add to accounts
-        let ttx_1 = MockTTXBuilder::new()
+        let ttx_1 = MockTTXBuilder::new(&fixture)
             .nonce(1)
-            .cost_map(mock_tx_cost(10, 0, 0))
-            .build();
-        let ttx_2 = MockTTXBuilder::new()
+            .cost_map(dummy_tx_costs(10, 0, 0))
+            .build()
+            .await;
+        let ttx_2 = MockTTXBuilder::new(&fixture)
             .nonce(2)
-            .cost_map(mock_tx_cost(5, 2, 0))
-            .build();
-        let ttx_3 = MockTTXBuilder::new()
+            .cost_map(dummy_tx_costs(5, 2, 0))
+            .build()
+            .await;
+        let ttx_3 = MockTTXBuilder::new(&fixture)
             .nonce(3)
-            .cost_map(mock_tx_cost(1, 0, 0))
-            .build();
-        let remaining_balances = mock_balances(15, 2);
+            .cost_map(dummy_tx_costs(1, 0, 0))
+            .build()
+            .await;
+        let remaining_balances = dummy_balances(15, 2);
 
         // add transactions
         parked_txs
@@ -2138,19 +2224,11 @@ mod tests {
             .unwrap();
 
         // none should be returned on nonce gap
-        let promotables = parked_txs.find_promotables(
-            &astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
-            0,
-            &remaining_balances,
-        );
+        let promotables = parked_txs.find_promotables(&ALICE_ADDRESS_BYTES, 0, &remaining_balances);
         assert_eq!(promotables.len(), 0);
 
         // only first two transactions should be returned
-        let promotables = parked_txs.find_promotables(
-            &astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
-            1,
-            &remaining_balances,
-        );
+        let promotables = parked_txs.find_promotables(&ALICE_ADDRESS_BYTES, 1, &remaining_balances);
         assert_eq!(promotables.len(), 2);
         assert_eq!(promotables[0].nonce(), 1);
         assert_eq!(promotables[1].nonce(), 2);
@@ -2162,11 +2240,7 @@ mod tests {
 
         // empty account should be removed
         // remove last
-        parked_txs.find_promotables(
-            &astria_address_from_hex_string(ALICE_ADDRESS).bytes(),
-            3,
-            &remaining_balances,
-        );
+        parked_txs.find_promotables(&ALICE_ADDRESS_BYTES, 3, &remaining_balances);
         assert_eq!(
             parked_txs.addresses().count(),
             0,
@@ -2174,28 +2248,33 @@ mod tests {
         );
     }
 
-    #[test]
-    fn pending_transactions_find_demotables() {
+    #[tokio::test]
+    async fn pending_transactions_find_demotables() {
+        let fixture = Fixture::default_initialized().await;
         let mut pending_txs = PendingTransactions::new(TX_TTL);
 
         // transactions to add to account
-        let ttx_1 = MockTTXBuilder::new()
+        let ttx_1 = MockTTXBuilder::new(&fixture)
             .nonce(1)
-            .cost_map(mock_tx_cost(5, 0, 0))
-            .build();
-        let ttx_2 = MockTTXBuilder::new()
+            .cost_map(dummy_tx_costs(5, 0, 0))
+            .build()
+            .await;
+        let ttx_2 = MockTTXBuilder::new(&fixture)
             .nonce(2)
-            .cost_map(mock_tx_cost(0, 5, 0))
-            .build();
-        let ttx_3 = MockTTXBuilder::new()
+            .cost_map(dummy_tx_costs(0, 5, 0))
+            .build()
+            .await;
+        let ttx_3 = MockTTXBuilder::new(&fixture)
             .nonce(3)
-            .cost_map(mock_tx_cost(5, 0, 0))
-            .build();
-        let ttx_4 = MockTTXBuilder::new()
+            .cost_map(dummy_tx_costs(5, 0, 0))
+            .build()
+            .await;
+        let ttx_4 = MockTTXBuilder::new(&fixture)
             .nonce(4)
-            .cost_map(mock_tx_cost(0, 5, 0))
-            .build();
-        let account_balances_full = mock_balances(100, 100);
+            .cost_map(dummy_tx_costs(0, 5, 0))
+            .build()
+            .await;
+        let account_balances_full = dummy_balances(100, 100);
 
         // add transactions
         pending_txs
@@ -2212,36 +2291,28 @@ mod tests {
             .unwrap();
 
         // demote none
-        let demotables: Vec<TimemarkedTransaction> = pending_txs.find_demotables(
-            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
-            &account_balances_full,
-        );
+        let demotables: Vec<TimemarkedTransaction> =
+            pending_txs.find_demotables(&ALICE_ADDRESS_BYTES, &account_balances_full);
         assert_eq!(demotables.len(), 0);
 
         // demote last
-        let account_balances_demotion = mock_balances(100, 9);
-        let demotables = pending_txs.find_demotables(
-            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
-            &account_balances_demotion,
-        );
+        let account_balances_demotion = dummy_balances(100, 9);
+        let demotables =
+            pending_txs.find_demotables(&ALICE_ADDRESS_BYTES, &account_balances_demotion);
         assert_eq!(demotables.len(), 1);
         assert_eq!(demotables[0].nonce(), 4);
 
         // demote multiple
-        let account_balances_demotion = mock_balances(100, 4);
-        let demotables = pending_txs.find_demotables(
-            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
-            &account_balances_demotion,
-        );
+        let account_balances_demotion = dummy_balances(100, 4);
+        let demotables =
+            pending_txs.find_demotables(&ALICE_ADDRESS_BYTES, &account_balances_demotion);
         assert_eq!(demotables.len(), 2);
         assert_eq!(demotables[0].nonce(), 2);
 
         // demote rest
-        let account_balances_demotion = mock_balances(0, 5);
-        let demotables = pending_txs.find_demotables(
-            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
-            &account_balances_demotion,
-        );
+        let account_balances_demotion = dummy_balances(0, 5);
+        let demotables =
+            pending_txs.find_demotables(&ALICE_ADDRESS_BYTES, &account_balances_demotion);
         assert_eq!(demotables.len(), 1);
         assert_eq!(demotables[0].nonce(), 1);
 
@@ -2253,28 +2324,33 @@ mod tests {
         );
     }
 
-    #[test]
-    fn pending_transactions_remaining_account_balances() {
+    #[tokio::test]
+    async fn pending_transactions_remaining_account_balances() {
+        let fixture = Fixture::default_initialized().await;
         let mut pending_txs = PendingTransactions::new(TX_TTL);
 
         // transactions to add to account
-        let ttx_1 = MockTTXBuilder::new()
+        let ttx_1 = MockTTXBuilder::new(&fixture)
             .nonce(1)
-            .cost_map(mock_tx_cost(6, 0, 0))
-            .build();
-        let ttx_2 = MockTTXBuilder::new()
+            .cost_map(dummy_tx_costs(6, 0, 0))
+            .build()
+            .await;
+        let ttx_2 = MockTTXBuilder::new(&fixture)
             .nonce(2)
-            .cost_map(mock_tx_cost(0, 5, 0))
-            .build();
-        let ttx_3 = MockTTXBuilder::new()
+            .cost_map(dummy_tx_costs(0, 5, 0))
+            .build()
+            .await;
+        let ttx_3 = MockTTXBuilder::new(&fixture)
             .nonce(3)
-            .cost_map(mock_tx_cost(6, 0, 0))
-            .build();
-        let ttx_4 = MockTTXBuilder::new()
+            .cost_map(dummy_tx_costs(6, 0, 0))
+            .build()
+            .await;
+        let ttx_4 = MockTTXBuilder::new(&fixture)
             .nonce(4)
-            .cost_map(mock_tx_cost(0, 5, 0))
-            .build();
-        let account_balances_full = mock_balances(100, 100);
+            .cost_map(dummy_tx_costs(0, 5, 0))
+            .build()
+            .await;
+        let account_balances_full = dummy_balances(100, 100);
 
         // add transactions
         pending_txs
@@ -2291,10 +2367,8 @@ mod tests {
             .unwrap();
 
         // get balances
-        let remaining_balances = pending_txs.subtract_contained_costs(
-            astria_address_from_hex_string(ALICE_ADDRESS).as_bytes(),
-            account_balances_full,
-        );
+        let remaining_balances =
+            pending_txs.subtract_contained_costs(&ALICE_ADDRESS_BYTES, account_balances_full);
         assert_eq!(
             remaining_balances
                 .get(&denom_0().to_ibc_prefixed())
@@ -2309,31 +2383,37 @@ mod tests {
         );
     }
 
-    #[test]
-    fn builder_queue_should_be_sorted_by_action_group_type() {
+    #[tokio::test]
+    async fn builder_queue_should_be_sorted_by_action_group_type() {
+        let fixture = Fixture::default_initialized().await;
         let mut pending_txs = PendingTransactions::new(TX_TTL);
 
         // create transactions in reverse order
-        let ttx_unbundleable_sudo = MockTTXBuilder::new()
-            .nonce(0)
-            .signer(get_judy_signing_key())
+        let ttx_unbundleable_sudo = MockTTXBuilder::new(&fixture)
+            .nonce(1)
+            .signer(SUDO.clone())
             .group(Group::UnbundleableSudo)
-            .build();
-        let ttx_bundleable_sudo = MockTTXBuilder::new()
+            .build()
+            .await;
+        let ttx_bundleable_sudo = MockTTXBuilder::new(&fixture)
             .nonce(0)
-            .signer(get_carol_signing_key())
+            .signer(SUDO.clone())
             .group(Group::BundleableSudo)
-            .build();
-        let ttx_unbundleable_general = MockTTXBuilder::new()
+            .build()
+            .await;
+        let ttx_unbundleable_general = MockTTXBuilder::new(&fixture)
             .nonce(0)
-            .signer(get_bob_signing_key())
+            .signer(BOB.clone())
             .group(Group::UnbundleableGeneral)
-            .build();
-        let ttx_bundleable_general = MockTTXBuilder::new()
+            .build()
+            .await;
+        let ttx_bundleable_general = MockTTXBuilder::new(&fixture)
             .nonce(0)
+            .signer(CAROL.clone())
             .group(Group::BundleableGeneral)
-            .build();
-        let account_balances_full = mock_balances(100, 100);
+            .build()
+            .await;
+        let account_balances_full = dummy_balances(100, 100);
 
         // add all transactions to the container
         pending_txs
@@ -2354,39 +2434,44 @@ mod tests {
         let builder_queue = pending_txs.builder_queue();
 
         // check that the transactions are in the expected order
-        let (first_tx_hash, _) = builder_queue[0];
+        let first_tx_id = builder_queue[0].id();
         assert_eq!(
-            first_tx_hash, ttx_bundleable_general.tx_hash,
+            first_tx_id,
+            ttx_bundleable_general.checked_tx.id(),
             "expected bundleable general transaction to be first"
         );
 
-        let (second_tx_hash, _) = builder_queue[1];
+        let second_tx_id = builder_queue[1].id();
         assert_eq!(
-            second_tx_hash, ttx_unbundleable_general.tx_hash,
+            second_tx_id,
+            ttx_unbundleable_general.checked_tx.id(),
             "expected unbundleable general transaction to be second"
         );
 
-        let (third_tx_hash, _) = builder_queue[2];
+        let third_tx_id = builder_queue[2].id();
         assert_eq!(
-            third_tx_hash, ttx_bundleable_sudo.tx_hash,
+            third_tx_id,
+            ttx_bundleable_sudo.checked_tx.id(),
             "expected bundleable sudo transaction to be third"
         );
 
-        let (fourth_tx_hash, _) = builder_queue[3];
+        let fourth_tx_id = builder_queue[3].id();
         assert_eq!(
-            fourth_tx_hash, ttx_unbundleable_sudo.tx_hash,
+            fourth_tx_id,
+            ttx_unbundleable_sudo.checked_tx.id(),
             "expected unbundleable sudo transaction to be last"
         );
     }
 
-    #[test]
-    fn parked_transactions_size_limit_works() {
+    #[tokio::test]
+    async fn parked_transactions_size_limit_works() {
+        let fixture = Fixture::default_initialized().await;
         let mut parked_txs = ParkedTransactions::<MAX_PARKED_TXS_PER_ACCOUNT>::new(TX_TTL, 1);
 
         // transactions to add to account
-        let ttx_1 = MockTTXBuilder::new().nonce(1).build();
-        let ttx_2 = MockTTXBuilder::new().nonce(2).build();
-        let account_balances_full = mock_balances(100, 100);
+        let ttx_1 = MockTTXBuilder::new(&fixture).nonce(1).build().await;
+        let ttx_2 = MockTTXBuilder::new(&fixture).nonce(2).build().await;
+        let account_balances_full = dummy_balances(100, 100);
 
         // under limit okay
         parked_txs
@@ -2403,7 +2488,7 @@ mod tests {
         );
 
         // removing transactions makes space for new ones
-        parked_txs.remove(ttx_1.signed_tx).unwrap();
+        parked_txs.remove(ttx_1.checked_tx).unwrap();
         // adding should now be okay
         parked_txs.add(ttx_2, 0, &account_balances_full).unwrap();
     }

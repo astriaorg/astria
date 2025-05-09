@@ -25,6 +25,7 @@ use cnidarium::{
 };
 use futures::Stream;
 use pin_project_lite::pin_project;
+use thiserror::Error;
 use tracing::{
     instrument,
     Level,
@@ -263,14 +264,16 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.put_account_balance(
             address,
             asset,
-            balance
-                .checked_sub(amount)
-                .ok_or_eyre("subtracting from account balance failed due to insufficient funds")?,
+            balance.checked_sub(amount).ok_or_eyre(InsufficientFunds)?,
         )
         .wrap_err("failed to store updated account balance in database")?;
         Ok(())
     }
 }
+
+#[derive(Error, Debug)]
+#[error("subtracting from account balance failed due to insufficient funds")]
+pub(crate) struct InsufficientFunds;
 
 impl<T: StateWrite> StateWriteExt for T {}
 
@@ -285,7 +288,7 @@ mod tests {
             StateReadExt as _,
             StateWriteExt as _,
         },
-        benchmark_and_test_utils::{
+        test_utils::{
             astria_address,
             nria,
         },

@@ -83,6 +83,7 @@ config = { package = "astria-config", path = "../astria-config", features = [
 ] }
 insta = { workspace = true, features = ["json"] }
 maplit = "1.0.2"
+pbjson-types = { workspace = true }
 rand_chacha = "0.3.1"
 tokio = { workspace = true, features = ["test-util"] }
 assert-json-diff = "2.0.2"

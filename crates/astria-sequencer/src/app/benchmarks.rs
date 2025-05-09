@@ -69,7 +69,7 @@ impl Fixture {
                 ..crate::app::benchmark_and_test_utils::proto_genesis_state()
             },
         )
-        .unwrap();
+            .unwrap();
 
         let (app, storage) = AppInitializer::new()
             .with_genesis_state(genesis_state)

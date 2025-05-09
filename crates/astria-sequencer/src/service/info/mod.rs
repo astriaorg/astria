@@ -183,12 +183,14 @@ mod tests {
                 BridgeSudoChange,
                 BridgeTransfer,
                 BridgeUnlock,
+                CurrencyPairsChange,
                 FeeAssetChange,
                 FeeChange,
                 IbcRelayerChange,
                 IbcSudoChange,
                 Ics20Withdrawal,
                 InitBridgeAccount,
+                MarketsChange,
                 RecoverIbcClient,
                 RollupDataSubmission,
                 SudoAddressChange,
@@ -218,11 +220,11 @@ mod tests {
         },
         app::StateWriteExt as _,
         assets::StateWriteExt as _,
-        benchmark_and_test_utils::nria,
         fees::{
             StateReadExt as _,
             StateWriteExt as _,
         },
+        test_utils::nria,
     };
 
     #[tokio::test]
@@ -457,6 +459,10 @@ mod tests {
                 "base": 13,
                 "multiplier": 13
               },
+              "currency_pairs_change": {
+                "base": 15,
+                "multiplier": 15
+              },
               "fee_asset_change": {
                 "base": 4,
                 "multiplier": 4
@@ -484,6 +490,10 @@ mod tests {
               "init_bridge_account": {
                 "base": 6,
                 "multiplier": 6
+              },
+              "markets_change": {
+                "base": 16,
+                "multiplier": 16
               },
               "recover_ibc_client": {
                 "base": 0,
@@ -556,6 +566,12 @@ mod tests {
             .unwrap();
         state
             .put_fees(FeeComponents::<ValidatorUpdate>::new(14, 14))
+            .unwrap();
+        state
+            .put_fees(FeeComponents::<CurrencyPairsChange>::new(15, 15))
+            .unwrap();
+        state
+            .put_fees(FeeComponents::<MarketsChange>::new(16, 16))
             .unwrap();
     }
 }

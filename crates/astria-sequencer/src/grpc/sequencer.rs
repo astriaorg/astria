@@ -334,6 +334,7 @@ impl SequencerService for SequencerServer {
 #[cfg(test)]
 mod tests {
     use astria_core::{
+        crypto::SigningKey,
         protocol::{
             test_utils::ConfigureSequencerBlock,
             transaction::v1::action::ValidatorUpdate,
@@ -345,23 +346,20 @@ mod tests {
 
     use super::*;
     use crate::{
-        app::{
-            benchmark_and_test_utils::{
-                mock_balances,
-                mock_tx_cost,
-            },
-            test_utils::get_alice_signing_key,
-            StateWriteExt as _,
-        },
+        app::StateWriteExt as _,
         authority::{
             StateWriteExt as _,
             ValidatorSet,
         },
-        benchmark_and_test_utils::{
-            astria_address,
-            verification_key,
-        },
         grpc::StateWriteExt as _,
+        test_utils::{
+            astria_address,
+            dummy_balances,
+            dummy_tx_costs,
+            Fixture,
+            ALICE_ADDRESS,
+            SUDO_ADDRESS,
+        },
     };
 
     fn make_test_sequencer_block(height: u32) -> SequencerBlock {
@@ -398,51 +396,52 @@ mod tests {
 
     #[tokio::test]
     async fn get_pending_nonce_in_mempool() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
+        let fixture = Fixture::default_initialized().await;
+        let mempool = fixture.mempool();
 
-        let alice = get_alice_signing_key();
-        let alice_address = astria_address(&alice.address_bytes());
         // insert a transaction with a nonce gap
         let gapped_nonce = 99;
-        let tx = crate::app::test_utils::MockTxBuilder::new()
-            .nonce(gapped_nonce)
-            .build();
+        let tx = fixture
+            .checked_tx_builder()
+            .with_nonce(gapped_nonce)
+            .build()
+            .await;
         mempool
-            .insert(tx, 0, &mock_balances(0, 0), mock_tx_cost(0, 0, 0))
+            .insert(tx, 0, &dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
             .await
             .unwrap();
 
         // insert a transaction at the current nonce
         let account_nonce = 0;
-        let tx = crate::app::test_utils::MockTxBuilder::new()
-            .nonce(account_nonce)
-            .build();
-
+        let tx = fixture
+            .checked_tx_builder()
+            .with_nonce(account_nonce)
+            .build()
+            .await;
         mempool
-            .insert(tx, 0, &mock_balances(0, 0), mock_tx_cost(0, 0, 0))
+            .insert(tx, 0, &dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
             .await
             .unwrap();
 
         // insert a transactions one above account nonce (not gapped)
         let sequential_nonce = 1;
-        let tx: Arc<astria_core::protocol::transaction::v1::Transaction> =
-            crate::app::test_utils::MockTxBuilder::new()
-                .nonce(sequential_nonce)
-                .build();
+        let tx = fixture
+            .checked_tx_builder()
+            .with_nonce(sequential_nonce)
+            .build()
+            .await;
         mempool
-            .insert(tx, 0, &mock_balances(0, 0), mock_tx_cost(0, 0, 0))
+            .insert(tx, 0, &dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
             .await
             .unwrap();
 
         let server = Arc::new(SequencerServer::new(
-            storage.clone(),
+            fixture.storage(),
             mempool,
             Upgrades::default(),
         ));
         let request = GetPendingNonceRequest {
-            address: Some(alice_address.into_raw()),
+            address: Some(SUDO_ADDRESS.into_raw()),
         };
         let request = Request::new(request);
         let response = server.get_pending_nonce(request).await.unwrap();
@@ -453,22 +452,16 @@ mod tests {
     async fn get_pending_nonce_in_storage() {
         use crate::accounts::StateWriteExt as _;
 
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
+        let fixture = Fixture::default_initialized().await;
+        let mempool = fixture.mempool();
+        let storage = fixture.storage();
         let mut state_tx = StateDelta::new(storage.latest_snapshot());
-        let alice = get_alice_signing_key();
-        let alice_address = astria_address(&alice.address_bytes());
-        state_tx.put_account_nonce(&alice_address, 99).unwrap();
+        state_tx.put_account_nonce(&*ALICE_ADDRESS, 99).unwrap();
         storage.commit(state_tx).await.unwrap();
 
-        let server = Arc::new(SequencerServer::new(
-            storage.clone(),
-            mempool,
-            Upgrades::default(),
-        ));
+        let server = Arc::new(SequencerServer::new(storage, mempool, Upgrades::default()));
         let request = GetPendingNonceRequest {
-            address: Some(alice_address.into_raw()),
+            address: Some(ALICE_ADDRESS.into_raw()),
         };
         let request = Request::new(request);
         let response = server.get_pending_nonce(request).await.unwrap();
@@ -477,13 +470,13 @@ mod tests {
 
     #[tokio::test]
     async fn get_validator_name_works_as_expected() {
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
-        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let fixture = Fixture::default_initialized().await;
+        let mempool = fixture.mempool();
+        let storage = fixture.storage();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let verification_key = verification_key(1);
+        let verification_key = SigningKey::from([1; 32]).verification_key();
         let key_address_bytes = *verification_key.clone().address_bytes();
         let validator_name = "test".to_string();
 
@@ -496,11 +489,7 @@ mod tests {
         state.put_validator(&update_with_name).unwrap();
         storage.commit(state).await.unwrap();
 
-        let server = Arc::new(SequencerServer::new(
-            storage.clone(),
-            mempool,
-            Upgrades::default(),
-        ));
+        let server = Arc::new(SequencerServer::new(storage, mempool, Upgrades::default()));
         let request = GetValidatorNameRequest {
             address: Some(astria_address(&key_address_bytes).into_raw()),
         };
@@ -544,7 +533,7 @@ mod tests {
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 
-        let verification_key = verification_key(1);
+        let verification_key = SigningKey::from([1; 32]).verification_key();
         let key_address_bytes = *verification_key.clone().address_bytes();
         let validator_name = "test".to_string();
 

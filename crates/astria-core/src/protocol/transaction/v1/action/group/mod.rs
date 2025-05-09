@@ -58,7 +58,9 @@ impl Group {
         matches!(self, Group::BundleableGeneral | Group::BundleableSudo)
     }
 
-    pub(crate) fn is_bundleable_sudo(self) -> bool {
+    /// Returns `true` if and only if `self` is `Group::BundleableSudo`.
+    #[must_use]
+    pub fn is_bundleable_sudo(self) -> bool {
         matches!(self, Group::BundleableSudo)
     }
 }

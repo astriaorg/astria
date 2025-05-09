@@ -285,26 +285,8 @@ mod tests {
         sync::Arc,
     };
 
-    use astria_core::{
-        crypto::{
-            SigningKey,
-            VerificationKey,
-        },
-        generated::astria::protocol::genesis::v1::{
-            Account as RawAccount,
-            GenesisAppState as RawGenesisAppState,
-        },
-        primitive::v1::RollupId,
-        protocol::transaction::v1::{
-            action::RollupDataSubmission,
-            Transaction,
-            TransactionBody,
-        },
-        sequencerblock::v1::DataItem,
-        Protobuf as _,
-    };
+    use astria_core::sequencerblock::v1::DataItem;
     use bytes::Bytes;
-    use rand::rngs::OsRng;
     use tendermint::{
         abci::types::{
             CommitInfo,
@@ -317,36 +299,19 @@ mod tests {
 
     use super::*;
     use crate::{
-        app::{
-            benchmark_and_test_utils::{
-                mock_balances,
-                mock_tx_cost,
-                proto_genesis_state,
-                AppInitializer,
-            },
-            test_utils::{
-                run_until_aspen_applied,
-                transactions_with_extended_commit_info_and_commitments,
-            },
+        checked_transaction::CheckedTransaction,
+        test_utils::{
+            assert_error_contains,
+            dummy_balances,
+            dummy_tx_costs,
+            transactions_with_extended_commit_info_and_commitments,
+            Fixture,
+            ALICE,
+            ALICE_ADDRESS_BYTES,
         },
-        benchmark_and_test_utils::astria_address,
-        mempool::Mempool,
     };
 
     const BLOCK_HEIGHT: u8 = 100;
-
-    fn make_unsigned_tx() -> TransactionBody {
-        TransactionBody::builder()
-            .actions(vec![RollupDataSubmission {
-                rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                data: Bytes::from_static(b"hello world"),
-                fee_asset: crate::benchmark_and_test_utils::nria().into(),
-            }
-            .into()])
-            .chain_id("test")
-            .try_build()
-            .unwrap()
-    }
 
     fn new_prepare_proposal_request() -> request::PrepareProposal {
         request::PrepareProposal {
@@ -364,7 +329,7 @@ mod tests {
         }
     }
 
-    fn new_process_proposal_request(txs: &[Arc<Transaction>]) -> request::ProcessProposal {
+    fn new_process_proposal_request(txs: &[Arc<CheckedTransaction>]) -> request::ProcessProposal {
         let height = tendermint::block::Height::from(BLOCK_HEIGHT);
         request::ProcessProposal {
             txs: transactions_with_extended_commit_info_and_commitments(height, txs, None),
@@ -381,47 +346,29 @@ mod tests {
         }
     }
 
-    async fn new_consensus_service(funded_key: Option<VerificationKey>) -> (Consensus, Mempool) {
-        let accounts = funded_key
-            .into_iter()
-            .map(|funded_key| RawAccount {
-                address: Some(astria_address(funded_key.address_bytes()).to_raw()),
-                balance: Some(10u128.pow(19).into()),
-            })
-            .collect();
-        let genesis_state = RawGenesisAppState {
-            accounts,
-            ..proto_genesis_state()
-        }
-        .try_into()
-        .unwrap();
-
-        let (mut app, storage) = AppInitializer::new()
-            .with_genesis_state(genesis_state)
-            .init()
-            .await;
-        let _ = run_until_aspen_applied(&mut app, storage.clone()).await;
-
+    fn new_consensus_service(fixture: Fixture) -> Consensus {
         let (_tx, rx) = mpsc::channel(1);
         let cancellation_token = tokio_util::sync::CancellationToken::new();
-        let mempool = app.mempool();
-        let consensus = Consensus::new(storage.clone(), app, rx, cancellation_token);
-        (consensus, mempool)
+        let (app, storage) = fixture.destructure();
+        Consensus::new(storage, app, rx, cancellation_token)
     }
 
     #[tokio::test]
     async fn prepare_and_process_proposal() {
-        let signing_key = SigningKey::new(OsRng);
-        let (mut consensus_service, mempool) =
-            new_consensus_service(Some(signing_key.verification_key())).await;
-        let tx = make_unsigned_tx();
-        let signed_tx = Arc::new(tx.sign(&signing_key));
+        let fixture = Fixture::default_initialized().await;
+        let mempool = fixture.mempool();
+        let tx = fixture
+            .checked_tx_builder()
+            .with_signer(ALICE.clone())
+            .build()
+            .await;
+        let mut consensus_service = new_consensus_service(fixture);
         mempool
             .insert(
-                signed_tx.clone(),
+                tx.clone(),
                 0,
-                &mock_balances(0, 0),
-                mock_tx_cost(0, 0, 0),
+                &dummy_balances(0, 0),
+                dummy_tx_costs(0, 0, 0),
             )
             .await
             .unwrap();
@@ -432,7 +379,7 @@ mod tests {
             .await
             .unwrap();
 
-        let process_proposal = new_process_proposal_request(&[signed_tx.clone()]);
+        let process_proposal = new_process_proposal_request(&[tx.clone()]);
         let expected_txs: Vec<Bytes> = process_proposal.txs.clone();
 
         assert_eq!(
@@ -442,8 +389,7 @@ mod tests {
             }
         );
 
-        let (mut consensus_service, _) =
-            new_consensus_service(Some(signing_key.verification_key())).await;
+        let mut consensus_service = new_consensus_service(Fixture::default_initialized().await);
         consensus_service
             .handle_process_proposal(process_proposal)
             .await
@@ -452,12 +398,15 @@ mod tests {
 
     #[tokio::test]
     async fn process_proposal_ok() {
-        let signing_key = SigningKey::new(OsRng);
-        let (mut consensus_service, _) =
-            new_consensus_service(Some(signing_key.verification_key())).await;
-        let tx = make_unsigned_tx();
-        let signed_tx = Arc::new(tx.sign(&signing_key));
-        let process_proposal = new_process_proposal_request(&[signed_tx]);
+        let fixture = Fixture::default_initialized().await;
+        let tx = fixture
+            .checked_tx_builder()
+            .with_signer(ALICE.clone())
+            .build()
+            .await;
+        let mut consensus_service = new_consensus_service(fixture);
+
+        let process_proposal = new_process_proposal_request(&[tx]);
 
         consensus_service
             .handle_process_proposal(process_proposal)
@@ -467,67 +416,50 @@ mod tests {
 
     #[tokio::test]
     async fn process_proposal_fail_missing_action_commitment() {
-        let (mut consensus_service, _) = new_consensus_service(None).await;
+        let mut consensus_service = new_consensus_service(Fixture::default_initialized().await);
+
         let mut process_proposal = new_process_proposal_request(&[]);
         process_proposal.txs.clear();
-        let error_message = format!(
-            "{:#}",
-            consensus_service
-                .handle_process_proposal(process_proposal)
-                .await
-                .err()
-                .unwrap()
-        );
-        let expected = "did not contain the rollup transactions root";
-        assert!(
-            error_message.contains(expected),
-            "`{error_message}` didn't contain `{expected}`"
-        );
+        let error = consensus_service
+            .handle_process_proposal(process_proposal)
+            .await
+            .unwrap_err();
+        assert_error_contains(&error, "did not contain the rollup transactions root");
     }
 
     #[tokio::test]
     async fn process_proposal_fail_wrong_commitment_length() {
-        let (mut consensus_service, _) = new_consensus_service(None).await;
+        let mut consensus_service = new_consensus_service(Fixture::default_initialized().await);
         let mut process_proposal = new_process_proposal_request(&[]);
         process_proposal.txs = vec![[0u8; 16].to_vec().into()];
-        let error_message = format!(
-            "{:#}",
-            consensus_service
-                .handle_process_proposal(process_proposal)
-                .await
-                .err()
-                .unwrap()
-        );
-        let expected = "item 0 of cometbft `block.data` could not be protobuf-decoded";
-        assert!(
-            error_message.contains(expected),
-            "`{error_message}` didn't contain `{expected}`"
+        let error = consensus_service
+            .handle_process_proposal(process_proposal)
+            .await
+            .unwrap_err();
+        assert_error_contains(
+            &error,
+            "item 0 of cometbft `block.data` could not be protobuf-decoded",
         );
     }
 
     #[tokio::test]
     async fn process_proposal_fail_wrong_commitment_value() {
-        let (mut consensus_service, _) = new_consensus_service(None).await;
+        let mut consensus_service = new_consensus_service(Fixture::default_initialized().await);
         let mut process_proposal = new_process_proposal_request(&[]);
         process_proposal.txs[0] = DataItem::RollupTransactionsRoot([99u8; 32]).encode();
-        let error_message = format!(
-            "{:#}",
-            consensus_service
-                .handle_process_proposal(process_proposal)
-                .await
-                .err()
-                .unwrap()
-        );
-        let expected = "rollup transactions commitment does not match expected";
-        assert!(
-            error_message.contains(expected),
-            "`{error_message}` didn't contain `{expected}`"
+        let error = consensus_service
+            .handle_process_proposal(process_proposal)
+            .await
+            .unwrap_err();
+        assert_error_contains(
+            &error,
+            "rollup transactions commitment does not match expected",
         );
     }
 
     #[tokio::test]
     async fn prepare_proposal_empty_block() {
-        let (mut consensus_service, _) = new_consensus_service(None).await;
+        let mut consensus_service = new_consensus_service(Fixture::default_initialized().await);
         let prepare_proposal = new_prepare_proposal_request();
 
         let prepare_proposal_response = consensus_service
@@ -547,7 +479,7 @@ mod tests {
 
     #[tokio::test]
     async fn process_proposal_ok_empty_block() {
-        let (mut consensus_service, _) = new_consensus_service(None).await;
+        let mut consensus_service = new_consensus_service(Fixture::default_initialized().await);
         let process_proposal = new_process_proposal_request(&[]);
         consensus_service
             .handle_process_proposal(process_proposal)
@@ -557,25 +489,26 @@ mod tests {
 
     #[tokio::test]
     async fn block_lifecycle() {
-        let signing_key = SigningKey::new(OsRng);
-        let address_bytes = *signing_key.verification_key().address_bytes();
-        let (mut consensus_service, mempool) =
-            new_consensus_service(Some(signing_key.verification_key())).await;
-
-        let tx = make_unsigned_tx();
-        let signed_tx = Arc::new(tx.sign(&signing_key));
+        let fixture = Fixture::default_initialized().await;
+        let mempool = fixture.mempool();
+        let tx = fixture
+            .checked_tx_builder()
+            .with_signer(ALICE.clone())
+            .build()
+            .await;
+        let mut consensus_service = new_consensus_service(fixture);
 
         mempool
             .insert(
-                signed_tx.clone(),
+                tx.clone(),
                 0,
-                &mock_balances(0, 0),
-                mock_tx_cost(0, 0, 0),
+                &dummy_balances(0, 0),
+                dummy_tx_costs(0, 0, 0),
             )
             .await
             .unwrap();
 
-        let process_proposal = new_process_proposal_request(&[signed_tx]);
+        let process_proposal = new_process_proposal_request(&[tx]);
         let txs = process_proposal.txs.clone();
         consensus_service
             .handle_request(ConsensusRequest::ProcessProposal(process_proposal))
@@ -588,7 +521,7 @@ mod tests {
             time: Time::now(),
             next_validators_hash: Hash::default(),
             proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
-            decided_last_commit: tendermint::abci::types::CommitInfo {
+            decided_last_commit: CommitInfo {
                 round: 0u16.into(),
                 votes: vec![],
             },
@@ -602,13 +535,13 @@ mod tests {
 
         // Mempool should still have a transaction
         assert_eq!(mempool.len().await, 1);
-        assert_eq!(mempool.pending_nonce(&address_bytes).await, Some(1));
+        assert_eq!(mempool.pending_nonce(&ALICE_ADDRESS_BYTES).await, Some(1));
 
         let commit = ConsensusRequest::Commit {};
         consensus_service.handle_request(commit).await.unwrap();
 
         // ensure that txs included in a block are removed from the mempool
         assert_eq!(mempool.len().await, 0);
-        assert_eq!(mempool.pending_nonce(&address_bytes).await, None);
+        assert_eq!(mempool.pending_nonce(&ALICE_ADDRESS_BYTES).await, None);
     }
 }

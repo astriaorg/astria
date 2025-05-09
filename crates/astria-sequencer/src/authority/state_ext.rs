@@ -201,21 +201,8 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    async fn remove_validator<TAddress: AddressBytes>(
-        &mut self,
-        validator_address: &TAddress,
-    ) -> Result<bool> {
-        if self
-            .get_raw(&keys::validator(validator_address))
-            .await
-            .map_err(anyhow_to_eyre)
-            .wrap_err("failed reading raw validator info from state")?
-            .is_none()
-        {
-            return Ok(false);
-        };
+    async fn remove_validator<TAddress: AddressBytes>(&mut self, validator_address: &TAddress) {
         self.delete(keys::validator(validator_address));
-        Ok(true)
     }
 
     #[instrument(skip_all)]
@@ -258,15 +245,24 @@ impl<T: StateWrite> StateWriteExt for T {}
 
 #[cfg(test)]
 mod tests {
-    use astria_core::protocol::transaction::v1::action::{
-        ValidatorName,
-        ValidatorUpdate,
+    use astria_core::{
+        crypto::{
+            SigningKey,
+            VerificationKey,
+        },
+        protocol::transaction::v1::action::{
+            ValidatorName,
+            ValidatorUpdate,
+        },
     };
     use cnidarium::StateDelta;
     use futures::TryStreamExt as _;
 
     use super::*;
-    use crate::benchmark_and_test_utils::verification_key;
+
+    fn verification_key(seed: u8) -> VerificationKey {
+        SigningKey::from([seed; 32]).verification_key()
+    }
 
     fn empty_validator_set() -> ValidatorSet {
         ValidatorSet::new_from_updates(vec![])
@@ -718,22 +714,9 @@ mod tests {
         );
 
         // remove validator works as expected
-        assert!(
-            state
-                .remove_validator(validator_1.verification_key.address_bytes())
-                .await
-                .expect("removing validator 1 should not fail"),
-            "validator 1 should exist prior to removal"
-        );
-        // trying to remove again returns false
-        assert!(
-            !state
-                .remove_validator(validator_1.verification_key.address_bytes())
-                .await
-                .expect("removing validator 1 should not fail"),
-            "validator 1 should not exist after removal"
-        );
-
+        state
+            .remove_validator(validator_1.verification_key.address_bytes())
+            .await;
         assert!(
             state
                 .get_validator(validator_1.verification_key.address_bytes())

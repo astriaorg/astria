@@ -23,7 +23,7 @@ use astria_core::{
     },
 };
 
-use crate::benchmark_and_test_utils::{
+use crate::test_utils::{
     astria_address,
     nria,
 };

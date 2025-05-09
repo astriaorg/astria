@@ -2,4 +2,4 @@
 source: crates/astria-core/src/protocol/abci.rs
 expression: error_code
 ---
-19: the transaction failed stateless checks
+19: the transaction failed check_tx

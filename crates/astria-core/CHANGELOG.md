@@ -31,6 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sequencers to utilize CometBFT's extended votes for getting consensus on price
   feed data [#2085](https://github.com/astriaorg/astria/pull/2085).
 - Add `name` field to domain `ValidatorUpdate` action [#2089](https://github.com/astriaorg/astria/pull/2089).
+- Add new ABCI error code 18: `TRANSACTION_INCLUDED_IN_BLOCK` [#2133](https://github.com/astriaorg/astria/pull/2133).
+- Add new ABCI error code 19: `TRANSACTION_FAILED_CHECK_TX` [#2133](https://github.com/astriaorg/astria/pull/2133).
+- Add new ABCI error code 20: `INVALID_TRANSACTION_BYTES` [#2133](https://github.com/astriaorg/astria/pull/2133).
+- Add new ABCI error code 21: `INVALID_TRANSACTION` [#2133](https://github.com/astriaorg/astria/pull/2133).
+- Add `CheckedTransaction`, `CheckedAction` and `Checked...` wrappers for all
+  action types [#2142](https://github.com/astriaorg/astria/pull/2142).
 
 ### Changed
 
@@ -47,6 +53,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced all instances of `[u8; 32]` by newtype
   `astria_core::sequencerblock::v1::block::Hash` where appropriate [#1884](https://github.com/astriaorg/astria/pull/1884).
 - Replace `execution::v1` with `execution::v2` API [#2006](https://github.com/astriaorg/astria/pull/2006).
+- Change `ExpandedBlockData::user_submitted_transactions` to UN-parsed
+  transactions so that all checking can be done when constructing a
+  `CheckedTransaction` from this [#2142](https://github.com/astriaorg/astria/pull/2142).
+- Rename ABCI error code 10 from `TRANSACTION_FAILED` to
+  `TRANSACTION_FAILED_EXECUTION` [#2142](https://github.com/astriaorg/astria/pull/2142).
 
 ### Removed
 
