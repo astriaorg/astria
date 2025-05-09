@@ -10,7 +10,7 @@ dependencies:
   version: 0.1.2
 - name: composer
   repository: file://../composer
-  version: 1.0.3
+  version: 1.0.4
 - name: auctioneer
   repository: file://../auctioneer
   version: 0.0.2
@@ -26,5 +26,5 @@ dependencies:
 - name: blockscout-stack
   repository: https://blockscout.github.io/helm-charts
   version: 1.6.8
-digest: sha256:5ca9e372e05cbc1a38de451d60c58e3bb8aee43222606fac56f31e585cacfb9e
-generated: "2025-05-09T14:19:34.883704-04:00"
+digest: sha256:a573d523faa5bd98e4158653f396bc3594e0d8bb1e61eb45109113b041f6557f
+generated: "2025-05-09T15:04:48.680669-04:00"
