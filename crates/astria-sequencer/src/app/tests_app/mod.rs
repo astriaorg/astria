@@ -263,7 +263,11 @@ async fn app_commit() {
     );
 
     // Commit should write the changes to the underlying storage.
-    fixture.app.prepare_commit(fixture.storage()).await.unwrap();
+    fixture
+        .app
+        .prepare_commit(fixture.storage(), HashSet::new())
+        .await
+        .unwrap();
     fixture.app.commit(fixture.storage()).await.unwrap();
     assert_eq!(
         fixture
@@ -335,6 +339,7 @@ async fn app_transfer_block_fees_to_sudo() {
     assert_eq!(fixture.state().get_block_fees().len(), 0);
 }
 
+#[expect(clippy::too_many_lines, reason = "it's a test")]
 #[tokio::test]
 async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
     let mut fixture = Fixture::default_initialized().await;
@@ -370,7 +375,11 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
             HashMap::from_iter([(rollup_id, vec![old_deposit])]),
         )
         .unwrap();
-    fixture.app.prepare_commit(fixture.storage()).await.unwrap();
+    fixture
+        .app
+        .prepare_commit(fixture.storage(), HashSet::new())
+        .await
+        .unwrap();
     fixture.app.commit(fixture.storage()).await.unwrap();
 
     let amount = 100;
@@ -446,10 +455,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
 }
 
 #[tokio::test]
-#[expect(
-    clippy::too_many_lines,
-    reason = "it's a test, so allow a lot of lines"
-)]
+#[expect(clippy::too_many_lines, reason = "it's a test")]
 async fn app_execution_results_match_proposal_vs_after_proposal() {
     let mut fixture = Fixture::default_initialized().await;
     let height = fixture.block_height().await.increment();
@@ -467,7 +473,11 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         .state_mut()
         .put_bridge_account_ibc_asset(&bridge_address, &asset)
         .unwrap();
-    fixture.app.prepare_commit(fixture.storage()).await.unwrap();
+    fixture
+        .app
+        .prepare_commit(fixture.storage(), HashSet::new())
+        .await
+        .unwrap();
     fixture.app.commit(fixture.storage()).await.unwrap();
 
     let amount = 100;
@@ -536,7 +546,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     // this simulates executing the same block as a validator (specifically the proposer).
     let mempool = fixture.mempool();
     mempool
-        .insert(tx, 0, dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
+        .insert(tx, 0, &dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
         .await
         .unwrap();
 
@@ -562,7 +572,9 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         .unwrap();
     assert_eq!(prepare_proposal_result.txs, finalize_block.txs);
 
-    mempool.run_maintenance(fixture.state(), false).await;
+    mempool
+        .run_maintenance(fixture.state(), false, &HashSet::new(), 0)
+        .await;
 
     assert_eq!(mempool.len().await, 0);
 
@@ -648,14 +660,14 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
 
     let mempool = fixture.mempool();
     mempool
-        .insert(tx_pass, 0, dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
+        .insert(tx_pass, 0, &dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
         .await
         .unwrap();
     mempool
         .insert(
             tx_overflow,
             0,
-            dummy_balances(0, 0),
+            &dummy_balances(0, 0),
             dummy_tx_costs(0, 0, 0),
         )
         .await
@@ -683,7 +695,9 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         .expect("too large transactions should not cause prepare proposal to fail");
 
     // run maintenance to clear out transactions
-    mempool.run_maintenance(fixture.state(), false).await;
+    mempool
+        .run_maintenance(fixture.state(), false, &HashSet::new(), 0)
+        .await;
 
     // see only first tx made it in
     assert_eq!(
@@ -729,14 +743,14 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
 
     let mempool = fixture.mempool();
     mempool
-        .insert(tx_pass, 0, dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
+        .insert(tx_pass, 0, &dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
         .await
         .unwrap();
     mempool
         .insert(
             tx_overflow,
             0,
-            dummy_balances(0, 0),
+            &dummy_balances(0, 0),
             dummy_tx_costs(0, 0, 0),
         )
         .await
@@ -764,7 +778,9 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         .expect("too large transactions should not cause prepare proposal to fail");
 
     // run maintenance to clear out transactions
-    mempool.run_maintenance(fixture.state(), false).await;
+    mempool
+        .run_maintenance(fixture.state(), false, &HashSet::new(), 0)
+        .await;
 
     // see only first tx made it in
     assert_eq!(
@@ -965,10 +981,7 @@ async fn app_end_block_validator_updates() {
 }
 
 #[tokio::test]
-#[expect(
-    clippy::too_many_lines,
-    reason = "it's a test, so allow a lot of lines"
-)]
+#[expect(clippy::too_many_lines, reason = "it's a test")]
 async fn app_proposal_fingerprint_triggers_update() {
     let mut fixture = Fixture::default_initialized().await;
     let height = fixture.block_height().await.increment();
@@ -1086,7 +1099,7 @@ async fn app_proposal_fingerprint_triggers_update() {
     // - the finalize block fingerprint should match
     fixture
         .mempool()
-        .insert(tx, 0, dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
+        .insert(tx, 0, &dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
         .await
         .unwrap();
     fixture
@@ -1161,10 +1174,7 @@ async fn app_proposal_fingerprint_triggers_update() {
     assert_eq!(*fixture.app.execution_state.data(), ExecutionState::Unset);
 }
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "it's a test, so allow a lot of lines"
-)]
+#[expect(clippy::too_many_lines, reason = "it's a test")]
 #[tokio::test]
 async fn app_oracle_price_update_events_in_finalize_block() {
     let mut fixture = Fixture::uninitialized(None).await;
@@ -1186,7 +1196,11 @@ async fn app_oracle_price_update_events_in_finalize_block() {
         .state_mut()
         .put_currency_pair_state(currency_pair.clone(), currency_pair_state)
         .unwrap();
-    fixture.app.prepare_commit(fixture.storage()).await.unwrap();
+    fixture
+        .app
+        .prepare_commit(fixture.storage(), HashSet::new())
+        .await
+        .unwrap();
     fixture.app.commit(fixture.storage()).await.unwrap();
 
     let mut prices = std::collections::BTreeMap::new();

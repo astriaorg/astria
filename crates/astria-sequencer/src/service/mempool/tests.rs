@@ -31,9 +31,10 @@ async fn future_nonces_are_accepted() {
     };
 
     let storage = fixture.storage();
-    let mut mempool = fixture.mempool();
+    let mempool = fixture.mempool();
     let metrics = fixture.metrics();
-    let rsp = super::handle_check_tx(req, storage.latest_snapshot(), &mut mempool, metrics).await;
+    let rsp =
+        super::handle_check_tx_request(req, storage.latest_snapshot(), &mempool, metrics).await;
     assert_eq!(rsp.code, Code::Ok, "{rsp:#?}");
 
     // mempool should contain single transaction still
@@ -53,9 +54,10 @@ async fn rechecks_pass() {
     };
 
     let storage = fixture.storage();
-    let mut mempool = fixture.mempool();
+    let mempool = fixture.mempool();
     let metrics = fixture.metrics();
-    let rsp = super::handle_check_tx(req, storage.latest_snapshot(), &mut mempool, metrics).await;
+    let rsp =
+        super::handle_check_tx_request(req, storage.latest_snapshot(), &mempool, metrics).await;
     assert_eq!(rsp.code, Code::Ok, "{rsp:#?}");
 
     // recheck also passes
@@ -63,7 +65,8 @@ async fn rechecks_pass() {
         tx: tx.encoded_bytes().clone(),
         kind: CheckTxKind::Recheck,
     };
-    let rsp = super::handle_check_tx(req, storage.latest_snapshot(), &mut mempool, metrics).await;
+    let rsp =
+        super::handle_check_tx_request(req, storage.latest_snapshot(), &mempool, metrics).await;
     assert_eq!(rsp.code, Code::Ok, "{rsp:#?}");
 
     // mempool should contain single transaction still
@@ -84,9 +87,10 @@ async fn can_reinsert_after_recheck_fail() {
     };
 
     let storage = fixture.storage();
-    let mut mempool = fixture.mempool();
+    let mempool = fixture.mempool();
     let metrics = fixture.metrics();
-    let rsp = super::handle_check_tx(req, storage.latest_snapshot(), &mut mempool, metrics).await;
+    let rsp =
+        super::handle_check_tx_request(req, storage.latest_snapshot(), &mempool, metrics).await;
     assert_eq!(rsp.code, Code::Ok, "{rsp:#?}");
 
     // remove the transaction from the mempool to make recheck fail
@@ -99,7 +103,8 @@ async fn can_reinsert_after_recheck_fail() {
         tx: tx.encoded_bytes().clone(),
         kind: CheckTxKind::Recheck,
     };
-    let rsp = super::handle_check_tx(req, storage.latest_snapshot(), &mut mempool, metrics).await;
+    let rsp =
+        super::handle_check_tx_request(req, storage.latest_snapshot(), &mempool, metrics).await;
     assert_eq!(rsp.code, Code::Err(NonZeroU32::new(9).unwrap()), "{rsp:#?}");
 
     // can re-insert the transaction after first recheck fail
@@ -107,7 +112,8 @@ async fn can_reinsert_after_recheck_fail() {
         tx: tx.encoded_bytes().clone(),
         kind: CheckTxKind::New,
     };
-    let rsp = super::handle_check_tx(req, storage.latest_snapshot(), &mut mempool, metrics).await;
+    let rsp =
+        super::handle_check_tx_request(req, storage.latest_snapshot(), &mempool, metrics).await;
     assert_eq!(rsp.code, Code::Ok, "{rsp:#?}");
 }
 
@@ -127,9 +133,10 @@ async fn recheck_adds_non_tracked_tx() {
 
     // recheck should pass and add transaction to mempool
     let storage = fixture.storage();
-    let mut mempool = fixture.mempool();
+    let mempool = fixture.mempool();
     let metrics = fixture.metrics();
-    let rsp = super::handle_check_tx(req, storage.latest_snapshot(), &mut mempool, metrics).await;
+    let rsp =
+        super::handle_check_tx_request(req, storage.latest_snapshot(), &mempool, metrics).await;
     assert_eq!(rsp.code, Code::Ok, "{rsp:#?}");
 
     // mempool should contain single transaction still

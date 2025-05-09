@@ -412,7 +412,7 @@ async fn execute_block_99(proposer: &mut Node, validator: &mut Node, non_validat
         .insert(
             checked_transfer_tx,
             0,
-            dummy_balances(0, 0),
+            &dummy_balances(0, 0),
             dummy_tx_costs(0, 0, 0),
         )
         .await
@@ -435,7 +435,7 @@ async fn execute_block_99(proposer: &mut Node, validator: &mut Node, non_validat
         .insert(
             checked_validator_update_tx,
             0,
-            dummy_balances(0, 0),
+            &dummy_balances(0, 0),
             dummy_tx_costs(0, 0, 0),
         )
         .await
@@ -522,7 +522,7 @@ async fn execute_block_100(proposer: &mut Node, validator: &mut Node, non_valida
         .insert(
             checked_transfer_tx,
             1,
-            dummy_balances(0, 0),
+            &dummy_balances(0, 0),
             dummy_tx_costs(0, 0, 0),
         )
         .await
@@ -545,7 +545,7 @@ async fn execute_block_100(proposer: &mut Node, validator: &mut Node, non_valida
         .insert(
             checked_validator_update_tx,
             1,
-            dummy_balances(0, 0),
+            &dummy_balances(0, 0),
             dummy_tx_costs(0, 0, 0),
         )
         .await
@@ -639,7 +639,7 @@ async fn execute_block_101(proposer: &mut Node, validator: &mut Node, non_valida
         .insert(
             checked_transfer_tx,
             2,
-            dummy_balances(0, 0),
+            &dummy_balances(0, 0),
             dummy_tx_costs(0, 0, 0),
         )
         .await
@@ -662,7 +662,7 @@ async fn execute_block_101(proposer: &mut Node, validator: &mut Node, non_valida
         .insert(
             checked_validator_update_tx,
             2,
-            dummy_balances(0, 0),
+            &dummy_balances(0, 0),
             dummy_tx_costs(0, 0, 0),
         )
         .await
@@ -765,7 +765,7 @@ async fn execute_block_102(proposer: &mut Node, validator: &mut Node, non_valida
         .insert(
             checked_transfer_tx,
             3,
-            dummy_balances(0, 0),
+            &dummy_balances(0, 0),
             dummy_tx_costs(0, 0, 0),
         )
         .await

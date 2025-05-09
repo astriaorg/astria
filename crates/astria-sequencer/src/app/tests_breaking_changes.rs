@@ -10,7 +10,10 @@
 //! If changes are made to the execution results of these actions, manual testing is required.
 
 use std::{
-    collections::HashMap,
+    collections::{
+        HashMap,
+        HashSet,
+    },
     str::FromStr as _,
 };
 
@@ -94,7 +97,11 @@ async fn app_finalize_block_snapshot() {
 
     // the state changes must be committed, as `finalize_block` will execute the
     // changes on the latest snapshot, not the app's `StateDelta`.
-    fixture.app.prepare_commit(fixture.storage()).await.unwrap();
+    fixture
+        .app
+        .prepare_commit(fixture.storage(), HashSet::new())
+        .await
+        .unwrap();
     fixture.app.commit(fixture.storage()).await.unwrap();
 
     let amount = 100;
@@ -353,7 +360,11 @@ async fn app_legacy_execute_transactions_with_every_action_snapshot() {
         .await
         .unwrap();
 
-    fixture.app.prepare_commit(fixture.storage()).await.unwrap();
+    fixture
+        .app
+        .prepare_commit(fixture.storage(), HashSet::new())
+        .await
+        .unwrap();
     fixture.app.commit(fixture.storage()).await.unwrap();
 
     insta::assert_json_snapshot!(

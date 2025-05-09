@@ -96,6 +96,7 @@ impl CheckedTransaction {
         let tx_len = tx_bytes.len();
         if tx_len > MAX_TX_BYTES {
             return Err(CheckedTransactionInitialCheckError::TooLarge {
+                max_len: MAX_TX_BYTES,
                 tx_len,
             });
         }

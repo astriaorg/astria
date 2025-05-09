@@ -15,7 +15,7 @@ use crate::helper::{
 async fn tx_from_one_rollup_is_received_by_sequencer() {
     // Spawn a composer with a mock sequencer and a mock rollup node
     // Initial nonce is 0
-    let test_composer = spawn_composer(&["test1"], None, true).await;
+    let test_composer = spawn_composer(&["test1"], None, vec![], true).await;
 
     let expected_rollup_ids = vec![RollupId::from_unhashed_bytes("test1")];
     let mock_guard =
@@ -37,7 +37,7 @@ async fn tx_from_one_rollup_is_received_by_sequencer() {
 async fn collector_restarts_after_exit() {
     // Spawn a composer with a mock sequencer and a mock rollup node
     // Initial nonce is 0
-    let test_composer = spawn_composer(&["test1"], None, true).await;
+    let test_composer = spawn_composer(&["test1"], None, vec![], true).await;
 
     // get rollup node
     let rollup_node = test_composer.rollup_nodes.get("test1").unwrap();
@@ -71,7 +71,7 @@ async fn collector_restarts_after_exit() {
 async fn invalid_nonce_causes_resubmission_under_different_nonce() {
     // Spawn a composer with a mock sequencer and a mock rollup node
     // Initial nonce is 0
-    let test_composer = spawn_composer(&["test1"], None, true).await;
+    let test_composer = spawn_composer(&["test1"], None, vec![], true).await;
 
     // Reject the first transaction for invalid nonce
     let invalid_nonce_guard = mount_broadcast_tx_sync_invalid_nonce_mock(
@@ -117,7 +117,7 @@ async fn invalid_nonce_causes_resubmission_under_different_nonce() {
 async fn nonce_taken_causes_resubmission_under_different_nonce() {
     // Spawn a composer with a mock sequencer and a mock rollup node
     // Initial nonce is 0
-    let test_composer = spawn_composer(&["test1"], None, true).await;
+    let test_composer = spawn_composer(&["test1"], None, vec![], true).await;
 
     // Reject the first transaction for taken nonce
     let invalid_nonce_guard = mount_broadcast_tx_sync_invalid_nonce_mock(
@@ -163,7 +163,7 @@ async fn nonce_taken_causes_resubmission_under_different_nonce() {
 async fn single_rollup_tx_payload_integrity() {
     // Spawn a composer with a mock sequencer and a mock rollup node
     // Initial nonce is 0
-    let test_composer = spawn_composer(&["test1"], None, true).await;
+    let test_composer = spawn_composer(&["test1"], None, vec![], true).await;
 
     let tx: Transaction = serde_json::from_str(TEST_ETH_TX_JSON).unwrap();
     let mock_guard =
@@ -174,6 +174,32 @@ async fn single_rollup_tx_payload_integrity() {
     // wait for 1 sequencer block time to make sure the bundle is preempted
     tokio::time::timeout(
         Duration::from_millis(test_composer.cfg.block_time_ms + 1000),
+        mock_guard.wait_until_satisfied(),
+    )
+    .await
+    .expect("mocked sequencer should have received a broadcast message from composer");
+}
+
+#[tokio::test]
+async fn current_pending_txs_are_submitted() {
+    // Spawn a composer with a mock sequencer and a mock rollup node
+    // Initial nonce is 0
+    let test_composer = spawn_composer(
+        &["test1"],
+        None,
+        vec![Transaction::default(), Transaction::default()],
+        true,
+    )
+    .await;
+
+    let expected_rollup_ids = vec![RollupId::from_unhashed_bytes("test1")];
+    // Only checking for nonce 0 since both eth transactions are bundled
+    let mock_guard =
+        mount_broadcast_tx_sync_mock(&test_composer.sequencer, expected_rollup_ids, vec![0]).await;
+
+    // wait for 1 sequencer block time to make sure the bundle is preempted
+    tokio::time::timeout(
+        Duration::from_millis(test_composer.cfg.block_time_ms),
         mock_guard.wait_until_satisfied(),
     )
     .await

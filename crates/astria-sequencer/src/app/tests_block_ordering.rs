@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    collections::HashSet,
+    sync::Arc,
+};
 
 use astria_core::{
     crypto::SigningKey,
@@ -206,7 +209,7 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
         .insert(
             tx_0.clone(),
             0,
-            dummy_balances(0, 0),
+            &dummy_balances(0, 0),
             dummy_tx_costs(0, 0, 0),
         )
         .await
@@ -216,7 +219,7 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
         .insert(
             tx_1.clone(),
             0,
-            dummy_balances(0, 0),
+            &dummy_balances(0, 0),
             dummy_tx_costs(0, 0, 0),
         )
         .await
@@ -247,7 +250,9 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
         "expected to contain first transaction"
     );
 
-    app.mempool.run_maintenance(&app.state, false).await;
+    app.mempool
+        .run_maintenance(&app.state, false, &HashSet::new(), 0)
+        .await;
     assert_eq!(
         app.mempool.len().await,
         1,
@@ -255,7 +260,9 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
     );
 
     // commit state for next prepare proposal
-    app.prepare_commit(storage.clone()).await.unwrap();
+    app.prepare_commit(storage.clone(), HashSet::new())
+        .await
+        .unwrap();
     app.commit(storage.clone()).await.unwrap();
 
     let prepare_args = PrepareProposal {
@@ -282,6 +289,8 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
         "expected to contain second transaction"
     );
 
-    app.mempool.run_maintenance(&app.state, false).await;
+    app.mempool
+        .run_maintenance(&app.state, false, &HashSet::new(), 0)
+        .await;
     assert_eq!(app.mempool.len().await, 0, "mempool should be empty");
 }

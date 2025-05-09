@@ -117,6 +117,22 @@ modules:
       use:
         - WIRE_JSON
       ignore_unstable_packages: true
+  - path: proto/mempoolapis
+    name: buf.build/astria/mempool-apis
+    lint:
+      use:
+        - BASIC
+        - ENUM_VALUE_PREFIX
+        - ENUM_ZERO_VALUE_SUFFIX
+        - FILE_LOWER_SNAKE_CASE
+        - PACKAGE_VERSION_SUFFIX
+        - RPC_REQUEST_STANDARD_NAME
+        - SERVICE_SUFFIX
+      disallow_comment_ignores: true
+    breaking:
+      use:
+        - WIRE_JSON
+      ignore_unstable_packages: true
   - path: proto/vendored
     name: buf.build/astria/vendored
     lint:

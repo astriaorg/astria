@@ -29,6 +29,14 @@ use crate::{
 /// A builder for a [`CheckedTransaction`].
 ///
 /// An instance can be constructed via `Fixture::chain_initializer()`.
+///
+/// By default, the following values are used:
+///   * `nonce`: 0
+///   * `signer`: `SUDO`
+///   * `actions`: a single `RollupDataSubmission` with values:
+///     * `rollup_id`: `[1; 32]`
+///     * `data`: `[1, 2, 3]`
+///     * `fee_asset`: nria
 pub(crate) struct CheckedTxBuilder<'a> {
     state: &'a StateDelta<Snapshot>,
     nonce: u32,

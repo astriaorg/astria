@@ -28,6 +28,6 @@ exec /bin/celestia {{ .Values.config.type }} start \
   {{- end }}
   {{- if not $isCustomNetwork }}
   --core.ip {{ .Values.config.coreIp }} \
-  --core.grpc.port "{{ .Values.config.coreGrpcPort }}" \
+  --core.port "{{ .Values.config.coreGrpcPort }}" \
   --p2p.network {{ .Values.config.network }}
   {{- end }}

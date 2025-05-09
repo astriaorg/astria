@@ -18,7 +18,7 @@ use crate::checked_actions::{
 #[derive(Debug, Error)]
 pub(crate) enum CheckedTransactionInitialCheckError {
     #[error("transaction size too large; allowed {MAX_TX_BYTES} bytes, got {tx_len} bytes")]
-    TooLarge { tx_len: usize },
+    TooLarge { max_len: usize, tx_len: usize },
 
     #[error(
         "failed decoding bytes as a protobuf `{}`: {0:#}",
@@ -33,7 +33,7 @@ pub(crate) enum CheckedTransactionInitialCheckError {
     Convert(#[source] TransactionError),
 
     #[error(
-        "invalid transaction nonce; current nonce `{current_nonce}`, transaction nonce \
+        "transaction nonce already used; current nonce `{current_nonce}`, transaction nonce \
          `{tx_nonce}`"
     )]
     InvalidNonce { current_nonce: u32, tx_nonce: u32 },
@@ -62,6 +62,31 @@ impl CheckedTransactionInitialCheckError {
         Self::InternalError {
             context: context.to_string(),
             source,
+        }
+    }
+}
+
+impl From<CheckedTransactionInitialCheckError> for tonic::Status {
+    fn from(error: CheckedTransactionInitialCheckError) -> Self {
+        let msg = error.to_string();
+        match error {
+            CheckedTransactionInitialCheckError::TooLarge {
+                ..
+            }
+            | CheckedTransactionInitialCheckError::Decode(_)
+            | CheckedTransactionInitialCheckError::Convert(_)
+            | CheckedTransactionInitialCheckError::InvalidNonce {
+                ..
+            }
+            | CheckedTransactionInitialCheckError::ChainIdMismatch {
+                ..
+            }
+            | CheckedTransactionInitialCheckError::CheckedAction(_) => {
+                tonic::Status::invalid_argument(msg)
+            }
+            CheckedTransactionInitialCheckError::InternalError {
+                ..
+            } => tonic::Status::internal(msg),
         }
     }
 }

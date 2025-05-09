@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package astria.mempool.v1;
+
+// A request to get the status of a transaction in the Astria Sequencer's mempool.
+message GetTransactionStatusRequest {
+  // The transaction hash.
+  bytes transaction_hash = 1;
+}

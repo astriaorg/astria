@@ -30,6 +30,7 @@ pub struct Metrics {
     check_tx_duration_seconds_fetch_balances: Histogram,
     check_tx_duration_seconds_fetch_tx_cost: Histogram,
     check_tx_duration_seconds_insert_to_app_mempool: Histogram,
+    check_tx_duration_seconds_transaction_status: Histogram,
     actions_per_transaction_in_mempool: Histogram,
     transaction_in_mempool_size_bytes: Histogram,
     transactions_in_mempool_total: Gauge,
@@ -118,6 +119,11 @@ impl Metrics {
         duration: Duration,
     ) {
         self.check_tx_duration_seconds_insert_to_app_mempool
+            .record(duration);
+    }
+
+    pub(crate) fn record_check_tx_duration_seconds_transaction_status(&self, duration: Duration) {
+        self.check_tx_duration_seconds_transaction_status
             .record(duration);
     }
 
@@ -275,6 +281,14 @@ impl telemetry::Metrics for Metrics {
             )?
             .register()?;
 
+        let check_tx_duration_seconds_transaction_status = builder
+            .new_histogram_factory(
+                CHECK_TX_DURATION_SECONDS_TRANSACTION_STATUS,
+                "The amount of time taken in seconds to to check the transaction status in the \
+                 app-side mempool",
+            )?
+            .register()?;
+
         let mut check_tx_duration_factory = builder.new_histogram_factory(
             CHECK_TX_DURATION_SECONDS,
             "The amount of time taken in seconds to successfully complete the various stages of \
@@ -376,6 +390,7 @@ impl telemetry::Metrics for Metrics {
             check_tx_duration_seconds_fetch_balances,
             check_tx_duration_seconds_fetch_tx_cost,
             check_tx_duration_seconds_insert_to_app_mempool,
+            check_tx_duration_seconds_transaction_status,
             actions_per_transaction_in_mempool,
             transaction_in_mempool_size_bytes,
             transactions_in_mempool_total,
@@ -405,6 +420,7 @@ metric_names!(const METRICS_NAMES:
     CHECK_TX_DURATION_SECONDS,
     CHECK_TX_DURATION_SECONDS_FETCH_NONCE,
     CHECK_TX_DURATION_SECONDS_FETCH_BALANCES,
+    CHECK_TX_DURATION_SECONDS_TRANSACTION_STATUS,
     CHECK_TX_DURATION_SECONDS_FETCH_TX_COST,
     ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
     TRANSACTION_IN_MEMPOOL_SIZE_BYTES,

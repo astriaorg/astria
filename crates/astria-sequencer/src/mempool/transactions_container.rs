@@ -4,6 +4,7 @@ use std::{
         hash_map,
         BTreeMap,
         HashMap,
+        HashSet,
     },
     fmt,
     mem,
@@ -11,6 +12,7 @@ use std::{
 };
 
 use astria_core::{
+    crypto::ADDRESS_LENGTH,
     primitive::v1::{
         asset::IbcPrefixed,
         TransactionId,
@@ -114,7 +116,7 @@ impl TimemarkedTransaction {
         self.checked_tx.nonce()
     }
 
-    pub(super) fn address_bytes(&self) -> &[u8; 20] {
+    pub(super) fn address_bytes(&self) -> &[u8; ADDRESS_LENGTH] {
         self.checked_tx.address_bytes()
     }
 
@@ -201,6 +203,25 @@ impl fmt::Display for InsertionError {
             }
             InsertionError::ParkedSizeLimit => {
                 write!(f, "parked container size limit reached")
+            }
+        }
+    }
+}
+
+impl From<InsertionError> for tonic::Status {
+    fn from(err: InsertionError) -> Self {
+        match err {
+            InsertionError::AlreadyPresent | InsertionError::NonceTaken => {
+                tonic::Status::already_exists(err.to_string())
+            }
+            InsertionError::NonceTooLow | InsertionError::NonceGap => {
+                tonic::Status::invalid_argument(err.to_string())
+            }
+            InsertionError::AccountSizeLimit | InsertionError::ParkedSizeLimit => {
+                tonic::Status::resource_exhausted(err.to_string())
+            }
+            InsertionError::AccountBalanceTooLow => {
+                tonic::Status::failed_precondition(err.to_string())
             }
         }
     }
@@ -502,7 +523,6 @@ pub(super) trait TransactionsForAccount: Default {
             .collect()
     }
 
-    #[cfg(test)]
     fn contains_tx(&self, tx_id: &TransactionId) -> bool {
         self.txs().values().any(|ttx| ttx.id() == tx_id)
     }
@@ -511,24 +531,24 @@ pub(super) trait TransactionsForAccount: Default {
 /// A container used for managing pending transactions for multiple accounts.
 #[derive(Clone, Debug)]
 pub(super) struct PendingTransactions {
-    txs: HashMap<[u8; 20], PendingTransactionsForAccount>,
+    txs: HashMap<[u8; ADDRESS_LENGTH], PendingTransactionsForAccount>,
     tx_ttl: Duration,
 }
 
 /// A container used for managing parked transactions for multiple accounts.
 #[derive(Clone, Debug)]
 pub(super) struct ParkedTransactions<const MAX_TX_COUNT_PER_ACCOUNT: usize> {
-    txs: HashMap<[u8; 20], ParkedTransactionsForAccount<MAX_TX_COUNT_PER_ACCOUNT>>,
+    txs: HashMap<[u8; ADDRESS_LENGTH], ParkedTransactionsForAccount<MAX_TX_COUNT_PER_ACCOUNT>>,
     tx_ttl: Duration,
     max_tx_count: usize,
 }
 
 impl TransactionsContainer<PendingTransactionsForAccount> for PendingTransactions {
-    fn txs(&self) -> &HashMap<[u8; 20], PendingTransactionsForAccount> {
+    fn txs(&self) -> &HashMap<[u8; ADDRESS_LENGTH], PendingTransactionsForAccount> {
         &self.txs
     }
 
-    fn txs_mut(&mut self) -> &mut HashMap<[u8; 20], PendingTransactionsForAccount> {
+    fn txs_mut(&mut self) -> &mut HashMap<[u8; ADDRESS_LENGTH], PendingTransactionsForAccount> {
         &mut self.txs
     }
 
@@ -545,13 +565,17 @@ impl<const MAX_TX_COUNT_PER_ACCOUNT: usize>
     TransactionsContainer<ParkedTransactionsForAccount<MAX_TX_COUNT_PER_ACCOUNT>>
     for ParkedTransactions<MAX_TX_COUNT_PER_ACCOUNT>
 {
-    fn txs(&self) -> &HashMap<[u8; 20], ParkedTransactionsForAccount<MAX_TX_COUNT_PER_ACCOUNT>> {
+    fn txs(
+        &self,
+    ) -> &HashMap<[u8; ADDRESS_LENGTH], ParkedTransactionsForAccount<MAX_TX_COUNT_PER_ACCOUNT>>
+    {
         &self.txs
     }
 
     fn txs_mut(
         &mut self,
-    ) -> &mut HashMap<[u8; 20], ParkedTransactionsForAccount<MAX_TX_COUNT_PER_ACCOUNT>> {
+    ) -> &mut HashMap<[u8; ADDRESS_LENGTH], ParkedTransactionsForAccount<MAX_TX_COUNT_PER_ACCOUNT>>
+    {
         &mut self.txs
     }
 
@@ -569,16 +593,16 @@ impl<const MAX_TX_COUNT_PER_ACCOUNT: usize>
 
 /// `TransactionsContainer` is a container used for managing transactions for multiple accounts.
 pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
-    fn txs(&self) -> &HashMap<[u8; 20], T>;
+    fn txs(&self) -> &HashMap<[u8; ADDRESS_LENGTH], T>;
 
-    fn txs_mut(&mut self) -> &mut HashMap<[u8; 20], T>;
+    fn txs_mut(&mut self) -> &mut HashMap<[u8; ADDRESS_LENGTH], T>;
 
     fn tx_ttl(&self) -> Duration;
 
     fn check_total_tx_count(&self) -> Result<(), InsertionError>;
 
     /// Returns all of the currently tracked addresses.
-    fn addresses<'a>(&'a self) -> impl Iterator<Item = &'a [u8; 20]>
+    fn addresses<'a>(&'a self) -> impl Iterator<Item = &'a [u8; ADDRESS_LENGTH]>
     where
         T: 'a,
     {
@@ -591,7 +615,7 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
     #[instrument(skip_all, fields(address = %telemetry::display::base64(address_bytes)))]
     async fn recost_transactions<S: accounts::StateReadExt>(
         &mut self,
-        address_bytes: &[u8; 20],
+        address_bytes: &[u8; ADDRESS_LENGTH],
         state: &S,
     ) {
         let Some(account) = self.txs_mut().get_mut(address_bytes) else {
@@ -669,7 +693,7 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
 
     /// Removes all of the transactions for the given account and returns the IDs of the removed
     /// transactions.
-    fn clear_account(&mut self, address_bytes: &[u8; 20]) -> Vec<TransactionId> {
+    fn clear_account(&mut self, address_bytes: &[u8; ADDRESS_LENGTH]) -> Vec<TransactionId> {
         self.txs_mut()
             .remove(address_bytes)
             .map(|account_txs| account_txs.txs().values().map(|ttx| *ttx.id()).collect())
@@ -679,8 +703,10 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
     /// Cleans the specified account of stale and expired transactions.
     fn clean_account_stale_expired(
         &mut self,
-        address_bytes: &[u8; 20],
+        address_bytes: &[u8; ADDRESS_LENGTH],
         current_account_nonce: u32,
+        txs_included_in_block: &HashSet<TransactionId>,
+        block_height: u64,
     ) -> Vec<(TransactionId, RemovalReason)> {
         // Take the collection for this account out of `self` temporarily if it exists.
         let Some(mut account_txs) = self.txs_mut().remove(address_bytes) else {
@@ -692,7 +718,15 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
         mem::swap(&mut split_off, account_txs.txs_mut());
         let mut removed_txs: Vec<_> = split_off
             .into_values()
-            .map(|ttx| (*ttx.id(), RemovalReason::NonceStale))
+            .map(|ttx| {
+                if txs_included_in_block.contains(ttx.id()) {
+                    // We only need to check stale transactions for inclusion, since all executed
+                    // transactions will be stale
+                    (*ttx.id(), RemovalReason::IncludedInBlock(block_height))
+                } else {
+                    (*ttx.id(), RemovalReason::NonceStale)
+                }
+            })
             .collect();
 
         // check for expired transactions
@@ -726,7 +760,6 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
             .sum()
     }
 
-    #[cfg(test)]
     fn contains_tx(&self, tx_id: &TransactionId) -> bool {
         self.txs()
             .values()
@@ -746,7 +779,7 @@ impl PendingTransactions {
     /// based on the specified account's current balances.
     pub(super) fn find_demotables(
         &mut self,
-        address_bytes: &[u8; 20],
+        address_bytes: &[u8; ADDRESS_LENGTH],
         current_balances: &HashMap<IbcPrefixed, u128>,
     ) -> Vec<TimemarkedTransaction> {
         // Take the collection for this account out of `self` temporarily if it exists.
@@ -768,7 +801,7 @@ impl PendingTransactions {
     /// transactions' costs.
     pub(super) fn subtract_contained_costs(
         &self,
-        address_bytes: &[u8; 20],
+        address_bytes: &[u8; ADDRESS_LENGTH],
         mut current_balances: HashMap<IbcPrefixed, u128>,
     ) -> HashMap<IbcPrefixed, u128> {
         if let Some(account) = self.txs.get(address_bytes) {
@@ -778,7 +811,7 @@ impl PendingTransactions {
     }
 
     /// Returns the highest nonce for an account.
-    pub(super) fn pending_nonce(&self, address_bytes: &[u8; 20]) -> Option<u32> {
+    pub(super) fn pending_nonce(&self, address_bytes: &[u8; ADDRESS_LENGTH]) -> Option<u32> {
         self.txs
             .get(address_bytes)
             .and_then(PendingTransactionsForAccount::pending_account_nonce)
@@ -848,7 +881,7 @@ impl<const MAX_PARKED_TXS_PER_ACCOUNT: usize> ParkedTransactions<MAX_PARKED_TXS_
     /// covered by the `available_balance`.
     pub(super) fn find_promotables(
         &mut self,
-        address_bytes: &[u8; 20],
+        address_bytes: &[u8; ADDRESS_LENGTH],
         target_nonce: u32,
         available_balance: &HashMap<IbcPrefixed, u128>,
     ) -> Vec<TimemarkedTransaction> {
@@ -1827,8 +1860,11 @@ mod tests {
 
     #[tokio::test]
     #[expect(clippy::too_many_lines, reason = "it's a test")]
-    async fn transactions_container_clean_account_stale_expired() {
+    async fn transactions_container_clean_account_stale_expired_and_included() {
+        const INCLUDED_TX_BLOCK_NUMBER: u64 = 9;
+
         let fixture = Fixture::default_initialized().await;
+
         let mut pending_txs = PendingTransactions::new(TX_TTL);
 
         // transactions to add to accounts
@@ -1899,9 +1935,26 @@ mod tests {
         // clean accounts
         // should pop none from signing_address_0, one from signing_address_1, and all from
         // signing_address_2
-        let mut removed_txs = pending_txs.clean_account_stale_expired(&ALICE_ADDRESS_BYTES, 0);
-        removed_txs.extend(pending_txs.clean_account_stale_expired(&BOB_ADDRESS_BYTES, 1));
-        removed_txs.extend(pending_txs.clean_account_stale_expired(&CAROL_ADDRESS_BYTES, 4));
+        let mut removed_txs =
+            pending_txs.clean_account_stale_expired(&ALICE_ADDRESS_BYTES, 0, &HashSet::new(), 0);
+        removed_txs.extend(pending_txs.clean_account_stale_expired(
+            &BOB_ADDRESS_BYTES,
+            1,
+            &HashSet::new(),
+            0,
+        ));
+        removed_txs.extend(pending_txs.clean_account_stale_expired(
+            &CAROL_ADDRESS_BYTES,
+            4,
+            // should remove transactions 0 and 1 with `RemovalReason::Indluded(9)`
+            &{
+                let mut included_txs = HashSet::new();
+                included_txs.insert(*ttx_s2_0.id());
+                included_txs.insert(*ttx_s2_1.id());
+                included_txs
+            },
+            INCLUDED_TX_BLOCK_NUMBER,
+        ));
 
         assert_eq!(
             removed_txs.len(),
@@ -1938,11 +1991,22 @@ mod tests {
                 .len(),
             2
         );
-        for (_, reason) in removed_txs {
-            assert!(
-                matches!(reason, RemovalReason::NonceStale),
-                "removal reason should be stale nonce"
-            );
+        for (tx_id, reason) in removed_txs {
+            if tx_id == *ttx_s2_0.id() || tx_id == *ttx_s2_1.id() {
+                assert!(
+                    matches!(
+                        reason,
+                        RemovalReason::IncludedInBlock(INCLUDED_TX_BLOCK_NUMBER)
+                    ),
+                    "removal reason should be included(9)"
+                );
+            } else {
+                assert_eq!(
+                    reason,
+                    RemovalReason::NonceStale,
+                    "removal reason should be stale nonce"
+                );
+            }
         }
     }
 
@@ -1977,8 +2041,14 @@ mod tests {
             .unwrap();
 
         // clean accounts, all nonces should be valid
-        let mut removed_txs = pending_txs.clean_account_stale_expired(&ALICE_ADDRESS_BYTES, 0);
-        removed_txs.extend(pending_txs.clean_account_stale_expired(&BOB_ADDRESS_BYTES, 0));
+        let mut removed_txs =
+            pending_txs.clean_account_stale_expired(&ALICE_ADDRESS_BYTES, 0, &HashSet::new(), 1);
+        removed_txs.extend(pending_txs.clean_account_stale_expired(
+            &BOB_ADDRESS_BYTES,
+            0,
+            &HashSet::new(),
+            1,
+        ));
 
         assert_eq!(
             removed_txs.len(),

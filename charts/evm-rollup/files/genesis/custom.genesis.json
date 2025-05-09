@@ -66,7 +66,11 @@
                     {{- $sequencerFields := list }}
 
                     {{- if .sequencer.chainId }}
-                    {{- $sequencerFields = append $sequencerFields (printf "\"chainId\": \"%s\"" (tpl .sequencer.chainId .)) }}
+                    {{- if typeIs "string" .sequencer.chainId }}
+                    {{- $sequencerFields = append $sequencerFields (printf "\"chainId\": \"%s\"" .sequencer.chainId) }}
+                    {{- else }}
+                    {{- $sequencerFields = append $sequencerFields (printf "\"chainId\": \"%s\"" (tpl .sequencer.chainId) .) }}
+                    {{- end }}
                     {{- end }}
 
                     {{- if .sequencer.addressPrefix }}
@@ -88,7 +92,11 @@
                     {{- $celestiaFields := list }}
 
                     {{- if .celestia.chainId }}
-                    {{- $celestiaFields = append $celestiaFields (printf "\"chainId\": \"%s\"" (tpl .celestia.chainId .)) }}
+                    {{- if typeIs "string" .celestia.chainId }}
+                    {{- $celestiaFields = append $celestiaFields (printf "\"chainId\": \"%s\"" .celestia.chainId) }}
+                    {{- else }}
+                    {{- $celestiaFields = append $celestiaFields (printf "\"chainId\": \"%s\"" (tpl .celestia.chainId) .) }}
+                    {{- end }}
                     {{- end }}
 
                     {{- if .celestia.startHeight }}

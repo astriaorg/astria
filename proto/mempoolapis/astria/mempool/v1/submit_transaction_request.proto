@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package astria.mempool.v1;
+
+import "astria/protocol/transaction/v1/transaction.proto";
+
+// A request to submit a transaction directly to the Astria Sequencer's mempool.
+message SubmitTransactionRequest {
+  // The transaction to be submitted.
+  astria.protocol.transaction.v1.Transaction transaction = 1;
+}

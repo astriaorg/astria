@@ -364,7 +364,12 @@ mod tests {
             .await;
         let mut consensus_service = new_consensus_service(fixture);
         mempool
-            .insert(tx.clone(), 0, dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
+            .insert(
+                tx.clone(),
+                0,
+                &dummy_balances(0, 0),
+                dummy_tx_costs(0, 0, 0),
+            )
             .await
             .unwrap();
 
@@ -494,7 +499,12 @@ mod tests {
         let mut consensus_service = new_consensus_service(fixture);
 
         mempool
-            .insert(tx.clone(), 0, dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
+            .insert(
+                tx.clone(),
+                0,
+                &dummy_balances(0, 0),
+                dummy_tx_costs(0, 0, 0),
+            )
             .await
             .unwrap();
 
