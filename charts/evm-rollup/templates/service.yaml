@@ -14,6 +14,61 @@ spec:
       port: {{ .Values.ports.wsRPC }}
       targetPort: ws-rpc
 ---
+{{- if .Values.geth.p2p.enabled }}
+{{- if .Values.geth.p2p.staticExternalIP }}
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ include "rollup.name" . }}-p2p-tcp-service
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  selector:
+    app: {{ include "rollup.appName" . }}
+  ports:
+    - name: p2p-tcp-svc
+      port: {{ .Values.ports.p2p }}
+      targetPort: tcp-p2p
+      protocol: TCP
+  type: LoadBalancer
+  loadBalancerIP: "{{ .Values.geth.p2p.staticExternalIP }}"
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ include "rollup.name" . }}-p2p-udp-service
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  selector:
+    app: {{ include "rollup.appName" . }}
+  ports:
+    - name: p2p-udp-svc
+      port: {{ .Values.ports.p2p }}
+      targetPort: udp-p2p
+      protocol: UDP
+  type: LoadBalancer
+  loadBalancerIP: "{{ .Values.geth.p2p.staticExternalIP }}"
+---
+{{- end }}
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ include "rollup.name" . }}-internal-p2p
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  selector:
+    app: {{ include "rollup.appName" . }}
+  clusterIP: None
+  ports:
+    - name: internal-p2p-tcp-svc
+      port: {{ .Values.ports.p2p }}
+      targetPort: tcp-p2p
+      protocol: TCP
+    - name: internal-p2p-udp-svc
+      port: {{ .Values.ports.p2p }}
+      targetPort: udp-p2p
+      protocol: UDP
+---
+{{- end }}
 {{- if .Values.metrics.enabled }}
 kind: Service
 apiVersion: v1

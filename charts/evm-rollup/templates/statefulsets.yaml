@@ -67,6 +67,9 @@ spec:
           command: [ "geth" ]
           args:
             - --networkid={{ include "rollup.networkId" . }}
+            {{- if .Values.geth.configToml }}
+            - --config={{ include "rollup.gethHomeDir" . }}/config.toml
+            {{- end }}
             {{- range $name, $arg := .Values.geth.flags }}
             {{- $noCondition := not (hasKey $arg "condition") }}
             {{- if or ($noCondition) (eq (tpl $arg.condition $) "true") }}
@@ -89,6 +92,14 @@ spec:
               name: ws-rpc
             - containerPort: {{ .Values.ports.executionGRPC }}
               name: execution-grpc
+            {{- if .Values.geth.p2p.enabled }}
+            - containerPort: {{ .Values.ports.p2p }}
+              name: tcp-p2p
+              protocol: TCP
+            - containerPort: {{ .Values.ports.p2p }}
+              name: udp-p2p
+              protocol: UDP
+            {{- end }}
             {{- if .Values.metrics.enabled }}
             - containerPort: {{ .Values.ports.metrics }}
               name: geth-metr
