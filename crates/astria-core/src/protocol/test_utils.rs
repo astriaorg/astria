@@ -172,7 +172,7 @@ impl ConfigureSequencerBlock {
             }
         }
 
-        let rollup_data_bytes = txs.iter().flat_map(|tx| {
+        let rollup_data_bytes_iter = txs.iter().flat_map(|tx| {
             tx.actions().iter().filter_map(|action| {
                 if let Action::RollupDataSubmission(rollup_submission) = action {
                     Some((&rollup_submission.rollup_id, &rollup_submission.data))
@@ -181,7 +181,12 @@ impl ConfigureSequencerBlock {
                 }
             })
         });
-        let mut rollup_transactions = group_rollup_data_submissions_by_rollup_id(rollup_data_bytes);
+        let rollup_data_bytes = rollup_data_bytes_iter
+            .clone()
+            .map(|(rollup_id, data)| (*rollup_id, data.clone()))
+            .collect();
+        let mut rollup_transactions =
+            group_rollup_data_submissions_by_rollup_id(rollup_data_bytes_iter);
         for (rollup_id, deposit) in deposits_map.clone() {
             rollup_transactions
                 .entry(rollup_id)
@@ -234,11 +239,6 @@ impl ConfigureSequencerBlock {
         data.extend(txs.into_iter().map(|tx| tx.to_raw().encode_to_vec().into()));
         let expanded_block_data =
             ExpandedBlockData::new_from_typed_data(&data, with_extended_commit_info).unwrap();
-
-        let rollup_data_bytes = sequence_data
-            .into_iter()
-            .map(|(rollup_id, data)| (rollup_id, Bytes::from(data)))
-            .collect();
 
         SequencerBlockBuilder {
             block_hash,
