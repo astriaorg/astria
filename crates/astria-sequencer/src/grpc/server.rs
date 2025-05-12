@@ -134,7 +134,7 @@ impl SequencerGrpcServer {
         self.grpc_server
             .serve_with_shutdown(
                 self.grpc_addr,
-                trigger_shutdown(self.background_tasks, self.shutdown_rx),
+                shutdown_trigger(self.background_tasks, self.shutdown_rx),
             )
             .await
     }
@@ -292,7 +292,7 @@ pub(crate) enum SequencerServerBuildError {
     MissingEventBusSubscription,
 }
 
-async fn trigger_shutdown(
+async fn shutdown_trigger(
     mut background_tasks: BackgroundTasks,
     mut shutdown_rx: oneshot::Receiver<()>,
 ) {
@@ -364,7 +364,7 @@ mod tests {
     use super::*;
     use crate::app::benchmark_and_test_utils::AppInitializer;
 
-    async fn test_server_builder() -> SequencerGrpcServerBuilder {
+    async fn dummy_server_builder() -> SequencerGrpcServerBuilder {
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let (app, storage) = AppInitializer::new().init().await;
         SequencerGrpcServer::builder()
@@ -381,7 +381,7 @@ mod tests {
     async fn sequencer_grpc_server_build_fails_if_missing_storage() {
         let Err(err) = SequencerGrpcServerBuilder {
             storage: None,
-            ..test_server_builder().await
+            ..dummy_server_builder().await
         }
         .build() else {
             panic!("expected error, but got Ok");
@@ -393,7 +393,7 @@ mod tests {
     async fn sequencer_grpc_server_build_fails_if_missing_mempool() {
         let Err(err) = SequencerGrpcServerBuilder {
             mempool: None,
-            ..test_server_builder().await
+            ..dummy_server_builder().await
         }
         .build() else {
             panic!("expected error, but got Ok");
@@ -405,7 +405,7 @@ mod tests {
     async fn sequencer_grpc_server_build_fails_if_missing_upgrades() {
         let Err(err) = SequencerGrpcServerBuilder {
             upgrades: None,
-            ..test_server_builder().await
+            ..dummy_server_builder().await
         }
         .build() else {
             panic!("expected error, but got Ok");
@@ -417,7 +417,7 @@ mod tests {
     async fn sequencer_grpc_server_build_fails_if_missing_metrics() {
         let Err(err) = SequencerGrpcServerBuilder {
             metrics: None,
-            ..test_server_builder().await
+            ..dummy_server_builder().await
         }
         .build() else {
             panic!("expected error, but got Ok");
@@ -429,7 +429,7 @@ mod tests {
     async fn sequencer_grpc_server_build_fails_if_missing_grpc_addr() {
         let Err(err) = SequencerGrpcServerBuilder {
             grpc_addr: None,
-            ..test_server_builder().await
+            ..dummy_server_builder().await
         }
         .build() else {
             panic!("expected error, but got Ok");
@@ -441,7 +441,7 @@ mod tests {
     async fn sequencer_grpc_server_build_fails_if_missing_event_bus_subscription() {
         let Err(err) = SequencerGrpcServerBuilder {
             event_bus_subscription: None,
-            ..test_server_builder().await
+            ..dummy_server_builder().await
         }
         .build() else {
             panic!("expected error, but got Ok");
