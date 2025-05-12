@@ -79,8 +79,6 @@ impl CheckedBridgeSudoChange {
             .await
             .wrap_err("failed to read bridge account sudo address from storage")?
         else {
-            // TODO: if the sudo address is unset, should we still allow this action
-            // if the signer is the bridge address itself?
             bail!("bridge account does not have an associated sudo address in storage");
         };
 

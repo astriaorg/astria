@@ -23,7 +23,7 @@ impl CheckedRollupDataSubmission {
     pub(super) fn new(action: RollupDataSubmission) -> Result<Self> {
         ensure!(
             !action.data.is_empty(),
-            "cannot have empty data for sequence action"
+            "cannot have empty data for rollup data submission action"
         );
 
         let checked_action = Self {
@@ -62,6 +62,9 @@ mod tests {
         };
         let err = CheckedRollupDataSubmission::new(action).unwrap_err();
 
-        assert_error_contains(&err, "cannot have empty data for sequence action");
+        assert_error_contains(
+            &err,
+            "cannot have empty data for rollup data submission action",
+        );
     }
 }

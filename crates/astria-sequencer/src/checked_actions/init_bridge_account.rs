@@ -80,9 +80,6 @@ impl CheckedInitBridgeAccount {
         //
         // The implication is that the account might already have a balance, nonce, etc. before
         // being converted into a bridge account.
-        //
-        // After the account becomes a bridge account, it can no longer receive funds via
-        // `Transfer`, only via `BridgeLock` or `BridgeTransfer`.
         ensure!(
             state
                 .get_bridge_account_rollup_id(&self.tx_signer)

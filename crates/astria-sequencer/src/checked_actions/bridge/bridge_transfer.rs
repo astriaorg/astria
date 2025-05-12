@@ -340,7 +340,7 @@ pub(super) mod tests {
         let event_id = action.rollup_withdrawal_event_id.clone();
         fixture
             .state_mut()
-            .put_withdrawal_event_block_for_bridge_account(
+            .put_withdrawal_event_rollup_block_number(
                 &action.bridge_address,
                 &event_id,
                 rollup_block_number,
@@ -353,7 +353,10 @@ pub(super) mod tests {
 
         assert_error_contains(
             &err,
-            &format!("withdrawal event ID `{event_id}` used by block number {rollup_block_number}"),
+            &format!(
+                "withdrawal event ID `{event_id}` was already executed (rollup block number \
+                 {rollup_block_number})"
+            ),
         );
     }
 
@@ -511,7 +514,7 @@ pub(super) mod tests {
         assert_error_contains(
             &err,
             &format!(
-                "withdrawal event ID `{}` used by block number {}",
+                "withdrawal event ID `{}` was already executed (rollup block number {})",
                 action.rollup_withdrawal_event_id, bridge_unlock.rollup_block_number
             ),
         );
@@ -588,7 +591,7 @@ pub(super) mod tests {
         // Check the rollup block number is recorded under the given event ID.
         let rollup_block_number = fixture
             .state()
-            .get_withdrawal_event_block_for_bridge_account(
+            .get_withdrawal_event_rollup_block_number(
                 &action.bridge_address,
                 &action.rollup_withdrawal_event_id,
             )

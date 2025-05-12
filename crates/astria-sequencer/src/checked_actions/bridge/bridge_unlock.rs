@@ -129,7 +129,7 @@ impl<const PURE_UNLOCK: bool> CheckedBridgeUnlockImpl<PURE_UNLOCK> {
         );
 
         if let Some(existing_block_num) = state
-            .get_withdrawal_event_block_for_bridge_account(
+            .get_withdrawal_event_rollup_block_number(
                 &self.action.bridge_address,
                 &self.action.rollup_withdrawal_event_id,
             )
@@ -137,7 +137,8 @@ impl<const PURE_UNLOCK: bool> CheckedBridgeUnlockImpl<PURE_UNLOCK> {
             .wrap_err("failed to read withdrawal event block number from storage")?
         {
             bail!(
-                "withdrawal event ID `{}` used by block number {existing_block_num}",
+                "withdrawal event ID `{}` was already executed (rollup block number \
+                 {existing_block_num})",
                 self.action.rollup_withdrawal_event_id
             );
         }
@@ -151,7 +152,7 @@ impl<const PURE_UNLOCK: bool> CheckedBridgeUnlockImpl<PURE_UNLOCK> {
 
     pub(super) fn record_withdrawal_event<S: StateWrite>(&self, mut state: S) -> Result<()> {
         state
-            .put_withdrawal_event_block_for_bridge_account(
+            .put_withdrawal_event_rollup_block_number(
                 &self.action.bridge_address,
                 &self.action.rollup_withdrawal_event_id,
                 self.action.rollup_block_number,
@@ -419,7 +420,7 @@ mod tests {
         let event_id = action.rollup_withdrawal_event_id.clone();
         fixture
             .state_mut()
-            .put_withdrawal_event_block_for_bridge_account(
+            .put_withdrawal_event_rollup_block_number(
                 &action.bridge_address,
                 &event_id,
                 rollup_block_number,
@@ -432,7 +433,10 @@ mod tests {
 
         assert_error_contains(
             &err,
-            &format!("withdrawal event ID `{event_id}` used by block number {rollup_block_number}"),
+            &format!(
+                "withdrawal event ID `{event_id}` was already executed (rollup block number \
+                 {rollup_block_number})"
+            ),
         );
     }
 
@@ -570,7 +574,7 @@ mod tests {
         assert_error_contains(
             &err,
             &format!(
-                "withdrawal event ID `{event_id}` used by block number {}",
+                "withdrawal event ID `{event_id}` was already executed (rollup block number {})",
                 action_1.rollup_block_number
             ),
         );
@@ -638,7 +642,7 @@ mod tests {
         // Check the rollup block number is recorded under the given event ID.
         let rollup_block_number = fixture
             .state()
-            .get_withdrawal_event_block_for_bridge_account(
+            .get_withdrawal_event_rollup_block_number(
                 &action.bridge_address,
                 &action.rollup_withdrawal_event_id,
             )

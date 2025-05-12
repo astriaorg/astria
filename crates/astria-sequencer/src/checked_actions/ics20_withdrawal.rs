@@ -101,7 +101,7 @@ impl CheckedIcs20Withdrawal {
                 .await
                 .wrap_err("bridge address has an unsupported prefix")?;
             let parsed_bridge_memo: Ics20WithdrawalFromRollup = serde_json::from_str(&action.memo)
-                .wrap_err("failed to parse memo for ICS bound bridge withdrawal")?;
+                .wrap_err("failed to parse memo for outgoing IBC bridge withdrawal")?;
             ensure!(
                 !parsed_bridge_memo.rollup_return_address.is_empty(),
                 "rollup return address must be non-empty",
@@ -161,7 +161,7 @@ impl CheckedIcs20Withdrawal {
             );
 
             if let Some(existing_block_num) = state
-                .get_withdrawal_event_block_for_bridge_account(
+                .get_withdrawal_event_rollup_block_number(
                     &self.withdrawal_address,
                     &rollup_withdrawal.rollup_withdrawal_event_id,
                 )
@@ -171,7 +171,8 @@ impl CheckedIcs20Withdrawal {
                 )?
             {
                 bail!(
-                    "withdrawal event ID `{}` used by block number {existing_block_num}",
+                    "withdrawal event ID `{}` was already executed (rollup block number \
+                     {existing_block_num})",
                     rollup_withdrawal.rollup_withdrawal_event_id
                 );
             }
@@ -193,7 +194,7 @@ impl CheckedIcs20Withdrawal {
             &self.bridge_address_and_rollup_withdrawal
         {
             state
-                .put_withdrawal_event_block_for_bridge_account(
+                .put_withdrawal_event_rollup_block_number(
                     &self.withdrawal_address,
                     &rollup_withdrawal.rollup_withdrawal_event_id,
                     rollup_withdrawal.rollup_block_number,
@@ -452,7 +453,10 @@ mod tests {
             .await
             .unwrap_err();
 
-        assert_error_contains(&err, "failed to parse memo for ICS bound bridge withdrawal");
+        assert_error_contains(
+            &err,
+            "failed to parse memo for outgoing IBC bridge withdrawal",
+        );
     }
 
     #[tokio::test]
@@ -574,7 +578,7 @@ mod tests {
         let block_number = 2;
         fixture
             .state_mut()
-            .put_withdrawal_event_block_for_bridge_account(&bridge_address, &event_id, block_number)
+            .put_withdrawal_event_rollup_block_number(&bridge_address, &event_id, block_number)
             .unwrap();
 
         let action = Ics20WithdrawalBuilder::new()
@@ -588,7 +592,10 @@ mod tests {
 
         assert_error_contains(
             &err,
-            &format!("withdrawal event ID `{event_id}` used by block number {block_number}"),
+            &format!(
+                "withdrawal event ID `{event_id}` was already executed (rollup block number \
+                 {block_number})"
+            ),
         );
     }
 

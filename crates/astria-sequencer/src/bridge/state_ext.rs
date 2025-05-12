@@ -132,12 +132,13 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
             .wrap_err("invalid bridge account withdrawer address bytes")
     }
 
+    /// Returns the ROLLUP block number (not sequencer block height) for the given withdrawal event.
     #[instrument(
         skip_all,
         fields(address = %address.display_address(), withdrawal_event_id),
         err(level = Level::DEBUG)
     )]
-    async fn get_withdrawal_event_block_for_bridge_account<T: AddressBytes>(
+    async fn get_withdrawal_event_rollup_block_number<T: AddressBytes>(
         &self,
         address: &T,
         withdrawal_event_id: &str,
@@ -277,8 +278,9 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
+    /// Stores the ROLLUP block number (not sequencer block height) for the given withdrawal event.
     #[instrument(skip_all)]
-    fn put_withdrawal_event_block_for_bridge_account<T: AddressBytes>(
+    fn put_withdrawal_event_rollup_block_number<T: AddressBytes>(
         &mut self,
         address: &T,
         withdrawal_event_id: &str,
