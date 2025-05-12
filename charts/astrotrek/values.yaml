@@ -61,8 +61,8 @@ config:
     postgresPassword: indexer-user
     postgresDb: astria
   frontend:
-    rpcApiUrl: http://api.sequencer.localdev.me/v1
-    wsApiUrl: ws://api.sequencer.localdev.me/v1/ws
+    rpcApiUrl: http://api.sequencer.127.0.0.1.nip.io/v1
+    wsApiUrl: ws://api.sequencer.127.0.0.1.nip.io/v1/ws
 
 ingress:
   enabled: true
@@ -75,12 +75,12 @@ ingress:
       nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range"
       nginx.ingress.kubernetes.io/cors-expose-headers: "Content-Length,Content-Range"
       nginx.ingress.kubernetes.io/cors-max-age: "86400"
-    host: api.sequencer.localdev.me
+    host: api.sequencer.127.0.0.1.nip.io
     tls: []
   frontend:
     className: "nginx"
     annotations: {}
-    host: astrotrek.sequencer.localdev.me
+    host: astrotrek.sequencer.127.0.0.1.nip.io
     tls: []
 
 ports:
