@@ -160,7 +160,7 @@ without-native tag=defaultTag:
 # Run IBC Test With Refund Timeout
 ###################################
 sequencer_tia_bridge_address := "astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr"
-eth_ws_url := "ws://ws-executor.astria.localdev.me/"
+eth_ws_url := "ws://ws-executor.astria.127.0.0.1.nip.io/"
 evm_contract_address := "0xA58639fB5458e65E4fA917FF951C390292C24A15"
 [no-cd]
 [doc("
@@ -337,7 +337,7 @@ sequencer_sudo_address := "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
 compat_address := "astriacompat1cewd7alwml4fhx3w3lxq3vgf20cqe0qmdzxmvn"
 celestia_dev_account_address := "celestia1m0ksdjl2p5nzhqy3p47fksv52at3ln885xvl96"
 celestia_chain_id := "celestia-local-0"
-celestia_node_url := "http://rpc.app.celestia.localdev.me:80"
+celestia_node_url := "http://rpc.app.celestia.127.0.0.1.nip.io:80"
 sequencer_tia_bridge_priv_key := "6015fbe1c365d3c5ef92dc891db8c5bb26ad454bec2db4762b96e9f8b2430285"
 keyring_backend := "test"
 celestia_destination_address := "0x4a58639fb5458e65e4fa917ff951c390292c24a1"

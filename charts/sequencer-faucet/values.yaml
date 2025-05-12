@@ -72,7 +72,7 @@ ingress:
   path: /
   pathType: Prefix
   hosts:
-    - sequencer-faucet.localdev.me
+    - sequencer-faucet.127.0.0.1.nip.io
   service:
     name: sequencer-faucet-service
     port:

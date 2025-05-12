@@ -270,7 +270,7 @@ print("testing bridge out")
 # Uses private key for 0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30 to sign tx.
 # was created via:
 #  `forge script script/AstriaWithdrawer.s.sol:AstriaWithdrawerScript \
-#        --rpc-url "http://executor.astria.localdev.me/" \
+#        --rpc-url "http://executor.astria.127.0.0.1.nip.io/" \
 #        --legacy \
 #        --broadcast \
 #        --sig "withdrawToSequencer()" -vvvv`

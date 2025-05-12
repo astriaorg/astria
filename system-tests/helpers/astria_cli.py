@@ -149,9 +149,9 @@ class Cli:
         Returns the stdout output on success, or throws a `DockerException` otherwise.
         """
         if sequencer_name == "node0":
-            url = "http://rpc.sequencer.localdev.me"
+            url = "http://rpc.sequencer.127.0.0.1.nip.io"
         else:
-            url = f"http://rpc.sequencer-{sequencer_name}.localdev.me"
+            url = f"http://rpc.sequencer-{sequencer_name}.127.0.0.1.nip.io"
         args = list(args)
         args.insert(0, "sequencer")
         if use_sequencer_url:
