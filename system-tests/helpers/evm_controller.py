@@ -161,7 +161,7 @@ class EvmController:
             "params": list(params),
             "id": 1,
         }
-        response = requests.post(f"http://executor.astria.localdev.me/", json=payload).json()
+        response = requests.post(f"http://executor.astria.127.0.0.1.nip.io/", json=payload).json()
         if not "result" in response:
             raise RuntimeError(f"json-rpc error response for `{method}`: {response['error']}")
         return response["result"]

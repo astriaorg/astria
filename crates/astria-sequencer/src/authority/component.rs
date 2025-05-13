@@ -27,7 +27,7 @@ use super::{
 };
 use crate::{
     accounts::AddressBytes,
-    action_handler::impls::validator_update::use_pre_aspen_validator_updates,
+    checked_actions::use_pre_aspen_validator_updates,
     component::Component,
 };
 
@@ -112,18 +112,23 @@ impl Component for AuthorityComponent {
             for misbehaviour in &begin_block.byzantine_validators {
                 // Only update the count if validator is in state
                 if state
-                    .remove_validator(&misbehaviour.validator.address)
+                    .get_validator(&misbehaviour.validator.address)
                     .await
-                    .wrap_err("failed to remove validator")?
+                    .wrap_err("failed to get validator info")?
+                    .is_none()
                 {
-                    let validator_count = state
-                        .get_validator_count()
-                        .await
-                        .wrap_err("failed to get validator count")?;
-                    state
-                        .put_validator_count(validator_count.saturating_sub(1))
-                        .wrap_err("failed to put validator count")?;
+                    continue;
                 }
+                state
+                    .remove_validator(&misbehaviour.validator.address)
+                    .await;
+                let validator_count = state
+                    .get_validator_count()
+                    .await
+                    .wrap_err("failed to get validator count")?;
+                state
+                    .put_validator_count(validator_count.saturating_sub(1))
+                    .wrap_err("failed to put validator count")?;
             }
         }
         Ok(())

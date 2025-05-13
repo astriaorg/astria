@@ -20,12 +20,12 @@ _default_run:
 
 # RIA is 10^9, WEI is 10^18, 10^9 * 10^9 = 10^18
 rollup_multiplier := "1000000000"
-eth_ws_url := "ws://ws-executor.astria.localdev.me/"
+eth_ws_url := "ws://ws-executor.astria.127.0.0.1.nip.io/"
 # bridge_tx_bytes is the tx to the withdraw smart contract on the evm.
 # Uses private key for 0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30 to sign tx.
 # was created via:
 #  `forge script script/AstriaWithdrawer.s.sol:AstriaWithdrawerScript \
-#        --rpc-url "http://executor.astria.localdev.me/" \
+#        --rpc-url "http://executor.astria.127.0.0.1.nip.io/" \
 #        --legacy \
 #        --broadcast \
 #        --sig "withdrawToSequencer()" -vvvv`

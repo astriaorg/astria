@@ -16,15 +16,18 @@ use astria_core::{
             ValidatorName,
             ValidatorUpdate,
         },
-        Transaction,
         TransactionBody,
     },
     sequencerblock::v1::block::ExpandedBlockData,
     upgrades::test_utils::UpgradesBuilder,
+    Protobuf as _,
 };
 use astria_eyre::eyre::Result;
 use bytes::Bytes;
-use cnidarium::Storage;
+use cnidarium::{
+    StateRead,
+    Storage,
+};
 use prost::Message as _;
 use sha2::{
     Digest as _,
@@ -59,27 +62,22 @@ use tendermint_proto::types::CanonicalVoteExtension;
 
 use crate::{
     app::{
-        benchmark_and_test_utils::{
-            mock_balances,
-            mock_tx_cost,
-            proto_genesis_state,
-            AppInitializer,
-            BOB_ADDRESS,
-        },
-        test_utils::{
-            get_alice_signing_key,
-            get_judy_signing_key,
-        },
         App,
         ShouldShutDown,
         StateReadExt as _,
     },
     authority::StateReadExt,
-    benchmark_and_test_utils::{
-        astria_address_from_hex_string,
-        nria,
-    },
+    checked_transaction::CheckedTransaction,
     oracles::price_feed::oracle::state_ext::StateReadExt as _,
+    test_utils::{
+        dummy_balances,
+        dummy_tx_costs,
+        nria,
+        Fixture,
+        ALICE,
+        BOB_ADDRESS,
+        SUDO,
+    },
 };
 
 const PROPOSER_SEED: [u8; 32] = [1; 32];
@@ -94,10 +92,10 @@ const BLOCK_99_VALIDATOR_UPDATE_POWER: u32 = 10;
 const BLOCK_100_VALIDATOR_UPDATE_POWER: u32 = 20;
 const BLOCK_101_VALIDATOR_UPDATE_POWER: u32 = 0;
 
-fn signed_transfer_tx(nonce: u32) -> Arc<Transaction> {
-    let tx = TransactionBody::builder()
+async fn checked_transfer_tx<S: StateRead>(nonce: u32, state: &S) -> Arc<CheckedTransaction> {
+    let tx_body = TransactionBody::builder()
         .actions(vec![Transfer {
-            to: astria_address_from_hex_string(BOB_ADDRESS),
+            to: *BOB_ADDRESS,
             amount: 100_000,
             asset: nria().into(),
             fee_asset: nria().into(),
@@ -107,19 +105,25 @@ fn signed_transfer_tx(nonce: u32) -> Arc<Transaction> {
         .nonce(nonce)
         .try_build()
         .unwrap();
-    let alice = get_alice_signing_key();
-    Arc::new(tx.sign(&alice))
+    let tx = tx_body.sign(&ALICE);
+    let tx_bytes = Bytes::from(tx.into_raw().encode_to_vec());
+    Arc::new(CheckedTransaction::new(tx_bytes, state).await.unwrap())
 }
 
-fn signed_validator_update_tx(validator_update: ValidatorUpdate, nonce: u32) -> Arc<Transaction> {
-    let tx = TransactionBody::builder()
+async fn checked_validator_update_tx<S: StateRead>(
+    validator_update: ValidatorUpdate,
+    nonce: u32,
+    state: &S,
+) -> Arc<CheckedTransaction> {
+    let tx_body = TransactionBody::builder()
         .actions(vec![validator_update.into()])
         .chain_id("test")
         .nonce(nonce)
         .try_build()
         .unwrap();
-    let alice = get_judy_signing_key(); // Judy is the sudo address by default
-    Arc::new(tx.sign(&alice))
+    let tx = tx_body.sign(&SUDO);
+    let tx_bytes = Bytes::from(tx.into_raw().encode_to_vec());
+    Arc::new(CheckedTransaction::new(tx_bytes, state).await.unwrap())
 }
 
 struct PrepareProposalBuilder {
@@ -196,7 +200,7 @@ fn new_extended_commit_info(current_block_height: u32) -> ExtendedCommitInfo {
                 extension: vote_extension.to_vec(),
                 height,
                 round: 0,
-                chain_id: proto_genesis_state().chain_id.clone(),
+                chain_id: "test".to_string(),
             };
             let bytes_to_sign = canonical_vote_extension.encode_length_delimited_to_vec();
             let extension_signature = Some(
@@ -324,23 +328,18 @@ struct Node {
 impl Node {
     async fn new(signing_key_seed: [u8; 32]) -> Self {
         let initial_validator_set = vec![
-            ValidatorUpdate {
-                power: 10,
-                verification_key: SigningKey::from(PROPOSER_SEED).verification_key(),
-                name: "test".parse().unwrap(),
-            },
-            ValidatorUpdate {
-                power: 10,
-                verification_key: SigningKey::from(VALIDATOR_SEED).verification_key(),
-                name: "test".parse().unwrap(),
-            },
+            (SigningKey::from(PROPOSER_SEED).verification_key(), 10),
+            (SigningKey::from(VALIDATOR_SEED).verification_key(), 10),
         ];
 
-        let (app, storage) = AppInitializer::new()
+        let upgrades = UpgradesBuilder::new().set_aspen(Some(100)).build();
+        let mut fixture = Fixture::uninitialized(Some(upgrades)).await;
+        fixture
+            .chain_initializer()
             .with_genesis_validators(initial_validator_set)
-            .with_upgrades(UpgradesBuilder::new().set_aspen(Some(100)).build())
             .init()
             .await;
+        let (app, storage) = fixture.destructure();
         Self {
             app,
             storage,
@@ -406,14 +405,15 @@ async fn should_upgrade() {
 /// Last block before upgrade - nothing special happens here.
 async fn execute_block_99(proposer: &mut Node, validator: &mut Node, non_validator: &mut Node) {
     // Add transfer action
+    let checked_transfer_tx = checked_transfer_tx(0, &proposer.storage.latest_snapshot()).await;
     proposer
         .app
         .mempool
         .insert(
-            signed_transfer_tx(0),
+            checked_transfer_tx,
             0,
-            &mock_balances(0, 0),
-            mock_tx_cost(0, 0, 0),
+            &dummy_balances(0, 0),
+            dummy_tx_costs(0, 0, 0),
         )
         .await
         .unwrap();
@@ -423,14 +423,20 @@ async fn execute_block_99(proposer: &mut Node, validator: &mut Node, non_validat
         verification_key: SigningKey::from(TEST_VALIDATOR_UPDATE_SEED).verification_key(),
         name: TEST_VALIDATOR_UPDATE_NAME.parse().unwrap(),
     };
+    let checked_validator_update_tx = checked_validator_update_tx(
+        block_99_validator_update.clone(),
+        0,
+        &proposer.storage.latest_snapshot(),
+    )
+    .await;
     proposer
         .app
         .mempool
         .insert(
-            signed_validator_update_tx(block_99_validator_update.clone(), 0),
+            checked_validator_update_tx,
             0,
-            &mock_balances(0, 0),
-            mock_tx_cost(0, 0, 0),
+            &dummy_balances(0, 0),
+            dummy_tx_costs(0, 0, 0),
         )
         .await
         .unwrap();
@@ -509,14 +515,15 @@ async fn execute_block_99(proposer: &mut Node, validator: &mut Node, non_validat
 /// set to 101.
 async fn execute_block_100(proposer: &mut Node, validator: &mut Node, non_validator: &mut Node) {
     // Add transfer action
+    let checked_transfer_tx = checked_transfer_tx(1, &proposer.storage.latest_snapshot()).await;
     proposer
         .app
         .mempool
         .insert(
-            signed_transfer_tx(1),
+            checked_transfer_tx,
             1,
-            &mock_balances(0, 0),
-            mock_tx_cost(0, 0, 0),
+            &dummy_balances(0, 0),
+            dummy_tx_costs(0, 0, 0),
         )
         .await
         .unwrap();
@@ -526,14 +533,20 @@ async fn execute_block_100(proposer: &mut Node, validator: &mut Node, non_valida
         verification_key: SigningKey::from(TEST_VALIDATOR_UPDATE_SEED).verification_key(),
         name: TEST_VALIDATOR_UPDATE_NAME.parse().unwrap(),
     };
+    let checked_validator_update_tx = checked_validator_update_tx(
+        block_100_validator_update.clone(),
+        1,
+        &proposer.storage.latest_snapshot(),
+    )
+    .await;
     proposer
         .app
         .mempool
         .insert(
-            signed_validator_update_tx(block_100_validator_update.clone(), 1),
+            checked_validator_update_tx,
             1,
-            &mock_balances(0, 0),
-            mock_tx_cost(0, 0, 0),
+            &dummy_balances(0, 0),
+            dummy_tx_costs(0, 0, 0),
         )
         .await
         .unwrap();
@@ -619,14 +632,15 @@ async fn execute_block_100(proposer: &mut Node, validator: &mut Node, non_valida
 /// vote extension will be available in `PrepareProposal` until the next block.
 async fn execute_block_101(proposer: &mut Node, validator: &mut Node, non_validator: &mut Node) {
     // Add transfer action
+    let checked_transfer_tx = checked_transfer_tx(2, &proposer.storage.latest_snapshot()).await;
     proposer
         .app
         .mempool
         .insert(
-            signed_transfer_tx(2),
+            checked_transfer_tx,
             2,
-            &mock_balances(0, 0),
-            mock_tx_cost(0, 0, 0),
+            &dummy_balances(0, 0),
+            dummy_tx_costs(0, 0, 0),
         )
         .await
         .unwrap();
@@ -636,14 +650,20 @@ async fn execute_block_101(proposer: &mut Node, validator: &mut Node, non_valida
         verification_key: SigningKey::from(TEST_VALIDATOR_UPDATE_SEED).verification_key(),
         name: TEST_VALIDATOR_UPDATE_NAME.parse().unwrap(),
     };
+    let checked_validator_update_tx = checked_validator_update_tx(
+        block_101_validator_update.clone(),
+        2,
+        &proposer.storage.latest_snapshot(),
+    )
+    .await;
     proposer
         .app
         .mempool
         .insert(
-            signed_validator_update_tx(block_101_validator_update.clone(), 2),
+            checked_validator_update_tx,
             2,
-            &mock_balances(0, 0),
-            mock_tx_cost(0, 0, 0),
+            &dummy_balances(0, 0),
+            dummy_tx_costs(0, 0, 0),
         )
         .await
         .unwrap();
@@ -738,14 +758,15 @@ async fn execute_block_102(proposer: &mut Node, validator: &mut Node, non_valida
     assert_eq!(0, currency_pair_1_price.block_height);
 
     // Execute `PrepareProposal` for block 102 on the proposer.
+    let checked_transfer_tx = checked_transfer_tx(3, &proposer.storage.latest_snapshot()).await;
     proposer
         .app
         .mempool
         .insert(
-            signed_transfer_tx(3),
+            checked_transfer_tx,
             3,
-            &mock_balances(0, 0),
-            mock_tx_cost(0, 0, 0),
+            &dummy_balances(0, 0),
+            dummy_tx_costs(0, 0, 0),
         )
         .await
         .unwrap();
