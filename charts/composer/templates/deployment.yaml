@@ -15,6 +15,9 @@ spec:
       labels:
         app: composer
     spec:
+      {{- if .Values.secretProvider.enabled }}
+      serviceAccountName: {{ include "composer.namespace" . }}
+      {{- end }}
       containers:
         - name: composer
           image: {{ include "composer.image" . }}
