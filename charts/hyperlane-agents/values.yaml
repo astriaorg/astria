@@ -37,7 +37,7 @@ config:
         protocol: ethereum
         isTestnet: true
         rpcUrls:
-          - http: 'https://executor.astria.localdev.me'
+          - http: 'https://executor.astria.127.0.0.1.nip.io'
         nativeToken:
           name: RIA
           symbol: RIA

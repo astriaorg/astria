@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: account-monitor
+  namespace: {{ include "account-monitor.namespace" . }}
+  labels:
+    app: account-monitor
+spec:
+  replicas: {{ .Values.global.replicaCount }}
+  selector:
+    matchLabels:
+      app: account-monitor
+  template:
+    metadata:
+      labels:
+        app: account-monitor
+    spec:
+      containers:
+        - name: account-monitor
+          image: {{ include "account-monitor.image" . }}
+          imagePullPolicy: {{ .Values.images.accountMonitor.pullPolicy }}
+          command: ["/usr/local/bin/astria-account-monitor"]
+          stdin: {{ .Values.global.useTTY }}
+          tty: {{ .Values.global.useTTY }}
+          envFrom:
+            - configMapRef:
+                name: account-monitor-env
+          ports:
+            - containerPort: {{ .Values.ports.metrics }}
+              name: monitor-metric
+          resources:
+            {{- toYaml .Values.resources | trim | nindent 12 }}

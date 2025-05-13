@@ -244,7 +244,7 @@ blockscout-stack:
 
     ingress:
       enabled: true
-      hostname: explorer.astria.localdev.me
+      hostname: explorer.astria.127.0.0.1.nip.io
       paths:
         - path: /api
           pathType: Prefix
@@ -277,4 +277,4 @@ blockscout-stack:
         value: "none"
     ingress:
       enabled: true
-      hostname: explorer.astria.localdev.me
+      hostname: explorer.astria.127.0.0.1.nip.io

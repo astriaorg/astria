@@ -191,7 +191,7 @@ impl Transaction {
     }
 
     #[must_use]
-    pub fn into_unsigned(self) -> TransactionBody {
+    pub fn into_body(self) -> TransactionBody {
         self.body
     }
 
@@ -221,7 +221,7 @@ impl Transaction {
     }
 
     #[must_use]
-    pub fn unsigned_transaction(&self) -> &TransactionBody {
+    pub fn body(&self) -> &TransactionBody {
         &self.body
     }
 
@@ -232,6 +232,17 @@ impl Transaction {
     #[must_use]
     pub fn nonce(&self) -> u32 {
         self.body.nonce()
+    }
+
+    #[must_use]
+    pub fn into_parts(self) -> TransactionParts {
+        let group = self.group();
+        TransactionParts {
+            actions: self.body.actions.into_actions(),
+            group,
+            params: self.body.params,
+            verification_key: self.verification_key,
+        }
     }
 }
 
@@ -564,6 +575,24 @@ impl TransactionParams {
             chain_id: chain_id.clone(),
         }
     }
+
+    #[must_use]
+    pub fn nonce(&self) -> u32 {
+        self.nonce
+    }
+
+    #[must_use]
+    pub fn chain_id(&self) -> &str {
+        &self.chain_id
+    }
+}
+
+/// The parts of a [`Transaction`] used in the sequencer to convert to a checked transaction.
+pub struct TransactionParts {
+    pub actions: Vec<Action>,
+    pub group: Group,
+    pub params: TransactionParams,
+    pub verification_key: VerificationKey,
 }
 
 #[cfg(test)]

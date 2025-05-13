@@ -1,0 +1,62 @@
+global:
+  dev: true
+
+config:
+  logLevel: "debug"
+  sequencerFeeAsset: "nria"
+  queryIntervalMs: "10000"
+  sequencerRpc: "http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657"
+  sequencerChainId: "sequencer-test-chain-0"
+  sequencerAccounts:
+    - "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
+otel:
+  enabled: false
+  serviceName: "account-monitor"
+  endpoint: ""
+  tracesEndpoint: ""
+  tracesCompression: "gzip"
+  tracesTimeout: "10"
+  otlpHeaders: ""
+  traceHeaders: ""
+
+serviceMonitor:
+  # set to enable port svc and service monitor
+  enabled: false
+  port: 6060
+  additionalLabels:
+    release: kube-prometheus-stack
+
+alerting:
+  enabled: false
+  interval: ""
+  additionalLabels:
+    release: kube-prometheus-stack
+  annotations: {}
+  # scrapeTimeout: 10s
+  # path: /metrics
+  prometheusRule:
+    enabled: true
+    additionalLabels:
+      release: kube-prometheus-stack
+    namespace: monitoring
+    rules:
+    - alert: Account_Monitor_Down
+      expr: up{container="account-monitor"} == 0  # Insert your query Expression
+      for: 1m  # Rough number but should be enough to init warn
+      labels:
+        severity: warning
+      annotations:
+        summary: Account Monitor is Down (instance {{ $labels.instance }})
+        description: "Account Monitor '{{ $labels.namespace }}' has disappeared from Prometheus target discovery.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 100Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# Default service ports
+ports:
+  metrics: 9000

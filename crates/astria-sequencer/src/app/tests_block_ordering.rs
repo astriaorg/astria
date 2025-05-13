@@ -1,13 +1,19 @@
-use std::collections::HashSet;
+use std::{
+    collections::HashSet,
+    sync::Arc,
+};
 
 use astria_core::{
+    crypto::SigningKey,
+    primitive::v1::RollupId,
     protocol::transaction::v1::action::{
         group::Group,
-        ValidatorUpdate,
+        FeeAssetChange,
+        InitBridgeAccount,
+        SudoAddressChange,
     },
-    Protobuf as _,
 };
-use prost::Message;
+use bytes::Bytes;
 use tendermint::{
     abci::{
         request::{
@@ -23,46 +29,96 @@ use tendermint::{
     Time,
 };
 
-use super::test_utils::get_alice_signing_key;
-use crate::app::{
-    benchmark_and_test_utils::{
-        mock_balances,
-        mock_tx_cost,
-        AppInitializer,
-    },
+use crate::{
+    checked_transaction::CheckedTransaction,
     test_utils::{
-        get_bob_signing_key,
-        get_judy_signing_key,
-        run_until_aspen_applied,
+        dummy_balances,
+        dummy_tx_costs,
+        nria,
         transactions_with_extended_commit_info_and_commitments,
-        MockTxBuilder,
+        Fixture,
+        ALICE,
+        BOB,
+        CAROL_ADDRESS,
+        SUDO,
     },
 };
 
+async fn new_bundleable_general_tx(
+    fixture: &Fixture,
+    signer: SigningKey,
+    nonce: u32,
+) -> Arc<CheckedTransaction> {
+    let tx = fixture
+        .checked_tx_builder()
+        .with_rollup_data_submission(vec![1, 2, 3])
+        .with_nonce(nonce)
+        .with_signer(signer)
+        .build()
+        .await;
+    assert_eq!(tx.group(), Group::BundleableGeneral);
+    tx
+}
+
+async fn new_unbundleable_general_tx(
+    fixture: &Fixture,
+    signer: SigningKey,
+    nonce: u32,
+) -> Arc<CheckedTransaction> {
+    let tx = fixture
+        .checked_tx_builder()
+        .with_action(InitBridgeAccount {
+            rollup_id: RollupId::from_unhashed_bytes("rollup-id"),
+            asset: nria().into(),
+            fee_asset: nria().into(),
+            sudo_address: None,
+            withdrawer_address: None,
+        })
+        .with_nonce(nonce)
+        .with_signer(signer)
+        .build()
+        .await;
+    assert_eq!(tx.group(), Group::UnbundleableGeneral);
+    tx
+}
+
+async fn new_bundleable_sudo_tx(fixture: &Fixture, nonce: u32) -> Arc<CheckedTransaction> {
+    let tx = fixture
+        .checked_tx_builder()
+        .with_action(FeeAssetChange::Addition("other_asset".parse().unwrap()))
+        .with_nonce(nonce)
+        .with_signer(SUDO.clone())
+        .build()
+        .await;
+    assert_eq!(tx.group(), Group::BundleableSudo);
+    tx
+}
+
+async fn new_unbundleable_sudo_tx(fixture: &Fixture, nonce: u32) -> Arc<CheckedTransaction> {
+    let tx = fixture
+        .checked_tx_builder()
+        .with_action(SudoAddressChange {
+            new_address: *CAROL_ADDRESS,
+        })
+        .with_nonce(nonce)
+        .with_signer(SUDO.clone())
+        .build()
+        .await;
+    assert_eq!(tx.group(), Group::UnbundleableSudo);
+    tx
+}
+
 #[tokio::test]
 async fn app_process_proposal_ordering_ok() {
-    let (mut app, storage) = AppInitializer::new().init().await;
-    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
+    let fixture = Fixture::default_initialized().await;
+    let height = fixture.block_height().await.increment();
 
     // create transactions that should pass with expected ordering
     let txs = vec![
-        MockTxBuilder::new()
-            .group(Group::BundleableGeneral)
-            .signer(get_alice_signing_key())
-            .build(),
-        MockTxBuilder::new()
-            .group(Group::UnbundleableGeneral)
-            .signer(get_bob_signing_key())
-            .build(),
-        MockTxBuilder::new()
-            .group(Group::BundleableSudo)
-            .signer(get_judy_signing_key())
-            .build(),
-        MockTxBuilder::new()
-            .group(Group::UnbundleableSudo)
-            .nonce(1)
-            .signer(get_judy_signing_key())
-            .build(),
+        new_bundleable_general_tx(&fixture, ALICE.clone(), 0).await,
+        new_unbundleable_general_tx(&fixture, BOB.clone(), 0).await,
+        new_bundleable_sudo_tx(&fixture, 0).await,
+        new_unbundleable_sudo_tx(&fixture, 1).await,
     ];
 
     let process_proposal = ProcessProposal {
@@ -79,8 +135,9 @@ async fn app_process_proposal_ordering_ok() {
         misbehavior: vec![],
     };
 
+    let (mut app, storage) = fixture.destructure();
     assert!(
-        app.process_proposal(process_proposal.clone(), storage.clone())
+        app.process_proposal(process_proposal, storage)
             .await
             .is_ok(),
         "process proposal should succeed with expected ordering"
@@ -91,19 +148,13 @@ async fn app_process_proposal_ordering_ok() {
 async fn app_process_proposal_ordering_fail() {
     // Tests that process proposal will reject blocks that contain transactions that are out of
     // order.
-    let (mut app, storage) = AppInitializer::new().init().await;
-    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
+    let fixture = Fixture::default_initialized().await;
+    let height = fixture.block_height().await.increment();
 
     // create transactions that should fail due to incorrect ordering
     let txs = vec![
-        MockTxBuilder::new()
-            .group(Group::UnbundleableGeneral)
-            .signer(get_bob_signing_key())
-            .build(),
-        MockTxBuilder::new()
-            .group(Group::BundleableGeneral)
-            .signer(get_alice_signing_key())
-            .build(),
+        new_unbundleable_general_tx(&fixture, BOB.clone(), 0).await,
+        new_bundleable_general_tx(&fixture, ALICE.clone(), 0).await,
     ];
 
     let process_proposal = ProcessProposal {
@@ -120,6 +171,7 @@ async fn app_process_proposal_ordering_fail() {
         misbehavior: vec![],
     };
 
+    let (mut app, storage) = fixture.destructure();
     let result = app
         .process_proposal(process_proposal.clone(), storage.clone())
         .await
@@ -144,35 +196,32 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
     //
     // The block building process should handle this in a way that allows the transactions to
     // both eventually be included.
-    let (mut app, storage) = AppInitializer::new()
-        .with_genesis_validators(vec![ValidatorUpdate {
-            verification_key: (&get_alice_signing_key()).into(),
-            power: 1,
-            name: "genesis_validator".parse().unwrap(),
-        }])
-        .init()
-        .await;
-    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
+    let fixture = Fixture::default_initialized().await;
+    let height = fixture.block_height().await.increment();
 
     // create transactions that should fail due to incorrect ordering if both are included in the
     // same block
-    let tx_0 = MockTxBuilder::new()
-        .group(Group::UnbundleableGeneral)
-        .signer(get_alice_signing_key())
-        .build();
-    let tx_1 = MockTxBuilder::new()
-        .group(Group::BundleableGeneral)
-        .nonce(1)
-        .signer(get_alice_signing_key())
-        .build();
+    let tx_0 = new_unbundleable_general_tx(&fixture, ALICE.clone(), 0).await;
+    let tx_1 = new_bundleable_general_tx(&fixture, ALICE.clone(), 1).await;
 
+    let (mut app, storage) = fixture.destructure();
     app.mempool
-        .insert(tx_0.clone(), 0, &mock_balances(0, 0), mock_tx_cost(0, 0, 0))
+        .insert(
+            tx_0.clone(),
+            0,
+            &dummy_balances(0, 0),
+            dummy_tx_costs(0, 0, 0),
+        )
         .await
         .unwrap();
 
     app.mempool
-        .insert(tx_1.clone(), 0, &mock_balances(0, 0), mock_tx_cost(0, 0, 0))
+        .insert(
+            tx_1.clone(),
+            0,
+            &dummy_balances(0, 0),
+            dummy_tx_costs(0, 0, 0),
+        )
         .await
         .unwrap();
 
@@ -196,13 +245,13 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
         .expect("incorrect account ordering shouldn't cause blocks to fail");
 
     assert_eq!(
-        prepare_proposal_result.txs.last().unwrap().to_vec(),
-        tx_0.to_raw().encode_to_vec(),
+        Bytes::from(prepare_proposal_result.txs.last().unwrap().to_vec()),
+        tx_0.encoded_bytes(),
         "expected to contain first transaction"
     );
 
     app.mempool
-        .run_maintenance(&app.state, false, HashSet::new(), 0)
+        .run_maintenance(&app.state, false, &HashSet::new(), 0)
         .await;
     assert_eq!(
         app.mempool.len().await,
@@ -235,13 +284,13 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
         .expect("incorrect account ordering shouldn't cause blocks to fail");
 
     assert_eq!(
-        prepare_proposal_result.txs.last().unwrap().to_vec(),
-        tx_1.to_raw().encode_to_vec(),
+        Bytes::from(prepare_proposal_result.txs.last().unwrap().to_vec()),
+        tx_1.encoded_bytes(),
         "expected to contain second transaction"
     );
 
     app.mempool
-        .run_maintenance(&app.state, false, HashSet::new(), 0)
+        .run_maintenance(&app.state, false, &HashSet::new(), 0)
         .await;
     assert_eq!(app.mempool.len().await, 0, "mempool should be empty");
 }

@@ -1,27 +1,15 @@
 use std::collections::HashMap;
 
-use astria_core::{
-    protocol::{
-        fees::v1::FeeComponents,
-        genesis::v1::Account,
-        transaction::v1::{
-            action::{
-                FeeChange,
-                Transfer,
-            },
-            TransactionBody,
-        },
+use astria_core::protocol::{
+    fees::v1::FeeComponents,
+    transaction::v1::action::{
+        FeeChange,
+        Transfer,
     },
-    Protobuf,
-};
-use benchmark_and_test_utils::{
-    proto_genesis_state,
-    ALICE_ADDRESS,
-    CAROL_ADDRESS,
 };
 use tendermint::{
     abci::{
-        self,
+        request::FinalizeBlock,
         types::CommitInfo,
     },
     account,
@@ -33,47 +21,49 @@ use tendermint::{
 use super::*;
 use crate::{
     accounts::StateReadExt as _,
-    app::{
-        benchmark_and_test_utils::AppInitializer,
-        test_utils::*,
-    },
-    benchmark_and_test_utils::{
-        astria_address_from_hex_string,
+    test_utils::{
+        dummy_balances,
+        dummy_tx_costs,
         nria,
+        Fixture,
+        ALICE,
+        ALICE_ADDRESS,
+        BOB,
+        BOB_ADDRESS,
+        CAROL,
+        CAROL_ADDRESS,
+        TEN_QUINTILLION,
     },
 };
 
 #[tokio::test]
 async fn trigger_cleaning() {
     // check that cleaning is triggered by the prepare, process, and finalize block flows
-    let (mut app, storage) = AppInitializer::new().init().await;
-    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
+    let mut fixture = Fixture::default_initialized().await;
+    let height = fixture.block_height().await.increment();
 
     // create tx which will cause mempool cleaning flag to be set
-    let tx_trigger = TransactionBody::builder()
-        .actions(vec![FeeChange::Transfer(FeeComponents::<Transfer>::new(
-            10, 0,
-        ))
-        .into()])
-        .chain_id("test")
-        .try_build()
-        .unwrap()
-        .sign(&get_judy_signing_key());
+    let tx_trigger = fixture
+        .checked_tx_builder()
+        .with_action(FeeChange::Transfer(FeeComponents::new(10, 0)))
+        .build()
+        .await;
 
-    app.mempool
+    fixture
+        .mempool()
         .insert(
-            Arc::new(tx_trigger.clone()),
+            tx_trigger.clone(),
             0,
-            &mock_balances(0, 0),
-            mock_tx_cost(0, 0, 0),
+            &dummy_balances(0, 0),
+            dummy_tx_costs(0, 0, 0),
         )
         .await
         .unwrap();
 
-    assert!(!app.recost_mempool, "flag should start out false");
+    assert!(!fixture.app.recost_mempool, "flag should start out false");
 
     // trigger with prepare_proposal
-    let prepare_args = abci::request::PrepareProposal {
+    let prepare_args = PrepareProposal {
         max_tx_bytes: 200_000,
         txs: vec![],
         local_last_commit: Some(ExtendedCommitInfo {
@@ -87,22 +77,19 @@ async fn trigger_cleaning() {
         proposer_address: account::Id::new([1u8; 20]),
     };
 
-    app.prepare_proposal(prepare_args, storage.clone())
+    fixture
+        .app
+        .prepare_proposal(prepare_args, fixture.storage())
         .await
         .expect("fee change with correct signer should pass prepare proposal");
-    assert!(app.recost_mempool, "flag should have been set");
+    assert!(fixture.app.recost_mempool, "flag should have been set");
 
     // manually reset to trigger again
-    app.recost_mempool = false;
-    assert!(!app.recost_mempool, "flag should start out false");
+    fixture.app.recost_mempool = false;
 
     // trigger with process_proposal
-    let txs = transactions_with_extended_commit_info_and_commitments(
-        height,
-        &[Arc::new(tx_trigger)],
-        None,
-    );
-    let process_proposal = abci::request::ProcessProposal {
+    let txs = transactions_with_extended_commit_info_and_commitments(height, &[tx_trigger], None);
+    let process_proposal = ProcessProposal {
         hash: Hash::try_from([99u8; 32].to_vec()).unwrap(),
         height,
         time: Time::now(),
@@ -116,16 +103,17 @@ async fn trigger_cleaning() {
         misbehavior: vec![],
     };
 
-    app.process_proposal(process_proposal, storage.clone())
+    fixture
+        .app
+        .process_proposal(process_proposal, fixture.storage())
         .await
         .unwrap();
-    assert!(app.recost_mempool, "flag should have been set");
+    assert!(fixture.app.recost_mempool, "flag should have been set");
 
     // trigger with finalize block
-    app.recost_mempool = false;
-    assert!(!app.recost_mempool, "flag should start out false");
+    fixture.app.recost_mempool = false;
 
-    let finalize_block = abci::request::FinalizeBlock {
+    let finalize_block = FinalizeBlock {
         hash: Hash::try_from([97u8; 32].to_vec()).unwrap(),
         height,
         time: Time::now(),
@@ -139,41 +127,41 @@ async fn trigger_cleaning() {
         misbehavior: vec![],
     };
 
-    app.finalize_block(finalize_block, storage.clone())
+    fixture
+        .app
+        .finalize_block(finalize_block, fixture.storage())
         .await
         .unwrap();
-    assert!(app.recost_mempool, "flag should have been set");
+    assert!(fixture.app.recost_mempool, "flag should have been set");
 }
 
 #[tokio::test]
 async fn do_not_trigger_cleaning() {
-    let (mut app, storage) = AppInitializer::new().init().await;
-    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
+    let mut fixture = Fixture::default_initialized().await;
+    let height = fixture.block_height().await.increment();
 
     // create tx which will fail execution and not trigger flag
-    // (wrong sudo signer)
-    let tx_fail = TransactionBody::builder()
-        .actions(vec![FeeChange::Transfer(FeeComponents::<Transfer>::new(
-            10, 0,
-        ))
-        .into()])
-        .chain_id("test")
-        .try_build()
-        .unwrap()
-        .sign(&get_alice_signing_key());
+    // (change sudo to Alice for checked tx construction, but don't commit the change to sudo
+    // address, so `prepare_proposal` call uses `storage` with sudo address as `SUDO`)
+    fixture
+        .state_mut()
+        .put_sudo_address(*ALICE_ADDRESS)
+        .unwrap();
+    let tx_fail = fixture
+        .checked_tx_builder()
+        .with_action(FeeChange::Transfer(FeeComponents::new(10, 0)))
+        .with_signer(ALICE.clone())
+        .build()
+        .await;
 
-    app.mempool
-        .insert(
-            Arc::new(tx_fail.clone()),
-            0,
-            &mock_balances(0, 0),
-            mock_tx_cost(0, 0, 0),
-        )
+    fixture
+        .mempool()
+        .insert(tx_fail, 0, &dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
         .await
         .unwrap();
 
     // trigger with prepare_proposal
-    let prepare_args = abci::request::PrepareProposal {
+    let prepare_args = PrepareProposal {
         max_tx_bytes: 200_000,
         txs: vec![],
         local_last_commit: Some(ExtendedCommitInfo {
@@ -187,90 +175,74 @@ async fn do_not_trigger_cleaning() {
         proposer_address: account::Id::new([1u8; 20]),
     };
 
-    assert!(!app.recost_mempool, "flag should start out false");
-    app.prepare_proposal(prepare_args, storage.clone())
+    assert!(!fixture.app.recost_mempool, "flag should start out false");
+    fixture
+        .app
+        .prepare_proposal(prepare_args, fixture.storage())
         .await
         .expect("failing transaction should not cause block to fail");
-    assert!(!app.recost_mempool, "flag should not have been set");
+    assert!(!fixture.app.recost_mempool, "flag should not have been set");
 }
 
 #[expect(clippy::too_many_lines, reason = "it's a test")]
 #[tokio::test]
 async fn maintenance_recosting_promotes() {
     // check that transaction promotion from recosting works
-    let mut only_alice_funds_genesis_state = proto_genesis_state();
-    only_alice_funds_genesis_state.accounts = vec![
-        Account {
-            address: astria_address_from_hex_string(ALICE_ADDRESS),
-            balance: 10u128.pow(19),
-        },
-        Account {
-            address: astria_address_from_hex_string(BOB_ADDRESS),
-            balance: 11u128, // transfer fee is 12 at default
-        },
-    ]
-    .into_iter()
-    .map(Protobuf::into_raw)
-    .collect();
-
-    let (mut app, storage) = AppInitializer::new()
-        .with_genesis_state(only_alice_funds_genesis_state.try_into().unwrap())
+    let mut fixture = Fixture::uninitialized(None).await;
+    // Provide Alice with normal balance
+    // Provide Bob with just enough to cover the costs of a Transfer of 1 nria after the Transfer
+    // fee is reduced to 1 nria.
+    fixture
+        .chain_initializer()
+        .with_genesis_accounts(vec![(*ALICE_ADDRESS, TEN_QUINTILLION), (*BOB_ADDRESS, 2)])
         .init()
         .await;
-    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
+
+    let height = fixture.run_until_aspen_applied().await;
 
     // create tx which will not be included in block due to
     // having insufficient funds (transaction will be recosted to enable)
-    let tx_fail_recost_funds = TransactionBody::builder()
-        .actions(vec![Transfer {
-            to: astria_address_from_hex_string(CAROL_ADDRESS),
-            amount: 1u128,
+    let tx_fail_recost_funds = fixture
+        .checked_tx_builder()
+        .with_action(Transfer {
+            to: *CAROL_ADDRESS,
+            amount: 1,
             asset: nria().into(),
             fee_asset: nria().into(),
-        }
-        .into()])
-        .chain_id("test")
-        .try_build()
-        .unwrap()
-        .sign(&get_bob_signing_key());
+        })
+        .with_signer(BOB.clone())
+        .build()
+        .await;
 
     let mut bob_funds = HashMap::new();
-    bob_funds.insert(nria().into(), 11);
+    bob_funds.insert(nria().into(), 2);
     let mut tx_cost = HashMap::new();
-    tx_cost.insert(nria().into(), 13);
-    app.mempool
-        .insert(
-            Arc::new(tx_fail_recost_funds.clone()),
-            0,
-            &bob_funds,
-            tx_cost,
-        )
+    tx_cost.insert(nria().into(), 3);
+    let mempool = fixture.mempool();
+    mempool
+        .insert(tx_fail_recost_funds, 0, &bob_funds, tx_cost)
         .await
         .unwrap();
 
     // create tx which will enable recost tx to pass
-    let tx_recost = TransactionBody::builder()
-        .actions(vec![FeeChange::Transfer(FeeComponents::<Transfer>::new(
-            10, 0,
-        ))
-        .into()])
-        .chain_id("test")
-        .try_build()
-        .unwrap()
-        .sign(&get_judy_signing_key());
+    let tx_recost = fixture
+        .checked_tx_builder()
+        .with_action(FeeChange::Transfer(FeeComponents::<Transfer>::new(1, 0)))
+        .build()
+        .await;
 
-    let mut judy_funds = HashMap::new();
-    judy_funds.insert(nria().into(), 0);
+    let mut sudo_funds = HashMap::new();
+    sudo_funds.insert(nria().into(), 0);
     let mut tx_cost = HashMap::new();
     tx_cost.insert(nria().into(), 0);
-    app.mempool
-        .insert(Arc::new(tx_recost.clone()), 0, &judy_funds, tx_cost)
+    mempool
+        .insert(tx_recost, 0, &sudo_funds, tx_cost)
         .await
         .unwrap();
-    assert_eq!(app.mempool.len().await, 2, "two txs in mempool");
+    assert_eq!(mempool.len().await, 2, "two txs in mempool");
 
     // create block with prepare_proposal
-    let prepare_args = abci::request::PrepareProposal {
+    let prepare_args = PrepareProposal {
         max_tx_bytes: 200_000,
         txs: vec![],
         local_last_commit: Some(ExtendedCommitInfo {
@@ -283,8 +255,9 @@ async fn maintenance_recosting_promotes() {
         next_validators_hash: Hash::default(),
         proposer_address: account::Id::new([1u8; 20]),
     };
-    let res = app
-        .prepare_proposal(prepare_args, storage.clone())
+    let res = fixture
+        .app
+        .prepare_proposal(prepare_args, fixture.storage())
         .await
         .unwrap();
 
@@ -294,13 +267,13 @@ async fn maintenance_recosting_promotes() {
         "only one transaction should've been valid (besides 3 generated txs)"
     );
     assert_eq!(
-        app.mempool.len().await,
+        mempool.len().await,
         2,
         "two txs in mempool; one included in proposal is not yet removed"
     );
 
     let hash = Hash::Sha256([97u8; 32]);
-    let process_proposal = abci::request::ProcessProposal {
+    let process_proposal = ProcessProposal {
         hash,
         height,
         time: Time::now(),
@@ -313,18 +286,19 @@ async fn maintenance_recosting_promotes() {
         }),
         misbehavior: vec![],
     };
-    app.process_proposal(process_proposal, storage.clone())
+    fixture
+        .app
+        .process_proposal(process_proposal, fixture.storage())
         .await
         .unwrap();
     assert_eq!(
-        app.mempool.len().await,
+        mempool.len().await,
         2,
-        "two txs in mempool; one included in proposal is not
-    yet removed"
+        "two txs in mempool; one included in proposal is not yet removed"
     );
 
     // finalize with finalize block
-    let finalize_block = abci::request::FinalizeBlock {
+    let finalize_block = FinalizeBlock {
         hash,
         height,
         time: Time::now(),
@@ -338,15 +312,17 @@ async fn maintenance_recosting_promotes() {
         misbehavior: vec![],
     };
 
-    app.finalize_block(finalize_block.clone(), storage.clone())
+    fixture
+        .app
+        .finalize_block(finalize_block.clone(), fixture.storage())
         .await
         .unwrap();
-    app.commit(storage.clone()).await.unwrap();
-    assert_eq!(app.mempool.len().await, 1, "recosted tx should remain");
+    fixture.app.commit(fixture.storage()).await.unwrap();
+    assert_eq!(mempool.len().await, 1, "recosted tx should remain");
 
     // mempool re-costing should've occurred to allow other transaction to execute
-    let next_height = tendermint::block::Height::from(3_u8);
-    let prepare_args = abci::request::PrepareProposal {
+    let next_height = height.increment();
+    let prepare_args = PrepareProposal {
         max_tx_bytes: 200_000,
         txs: vec![],
         local_last_commit: Some(ExtendedCommitInfo {
@@ -359,10 +335,11 @@ async fn maintenance_recosting_promotes() {
         next_validators_hash: Hash::default(),
         proposer_address: account::Id::new([1u8; 20]),
     };
-    let res = app
-        .prepare_proposal(prepare_args, storage.clone())
+    let res = fixture
+        .app
+        .prepare_proposal(prepare_args, fixture.storage())
         .await
-        .expect("");
+        .unwrap();
 
     assert_eq!(
         res.txs.len(),
@@ -372,8 +349,9 @@ async fn maintenance_recosting_promotes() {
 
     // see transfer went through
     assert_eq!(
-        app.state
-            .get_account_balance(&astria_address_from_hex_string(CAROL_ADDRESS), &nria())
+        fixture
+            .state()
+            .get_account_balance(&*CAROL_ADDRESS, &nria())
             .await
             .unwrap(),
         1,
@@ -385,75 +363,64 @@ async fn maintenance_recosting_promotes() {
 #[tokio::test]
 async fn maintenance_funds_added_promotes() {
     // check that transaction promotion from new funds works
-    let mut only_alice_funds_genesis_state = proto_genesis_state();
-    only_alice_funds_genesis_state.accounts = vec![Account {
-        address: astria_address_from_hex_string(ALICE_ADDRESS),
-        balance: 10u128.pow(19),
-    }]
-    .into_iter()
-    .map(Protobuf::into_raw)
-    .collect();
-
-    let (mut app, storage) = AppInitializer::new()
-        .with_genesis_state(only_alice_funds_genesis_state.try_into().unwrap())
+    let mut fixture = Fixture::uninitialized(None).await;
+    // Alice is the only funded account at genesis.
+    fixture
+        .chain_initializer()
+        .with_genesis_accounts(vec![(*ALICE_ADDRESS, TEN_QUINTILLION)])
         .init()
         .await;
-    let height = run_until_aspen_applied(&mut app, storage.clone()).await;
+
+    let height = fixture.run_until_aspen_applied().await;
 
     // create tx that will not be included in block due to
     // having no funds (will be sent transfer to then enable)
-    let tx_fail_transfer_funds = TransactionBody::builder()
-        .actions(vec![Transfer {
-            to: astria_address_from_hex_string(BOB_ADDRESS),
-            amount: 10u128,
+    let tx_fail_transfer_funds = fixture
+        .checked_tx_builder()
+        .with_action(Transfer {
+            to: *BOB_ADDRESS,
+            amount: 10,
             asset: nria().into(),
             fee_asset: nria().into(),
-        }
-        .into()])
-        .chain_id("test")
-        .try_build()
-        .unwrap()
-        .sign(&get_carol_signing_key());
+        })
+        .with_signer(CAROL.clone())
+        .build()
+        .await;
 
     let mut carol_funds = HashMap::new();
     carol_funds.insert(nria().into(), 0);
     let mut tx_cost = HashMap::new();
     tx_cost.insert(nria().into(), 22);
-    app.mempool
-        .insert(
-            Arc::new(tx_fail_transfer_funds.clone()),
-            0,
-            &carol_funds,
-            tx_cost,
-        )
+    let mempool = fixture.mempool();
+    mempool
+        .insert(tx_fail_transfer_funds, 0, &carol_funds, tx_cost)
         .await
         .unwrap();
 
     // create tx which will enable no funds to pass
-    let tx_fund = TransactionBody::builder()
-        .actions(vec![Transfer {
-            to: astria_address_from_hex_string(CAROL_ADDRESS),
-            amount: 22u128,
+    let tx_fund = fixture
+        .checked_tx_builder()
+        .with_action(Transfer {
+            to: *CAROL_ADDRESS,
+            amount: 22,
             asset: nria().into(),
             fee_asset: nria().into(),
-        }
-        .into()])
-        .chain_id("test")
-        .try_build()
-        .unwrap()
-        .sign(&get_alice_signing_key());
+        })
+        .with_signer(ALICE.clone())
+        .build()
+        .await;
 
     let mut alice_funds = HashMap::new();
     alice_funds.insert(nria().into(), 100);
     let mut tx_cost = HashMap::new();
     tx_cost.insert(nria().into(), 13);
-    app.mempool
-        .insert(Arc::new(tx_fund.clone()), 0, &alice_funds, tx_cost)
+    mempool
+        .insert(tx_fund, 0, &alice_funds, tx_cost)
         .await
         .unwrap();
 
     // create block with prepare_proposal
-    let prepare_args = abci::request::PrepareProposal {
+    let prepare_args = PrepareProposal {
         max_tx_bytes: 200_000,
         txs: vec![],
         local_last_commit: Some(ExtendedCommitInfo {
@@ -466,10 +433,11 @@ async fn maintenance_funds_added_promotes() {
         next_validators_hash: Hash::default(),
         proposer_address: account::Id::new([1u8; 20]),
     };
-    let res = app
-        .prepare_proposal(prepare_args, storage.clone())
+    let res = fixture
+        .app
+        .prepare_proposal(prepare_args, fixture.storage())
         .await
-        .expect("");
+        .unwrap();
 
     assert_eq!(
         res.txs.len(),
@@ -478,7 +446,7 @@ async fn maintenance_funds_added_promotes() {
     );
 
     let hash = Hash::Sha256([97u8; 32]);
-    let process_proposal = abci::request::ProcessProposal {
+    let process_proposal = ProcessProposal {
         hash,
         height,
         time: Time::now(),
@@ -491,18 +459,19 @@ async fn maintenance_funds_added_promotes() {
         }),
         misbehavior: vec![],
     };
-    app.process_proposal(process_proposal, storage.clone())
+    fixture
+        .app
+        .process_proposal(process_proposal, fixture.storage())
         .await
         .unwrap();
     assert_eq!(
-        app.mempool.len().await,
+        mempool.len().await,
         2,
-        "two txs in mempool; one included in proposal is not
-    yet removed"
+        "two txs in mempool; one included in proposal is not yet removed"
     );
 
     // finalize with finalize block
-    let finalize_block = abci::request::FinalizeBlock {
+    let finalize_block = FinalizeBlock {
         hash,
         height,
         time: Time::now(),
@@ -515,14 +484,16 @@ async fn maintenance_funds_added_promotes() {
         },
         misbehavior: vec![],
     };
-    app.finalize_block(finalize_block.clone(), storage.clone())
+    fixture
+        .app
+        .finalize_block(finalize_block.clone(), fixture.storage())
         .await
         .unwrap();
-    app.commit(storage.clone()).await.unwrap();
+    fixture.app.commit(fixture.storage()).await.unwrap();
 
     // transfer should've occurred to allow other transaction to execute
-    let next_height = tendermint::block::Height::from(3_u8);
-    let prepare_args = abci::request::PrepareProposal {
+    let next_height = height.increment();
+    let prepare_args = PrepareProposal {
         max_tx_bytes: 200_000,
         txs: vec![],
         local_last_commit: Some(ExtendedCommitInfo {
@@ -535,10 +506,11 @@ async fn maintenance_funds_added_promotes() {
         next_validators_hash: Hash::default(),
         proposer_address: account::Id::new([1u8; 20]),
     };
-    let res = app
-        .prepare_proposal(prepare_args, storage.clone())
+    let res = fixture
+        .app
+        .prepare_proposal(prepare_args, fixture.storage())
         .await
-        .expect("");
+        .unwrap();
 
     assert_eq!(
         res.txs.len(),
@@ -547,7 +519,7 @@ async fn maintenance_funds_added_promotes() {
     );
 
     // finalize with finalize block
-    let finalize_block = abci::request::FinalizeBlock {
+    let finalize_block = FinalizeBlock {
         hash: Hash::try_from([97u8; 32].to_vec()).unwrap(),
         height: next_height,
         time: Time::now(),
@@ -560,14 +532,17 @@ async fn maintenance_funds_added_promotes() {
         },
         misbehavior: vec![],
     };
-    app.finalize_block(finalize_block.clone(), storage.clone())
+    fixture
+        .app
+        .finalize_block(finalize_block.clone(), fixture.storage())
         .await
         .unwrap();
-    app.commit(storage.clone()).await.unwrap();
+    fixture.app.commit(fixture.storage()).await.unwrap();
     // see transfer went through
     assert_eq!(
-        app.state
-            .get_account_balance(&astria_address_from_hex_string(BOB_ADDRESS), &nria())
+        fixture
+            .state()
+            .get_account_balance(&*BOB_ADDRESS, &nria())
             .await
             .unwrap(),
         10,

@@ -342,7 +342,7 @@ async fn get_transaction_fee() {
         register_abci_query_response(&server, "transaction/fee", expected_response.clone()).await;
 
     let actual_response = client
-        .get_transaction_fee(create_signed_transaction().into_unsigned())
+        .get_transaction_fee(create_signed_transaction().into_body())
         .await
         .unwrap()
         .into_raw();

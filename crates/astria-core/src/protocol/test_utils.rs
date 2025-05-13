@@ -12,7 +12,7 @@ use prost::Message as _;
 use tendermint::abci::types::ExtendedCommitInfo;
 
 use super::{
-    group_rollup_data_submissions_in_signed_transaction_transactions_by_rollup_id,
+    group_rollup_data_submissions_by_rollup_id,
     transaction::v1::action::RollupDataSubmission,
 };
 use crate::{
@@ -138,6 +138,7 @@ impl ConfigureSequencerBlock {
         });
 
         let actions: Vec<Action> = sequence_data
+            .clone()
             .into_iter()
             .map(|(rollup_id, data)| {
                 RollupDataSubmission {
@@ -171,8 +172,21 @@ impl ConfigureSequencerBlock {
             }
         }
 
+        let rollup_data_bytes_iter = txs.iter().flat_map(|tx| {
+            tx.actions().iter().filter_map(|action| {
+                if let Action::RollupDataSubmission(rollup_submission) = action {
+                    Some((&rollup_submission.rollup_id, &rollup_submission.data))
+                } else {
+                    None
+                }
+            })
+        });
+        let rollup_data_bytes = rollup_data_bytes_iter
+            .clone()
+            .map(|(rollup_id, data)| (*rollup_id, data.clone()))
+            .collect();
         let mut rollup_transactions =
-            group_rollup_data_submissions_in_signed_transaction_transactions_by_rollup_id(&txs);
+            group_rollup_data_submissions_by_rollup_id(rollup_data_bytes_iter);
         for (rollup_id, deposit) in deposits_map.clone() {
             rollup_transactions
                 .entry(rollup_id)
@@ -233,6 +247,7 @@ impl ConfigureSequencerBlock {
             time: Time::from_unix_timestamp(unix_timestamp.secs, unix_timestamp.nanos).unwrap(),
             proposer_address,
             expanded_block_data,
+            rollup_data_bytes,
             deposits: deposits_map,
         }
         .try_build()

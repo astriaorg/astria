@@ -12,7 +12,7 @@ ingress: {}
 #    service: evm-rpc
 #    port: 8545
 #    hosts:
-#      - rpc.flame.localdev.me
+#      - rpc.flame.127.0.0.1.nip.io
 #    labels: {}
 #    annotations: {}
 #    tls: {}
@@ -20,7 +20,7 @@ ingress: {}
 #    service: evm-rpc
 #    port: 8546
 #    hosts:
-#      - ws.flame.localdev.me
+#      - ws.flame.127.0.0.1.nip.io
 #    labels: {}
 #    annotations: {}
 #    tls: {}
@@ -28,7 +28,7 @@ ingress: {}
 #    service: evm-faucet
 #    port: 8080
 #    hosts:
-#      - faucet.flame.localdev.me
+#      - faucet.flame.127.0.0.1.nip.io
 #    labels: { }
 #    annotations: {}
 #    tls: {}

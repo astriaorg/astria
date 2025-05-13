@@ -1,15 +1,23 @@
+#![cfg_attr(
+    feature = "benchmark",
+    allow(
+        dead_code,
+        reason = "we use the same functionality for tests and benchmarks, but benchmarks only \
+                  need a subset of this"
+    )
+)]
+
 pub(crate) mod accounts;
-pub(crate) mod action_handler;
 pub(crate) mod address;
 pub(crate) mod app;
 pub(crate) mod assets;
 pub(crate) mod authority;
-#[cfg(any(test, feature = "benchmark"))]
-pub(crate) mod benchmark_and_test_utils;
 #[cfg(feature = "benchmark")]
 pub(crate) mod benchmark_utils;
 pub(crate) mod bridge;
 mod build_info;
+pub(crate) mod checked_actions;
+pub(crate) mod checked_transaction;
 pub(crate) mod component;
 pub mod config;
 pub(crate) mod fees;
@@ -22,9 +30,8 @@ pub(crate) mod proposal;
 mod sequencer;
 pub(crate) mod service;
 pub(crate) mod storage;
-#[cfg(test)]
+#[cfg(any(test, feature = "benchmark"))]
 pub(crate) mod test_utils;
-pub(crate) mod transaction;
 pub(crate) mod upgrades;
 mod utils;
 

@@ -20,11 +20,14 @@ use astria_core::{
         },
         protocol::fees::v1::TransactionFee,
     },
-    primitive::v1::TRANSACTION_ID_LEN,
-    protocol::transaction::v1::Transaction,
+    primitive::v1::{
+        TransactionId,
+        TRANSACTION_ID_LEN,
+    },
 };
 use bytes::Bytes;
 use cnidarium::Storage;
+use prost::Message as _;
 use tonic::{
     Request,
     Response,
@@ -34,7 +37,11 @@ use tonic::{
 use crate::{
     app::StateReadExt as _,
     assets::StateReadExt as _,
-    fees::query::get_fees_for_transaction,
+    checked_actions::{
+        utils::total_fees,
+        ActionRef,
+    },
+    checked_transaction::CheckedTransaction,
     mempool::{
         Mempool,
         RemovalReason,
@@ -79,19 +86,15 @@ impl TransactionService for Server {
         self: Arc<Self>,
         request: Request<SubmitTransactionRequest>,
     ) -> Result<Response<SubmitTransactionResponse>, Status> {
-        let tx: Transaction = request
+        let tx_bytes: Bytes = request
             .into_inner()
             .transaction
             .ok_or_else(|| Status::invalid_argument("Transaction is empty"))?
-            .try_into()
-            .map_err(|err| {
-                Status::invalid_argument(format!("Raw transaction is invalid: {err}"))
-            })?;
-
-        let tx_hash_bytes = tx.id().get().to_vec().into();
+            .encode_to_vec()
+            .into();
 
         let submission_outcome: SubmissionOutcome = check_tx(
-            tx,
+            tx_bytes,
             self.storage.latest_snapshot(),
             &self.mempool,
             self.metrics,
@@ -101,7 +104,7 @@ impl TransactionService for Server {
 
         Ok(Response::new(SubmitTransactionResponse {
             status: Some(TransactionStatusResponse {
-                transaction_hash: tx_hash_bytes,
+                transaction_hash: submission_outcome.tx_id.get().to_vec().into(),
                 status: Some(submission_outcome.status),
             }),
             duplicate: submission_outcome.duplicate,
@@ -113,25 +116,34 @@ impl TransactionService for Server {
         request: Request<GetTransactionFeesRequest>,
     ) -> Result<Response<astria_core::generated::mempool::v1::GetTransactionFeesResponse>, Status>
     {
-        let tx: Transaction = request
-            .into_inner()
-            .transaction
-            .ok_or_else(|| Status::invalid_argument("Transaction is empty"))?
-            .try_into()
-            .map_err(|err| {
-                Status::invalid_argument(format!("Raw transaction is invalid: {err}"))
-            })?;
+        let snapshot = self.storage.latest_snapshot();
+        let checked_tx = CheckedTransaction::new(
+            request
+                .into_inner()
+                .transaction
+                .ok_or_else(|| Status::invalid_argument("Transaction is empty"))?
+                .encode_to_vec()
+                .into(),
+            &snapshot,
+        )
+        .await
+        .map_err(|err| {
+            Status::invalid_argument(format!(
+                "Failed to construct checked transaction from raw: {err}"
+            ))
+        })?;
 
         let snapshot = self.storage.latest_snapshot();
         let height = snapshot
             .get_block_height()
             .await
             .map_err(|err| Status::internal(format!("Failed to get block height: {err}")))?;
-        let fees_with_ibc_denoms = get_fees_for_transaction(tx.unsigned_transaction(), &snapshot)
-            .await
-            .map_err(|err| {
-                Status::internal(format!("Failed to get fees for transaction: {err}"))
-            })?;
+        let fees_with_ibc_denoms = total_fees(
+            checked_tx.checked_actions().iter().map(ActionRef::from),
+            &snapshot,
+        )
+        .await
+        .map_err(|err| Status::internal(format!("Failed to get fees for transaction: {err}")))?;
         let mut fees = Vec::with_capacity(fees_with_ibc_denoms.len());
         for (ibc_denom, value) in fees_with_ibc_denoms {
             let trace_denom = match snapshot.map_ibc_to_trace_prefixed_asset(&ibc_denom).await {
@@ -170,7 +182,8 @@ async fn get_transaction_status(
             tx_hash_bytes.len()
         ))
     })?;
-    let status = match mempool.transaction_status(&tx_hash).await {
+    let tx_id = TransactionId::new(tx_hash);
+    let status = match mempool.transaction_status(&tx_id).await {
         Some(TransactionStatus::Pending) => Some(RawTransactionStatus::Pending(RawPending {})),
         Some(TransactionStatus::Parked) => Some(RawTransactionStatus::Parked(RawParked {})),
         Some(TransactionStatus::Removed(RemovalReason::IncludedInBlock(height))) => {
@@ -192,6 +205,7 @@ async fn get_transaction_status(
 }
 
 struct SubmissionOutcome {
+    tx_id: TransactionId,
     status: RawTransactionStatus,
     duplicate: bool,
 }
@@ -201,56 +215,35 @@ impl TryFrom<CheckTxOutcome> for SubmissionOutcome {
 
     fn try_from(value: CheckTxOutcome) -> Result<SubmissionOutcome, Self::Error> {
         match value {
-            CheckTxOutcome::AddedToPending => Ok(SubmissionOutcome {
+            CheckTxOutcome::AddedToPending(tx_id) => Ok(SubmissionOutcome {
+                tx_id,
                 status: RawTransactionStatus::Pending(RawPending {}),
                 duplicate: false,
             }),
-            CheckTxOutcome::AddedToParked => Ok(SubmissionOutcome {
+            CheckTxOutcome::AddedToParked(tx_id) => Ok(SubmissionOutcome {
+                tx_id,
                 status: RawTransactionStatus::Parked(RawParked {}),
                 duplicate: false,
             }),
-            CheckTxOutcome::AlreadyInPending => Ok(SubmissionOutcome {
+            CheckTxOutcome::AlreadyInPending(tx_id) => Ok(SubmissionOutcome {
+                tx_id,
                 status: RawTransactionStatus::Pending(RawPending {}),
                 duplicate: true,
             }),
-            CheckTxOutcome::AlreadyInParked => Ok(SubmissionOutcome {
+            CheckTxOutcome::AlreadyInParked(tx_id) => Ok(SubmissionOutcome {
+                tx_id,
                 status: RawTransactionStatus::Parked(RawParked {}),
                 duplicate: true,
             }),
-            CheckTxOutcome::FailedStatelessChecks {
-                source,
-            } => Err(tonic::Status::invalid_argument(format!(
-                "transaction failed stateless checks: {source}"
-            ))),
+            CheckTxOutcome::FailedChecks(err) => Err(err.into()),
             CheckTxOutcome::FailedInsertion(err) => Err(err.into()),
-            CheckTxOutcome::InternalError {
-                source,
-            } => Err(tonic::Status::internal(format!("internal error: {source}"))),
-            CheckTxOutcome::InvalidChainId {
-                expected,
-                actual,
-            } => Err(tonic::Status::invalid_argument(format!(
-                "invalid chain id; expected: {expected}, got: {actual}"
-            ))),
-            CheckTxOutcome::InvalidTransactionProtobuf {
-                source,
-            } => Err(tonic::Status::invalid_argument(format!(
-                "invalid transaction protobuf: {source}"
-            ))),
-            CheckTxOutcome::InvalidTransactionBytes {
-                name,
-                source,
-            } => Err(tonic::Status::invalid_argument(format!(
-                "failed decoding bytes as a protobuf {name}: {source}"
-            ))),
-            CheckTxOutcome::RemovedFromMempool(removal_reason) => Err(tonic::Status::not_found(
-                format!("transaction has been removed from the app-side mempool: {removal_reason}"),
-            )),
-            CheckTxOutcome::TransactionTooLarge {
-                max_size,
-                actual_size,
-            } => Err(tonic::Status::invalid_argument(format!(
-                "transaction size too large; allowed: {max_size} bytes, got {actual_size}"
+            CheckTxOutcome::InternalError(source) => {
+                Err(Status::internal(format!("internal error: {source}")))
+            }
+            CheckTxOutcome::RemovedFromMempool {
+                reason, ..
+            } => Err(Status::not_found(format!(
+                "transaction has been removed from the app-side mempool: {reason}"
             ))),
         }
     }
@@ -264,80 +257,68 @@ mod tests {
     };
 
     use astria_core::{
-        primitive::v1::{
-            asset::Denom,
-            RollupId,
-            ROLLUP_ID_LEN,
-        },
-        protocol::{
-            fees::v1::FeeComponents,
-            transaction::v1::{
-                action::{
-                    RollupDataSubmission,
-                    Transfer,
-                },
-                Transaction,
-                TransactionBody,
-                TransactionBodyBuilder,
+        generated::protocol::transaction::v1::Transaction as RawTransaction,
+        primitive::v1::RollupId,
+        protocol::transaction::v1::{
+            action::{
+                RollupDataSubmission,
+                Transfer,
             },
+            TransactionBody,
         },
         Protobuf as _,
     };
     use cnidarium::StateDelta;
-    use telemetry::Metrics as _;
 
     use super::*;
     use crate::{
         accounts::StateWriteExt as _,
-        address::StateWriteExt as _,
-        app::{
-            test_utils::get_alice_signing_key,
-            StateWriteExt as _,
-        },
-        assets::StateWriteExt as _,
-        benchmark_and_test_utils::{
-            astria_address,
-            nria,
-        },
+        assets::StateWriteExt,
         fees::{
             FeeHandler as _,
+            StateReadExt as _,
             StateWriteExt as _,
         },
         mempool::RemovalReason,
-        Metrics,
+        test_utils::{
+            denom_0,
+            denom_1,
+            Fixture,
+            ALICE,
+            ALICE_ADDRESS,
+            ALICE_ADDRESS_BYTES,
+        },
     };
 
-    const TEST_CHAIN_ID: &str = "test_chain_id";
+    fn new_server(fixture: &Fixture) -> Arc<Server> {
+        Arc::new(Server::new(
+            fixture.storage(),
+            fixture.mempool(),
+            fixture.metrics(),
+        ))
+    }
 
-    fn make_transaction(nonce: u32) -> Transaction {
-        TransactionBodyBuilder::new()
-            .actions(vec![RollupDataSubmission {
-                rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-                data: vec![0; 100].into(),
-                fee_asset: nria().into(),
-            }
-            .into()])
-            .nonce(nonce)
-            .chain_id(TEST_CHAIN_ID.to_string())
-            .try_build()
-            .unwrap()
-            .sign(&get_alice_signing_key())
+    async fn new_tx(fixture: &Fixture, nonce: u32) -> Arc<CheckedTransaction> {
+        fixture
+            .checked_tx_builder()
+            .with_nonce(nonce)
+            .with_signer(ALICE.clone())
+            .build()
+            .await
     }
 
     #[tokio::test]
     async fn transaction_status_pending_works_as_expected() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
-
-        let server = Arc::new(Server::new(storage.clone(), mempool.clone(), metrics));
+        let fixture = Fixture::default_initialized().await;
+        let mempool = fixture.mempool();
+        let server = new_server(&fixture);
 
         let nonce = 1;
-        let tx = Arc::new(make_transaction(nonce));
+        let tx = new_tx(&fixture, nonce).await;
         let tx_hash_bytes: Bytes = tx.id().get().to_vec().into();
         // Should be inserted into Pending
         mempool
-            .insert(tx.clone(), nonce, &HashMap::default(), HashMap::default())
+            .insert(tx, nonce, &HashMap::new(), HashMap::new())
             .await
             .unwrap();
 
@@ -358,14 +339,12 @@ mod tests {
 
     #[tokio::test]
     async fn transaction_status_parked_works_as_expected() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
-
-        let server = Arc::new(Server::new(storage.clone(), mempool.clone(), metrics));
+        let fixture = Fixture::default_initialized().await;
+        let mempool = fixture.mempool();
+        let server = new_server(&fixture);
 
         let nonce = 1;
-        let tx = Arc::new(make_transaction(nonce));
+        let tx = new_tx(&fixture, nonce).await;
         let tx_hash_bytes: Bytes = tx.id().get().to_vec().into();
         // Should be inserted into Parked due to nonce gap
         mempool
@@ -392,14 +371,12 @@ mod tests {
 
     #[tokio::test]
     async fn transaction_status_removed_works_as_expected() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
-
-        let server = Arc::new(Server::new(storage.clone(), mempool.clone(), metrics));
+        let fixture = Fixture::default_initialized().await;
+        let mempool = fixture.mempool();
+        let server = new_server(&fixture);
 
         let nonce = 1;
-        let tx = Arc::new(make_transaction(nonce));
+        let tx = new_tx(&fixture, nonce).await;
         let tx_hash_bytes: Bytes = tx.id().get().to_vec().into();
         mempool
             .insert(tx.clone(), nonce, &HashMap::default(), HashMap::default())
@@ -430,22 +407,19 @@ mod tests {
 
     #[tokio::test]
     async fn transaction_status_included_works_as_expected() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
+        let fixture = Fixture::default_initialized().await;
+        let mempool = fixture.mempool();
+        let storage = fixture.storage();
         let mut state_delta = StateDelta::new(storage.latest_snapshot());
         let nonce = 1u32;
         state_delta
-            .put_account_nonce(
-                &get_alice_signing_key().address_bytes(),
-                nonce.saturating_add(1),
-            )
+            .put_account_nonce(&*ALICE_ADDRESS_BYTES, nonce.saturating_add(1))
             .unwrap();
         storage.commit(state_delta).await.unwrap();
 
-        let server = Arc::new(Server::new(storage.clone(), mempool.clone(), metrics));
+        let server = new_server(&fixture);
 
-        let tx = Arc::new(make_transaction(nonce));
+        let tx = new_tx(&fixture, nonce).await;
         let tx_hash_bytes: Bytes = tx.id().get().to_vec().into();
         mempool
             .insert(tx.clone(), nonce, &HashMap::default(), HashMap::default())
@@ -453,9 +427,9 @@ mod tests {
             .unwrap();
         let height = 100;
         let mut included_txs = HashSet::new();
-        included_txs.insert(tx.id().get());
+        included_txs.insert(*tx.id());
         mempool
-            .run_maintenance(&storage.latest_snapshot(), false, included_txs, height)
+            .run_maintenance(&storage.latest_snapshot(), false, &included_txs, height)
             .await;
 
         let req = GetTransactionStatusRequest {
@@ -477,11 +451,8 @@ mod tests {
 
     #[tokio::test]
     async fn transaction_status_fails_if_invalid_address() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
-
-        let server = Arc::new(Server::new(storage.clone(), mempool.clone(), metrics));
+        let fixture = Fixture::default_initialized().await;
+        let server = new_server(&fixture);
 
         let wrong_hash_len = TRANSACTION_ID_LEN.saturating_sub(10);
         let req = GetTransactionStatusRequest {
@@ -503,11 +474,8 @@ mod tests {
 
     #[tokio::test]
     async fn transaction_status_returns_none_if_not_found() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
-
-        let server = Arc::new(Server::new(storage.clone(), mempool.clone(), metrics));
+        let fixture = Fixture::default_initialized().await;
+        let server = new_server(&fixture);
 
         let tx_hash_bytes: Bytes = vec![0; TRANSACTION_ID_LEN].into();
         let req = GetTransactionStatusRequest {
@@ -524,31 +492,23 @@ mod tests {
 
     #[tokio::test]
     async fn submit_transaction_works_as_expected() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
+        let fixture = Fixture::default_initialized().await;
+        let storage = fixture.storage();
+
         let mut state_delta = StateDelta::new(storage.latest_snapshot());
         let nonce = 1u32;
         state_delta
-            .put_account_nonce(&get_alice_signing_key().address_bytes(), nonce)
-            .unwrap();
-        state_delta
-            .put_fees(FeeComponents::<RollupDataSubmission>::new(0, 0))
-            .unwrap();
-        state_delta.put_base_prefix("astria".to_string()).unwrap();
-        state_delta
-            .put_chain_id_and_revision_number(
-                tendermint::chain::Id::try_from(TEST_CHAIN_ID.to_string()).unwrap(),
-            )
+            .put_account_nonce(&*ALICE_ADDRESS_BYTES, nonce)
             .unwrap();
         storage.commit(state_delta).await.unwrap();
 
-        let server = Arc::new(Server::new(storage.clone(), mempool.clone(), metrics));
+        let server = new_server(&fixture);
 
-        let tx = Arc::new(make_transaction(nonce));
+        let checked_tx = new_tx(&fixture, nonce).await;
+        let raw_tx = RawTransaction::decode(checked_tx.encoded_bytes().clone()).unwrap();
 
         let req = SubmitTransactionRequest {
-            transaction: Some(tx.to_raw()),
+            transaction: Some(raw_tx),
         };
         let rsp = server
             .submit_transaction(Request::new(req))
@@ -557,7 +517,7 @@ mod tests {
             .into_inner();
         assert_eq!(
             rsp.status.clone().unwrap().transaction_hash,
-            Bytes::from(tx.id().get().to_vec())
+            Bytes::from(checked_tx.id().get().to_vec())
         );
         assert_eq!(
             rsp.status.unwrap().status.unwrap(),
@@ -568,35 +528,34 @@ mod tests {
 
     #[tokio::test]
     async fn submit_transaction_returns_duplicate_if_already_in_mempool() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
+        let fixture = Fixture::default_initialized().await;
+        let mempool = fixture.mempool();
+        let storage = fixture.storage();
+
         let mut state_delta = StateDelta::new(storage.latest_snapshot());
         let nonce = 1u32;
         state_delta
-            .put_account_nonce(&get_alice_signing_key().address_bytes(), nonce)
-            .unwrap();
-        state_delta
-            .put_fees(FeeComponents::<RollupDataSubmission>::new(0, 0))
-            .unwrap();
-        state_delta.put_base_prefix("astria".to_string()).unwrap();
-        state_delta
-            .put_chain_id_and_revision_number(
-                tendermint::chain::Id::try_from(TEST_CHAIN_ID.to_string()).unwrap(),
-            )
+            .put_account_nonce(&*ALICE_ADDRESS_BYTES, nonce)
             .unwrap();
         storage.commit(state_delta).await.unwrap();
 
-        let server = Arc::new(Server::new(storage.clone(), mempool.clone(), metrics));
+        let server = new_server(&fixture);
 
-        let tx = Arc::new(make_transaction(nonce));
+        let checked_tx = new_tx(&fixture, nonce).await;
+        let raw_tx = RawTransaction::decode(checked_tx.encoded_bytes().clone()).unwrap();
+
         mempool
-            .insert(tx.clone(), nonce, &HashMap::default(), HashMap::default())
+            .insert(
+                checked_tx.clone(),
+                nonce,
+                &HashMap::default(),
+                HashMap::default(),
+            )
             .await
             .unwrap();
 
         let req = SubmitTransactionRequest {
-            transaction: Some(tx.to_raw()),
+            transaction: Some(raw_tx),
         };
         let rsp = server
             .submit_transaction(Request::new(req))
@@ -605,7 +564,7 @@ mod tests {
             .into_inner();
         assert_eq!(
             rsp.status.clone().unwrap().transaction_hash,
-            Bytes::from(tx.id().get().to_vec())
+            Bytes::from(checked_tx.id().get().to_vec())
         );
         assert_eq!(
             rsp.status.unwrap().status.unwrap(),
@@ -616,34 +575,24 @@ mod tests {
 
     #[tokio::test]
     async fn submit_transaction_fails_if_check_tx_fails() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
+        let fixture = Fixture::default_initialized().await;
+        let storage = fixture.storage();
+
         let mut state_delta = StateDelta::new(storage.latest_snapshot());
-        let nonce = 1u32;
+        let tx_nonce = 1_u32;
+        let account_nonce = tx_nonce.checked_add(1).unwrap();
         state_delta
-            .put_account_nonce(
-                &get_alice_signing_key().address_bytes(),
-                nonce.saturating_add(1),
-            )
-            .unwrap();
-        state_delta
-            .put_fees(FeeComponents::<RollupDataSubmission>::new(0, 0))
-            .unwrap();
-        state_delta.put_base_prefix("astria".to_string()).unwrap();
-        state_delta
-            .put_chain_id_and_revision_number(
-                tendermint::chain::Id::try_from(TEST_CHAIN_ID.to_string()).unwrap(),
-            )
+            .put_account_nonce(&*ALICE_ADDRESS_BYTES, account_nonce)
             .unwrap();
         storage.commit(state_delta).await.unwrap();
 
-        let server = Arc::new(Server::new(storage.clone(), mempool.clone(), metrics));
+        let server = new_server(&fixture);
 
-        let tx = Arc::new(make_transaction(nonce));
+        let checked_tx = new_tx(&fixture, tx_nonce).await;
+        let raw_tx = RawTransaction::decode(checked_tx.encoded_bytes().clone()).unwrap();
 
         let req = SubmitTransactionRequest {
-            transaction: Some(tx.to_raw()),
+            transaction: Some(raw_tx),
         };
         let rsp = server
             .submit_transaction(Request::new(req))
@@ -652,17 +601,15 @@ mod tests {
         assert_eq!(rsp.code(), tonic::Code::InvalidArgument);
         assert_eq!(
             rsp.message(),
-            "given nonce has already been used previously".to_string()
+            "transaction nonce already used; current nonce `2`, transaction nonce `1`"
         );
     }
 
     #[tokio::test]
     async fn get_transaction_fees_fails_if_transaction_missing() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
+        let fixture = Fixture::default_initialized().await;
 
-        let server = Arc::new(Server::new(storage.clone(), mempool.clone(), metrics));
+        let server = new_server(&fixture);
 
         let req = GetTransactionFeesRequest {
             transaction: None,
@@ -676,65 +623,42 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_transaction_fees_fails_if_transaction_invalid() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
+    async fn get_transaction_fees_fails_if_checked_transaction_construction_fails() {
+        let fixture = Fixture::default_initialized().await;
 
-        let server = Arc::new(Server::new(storage.clone(), mempool.clone(), metrics));
+        let server = new_server(&fixture);
 
         let req = GetTransactionFeesRequest {
-            transaction: Some(
-                astria_core::generated::protocol::transaction::v1::Transaction {
-                    signature: Bytes::new(),
-                    public_key: Bytes::new(),
-                    body: None,
-                },
-            ),
+            transaction: Some(RawTransaction {
+                signature: Bytes::new(),
+                public_key: Bytes::new(),
+                body: None,
+            }),
         };
         let rsp = server
             .get_transaction_fees(Request::new(req))
             .await
             .unwrap_err();
         assert_eq!(rsp.code(), tonic::Code::InvalidArgument);
-        assert!(rsp.message().contains("Raw transaction is invalid"));
-    }
-
-    #[tokio::test]
-    async fn get_transaction_fees_fails_if_block_height_missing() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
-
-        let server = Arc::new(Server::new(storage.clone(), mempool.clone(), metrics));
-
-        let req = GetTransactionFeesRequest {
-            transaction: Some(make_transaction(1).to_raw()),
-        };
-        let rsp = server
-            .get_transaction_fees(Request::new(req))
-            .await
-            .unwrap_err();
-        assert_eq!(rsp.code(), tonic::Code::Internal);
-        assert!(rsp.message().contains("Failed to get block height"));
+        assert!(rsp
+            .message()
+            .contains("Failed to construct checked transaction from raw:"));
     }
 
     #[tokio::test]
     async fn get_transaction_fees_works_as_expected() {
-        let asset_a: Denom = "test-asset-a".parse().unwrap();
-        let asset_b: Denom = "test-asset-b".parse().unwrap();
         let action_a = Transfer {
-            to: astria_address([1u8; 20].as_slice()),
+            to: *ALICE_ADDRESS,
             amount: 100,
-            asset: asset_a.clone(),
-            fee_asset: asset_a.clone(),
+            asset: denom_0(),
+            fee_asset: denom_0(),
         };
         let action_b = RollupDataSubmission {
             data: vec![1, 2, 3].into(),
             rollup_id: RollupId::from_unhashed_bytes(b"rollupid"),
-            fee_asset: asset_b.clone(),
+            fee_asset: denom_1(),
         };
-        let chain_id = "test-1";
+        let chain_id = "test";
 
         let body = TransactionBody::builder()
             .actions(vec![action_a.clone().into(), action_b.clone().into()])
@@ -742,36 +666,30 @@ mod tests {
             .nonce(0)
             .try_build()
             .unwrap()
-            .sign(&get_alice_signing_key());
+            .sign(&ALICE);
 
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
-        let server = Arc::new(Server::new(storage.clone(), mempool.clone(), metrics));
-        let mut state = cnidarium::StateDelta::new(snapshot);
+        let mut fixture = Fixture::default_initialized().await;
+        let mut state = fixture.app.new_state_delta();
+        state.put_allowed_fee_asset(&denom_1()).unwrap();
+        state
+            .put_ibc_asset(denom_1().as_trace_prefixed().unwrap().clone())
+            .unwrap();
+        fixture.app.apply_and_commit(state, fixture.storage()).await;
 
-        let transfer_base_fee = 10;
-        let transfer_multiplier = 1;
-        let rollup_data_submission_base_fee = 20;
-        let rollup_data_submission_multiplier = 2;
-        state
-            .put_fees::<Transfer>(FeeComponents::new(transfer_base_fee, transfer_multiplier))
+        let server = new_server(&fixture);
+
+        let transfer_fees = fixture
+            .state()
+            .get_fees::<Transfer>()
+            .await
+            .unwrap()
             .unwrap();
-        state
-            .put_fees::<RollupDataSubmission>(FeeComponents::new(
-                rollup_data_submission_base_fee,
-                rollup_data_submission_multiplier,
-            ))
+        let rollup_data_submission_fees = fixture
+            .state()
+            .get_fees::<RollupDataSubmission>()
+            .await
+            .unwrap()
             .unwrap();
-        state.put_block_height(1).unwrap();
-        state
-            .put_ibc_asset(asset_a.clone().unwrap_trace_prefixed())
-            .unwrap();
-        state
-            .put_ibc_asset(asset_b.clone().unwrap_trace_prefixed())
-            .unwrap();
-        storage.commit(state).await.unwrap();
 
         let request = Request::new(GetTransactionFeesRequest {
             transaction: Some(body.to_raw()),
@@ -784,20 +702,22 @@ mod tests {
             .into_inner();
 
         let mut expected = GetTransactionFeesResponse {
-            height: 1,
+            height: fixture.block_height().await.value(),
             fees: vec![
                 TransactionFee {
-                    asset: asset_a.to_string(),
+                    asset: denom_0().to_string(),
                     fee: Some(
-                        (transfer_base_fee + transfer_multiplier * action_a.variable_component())
-                            .into(),
+                        (transfer_fees.base()
+                            + transfer_fees.multiplier() * action_a.variable_component())
+                        .into(),
                     ),
                 },
                 TransactionFee {
-                    asset: asset_b.to_string(),
+                    asset: denom_1().to_string(),
                     fee: Some(
-                        (rollup_data_submission_base_fee
-                            + rollup_data_submission_multiplier * action_b.variable_component())
+                        (rollup_data_submission_fees.base()
+                            + rollup_data_submission_fees.multiplier()
+                                * action_b.variable_component())
                         .into(),
                     ),
                 },

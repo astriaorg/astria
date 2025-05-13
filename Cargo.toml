@@ -2,6 +2,7 @@
 exclude = ["tools/protobuf-compiler", "tools/solidity-compiler"]
 
 members = [
+  "crates/astria-account-monitor",
   "crates/astria-auctioneer",
   "crates/astria-bridge-contracts",
   "crates/astria-bridge-withdrawer",
@@ -30,6 +31,7 @@ members = [
 # Specify default members so that cargo invocations in github actions will
 # not act on lints
 default-members = [
+  "crates/astria-account-monitor",
   "crates/astria-auctioneer",
   "crates/astria-bridge-contracts",
   "crates/astria-bridge-withdrawer",
