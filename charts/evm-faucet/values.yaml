@@ -33,7 +33,7 @@ config:
 ingress:
   enabled: false
   labels: {}
-  hostname: localdev.me
+  hostname: 127.0.0.1.nip.io
   className: nginx
   services:
     faucet:
