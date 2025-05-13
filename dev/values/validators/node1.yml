@@ -50,7 +50,7 @@ cometbft:
 ingress:
   rpc:
     enabled: true
-    hostname: sequencer-{{ .Values.moniker }}.localdev.me
+    hostname: sequencer-{{ .Values.moniker }}.127.0.0.1.nip.io
   grpc:
     enabled: true
-    hostname: sequencer-{{ .Values.moniker }}.localdev.me
+    hostname: sequencer-{{ .Values.moniker }}.127.0.0.1.nip.io

@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add metrics:
+  - `ASTRIA_SEQUENCER_CHECK_TX_FAILED_ACTION_CHECKS`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_CHECK_ACTIONS`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_RECHECK`
+  [#2142](https://github.com/astriaorg/astria/pull/2142)
+
+### Changed
+
+- Changed to use `CheckedTransaction`, `CheckedAction` and `Checked...` wrappers
+  for all action types [#2142](https://github.com/astriaorg/astria/pull/2142).
+- Rename metric `ASTRIA_SEQUENCER_CHECK_TX_REMOVED_TOO_LARGE` to
+  `ASTRIA_SEQUENCER_CHECK_TX_FAILED_TX_TOO_LARGE` [#2142](https://github.com/astriaorg/astria/pull/2142)
+
+### Removed
+
+- Delete metrics:
+  - `ASTRIA_SEQUENCER_CHECK_TX_REMOVED_FAILED_STATELESS`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_PARSE_TX`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_CHECK_STATELESS`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_CHECK_TRACKED`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_CHECK_CHAIN_ID`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_CHECK_REMOVED`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_CONVERT_ADDRESS`
+  [#2142](https://github.com/astriaorg/astria/pull/2142)
+
 ### Fixed
 
 - Remove failed promotable instead of inserted transaction during mempool insertion

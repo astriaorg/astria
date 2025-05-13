@@ -25,12 +25,12 @@ class SequencerController:
         self.name = node_name
         if node_name == "node0":
             self.namespace = "astria-dev-cluster"
-            self.rpc_url = "http://rpc.sequencer.localdev.me"
-            self.grpc_url = "grpc.sequencer.localdev.me:80"
+            self.rpc_url = "http://rpc.sequencer.127.0.0.1.nip.io"
+            self.grpc_url = "grpc.sequencer.127.0.0.1.nip.io:80"
         else:
             self.namespace = f"astria-validator-{node_name}"
-            self.rpc_url = f"http://rpc.sequencer-{node_name}.localdev.me"
-            self.grpc_url = f"grpc.sequencer-{node_name}.localdev.me:80"
+            self.rpc_url = f"http://rpc.sequencer-{node_name}.127.0.0.1.nip.io"
+            self.grpc_url = f"grpc.sequencer-{node_name}.127.0.0.1.nip.io:80"
         self.last_block_height_before_restart = None
 
     # ===========================================================

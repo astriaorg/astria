@@ -1,6 +1,5 @@
-use std::sync::Arc;
-
 use astria_core::{
+    crypto::SigningKey,
     primitive::v1::{
         asset,
         Address,
@@ -10,56 +9,44 @@ use astria_core::{
         ROLLUP_ID_LEN,
         TRANSACTION_ID_LEN,
     },
-    protocol::{
-        fees::v1::FeeComponents,
-        transaction::v1::{
-            action::{
-                BridgeLock,
-                BridgeSudoChange,
-                InitBridgeAccount,
-                RollupDataSubmission,
-                Transfer,
-            },
-            TransactionBody,
+    protocol::transaction::v1::{
+        action::{
+            BridgeLock,
+            BridgeSudoChange,
+            InitBridgeAccount,
+            RollupDataSubmission,
+            Transfer,
         },
+        Action,
     },
     sequencerblock::v1::block::Deposit,
-    Protobuf as _,
+    Protobuf,
 };
+use astria_eyre::eyre::WrapErr as _;
 use cnidarium::StateDelta;
+use prost::Name as _;
 
-use super::base_deposit_fee;
+use super::{
+    fee_handler::base_deposit_fee,
+    Fee,
+    FeeHandler,
+    StateWriteExt as _,
+};
 use crate::{
     accounts::StateWriteExt as _,
-    action_handler::ActionHandler as _,
-    address::StateWriteExt as _,
-    app::{
-        benchmark_and_test_utils::{
-            AppInitializer,
-            BOB_ADDRESS,
-        },
-        test_utils::{
-            get_alice_signing_key,
-            get_bridge_signing_key,
-        },
-    },
-    benchmark_and_test_utils::{
-        assert_eyre_error,
-        astria_address,
-        astria_address_from_hex_string,
-        nria,
-        ASTRIA_PREFIX,
-    },
-    bridge::StateWriteExt as _,
     fees::{
+        fee_handler::DEPOSIT_BASE_FEE,
         StateReadExt as _,
-        StateWriteExt as _,
-        DEPOSIT_BASE_FEE,
     },
-    test_utils::calculate_rollup_data_submission_fee_from_state,
-    transaction::{
-        StateWriteExt as _,
-        TransactionContext,
+    test_utils::{
+        assert_error_contains,
+        astria_address,
+        nria,
+        Fixture,
+        ALICE,
+        BOB_ADDRESS,
+        IBC_SUDO_ADDRESS,
+        SUDO_ADDRESS_BYTES,
     },
 };
 
@@ -67,290 +54,226 @@ fn test_asset() -> asset::Denom {
     "test".parse().unwrap()
 }
 
+fn total_block_fees(fixture: &Fixture) -> u128 {
+    fixture
+        .state()
+        .get_block_fees()
+        .iter()
+        .map(Fee::amount)
+        .sum()
+}
+
 #[tokio::test]
 async fn ensure_correct_block_fees_transfer() {
-    let (_, storage) = AppInitializer::new().init().await;
-    let snapshot = storage.latest_snapshot();
-    let mut state = StateDelta::new(snapshot);
-    let transfer_base = 1;
-    state
-        .put_fees(FeeComponents::<Transfer>::new(transfer_base, 0))
-        .unwrap();
+    let mut fixture = Fixture::default_initialized().await;
+    let transfer_base = fixture.genesis_app_state().fees().transfer.unwrap().base();
 
-    let alice = get_alice_signing_key();
-    let bob_address = astria_address_from_hex_string(BOB_ADDRESS);
-    let actions = vec![Transfer {
-        to: bob_address,
-        amount: 1000,
-        asset: nria().into(),
-        fee_asset: nria().into(),
-    }
-    .into()];
+    let tx = fixture
+        .checked_tx_builder()
+        .with_action(Transfer {
+            to: *BOB_ADDRESS,
+            amount: 1000,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+        })
+        .with_signer(ALICE.clone())
+        .build()
+        .await;
+    tx.execute(fixture.state_mut()).await.unwrap();
 
-    let tx = TransactionBody::builder()
-        .actions(actions)
-        .chain_id("test")
-        .try_build()
-        .unwrap();
-    let signed_tx = Arc::new(tx.sign(&alice));
-    signed_tx.check_and_execute(&mut state).await.unwrap();
-
-    let total_block_fees: u128 = state
-        .get_block_fees()
-        .into_iter()
-        .map(|fee| fee.amount())
-        .sum();
-    assert_eq!(total_block_fees, transfer_base);
+    assert_eq!(total_block_fees(&fixture), transfer_base);
 }
 
 #[tokio::test]
 async fn ensure_correct_block_fees_sequence() {
-    let (_, storage) = AppInitializer::new().init().await;
-    let snapshot = storage.latest_snapshot();
-    let mut state = StateDelta::new(snapshot);
-    state
-        .put_fees(FeeComponents::<RollupDataSubmission>::new(1, 1))
-        .unwrap();
+    let mut fixture = Fixture::default_initialized().await;
 
-    let alice = get_alice_signing_key();
     let data = b"hello world".to_vec();
+    let tx = fixture
+        .checked_tx_builder()
+        .with_action(RollupDataSubmission {
+            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+            data: data.clone().into(),
+            fee_asset: nria().into(),
+        })
+        .with_signer(ALICE.clone())
+        .build()
+        .await;
+    tx.execute(fixture.state_mut()).await.unwrap();
 
-    let actions = vec![RollupDataSubmission {
-        rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-        data: data.clone().into(),
-        fee_asset: nria().into(),
-    }
-    .into()];
-
-    let tx = TransactionBody::builder()
-        .actions(actions)
-        .chain_id("test")
-        .try_build()
-        .unwrap();
-    let signed_tx = Arc::new(tx.sign(&alice));
-    signed_tx.check_and_execute(&mut state).await.unwrap();
-    let total_block_fees: u128 = state
-        .get_block_fees()
-        .into_iter()
-        .map(|fee| fee.amount())
-        .sum();
-    let expected_fees = calculate_rollup_data_submission_fee_from_state(&data, &state).await;
-    assert_eq!(total_block_fees, expected_fees);
+    let expected_fees = fixture.calculate_rollup_data_submission_cost(&data).await;
+    assert_eq!(total_block_fees(&fixture), expected_fees);
 }
 
 #[tokio::test]
 async fn ensure_correct_block_fees_init_bridge_acct() {
-    let (_, storage) = AppInitializer::new().init().await;
-    let snapshot = storage.latest_snapshot();
-    let mut state = StateDelta::new(snapshot);
-    let init_bridge_account_base = 1;
-    state
-        .put_fees(FeeComponents::<InitBridgeAccount>::new(
-            init_bridge_account_base,
-            0,
-        ))
-        .unwrap();
+    let mut fixture = Fixture::default_initialized().await;
+    let init_bridge_account_base = fixture
+        .genesis_app_state()
+        .fees()
+        .init_bridge_account
+        .unwrap()
+        .base();
 
-    let alice = get_alice_signing_key();
+    let tx = fixture
+        .checked_tx_builder()
+        .with_action(InitBridgeAccount {
+            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+            asset: nria().into(),
+            fee_asset: nria().into(),
+            sudo_address: None,
+            withdrawer_address: None,
+        })
+        .with_signer(ALICE.clone())
+        .build()
+        .await;
+    tx.execute(fixture.state_mut()).await.unwrap();
 
-    let actions = vec![InitBridgeAccount {
-        rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-        asset: nria().into(),
-        fee_asset: nria().into(),
-        sudo_address: None,
-        withdrawer_address: None,
-    }
-    .into()];
-
-    let tx = TransactionBody::builder()
-        .actions(actions)
-        .chain_id("test")
-        .try_build()
-        .unwrap();
-    let signed_tx = Arc::new(tx.sign(&alice));
-    signed_tx.check_and_execute(&mut state).await.unwrap();
-
-    let total_block_fees: u128 = state
-        .get_block_fees()
-        .into_iter()
-        .map(|fee| fee.amount())
-        .sum();
-    assert_eq!(total_block_fees, init_bridge_account_base);
+    assert_eq!(total_block_fees(&fixture), init_bridge_account_base);
 }
 
 #[tokio::test]
 async fn ensure_correct_block_fees_bridge_lock() {
-    let alice = get_alice_signing_key();
-    let bridge = get_bridge_signing_key();
-    let bridge_address = astria_address(&bridge.address_bytes());
+    let mut fixture = Fixture::default_initialized().await;
+    let bridge_lock_base = fixture
+        .genesis_app_state()
+        .fees()
+        .bridge_lock
+        .unwrap()
+        .base();
+    let bridge_lock_byte_cost_multiplier = fixture
+        .genesis_app_state()
+        .fees()
+        .bridge_lock
+        .unwrap()
+        .multiplier();
+
+    fixture.bridge_initializer(*IBC_SUDO_ADDRESS).init().await;
+
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
-    let starting_index_of_action = 0;
+    let tx = fixture
+        .checked_tx_builder()
+        .with_action(BridgeLock {
+            to: *IBC_SUDO_ADDRESS,
+            amount: 1,
+            asset: nria().into(),
+            fee_asset: nria().into(),
+            destination_chain_address: rollup_id.to_string(),
+        })
+        .with_signer(ALICE.clone())
+        .build()
+        .await;
+    tx.execute(fixture.state_mut()).await.unwrap();
 
-    let (_, storage) = AppInitializer::new().init().await;
-    let snapshot = storage.latest_snapshot();
-    let mut state = StateDelta::new(snapshot);
-
-    let transfer_base = 1;
-    let bridge_lock_byte_cost_multiplier = 1;
-
-    state
-        .put_fees(FeeComponents::<Transfer>::new(transfer_base, 0))
-        .unwrap();
-    state
-        .put_fees(FeeComponents::<BridgeLock>::new(
-            transfer_base,
-            bridge_lock_byte_cost_multiplier,
-        ))
-        .unwrap();
-    state
-        .put_bridge_account_rollup_id(&bridge_address, rollup_id)
-        .unwrap();
-    state
-        .put_bridge_account_ibc_asset(&bridge_address, nria())
-        .unwrap();
-
-    let actions = vec![BridgeLock {
-        to: bridge_address,
-        amount: 1,
-        asset: nria().into(),
-        fee_asset: nria().into(),
-        destination_chain_address: rollup_id.to_string(),
-    }
-    .into()];
-
-    let tx = TransactionBody::builder()
-        .actions(actions)
-        .chain_id("test")
-        .try_build()
-        .unwrap();
-    let signed_tx = Arc::new(tx.sign(&alice));
-    signed_tx.check_and_execute(&mut state).await.unwrap();
-
-    let test_deposit = Deposit {
-        bridge_address,
-        rollup_id,
-        amount: 1,
-        asset: nria().into(),
-        destination_chain_address: rollup_id.to_string(),
-        source_transaction_id: signed_tx.id(),
-        source_action_index: starting_index_of_action,
-    };
-
-    let total_block_fees: u128 = state
-        .get_block_fees()
-        .into_iter()
-        .map(|fee| fee.amount())
-        .sum();
-    let expected_fees = transfer_base
-        + (base_deposit_fee(&test_deposit.asset, &test_deposit.destination_chain_address)
+    let expected_fees = bridge_lock_base
+        + (base_deposit_fee(&nria().into(), rollup_id.to_string().as_str())
             * bridge_lock_byte_cost_multiplier);
-    assert_eq!(total_block_fees, expected_fees);
+    assert_eq!(total_block_fees(&fixture), expected_fees);
 }
 
 #[tokio::test]
 async fn ensure_correct_block_fees_bridge_sudo_change() {
-    let alice = get_alice_signing_key();
-    let alice_address = astria_address(&alice.address_bytes());
-    let bridge = get_bridge_signing_key();
-    let bridge_address = astria_address(&bridge.address_bytes());
+    let mut fixture = Fixture::default_initialized().await;
+    let sudo_change_base = fixture
+        .genesis_app_state()
+        .fees()
+        .bridge_sudo_change
+        .unwrap()
+        .base();
 
-    let (_, storage) = AppInitializer::new().init().await;
-    let snapshot = storage.latest_snapshot();
-    let mut state = StateDelta::new(snapshot);
-
-    let sudo_change_base = 1;
-    state
-        .put_fees(FeeComponents::<BridgeSudoChange>::new(sudo_change_base, 0))
-        .unwrap();
-    state
-        .put_bridge_account_sudo_address(&bridge_address, alice_address)
-        .unwrap();
-    state
-        .increase_balance(&bridge_address, &nria(), 1)
-        .await
+    fixture.bridge_initializer(*IBC_SUDO_ADDRESS).init().await;
+    fixture
+        .state_mut()
+        .put_account_balance(&*SUDO_ADDRESS_BYTES, &nria(), 999)
         .unwrap();
 
-    let actions = vec![BridgeSudoChange {
-        bridge_address,
-        new_sudo_address: None,
-        new_withdrawer_address: None,
-        fee_asset: nria().into(),
-    }
-    .into()];
+    let tx = fixture
+        .checked_tx_builder()
+        .with_action(BridgeSudoChange {
+            bridge_address: *IBC_SUDO_ADDRESS,
+            new_sudo_address: None,
+            new_withdrawer_address: None,
+            fee_asset: nria().into(),
+        })
+        .build()
+        .await;
+    tx.execute(fixture.state_mut()).await.unwrap();
 
-    let tx = TransactionBody::builder()
-        .actions(actions)
-        .chain_id("test")
-        .try_build()
-        .unwrap();
-    let signed_tx = Arc::new(tx.sign(&alice));
-    signed_tx.check_and_execute(&mut state).await.unwrap();
-
-    let total_block_fees: u128 = state
-        .get_block_fees()
-        .into_iter()
-        .map(|fee| fee.amount())
-        .sum();
-    assert_eq!(total_block_fees, sudo_change_base);
+    assert_eq!(total_block_fees(&fixture), sudo_change_base);
 }
 
 #[tokio::test]
 async fn bridge_lock_fee_calculation_works_as_expected() {
-    let storage = cnidarium::TempStorage::new().await.unwrap();
-    let snapshot = storage.latest_snapshot();
-    let mut state = StateDelta::new(snapshot);
-    let transfer_fee = 12;
-
-    let from_address = astria_address(&[2; 20]);
-    let transaction_id = TransactionId::new([0; 32]);
-    state.put_transaction_context(TransactionContext {
-        address_bytes: from_address.bytes(),
-        transaction_id,
-        position_in_transaction: 0,
-    });
-    state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
-
-    state
-        .put_fees(FeeComponents::<Transfer>::new(transfer_fee, 0))
-        .unwrap();
-    state
-        .put_fees(FeeComponents::<BridgeLock>::new(transfer_fee, 2))
-        .unwrap();
+    let mut fixture = Fixture::default_initialized().await;
+    let bridge_lock_base = fixture
+        .genesis_app_state()
+        .fees()
+        .bridge_lock
+        .unwrap()
+        .base();
+    let bridge_lock_multiplier = fixture
+        .genesis_app_state()
+        .fees()
+        .bridge_lock
+        .unwrap()
+        .multiplier();
 
     let bridge_address = astria_address(&[1; 20]);
-    let asset = test_asset();
-    let bridge_lock = BridgeLock {
-        to: bridge_address,
-        asset: asset.clone(),
-        amount: 100,
-        fee_asset: asset.clone(),
-        destination_chain_address: "someaddress".to_string(),
-    };
+    fixture
+        .bridge_initializer(bridge_address)
+        .with_asset(test_asset())
+        .init()
+        .await;
+    fixture
+        .state_mut()
+        .put_allowed_fee_asset(&test_asset())
+        .unwrap();
 
-    let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_id");
-    state
-        .put_bridge_account_rollup_id(&bridge_address, rollup_id)
-        .unwrap();
-    state
-        .put_bridge_account_ibc_asset(&bridge_address, asset.clone())
-        .unwrap();
-    state.put_allowed_fee_asset(&asset).unwrap();
+    let signer = SigningKey::from([10; 32]);
+    let lock_amount = 100;
+
+    let tx = fixture
+        .checked_tx_builder()
+        .with_action(BridgeLock {
+            to: bridge_address,
+            asset: test_asset(),
+            amount: lock_amount,
+            fee_asset: test_asset(),
+            destination_chain_address: "someaddress".to_string(),
+        })
+        .with_signer(signer.clone())
+        .build()
+        .await;
 
     // not enough balance; should fail
-    state
-        .put_account_balance(&from_address, &asset, transfer_fee)
+    let mut state_delta = StateDelta::new(fixture.state_mut());
+    state_delta
+        .put_account_balance(&signer.verification_key(), &test_asset(), bridge_lock_base)
         .unwrap();
-    assert_eyre_error(
-        &bridge_lock.check_and_execute(&mut state).await.unwrap_err(),
-        "insufficient funds for transfer",
+    let error = format!(
+        "{:#}",
+        tx.execute(state_delta)
+            .await
+            .wrap_err("failed execution")
+            .unwrap_err()
+    );
+    assert_error_contains(
+        &error,
+        &format!("insufficient {} balance in account", test_asset()),
     );
 
     // enough balance; should pass
-    let expected_deposit_fee = transfer_fee + base_deposit_fee(&asset, "someaddress") * 2;
-    state
-        .put_account_balance(&from_address, &asset, 100 + expected_deposit_fee)
+    let expected_deposit_fee =
+        bridge_lock_base + base_deposit_fee(&test_asset(), "someaddress") * bridge_lock_multiplier;
+    fixture
+        .state_mut()
+        .put_account_balance(
+            &signer.verification_key(),
+            &test_asset(),
+            lock_amount + expected_deposit_fee,
+        )
         .unwrap();
-    bridge_lock.check_and_execute(&mut state).await.unwrap();
+    tx.execute(fixture.state_mut()).await.unwrap();
 }
 
 #[test]
@@ -433,6 +356,45 @@ fn reference_deposit() -> Deposit {
         destination_chain_address: "someaddress".to_string(),
         source_transaction_id: TransactionId::new([0; 32]),
         source_action_index: 0,
+    }
+}
+
+#[test]
+fn ensure_fee_handler_consts_valid() {
+    fn check_names<F: FeeHandler + Protobuf>(action: &F) {
+        assert_eq!(action.name(), F::Raw::NAME);
+        assert_eq!(<F as FeeHandler>::full_name(), <F as Protobuf>::full_name());
+        let mut chars_iter = action.name().chars();
+        let mut snake_case_name = String::from(chars_iter.next().unwrap().to_ascii_lowercase());
+        for char in chars_iter {
+            if char.is_ascii_uppercase() {
+                snake_case_name.push('_');
+            }
+            snake_case_name.push(char.to_ascii_lowercase());
+        }
+        assert_eq!(F::snake_case_name(), snake_case_name);
+    }
+    for action in &crate::checked_actions::test_utils::dummy_actions() {
+        match action {
+            Action::RollupDataSubmission(action) => check_names(action),
+            Action::Transfer(action) => check_names(action),
+            Action::ValidatorUpdate(action) => check_names(action),
+            Action::SudoAddressChange(action) => check_names(action),
+            Action::Ibc(_action) => (), // check_names(action),
+            Action::IbcSudoChange(action) => check_names(action),
+            Action::Ics20Withdrawal(action) => check_names(action),
+            Action::IbcRelayerChange(action) => check_names(action),
+            Action::FeeAssetChange(action) => check_names(action),
+            Action::InitBridgeAccount(action) => check_names(action),
+            Action::BridgeLock(action) => check_names(action),
+            Action::BridgeUnlock(action) => check_names(action),
+            Action::BridgeSudoChange(action) => check_names(action),
+            Action::BridgeTransfer(action) => check_names(action),
+            Action::FeeChange(action) => check_names(action),
+            Action::RecoverIbcClient(action) => check_names(action),
+            Action::CurrencyPairsChange(action) => check_names(action),
+            Action::MarketsChange(action) => check_names(action),
+        }
     }
 }
 
