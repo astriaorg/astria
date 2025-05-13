@@ -900,6 +900,7 @@ dependencies = [
  "itertools 0.12.1",
  "maplit",
  "matchit",
+ "pbjson-types",
  "penumbra-sdk-ibc",
  "penumbra-sdk-proto",
  "penumbra-sdk-tower-trace",
