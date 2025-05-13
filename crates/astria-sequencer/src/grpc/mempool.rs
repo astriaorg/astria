@@ -232,9 +232,6 @@ impl TryFrom<CheckTxOutcome> for SubmissionOutcome {
             }),
             CheckTxOutcome::FailedChecks(err) => Err(err.into()),
             CheckTxOutcome::FailedInsertion(err) => Err(err.into()),
-            CheckTxOutcome::InternalError(source) => {
-                Err(Status::internal(format!("internal error: {source}")))
-            }
             CheckTxOutcome::RemovedFromMempool {
                 reason, ..
             } => Err(Status::not_found(format!(
@@ -267,6 +264,7 @@ mod tests {
     use super::*;
     use crate::{
         accounts::StateWriteExt as _,
+        app::StateWriteExt as _,
         assets::StateWriteExt,
         checked_transaction::CheckedTransaction,
         fees::{
@@ -276,8 +274,8 @@ mod tests {
         },
         mempool::RemovalReason,
         test_utils::{
-            denom_0,
             denom_1,
+            nria,
             Fixture,
             ALICE,
             ALICE_ADDRESS,
@@ -308,14 +306,11 @@ mod tests {
         let mempool = fixture.mempool();
         let server = new_server(&fixture);
 
-        let nonce = 1;
+        let nonce = 0;
         let tx = new_tx(&fixture, nonce).await;
         let tx_hash_bytes: Bytes = tx.id().get().to_vec().into();
         // Should be inserted into Pending
-        mempool
-            .insert(tx, nonce, &HashMap::new(), HashMap::new())
-            .await
-            .unwrap();
+        mempool.insert(tx).await.unwrap();
 
         let req = GetTransactionStatusRequest {
             transaction_hash: tx_hash_bytes.clone(),
@@ -341,16 +336,9 @@ mod tests {
         let nonce = 1;
         let tx = new_tx(&fixture, nonce).await;
         let tx_hash_bytes: Bytes = tx.id().get().to_vec().into();
-        // Should be inserted into Parked due to nonce gap
-        mempool
-            .insert(
-                tx.clone(),
-                nonce.saturating_sub(1),
-                &HashMap::default(),
-                HashMap::default(),
-            )
-            .await
-            .unwrap();
+        // Should be inserted into Parked due to nonce gap - Alice has executed no txs, hence the
+        // current nonce is 0.
+        mempool.insert(tx.clone()).await.unwrap();
 
         let req = GetTransactionStatusRequest {
             transaction_hash: tx_hash_bytes.clone(),
@@ -373,10 +361,7 @@ mod tests {
         let nonce = 1;
         let tx = new_tx(&fixture, nonce).await;
         let tx_hash_bytes: Bytes = tx.id().get().to_vec().into();
-        mempool
-            .insert(tx.clone(), nonce, &HashMap::default(), HashMap::default())
-            .await
-            .unwrap();
+        mempool.insert(tx.clone()).await.unwrap();
 
         let removal_reason = RemovalReason::FailedPrepareProposal("failure reason".to_string());
         mempool
@@ -407,20 +392,18 @@ mod tests {
         let storage = fixture.storage();
         let mut state_delta = StateDelta::new(storage.latest_snapshot());
         let nonce = 1u32;
+        let height = 100;
         state_delta
             .put_account_nonce(&*ALICE_ADDRESS_BYTES, nonce.saturating_add(1))
             .unwrap();
+        state_delta.put_block_height(height).unwrap();
         storage.commit(state_delta).await.unwrap();
 
         let server = new_server(&fixture);
 
         let tx = new_tx(&fixture, nonce).await;
         let tx_hash_bytes: Bytes = tx.id().get().to_vec().into();
-        mempool
-            .insert(tx.clone(), nonce, &HashMap::default(), HashMap::default())
-            .await
-            .unwrap();
-        let height = 100;
+        mempool.insert(tx.clone()).await.unwrap();
         let mut execution_results = HashMap::new();
         let exec_tx_result = ExecTxResult {
             log: "ethan_was_here".to_string(),
@@ -428,7 +411,7 @@ mod tests {
         };
         execution_results.insert(*tx.id(), Arc::new(exec_tx_result.clone()));
         mempool
-            .run_maintenance(&storage.latest_snapshot(), false, execution_results, height)
+            .run_maintenance(storage.latest_snapshot(), false, execution_results)
             .await;
 
         let req = GetTransactionStatusRequest {
@@ -501,6 +484,11 @@ mod tests {
             .put_account_nonce(&*ALICE_ADDRESS_BYTES, nonce)
             .unwrap();
         storage.commit(state_delta).await.unwrap();
+        // Run maintenance to get the updated snapshot into the mempool
+        fixture
+            .mempool()
+            .run_maintenance(storage.latest_snapshot(), false, HashMap::new())
+            .await;
 
         let server = new_server(&fixture);
 
@@ -538,21 +526,18 @@ mod tests {
             .put_account_nonce(&*ALICE_ADDRESS_BYTES, nonce)
             .unwrap();
         storage.commit(state_delta).await.unwrap();
+        // Run maintenance to get the updated snapshot into the mempool
+        fixture
+            .mempool()
+            .run_maintenance(storage.latest_snapshot(), false, HashMap::new())
+            .await;
 
         let server = new_server(&fixture);
 
         let checked_tx = new_tx(&fixture, nonce).await;
         let raw_tx = RawTransaction::decode(checked_tx.encoded_bytes().clone()).unwrap();
 
-        mempool
-            .insert(
-                checked_tx.clone(),
-                nonce,
-                &HashMap::default(),
-                HashMap::default(),
-            )
-            .await
-            .unwrap();
+        mempool.insert(checked_tx.clone()).await.unwrap();
 
         let req = SubmitTransactionRequest {
             transaction: Some(raw_tx),
@@ -627,8 +612,8 @@ mod tests {
         let action_a = Transfer {
             to: *ALICE_ADDRESS,
             amount: 100,
-            asset: denom_0(),
-            fee_asset: denom_0(),
+            asset: nria().into(),
+            fee_asset: nria().into(),
         };
         let action_b = RollupDataSubmission {
             data: vec![1, 2, 3].into(),
@@ -681,7 +666,7 @@ mod tests {
             block_height: fixture.block_height().await.value(),
             fees: vec![
                 TransactionFee {
-                    asset: denom_0().to_string(),
+                    asset: nria().to_string(),
                     fee: Some(
                         (transfer_fees.base()
                             + transfer_fees.multiplier() * action_a.variable_component())

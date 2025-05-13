@@ -354,11 +354,9 @@ mod tests {
         grpc::StateWriteExt as _,
         test_utils::{
             astria_address,
-            dummy_balances,
-            dummy_tx_costs,
             Fixture,
+            ALICE,
             ALICE_ADDRESS,
-            SUDO_ADDRESS,
         },
     };
 
@@ -375,7 +373,7 @@ mod tests {
         let block = make_test_sequencer_block(1);
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100, 100);
+        let mempool = Mempool::new(storage.latest_snapshot(), metrics, 100, 100);
         let mut state_tx = StateDelta::new(storage.latest_snapshot());
         state_tx.put_block_height(1).unwrap();
         state_tx.put_sequencer_block(block).unwrap();
@@ -403,37 +401,31 @@ mod tests {
         let gapped_nonce = 99;
         let tx = fixture
             .checked_tx_builder()
+            .with_signer(ALICE.clone())
             .with_nonce(gapped_nonce)
             .build()
             .await;
-        mempool
-            .insert(tx, 0, &dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
-            .await
-            .unwrap();
+        mempool.insert(tx).await.unwrap();
 
         // insert a transaction at the current nonce
         let account_nonce = 0;
         let tx = fixture
             .checked_tx_builder()
+            .with_signer(ALICE.clone())
             .with_nonce(account_nonce)
             .build()
             .await;
-        mempool
-            .insert(tx, 0, &dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
-            .await
-            .unwrap();
+        mempool.insert(tx).await.unwrap();
 
-        // insert a transactions one above account nonce (not gapped)
+        // insert a transaction one above account nonce (not gapped)
         let sequential_nonce = 1;
         let tx = fixture
             .checked_tx_builder()
+            .with_signer(ALICE.clone())
             .with_nonce(sequential_nonce)
             .build()
             .await;
-        mempool
-            .insert(tx, 0, &dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
-            .await
-            .unwrap();
+        mempool.insert(tx).await.unwrap();
 
         let server = Arc::new(SequencerServer::new(
             fixture.storage(),
@@ -441,7 +433,7 @@ mod tests {
             Upgrades::default(),
         ));
         let request = GetPendingNonceRequest {
-            address: Some(SUDO_ADDRESS.into_raw()),
+            address: Some(ALICE_ADDRESS.into_raw()),
         };
         let request = Request::new(request);
         let response = server.get_pending_nonce(request).await.unwrap();
@@ -504,8 +496,8 @@ mod tests {
     #[tokio::test]
     async fn validator_name_request_fails_if_not_a_validator() {
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100, 100);
         let storage = cnidarium::TempStorage::new().await.unwrap();
+        let mempool = Mempool::new(storage.latest_snapshot(), metrics, 100, 100);
 
         let server = Arc::new(SequencerServer::new(
             storage.clone(),
@@ -528,8 +520,8 @@ mod tests {
     #[tokio::test]
     async fn validator_name_request_fails_if_pre_aspen() {
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100, 100);
         let storage = cnidarium::TempStorage::new().await.unwrap();
+        let mempool = Mempool::new(storage.latest_snapshot(), metrics, 100, 100);
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);
 

@@ -217,6 +217,7 @@ impl Sequencer {
         }
 
         let mempool = Mempool::new(
+            snapshot.clone(),
             metrics,
             config.mempool_parked_max_tx_count,
             config.execution_results_cache_size,

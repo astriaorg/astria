@@ -302,8 +302,6 @@ mod tests {
         checked_transaction::CheckedTransaction,
         test_utils::{
             assert_error_contains,
-            dummy_balances,
-            dummy_tx_costs,
             transactions_with_extended_commit_info_and_commitments,
             Fixture,
             ALICE,
@@ -363,15 +361,7 @@ mod tests {
             .build()
             .await;
         let mut consensus_service = new_consensus_service(fixture);
-        mempool
-            .insert(
-                tx.clone(),
-                0,
-                &dummy_balances(0, 0),
-                dummy_tx_costs(0, 0, 0),
-            )
-            .await
-            .unwrap();
+        mempool.insert(tx.clone()).await.unwrap();
 
         let prepare_proposal = new_prepare_proposal_request();
         let prepare_proposal_response = consensus_service
@@ -498,15 +488,7 @@ mod tests {
             .await;
         let mut consensus_service = new_consensus_service(fixture);
 
-        mempool
-            .insert(
-                tx.clone(),
-                0,
-                &dummy_balances(0, 0),
-                dummy_tx_costs(0, 0, 0),
-            )
-            .await
-            .unwrap();
+        mempool.insert(tx.clone()).await.unwrap();
 
         let process_proposal = new_process_proposal_request(&[tx]);
         let txs = process_proposal.txs.clone();

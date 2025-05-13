@@ -25,10 +25,7 @@ pub struct Metrics {
     check_tx_removed_expired: Counter,
     check_tx_removed_failed_execution: Counter,
     check_tx_duration_seconds_check_actions: Histogram,
-    check_tx_duration_seconds_fetch_nonce: Histogram,
     check_tx_duration_seconds_recheck: Histogram,
-    check_tx_duration_seconds_fetch_balances: Histogram,
-    check_tx_duration_seconds_fetch_tx_cost: Histogram,
     check_tx_duration_seconds_insert_to_app_mempool: Histogram,
     check_tx_duration_seconds_transaction_status: Histogram,
     actions_per_transaction_in_mempool: Histogram,
@@ -97,22 +94,8 @@ impl Metrics {
             .record(duration);
     }
 
-    pub(crate) fn record_check_tx_duration_seconds_fetch_nonce(&self, duration: Duration) {
-        self.check_tx_duration_seconds_fetch_nonce.record(duration);
-    }
-
     pub(crate) fn record_check_tx_duration_seconds_recheck(&self, duration: Duration) {
         self.check_tx_duration_seconds_recheck.record(duration);
-    }
-
-    pub(crate) fn record_check_tx_duration_seconds_fetch_balances(&self, duration: Duration) {
-        self.check_tx_duration_seconds_fetch_balances
-            .record(duration);
-    }
-
-    pub(crate) fn record_check_tx_duration_seconds_fetch_tx_cost(&self, duration: Duration) {
-        self.check_tx_duration_seconds_fetch_tx_cost
-            .record(duration);
     }
 
     pub(crate) fn record_check_tx_duration_seconds_insert_to_app_mempool(
@@ -265,27 +248,6 @@ impl telemetry::Metrics for Metrics {
             )?
             .register()?;
 
-        let check_tx_duration_seconds_fetch_nonce = builder
-            .new_histogram_factory(
-                CHECK_TX_DURATION_SECONDS_FETCH_NONCE,
-                "The amount of time taken in seconds to fetch an account's nonce",
-            )?
-            .register()?;
-
-        let check_tx_duration_seconds_fetch_balances = builder
-            .new_histogram_factory(
-                CHECK_TX_DURATION_SECONDS_FETCH_BALANCES,
-                "The amount of time taken in seconds to fetch balances",
-            )?
-            .register()?;
-
-        let check_tx_duration_seconds_fetch_tx_cost = builder
-            .new_histogram_factory(
-                CHECK_TX_DURATION_SECONDS_FETCH_TX_COST,
-                "The amount of time taken in seconds to fetch tx cost",
-            )?
-            .register()?;
-
         let check_tx_duration_seconds_transaction_status = builder
             .new_histogram_factory(
                 CHECK_TX_DURATION_SECONDS_TRANSACTION_STATUS,
@@ -397,10 +359,7 @@ impl telemetry::Metrics for Metrics {
             check_tx_removed_expired,
             check_tx_removed_failed_execution,
             check_tx_duration_seconds_check_actions,
-            check_tx_duration_seconds_fetch_nonce,
             check_tx_duration_seconds_recheck,
-            check_tx_duration_seconds_fetch_balances,
-            check_tx_duration_seconds_fetch_tx_cost,
             check_tx_duration_seconds_insert_to_app_mempool,
             check_tx_duration_seconds_transaction_status,
             actions_per_transaction_in_mempool,

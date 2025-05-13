@@ -5,6 +5,8 @@
 
 use std::time::Duration;
 
+use cnidarium::StateDelta;
+
 use crate::{
     benchmark_utils::{
         self,
@@ -12,11 +14,7 @@ use crate::{
         TxTypes,
     },
     proposal::block_size_constraints::BlockSizeConstraints,
-    test_utils::{
-        dummy_balances,
-        dummy_tx_costs,
-        Fixture,
-    },
+    test_utils::Fixture,
 };
 
 /// The max time for any benchmark.
@@ -30,8 +28,6 @@ const COMETBFT_MAX_TX_BYTES: i64 = 22_019_254;
 /// Initializes a new `App` instance with the genesis accounts derived from the secret keys of
 /// `benchmark_utils::signing_keys()`, and inserts transactions into the app mempool.
 fn initialize() -> Fixture {
-    let dummy_balances = dummy_balances(0, 0);
-    let dummy_tx_costs = dummy_tx_costs(0, 0, 0);
     let txs = benchmark_utils::transactions(TxTypes::AllTransfers);
     let fixture = new_fixture();
     let mempool = fixture.mempool();
@@ -40,10 +36,7 @@ fn initialize() -> Fixture {
         .unwrap();
     runtime.block_on(async {
         for tx in txs {
-            mempool
-                .insert(tx.clone(), 0, &dummy_balances, dummy_tx_costs.clone())
-                .await
-                .unwrap();
+            mempool.insert(tx.clone()).await.unwrap();
         }
     });
 
@@ -67,5 +60,7 @@ fn prepare_proposal_tx_execution(bencher: divan::Bencher) {
             // Ensure we actually processed some txs.  This will trip if execution fails for all
             // txs, or more likely, if the mempool becomes exhausted of txs.
             assert!(!executed_txs.is_empty());
+            // Reset app's state delta so we can re-run the same txs from the mempool.
+            *fixture.state_mut() = StateDelta::new(fixture.storage().latest_snapshot());
         });
 }

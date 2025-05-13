@@ -23,12 +23,10 @@ use crate::{
 /// The number of different signers of transactions.
 pub(crate) const SIGNER_COUNT: u8 = 10;
 /// The number of transfers per transaction.
-///
-/// 2866 chosen after experimentation of spamming composer.
-pub(crate) const TRANSFERS_PER_TX: usize = 2866;
+pub(crate) const TRANSFERS_PER_TX: usize = 3260;
 
 const ROLLUP_DATA_TX_COUNT: usize = 100_001;
-const TRANSFERS_TX_COUNT: usize = 1_000;
+const TRANSFERS_TX_COUNT: usize = 100;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) enum TxTypes {
