@@ -10,4 +10,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- monitoring multiple assets via balance metric [#2176](https://github.com/astriaorg/astria/pull/2176).
+
+- Monitoring multiple assets via balance metric [#2176](https://github.com/astriaorg/astria/pull/2176).
