@@ -116,6 +116,7 @@ jobs:
           tags: |
             # PR builds tag with pr-num AND set the full commit SHA from the PR head
             type=ref,event=pr
+            type=sha,format=short
             type=raw,value=sha-${{ github.event.pull_request.head.sha || github.sha }},enable=${{ startsWith(env.FULL_REF, 'refs/pull/') }}
 
             # Main branch builds: latest, sha-github.sha and major.minor.patch-github.sha
