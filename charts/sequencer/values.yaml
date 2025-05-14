@@ -180,12 +180,13 @@ upgrades:
     #       id: "1"
 
 sequencer:
+  logLevel: "info"
   abciUDS: true
   mempool:
     parked:
       maxTxCount: 200
   priceFeed:
-    enabled: true
+    enabled: false
     clientTimeout: 1000
   metrics:
     enabled: false
