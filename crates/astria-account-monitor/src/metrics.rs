@@ -14,7 +14,10 @@ use tracing::{
     warn,
 };
 
-use crate::config::Account;
+use crate::config::{
+    Account,
+    Asset,
+};
 
 pub struct Metrics {
     nonce_fetch_count: Counter,
@@ -22,7 +25,7 @@ pub struct Metrics {
     balance_fetch_count: Counter,
     balance_fetch_failure_count: Counter,
     account_nonce: HashMap<Account, Gauge>,
-    account_balance: HashMap<Account, Gauge>,
+    account_balance: HashMap<Account, HashMap<Asset, Gauge>>,
 }
 
 impl Metrics {
@@ -44,9 +47,13 @@ impl Metrics {
     }
 
     #[instrument(skip_all, fields(%account))]
-    pub fn set_account_balance(&self, account: &Account, balance: u128) {
-        if let Some(gauge) = self.account_balance.get(account) {
-            gauge.set(balance);
+    pub fn set_account_balance(&self, account: &Account, asset: &Asset, balance: u128) {
+        if let Some(asset_map) = self.account_balance.get(account) {
+            if let Some(gauge) = asset_map.get(asset) {
+                gauge.set(balance);
+            } else {
+                warn!("no gauge found for asset balance");
+            }
         } else {
             warn!("no gauge found for account balance");
         }
@@ -113,9 +120,15 @@ impl telemetry::Metrics for Metrics {
         )?;
 
         for account in &config.sequencer_accounts {
-            let balance_gauge =
-                balance_factory.register_with_labels(&[(ACCOUNT_LABEL, account.to_string())])?;
-            account_balance.insert(account.clone(), balance_gauge);
+            let mut balance_map = HashMap::new();
+            for asset in &config.sequencer_assets {
+                let balance_gauge = balance_factory.register_with_labels(&[
+                    (ACCOUNT_LABEL, account.to_string()),
+                    (ASSET_LABEL, asset.to_string()),
+                ])?;
+                balance_map.insert(asset.clone(), balance_gauge);
+            }
+            account_balance.insert(account.clone(), balance_map);
         }
 
         Ok(Self {
@@ -138,4 +151,5 @@ metric_names!(pub const METRICS_NAMES:
     ACCOUNT_NONCE,
     ACCOUNT_LABEL,
     ACCOUNT_BALANCE,
+    ASSET_LABEL,
 );

@@ -29,7 +29,7 @@ pub struct Config {
     pub sequencer_accounts: SequencerAccountsToMonitor,
 
     /// The asset ID of the sequencer chain to monitor.
-    pub sequencer_asset: Asset,
+    pub sequencer_assets: SequencerAssetsToMonitor,
 
     /// Sequencer block time in milliseconds
     pub query_interval_ms: u64,
@@ -44,10 +44,29 @@ pub struct Config {
     pub metrics_http_listener_addr: String,
 }
 
-#[derive(Debug, Clone, Hash, Serialize)]
+#[derive(Debug, Clone, Hash, Serialize, PartialEq, Eq)]
 pub struct Asset {
     /// The asset ID of the sequencer chain to monitor.
     pub asset: Denom,
+}
+
+impl FromStr for Asset {
+    type Err = <Denom as FromStr>::Err;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let asset = s.parse()?;
+        Ok(Self {
+            asset,
+        })
+    }
+}
+
+impl From<Denom> for Asset {
+    fn from(asset: Denom) -> Self {
+        Self {
+            asset,
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for Asset {
@@ -67,6 +86,46 @@ impl<'de> Deserialize<'de> for Asset {
 impl Display for Asset {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.asset)
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SequencerAssetsToMonitor(Vec<Asset>);
+impl<'de> Deserialize<'de> for SequencerAssetsToMonitor {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+
+        if value.is_empty() {
+            return Err(serde::de::Error::custom("empty asset list"));
+        }
+
+        let assets: Result<Vec<Asset>, _> = value
+            .split(',')
+            .map(str::trim)
+            .map(str::parse)
+            .collect::<Result<Vec<Asset>, _>>();
+
+        let assets = assets.map_err(serde::de::Error::custom)?;
+
+        let mut items = HashSet::new();
+        if !assets.iter().all(|item| items.insert(item)) {
+            return Err(serde::de::Error::custom("duplicate assets"));
+        }
+
+        Ok(Self(assets))
+    }
+}
+
+#[expect(clippy::into_iter_without_iter, reason = "iter() is not needed")]
+impl<'a> IntoIterator for &'a SequencerAssetsToMonitor {
+    type IntoIter = std::slice::Iter<'a, Asset>;
+    type Item = &'a Asset;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
     }
 }
 
