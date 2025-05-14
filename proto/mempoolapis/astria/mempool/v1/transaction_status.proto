@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package astria.mempool.v1;
 
+import "tendermint/abci/types.proto";
+
 // `TransactionStatus` is a resource which represents the status of a transaction
 // in the Astria Sequencer's mempool.
 message TransactionStatus {
@@ -43,31 +45,13 @@ message TransactionStatus {
     uint64 height = 1;
 
     // The transaction result.
-    ExecTxResult result = 2;
+    tendermint.abci.ExecTxResult result = 2;
 
     // EventAttribute is a single key-value pair, associated with an event.
     message EventAttribute {
       string key = 1;
       string value = 2;
       bool index = 3;
-    }
-
-    // A record of an event which occurred during transaction execution.
-    message Event {
-      string kind = 1;
-      repeated EventAttribute attributes = 2;
-    }
-
-    // The result of transaction execution.
-    message ExecTxResult {
-      uint32 code = 1;
-      bytes data = 2;
-      string log = 3;
-      string info = 4;
-      int64 gas_wanted = 5;
-      int64 gas_used = 6;
-      repeated Event events = 7;
-      string codespace = 8;
     }
   }
 }

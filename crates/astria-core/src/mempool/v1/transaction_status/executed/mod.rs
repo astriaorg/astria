@@ -11,7 +11,7 @@ use tendermint::abci::{
 };
 
 use crate::{
-    generated::mempool::v1::transaction_status::executed as Raw,
+    generated::tendermint::abci as Raw,
     Protobuf,
 };
 

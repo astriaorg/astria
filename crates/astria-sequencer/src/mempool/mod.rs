@@ -74,9 +74,11 @@ impl std::fmt::Display for RemovalReason {
                 height,
                 result,
             } => {
+                let json_result = serde_json::to_string(result)
+                    .unwrap_or_else(|_| "failed to serialize result".to_string());
                 write!(
                     f,
-                    "included in sequencer block {height} with result {result:?}"
+                    "included in sequencer block {height} with result: {json_result}"
                 )
             }
         }
