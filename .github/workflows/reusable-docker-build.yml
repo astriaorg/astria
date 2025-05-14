@@ -18,7 +18,12 @@ on:
       tag:
         required: false
         type: string
+        description: "Git tag, branch name, version"
       force:
+        required: false
+        type: boolean
+        default: false
+      debug:
         required: false
         type: boolean
         default: false
@@ -29,7 +34,10 @@ on:
         required: false
 env:
   REGISTRY: ghcr.io
+  REPO_ORG: astriaorg
+  # FULL_REF is either the full ref of the branch or tag e.g. refs/heads/main or refs/tags/v0.1.0
   FULL_REF: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
+  PACKAGE_NAME: ${{ inputs.package-name }}
   FULL_BINARY_NAME: ${{ inputs.binary-prefix }}-${{ inputs.binary-name }}
 jobs:
   build-and-push:
@@ -45,6 +53,43 @@ jobs:
         with:
           ref: ${{ inputs.tag }}
           submodules: 'true'
+      - name: Dump GitHub context
+        if: inputs.debug
+        env:
+          GITHUB_CONTEXT: ${{ toJSON(github) }}
+        run: echo "$GITHUB_CONTEXT"
+      # Use version-check to extract version from Cargo.toml if no tag is provided
+      - name: Extract version from Cargo.toml
+        id: version_check
+        if: inputs.tag == ''
+        uses: joroshiba/version-check@v2
+        with:
+          file: crates/astria-${{ inputs.binary-name }}/Cargo.toml
+          failBuild: false
+      - name: Process tag
+        id: process_tag
+        run: |
+          # Determine the tag to use
+          if [ "${{ inputs.tag }}" != "" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${{ steps.version_check.outputs.releaseVersion }}"
+          fi
+
+          # Check if tag contains 'v' followed by a version number
+          if [[ "$TAG" =~ v([0-9]+\.[0-9]+\.[0-9]+.*) ]]; then
+            # Extract just the semver portion (everything after 'v')
+            CLEAN_TAG=$(echo "$TAG" | sed -E 's/.*v([0-9]+\.[0-9]+\.[0-9]+.*)/\1/')
+            echo "Converted tag from $TAG to $CLEAN_TAG"
+          else
+            # Keep tag as is (might already be semver or 'latest')
+            CLEAN_TAG="$TAG"
+            echo "Using tag as is: $TAG"
+          fi
+
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+          echo "clean_tag=$CLEAN_TAG" >> $GITHUB_OUTPUT
       - uses: depot/setup-action@v1
       - name: Login to Docker Hub
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria'
@@ -58,21 +103,33 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      # Generate correct tabs and labels
+      # Generate correct image tags
       - name: Docker metadata
         id: metadata
         uses: docker/metadata-action@v4
         with:
-          images: ${{ format('ghcr.io/astriaorg/{0}', inputs.package-name) }}
+          # INFRA-MAR-25: Modify package name to include image suffix if exists
+          images: ${{ format('{0}/{1}/{2}', env.REGISTRY, env.REPO_ORG, env.PACKAGE_NAME) }}
+          flavor: |
+            # Turn off auto-tagging for latest and do it manually below in tags
+            latest=false
           tags: |
+            # PR builds tag with pr-num AND set the full commit SHA from the PR head
             type=ref,event=pr
-            type=match,pattern=refs/tags/${{ inputs.binary-name }}-v(.*),group=1,enable=${{ startsWith(env.FULL_REF, 'refs/tags/') }},value=${{ env.FULL_REF }}
-            type=sha,format=short
-            type=sha,format=long
-            # set the actual commit SHA from the PR head instead of from the PR merge commit (alternatively, we could checkout the PR head in actions/checkout)
             type=raw,value=sha-${{ github.event.pull_request.head.sha || github.sha }},enable=${{ startsWith(env.FULL_REF, 'refs/pull/') }}
-            # set latest tag for `main` branch
+
+            # Main branch builds: latest, sha-github.sha and major.minor.patch-github.sha
             type=raw,value=latest,enable=${{ env.FULL_REF == format('refs/heads/{0}', 'main') }}
+            type=raw,value=sha-${{ github.sha }},enable=${{ env.FULL_REF == format('refs/heads/{0}', 'main') }}
+            type=raw,value=${{ steps.process_tag.outputs.clean_tag }}-${{ steps.process_tag.outputs.short_sha }},enable=${{ env.FULL_REF == format('refs/heads/{0}', 'main') }}
+
+            # Release builds. Semver and match with version
+            type=match,pattern=refs/tags/${{ inputs.binary-name }}-v(.*),group=1,enable=${{ startsWith(env.FULL_REF, 'refs/tags/') }},value=${{ env.FULL_REF }}
+            type=semver,pattern={{version}}-${{ steps.process_tag.outputs.short_sha }},enable=${{ startsWith(env.FULL_REF, 'refs/tags/') && contains(env.FULL_REF, '-v') }}
+
+            # Support direct version input via inputs.tag-short_sha (e.g. 0.1.0-1234567)
+            type=raw,value=${{ steps.process_tag.outputs.clean_tag }}-${{ steps.process_tag.outputs.short_sha }},enable=${{ inputs.tag != '' && !startsWith(inputs.tag, 'refs/')}}
+
       - name: Build and push
         uses: depot/build-push-action@v1
         with:
