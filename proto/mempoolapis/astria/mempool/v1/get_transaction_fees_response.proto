@@ -6,8 +6,8 @@ import "astria/protocol/fees/v1/types.proto";
 
 // A response to a request for the fees of a transaction on the Astria Sequencer.
 message GetTransactionFeesResponse {
-  // The height at which the fees were calculated.
-  uint64 height = 1;
+  // The block height at which the fees were calculated.
+  uint64 block_height = 1;
   // The fees for the transaction.
   repeated astria.protocol.fees.v1.TransactionFee fees = 2;
 }

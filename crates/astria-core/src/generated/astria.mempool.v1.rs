@@ -20,9 +20,9 @@ impl ::prost::Name for GetTransactionFeesRequest {
 /// A response to a request for the fees of a transaction on the Astria Sequencer.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetTransactionFeesResponse {
-    /// The height at which the fees were calculated.
+    /// The block height at which the fees were calculated.
     #[prost(uint64, tag = "1")]
-    pub height: u64,
+    pub block_height: u64,
     /// The fees for the transaction.
     #[prost(message, repeated, tag = "2")]
     pub fees: ::prost::alloc::vec::Vec<super::super::protocol::fees::v1::TransactionFee>,

@@ -24,6 +24,7 @@ use astria_core::{
         TransactionId,
         TRANSACTION_ID_LEN,
     },
+    protocol::transaction::v1::Transaction,
 };
 use bytes::Bytes;
 use cnidarium::Storage;
@@ -41,7 +42,6 @@ use crate::{
         utils::total_fees,
         ActionRef,
     },
-    checked_transaction::CheckedTransaction,
     mempool::{
         Mempool,
         RemovalReason,
@@ -114,36 +114,27 @@ impl TransactionService for Server {
     async fn get_transaction_fees(
         self: Arc<Self>,
         request: Request<GetTransactionFeesRequest>,
-    ) -> Result<Response<astria_core::generated::mempool::v1::GetTransactionFeesResponse>, Status>
-    {
-        let snapshot = self.storage.latest_snapshot();
-        let checked_tx = CheckedTransaction::new(
-            request
-                .into_inner()
-                .transaction
-                .ok_or_else(|| Status::invalid_argument("Transaction is empty"))?
-                .encode_to_vec()
-                .into(),
-            &snapshot,
-        )
-        .await
-        .map_err(|err| {
-            Status::invalid_argument(format!(
-                "Failed to construct checked transaction from raw: {err}"
-            ))
-        })?;
+    ) -> Result<Response<GetTransactionFeesResponse>, Status> {
+        let unchecked_tx: Transaction = request
+            .into_inner()
+            .transaction
+            .ok_or_else(|| Status::invalid_argument("transaction is empty"))?
+            .try_into()
+            .map_err(|err| {
+                Status::invalid_argument(format!("failed to decode transaction from raw: {err}"))
+            })?;
 
         let snapshot = self.storage.latest_snapshot();
-        let height = snapshot
+        let block_height = snapshot
             .get_block_height()
             .await
-            .map_err(|err| Status::internal(format!("Failed to get block height: {err}")))?;
+            .map_err(|err| Status::internal(format!("failed to get block height: {err}")))?;
         let fees_with_ibc_denoms = total_fees(
-            checked_tx.checked_actions().iter().map(ActionRef::from),
+            unchecked_tx.actions().iter().map(ActionRef::from),
             &snapshot,
         )
         .await
-        .map_err(|err| Status::internal(format!("Failed to get fees for transaction: {err}")))?;
+        .map_err(|err| Status::internal(format!("failed to get fees for transaction: {err}")))?;
         let mut fees = Vec::with_capacity(fees_with_ibc_denoms.len());
         for (ibc_denom, value) in fees_with_ibc_denoms {
             let trace_denom = match snapshot.map_ibc_to_trace_prefixed_asset(&ibc_denom).await {
@@ -166,7 +157,7 @@ impl TransactionService for Server {
             });
         }
         Ok(Response::new(GetTransactionFeesResponse {
-            height,
+            block_height,
             fees,
         }))
     }
@@ -274,6 +265,7 @@ mod tests {
     use crate::{
         accounts::StateWriteExt as _,
         assets::StateWriteExt,
+        checked_transaction::CheckedTransaction,
         fees::{
             FeeHandler as _,
             StateReadExt as _,
@@ -619,7 +611,7 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(rsp.code(), tonic::Code::InvalidArgument);
-        assert_eq!(rsp.message(), "Transaction is empty".to_string());
+        assert_eq!(rsp.message(), "transaction is empty".to_string());
     }
 
     #[tokio::test]
@@ -642,7 +634,7 @@ mod tests {
         assert_eq!(rsp.code(), tonic::Code::InvalidArgument);
         assert!(rsp
             .message()
-            .contains("Failed to construct checked transaction from raw:"));
+            .contains("failed to decode transaction from raw:"));
     }
 
     #[tokio::test]
@@ -702,7 +694,7 @@ mod tests {
             .into_inner();
 
         let mut expected = GetTransactionFeesResponse {
-            height: fixture.block_height().await.value(),
+            block_height: fixture.block_height().await.value(),
             fees: vec![
                 TransactionFee {
                     asset: denom_0().to_string(),

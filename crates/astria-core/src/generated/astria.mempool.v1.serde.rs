@@ -97,17 +97,17 @@ impl serde::Serialize for GetTransactionFeesResponse {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if self.height != 0 {
+        if self.block_height != 0 {
             len += 1;
         }
         if !self.fees.is_empty() {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.mempool.v1.GetTransactionFeesResponse", len)?;
-        if self.height != 0 {
+        if self.block_height != 0 {
             #[allow(clippy::needless_borrow)]
             #[allow(clippy::needless_borrows_for_generic_args)]
-            struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
+            struct_ser.serialize_field("blockHeight", ToString::to_string(&self.block_height).as_str())?;
         }
         if !self.fees.is_empty() {
             struct_ser.serialize_field("fees", &self.fees)?;
@@ -122,13 +122,14 @@ impl<'de> serde::Deserialize<'de> for GetTransactionFeesResponse {
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "height",
+            "block_height",
+            "blockHeight",
             "fees",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            Height,
+            BlockHeight,
             Fees,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
@@ -151,7 +152,7 @@ impl<'de> serde::Deserialize<'de> for GetTransactionFeesResponse {
                         E: serde::de::Error,
                     {
                         match value {
-                            "height" => Ok(GeneratedField::Height),
+                            "blockHeight" | "block_height" => Ok(GeneratedField::BlockHeight),
                             "fees" => Ok(GeneratedField::Fees),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
@@ -172,15 +173,15 @@ impl<'de> serde::Deserialize<'de> for GetTransactionFeesResponse {
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut height__ = None;
+                let mut block_height__ = None;
                 let mut fees__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::Height => {
-                            if height__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("height"));
+                        GeneratedField::BlockHeight => {
+                            if block_height__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("blockHeight"));
                             }
-                            height__ = 
+                            block_height__ = 
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
@@ -193,7 +194,7 @@ impl<'de> serde::Deserialize<'de> for GetTransactionFeesResponse {
                     }
                 }
                 Ok(GetTransactionFeesResponse {
-                    height: height__.unwrap_or_default(),
+                    block_height: block_height__.unwrap_or_default(),
                     fees: fees__.unwrap_or_default(),
                 })
             }
