@@ -126,7 +126,7 @@ sequencer name=validatorName:
     -f dev/values/validators/all.yml \
     -f dev/values/validators/{{name}}.yml \
     -f dev/values/validators/aspen.upgrade.yml \
-    -n astria-validator-{{name}} --create-namespace \
+    -n astria-sequencer-{{name}} --create-namespace \
     {{name}}-sequencer-chart charts/sequencer
 
 
@@ -160,12 +160,16 @@ astrotrek:
 ################
 [doc("
 Deploys a local Hermes instance.
+Usage:
+  just deploy hermes <NAME> (default: 'local')
 ")]
-hermes-local:
+hermes name=defaultHermes:
   @echo "Deploying Hermes..."
   @helm install hermes-local-chart charts/hermes \
-    -n astria-dev-cluster \
-    -f dev/values/hermes/local.yaml
+    -n hermes-{{name}} \
+    -f dev/values/hermes/local.yaml \
+    -f dev/values/hermes/{{name}}.yaml \
+    --create-namespace \
 
 
 # Deploy Rollup
