@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/grpc/storage/keys.rs
+expression: rollup_transactions_proof_by_hash(&HASH)
+---
+grpc/rollup_txs_proof/AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=

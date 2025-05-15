@@ -7,18 +7,8 @@ use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
-use axum::{
-    routing::IntoMakeService,
-    Router,
-    Server,
-};
-use hyper::server::conn::AddrIncoming;
 use tokio::{
     select,
-    sync::oneshot::{
-        self,
-        Receiver,
-    },
     task::{
         JoinError,
         JoinHandle,
@@ -46,7 +36,8 @@ use crate::{
 };
 
 pub struct SequencerRelayer {
-    api_server: api::ApiServer,
+    api: api::Serve,
+    api_shutdown_token: CancellationToken,
     relayer: Relayer,
     shutdown_handle: ShutdownHandle,
 }
@@ -57,7 +48,10 @@ impl SequencerRelayer {
     /// # Errors
     ///
     /// Returns an error if constructing the inner relayer type failed.
-    pub fn new(cfg: Config, metrics: &'static Metrics) -> eyre::Result<(Self, ShutdownHandle)> {
+    pub async fn new(
+        cfg: Config,
+        metrics: &'static Metrics,
+    ) -> eyre::Result<(Self, ShutdownHandle)> {
         let shutdown_handle = ShutdownHandle::new();
         let rollup_filter = cfg.only_include_rollups()?;
         let Config {
@@ -89,13 +83,17 @@ impl SequencerRelayer {
         .build()
         .wrap_err("failed to create relayer")?;
 
-        let state_rx = relayer.subscribe_to_state();
-        let api_socket_addr = api_addr.parse::<SocketAddr>().wrap_err_with(|| {
-            format!("failed to parse provided `api_addr` string as socket address: `{api_addr}`",)
-        })?;
-        let api_server = api::start(api_socket_addr, state_rx);
+        let api_shutdown_token = CancellationToken::new();
+        let api = api::serve(
+            &api_addr,
+            relayer.subscribe_to_state(),
+            api_shutdown_token.child_token(),
+        )
+        .await
+        .wrap_err("failed to start API server")?;
         let relayer = Self {
-            api_server,
+            api,
+            api_shutdown_token,
             relayer,
             shutdown_handle: shutdown_handle.clone(),
         };
@@ -103,30 +101,27 @@ impl SequencerRelayer {
     }
 
     pub fn local_addr(&self) -> SocketAddr {
-        self.api_server.local_addr()
+        self.api.local_addr()
     }
 
     /// Runs Sequencer Relayer.
     pub async fn run(self) {
         let Self {
-            api_server,
+            api,
+            api_shutdown_token,
             relayer,
             shutdown_handle,
         } = self;
-        // Separate the API shutdown signal from the cancellation token because we want it to live
-        // until the very end.
-        let (api_shutdown_signal, api_shutdown_signal_rx) = oneshot::channel::<()>();
-        let (mut api_task, mut relayer_task) =
-            spawn_tasks(api_server, api_shutdown_signal_rx, relayer);
+        let (mut api_task, mut relayer_task) = spawn_tasks(api, relayer);
 
         let shutdown = select!(
             o = &mut api_task => {
                 report_exit("api server", o);
-                ShutDown { api_task: None, relayer_task: Some(relayer_task), api_shutdown_signal, shutdown_handle }
+                Shutdown { api_task: None, relayer_task: Some(relayer_task), api_shutdown_token, handle: shutdown_handle }
             }
             o = &mut relayer_task => {
                 report_exit("relayer worker", o);
-                ShutDown { api_task: Some(api_task), relayer_task: None, api_shutdown_signal, shutdown_handle }
+                Shutdown { api_task: Some(api_task), relayer_task: None, api_shutdown_token, handle: shutdown_handle }
             }
 
         );
@@ -136,20 +131,10 @@ impl SequencerRelayer {
 
 #[instrument(skip_all)]
 fn spawn_tasks(
-    api_server: Server<AddrIncoming, IntoMakeService<Router>>,
-    api_shutdown_signal_rx: Receiver<()>,
+    api: api::Serve,
     relayer: Relayer,
 ) -> (JoinHandle<eyre::Result<()>>, JoinHandle<eyre::Result<()>>) {
-    let api_task = tokio::spawn(async move {
-        api_server
-            .with_graceful_shutdown(async move {
-                let _ = api_shutdown_signal_rx.await;
-            })
-            .await
-            .wrap_err("api server ended unexpectedly")
-    });
-    info!("spawned API server");
-
+    let api_task = tokio::spawn(async move { api.await.wrap_err("API server exited with error") });
     let relayer_task = tokio::spawn(relayer.run());
     info!("spawned relayer task");
 
@@ -214,23 +199,23 @@ fn report_exit(task_name: &str, outcome: Result<eyre::Result<()>, JoinError>) {
     }
 }
 
-struct ShutDown {
+struct Shutdown {
     api_task: Option<JoinHandle<eyre::Result<()>>>,
+    api_shutdown_token: CancellationToken,
     relayer_task: Option<JoinHandle<eyre::Result<()>>>,
-    api_shutdown_signal: oneshot::Sender<()>,
-    shutdown_handle: ShutdownHandle,
+    handle: ShutdownHandle,
 }
 
-impl ShutDown {
+impl Shutdown {
     #[instrument(skip_all)]
     async fn run(self) {
         let Self {
             api_task,
+            api_shutdown_token,
             relayer_task,
-            api_shutdown_signal,
-            shutdown_handle,
+            handle,
         } = self;
-        shutdown_handle.shutdown();
+        handle.shutdown();
         // Giving relayer 25 seconds to shutdown because Kubernetes issues a SIGKILL after 30.
         if let Some(mut relayer_task) = relayer_task {
             info!("waiting for relayer task to shut down");
@@ -256,7 +241,7 @@ impl ShutDown {
         // Giving the API task another 4 seconds. 25 for relayer + 4s = 29s (out of 30s for k8s).
         if let Some(mut api_task) = api_task {
             info!("sending shutdown signal to API server");
-            let _ = api_shutdown_signal.send(());
+            api_shutdown_token.cancel();
             let limit = Duration::from_secs(4);
             match timeout(limit, &mut api_task)
                 .await

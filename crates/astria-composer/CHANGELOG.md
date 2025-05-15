@@ -9,11 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Fetch and submit transactions already in the rollup transaction pool before submitting
+    those coming from `eth_subscribe` [#2086](https://github.com/astriaorg/astria/pull/2086).
+
+## [1.0.1] - 2025-03-06
+
+### Changed
+
+- Update `idna` dependency to resolve cargo audit warning [#1869](https://github.com/astriaorg/astria/pull/1869).
+
 ## [1.0.0] - 2024-10-25
 
 ### Changed
 
+- Bump MSRV to 1.83.0 [#1857](https://github.com/astriaorg/astria/pull/1857).
 - Bump penumbra dependencies [#1740](https://github.com/astriaorg/astria/pull/1740).
+- Propagate errors [#1838](https://github.com/astriaorg/astria/pull/1838).
 
 ## [1.0.0-rc.2] - 2024-10-23
 
@@ -210,6 +223,7 @@ TransferAction` [#719](https://github.com/astriaorg/astria/pull/719).
 - Initial release.
 
 [unreleased]: https://github.com/astriaorg/astria/compare/composer-v1.0.0...HEAD
+[1.0.1]: https://github.com/astriaorg/astria/compare/composer-v1.0.0...composer-v1.0.1
 [1.0.0]: https://github.com/astriaorg/astria/compare/composer-v1.0.0-rc.2...composer-v1.0.0
 [1.0.0-rc.2]: https://github.com/astriaorg/astria/compare/composer-v1.0.0-rc.1...composer-v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/astriaorg/astria/compare/composer-v0.8.3...composer-v1.0.0-rc.1

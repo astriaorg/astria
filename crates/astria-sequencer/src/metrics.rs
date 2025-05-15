@@ -20,26 +20,27 @@ pub struct Metrics {
     proposal_deposits: Histogram,
     proposal_transactions: Histogram,
     process_proposal_skipped_proposal: Counter,
-    check_tx_removed_too_large: Counter,
+    check_tx_failed_tx_too_large: Counter,
+    check_tx_failed_action_checks: Counter,
     check_tx_removed_expired: Counter,
     check_tx_removed_failed_execution: Counter,
-    check_tx_removed_failed_stateless: Counter,
-    check_tx_duration_seconds_parse_tx: Histogram,
-    check_tx_duration_seconds_check_stateless: Histogram,
+    check_tx_duration_seconds_check_actions: Histogram,
     check_tx_duration_seconds_fetch_nonce: Histogram,
-    check_tx_duration_seconds_check_tracked: Histogram,
-    check_tx_duration_seconds_check_chain_id: Histogram,
-    check_tx_duration_seconds_check_removed: Histogram,
-    check_tx_duration_seconds_convert_address: Histogram,
+    check_tx_duration_seconds_recheck: Histogram,
     check_tx_duration_seconds_fetch_balances: Histogram,
     check_tx_duration_seconds_fetch_tx_cost: Histogram,
     check_tx_duration_seconds_insert_to_app_mempool: Histogram,
+    check_tx_duration_seconds_transaction_status: Histogram,
     actions_per_transaction_in_mempool: Histogram,
     transaction_in_mempool_size_bytes: Histogram,
     transactions_in_mempool_total: Gauge,
     transactions_in_mempool_parked: Gauge,
     mempool_recosted: Counter,
     internal_logic_error: Counter,
+    extended_commit_info_bytes: Histogram,
+    extend_vote_duration_seconds: Histogram,
+    extend_vote_failure_count: Counter,
+    verify_vote_extension_failure_count: Counter,
 }
 
 impl Metrics {
@@ -74,8 +75,12 @@ impl Metrics {
         self.process_proposal_skipped_proposal.increment(1);
     }
 
-    pub(crate) fn increment_check_tx_removed_too_large(&self) {
-        self.check_tx_removed_too_large.increment(1);
+    pub(crate) fn increment_check_tx_failed_tx_too_large(&self) {
+        self.check_tx_failed_tx_too_large.increment(1);
+    }
+
+    pub(crate) fn increment_check_tx_failed_action_checks(&self) {
+        self.check_tx_failed_action_checks.increment(1);
     }
 
     pub(crate) fn increment_check_tx_removed_expired(&self) {
@@ -86,16 +91,8 @@ impl Metrics {
         self.check_tx_removed_failed_execution.increment(1);
     }
 
-    pub(crate) fn increment_check_tx_removed_failed_stateless(&self) {
-        self.check_tx_removed_failed_stateless.increment(1);
-    }
-
-    pub(crate) fn record_check_tx_duration_seconds_parse_tx(&self, duration: Duration) {
-        self.check_tx_duration_seconds_parse_tx.record(duration);
-    }
-
-    pub(crate) fn record_check_tx_duration_seconds_check_stateless(&self, duration: Duration) {
-        self.check_tx_duration_seconds_check_stateless
+    pub(crate) fn record_check_tx_duration_seconds_check_actions(&self, duration: Duration) {
+        self.check_tx_duration_seconds_check_actions
             .record(duration);
     }
 
@@ -103,24 +100,8 @@ impl Metrics {
         self.check_tx_duration_seconds_fetch_nonce.record(duration);
     }
 
-    pub(crate) fn record_check_tx_duration_seconds_check_tracked(&self, duration: Duration) {
-        self.check_tx_duration_seconds_check_tracked
-            .record(duration);
-    }
-
-    pub(crate) fn record_check_tx_duration_seconds_check_chain_id(&self, duration: Duration) {
-        self.check_tx_duration_seconds_check_chain_id
-            .record(duration);
-    }
-
-    pub(crate) fn record_check_tx_duration_seconds_check_removed(&self, duration: Duration) {
-        self.check_tx_duration_seconds_check_removed
-            .record(duration);
-    }
-
-    pub(crate) fn record_check_tx_duration_seconds_convert_address(&self, duration: Duration) {
-        self.check_tx_duration_seconds_convert_address
-            .record(duration);
+    pub(crate) fn record_check_tx_duration_seconds_recheck(&self, duration: Duration) {
+        self.check_tx_duration_seconds_recheck.record(duration);
     }
 
     pub(crate) fn record_check_tx_duration_seconds_fetch_balances(&self, duration: Duration) {
@@ -138,6 +119,11 @@ impl Metrics {
         duration: Duration,
     ) {
         self.check_tx_duration_seconds_insert_to_app_mempool
+            .record(duration);
+    }
+
+    pub(crate) fn record_check_tx_duration_seconds_transaction_status(&self, duration: Duration) {
+        self.check_tx_duration_seconds_transaction_status
             .record(duration);
     }
 
@@ -163,6 +149,22 @@ impl Metrics {
 
     pub(crate) fn increment_internal_logic_error(&self) {
         self.internal_logic_error.increment(1);
+    }
+
+    pub(crate) fn record_extended_commit_info_bytes(&self, count: usize) {
+        self.extended_commit_info_bytes.record(count);
+    }
+
+    pub(crate) fn record_extend_vote_duration_seconds(&self, duration: Duration) {
+        self.extend_vote_duration_seconds.record(duration);
+    }
+
+    pub(crate) fn increment_extend_vote_failure_count(&self) {
+        self.extend_vote_failure_count.increment(1);
+    }
+
+    pub(crate) fn increment_verify_vote_extension_failure_count(&self) {
+        self.verify_vote_extension_failure_count.increment(1);
     }
 }
 
@@ -228,11 +230,17 @@ impl telemetry::Metrics for Metrics {
             )?
             .register()?;
 
-        let check_tx_removed_too_large = builder
+        let check_tx_failed_tx_too_large = builder
             .new_counter_factory(
-                CHECK_TX_REMOVED_TOO_LARGE,
-                "The number of transactions that have been removed from the mempool due to being \
-                 too large",
+                CHECK_TX_FAILED_TX_TOO_LARGE,
+                "The number of transactions that have failed checks due to being too large",
+            )?
+            .register()?;
+
+        let check_tx_failed_action_checks = builder
+            .new_counter_factory(
+                CHECK_TX_FAILED_ACTION_CHECKS,
+                "The number of transactions that have failed action checks",
             )?
             .register()?;
 
@@ -252,10 +260,10 @@ impl telemetry::Metrics for Metrics {
             )?
             .register()?;
 
-        let check_tx_duration_seconds_convert_address = builder
+        let check_tx_duration_seconds_fetch_nonce = builder
             .new_histogram_factory(
-                CHECK_TX_DURATION_SECONDS_CONVERT_ADDRESS,
-                "The amount of time taken in seconds to convert an address",
+                CHECK_TX_DURATION_SECONDS_FETCH_NONCE,
+                "The amount of time taken in seconds to fetch an account's nonce",
             )?
             .register()?;
 
@@ -273,42 +281,23 @@ impl telemetry::Metrics for Metrics {
             )?
             .register()?;
 
-        let check_tx_duration_seconds_fetch_nonce = builder
+        let check_tx_duration_seconds_transaction_status = builder
             .new_histogram_factory(
-                CHECK_TX_DURATION_SECONDS_FETCH_NONCE,
-                "The amount of time taken in seconds to fetch an account's nonce",
+                CHECK_TX_DURATION_SECONDS_TRANSACTION_STATUS,
+                "The amount of time taken in seconds to to check the transaction status in the \
+                 app-side mempool",
             )?
             .register()?;
 
-        let check_tx_duration_seconds_check_tracked = builder
-            .new_histogram_factory(
-                CHECK_TX_DURATION_SECONDS_CHECK_TRACKED,
-                "The amount of time taken in seconds to check if the transaction is already in \
-                 the mempool",
-            )?
-            .register()?;
-
-        let check_tx_removed_failed_stateless = builder
-            .new_counter_factory(
-                CHECK_TX_REMOVED_FAILED_STATELESS,
-                "The number of transactions that have been removed from the mempool due to \
-                 failing the stateless check",
-            )?
-            .register()?;
         let mut check_tx_duration_factory = builder.new_histogram_factory(
             CHECK_TX_DURATION_SECONDS,
             "The amount of time taken in seconds to successfully complete the various stages of \
              check_tx",
         )?;
-        let check_tx_duration_seconds_parse_tx = check_tx_duration_factory.register_with_labels(
-            &[(CHECK_TX_STAGE, "length check and parse raw tx".to_string())],
-        )?;
-        let check_tx_duration_seconds_check_stateless = check_tx_duration_factory
-            .register_with_labels(&[(CHECK_TX_STAGE, "stateless check".to_string())])?;
-        let check_tx_duration_seconds_check_chain_id = check_tx_duration_factory
-            .register_with_labels(&[(CHECK_TX_STAGE, "chain id check".to_string())])?;
-        let check_tx_duration_seconds_check_removed = check_tx_duration_factory
-            .register_with_labels(&[(CHECK_TX_STAGE, "check for removal".to_string())])?;
+        let check_tx_duration_seconds_check_actions = check_tx_duration_factory
+            .register_with_labels(&[(CHECK_TX_STAGE, "actions check".to_string())])?;
+        let check_tx_duration_seconds_recheck = check_tx_duration_factory
+            .register_with_labels(&[(CHECK_TX_STAGE, "recheck".to_string())])?;
         let check_tx_duration_seconds_insert_to_app_mempool = check_tx_duration_factory
             .register_with_labels(&[(CHECK_TX_STAGE, "insert to app mempool".to_string())])?;
 
@@ -355,6 +344,34 @@ impl telemetry::Metrics for Metrics {
             )?
             .register()?;
 
+        let extended_commit_info_bytes = builder
+            .new_histogram_factory(
+                EXTENDED_COMMIT_INFO_BYTES,
+                "The number of bytes in the extended commit info of the block",
+            )?
+            .register()?;
+
+        let extend_vote_duration_seconds = builder
+            .new_histogram_factory(
+                EXTEND_VOTE_DURATION_SECONDS,
+                "The amount of time taken in seconds to successfully create a vote extension",
+            )?
+            .register()?;
+
+        let extend_vote_failure_count = builder
+            .new_counter_factory(
+                EXTEND_VOTE_FAILURE_COUNT,
+                "The number of times the app has failed to extend the vote",
+            )?
+            .register()?;
+
+        let verify_vote_extension_failure_count = builder
+            .new_counter_factory(
+                VERIFY_VOTE_EXTENSION_FAILURE_COUNT,
+                "The number of times the app has failed to verify extended votes",
+            )?
+            .register()?;
+
         Ok(Self {
             prepare_proposal_excluded_transactions_cometbft_space,
             prepare_proposal_excluded_transactions_sequencer_space,
@@ -363,26 +380,27 @@ impl telemetry::Metrics for Metrics {
             proposal_deposits,
             proposal_transactions,
             process_proposal_skipped_proposal,
-            check_tx_removed_too_large,
+            check_tx_failed_tx_too_large,
+            check_tx_failed_action_checks,
             check_tx_removed_expired,
             check_tx_removed_failed_execution,
-            check_tx_removed_failed_stateless,
-            check_tx_duration_seconds_parse_tx,
-            check_tx_duration_seconds_check_stateless,
+            check_tx_duration_seconds_check_actions,
             check_tx_duration_seconds_fetch_nonce,
-            check_tx_duration_seconds_check_tracked,
-            check_tx_duration_seconds_check_chain_id,
-            check_tx_duration_seconds_check_removed,
-            check_tx_duration_seconds_convert_address,
+            check_tx_duration_seconds_recheck,
             check_tx_duration_seconds_fetch_balances,
             check_tx_duration_seconds_fetch_tx_cost,
             check_tx_duration_seconds_insert_to_app_mempool,
+            check_tx_duration_seconds_transaction_status,
             actions_per_transaction_in_mempool,
             transaction_in_mempool_size_bytes,
             transactions_in_mempool_total,
             transactions_in_mempool_parked,
             mempool_recosted,
             internal_logic_error,
+            extended_commit_info_bytes,
+            extend_vote_duration_seconds,
+            extend_vote_failure_count,
+            verify_vote_extension_failure_count,
         })
     }
 }
@@ -395,48 +413,30 @@ metric_names!(const METRICS_NAMES:
     PROPOSAL_DEPOSITS,
     PROPOSAL_TRANSACTIONS,
     PROCESS_PROPOSAL_SKIPPED_PROPOSAL,
-    CHECK_TX_REMOVED_TOO_LARGE,
+    CHECK_TX_FAILED_TX_TOO_LARGE,
+    CHECK_TX_FAILED_ACTION_CHECKS,
     CHECK_TX_REMOVED_EXPIRED,
     CHECK_TX_REMOVED_FAILED_EXECUTION,
-    CHECK_TX_REMOVED_FAILED_STATELESS,
-    CHECK_TX_REMOVED_ACCOUNT_BALANCE,
     CHECK_TX_DURATION_SECONDS,
-    CHECK_TX_DURATION_SECONDS_CONVERT_ADDRESS,
-    CHECK_TX_DURATION_SECONDS_FETCH_BALANCES,
     CHECK_TX_DURATION_SECONDS_FETCH_NONCE,
+    CHECK_TX_DURATION_SECONDS_FETCH_BALANCES,
+    CHECK_TX_DURATION_SECONDS_TRANSACTION_STATUS,
     CHECK_TX_DURATION_SECONDS_FETCH_TX_COST,
-    CHECK_TX_DURATION_SECONDS_CHECK_TRACKED,
     ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
     TRANSACTION_IN_MEMPOOL_SIZE_BYTES,
     TRANSACTIONS_IN_MEMPOOL_TOTAL,
     TRANSACTIONS_IN_MEMPOOL_PARKED,
     MEMPOOL_RECOSTED,
-    INTERNAL_LOGIC_ERROR
+    INTERNAL_LOGIC_ERROR,
+    EXTENDED_COMMIT_INFO_BYTES,
+    EXTEND_VOTE_DURATION_SECONDS,
+    EXTEND_VOTE_FAILURE_COUNT,
+    VERIFY_VOTE_EXTENSION_FAILURE_COUNT,
 );
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        ACTIONS_PER_TRANSACTION_IN_MEMPOOL,
-        CHECK_TX_DURATION_SECONDS,
-        CHECK_TX_REMOVED_ACCOUNT_BALANCE,
-        CHECK_TX_REMOVED_EXPIRED,
-        CHECK_TX_REMOVED_FAILED_EXECUTION,
-        CHECK_TX_REMOVED_FAILED_STATELESS,
-        CHECK_TX_REMOVED_TOO_LARGE,
-        INTERNAL_LOGIC_ERROR,
-        MEMPOOL_RECOSTED,
-        PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS,
-        PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_COMETBFT_SPACE,
-        PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_FAILED_EXECUTION,
-        PREPARE_PROPOSAL_EXCLUDED_TRANSACTIONS_SEQUENCER_SPACE,
-        PROCESS_PROPOSAL_SKIPPED_PROPOSAL,
-        PROPOSAL_DEPOSITS,
-        PROPOSAL_TRANSACTIONS,
-        TRANSACTIONS_IN_MEMPOOL_PARKED,
-        TRANSACTIONS_IN_MEMPOOL_TOTAL,
-        TRANSACTION_IN_MEMPOOL_SIZE_BYTES,
-    };
+    use super::*;
 
     #[track_caller]
     fn assert_const(actual: &'static str, suffix: &str) {
@@ -470,19 +470,15 @@ mod tests {
             PROCESS_PROPOSAL_SKIPPED_PROPOSAL,
             "process_proposal_skipped_proposal",
         );
-        assert_const(CHECK_TX_REMOVED_TOO_LARGE, "check_tx_removed_too_large");
+        assert_const(CHECK_TX_FAILED_TX_TOO_LARGE, "check_tx_failed_tx_too_large");
         assert_const(CHECK_TX_REMOVED_EXPIRED, "check_tx_removed_expired");
         assert_const(
             CHECK_TX_REMOVED_FAILED_EXECUTION,
             "check_tx_removed_failed_execution",
         );
         assert_const(
-            CHECK_TX_REMOVED_FAILED_STATELESS,
-            "check_tx_removed_failed_stateless",
-        );
-        assert_const(
-            CHECK_TX_REMOVED_ACCOUNT_BALANCE,
-            "check_tx_removed_account_balance",
+            CHECK_TX_FAILED_ACTION_CHECKS,
+            "check_tx_failed_action_checks",
         );
         assert_const(CHECK_TX_DURATION_SECONDS, "check_tx_duration_seconds");
         assert_const(
@@ -503,5 +499,12 @@ mod tests {
         );
         assert_const(MEMPOOL_RECOSTED, "mempool_recosted");
         assert_const(INTERNAL_LOGIC_ERROR, "internal_logic_error");
+        assert_const(EXTENDED_COMMIT_INFO_BYTES, "extended_commit_info_bytes");
+        assert_const(EXTEND_VOTE_DURATION_SECONDS, "extend_vote_duration_seconds");
+        assert_const(EXTEND_VOTE_FAILURE_COUNT, "extend_vote_failure_count");
+        assert_const(
+            VERIFY_VOTE_EXTENSION_FAILURE_COUNT,
+            "verify_vote_extension_failure_count",
+        );
     }
 }

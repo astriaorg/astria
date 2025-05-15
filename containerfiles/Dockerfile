@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM rust:1.81-bookworm AS rust
+FROM --platform=$BUILDPLATFORM rust:1.83-bookworm AS rust
 
 WORKDIR /build/
 
@@ -39,7 +39,7 @@ RUN \
   install ./protoc/include/google/protobuf/* -Dt /usr/local/include/google/protobuf; \
   install ./protoc/include/google/protobuf/compiler/* -Dt /usr/local/include/google/protobuf/compiler;
 
-FROM rust as builder
+FROM rust AS builder
 
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM

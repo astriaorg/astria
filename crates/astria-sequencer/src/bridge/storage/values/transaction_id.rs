@@ -26,7 +26,7 @@ use super::{
 #[derive(BorshSerialize, BorshDeserialize)]
 pub(in crate::bridge) struct TransactionId<'a>(Cow<'a, [u8; TRANSACTION_ID_LEN]>);
 
-impl<'a> Debug for TransactionId<'a> {
+impl Debug for TransactionId<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex(self.0.as_slice()))
     }

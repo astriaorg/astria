@@ -1,7 +1,9 @@
-use super::raw;
-use crate::primitive::v1::asset::{
-    Denom,
-    ParseDenomError,
+use crate::{
+    generated::astria::protocol::accounts::v1 as raw,
+    primitive::v1::asset::{
+        Denom,
+        ParseDenomError,
+    },
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -153,7 +155,7 @@ impl raw::NonceResponse {
     /// native [`NonceResponse`] by allocating a new [`v1alpha::NonceResponse`].
     #[must_use]
     pub fn to_native(&self) -> NonceResponse {
-        self.clone().into_native()
+        self.into_native()
     }
 }
 

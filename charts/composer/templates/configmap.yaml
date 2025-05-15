@@ -20,7 +20,6 @@ data:
   ASTRIA_COMPOSER_NO_METRICS: "{{ not .Values.metrics.enabled }}"
   ASTRIA_COMPOSER_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.metrics }}"
   ASTRIA_COMPOSER_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
-  ASTRIA_COMPOSER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   NO_COLOR: "{{ .Values.global.useTTY }}"
   ASTRIA_COMPOSER_NO_OTEL: "{{ not .Values.otel.enabled }}"
   OTEL_EXPORTER_OTLP_ENDPOINT: "{{ tpl .Values.otel.endpoint . }}"
@@ -31,6 +30,7 @@ data:
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ tpl .Values.otel.traceHeaders . }}"
   OTEL_SERVICE_NAME: "{{ tpl .Values.otel.serviceName . }}"
   {{- if not .Values.global.dev }}
+  ASTRIA_COMPOSER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   {{- else }}
   {{- end }}
 ---

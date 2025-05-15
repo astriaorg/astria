@@ -29,8 +29,8 @@ mod tests {
 
     #[test]
     fn keys_should_not_change() {
-        insta::assert_snapshot!(NATIVE_ASSET);
-        insta::assert_snapshot!(asset(&test_asset()));
+        insta::assert_snapshot!("native_asset_key", NATIVE_ASSET);
+        insta::assert_snapshot!("asset_key_test_asset", asset(&test_asset()));
     }
 
     #[test]

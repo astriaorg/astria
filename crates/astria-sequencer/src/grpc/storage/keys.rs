@@ -40,6 +40,27 @@ pub(in crate::grpc) fn rollup_ids_proof_by_hash(hash: &[u8; 32]) -> String {
     )
 }
 
+pub(in crate::grpc) fn upgrade_change_hashes_by_hash(hash: &[u8; 32]) -> String {
+    format!(
+        "grpc/upgrade_change_hashes/{}",
+        Base64Display::new(hash, &URL_SAFE)
+    )
+}
+
+pub(in crate::grpc) fn extended_commit_info_by_hash(hash: &[u8; 32]) -> String {
+    format!(
+        "grpc/extended_commit_info/{}",
+        Base64Display::new(hash, &URL_SAFE)
+    )
+}
+
+pub(in crate::grpc) fn extended_commit_info_proof_by_hash(hash: &[u8; 32]) -> String {
+    format!(
+        "grpc/extended_commit_info_proof/{}",
+        Base64Display::new(hash, &URL_SAFE)
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -50,12 +71,33 @@ mod tests {
 
     #[test]
     fn keys_should_not_change() {
-        insta::assert_snapshot!(block_hash_by_height(42));
-        insta::assert_snapshot!(sequencer_block_header_by_hash(&HASH));
-        insta::assert_snapshot!(rollup_data_by_hash_and_rollup_id(&HASH, &ROLLUP_ID));
-        insta::assert_snapshot!(rollup_ids_by_hash(&HASH));
-        insta::assert_snapshot!(rollup_transactions_proof_by_hash(&HASH));
-        insta::assert_snapshot!(rollup_ids_proof_by_hash(&HASH));
+        insta::assert_snapshot!("block_hash_by_height_key", block_hash_by_height(42));
+        insta::assert_snapshot!(
+            "sequencer_block_header_by_hash_key",
+            sequencer_block_header_by_hash(&HASH)
+        );
+        insta::assert_snapshot!(
+            "rollup_data_by_has_and_id_key",
+            rollup_data_by_hash_and_rollup_id(&HASH, &ROLLUP_ID)
+        );
+        insta::assert_snapshot!("rollup_ids_by_hash_key", rollup_ids_by_hash(&HASH));
+        insta::assert_snapshot!(
+            "rollup_transactions_proof_by_hash_key",
+            rollup_transactions_proof_by_hash(&HASH)
+        );
+        insta::assert_snapshot!("rollup_ids_proof_by_hash", rollup_ids_proof_by_hash(&HASH));
+        insta::assert_snapshot!(
+            "upgrade_change_hashes_by_hash",
+            upgrade_change_hashes_by_hash(&HASH)
+        );
+        insta::assert_snapshot!(
+            "extended_commit_info_by_hash",
+            extended_commit_info_by_hash(&HASH)
+        );
+        insta::assert_snapshot!(
+            "extended_commit_info_proof_by_hash",
+            extended_commit_info_proof_by_hash(&HASH)
+        );
     }
 
     #[test]
@@ -66,5 +108,8 @@ mod tests {
         assert!(rollup_ids_by_hash(&HASH).starts_with(COMPONENT_PREFIX));
         assert!(rollup_transactions_proof_by_hash(&HASH).starts_with(COMPONENT_PREFIX));
         assert!(rollup_ids_proof_by_hash(&HASH).starts_with(COMPONENT_PREFIX));
+        assert!(upgrade_change_hashes_by_hash(&HASH).starts_with(COMPONENT_PREFIX));
+        assert!(extended_commit_info_by_hash(&HASH).starts_with(COMPONENT_PREFIX));
+        assert!(extended_commit_info_proof_by_hash(&HASH).starts_with(COMPONENT_PREFIX));
     }
 }

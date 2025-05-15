@@ -25,9 +25,7 @@ spec:
         github:
           owner: astriaorg
           repo: astria
-          tokenRef:
-            key: token
-            secretName: github-pat
+          appSecretName: github-app-credentials
           labels:
             # ALL of the following labels are required to be set on the PR for the app to be created
             - preview
@@ -94,7 +92,7 @@ spec:
 
               images:
                 sequencer:
-                  devTag: sha-{{.head_sha}}
+                  tag: sha-{{.head_sha}}
                   pullPolicy: Always
               ingress:
                 grpc:

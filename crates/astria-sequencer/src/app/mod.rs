@@ -1,53 +1,60 @@
-#[cfg(any(test, feature = "benchmark"))]
-pub(crate) mod benchmark_and_test_utils;
-#[cfg(feature = "benchmark")]
-mod benchmarks;
+// #[cfg(feature = "benchmark")]
+// mod benchmarks;
+pub(crate) mod event_bus;
+mod execution_state;
 mod state_ext;
 pub(crate) mod storage;
-#[cfg(test)]
-pub(crate) mod test_utils;
 #[cfg(test)]
 mod tests_app;
 #[cfg(test)]
 mod tests_block_ordering;
 #[cfg(test)]
 mod tests_breaking_changes;
-#[cfg(test)]
-mod tests_execute_transaction;
+
+pub(crate) mod vote_extension;
 
 use std::{
-    collections::VecDeque,
+    collections::HashSet,
     sync::Arc,
+    time::Instant,
 };
 
 use astria_core::{
-    generated::protocol::transaction::v1 as raw,
+    primitive::v1::{
+        RollupId,
+        TransactionId,
+    },
     protocol::{
         abci::AbciErrorCode,
         genesis::v1::GenesisAppState,
-        transaction::v1::{
-            action::{
-                group::Group,
-                ValidatorUpdate,
-            },
-            Action,
-            Transaction,
+        price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
+        transaction::v1::action::{
+            group::Group,
+            ValidatorUpdate,
         },
     },
-    sequencerblock::v1::block::SequencerBlock,
-    Protobuf as _,
+    sequencerblock::v1::{
+        block::{
+            self,
+            ExpandedBlockData,
+            SequencerBlockBuilder,
+        },
+        DataItem,
+        SequencerBlock,
+    },
+    upgrades::v1::ChangeHash,
 };
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
         bail,
         ensure,
-        eyre,
-        OptionExt as _,
+        Report,
         Result,
         WrapErr as _,
     },
 };
+use bytes::Bytes;
 use cnidarium::{
     ArcStateDeltaExt,
     Snapshot,
@@ -57,12 +64,12 @@ use cnidarium::{
     StateWrite,
     Storage,
 };
+use futures::future::try_join_all;
 use prost::Message as _;
-use sha2::{
-    Digest as _,
-    Sha256,
+use telemetry::display::{
+    base64,
+    json,
 };
-use telemetry::display::json;
 use tendermint::{
     abci::{
         self,
@@ -74,11 +81,15 @@ use tendermint::{
     block::Header,
     AppHash,
     Hash,
+    Time,
 };
 use tracing::{
     debug,
     info,
     instrument,
+    trace,
+    warn,
+    Level,
 };
 
 pub(crate) use self::state_ext::{
@@ -90,11 +101,18 @@ use crate::{
         component::AccountsComponent,
         StateWriteExt as _,
     },
-    action_handler::{
-        impls::transaction::InvalidNonce,
-        ActionHandler as _,
-    },
     address::StateWriteExt as _,
+    app::{
+        event_bus::{
+            EventBus,
+            EventBusSubscription,
+        },
+        execution_state::{
+            ExecutionState,
+            ExecutionStateMachine,
+        },
+        vote_extension::ProposalHandler,
+    },
     assets::StateWriteExt as _,
     authority::{
         component::{
@@ -107,6 +125,11 @@ use crate::{
     bridge::{
         StateReadExt as _,
         StateWriteExt as _,
+    },
+    checked_actions::CheckedAction,
+    checked_transaction::{
+        CheckedTransaction,
+        CheckedTransactionExecutionError,
     },
     component::Component as _,
     fees::{
@@ -122,11 +145,9 @@ use crate::{
     metrics::Metrics,
     proposal::{
         block_size_constraints::BlockSizeConstraints,
-        commitment::{
-            generate_rollup_datas_commitment,
-            GeneratedCommitments,
-        },
+        commitment::generate_rollup_datas_commitment,
     },
+    upgrades::UpgradesHandler,
 };
 
 // ephemeral store key for the cache of results of executing of transactions in `prepare_proposal`.
@@ -137,42 +158,12 @@ const EXECUTION_RESULTS_KEY: &str = "execution_results";
 // cleared at the end of the block.
 const POST_TRANSACTION_EXECUTION_RESULT_KEY: &str = "post_transaction_execution_result";
 
+// the height to set the `vote_extensions_enable_height` to in state if vote extensions are
+// disabled.
+const VOTE_EXTENSIONS_DISABLED_HEIGHT: u64 = 0;
+
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
-
-/// This is used to identify a proposal constructed by the app instance
-/// in `prepare_proposal` during a `process_proposal` call.
-///
-/// The fields are not exhaustive, in most instances just the validator address
-/// is adequate. When running a third party signer such as horcrux however it is
-/// possible that multiple nodes are preparing proposals as the same validator
-/// address, in these instances the timestamp is used as a unique identifier for
-/// the proposal from that node. This is not a perfect solution, but it only
-/// impacts sentry nodes does not halt the network and is cheaper computationally
-/// than an exhaustive comparison.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub(crate) struct ProposalFingerprint {
-    validator_address: account::Id,
-    timestamp: tendermint::Time,
-}
-
-impl From<abci::request::PrepareProposal> for ProposalFingerprint {
-    fn from(proposal: abci::request::PrepareProposal) -> Self {
-        Self {
-            validator_address: proposal.proposer_address,
-            timestamp: proposal.time,
-        }
-    }
-}
-
-impl From<abci::request::ProcessProposal> for ProposalFingerprint {
-    fn from(proposal: abci::request::ProcessProposal) -> Self {
-        Self {
-            validator_address: proposal.proposer_address,
-            timestamp: proposal.time,
-        }
-    }
-}
 
 /// The Sequencer application, written as a bundle of [`Component`]s.
 ///
@@ -190,38 +181,22 @@ pub(crate) struct App {
     // Transactions are pulled from this mempool during `prepare_proposal`.
     mempool: Mempool,
 
-    // TODO(https://github.com/astriaorg/astria/issues/1660): The executed_proposal_fingerprint and
-    // executed_proposal_hash fields should be stored in the ephemeral storage instead of on the
-    // app struct, to avoid any issues with forgetting to reset them.
+    // TODO(https://github.com/astriaorg/astria/issues/1660): use the ephemeral
+    // storage to track this instead of a field on the app object.
 
-    // An identifier for a given proposal constructed by this app.
+    // An identifier for the given app's status through execution of different ABCI
+    // calls.
     //
-    // Used to avoid executing a block in both `prepare_proposal` and `process_proposal`. It
-    // is set in `prepare_proposal` from information sent in from cometbft and can potentially
-    // change round-to-round. In `process_proposal` we check if we prepared the proposal, and
-    // if so, we clear the value, and we skip re-execution of the block's transactions to avoid
-    // failures caused by re-execution.
-    executed_proposal_fingerprint: Option<ProposalFingerprint>,
-
-    // This is set to the executed hash of the proposal during `process_proposal`
-    //
-    // If it does not match the hash given during `begin_block`, then we clear and
-    // reset the execution results cache + state delta. Transactions are re-executed.
-    // If it does match, we utilize cached results to reduce computation.
-    //
-    // Resets to default hash at the beginning of `prepare_proposal`, and `process_proposal` if
-    // `prepare_proposal` was not called.
-    executed_proposal_hash: Hash,
+    // Used to avoid double execution of transactions across ABCI calls, as well as
+    // to indicate when we must clear and re-execute (ie if round has changed).
+    execution_state: ExecutionStateMachine,
 
     // This is set when a `FeeChange` or `FeeAssetChange` action is seen in a block to flag
     // to the mempool to recost all transactions.
     recost_mempool: bool,
 
-    // the current `StagedWriteBatch` which contains the rocksdb write batch
-    // of the current block being executed, created from the state delta,
-    // and set after `finalize_block`.
     // this is committed to the state when `commit` is called, and set to `None`.
-    write_batch: Option<StagedWriteBatch>,
+    write_batch: Option<WriteBatch>,
 
     // the currently committed `AppHash` of the application state.
     // set whenever `commit` is called.
@@ -231,13 +206,34 @@ pub(crate) struct App {
     )]
     app_hash: AppHash,
 
+    // the sequencer event bus, used to send and receive events between components within the app
+    event_bus: EventBus,
+
+    upgrades_handler: UpgradesHandler,
+
+    // used to create and verify vote extensions, if this is a validator node.
+    vote_extension_handler: vote_extension::Handler,
+
     metrics: &'static Metrics,
 }
 
+/// A wrapper around [`StagedWriteBatch`] which includes other information necessary for commitment.
+struct WriteBatch {
+    /// The current `StagedWriteBatch` which contains the rocksdb write batch
+    /// of the current block being executed, created from the state delta,
+    /// and set after `finalize_block`.
+    write_batch: StagedWriteBatch,
+    /// The IDs of all transactions executed in the block for which this write batch is made.
+    executed_tx_ids: HashSet<TransactionId>,
+}
+
 impl App {
+    #[instrument(name = "App::new", skip_all, err)]
     pub(crate) async fn new(
         snapshot: Snapshot,
         mempool: Mempool,
+        upgrades_handler: UpgradesHandler,
+        vote_extension_handler: vote_extension::Handler,
         metrics: &'static Metrics,
     ) -> Result<Self> {
         debug!("initializing App instance");
@@ -256,19 +252,27 @@ impl App {
         // there should be no unexpected copies elsewhere.
         let state = Arc::new(StateDelta::new(snapshot));
 
+        let event_bus = EventBus::new();
+
         Ok(Self {
             state,
             mempool,
-            executed_proposal_fingerprint: None,
-            executed_proposal_hash: Hash::default(),
+            execution_state: ExecutionStateMachine::new(),
             recost_mempool: false,
             write_batch: None,
             app_hash,
+            event_bus,
+            upgrades_handler,
+            vote_extension_handler,
             metrics,
         })
     }
 
-    #[instrument(name = "App:init_chain", skip_all)]
+    pub(crate) fn subscribe_to_events(&self) -> EventBusSubscription {
+        self.event_bus.subscribe()
+    }
+
+    #[instrument(name = "App:init_chain", skip_all, err)]
     pub(crate) async fn init_chain(
         &mut self,
         storage: Storage,
@@ -327,7 +331,7 @@ impl App {
         state_tx.apply();
 
         let app_hash = self
-            .prepare_commit(storage)
+            .prepare_commit(storage, HashSet::new())
             .await
             .wrap_err("failed to prepare commit")?;
         debug!(app_hash = %telemetry::display::base64(&app_hash), "init_chain completed");
@@ -343,8 +347,7 @@ impl App {
         // this also clears the ephemeral storage.
         self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
 
-        // clear the cached executed proposal hash
-        self.executed_proposal_hash = Hash::default();
+        self.execution_state = ExecutionStateMachine::new();
     }
 
     /// Generates a commitment to the `sequence::Actions` in the block's transactions.
@@ -355,21 +358,16 @@ impl App {
     /// It puts this special "commitment" as the first transaction in a block.
     /// When other validators receive the block, they know the first transaction is
     /// supposed to be the commitment, and verifies that is it correct.
-    #[instrument(name = "App::prepare_proposal", skip_all)]
+    #[instrument(name = "App::prepare_proposal", skip_all, err(level = Level::WARN))]
     pub(crate) async fn prepare_proposal(
         &mut self,
         prepare_proposal: abci::request::PrepareProposal,
         storage: Storage,
     ) -> Result<abci::response::PrepareProposal> {
-        self.executed_proposal_fingerprint = Some(prepare_proposal.clone().into());
+        // Always reset when preparing a proposal.
         self.update_state_for_new_round(&storage);
 
-        let mut block_size_constraints = BlockSizeConstraints::new(
-            usize::try_from(prepare_proposal.max_tx_bytes)
-                .wrap_err("failed to convert max_tx_bytes to usize")?,
-        )
-        .wrap_err("failed to create block size constraints")?;
-
+        let request = prepare_proposal.clone();
         let block_data = BlockData {
             misbehavior: prepare_proposal.misbehavior,
             height: prepare_proposal.height,
@@ -378,170 +376,323 @@ impl App {
             proposer_address: prepare_proposal.proposer_address,
         };
 
-        self.pre_execute_transactions(block_data)
+        let upgrade_change_hashes = self
+            .pre_execute_transactions(block_data)
             .await
             .wrap_err("failed to prepare for executing block")?;
+        let encoded_upgrade_change_hashes = if upgrade_change_hashes.is_empty() {
+            None
+        } else {
+            Some(DataItem::UpgradeChangeHashes(upgrade_change_hashes).encode())
+        };
+
+        let uses_data_item_enum = self.uses_data_item_enum(prepare_proposal.height);
+        let mut block_size_constraints =
+            BlockSizeConstraints::new(prepare_proposal.max_tx_bytes, uses_data_item_enum)
+                .wrap_err("failed to create block size constraints")?;
+        if let Some(bytes) = &encoded_upgrade_change_hashes {
+            block_size_constraints
+                .cometbft_checked_add(bytes.len())
+                .wrap_err("exceeded size limit while adding upgrade change hashes")?;
+        }
+
+        let vote_extensions_enabled = self
+            .vote_extensions_enabled(prepare_proposal.height)
+            .await?;
+        let encoded_extended_commit_info = if vote_extensions_enabled {
+            // create the extended commit info from the local last commit
+            let Some(last_commit) = prepare_proposal.local_last_commit else {
+                bail!("local last commit is empty; this should not occur")
+            };
+
+            // if this fails, we shouldn't return an error, but instead leave
+            // the vote extensions empty in this block for liveness.
+            // it's not a critical error if the oracle values are not updated for a block.
+            //
+            // note that at the height where vote extensions are enabled, the `extended_commit_info`
+            // will always be empty, as there were no vote extensions for the previous block.
+            let round = last_commit.round;
+            let extended_commit_info = ProposalHandler::prepare_proposal(
+                &self.state,
+                prepare_proposal.height.into(),
+                last_commit,
+            )
+            .await
+            .unwrap_or_else(|error| {
+                warn!(
+                    error = AsRef::<dyn std::error::Error>::as_ref(&error),
+                    "failed to generate extended commit info"
+                );
+                ExtendedCommitInfoWithCurrencyPairMapping::empty(round)
+            });
+
+            let mut encoded_extended_commit_info = DataItem::ExtendedCommitInfo(
+                extended_commit_info.into_raw().encode_to_vec().into(),
+            )
+            .encode();
+
+            if block_size_constraints
+                .cometbft_checked_add(encoded_extended_commit_info.len())
+                .is_err()
+            {
+                // We would exceed the CometBFT size limit - try just adding an empty extended
+                // commit info rather than erroring out to ensure liveness.
+                warn!(
+                    encoded_extended_commit_info_len = encoded_extended_commit_info.len(),
+                    "extended commit info is too large to fit in block; not including in block"
+                );
+                encoded_extended_commit_info = DataItem::ExtendedCommitInfo(Bytes::new()).encode();
+                block_size_constraints
+                    .cometbft_checked_add(encoded_extended_commit_info.len())
+                    .wrap_err("exceeded size limit while adding empty extended commit info")?;
+            }
+
+            Some(encoded_extended_commit_info)
+        } else {
+            None
+        };
 
         // ignore the txs passed by cometbft in favour of our app-side mempool
-        let (included_tx_bytes, signed_txs_included) = self
-            .execute_transactions_prepare_proposal(&mut block_size_constraints)
+        let included_txs = self
+            .prepare_proposal_tx_execution(block_size_constraints)
             .await
             .wrap_err("failed to execute transactions")?;
         self.metrics
-            .record_proposal_transactions(signed_txs_included.len());
+            .record_proposal_transactions(included_txs.len());
 
         let deposits = self.state.get_cached_block_deposits();
         self.metrics.record_proposal_deposits(deposits.len());
 
         // generate commitment to sequence::Actions and deposits and commitment to the rollup IDs
-        // included in the block
-        let res = generate_rollup_datas_commitment(&signed_txs_included, deposits);
-        let txs = res.into_transactions(included_tx_bytes);
-        Ok(abci::response::PrepareProposal {
+        // included in the block, chain on the extended commit info if `Some`, and finally chain on
+        // the tx bytes.
+        let commitments_iter = if uses_data_item_enum {
+            generate_rollup_datas_commitment::<true>(&included_txs, deposits).into_iter()
+        } else {
+            generate_rollup_datas_commitment::<false>(&included_txs, deposits).into_iter()
+        };
+
+        let included_txs_encoded_bytes = included_txs
+            .iter()
+            .map(|checked_tx| checked_tx.encoded_bytes().clone());
+        let txs = commitments_iter
+            .chain(encoded_upgrade_change_hashes.into_iter())
+            .chain(encoded_extended_commit_info.into_iter())
+            .chain(included_txs_encoded_bytes)
+            .collect();
+
+        let response = abci::response::PrepareProposal {
             txs,
-        })
+        };
+
+        // Generate the prepared proposal fingerprint.
+        self.execution_state
+            .set_prepared_proposal(request, response.clone())
+            .wrap_err("failed to set executed proposal fingerprint, this should not happen")?;
+        Ok(response)
     }
 
     /// Generates a commitment to the `sequence::Actions` in the block's transactions
     /// and ensures it matches the commitment created by the proposer, which
     /// should be the first transaction in the block.
-    #[instrument(name = "App::process_proposal", skip_all)]
+    #[instrument(
+        name = "App::process_proposal",
+        skip_all,
+        fields(proposer=%base64(&process_proposal.proposer_address.as_bytes())),
+        err(level = Level::WARN)
+    )]
     pub(crate) async fn process_proposal(
         &mut self,
         process_proposal: abci::request::ProcessProposal,
         storage: Storage,
     ) -> Result<()> {
-        // if we proposed this block (ie. prepare_proposal was called directly before this), then
-        // we skip execution for this `process_proposal` call.
-        //
-        // if we didn't propose this block, `self.validator_address` will be None or a different
-        // value, so we will execute  block as normal.
-        if let Some(constructed_id) = self.executed_proposal_fingerprint {
-            let proposal_id = process_proposal.clone().into();
-            if constructed_id == proposal_id {
-                debug!("skipping process_proposal as we are the proposer for this block");
-                self.executed_proposal_fingerprint = None;
-                self.executed_proposal_hash = process_proposal.hash;
+        // Check the proposal against the prepared proposal fingerprint.
+        let skip_execution = self
+            .execution_state
+            .check_if_prepared_proposal(process_proposal.clone());
 
-                // if we're the proposer, we should have the execution results from
-                // `prepare_proposal`. run the post-tx-execution hook to generate the
-                // `SequencerBlock` and to set `self.finalize_block`.
-                //
-                // we can't run this in `prepare_proposal` as we don't know the block hash there.
-                let Some(tx_results) = self.state.object_get(EXECUTION_RESULTS_KEY) else {
-                    bail!("execution results must be present after executing transactions")
-                };
-
-                self.post_execute_transactions(
-                    process_proposal.hash,
-                    process_proposal.height,
-                    process_proposal.time,
-                    process_proposal.proposer_address,
-                    process_proposal.txs,
-                    tx_results,
-                )
-                .await
-                .wrap_err("failed to run post execute transactions handler")?;
-
-                return Ok(());
+        // Based on the status after the check, a couple of logs and metrics may
+        // be updated or emitted.
+        match self.execution_state.data() {
+            // The proposal was prepared by this node, so we skip execution.
+            ExecutionState::PreparedValid(_) => {
+                trace!("skipping process_proposal as we are the proposer for this block");
             }
-            self.metrics.increment_process_proposal_skipped_proposal();
-            debug!(
-                "our validator address was set but we're not the proposer, so our previous \
-                 proposal was skipped, executing block"
-            );
-            self.executed_proposal_fingerprint = None;
+            ExecutionState::Prepared(_) => {
+                bail!("prepared proposal fingerprint was not validated, this should not happen")
+            }
+            // We have a cached proposal from prepare proposal, but it does not match
+            // the current proposal. We should clear the cache and execute proposal.
+            //
+            // This can happen in HA nodes, but if happening in single nodes likely a bug.
+            ExecutionState::CheckedPreparedMismatch(_) => {
+                self.metrics.increment_process_proposal_skipped_proposal();
+                trace!(
+                    "there was a previously prepared proposal cached, but did not match current \
+                     proposal, will clear and execute block"
+                );
+            }
+            // There was a previously executed full block cached, likely indicates
+            // a new round of voting has started. Previous proposal may have failed.
+            ExecutionState::ExecutedBlock {
+                cached_block_hash: _,
+                cached_proposal,
+            }
+            | ExecutionState::CheckedExecutedBlockMismatch {
+                cached_block_hash: _,
+                cached_proposal,
+            } => {
+                if cached_proposal.is_none() {
+                    trace!(
+                        "there was a previously executed block cached, but no proposal hash, will \
+                         clear and execute"
+                    );
+                } else {
+                    trace!(
+                        "our prepared proposal cache executed fully, but was not committed, will \
+                         clear and execute"
+                    );
+                }
+            }
+            // No cached proposal, nothing to do for logging. Common case for validator voting.
+            ExecutionState::Unset => {}
         }
 
-        self.update_state_for_new_round(&storage);
+        let uses_data_item_enum = self.uses_data_item_enum(process_proposal.height);
+        let expanded_block_data = if uses_data_item_enum {
+            let with_extended_commit_info = self
+                .vote_extensions_enabled(process_proposal.height)
+                .await?;
+            ExpandedBlockData::new_from_typed_data(&process_proposal.txs, with_extended_commit_info)
+        } else {
+            ExpandedBlockData::new_from_untyped_data(&process_proposal.txs)
+        }
+        .wrap_err("failed to parse data items")?;
 
-        let mut txs = VecDeque::from(process_proposal.txs.clone());
-        let received_rollup_datas_root: [u8; 32] = txs
-            .pop_front()
-            .ok_or_eyre("no transaction commitment in proposal")?
-            .to_vec()
-            .try_into()
-            .map_err(|_| eyre!("transaction commitment must be 32 bytes"))?;
+        // If we can skip execution just fetch the cache, otherwise need to run the execution.
+        let (rollup_data_bytes, tx_results, tx_ids) = if skip_execution {
+            // if we're the proposer, we should have the execution results from
+            // `prepare_proposal`. run the post-tx-execution hook to generate the
+            // `SequencerBlock` and to set `self.finalize_block`.
+            //
+            // we can't run this in `prepare_proposal` as we don't know the block hash there.
+            let Some((rollup_data_bytes, tx_results, tx_ids)) =
+                self.state.object_get(EXECUTION_RESULTS_KEY)
+            else {
+                bail!("execution results must be present after executing transactions")
+            };
 
-        let received_rollup_ids_root: [u8; 32] = txs
-            .pop_front()
-            .ok_or_eyre("no chain IDs commitment in proposal")?
-            .to_vec()
-            .try_into()
-            .map_err(|_| eyre!("chain IDs commitment must be 32 bytes"))?;
+            (rollup_data_bytes, tx_results, tx_ids)
+        } else {
+            self.update_state_for_new_round(&storage);
 
-        let expected_txs_len = txs.len();
+            if let Some(extended_commit_info_with_proof) =
+                &expanded_block_data.extended_commit_info_with_proof
+            {
+                let Some(last_commit) = process_proposal.proposed_last_commit else {
+                    bail!("proposed last commit is empty; this should not occur")
+                };
 
-        let block_data = BlockData {
-            misbehavior: process_proposal.misbehavior,
-            height: process_proposal.height,
-            time: process_proposal.time,
-            next_validators_hash: process_proposal.next_validators_hash,
-            proposer_address: process_proposal.proposer_address,
+                // validate the extended commit info
+                ProposalHandler::validate_proposal(
+                    &self.state,
+                    process_proposal.height.value(),
+                    &last_commit,
+                    extended_commit_info_with_proof.extended_commit_info(),
+                )
+                .await
+                .wrap_err("failed to validate extended commit info")?;
+            }
+
+            let block_data = BlockData {
+                misbehavior: process_proposal.misbehavior,
+                height: process_proposal.height,
+                time: process_proposal.time,
+                next_validators_hash: process_proposal.next_validators_hash,
+                proposer_address: process_proposal.proposer_address,
+            };
+
+            let upgrade_change_hashes = self
+                .pre_execute_transactions(block_data)
+                .await
+                .wrap_err("failed to prepare for executing block")?;
+            ensure_upgrade_change_hashes_as_expected(
+                &expanded_block_data,
+                upgrade_change_hashes.as_ref(),
+            )?;
+
+            // we don't care about the cometbft max_tx_bytes here, as cometbft would have
+            // rejected the proposal if it was too large.
+            // however, we should still validate the other constraints, namely
+            // the max sequenced data bytes.
+            let block_size_constraints = BlockSizeConstraints::new_unlimited_cometbft();
+
+            let user_submitted_transactions = construct_checked_txs(
+                &expanded_block_data.user_submitted_transactions,
+                &self.state,
+            )
+            .await
+            .wrap_err("failed to construct checked transactions in process proposal")?;
+            let (tx_results, tx_ids) = self
+                .process_proposal_tx_execution(&user_submitted_transactions, block_size_constraints)
+                .await
+                .wrap_err("failed to execute transactions in process proposal")?;
+
+            self.metrics
+                .record_proposal_transactions(user_submitted_transactions.len());
+
+            let deposits = self.state.get_cached_block_deposits();
+            self.metrics.record_proposal_deposits(deposits.len());
+
+            let (expected_rollup_datas_root, expected_rollup_ids_root) = if uses_data_item_enum {
+                let commitments = generate_rollup_datas_commitment::<true>(
+                    &user_submitted_transactions,
+                    deposits,
+                );
+                (commitments.rollup_datas_root, commitments.rollup_ids_root)
+            } else {
+                let commitments = generate_rollup_datas_commitment::<false>(
+                    &user_submitted_transactions,
+                    deposits,
+                );
+                (commitments.rollup_datas_root, commitments.rollup_ids_root)
+            };
+            ensure!(
+                expanded_block_data.rollup_transactions_root == expected_rollup_datas_root,
+                "rollup transactions commitment does not match expected",
+            );
+            ensure!(
+                expanded_block_data.rollup_ids_root == expected_rollup_ids_root,
+                "rollup IDs commitment does not match expected",
+            );
+
+            let rollup_data_bytes = user_submitted_transactions
+                .iter()
+                .flat_map(|checked_tx| {
+                    checked_tx
+                        .rollup_data_bytes()
+                        .map(|(rollup_id, data)| (*rollup_id, data.clone()))
+                })
+                .collect();
+            (rollup_data_bytes, tx_results, tx_ids)
         };
 
-        self.pre_execute_transactions(block_data)
+        let sequencer_block = self
+            .post_execute_transactions(
+                process_proposal.hash,
+                process_proposal.height,
+                process_proposal.time,
+                process_proposal.proposer_address,
+                expanded_block_data,
+                rollup_data_bytes,
+                tx_results,
+                tx_ids,
+            )
             .await
-            .wrap_err("failed to prepare for executing block")?;
+            .wrap_err("failed to run post execute transactions handler")?;
 
-        // we don't care about the cometbft max_tx_bytes here, as cometbft would have
-        // rejected the proposal if it was too large.
-        // however, we should still validate the other constraints, namely
-        // the max sequenced data bytes.
-        let mut block_size_constraints = BlockSizeConstraints::new_unlimited_cometbft();
-
-        // deserialize txs into `Transaction`s;
-        // this does not error if any txs fail to be deserialized, but the `execution_results.len()`
-        // check below ensures that all txs in the proposal are deserializable (and
-        // executable).
-        let signed_txs = txs
-            .into_iter()
-            .filter_map(|bytes| signed_transaction_from_bytes(bytes.as_ref()).ok())
-            .collect::<Vec<_>>();
-
-        let tx_results = self
-            .execute_transactions_process_proposal(signed_txs.clone(), &mut block_size_constraints)
-            .await
-            .wrap_err("failed to execute transactions")?;
-
-        // all txs in the proposal should be deserializable and executable
-        // if any txs were not deserializeable or executable, they would not have been
-        // added to the `tx_results` list, thus the length of `txs_to_include`
-        // will be shorter than that of `tx_results`.
-        ensure!(
-            tx_results.len() == expected_txs_len,
-            "transactions to be included do not match expected",
-        );
-        self.metrics.record_proposal_transactions(signed_txs.len());
-
-        let deposits = self.state.get_cached_block_deposits();
-        self.metrics.record_proposal_deposits(deposits.len());
-
-        let GeneratedCommitments {
-            rollup_datas_root: expected_rollup_datas_root,
-            rollup_ids_root: expected_rollup_ids_root,
-        } = generate_rollup_datas_commitment(&signed_txs, deposits);
-        ensure!(
-            received_rollup_datas_root == expected_rollup_datas_root,
-            "transaction commitment does not match expected",
-        );
-
-        ensure!(
-            received_rollup_ids_root == expected_rollup_ids_root,
-            "chain IDs commitment does not match expected",
-        );
-
-        self.executed_proposal_hash = process_proposal.hash;
-        self.post_execute_transactions(
-            process_proposal.hash,
-            process_proposal.height,
-            process_proposal.time,
-            process_proposal.proposer_address,
-            process_proposal.txs,
-            tx_results,
-        )
-        .await
-        .wrap_err("failed to run post execute transactions handler")?;
+        self.event_bus
+            .send_process_proposal_block(Arc::new(sequencer_block));
 
         Ok(())
     }
@@ -565,156 +716,68 @@ impl App {
     ///
     /// As a result, all transactions in a sequencer block are guaranteed to execute
     /// successfully.
-    #[instrument(name = "App::execute_transactions_prepare_proposal", skip_all)]
-    async fn execute_transactions_prepare_proposal(
+    #[instrument(name = "App::prepare_proposal_tx_execution", skip_all, err(level = Level::DEBUG))]
+    async fn prepare_proposal_tx_execution(
         &mut self,
-        block_size_constraints: &mut BlockSizeConstraints,
-    ) -> Result<(Vec<bytes::Bytes>, Vec<Transaction>)> {
+        block_size_constraints: BlockSizeConstraints,
+    ) -> Result<Vec<Arc<CheckedTransaction>>> {
         let mempool_len = self.mempool.len().await;
         debug!(mempool_len, "executing transactions from mempool");
 
-        let mut validated_txs: Vec<bytes::Bytes> = Vec::new();
-        let mut included_signed_txs = Vec::new();
-        let mut failed_tx_count: usize = 0;
-        let mut execution_results = Vec::new();
-        let mut excluded_txs: usize = 0;
-        let mut current_tx_group = Group::BundleableGeneral;
+        let mut proposal_info = Proposal::Prepare {
+            block_size_constraints,
+            included_txs: Vec::new(),
+            failed_tx_count: 0,
+            execution_results: Vec::new(),
+            executed_tx_ids: HashSet::new(),
+            excluded_tx_count: 0,
+            current_tx_group: Group::BundleableGeneral,
+            mempool: self.mempool.clone(),
+            metrics: self.metrics,
+        };
 
         // get copy of transactions to execute from mempool
-        let pending_txs = self
-            .mempool
-            .builder_queue(&self.state)
-            .await
-            .expect("failed to fetch pending transactions");
+        let pending_txs = self.mempool.builder_queue().await;
 
         let mut unused_count = pending_txs.len();
-        for (tx_hash, tx) in pending_txs {
+        let mut rollup_data_bytes = vec![];
+        for tx in pending_txs {
             unused_count = unused_count.saturating_sub(1);
-            let tx_hash_base64 = telemetry::display::base64(&tx_hash).to_string();
-            let bytes = tx.to_raw().encode_to_vec();
-            let tx_len = bytes.len();
-            info!(transaction_hash = %tx_hash_base64, "executing transaction");
+            rollup_data_bytes.extend(
+                tx.rollup_data_bytes()
+                    .map(|(rollup_id, data)| (*rollup_id, data.clone())),
+            );
 
-            // don't include tx if it would make the cometBFT block too large
-            if !block_size_constraints.cometbft_has_space(tx_len) {
-                self.metrics
-                    .increment_prepare_proposal_excluded_transactions_cometbft_space();
-                debug!(
-                    transaction_hash = %tx_hash_base64,
-                    block_size_constraints = %json(&block_size_constraints),
-                    tx_data_bytes = tx_len,
-                    "excluding remaining transactions: max cometBFT data limit reached"
-                );
-                excluded_txs = excluded_txs.saturating_add(1);
-
-                // break from loop, as the block is full
+            if self
+                .proposal_checks_and_tx_execution(tx, &mut proposal_info)
+                .await?
+                .should_break()
+            {
                 break;
             }
-
-            // check if tx's sequence data will fit into sequence block
-            let tx_sequence_data_bytes = tx
-                .unsigned_transaction()
-                .actions()
-                .iter()
-                .filter_map(Action::as_rollup_data_submission)
-                .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
-
-            if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
-                self.metrics
-                    .increment_prepare_proposal_excluded_transactions_sequencer_space();
-                debug!(
-                    transaction_hash = %tx_hash_base64,
-                    block_size_constraints = %json(&block_size_constraints),
-                    tx_data_bytes = tx_sequence_data_bytes,
-                    "excluding transaction: max block sequenced data limit reached"
-                );
-                excluded_txs = excluded_txs.saturating_add(1);
-
-                // continue as there might be non-sequence txs that can fit
-                continue;
-            }
-
-            // ensure transaction's group is less than or equal to current action group
-            let tx_group = tx.group();
-            if tx_group > current_tx_group {
-                debug!(
-                    transaction_hash = %tx_hash_base64,
-                    block_size_constraints = %json(&block_size_constraints),
-                    "excluding transaction: group is higher priority than previously included transactions"
-                );
-                excluded_txs = excluded_txs.saturating_add(1);
-
-                // note: we don't remove the tx from mempool as it may be valid in the future
-                continue;
-            }
-
-            // execute tx and store in `execution_results` list on success
-            match self.execute_transaction(tx.clone()).await {
-                Ok(events) => {
-                    execution_results.push(ExecTxResult {
-                        events,
-                        ..Default::default()
-                    });
-                    block_size_constraints
-                        .sequencer_checked_add(tx_sequence_data_bytes)
-                        .wrap_err("error growing sequencer block size")?;
-                    block_size_constraints
-                        .cometbft_checked_add(tx_len)
-                        .wrap_err("error growing cometBFT block size")?;
-                    validated_txs.push(bytes.into());
-                    included_signed_txs.push((*tx).clone());
-                }
-                Err(e) => {
-                    self.metrics
-                        .increment_prepare_proposal_excluded_transactions_failed_execution();
-                    debug!(
-                        transaction_hash = %tx_hash_base64,
-                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                        "failed to execute transaction, not including in block"
-                    );
-
-                    if e.downcast_ref::<InvalidNonce>().is_some() {
-                        // we don't remove the tx from mempool if it failed to execute
-                        // due to an invalid nonce, as it may be valid in the future.
-                        // if it's invalid due to the nonce being too low, it'll be
-                        // removed from the mempool in `update_mempool_after_finalization`.
-                        //
-                        // this is important for possible out-of-order transaction
-                        // groups fed into prepare_proposal. a transaction with a higher
-                        // nonce might be in a higher priority group than a transaction
-                        // from the same account wiht a lower nonce. this higher nonce
-                        // could execute in the next block fine.
-                    } else {
-                        failed_tx_count = failed_tx_count.saturating_add(1);
-
-                        // remove the failing transaction from the mempool
-                        //
-                        // this will remove any transactions from the same sender
-                        // as well, as the dependent nonces will not be able
-                        // to execute
-                        self.mempool
-                            .remove_tx_invalid(
-                                tx,
-                                RemovalReason::FailedPrepareProposal(e.to_string()),
-                            )
-                            .await;
-                    }
-                }
-            }
-
-            // update current action group to tx's action group
-            current_tx_group = tx_group;
         }
+
+        let Proposal::Prepare {
+            included_txs,
+            failed_tx_count,
+            execution_results,
+            executed_tx_ids,
+            excluded_tx_count,
+            ..
+        } = proposal_info
+        else {
+            bail!("expected `Proposal::Prepare`, received `Proposal::Process`")
+        };
 
         if failed_tx_count > 0 {
             info!(
                 failed_tx_count = failed_tx_count,
-                included_tx_count = validated_txs.len(),
+                included_tx_count = included_txs.len(),
                 "excluded transactions from block due to execution failure"
             );
         }
         self.metrics.set_prepare_proposal_excluded_transactions(
-            excluded_txs.saturating_add(failed_tx_count),
+            excluded_tx_count.saturating_add(failed_tx_count),
         );
 
         debug!("{unused_count} leftover pending transactions");
@@ -727,10 +790,13 @@ impl App {
         // at this point.
         let mut state_tx = Arc::try_begin_transaction(&mut self.state)
             .expect("state Arc should not be referenced elsewhere");
-        state_tx.object_put(EXECUTION_RESULTS_KEY, execution_results);
+        state_tx.object_put(
+            EXECUTION_RESULTS_KEY,
+            (rollup_data_bytes, execution_results, executed_tx_ids),
+        );
         let _ = state_tx.apply();
 
-        Ok((validated_txs, included_signed_txs))
+        Ok(included_txs)
     }
 
     /// Executes the given transactions, writing to the app's `StateDelta`.
@@ -745,86 +811,226 @@ impl App {
     ///
     /// As a result, all transactions in a sequencer block are guaranteed to execute
     /// successfully.
-    #[instrument(name = "App::execute_transactions_process_proposal", skip_all)]
-    async fn execute_transactions_process_proposal(
+    #[instrument(name = "App::process_proposal_tx_execution", skip_all, err(level = Level::DEBUG))]
+    async fn process_proposal_tx_execution(
         &mut self,
-        txs: Vec<Transaction>,
-        block_size_constraints: &mut BlockSizeConstraints,
-    ) -> Result<Vec<ExecTxResult>> {
-        let mut execution_results = Vec::new();
-        let mut current_tx_group = Group::BundleableGeneral;
+        txs: &[Arc<CheckedTransaction>],
+        block_size_constraints: BlockSizeConstraints,
+    ) -> Result<(Vec<ExecTxResult>, HashSet<TransactionId>)> {
+        let mut proposal_info = Proposal::Process {
+            block_size_constraints,
+            execution_results: vec![],
+            current_tx_group: Group::BundleableGeneral,
+            executed_tx_ids: HashSet::new(),
+        };
 
         for tx in txs {
-            let bytes = tx.to_raw().encode_to_vec();
-            let tx_hash = Sha256::digest(&bytes);
-            let tx_len = bytes.len();
-
-            // check if tx's sequence data will fit into sequence block
-            let tx_sequence_data_bytes = tx
-                .unsigned_transaction()
-                .actions()
-                .iter()
-                .filter_map(Action::as_rollup_data_submission)
-                .fold(0usize, |acc, seq| acc.saturating_add(seq.data.len()));
-
-            if !block_size_constraints.sequencer_has_space(tx_sequence_data_bytes) {
-                debug!(
-                    transaction_hash = %telemetry::display::base64(&tx_hash),
-                    block_size_constraints = %json(&block_size_constraints),
-                    tx_data_bytes = tx_sequence_data_bytes,
-                    "transaction error: max block sequenced data limit passed"
-                );
-                bail!("max block sequenced data limit passed");
+            if self
+                .proposal_checks_and_tx_execution(tx.clone(), &mut proposal_info)
+                .await?
+                .should_break()
+            {
+                break;
             }
-
-            // ensure transaction's group is less than or equal to current action group
-            let tx_group = tx.group();
-            if tx_group > current_tx_group {
-                debug!(
-                    transaction_hash = %telemetry::display::base64(&tx_hash),
-                    "transaction error: block has incorrect transaction group ordering"
-                );
-                bail!("transactions have incorrect transaction group ordering");
-            }
-
-            // execute tx and store in `execution_results` list on success
-            match self.execute_transaction(Arc::new(tx.clone())).await {
-                Ok(events) => {
-                    execution_results.push(ExecTxResult {
-                        events,
-                        ..Default::default()
-                    });
-                    block_size_constraints
-                        .sequencer_checked_add(tx_sequence_data_bytes)
-                        .wrap_err("error growing sequencer block size")?;
-                    block_size_constraints
-                        .cometbft_checked_add(tx_len)
-                        .wrap_err("error growing cometBFT block size")?;
-                }
-                Err(e) => {
-                    debug!(
-                        transaction_hash = %telemetry::display::base64(&tx_hash),
-                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                        "transaction error: failed to execute transaction"
-                    );
-                    return Err(e.wrap_err("transaction failed to execute"));
-                }
-            }
-
-            // update current action group to tx's action group
-            current_tx_group = tx_group;
         }
-
-        Ok(execution_results)
+        Ok(proposal_info.execution_results_and_tx_ids())
     }
 
-    /// sets up the state for execution of the block's transactions.
-    /// set the current height and timestamp, and calls `begin_block` on all components.
+    #[instrument(skip_all)]
+    async fn proposal_checks_and_tx_execution(
+        &mut self,
+        tx: Arc<CheckedTransaction>,
+        proposal_info: &mut Proposal,
+    ) -> Result<BreakOrContinue> {
+        let tx_len = tx.encoded_bytes().len();
+        info!(tx_id = %tx.id(), "executing transaction");
+
+        // check CometBFT size constraints for `prepare_proposal`
+        if let Proposal::Prepare {
+            block_size_constraints,
+            metrics,
+            excluded_tx_count,
+            ..
+        } = proposal_info
+        {
+            if !block_size_constraints.cometbft_has_space(tx_len) {
+                metrics.increment_prepare_proposal_excluded_transactions_cometbft_space();
+                debug!(
+                    tx_id = %tx.id(),
+                    block_size_constraints = %json(block_size_constraints),
+                    tx_data_bytes = tx_len,
+                    "excluding remaining transactions: max cometBFT data limit reached"
+                );
+                *excluded_tx_count = excluded_tx_count.saturating_add(1);
+
+                // break from calling loop, as the block is full
+                return Ok(BreakOrContinue::Break);
+            }
+        }
+
+        let debug_msg = match proposal_info {
+            Proposal::Prepare {
+                ..
+            } => "excluding transaction",
+            Proposal::Process {
+                ..
+            } => "transaction error",
+        };
+
+        // check sequencer size constraints
+        let tx_sequence_data_length = tx
+            .rollup_data_bytes()
+            .map(|(_rollup_id, data)| data.len())
+            .sum();
+        if !proposal_info
+            .block_size_constraints()
+            .sequencer_has_space(tx_sequence_data_length)
+        {
+            debug!(
+                tx_id = %tx.id(),
+                block_size_constraints = %json(&proposal_info.block_size_constraints()),
+                tx_data_length = tx_sequence_data_length,
+                "{debug_msg}: max block sequenced data limit reached"
+            );
+            match proposal_info {
+                Proposal::Prepare {
+                    metrics,
+                    excluded_tx_count,
+                    ..
+                } => {
+                    metrics.increment_prepare_proposal_excluded_transactions_sequencer_space();
+                    *excluded_tx_count = excluded_tx_count.saturating_add(1);
+
+                    // continue as there might be non-sequence txs that can fit
+                    return Ok(BreakOrContinue::Continue);
+                }
+                Proposal::Process {
+                    ..
+                } => bail!("max block sequenced data limit passed"),
+            };
+        }
+
+        // ensure transaction's group is less than or equal to current action group
+        let tx_group = tx.group();
+        if tx_group > proposal_info.current_tx_group() {
+            debug!(
+                tx_id = %tx.id(),
+                "{debug_msg}: group is higher priority than previously included transactions"
+            );
+            match proposal_info {
+                Proposal::Prepare {
+                    excluded_tx_count, ..
+                } => {
+                    *excluded_tx_count = excluded_tx_count.saturating_add(1);
+                    return Ok(BreakOrContinue::Continue);
+                }
+                Proposal::Process {
+                    ..
+                } => {
+                    bail!("transactions have incorrect transaction group ordering");
+                }
+            };
+        }
+
+        let (execution_results, executed_tx_ids) = proposal_info.execution_results_and_tx_ids_mut();
+        match self.execute_transaction(tx.clone()).await {
+            Ok(events) => {
+                execution_results.push(ExecTxResult {
+                    events,
+                    ..Default::default()
+                });
+                executed_tx_ids.insert(*tx.id());
+                proposal_info
+                    .block_size_constraints_mut()
+                    .sequencer_checked_add(tx_sequence_data_length)
+                    .wrap_err("error growing sequencer block size")?;
+                proposal_info
+                    .block_size_constraints_mut()
+                    .cometbft_checked_add(tx_len)
+                    .wrap_err("error growing cometBFT block size")?;
+                if let Proposal::Prepare {
+                    included_txs, ..
+                } = proposal_info
+                {
+                    included_txs.push(tx.clone());
+                }
+            }
+            Err(error) => {
+                debug!(
+                    tx_id = %tx.id(),
+                    %error,
+                    "{debug_msg}: failed to execute transaction"
+                );
+                match proposal_info {
+                    Proposal::Prepare {
+                        metrics,
+                        failed_tx_count,
+                        mempool,
+                        ..
+                    } => {
+                        metrics.increment_prepare_proposal_excluded_transactions_failed_execution();
+                        if matches!(error, CheckedTransactionExecutionError::InvalidNonce { .. }) {
+                            // we don't remove the tx from mempool if it failed to execute
+                            // due to an invalid nonce, as it may be valid in the future.
+                            // if it's invalid due to the nonce being too low, it'll be
+                            // removed from the mempool in `update_mempool_after_finalization`.
+                            //
+                            // this is important for possible out-of-order transaction
+                            // groups fed into prepare_proposal. a transaction with a higher
+                            // nonce might be in a higher priority group than a transaction
+                            // from the same account wiht a lower nonce. this higher nonce
+                            // could execute in the next block fine.
+                        } else {
+                            *failed_tx_count = failed_tx_count.saturating_add(1);
+
+                            // remove the failing transaction from the mempool
+                            //
+                            // this will remove any transactions from the same sender
+                            // as well, as the dependent nonces will not be able
+                            // to execute
+                            mempool
+                                .remove_tx_invalid(
+                                    tx,
+                                    RemovalReason::FailedPrepareProposal(error.to_string()),
+                                )
+                                .await;
+                        }
+                    }
+                    Proposal::Process {
+                        ..
+                    } => return Err(error).wrap_err("transaction failed to execute"),
+                }
+            }
+        };
+        proposal_info.set_current_tx_group(tx_group);
+        Ok(BreakOrContinue::Continue)
+    }
+
+    /// Sets up the state for execution of the block's transactions.
     ///
-    /// this *must* be called anytime before a block's txs are executed, whether it's
+    /// Executes any upgrade with an activation height of this block height, sets the current
+    /// height and timestamp, and calls `begin_block` on all components.
+    ///
+    /// Returns the encoded upgrade change hashes if an upgrade was executed.
+    ///
+    /// This *must* be called any time before a block's txs are executed, whether it's
     /// during the proposal phase, or finalize_block phase.
-    #[instrument(name = "App::pre_execute_transactions", skip_all, err)]
-    async fn pre_execute_transactions(&mut self, block_data: BlockData) -> Result<()> {
+    #[instrument(name = "App::pre_execute_transactions", skip_all, err(level = Level::WARN))]
+    async fn pre_execute_transactions(&mut self, block_data: BlockData) -> Result<Vec<ChangeHash>> {
+        let mut delta_delta = StateDelta::new(self.state.clone());
+        let upgrade_change_hashes = self
+            .upgrades_handler
+            .execute_upgrade_if_due(&mut delta_delta, block_data.height)
+            .await
+            .wrap_err("failed to execute upgrade")?;
+        if upgrade_change_hashes.is_empty() {
+            // We need to drop this so there's only one reference to `self.state` left in order to
+            // apply changes made in `self.begin_block()` below.
+            drop(delta_delta);
+        } else {
+            let _ = self.apply(delta_delta);
+        }
+
         let chain_id = self
             .state
             .get_chain_id()
@@ -871,26 +1077,66 @@ impl App {
             .await
             .wrap_err("begin_block failed")?;
 
-        Ok(())
+        Ok(upgrade_change_hashes)
+    }
+
+    #[instrument(name = "App::extend_vote", skip_all)]
+    pub(crate) async fn extend_vote(
+        &mut self,
+        _extend_vote: abci::request::ExtendVote,
+    ) -> Result<abci::response::ExtendVote> {
+        let start = Instant::now();
+        let result = self.vote_extension_handler.extend_vote(&self.state).await;
+        if result.is_ok() {
+            self.metrics
+                .record_extend_vote_duration_seconds(start.elapsed());
+        } else {
+            self.metrics.increment_extend_vote_failure_count();
+        }
+        result
+    }
+
+    #[instrument(name = "App::extend_vote", skip_all)]
+    pub(crate) async fn verify_vote_extension(
+        &mut self,
+        vote_extension: abci::request::VerifyVoteExtension,
+    ) -> Result<abci::response::VerifyVoteExtension> {
+        let result = self
+            .vote_extension_handler
+            .verify_vote_extension(&self.state, vote_extension)
+            .await;
+        if result.is_err() {
+            self.metrics.increment_verify_vote_extension_failure_count();
+        }
+        result
     }
 
     /// updates the app state after transaction execution, and generates the resulting
     /// `SequencerBlock`.
     ///
     /// this must be called after a block's transactions are executed.
-    #[instrument(name = "App::post_execute_transactions", skip_all)]
+    /// FIXME: don't return sequencer block but grab the block from state delta https://github.com/astriaorg/astria/issues/1436
+    #[expect(clippy::too_many_arguments, reason = "should be refactored")]
+    #[instrument(name = "App::post_execute_transactions", skip_all, err(level = Level::WARN))]
     async fn post_execute_transactions(
         &mut self,
         block_hash: Hash,
         height: tendermint::block::Height,
         time: tendermint::Time,
         proposer_address: account::Id,
-        txs: Vec<bytes::Bytes>,
+        expanded_block_data: ExpandedBlockData,
+        rollup_data_bytes: Vec<(RollupId, Bytes)>,
         tx_results: Vec<ExecTxResult>,
-    ) -> Result<()> {
+        executed_tx_ids: HashSet<TransactionId>,
+    ) -> Result<SequencerBlock> {
         let Hash::Sha256(block_hash) = block_hash else {
             bail!("block hash is empty; this should not occur")
         };
+
+        // Update the proposal fingerprint to include the full executed block data.
+        self.execution_state
+            .set_executed_block(block_hash)
+            .wrap_err("failed to set executed proposal fingerprint, this should not happen")?;
 
         let chain_id = self
             .state
@@ -908,43 +1154,60 @@ impl App {
         // get deposits for this block from state's ephemeral cache and put them to storage.
         let mut state_tx = StateDelta::new(self.state.clone());
         let deposits_in_this_block = self.state.get_cached_block_deposits();
-        debug!(
-            deposits = %telemetry::display::json(&deposits_in_this_block),
-            "got block deposits from state"
-        );
+        debug!(deposits = %json(&deposits_in_this_block), "got block deposits from state");
 
         state_tx
             .put_deposits(&block_hash, deposits_in_this_block.clone())
             .wrap_err("failed to put deposits to state")?;
 
         // cometbft expects a result for every tx in the block, so we need to return a
-        // tx result for the commitments, even though they're not actually user txs.
+        // tx result for the commitments and other injected data items, even though they're not
+        // actually user txs.
         //
-        // the tx_results passed to this function only contain results for every user
-        // transaction, not the commitment, so its length is len(txs) - 2.
-        let mut finalize_block_tx_results: Vec<ExecTxResult> = Vec::with_capacity(txs.len());
-        finalize_block_tx_results.extend(std::iter::repeat(ExecTxResult::default()).take(2));
+        // the tx_results passed to this function only contain results for every user-submitted
+        // transaction, not the injected ones.
+        let injected_tx_count = expanded_block_data.injected_transaction_count();
+        let mut finalize_block_tx_results: Vec<ExecTxResult> =
+            Vec::with_capacity(expanded_block_data.user_submitted_transactions.len());
+        finalize_block_tx_results
+            .extend(std::iter::repeat(ExecTxResult::default()).take(injected_tx_count));
         finalize_block_tx_results.extend(tx_results);
 
-        let sequencer_block = SequencerBlock::try_from_block_info_and_data(
-            block_hash,
+        let sequencer_block = SequencerBlockBuilder {
+            block_hash: block::Hash::new(block_hash),
             chain_id,
             height,
             time,
             proposer_address,
-            txs,
-            deposits_in_this_block,
-        )
+            expanded_block_data,
+            rollup_data_bytes,
+            deposits: deposits_in_this_block,
+        }
+        .try_build()
         .wrap_err("failed to convert block info and data to SequencerBlock")?;
         state_tx
-            .put_sequencer_block(sequencer_block)
+            .put_sequencer_block(sequencer_block.clone())
             .wrap_err("failed to write sequencer block to state")?;
+
+        let consensus_param_updates = self
+            .upgrades_handler
+            .end_block(&mut state_tx, height)
+            .await
+            .wrap_err("upgrades handler failed to end block")?;
+
+        if let Some(consensus_params) = &consensus_param_updates {
+            info!(
+                consensus_params = %display_consensus_params(consensus_params),
+                "updated consensus params"
+            );
+        }
 
         let result = PostTransactionExecutionResult {
             events: end_block.events,
             validator_updates: end_block.validator_updates,
-            consensus_param_updates: end_block.consensus_param_updates,
             tx_results: finalize_block_tx_results,
+            consensus_param_updates,
+            executed_tx_ids,
         };
 
         state_tx.object_put(POST_TRANSACTION_EXECUTION_RESULT_KEY, result);
@@ -953,7 +1216,7 @@ impl App {
         // there should be none anyways.
         let _ = self.apply(state_tx);
 
-        Ok(())
+        Ok(sequencer_block)
     }
 
     /// Executes the given block, but does not write it to disk.
@@ -962,63 +1225,105 @@ impl App {
     ///
     /// This is called by cometbft after the block has already been
     /// committed by the network's consensus.
-    #[instrument(name = "App::finalize_block", skip_all)]
+    #[instrument(name = "App::finalize_block", skip_all, err)]
     pub(crate) async fn finalize_block(
         &mut self,
         finalize_block: abci::request::FinalizeBlock,
         storage: Storage,
     ) -> Result<abci::response::FinalizeBlock> {
-        // If we previously executed txs in a different proposal than is being processed,
-        // reset cached state changes.
-        if self.executed_proposal_hash != finalize_block.hash {
+        let Hash::Sha256(block_hash) = finalize_block.hash else {
+            bail!("block hash is empty; this should not occur")
+        };
+        // If there is not a matching cached executed proposal, we need to execute the block.
+        let skip_execution = self.execution_state.check_if_executed_block(block_hash);
+        if !skip_execution {
+            // clear out state before execution.
             self.update_state_for_new_round(&storage);
         }
 
-        ensure!(
-            finalize_block.txs.len() >= 2,
-            "block must contain at least two transactions: the rollup transactions commitment and
-             rollup IDs commitment"
-        );
+        let uses_data_item_enum = self.uses_data_item_enum(finalize_block.height);
+        let expanded_block_data = if uses_data_item_enum {
+            let with_extended_commit_info =
+                self.vote_extensions_enabled(finalize_block.height).await?;
+            ExpandedBlockData::new_from_typed_data(&finalize_block.txs, with_extended_commit_info)
+        } else {
+            ExpandedBlockData::new_from_untyped_data(&finalize_block.txs)
+        }
+        .wrap_err("failed to parse data items")?;
 
-        // When the hash is not empty, we have already executed and cached the results
-        if self.executed_proposal_hash.is_empty() {
-            // convert tendermint id to astria address; this assumes they are
-            // the same address, as they are both ed25519 keys
-            let proposer_address = finalize_block.proposer_address;
-            let height = finalize_block.height;
-            let time = finalize_block.time;
+        let mut all_events = if let Some(extended_commit_info_with_proof) =
+            &expanded_block_data.extended_commit_info_with_proof
+        {
+            let extended_commit_info = extended_commit_info_with_proof.extended_commit_info();
+            self.metrics.record_extended_commit_info_bytes(
+                extended_commit_info_with_proof
+                    .encoded_extended_commit_info()
+                    .len(),
+            );
+            let mut state_tx: StateDelta<Arc<StateDelta<Snapshot>>> =
+                StateDelta::new(self.state.clone());
+            vote_extension::apply_prices_from_vote_extensions(
+                &mut state_tx,
+                extended_commit_info,
+                finalize_block.time.into(),
+                finalize_block.height.value(),
+            )
+            .await
+            .wrap_err("failed to apply prices from vote extensions")?;
+            self.apply(state_tx)
+        } else {
+            vec![]
+        };
 
+        // FIXME: refactor to avoid cloning the finalize block
+        let finalize_block_arc = Arc::new(finalize_block.clone());
+
+        if !skip_execution {
             // we haven't executed anything yet, so set up the state for execution.
             let block_data = BlockData {
                 misbehavior: finalize_block.misbehavior,
-                height,
-                time,
+                height: finalize_block.height,
+                time: finalize_block.time,
                 next_validators_hash: finalize_block.next_validators_hash,
-                proposer_address,
+                proposer_address: finalize_block.proposer_address,
             };
 
-            self.pre_execute_transactions(block_data)
+            let upgrade_change_hashes = self
+                .pre_execute_transactions(block_data)
                 .await
                 .wrap_err("failed to execute block")?;
+            ensure_upgrade_change_hashes_as_expected(
+                &expanded_block_data,
+                upgrade_change_hashes.as_ref(),
+            )?;
 
-            let mut tx_results = Vec::with_capacity(finalize_block.txs.len());
-            // skip the first two transactions, as they are the rollup data commitments
-            for tx in finalize_block.txs.iter().skip(2) {
-                let signed_tx = signed_transaction_from_bytes(tx)
-                    .wrap_err("protocol error; only valid txs should be finalized")?;
-
-                match self.execute_transaction(Arc::new(signed_tx)).await {
-                    Ok(events) => tx_results.push(ExecTxResult {
-                        events,
-                        ..Default::default()
-                    }),
-                    Err(e) => {
+            let user_submitted_transactions = construct_checked_txs(
+                &expanded_block_data.user_submitted_transactions,
+                &self.state,
+            )
+            .await
+            .wrap_err("failed to execute transactions in finalize block")?;
+            let mut tx_results = Vec::with_capacity(user_submitted_transactions.len());
+            let mut executed_tx_ids = HashSet::new();
+            for tx in &user_submitted_transactions {
+                match self.execute_transaction(tx.clone()).await {
+                    Ok(events) => {
+                        tx_results.push(ExecTxResult {
+                            events,
+                            ..Default::default()
+                        });
+                        executed_tx_ids.insert(*tx.id());
+                    }
+                    Err(error) => {
                         // this is actually a protocol error, as only valid txs should be finalized
                         tracing::error!(
-                            error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                            %error,
                             "failed to finalize transaction; ignoring it",
                         );
-                        let code = if e.downcast_ref::<InvalidNonce>().is_some() {
+                        let code = if matches!(
+                            error,
+                            CheckedTransactionExecutionError::InvalidNonce { .. }
+                        ) {
                             AbciErrorCode::INVALID_NONCE
                         } else {
                             AbciErrorCode::INTERNAL_ERROR
@@ -1026,33 +1331,42 @@ impl App {
                         tx_results.push(ExecTxResult {
                             code: Code::Err(code.value()),
                             info: code.info(),
-                            log: format!("{e:#}"),
+                            log: format!("{:#}", Report::new(error)),
                             ..Default::default()
                         });
                     }
                 }
             }
+            let rollup_data_bytes = user_submitted_transactions
+                .iter()
+                .flat_map(|checked_tx| {
+                    checked_tx
+                        .rollup_data_bytes()
+                        .map(|(rollup_id, data)| (*rollup_id, data.clone()))
+                })
+                .collect();
 
             self.post_execute_transactions(
                 finalize_block.hash,
-                height,
-                time,
-                proposer_address,
-                finalize_block.txs,
+                finalize_block.height,
+                finalize_block.time,
+                finalize_block.proposer_address,
+                expanded_block_data,
+                rollup_data_bytes,
                 tx_results,
+                executed_tx_ids,
             )
             .await
             .wrap_err("failed to run post execute transactions handler")?;
         }
 
-        // update the priority of any txs in the mempool based on the updated app state
-        if self.recost_mempool {
-            self.metrics.increment_mempool_recosted();
-        }
-        update_mempool_after_finalization(&mut self.mempool, &self.state, self.recost_mempool)
-            .await;
-
-        let post_transaction_execution_result: PostTransactionExecutionResult = self
+        let PostTransactionExecutionResult {
+            events,
+            tx_results,
+            validator_updates,
+            consensus_param_updates,
+            executed_tx_ids,
+        } = self
             .state
             .object_get(POST_TRANSACTION_EXECUTION_RESULT_KEY)
             .expect(
@@ -1060,24 +1374,31 @@ impl App {
                  just now or during the proposal phase",
             );
 
-        // prepare the `StagedWriteBatch` for a later commit.
+        // prepare the `WriteBatch` for a later commit.
         let app_hash = self
-            .prepare_commit(storage)
+            .prepare_commit(storage, executed_tx_ids)
             .await
             .wrap_err("failed to prepare commit")?;
-        let finalize_block = abci::response::FinalizeBlock {
-            events: post_transaction_execution_result.events,
-            validator_updates: post_transaction_execution_result.validator_updates,
-            consensus_param_updates: post_transaction_execution_result.consensus_param_updates,
+        all_events.extend(events);
+        let finalize_block_response = abci::response::FinalizeBlock {
+            events: all_events,
+            tx_results,
+            validator_updates,
+            consensus_param_updates,
             app_hash,
-            tx_results: post_transaction_execution_result.tx_results,
         };
 
-        Ok(finalize_block)
+        self.event_bus.send_finalized_block(finalize_block_arc);
+
+        Ok(finalize_block_response)
     }
 
-    #[instrument(skip_all, err)]
-    async fn prepare_commit(&mut self, storage: Storage) -> Result<AppHash> {
+    #[instrument(skip_all, err(level = Level::WARN))]
+    async fn prepare_commit(
+        &mut self,
+        storage: Storage,
+        executed_tx_ids: HashSet<TransactionId>,
+    ) -> Result<AppHash> {
         // extract the state we've built up to so we can prepare it as a `StagedWriteBatch`.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
         let mut state = Arc::try_unwrap(std::mem::replace(&mut self.state, Arc::new(dummy_state)))
@@ -1109,11 +1430,14 @@ impl App {
             .to_vec()
             .try_into()
             .wrap_err("failed to convert app hash")?;
-        self.write_batch = Some(write_batch);
+        self.write_batch = Some(WriteBatch {
+            write_batch,
+            executed_tx_ids,
+        });
         Ok(app_hash)
     }
 
-    #[instrument(name = "App::begin_block", skip_all)]
+    #[instrument(name = "App::begin_block", skip_all, err(level = Level::WARN))]
     async fn begin_block(
         &mut self,
         begin_block: &abci::request::BeginBlock,
@@ -1148,45 +1472,40 @@ impl App {
         Ok(self.apply(state_tx))
     }
 
-    /// Executes a signed transaction.
-    #[instrument(name = "App::execute_transaction", skip_all)]
-    async fn execute_transaction(&mut self, signed_tx: Arc<Transaction>) -> Result<Vec<Event>> {
-        signed_tx
-            .check_stateless()
-            .await
-            .wrap_err("stateless check failed")?;
-
+    /// Executes a checked transaction.
+    #[instrument(name = "App::execute_transaction", skip_all, err(level = Level::DEBUG))]
+    async fn execute_transaction(
+        &mut self,
+        tx: Arc<CheckedTransaction>,
+    ) -> std::result::Result<Vec<Event>, CheckedTransactionExecutionError> {
         let mut state_tx = self
             .state
             .try_begin_transaction()
             .expect("state Arc should be present and unique");
 
-        signed_tx
-            .check_and_execute(&mut state_tx)
-            .await
-            .wrap_err("failed executing transaction")?;
+        tx.execute(&mut state_tx).await?;
 
         // flag mempool for cleaning if we ran a fee change action
-        self.recost_mempool = self.recost_mempool
-            || signed_tx.is_bundleable_sudo_action_group()
-                && signed_tx
-                    .actions()
-                    .iter()
-                    .any(|act| act.is_fee_asset_change() || act.is_fee_change());
-
+        let changes_fees = |action: &CheckedAction| {
+            matches!(
+                action,
+                CheckedAction::FeeChange(_) | CheckedAction::FeeAssetChange(_)
+            )
+        };
+        self.recost_mempool = self.recost_mempool || tx.checked_actions().iter().any(changes_fees);
         // index all event attributes
         let mut events = state_tx.apply().1;
         for event in &mut events {
             event
                 .attributes
                 .iter_mut()
-                .for_each(|attr| attr.index = true);
+                .for_each(|attr| attr.set_index(true));
         }
 
         Ok(events)
     }
 
-    #[instrument(name = "App::end_block", skip_all)]
+    #[instrument(name = "App::end_block", skip_all, err(level = Level::WARN))]
     async fn end_block(
         &mut self,
         height: u64,
@@ -1221,12 +1540,12 @@ impl App {
         // gather and return validator updates
         let validator_updates = self
             .state
-            .get_validator_updates()
+            .get_block_validator_updates()
             .await
             .expect("failed getting validator updates");
 
         // clear validator updates
-        state_tx.clear_validator_updates();
+        state_tx.clear_block_validator_updates();
 
         // gather block fees and transfer them to the block proposer
         let fees = self.state.get_block_fees();
@@ -1249,12 +1568,17 @@ impl App {
     }
 
     #[instrument(name = "App::commit", skip_all)]
-    pub(crate) async fn commit(&mut self, storage: Storage) {
+    pub(crate) async fn commit(&mut self, storage: Storage) -> Result<ShouldShutDown> {
+        let WriteBatch {
+            write_batch,
+            executed_tx_ids,
+        } = self.write_batch.take().expect(
+            "write batch must be set, as `finalize_block` is always called before `commit`",
+        );
+
         // Commit the pending writes, clearing the state.
         let app_hash = storage
-            .commit_batch(self.write_batch.take().expect(
-                "write batch must be set, as `finalize_block` is always called before `commit`",
-            ))
+            .commit_batch(write_batch)
             .expect("must be able to successfully commit to storage");
         tracing::debug!(
             app_hash = %telemetry::display::hex(&app_hash),
@@ -1267,7 +1591,32 @@ impl App {
             .expect("root hash to app hash conversion must succeed");
 
         // Get the latest version of the state, now that we've committed it.
-        self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
+        // and clear the previous fingerprint.
+        self.update_state_for_new_round(&storage);
+
+        // update the priority of any txs in the mempool based on the updated app state
+        if self.recost_mempool {
+            self.metrics.increment_mempool_recosted();
+        }
+
+        let block_height = self
+            .state
+            .get_block_height()
+            .await
+            .expect("block height must exist in state");
+
+        update_mempool_after_finalization(
+            &mut self.mempool,
+            &self.state,
+            self.recost_mempool,
+            &executed_tx_ids,
+            block_height,
+        )
+        .await;
+
+        self.upgrades_handler
+            .should_shut_down(&storage.latest_snapshot())
+            .await
     }
 
     // StateDelta::apply only works when the StateDelta wraps an underlying
@@ -1290,6 +1639,146 @@ impl App {
 
         events
     }
+
+    /// Returns whether or not the block at the given height uses encoded `DataItem`s as the raw
+    /// `txs` field of `response::PrepareProposal`, and hence also `request::ProcessProposal` and
+    /// `request::FinalizeBlock`.
+    ///
+    /// This behavior was introduced in `Aspen`.  If `Aspen` is not included in the upgrades
+    /// files, the assumption is that this network does not use `DataItem`s from genesis onwards.
+    ///
+    /// Returns `true` if and only if `Aspen` is in upgrades and `block_height` is greater than or
+    /// equal to its activation height.
+    fn uses_data_item_enum(&self, block_height: tendermint::block::Height) -> bool {
+        self.upgrades_handler
+            .upgrades()
+            .aspen()
+            .map_or(false, |aspen| {
+                block_height.value() >= aspen.activation_height()
+            })
+    }
+
+    /// Returns `true` if vote extensions are enabled for the block at the given height, i.e. if
+    /// `block_height` is greater than `vote_extensions_enable_height` of the stored consensus
+    /// params, and `vote_extensions_enable_height` is not 0.
+    ///
+    /// NOTE: This returns `false` if `block_height` is EQUAL TO `vote_extensions_enable_height`
+    ///       since it takes one block for the extended votes to become available for voting on in
+    ///       the next block.
+    async fn vote_extensions_enabled(
+        &mut self,
+        block_height: tendermint::block::Height,
+    ) -> Result<bool> {
+        let vote_extensions_enable_height = self
+            .state
+            .get_consensus_params()
+            .await
+            .wrap_err("failed to get consensus params from storage")?
+            .map_or(0, |consensus_params| {
+                vote_extensions_enable_height(&consensus_params)
+            });
+        // NOTE: if the value of `vote_extensions_enable_height` is zero, vote extensions are
+        // disabled. See
+        // https://docs.cometbft.com/v0.38/spec/abci/abci++_app_requirements#abciparamsvoteextensionsenableheight
+        Ok(
+            vote_extensions_enable_height != VOTE_EXTENSIONS_DISABLED_HEIGHT
+                && block_height.value() > vote_extensions_enable_height,
+        )
+    }
+
+    #[cfg(any(test, feature = "benchmark"))]
+    pub(crate) fn mempool(&self) -> Mempool {
+        self.mempool.clone()
+    }
+
+    #[cfg(any(test, feature = "benchmark"))]
+    pub(crate) fn upgrades_handler(&self) -> &UpgradesHandler {
+        &self.upgrades_handler
+    }
+
+    #[cfg(any(test, feature = "benchmark"))]
+    pub(crate) fn state(&self) -> &StateDelta<Snapshot> {
+        &self.state
+    }
+
+    #[cfg(any(test, feature = "benchmark"))]
+    pub(crate) fn state_mut(&mut self) -> &mut StateDelta<Snapshot> {
+        Arc::get_mut(&mut self.state).unwrap()
+    }
+
+    #[cfg(any(test, feature = "benchmark"))]
+    pub(crate) fn new_state_delta(&self) -> StateDelta<Arc<StateDelta<Snapshot>>> {
+        StateDelta::new(self.state.clone())
+    }
+
+    #[cfg(any(test, feature = "benchmark"))]
+    pub(crate) fn metrics(&self) -> &'static Metrics {
+        self.metrics
+    }
+
+    #[cfg(any(test, feature = "benchmark"))]
+    pub(crate) fn into_events(self) -> Vec<Event> {
+        Arc::into_inner(self.state)
+            .unwrap()
+            .flatten()
+            .1
+            .take_events()
+    }
+
+    #[cfg(any(test, feature = "benchmark"))]
+    pub(crate) async fn authority_component_end_block(&mut self) {
+        let state_tx = StateDelta::new(self.state.clone());
+        let mut arc_state_tx = Arc::new(state_tx);
+        let end_block = abci::request::EndBlock {
+            height: 1,
+        };
+        AuthorityComponent::end_block(&mut arc_state_tx, &end_block)
+            .await
+            .unwrap();
+        let state_tx = Arc::try_unwrap(arc_state_tx).unwrap();
+        let _ = self.apply(state_tx);
+    }
+
+    #[cfg(any(test, feature = "benchmark"))]
+    pub(crate) async fn apply_and_commit(
+        &mut self,
+        state_delta: StateDelta<InterBlockState>,
+        storage: Storage,
+    ) {
+        let _events = self.apply(state_delta);
+        self.prepare_commit(storage.clone(), HashSet::new())
+            .await
+            .unwrap();
+        self.commit(storage).await.unwrap();
+    }
+}
+
+fn vote_extensions_enable_height(consensus_params: &tendermint::consensus::Params) -> u64 {
+    consensus_params
+        .abci
+        .vote_extensions_enable_height
+        .map_or(0, |height| height.value())
+}
+
+fn ensure_upgrade_change_hashes_as_expected(
+    received_data: &ExpandedBlockData,
+    calculated_upgrade_change_hashes: &[ChangeHash],
+) -> Result<()> {
+    ensure!(
+        received_data.upgrade_change_hashes == calculated_upgrade_change_hashes,
+        "upgrade change hashes ({:?}) do not match expected ({calculated_upgrade_change_hashes:?})",
+        received_data.upgrade_change_hashes
+    );
+    Ok(())
+}
+
+pub(crate) enum ShouldShutDown {
+    ShutDownForUpgrade {
+        upgrade_activation_height: u64,
+        block_time: Time,
+        hex_encoded_app_hash: String,
+    },
+    ContinueRunning,
 }
 
 // updates the mempool to reflect current state
@@ -1301,8 +1790,12 @@ async fn update_mempool_after_finalization<S: StateRead>(
     mempool: &mut Mempool,
     state: &S,
     recost: bool,
+    txs_included_in_block: &HashSet<TransactionId>,
+    block_height: u64,
 ) {
-    mempool.run_maintenance(state, recost).await;
+    mempool
+        .run_maintenance(state, recost, txs_included_in_block, block_height)
+        .await;
 }
 
 /// relevant data of a block being executed.
@@ -1317,19 +1810,167 @@ struct BlockData {
     proposer_address: account::Id,
 }
 
-fn signed_transaction_from_bytes(bytes: &[u8]) -> Result<Transaction> {
-    let raw = raw::Transaction::decode(bytes)
-        .wrap_err("failed to decode protobuf to signed transaction")?;
-    let tx = Transaction::try_from_raw(raw)
-        .wrap_err("failed to transform raw signed transaction to verified type")?;
-
-    Ok(tx)
-}
-
 #[derive(Clone, Debug)]
 struct PostTransactionExecutionResult {
     events: Vec<Event>,
     tx_results: Vec<ExecTxResult>,
     validator_updates: Vec<tendermint::validator::Update>,
     consensus_param_updates: Option<tendermint::consensus::Params>,
+    executed_tx_ids: HashSet<TransactionId>,
+}
+
+#[derive(PartialEq)]
+enum BreakOrContinue {
+    Break,
+    Continue,
+}
+
+impl BreakOrContinue {
+    fn should_break(self) -> bool {
+        match self {
+            BreakOrContinue::Break => true,
+            BreakOrContinue::Continue => false,
+        }
+    }
+}
+
+enum Proposal {
+    Prepare {
+        block_size_constraints: BlockSizeConstraints,
+        included_txs: Vec<Arc<CheckedTransaction>>,
+        failed_tx_count: usize,
+        execution_results: Vec<ExecTxResult>,
+        executed_tx_ids: HashSet<TransactionId>,
+        excluded_tx_count: usize,
+        current_tx_group: Group,
+        mempool: Mempool,
+        metrics: &'static Metrics,
+    },
+    Process {
+        block_size_constraints: BlockSizeConstraints,
+        execution_results: Vec<ExecTxResult>,
+        executed_tx_ids: HashSet<TransactionId>,
+        current_tx_group: Group,
+    },
+}
+
+impl Proposal {
+    fn block_size_constraints(&self) -> &BlockSizeConstraints {
+        match self {
+            Proposal::Prepare {
+                block_size_constraints,
+                ..
+            }
+            | Proposal::Process {
+                block_size_constraints,
+                ..
+            } => block_size_constraints,
+        }
+    }
+
+    fn block_size_constraints_mut(&mut self) -> &mut BlockSizeConstraints {
+        match self {
+            Proposal::Prepare {
+                block_size_constraints,
+                ..
+            }
+            | Proposal::Process {
+                block_size_constraints,
+                ..
+            } => block_size_constraints,
+        }
+    }
+
+    fn current_tx_group(&self) -> Group {
+        match self {
+            Proposal::Prepare {
+                current_tx_group, ..
+            }
+            | Proposal::Process {
+                current_tx_group, ..
+            } => *current_tx_group,
+        }
+    }
+
+    fn set_current_tx_group(&mut self, group: Group) {
+        match self {
+            Proposal::Prepare {
+                current_tx_group, ..
+            }
+            | Proposal::Process {
+                current_tx_group, ..
+            } => *current_tx_group = group,
+        }
+    }
+
+    fn execution_results_and_tx_ids(self) -> (Vec<ExecTxResult>, HashSet<TransactionId>) {
+        match self {
+            Proposal::Prepare {
+                execution_results,
+                executed_tx_ids,
+                ..
+            }
+            | Proposal::Process {
+                execution_results,
+                executed_tx_ids,
+                ..
+            } => (execution_results, executed_tx_ids),
+        }
+    }
+
+    fn execution_results_and_tx_ids_mut(
+        &mut self,
+    ) -> (&mut Vec<ExecTxResult>, &mut HashSet<TransactionId>) {
+        match self {
+            Proposal::Prepare {
+                execution_results,
+                executed_tx_ids,
+                ..
+            }
+            | Proposal::Process {
+                execution_results,
+                executed_tx_ids,
+                ..
+            } => (execution_results, executed_tx_ids),
+        }
+    }
+}
+
+async fn construct_checked_txs<S: StateRead>(
+    encoded_txs: &[Bytes],
+    state: &S,
+) -> Result<Vec<Arc<CheckedTransaction>>> {
+    let txs_futures = encoded_txs.iter().map(|encoded_tx| async move {
+        let tx = CheckedTransaction::new(encoded_tx.clone(), state)
+            .await
+            .wrap_err("failed to construct checked transaction")?;
+        Ok(Arc::new(tx))
+    });
+
+    try_join_all(txs_futures).await
+}
+
+fn display_consensus_params(params: &tendermint::consensus::Params) -> String {
+    let unset = || "unset".to_string();
+    format!(
+        "block.max_bytes: {}, block.max_gas: {}, block.time_iota_ms: {}, \
+         evidence.max_age_num_blocks: {}, evidence.max_age_duration: {:?}, evidence.max_bytes: \
+         {}, validator.pub_key_types: {:?}, version.app: {}, abci.vote_extensions_enable_height: \
+         {}",
+        params.block.max_bytes,
+        params.block.max_gas,
+        params.block.time_iota_ms,
+        params.evidence.max_age_num_blocks,
+        params.evidence.max_age_duration.0,
+        params.evidence.max_bytes,
+        params.validator.pub_key_types,
+        params
+            .version
+            .as_ref()
+            .map_or_else(unset, |version_params| version_params.app.to_string()),
+        params
+            .abci
+            .vote_extensions_enable_height
+            .map_or_else(unset, |height| height.to_string()),
+    )
 }

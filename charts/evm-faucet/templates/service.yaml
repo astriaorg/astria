@@ -3,6 +3,10 @@ apiVersion: v1
 metadata:
   name: {{tpl .Values.config.rollupName . }}-evm-faucet-service
   namespace: {{ include "evmFaucet.namespace" . }}
+  {{- if or .Values.additionalAnnotations .Values.service.annotations }}
+  annotations:
+    {{- include "evmFaucet.serviceAnnotations" . | indent 4 }}
+  {{- end }}
 spec:
   selector:
     app: {{tpl .Values.config.rollupName . }}-evm-faucet

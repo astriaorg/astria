@@ -14,6 +14,8 @@ graphNode:
   replicas: 1
   metrics:
     enabled: false
+  service:
+    annotations: {}
   ports:
     http: 8000
     jsonRpc: 8001
@@ -28,7 +30,7 @@ ingress:
     {}
     # kubernetes.io/ingress.class: nginx
     # kubernetes.io/tls-acme: "true"
-  host: graph-node.localdev.me
+  host: graph-node.127.0.0.1.nip.io
   tls: []
   #  - secretName: graph-node-tls
   #    hosts:
@@ -41,6 +43,8 @@ ipfs:
     enabled: false
     local: true
     size: 5Gi
+  service:
+    annotations: {}
   ports:
     api: 5001
 

@@ -1,5 +1,5 @@
 global:
-  dev: true
+  network: custom
 
 genesis:
   chainId: 'sequencer-test-chain-0'
@@ -37,21 +37,28 @@ genesis:
     - address: astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr
       balance: "69000000"
 
+sequencer:
+  optimisticBlockApis:
+    # set to true to enable optimistic block APIs
+    enabled: false
+  priceFeed:
+    enabled: true
+
 resources:
   cometbft:
     requests:
-      cpu: 1000m
-      memory: 500Mi
+      cpu: 300m
+      memory: 100Mi
     limits:
-      cpu: 1000m
-      memory: 500Mi
+      cpu: 300m
+      memory: 100Mi
   sequencer:
     requests:
-      cpu: 1000m
-      memory: 500Mi
+      cpu: 100m
+      memory: 100Mi
     limits:
-      cpu: 1000m
-      memory: 500Mi
+      cpu: 100m
+      memory: 100Mi
 
 storage:
   enabled: false

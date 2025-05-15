@@ -39,18 +39,16 @@
 //!     .construct_proof(4)
 //!     .expect("leaf 5 must be inside the tree");
 //!
-//! assert!(
-//!     proof
-//!         .audit()
-//!         .with_root(root)
-//!         .with_leaf_builder()
-//!         .write(&[42; 1])
-//!         .write(&[1, 1])
-//!         .write(&vec![42; 3])
-//!         .write(b"42")
-//!         .finish_leaf()
-//!         .perform()
-//! );
+//! assert!(proof
+//!     .audit()
+//!     .with_root(root)
+//!     .with_leaf_builder()
+//!     .write(&[42; 1])
+//!     .write(&[1, 1])
+//!     .write(&vec![42; 3])
+//!     .write(b"42")
+//!     .finish_leaf()
+//!     .perform());
 //! ```
 //!
 //! # Indexing scheme
@@ -184,7 +182,7 @@ pub struct LeafBuilder<'a> {
     hasher: Option<Sha256>,
 }
 
-impl<'a> LeafBuilder<'a> {
+impl LeafBuilder<'_> {
     /// Takes ownership of the builder, dropping it.
     ///
     /// This method causes the leaf builder to go out of scope, causing it
@@ -232,7 +230,7 @@ impl<'a> LeafBuilder<'a> {
     }
 }
 
-impl<'a> Drop for LeafBuilder<'a> {
+impl Drop for LeafBuilder<'_> {
     fn drop(&mut self) {
         let Self {
             tree,

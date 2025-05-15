@@ -1,5 +1,8 @@
 use astria_core::protocol::transaction::v1::{
-    action::ValidatorUpdate,
+    action::{
+        ValidatorName,
+        ValidatorUpdate,
+    },
     Action,
 };
 use color_eyre::eyre::{
@@ -12,18 +15,10 @@ use crate::utils::submit_transaction;
 #[derive(clap::Args, Debug)]
 pub(super) struct Command {
     /// The url of the Sequencer node
-    #[arg(
-        long,
-        env = "SEQUENCER_URL",
-        default_value = crate::DEFAULT_SEQUENCER_RPC
-    )]
+    #[arg(long, env = "SEQUENCER_URL")]
     sequencer_url: String,
     /// The chain id of the sequencing chain being used
-    #[arg(
-        long = "sequencer.chain-id",
-        env = "ROLLUP_SEQUENCER_CHAIN_ID",
-        default_value = crate::DEFAULT_SEQUENCER_CHAIN_ID
-    )]
+    #[arg(long = "sequencer.chain-id", env = "ROLLUP_SEQUENCER_CHAIN_ID")]
     sequencer_chain_id: String,
     /// The bech32m prefix that will be used for constructing addresses using the private key
     #[arg(long, default_value = "astria")]
@@ -41,6 +36,9 @@ pub(super) struct Command {
     /// The power the validator is being updated to
     #[arg(long)]
     power: u32,
+    #[arg(long, default_value_t = ValidatorName::empty())]
+    /// Optional name of the validator being updated
+    name: ValidatorName,
 }
 
 impl Command {
@@ -53,6 +51,7 @@ impl Command {
         let validator_update = ValidatorUpdate {
             power: self.power,
             verification_key,
+            name: self.name,
         };
 
         let res = submit_transaction(

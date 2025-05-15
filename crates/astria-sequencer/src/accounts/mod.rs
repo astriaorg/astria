@@ -13,6 +13,7 @@ use astria_core::{
 };
 pub(crate) use state_ext::{
     AssetBalance,
+    InsufficientFunds,
     StateReadExt,
     StateWriteExt,
 };

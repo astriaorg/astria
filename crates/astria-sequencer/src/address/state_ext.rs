@@ -16,16 +16,23 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
-use tracing::instrument;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use super::storage::{
     self,
     keys,
 };
-use crate::storage::StoredValue;
+use crate::{
+    accounts::AddressBytes as _,
+    storage::StoredValue,
+};
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
+    #[instrument(skip_all, fields(address = %address.display_address()), err(level = Level::DEBUG))]
     async fn ensure_base_prefix(&self, address: &Address<Bech32m>) -> Result<()> {
         let prefix = self
             .get_base_prefix()
@@ -39,6 +46,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(())
     }
 
+    #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn try_base_prefixed(&self, slice: &[u8]) -> Result<Address> {
         let prefix = self
             .get_base_prefix()
@@ -51,7 +59,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("failed to construct address from byte slice and state-provided base prefix")
     }
 
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_base_prefix(&self) -> Result<String> {
         let Some(bytes) = self
             .get_raw(keys::BASE_PREFIX)
@@ -66,7 +74,7 @@ pub(crate) trait StateReadExt: StateRead {
             .context("invalid base prefix bytes")
     }
 
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_ibc_compat_prefix(&self) -> Result<String> {
         let Some(bytes) = self
             .get_raw(keys::IBC_COMPAT_PREFIX)

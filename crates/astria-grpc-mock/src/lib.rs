@@ -20,6 +20,7 @@ mod verification;
 pub use mock::{
     Match,
     Mock,
+    Times,
 };
 pub use mock_server::{
     MockGuard,

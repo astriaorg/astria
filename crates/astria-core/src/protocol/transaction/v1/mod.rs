@@ -11,7 +11,7 @@ use crate::{
         SigningKey,
         VerificationKey,
     },
-    generated::protocol::transaction::v1 as raw,
+    generated::astria::protocol::transaction::v1 as raw,
     primitive::v1::{
         TransactionId,
         ADDRESS_LEN,
@@ -191,7 +191,7 @@ impl Transaction {
     }
 
     #[must_use]
-    pub fn into_unsigned(self) -> TransactionBody {
+    pub fn into_body(self) -> TransactionBody {
         self.body
     }
 
@@ -221,7 +221,7 @@ impl Transaction {
     }
 
     #[must_use]
-    pub fn unsigned_transaction(&self) -> &TransactionBody {
+    pub fn body(&self) -> &TransactionBody {
         &self.body
     }
 
@@ -232,6 +232,17 @@ impl Transaction {
     #[must_use]
     pub fn nonce(&self) -> u32 {
         self.body.nonce()
+    }
+
+    #[must_use]
+    pub fn into_parts(self) -> TransactionParts {
+        let group = self.group();
+        TransactionParts {
+            actions: self.body.actions.into_actions(),
+            group,
+            params: self.body.params,
+            verification_key: self.verification_key,
+        }
     }
 }
 
@@ -564,6 +575,24 @@ impl TransactionParams {
             chain_id: chain_id.clone(),
         }
     }
+
+    #[must_use]
+    pub fn nonce(&self) -> u32 {
+        self.nonce
+    }
+
+    #[must_use]
+    pub fn chain_id(&self) -> &str {
+        &self.chain_id
+    }
+}
+
+/// The parts of a [`Transaction`] used in the sequencer to convert to a checked transaction.
+pub struct TransactionParts {
+    pub actions: Vec<Action>,
+    pub group: Group,
+    pub params: TransactionParams,
+    pub verification_key: VerificationKey,
 }
 
 #[cfg(test)]
@@ -621,7 +650,7 @@ mod tests {
             body_bytes: body.to_raw().encode_to_vec().into(),
         };
 
-        insta::assert_json_snapshot!(tx.id().to_raw());
+        insta::assert_json_snapshot!("transaction_id", tx.id().to_raw());
     }
 
     #[test]

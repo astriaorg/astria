@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use astria_core::{
     crypto::SigningKey,
-    generated::protocol::{
+    generated::astria::protocol::{
         asset::v1::AllowedFeeAssetsResponse,
         fees::v1::TransactionFee,
     },
@@ -151,15 +151,13 @@ fn create_signed_transaction() -> Transaction {
             .unwrap();
     let alice_key = SigningKey::from(alice_secret_bytes);
 
-    let actions = vec![
-        Transfer {
-            to: bob_address(),
-            amount: 333_333,
-            asset: "nria".parse().unwrap(),
-            fee_asset: "nria".parse().unwrap(),
-        }
-        .into(),
-    ];
+    let actions = vec![Transfer {
+        to: bob_address(),
+        amount: 333_333,
+        asset: "nria".parse().unwrap(),
+        fee_asset: "nria".parse().unwrap(),
+    }
+    .into()];
     TransactionBody::builder()
         .actions(actions)
         .chain_id("test")
@@ -171,7 +169,7 @@ fn create_signed_transaction() -> Transaction {
 
 #[tokio::test]
 async fn get_latest_nonce() {
-    use astria_core::generated::protocol::accounts::v1::NonceResponse;
+    use astria_core::generated::astria::protocol::accounts::v1::NonceResponse;
     let MockSequencer {
         server,
         client,
@@ -184,7 +182,7 @@ async fn get_latest_nonce() {
     let _guard = register_abci_query_response(
         &server,
         &format!("accounts/nonce/{}", alice_address()),
-        expected_response.clone(),
+        expected_response,
     )
     .await;
 
@@ -198,7 +196,7 @@ async fn get_latest_nonce() {
 
 #[tokio::test]
 async fn get_latest_balance() {
-    use astria_core::generated::protocol::accounts::v1::{
+    use astria_core::generated::astria::protocol::accounts::v1::{
         AssetBalance,
         BalanceResponse,
     };
@@ -263,7 +261,7 @@ async fn get_allowed_fee_assets() {
 #[tokio::test]
 async fn get_bridge_account_info() {
     use astria_core::{
-        generated::protocol::bridge::v1::BridgeAccountInfoResponse,
+        generated::astria::protocol::bridge::v1::BridgeAccountInfoResponse,
         primitive::v1::RollupId,
     };
 
@@ -295,7 +293,7 @@ async fn get_bridge_account_info() {
 
 #[tokio::test]
 async fn get_bridge_account_last_transaction_hash() {
-    use astria_core::generated::protocol::bridge::v1::BridgeAccountLastTxHashResponse;
+    use astria_core::generated::astria::protocol::bridge::v1::BridgeAccountLastTxHashResponse;
 
     let MockSequencer {
         server,
@@ -325,7 +323,7 @@ async fn get_bridge_account_last_transaction_hash() {
 
 #[tokio::test]
 async fn get_transaction_fee() {
-    use astria_core::generated::protocol::fees::v1::TransactionFeeResponse;
+    use astria_core::generated::astria::protocol::fees::v1::TransactionFeeResponse;
 
     let MockSequencer {
         server,
@@ -344,7 +342,7 @@ async fn get_transaction_fee() {
         register_abci_query_response(&server, "transaction/fee", expected_response.clone()).await;
 
     let actual_response = client
-        .get_transaction_fee(create_signed_transaction().into_unsigned())
+        .get_transaction_fee(create_signed_transaction().into_body())
         .await
         .unwrap()
         .into_raw();
@@ -364,6 +362,7 @@ async fn submit_tx_sync() {
         data: vec![].into(),
         log: String::new(),
         hash: Hash::Sha256([0; 32]),
+        codespace: String::new(),
     };
     let _guard = register_broadcast_tx_sync_response(&server, server_response.clone()).await;
     let signed_tx = create_signed_transaction();

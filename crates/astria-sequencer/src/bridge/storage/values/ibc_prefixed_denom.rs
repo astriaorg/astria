@@ -23,7 +23,7 @@ use super::{
 #[derive(BorshSerialize, BorshDeserialize)]
 pub(in crate::bridge) struct IbcPrefixedDenom<'a>(Cow<'a, [u8; 32]>);
 
-impl<'a> Debug for IbcPrefixedDenom<'a> {
+impl Debug for IbcPrefixedDenom<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", base64(self.0.as_slice()))
     }

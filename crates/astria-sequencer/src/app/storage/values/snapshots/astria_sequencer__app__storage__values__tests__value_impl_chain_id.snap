@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/app/storage/values/mod.rs
+expression: "borsh_then_hex(&ValueImpl::ChainId((&tendermint::chain::Id::try_from(\"test_prefix\".to_string()).unwrap()).into()))"
+---
+000b000000746573745f707265666978

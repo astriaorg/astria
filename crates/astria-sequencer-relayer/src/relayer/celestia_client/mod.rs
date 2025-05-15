@@ -400,7 +400,7 @@ fn new_msg_pay_for_blobs(
     for blob in blobs {
         blob_sizes.push(blob.data.len());
         namespaces.push(Bytes::from(blob.namespace.as_bytes().to_vec()));
-        share_commitments.push(Bytes::from(blob.commitment.0.to_vec()));
+        share_commitments.push(Bytes::copy_from_slice(blob.commitment.hash()));
         share_versions.push(u32::from(blob.share_version));
     }
 

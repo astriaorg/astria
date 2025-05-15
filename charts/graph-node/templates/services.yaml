@@ -3,6 +3,10 @@ kind: Service
 metadata:
   name: graph-node
   namespace: {{ include "graphnode.namespace" . }}
+  {{- if or .Values.graphNode.additionalAnnotations .Values.graphNode.service.annotations }}
+  annotations:
+    {{- include "graphNode.serviceAnnotations" . | indent 4 }}
+  {{- end }}  
 spec:
   selector:
     app: graph-node
@@ -28,6 +32,10 @@ kind: Service
 metadata:
   name: ipfs
   namespace: {{ include "graphnode.namespace" . }}
+  {{- if or .Values.ipfs.additionalAnnotations .Values.ipfs.service.annotations }}
+  annotations:
+    {{- include "ipfs.serviceAnnotations" . | indent 4 }}
+  {{- end }}  
 spec:
   selector:
     app: ipfs

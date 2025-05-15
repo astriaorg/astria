@@ -25,6 +25,10 @@ use astria_core::{
         Ics20WithdrawalFromRollup,
     },
     sequencerblock::v1::block::Deposit,
+    upgrades::v1::aspen::{
+        Aspen,
+        IbcAcknowledgementFailureChange,
+    },
 };
 use astria_eyre::{
     anyhow::{
@@ -71,7 +75,10 @@ use penumbra_ibc::component::app_handler::{
 };
 use penumbra_proto::penumbra::core::component::ibc::v1::FungibleTokenPacketData;
 use tokio::try_join;
-use tracing::instrument;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::{
     accounts::StateWriteExt as _,
@@ -88,7 +95,7 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::StateReadExt as _,
+    upgrades::StateReadExt as _,
     utils::create_deposit_event,
 };
 
@@ -179,6 +186,7 @@ pub(crate) struct Ics20Transfer;
 
 #[async_trait::async_trait]
 impl AppHandlerCheck for Ics20Transfer {
+    #[instrument(skip_all)]
     async fn chan_open_init_check<S: StateRead>(
         _: S,
         msg: &MsgChannelOpenInit,
@@ -194,6 +202,7 @@ impl AppHandlerCheck for Ics20Transfer {
         Ok(())
     }
 
+    #[instrument(skip_all)]
     async fn chan_open_try_check<S: StateRead>(
         _: S,
         msg: &MsgChannelOpenTry,
@@ -209,6 +218,7 @@ impl AppHandlerCheck for Ics20Transfer {
         Ok(())
     }
 
+    #[instrument(skip_all)]
     async fn chan_open_ack_check<S: StateRead>(
         _: S,
         msg: &MsgChannelOpenAck,
@@ -220,6 +230,7 @@ impl AppHandlerCheck for Ics20Transfer {
         Ok(())
     }
 
+    #[instrument(skip_all)]
     async fn chan_open_confirm_check<S: StateRead>(
         _: S,
         _: &MsgChannelOpenConfirm,
@@ -229,6 +240,7 @@ impl AppHandlerCheck for Ics20Transfer {
         Ok(())
     }
 
+    #[instrument(skip_all)]
     async fn chan_close_init_check<S: StateRead>(
         _: S,
         _: &MsgChannelCloseInit,
@@ -236,6 +248,7 @@ impl AppHandlerCheck for Ics20Transfer {
         anyhow::bail!("ics20 always aborts on chan_close_init");
     }
 
+    #[instrument(skip_all)]
     async fn chan_close_confirm_check<S: StateRead>(
         _: S,
         _: &MsgChannelCloseConfirm,
@@ -244,6 +257,7 @@ impl AppHandlerCheck for Ics20Transfer {
         Ok(())
     }
 
+    #[instrument(skip_all)]
     async fn recv_packet_check<S: StateRead>(_: S, msg: &MsgRecvPacket) -> anyhow::Result<()> {
         // most checks performed in `execute`
         // perform stateless checks here
@@ -258,6 +272,7 @@ impl AppHandlerCheck for Ics20Transfer {
         Ok(())
     }
 
+    #[instrument(skip_all)]
     async fn timeout_packet_check<S: StateRead>(state: S, msg: &MsgTimeout) -> anyhow::Result<()> {
         refund_tokens_check(
             state,
@@ -269,6 +284,7 @@ impl AppHandlerCheck for Ics20Transfer {
         .map_err(eyre_to_anyhow)
     }
 
+    #[instrument(skip_all)]
     async fn acknowledge_packet_check<S: StateRead>(
         state: S,
         msg: &MsgAcknowledgement,
@@ -293,6 +309,7 @@ impl AppHandlerCheck for Ics20Transfer {
     }
 }
 
+#[instrument(skip_all, fields(%source_port, %source_channel), err(level = Level::DEBUG))]
 async fn refund_tokens_check<S: StateRead>(
     state: S,
     data: &[u8],
@@ -345,21 +362,32 @@ impl AppHandlerExecute for Ics20Transfer {
 
     async fn chan_close_init_execute<S: StateWrite>(_: S, _: &MsgChannelCloseInit) {}
 
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::DEBUG))]
     async fn recv_packet_execute<S: StateWrite>(
         mut state: S,
         msg: &MsgRecvPacket,
     ) -> anyhow::Result<()> {
         use penumbra_ibc::component::packet::WriteAcknowledgement as _;
 
+        let use_new_error_format = state
+            .get_upgrade_change_info(&Aspen::NAME, &IbcAcknowledgementFailureChange::NAME)
+            .await
+            .map_err(|err| eyre_to_anyhow(err).context("failed to read upgrade info"))?
+            .is_some();
+
         let ack = match receive_tokens(&mut state, &msg.packet).await {
             Ok(()) => TokenTransferAcknowledgement::success(),
             Err(e) => {
-                tracing::debug!(
+                tracing::warn!(
                     error = AsRef::<dyn std::error::Error>::as_ref(&e),
                     "failed to execute ics20 transfer"
                 );
-                TokenTransferAcknowledgement::Error(format!("{e:#}"))
+                let error_message = if use_new_error_format {
+                    "ics20 transfer failed".to_string()
+                } else {
+                    format!("{e:#}")
+                };
+                TokenTransferAcknowledgement::Error(error_message)
             }
         };
 
@@ -371,7 +399,7 @@ impl AppHandlerExecute for Ics20Transfer {
             .context("failed to write acknowledgement")
     }
 
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn timeout_packet_execute<S: StateWrite>(
         mut state: S,
         msg: &MsgTimeout,
@@ -381,7 +409,7 @@ impl AppHandlerExecute for Ics20Transfer {
         })
     }
 
-    #[instrument(skip_all, err)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn acknowledge_packet_execute<S: StateWrite>(
         mut state: S,
         msg: &MsgAcknowledgement,
@@ -573,7 +601,7 @@ fn does_failed_transfer_come_from_rollup(
     serde_json::from_str::<Ics20WithdrawalFromRollup>(&packet_data.memo).ok()
 }
 
-#[instrument(skip_all, fields(%recipient, %asset, amount), err)]
+#[instrument(skip_all, fields(%recipient, %asset, amount), err(level = Level::DEBUG))]
 async fn refund_tokens_to_sequencer_address<S: StateWrite>(
     mut state: S,
     recipient: &Address,
@@ -596,7 +624,7 @@ async fn refund_tokens_to_sequencer_address<S: StateWrite>(
     Ok(())
 }
 
-#[instrument(skip_all, fields(input), err)]
+#[instrument(skip_all, fields(input), err(level = Level::DEBUG))]
 async fn parse_asset<S: StateRead>(state: S, input: &str) -> Result<denom::TracePrefixed> {
     let asset = match input
         .parse::<Denom>()
@@ -614,7 +642,7 @@ async fn parse_asset<S: StateRead>(state: S, input: &str) -> Result<denom::Trace
     Ok(asset)
 }
 
-#[instrument(skip_all, fields(input), err)]
+#[instrument(skip_all, fields(input), err(level = Level::DEBUG))]
 async fn parse_address_on_sequencer<S: StateRead>(state: &S, input: &str) -> Result<Address> {
     use futures::TryFutureExt as _;
     let (base_prefix, compat_prefix) = match try_join!(
@@ -660,7 +688,7 @@ async fn parse_address_on_sequencer<S: StateRead>(state: &S, input: &str) -> Res
 
 /// Emits a deposit event signaling to the rollup that funds
 /// were added to `bridge_address`.
-#[instrument(skip_all, fields(%bridge_address, %asset, amount, memo), err)]
+#[instrument(skip_all, fields(%bridge_address, %asset, amount, memo), err(level = Level::DEBUG))]
 async fn emit_bridge_lock_deposit<S: StateWrite>(
     mut state: S,
     bridge_address: Address,
@@ -691,7 +719,7 @@ async fn emit_bridge_lock_deposit<S: StateWrite>(
     .await
 }
 
-#[instrument(skip_all, fields(%bridge_address, destination_chain_address, %asset, amount), err)]
+#[instrument(skip_all, fields(%bridge_address, destination_chain_address, %asset, amount), err(level = Level::DEBUG))]
 async fn emit_deposit<S: StateWrite>(
     mut state: S,
     bridge_address: &Address,
@@ -720,11 +748,11 @@ async fn emit_deposit<S: StateWrite>(
         asset.to_ibc_prefixed(),
     );
 
-    let transaction_context = state
-        .get_transaction_context()
-        .ok_or_eyre("transaction source should be present in state when executing an action")?;
-    let source_transaction_id = transaction_context.transaction_id;
-    let source_action_index = transaction_context.position_in_transaction;
+    let context = state
+        .ephemeral_get_ibc_context()
+        .ok_or_eyre("failed to get the ibc context from ephemeral store")?;
+    let source_transaction_id = context.tx_id;
+    let source_action_index = context.source_action_index;
 
     let deposit = Deposit {
         bridge_address: *bridge_address,
@@ -776,12 +804,6 @@ mod tests {
         accounts::StateReadExt as _,
         address::StateWriteExt as _,
         assets::StateReadExt as _,
-        benchmark_and_test_utils::{
-            astria_address,
-            nria,
-            ASTRIA_COMPAT_PREFIX,
-            ASTRIA_PREFIX,
-        },
         bridge::{
             StateReadExt as _,
             StateWriteExt as _,
@@ -790,10 +812,12 @@ mod tests {
             StateReadExt as _,
             StateWriteExt,
         },
-        test_utils::astria_compat_address,
-        transaction::{
-            StateWriteExt as _,
-            TransactionContext,
+        test_utils::{
+            astria_address,
+            astria_compat_address,
+            nria,
+            ASTRIA_COMPAT_PREFIX,
+            ASTRIA_PREFIX,
         },
     };
 
@@ -931,11 +955,7 @@ mod tests {
         state_tx
             .put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX.to_string())
             .unwrap();
-        state_tx.put_transaction_context(TransactionContext {
-            address_bytes: bridge_address.bytes(),
-            transaction_id: TransactionId::new([0; 32]),
-            position_in_transaction: 0,
-        });
+        state_tx.ephemeral_put_ibc_context(TransactionId::new([0; 32]), 0);
 
         let rollup_deposit_address = "rollupaddress";
         let amount = 100;
@@ -1013,11 +1033,7 @@ mod tests {
         state_tx
             .put_ibc_compat_prefix(ASTRIA_COMPAT_PREFIX.to_string())
             .unwrap();
-        state_tx.put_transaction_context(TransactionContext {
-            address_bytes: bridge_address.bytes(),
-            transaction_id: TransactionId::new([0; 32]),
-            position_in_transaction: 0,
-        });
+        state_tx.ephemeral_put_ibc_context(TransactionId::new([0; 32]), 0);
 
         let rollup_deposit_address = "rollupaddress";
         let amount = 100;
@@ -1263,11 +1279,7 @@ mod tests {
 
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
-        state_tx.put_transaction_context(TransactionContext {
-            address_bytes: bridge_address.bytes(),
-            transaction_id: TransactionId::new([0; 32]),
-            position_in_transaction: 0,
-        });
+        state_tx.ephemeral_put_ibc_context(TransactionId::new([0; 32]), 0);
 
         state_tx
             .put_bridge_account_rollup_id(&bridge_address, rollup_id)
@@ -1347,11 +1359,7 @@ mod tests {
         let destination_chain_address = "rollup-defined";
         let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
 
-        state_tx.put_transaction_context(TransactionContext {
-            address_bytes: bridge_address.bytes(),
-            transaction_id: TransactionId::new([0; 32]),
-            position_in_transaction: 0,
-        });
+        state_tx.ephemeral_put_ibc_context(TransactionId::new([0; 32]), 0);
 
         state_tx
             .put_bridge_account_rollup_id(&bridge_address, rollup_id)
@@ -1452,12 +1460,7 @@ mod tests {
             .unwrap(),
         };
 
-        let transaction_context = TransactionContext {
-            address_bytes: bridge_address.bytes(),
-            transaction_id: TransactionId::new([0; 32]),
-            position_in_transaction: 0,
-        };
-        state_tx.put_transaction_context(transaction_context);
+        state_tx.ephemeral_put_ibc_context(TransactionId::new([0; 32]), 0);
 
         refund_tokens(
             &mut state_tx,

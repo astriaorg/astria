@@ -32,7 +32,6 @@ async fn main() -> ExitCode {
     let mut telemetry_conf = telemetry::configure()
         .set_no_otel(cfg.no_otel)
         .set_force_stdout(cfg.force_stdout)
-        .set_pretty_print(cfg.pretty_print)
         .set_filter_directives(&cfg.log);
     if !cfg.no_metrics {
         telemetry_conf =
@@ -55,7 +54,7 @@ async fn main() -> ExitCode {
         "initializing sequencer"
     );
 
-    Sequencer::run_until_stopped(cfg, metrics)
+    Sequencer::spawn(cfg, metrics)
         .await
         .expect("failed to run sequencer");
 

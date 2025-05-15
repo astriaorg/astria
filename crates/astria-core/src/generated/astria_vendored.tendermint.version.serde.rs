@@ -15,10 +15,12 @@ impl serde::Serialize for Consensus {
         let mut struct_ser = serializer.serialize_struct("astria_vendored.tendermint.version.Consensus", len)?;
         if self.block != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("block", ToString::to_string(&self.block).as_str())?;
         }
         if self.app != 0 {
             #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("app", ToString::to_string(&self.app).as_str())?;
         }
         struct_ser.end()

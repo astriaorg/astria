@@ -67,7 +67,8 @@ jobs:
           tags: |
             type=ref,event=pr
             type=match,pattern=refs/tags/${{ inputs.binary-name }}-v(.*),group=1,enable=${{ startsWith(env.FULL_REF, 'refs/tags/') }},value=${{ env.FULL_REF }}
-            type=sha
+            type=sha,format=short
+            type=sha,format=long
             # set the actual commit SHA from the PR head instead of from the PR merge commit (alternatively, we could checkout the PR head in actions/checkout)
             type=raw,value=sha-${{ github.event.pull_request.head.sha || github.sha }},enable=${{ startsWith(env.FULL_REF, 'refs/pull/') }}
             # set latest tag for `main` branch

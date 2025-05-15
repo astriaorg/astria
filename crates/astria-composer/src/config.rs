@@ -13,10 +13,6 @@ use crate::rollup::{
     Rollup,
 };
 
-#[expect(
-    clippy::struct_excessive_bools,
-    reason = "this is a config, may have many boolean values"
-)]
 #[derive(Debug, Deserialize, Serialize)]
 /// The high-level config for creating an astria-composer service.
 pub struct Config {
@@ -66,9 +62,6 @@ pub struct Config {
 
     /// The endpoint which will be listened on for serving prometheus metrics
     pub metrics_http_listener_addr: String,
-
-    /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
-    pub pretty_print: bool,
 
     /// The address at which the gRPC server is listening
     pub grpc_addr: SocketAddr,

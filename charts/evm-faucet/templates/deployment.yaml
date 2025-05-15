@@ -24,6 +24,7 @@ spec:
             - -wallet.provider=$(ETH_FAUCET_EVM_PROVIDER_URL)
             - -wallet.privkey=$(ETH_FAUCET_EVM_PRIVATE_KEY)
             - -faucet.amount=$(ETH_FAUCET_AMOUNT)
+            - -faucet.minutes=$(ETH_FAUCET_INTERVAL)
             - -proxycount=$(ETH_FAUCET_PROXYCOUNT)
           image: {{ .Values.images.faucet.repo }}:{{ .Values.images.faucet.tag }}
           imagePullPolicy: {{ .Values.images.faucet.pullPolicy }}
@@ -58,6 +59,6 @@ spec:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
-              secretProviderClass: evm-faucet-private-key
+              secretProviderClass: faucet-private-key
         {{- end }}
 ---

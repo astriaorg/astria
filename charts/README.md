@@ -38,9 +38,6 @@ just deploy cluster
 # ingress controller
 just deploy ingress-controller
 
-# wait for ingress.
-just wait-for-ingress-controller
-
 # Deploys Sequencer + local DA
 just deploy astria-local
 
@@ -51,7 +48,7 @@ just deploy rollup
 
 # w/ custom name and id for further customization see the values file at
 # `../dev/values/rollup/dev.yml`
-just deploy dev-rollup <rollup_name> <network_id>
+just deploy rollup <rollup_name> <network_id>
 
 # Send funds into the rollup chain, by default transfers 10 RIA to the rollup
 # using prefunded default test sequencer accounts. 
@@ -73,49 +70,49 @@ just clean-persisted-data
 
 ### Faucet
 
-The default rollup faucet is available at <http://faucet.astria.localdev.me>.
+The default rollup faucet is available at <http://faucet.astria.127.0.0.1.nip.io>.
 
 If you deploy a custom faucet, it will be reachable at
-`http://faucet.<rollup_name>.localdev.me`.
+`http://faucet.<rollup_name>.127.0.0.1.nip.io`.
 
 By default, no account is funded during geth genesis.
-Run `just init-rollup-bridge` to fund the faucet account. This account key is
+Run `just init rollup-bridge` to fund the faucet account. This account key is
 defined in `../dev/values/rollup/dev.yaml` and is identical to the key in
 `./evm-rollup/files/keys/private_key.txt`.
 
-The default sequencer faucet is available at <http://sequencer-faucet.localdev.me>.
+The default sequencer faucet is available at <http://sequencer-faucet.127.0.0.1.nip.io>.
 
 ### Blockscout
 
-The default Blockscout app is available at <http://explorer.astria.localdev.me>.
+The default Blockscout app is available at <http://explorer.astria.127.0.0.1.nip.io>.
 
 If you deploy a custom Blockscout app, it will be available at
-`http://explorer.<rollup_name>.localdev.me`.
+`http://explorer.<rollup_name>.127.0.0.1.nip.io`.
 
 ### Sequencer
 
-The default sequencer RPC is available at <http://rpc.sequencer.localdev.me/health>.
+The default sequencer RPC is available at <http://rpc.sequencer.127.0.0.1.nip.io/health>.
 
 ### EVM Rollup
 
-The default EVM rollup has an RPC endpoint available at <http://executor.astria.localdev.me>.
+The default EVM rollup has an RPC endpoint available at <http://executor.astria.127.0.0.1.nip.io>.
 
-There is also a default WSS endpoint available at <ws://ws-executor.astria.localdev.me>.
+There is also a default WSS endpoint available at <ws://ws-executor.astria.127.0.0.1.nip.io>.
 
 If you deploy a custom rollup, then the endpoints will be
-`http://executor.<rollup_name>.localdev.me` and `ws://ws-executor.<rollup_name>.localdev.me`
+`http://executor.<rollup_name>.127.0.0.1.nip.io` and `ws://ws-executor.<rollup_name>.127.0.0.1.nip.io`
 
 ### Connecting Metamask
 
 * adding the default network
   * network name: `astria`
-  * rpc url: `http://executor.astria.localdev.me`
+  * rpc url: `http://executor.astria.127.0.0.1.nip.io`
   * chain id: `1337`
   * currency symbol: `RIA`
 
 * adding a custom network
   * network name: `<rollup_name>`
-  * rpc url: `http://executor.<rollup_name>.localdev.me`
+  * rpc url: `http://executor.<rollup_name>.127.0.0.1.nip.io`
   * chain id: `<network_id>`
   * currency symbol: `RIA`
 
@@ -138,7 +135,7 @@ we have created a local image `astria-sequencer:local`
 
 ```sh
 # load image into cluster
-just load-image astria-sequencer:local
+just load-image astria-sequencer
 ```
 
 To update the chart to utilize the new image, go to `./sequencer/values.yaml`
@@ -175,7 +172,7 @@ To deploy and run this:
 # deploys all the components needed to run the test.
 > just deploy smoke-test
 # deploys all components needed to run the smoke test
-> just run-smoke-test
+> just run smoke-test
 # Runs the smoke test will return failure if fails
 > just delete smoke-test
 # Clean up deployed test
@@ -191,9 +188,9 @@ working both up and down the stack.
 
 ```sh
 > just deploy cluster
-> just ibc-test deploy
-> just ibc-test run
-> just ibc-test delete
+> just deploy ibc-test
+> just run ibc-test
+> just delete ibc-test
 ```
 
 ## Examining Deployments
@@ -228,16 +225,13 @@ kubectl get -n astria-dev-cluster pods
 # to log a container you need to first grab the pod name from above
 kubectl logs -n astria-dev-cluster -c <CONTAINER_NAME> <POD_NAME>
 
-# delete a single deployment
-just delete -n astria-dev-cluster deployment <DEPLOYMENT_NAME>
-
 # delete cluster and resources
 just clean
 
 # example of deploying contract w/ forge (https://github.com/foundry-rs/foundry)
 RUST_LOG=debug forge create src/Storage.sol:Storage \
   --private-key $PRIV_KEY \
-  --rpc-url "http://executor.astria.localdev.me"
+  --rpc-url "http://executor.astria.127.0.0.1.nip.io"
 ```
 
 ### Helpful links

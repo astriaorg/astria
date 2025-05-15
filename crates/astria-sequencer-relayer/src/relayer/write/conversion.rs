@@ -10,7 +10,7 @@ use std::{
 
 use astria_core::{
     brotli::compress_bytes,
-    generated::sequencerblock::v1::{
+    generated::astria::sequencerblock::v1::{
         SubmittedMetadata,
         SubmittedMetadataList,
         SubmittedRollupData,
@@ -137,7 +137,10 @@ impl Payload {
     ) -> Result<(), PayloadError> {
         let encoded = value.encode_to_vec();
         let compressed = compress_bytes(&encoded)?;
-        let blob = Blob::new(namespace, compressed)?;
+        // TODO(janis): should sequencer-relayer query its celestia endpoint to dermine which
+        // app version it's interacting with? At the time of writing, sequencer-relayer is
+        // is deployed against celestia-app 3.2.0 (mainnet) and 3.3.0 (concensus/validator)
+        let blob = Blob::new(namespace, compressed, celestia_types::AppVersion::V3)?;
         self.uncompressed_size = self
             .uncompressed_size
             .checked_add(encoded.len())
@@ -387,7 +390,7 @@ pin_project! {
     }
 }
 
-impl<'a> Future for TakeSubmission<'a> {
+impl Future for TakeSubmission<'_> {
     type Output = Option<Submission>;
 
     fn poll(self: Pin<&mut Self>, _: &mut std::task::Context<'_>) -> Poll<Self::Output> {
@@ -441,6 +444,7 @@ fn sequencer_namespace(metadata: &SubmittedMetadata) -> Namespace {
     )
 }
 
+#[expect(clippy::ref_option, reason = "necessary for serde impl")]
 fn serialize_opt_namespace<S>(
     namespace: &Option<Namespace>,
     serializer: S,

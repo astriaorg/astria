@@ -1,0 +1,12 @@
+version: v2
+clean: true
+inputs:
+  - directory: proto/sequencerblockapis
+    types:
+      - "astria.sequencerblock.v1.SequencerService"
+plugins:
+  - remote: buf.build/protocolbuffers/python
+    include_imports: true
+    out: system-tests/helpers/generated
+  - remote: buf.build/grpc/python
+    out: system-tests/helpers/generated

@@ -13,9 +13,10 @@ use std::{
 
 use astria_core::{
     brotli::decompress_bytes,
-    generated::sequencerblock::v1::{
+    generated::astria::sequencerblock::v1::{
         rollup_data::Value as RawRollupDataValue,
         Deposit as RawDeposit,
+        PriceFeedData as RawPriceFeedData,
         RollupData as RawRollupData,
         SubmittedMetadata as RawSubmittedMetadata,
         SubmittedMetadataList as RawSubmittedMetadataList,
@@ -27,6 +28,8 @@ use astria_core::{
         block::{
             Deposit,
             DepositError,
+            PriceFeedData,
+            PriceFeedDataError,
             SequencerBlockHeader,
         },
         celestia::{
@@ -304,7 +307,7 @@ impl BriefSequencerBlockMetadata {
             .map(RollupId::to_string)
             .collect();
         BriefSequencerBlockMetadata {
-            sequencer_block_hash: BASE64_STANDARD.encode(metadata.block_hash),
+            sequencer_block_hash: BASE64_STANDARD.encode(metadata.block_hash.as_bytes()),
             sequencer_block_header: PrintableSequencerBlockHeader::from(&metadata.header),
             rollup_ids,
         }
@@ -343,7 +346,7 @@ impl VerboseSequencerBlockMetadata {
             .map(RollupId::to_string)
             .collect();
         VerboseSequencerBlockMetadata {
-            sequencer_block_hash: BASE64_STANDARD.encode(metadata.block_hash),
+            sequencer_block_hash: BASE64_STANDARD.encode(metadata.block_hash.as_bytes()),
             sequencer_block_header: PrintableSequencerBlockHeader::from(&metadata.header),
             rollup_ids,
             rollup_transactions_proof: PrintableMerkleProof::from(
@@ -380,7 +383,8 @@ struct BriefRollupData {
 impl BriefRollupData {
     fn new(rollup_data: &UncheckedSubmittedRollupData) -> Self {
         BriefRollupData {
-            sequencer_block_hash: BASE64_STANDARD.encode(rollup_data.sequencer_block_hash),
+            sequencer_block_hash: BASE64_STANDARD
+                .encode(rollup_data.sequencer_block_hash.as_bytes()),
             rollup_id: rollup_data.rollup_id.to_string(),
             transaction_count: rollup_data.transactions.len(),
         }
@@ -488,17 +492,17 @@ impl Display for RollupTransaction {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         colored_ln(f, "hash", &self.hash)?;
         colored_ln(f, "nonce", &self.nonce)?;
-        colored_ln(f, "block hash", none_or_value(&self.block_hash))?;
-        colored_ln(f, "block number", none_or_value(&self.block_number))?;
+        colored_ln(f, "block hash", none_or_value(self.block_hash.as_ref()))?;
+        colored_ln(f, "block number", none_or_value(self.block_number.as_ref()))?;
         colored_ln(
             f,
             "transaction index",
-            none_or_value(&self.transaction_index),
+            none_or_value(self.transaction_index.as_ref()),
         )?;
         colored_ln(f, "from", &self.from)?;
-        colored_ln(f, "to", none_or_value(&self.to))?;
+        colored_ln(f, "to", none_or_value(self.to.as_ref()))?;
         colored_ln(f, "value", &self.value)?;
-        colored_ln(f, "gas price", none_or_value(&self.gas_price))?;
+        colored_ln(f, "gas price", none_or_value(self.gas_price.as_ref()))?;
         colored_ln(f, "gas", &self.gas)?;
         colored_ln(f, "input", &self.input)?;
         colored_ln(f, "v", self.v)?;
@@ -564,6 +568,44 @@ impl Display for PrintableDeposit {
     }
 }
 
+#[derive(Serialize, Debug)]
+struct PrintablePriceFeedData {
+    prices: Vec<(String, i128, u8)>,
+}
+
+impl TryFrom<&RawPriceFeedData> for PrintablePriceFeedData {
+    type Error = PriceFeedDataError;
+
+    fn try_from(value: &RawPriceFeedData) -> Result<Self, Self::Error> {
+        let price_feed_data = PriceFeedData::try_from_raw(value.clone())?;
+        Ok(PrintablePriceFeedData {
+            prices: price_feed_data
+                .prices()
+                .iter()
+                .map(|price| {
+                    (
+                        price.currency_pair().to_string(),
+                        price.price().get(),
+                        price.decimals(),
+                    )
+                })
+                .collect(),
+        })
+    }
+}
+
+impl Display for PrintablePriceFeedData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        for (currency_pair, price, decimals) in &self.prices {
+            colored_label_ln(f, "price")?;
+            colored_ln(f, "currency pair", currency_pair)?;
+            colored_ln(f, "price", price)?;
+            colored_ln(f, "decimals", decimals)?;
+        }
+        Ok(())
+    }
+}
+
 #[expect(clippy::large_enum_variant, reason = "not performance-critical")]
 #[derive(Serialize, Debug)]
 enum RollupDataDetails {
@@ -571,6 +613,8 @@ enum RollupDataDetails {
     Transaction(RollupTransaction),
     #[serde(rename = "deposit")]
     Deposit(PrintableDeposit),
+    #[serde(rename = "price_feed_data")]
+    PriceFeedData(PrintablePriceFeedData),
     /// Tx doesn't decode as `RawRollupData`.  Wrapped value is base-64-encoded input data.
     #[serde(rename = "not_tx_or_deposit")]
     NotTxOrDeposit(String),
@@ -585,6 +629,11 @@ enum RollupDataDetails {
     /// Wrapped value is decoding error and the debug contents of the raw (protobuf) deposit.
     #[serde(rename = "unparseable_deposit")]
     UnparseableDeposit(String),
+    /// Tx parses as `RawRollupData::PriceFeedData`, but its value doesn't decode as a
+    /// `PriceFeedData`. Wrapped value is decoding error and the debug contents of the raw
+    /// (protobuf) price feed data.
+    #[serde(rename = "unparseable_price_feed_data")]
+    UnparseablePriceFeedData(String),
 }
 
 impl From<&Vec<u8>> for RollupDataDetails {
@@ -608,6 +657,16 @@ impl From<&Vec<u8>> for RollupDataDetails {
                     }
                 }
             }
+            Some(RawRollupDataValue::PriceFeedData(raw_price_feed_data)) => {
+                match PrintablePriceFeedData::try_from(&raw_price_feed_data) {
+                    Ok(printable_price_feed_data) => {
+                        RollupDataDetails::PriceFeedData(printable_price_feed_data)
+                    }
+                    Err(error) => RollupDataDetails::UnparseablePriceFeedData(format!(
+                        "{raw_price_feed_data:?}: {error}"
+                    )),
+                }
+            }
         }
     }
 }
@@ -623,6 +682,10 @@ impl Display for RollupDataDetails {
                 colored_label_ln(f, "deposit")?;
                 write!(indent(f), "{deposit}")
             }
+            RollupDataDetails::PriceFeedData(oracle_data) => {
+                colored_label_ln(f, "oracle data")?;
+                write!(indent(f), "{oracle_data}")
+            }
             RollupDataDetails::NotTxOrDeposit(value) => colored(f, "not tx or deposit", value),
             RollupDataDetails::EmptyBytes => {
                 write!(f, "empty rollup data")
@@ -632,6 +695,9 @@ impl Display for RollupDataDetails {
             }
             RollupDataDetails::UnparseableDeposit(error) => {
                 colored(f, "unparseable deposit", error)
+            }
+            RollupDataDetails::UnparseablePriceFeedData(error) => {
+                colored(f, "unparseable price feed data", error)
             }
         }
     }
@@ -655,7 +721,8 @@ impl VerboseRollupData {
             .collect();
         let item_count = transactions_and_deposits.len();
         VerboseRollupData {
-            sequencer_block_hash: BASE64_STANDARD.encode(rollup_data.sequencer_block_hash),
+            sequencer_block_hash: BASE64_STANDARD
+                .encode(rollup_data.sequencer_block_hash.as_bytes()),
             rollup_id: rollup_data.rollup_id.to_string(),
             transactions_and_deposits,
             item_count,
@@ -788,10 +855,10 @@ fn indent<'a, 'b>(f: &'a mut Formatter<'b>) -> indenter::Indented<'a, Formatter<
     indented(f).with_str("    ")
 }
 
-fn none_or_value<T: ToString>(maybe_value: &Option<T>) -> String {
+fn none_or_value<T: ToString>(maybe_value: Option<&T>) -> String {
     maybe_value
         .as_ref()
-        .map_or("none".to_string(), T::to_string)
+        .map_or("none".to_string(), |o| o.to_string())
 }
 
 fn colored_label(f: &mut Formatter<'_>, label: &str) -> fmt::Result {

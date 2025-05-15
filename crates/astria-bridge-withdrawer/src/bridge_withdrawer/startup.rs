@@ -4,7 +4,7 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencerblock::v1::sequencer_service_client::{
+    generated::astria::sequencerblock::v1::sequencer_service_client::{
         self,
         SequencerServiceClient,
     },
@@ -270,20 +270,21 @@ impl Startup {
              the sequencer logic."
         );
 
-        let proto_tx = astria_core::generated::protocol::transaction::v1::Transaction::decode(
-            &*last_transaction.tx,
-        )
-        .wrap_err_with(|| {
-            format!(
-                "failed to decode data in Sequencer CometBFT transaction as `{}`",
-                astria_core::generated::protocol::transaction::v1::Transaction::full_name(),
+        let proto_tx =
+            astria_core::generated::astria::protocol::transaction::v1::Transaction::decode(
+                &*last_transaction.tx,
             )
-        })?;
+            .wrap_err_with(|| {
+                format!(
+                "failed to decode data in Sequencer CometBFT transaction as `{}`",
+                astria_core::generated::astria::protocol::transaction::v1::Transaction::full_name(),
+            )
+            })?;
 
         let tx = Transaction::try_from_raw(proto_tx).wrap_err_with(|| {
             format!(
                 "failed to verify {}",
-                astria_core::generated::protocol::transaction::v1::Transaction::full_name()
+                astria_core::generated::astria::protocol::transaction::v1::Transaction::full_name()
             )
         })?;
 
@@ -399,13 +400,13 @@ async fn wait_for_empty_mempool(
         .on_retry(
             |attempt: u32, next_delay: Option<Duration>, error: &eyre::Report| {
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     error = error.as_ref() as &dyn std::error::Error,
                     attempt,
                     wait_duration,
-                    "failed getting pending nonce from sequencing; retrying after backoff",
+                    "failed getting pending nonce from sequencer; retrying after backoff",
                 );
 
                 // TODO(https://github.com/astriaorg/astria/issues/1272): update metrics here?
@@ -561,7 +562,7 @@ async fn get_latest_nonce(
                 state.set_sequencer_connected(false);
 
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     parent: span.clone(),
@@ -599,7 +600,7 @@ fn make_cometbft_retry_config(
         .on_retry(
             move |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     attempt,
@@ -630,7 +631,7 @@ fn make_cometbft_ext_retry_config(
                   next_delay: Option<Duration>,
                   error: &sequencer_client::extension_trait::Error| {
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     attempt,

@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/app/storage/values/mod.rs
+expression: "borsh_then_hex(&StoredValue::App(Value(ValueImpl::BlockHeight(1.into()))))"
+---
+08020100000000000000

@@ -1,237 +1,306 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    time::Duration,
+};
 
 use astria_core::{
-    execution::v1::{
-        Block,
+    execution::v2::{
         CommitmentState,
+        ExecutedBlockMetadata,
     },
     primitive::v1::RollupId,
+    protocol::price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
     sequencerblock::v1::block::{
+        self,
         FilteredSequencerBlock,
         FilteredSequencerBlockParts,
+        PriceFeedData,
+        RollupData,
     },
 };
 use astria_eyre::eyre::{
     self,
     bail,
     ensure,
+    eyre,
     WrapErr as _,
 };
 use bytes::Bytes;
-use sequencer_client::tendermint::{
-    block::Height as SequencerHeight,
-    Time as TendermintTime,
+use sequencer_client::{
+    tendermint::{
+        block::Height as SequencerHeight,
+        Time as TendermintTime,
+    },
+    HttpClient,
 };
 use tokio::{
     select,
-    sync::{
-        mpsc,
-        watch::error::RecvError,
-    },
+    sync::mpsc,
+    task::JoinError,
 };
-use tokio_util::sync::CancellationToken;
+use tokio_util::{
+    sync::CancellationToken,
+    task::JoinMap,
+};
 use tracing::{
     debug,
     debug_span,
     error,
     info,
+    info_span,
     instrument,
+    warn,
 };
 
 use crate::{
     celestia::ReconstructedBlock,
     config::CommitLevel,
     metrics::Metrics,
+    state::{
+        self,
+        State,
+        StateSender,
+    },
 };
 
 mod builder;
-pub(crate) mod channel;
 
 pub(crate) use builder::Builder;
-use channel::soft_block_channel;
 
 mod client;
-mod state;
 #[cfg(test)]
 mod tests;
-
 pub(super) use client::Client;
-use state::StateReceiver;
-
-use self::state::StateSender;
 
 type CelestiaHeight = u64;
 
-#[derive(Clone, Debug)]
-pub(crate) struct StateNotInit;
-#[derive(Clone, Debug)]
-pub(crate) struct StateIsInit;
-
-#[derive(Debug, thiserror::Error)]
-pub(crate) enum FirmSendError {
-    #[error("executor was configured without firm commitments")]
-    NotSet,
-    #[error("failed sending blocks to executor")]
-    Channel {
-        #[from]
-        source: mpsc::error::SendError<ReconstructedBlock>,
-    },
-}
-
-#[derive(Debug, thiserror::Error)]
-pub(crate) enum FirmTrySendError {
-    #[error("executor was configured without firm commitments")]
-    NotSet,
-    #[error("failed sending blocks to executor")]
-    Channel {
-        #[from]
-        source: mpsc::error::TrySendError<ReconstructedBlock>,
-    },
-}
-
-#[derive(Debug, thiserror::Error)]
-pub(crate) enum SoftSendError {
-    #[error("executor was configured without soft commitments")]
-    NotSet,
-    #[error("failed sending blocks to executor")]
-    Channel { source: Box<channel::SendError> },
-}
-
-#[derive(Debug, thiserror::Error)]
-pub(crate) enum SoftTrySendError {
-    #[error("executor was configured without firm commitments")]
-    NotSet,
-    #[error("failed sending blocks to executor")]
-    Channel {
-        source: Box<channel::TrySendError<FilteredSequencerBlock>>,
-    },
-}
-
-/// A handle to the executor.
-///
-/// To be useful, [`Handle<StateNotInit>::wait_for_init`] must be called in
-/// order to obtain a [`Handle<StateInit>`]. This is to ensure that the executor
-/// state was primed before using its other methods. See [`State`] for more
-/// information.
-#[derive(Debug, Clone)]
-pub(crate) struct Handle<TStateInit = StateNotInit> {
-    firm_blocks: Option<mpsc::Sender<ReconstructedBlock>>,
-    soft_blocks: Option<channel::Sender<FilteredSequencerBlock>>,
-    state: StateReceiver,
-    _state_init: TStateInit,
-}
-
-impl<T: Clone> Handle<T> {
-    #[instrument(skip_all, err)]
-    pub(crate) async fn wait_for_init(&mut self) -> eyre::Result<Handle<StateIsInit>> {
-        self.state.wait_for_init().await.wrap_err(
-            "executor state channel terminated while waiting for the state to initialize",
-        )?;
-        let Self {
-            firm_blocks,
-            soft_blocks,
-            state,
-            ..
-        } = self.clone();
-        Ok(Handle {
-            firm_blocks,
-            soft_blocks,
-            state,
-            _state_init: StateIsInit,
-        })
-    }
-}
-
-impl Handle<StateIsInit> {
-    #[instrument(skip_all, err)]
-    pub(crate) async fn send_firm_block(
-        self,
-        block: ReconstructedBlock,
-    ) -> Result<(), FirmSendError> {
-        let sender = self.firm_blocks.as_ref().ok_or(FirmSendError::NotSet)?;
-        sender.send(block).await?;
-        Ok(())
-    }
-
-    pub(crate) fn try_send_firm_block(
-        &self,
-        block: ReconstructedBlock,
-    ) -> Result<(), FirmTrySendError> {
-        let sender = self.firm_blocks.as_ref().ok_or(FirmTrySendError::NotSet)?;
-        sender.try_send(block)?;
-        Ok(())
-    }
-
-    #[instrument(skip_all, err)]
-    pub(crate) async fn send_soft_block_owned(
-        self,
-        block: FilteredSequencerBlock,
-    ) -> Result<(), SoftSendError> {
-        let chan = self.soft_blocks.as_ref().ok_or(SoftSendError::NotSet)?;
-        chan.send(block)
-            .await
-            .map_err(|source| SoftSendError::Channel {
-                source: Box::new(source),
-            })?;
-        Ok(())
-    }
-
-    pub(crate) fn try_send_soft_block(
-        &self,
-        block: FilteredSequencerBlock,
-    ) -> Result<(), SoftTrySendError> {
-        let chan = self.soft_blocks.as_ref().ok_or(SoftTrySendError::NotSet)?;
-        chan.try_send(block)
-            .map_err(|source| SoftTrySendError::Channel {
-                source: Box::new(source),
-            })?;
-        Ok(())
-    }
-
-    pub(crate) fn next_expected_firm_sequencer_height(&mut self) -> SequencerHeight {
-        self.state.next_expected_firm_sequencer_height()
-    }
-
-    pub(crate) fn next_expected_soft_sequencer_height(&mut self) -> SequencerHeight {
-        self.state.next_expected_soft_sequencer_height()
-    }
-
-    #[instrument(skip_all)]
-    pub(crate) async fn next_expected_soft_height_if_changed(
-        &mut self,
-    ) -> Result<SequencerHeight, RecvError> {
-        self.state.next_expected_soft_height_if_changed().await
-    }
-
-    pub(crate) fn rollup_id(&mut self) -> RollupId {
-        self.state.rollup_id()
-    }
-
-    pub(crate) fn celestia_base_block_height(&mut self) -> CelestiaHeight {
-        self.state.celestia_base_block_height()
-    }
-
-    pub(crate) fn celestia_block_variance(&mut self) -> u64 {
-        self.state.celestia_block_variance()
-    }
-}
-
 pub(crate) struct Executor {
+    config: crate::Config,
+
     /// The execution client driving the rollup.
     client: Client,
 
-    /// The mode under which this executor (and hence conductor) runs.
-    mode: CommitLevel,
+    /// Token to listen for Conductor being shut down.
+    shutdown: CancellationToken,
+
+    metrics: &'static Metrics,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+enum ReaderKind {
+    Firm,
+    Soft,
+}
+
+impl std::fmt::Display for ReaderKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let msg = match self {
+            ReaderKind::Firm => "firm celestia reader",
+            ReaderKind::Soft => "soft sequencer reader",
+        };
+        f.write_str(msg)
+    }
+}
+
+impl Executor {
+    /// Run until a stop signal is received or until the stop height is reached.
+    ///
+    /// The stop height is defined by the execution session that the executor task fetches from its
+    /// rollup node. If the execution session contains no stop height, executor will run until a
+    /// stop signal is reached or its execution session is invalidated by the rollup.
+    ///
+    /// Returns [`State`] when exiting gracefully (stop signal, stop height reached). `None` is
+    /// returned if a shutdown signal is received during initialization before a rollup state could
+    /// be established.
+    pub(crate) async fn run_until_stopped_or_stop_height_reached(
+        self,
+    ) -> eyre::Result<Option<State>> {
+        let initialized = select!(
+            biased;
+
+            () = self.shutdown.clone().cancelled_owned() => {
+                info_span!("shutdown signal on init").in_scope(|| {
+                    info!("received shutdown signal while initializing executor; cancelling initialization");
+                });
+                return Ok(None);
+            }
+            res = self.init() => {
+                res.wrap_err("initialization failed")?
+            }
+        );
+
+        initialized.run().await
+    }
+
+    /// Runs the init logic that needs to happen before [`Executor`] can enter its main loop.
+    #[instrument(skip_all, err)]
+    async fn init(self) -> eyre::Result<Initialized> {
+        let state = self
+            .create_initial_node_state()
+            .await
+            .wrap_err("failed setting initial rollup node state")?;
+
+        let sequencer_cometbft_client = HttpClient::new(&*self.config.sequencer_cometbft_url)
+            .wrap_err("failed constructing sequencer cometbft RPC client")?;
+
+        let reader_cancellation_token = self.shutdown.child_token();
+
+        let Channels {
+            firm_sender: firm_blocks_tx,
+            firm_receiver: firm_blocks_rx,
+            soft_sender: soft_blocks_tx,
+            soft_receiver: soft_blocks_rx,
+        } = create_block_channels(self.config.execution_commit_level, &state)
+            .wrap_err("failed to create channels")?;
+
+        let mut reader_tasks = JoinMap::new();
+        if self.config.is_with_firm() {
+            let celestia_token = if self.config.no_celestia_auth {
+                None
+            } else {
+                Some(self.config.celestia_bearer_token.clone())
+            };
+
+            let reader = crate::celestia::Builder {
+                celestia_http_endpoint: self.config.celestia_node_http_url.clone(),
+                celestia_token,
+                celestia_block_time: Duration::from_millis(self.config.celestia_block_time_ms),
+                firm_blocks: firm_blocks_tx,
+                rollup_state: state.subscribe(),
+                sequencer_cometbft_client: sequencer_cometbft_client.clone(),
+                sequencer_requests_per_second: self.config.sequencer_requests_per_second,
+                shutdown: reader_cancellation_token.child_token(),
+                metrics: self.metrics,
+            }
+            .build()
+            .wrap_err("failed to build Celestia Reader")?;
+            reader_tasks.spawn(ReaderKind::Firm, reader.run_until_stopped());
+        }
+
+        if self.config.is_with_soft() {
+            let sequencer_grpc_client =
+                crate::sequencer::SequencerGrpcClient::new(&self.config.sequencer_grpc_url)
+                    .wrap_err("failed constructing grpc client for Sequencer")?;
+
+            let sequencer_reader = crate::sequencer::Builder {
+                sequencer_grpc_client,
+                sequencer_cometbft_client: sequencer_cometbft_client.clone(),
+                sequencer_block_time: Duration::from_millis(self.config.sequencer_block_time_ms),
+                shutdown: reader_cancellation_token.child_token(),
+                soft_blocks: soft_blocks_tx,
+                rollup_state: state.subscribe(),
+            }
+            .build();
+            reader_tasks.spawn(ReaderKind::Soft, sequencer_reader.run_until_stopped());
+        };
+
+        Ok(Initialized {
+            config: self.config,
+            client: self.client,
+            firm_blocks: firm_blocks_rx,
+            soft_blocks: soft_blocks_rx,
+            shutdown: self.shutdown,
+            state,
+            blocks_pending_finalization: HashMap::new(),
+            metrics: self.metrics,
+            reader_tasks,
+            reader_cancellation_token,
+        })
+    }
+
+    #[instrument(skip_all, err, ret(Display))]
+    async fn create_initial_node_state(&self) -> eyre::Result<StateSender> {
+        let execution_session = self
+            .client
+            .clone()
+            .create_execution_session_with_retry()
+            .await
+            .wrap_err("failed creating execution session")?;
+
+        let (state, _) = state::channel(
+            State::try_from_execution_session(
+                &execution_session,
+                self.config.execution_commit_level,
+            )
+            .wrap_err(
+                "failed to construct initial state using execution session received from rollup",
+            )?,
+        );
+
+        self.metrics
+            .absolute_set_executed_firm_block_number(state.firm_number());
+        self.metrics
+            .absolute_set_executed_soft_block_number(state.soft_number());
+
+        Ok(state)
+    }
+}
+
+struct Channels {
+    firm_sender: mpsc::Sender<Box<ReconstructedBlock>>,
+    firm_receiver: mpsc::Receiver<Box<ReconstructedBlock>>,
+    soft_sender: mpsc::Sender<FilteredSequencerBlock>,
+    soft_receiver: mpsc::Receiver<FilteredSequencerBlock>,
+}
+
+#[instrument(skip_all, err)]
+fn create_block_channels(commit_level: CommitLevel, state: &StateSender) -> eyre::Result<Channels> {
+    let (firm_tx, firm_rx) = tokio::sync::mpsc::channel(16);
+    debug!("created firm block channel");
+
+    let (soft_tx, soft_rx) = match commit_level {
+        CommitLevel::FirmOnly => {
+            let mut channel_size = usize::try_from(state.celestia_search_height_max_look_ahead())
+                .wrap_err(
+                "celestia search height max look ahead overflows usize, is this a 32 bit machine?",
+            )?;
+            if channel_size == 0 {
+                // Arbitrary value, doesn't matter in firm-only since no soft blocks are received
+                channel_size = 1;
+            }
+            tokio::sync::mpsc::channel(channel_size)
+        }
+        CommitLevel::SoftAndFirm => {
+            let channel_size = usize::try_from(state.celestia_search_height_max_look_ahead())
+                .wrap_err(
+                    "celestia search height max look ahead overflows usize, is this a 32 bit \
+                     machine?",
+                )?;
+            ensure!(
+                channel_size > 0,
+                "celestia-search-height-max-look-ahead must be greater than 0 if running in \
+                 soft-and-firm mode; note that unset values in the execution session have a \
+                 default of 0"
+            );
+            tokio::sync::mpsc::channel(channel_size)
+        }
+        CommitLevel::SoftOnly => {
+            // Arbitrarily chosen as 2x the sequencer request rate limit
+            tokio::sync::mpsc::channel(1024)
+        }
+    };
+    debug!("created soft block channel");
+    Ok(Channels {
+        firm_sender: firm_tx,
+        firm_receiver: firm_rx,
+        soft_sender: soft_tx,
+        soft_receiver: soft_rx,
+    })
+}
+
+struct Initialized {
+    config: crate::Config,
+
+    /// The execution client driving the rollup.
+    client: Client,
 
     /// The channel of which this executor receives blocks for executing
     /// firm commitments.
-    /// Only set if `mode` is `FirmOnly` or `SoftAndFirm`.
-    firm_blocks: Option<mpsc::Receiver<ReconstructedBlock>>,
+    firm_blocks: mpsc::Receiver<Box<ReconstructedBlock>>,
 
     /// The channel of which this executor receives blocks for executing
     /// soft commitments.
-    /// Only set if `mode` is `SoftOnly` or `SoftAndFirm`.
-    soft_blocks: Option<channel::Receiver<FilteredSequencerBlock>>,
+    soft_blocks: mpsc::Receiver<FilteredSequencerBlock>,
 
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
@@ -243,115 +312,67 @@ pub(crate) struct Executor {
     ///
     /// Required to mark firm blocks received from celestia as executed
     /// without re-executing on top of the rollup node.
-    blocks_pending_finalization: HashMap<u32, Block>,
-
-    /// The maximum permitted spread between firm and soft blocks.
-    max_spread: Option<usize>,
+    blocks_pending_finalization: HashMap<u64, ExecutedBlockMetadata>,
 
     metrics: &'static Metrics,
+
+    /// The tasks reading block data off Celestia or Sequencer.
+    reader_tasks: JoinMap<ReaderKind, eyre::Result<()>>,
+
+    /// The cancellation token specifically for signaling the `reader_tasks` to shut down.
+    reader_cancellation_token: CancellationToken,
 }
 
-impl Executor {
-    pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        select!(
+impl Initialized {
+    async fn run(mut self) -> eyre::Result<Option<State>> {
+        let result = select!(
+            biased;
+
             () = self.shutdown.clone().cancelled_owned() => {
-                return report_exit(Ok(
-                    "received shutdown signal while initializing task; \
-                    aborting intialization and exiting"
-                ), "");
+                Ok(Some(self.state.get().clone()))
             }
-            res = self.init() => {
-                res.wrap_err("initialization failed")?;
+
+            res = self.run_event_loop() => {
+                res
             }
         );
 
-        let reason = loop {
-            let spread_not_too_large = !self.is_spread_too_large();
-            if spread_not_too_large {
-                if let Some(channel) = self.soft_blocks.as_mut() {
-                    channel.fill_permits();
-                }
-            }
+        self.shutdown(&result).await;
+        result
+    }
 
+    async fn run_event_loop(&mut self) -> eyre::Result<Option<State>> {
+        loop {
             select!(
                 biased;
 
-                () = self.shutdown.cancelled() => {
-                    break Ok("received shutdown signal");
-                }
-
-                Some(block) = async { self.firm_blocks.as_mut().unwrap().recv().await },
-                              if self.firm_blocks.is_some() =>
+                Some(block) = self.firm_blocks.recv() =>
                 {
                     debug_span!("conductor::Executor::run_until_stopped").in_scope(||debug!(
                         block.height = %block.sequencer_height(),
-                        block.hash = %telemetry::display::base64(&block.block_hash),
+                        block.hash = %block.block_hash(),
                         "received block from celestia reader",
                     ));
-                    if let Err(error) = self.execute_firm(block).await {
-                        break Err(error).wrap_err("failed executing firm block");
-                    }
+                    self.execute_firm(block).await.wrap_err("failed executing firm block")?;
                 }
 
-                Some(block) = async { self.soft_blocks.as_mut().unwrap().recv().await },
-                              if self.soft_blocks.is_some() && spread_not_too_large =>
+                Some(block) = self.soft_blocks.recv(), if !self.is_spread_too_large() =>
                 {
                     debug_span!("conductor::Executor::run_until_stopped").in_scope(||debug!(
                         block.height = %block.height(),
-                        block.hash = %telemetry::display::base64(&block.block_hash()),
+                        block.hash = %block.block_hash(),
                         "received block from sequencer reader",
                     ));
-                    if let Err(error) = self.execute_soft(block).await {
-                        break Err(error).wrap_err("failed executing soft block");
-                    }
+                    self.execute_soft(block).await.wrap_err("failed executing soft block")?;
                 }
-            );
-        };
 
-        // XXX: explicitly setting the message (usually implicitly set by tracing)
-        let message = "shutting down";
-        report_exit(reason, message)
-    }
+                Some((task, res)) = self.reader_tasks.join_next() => {
+                    self.handle_task_exit(task, res)?;
+                }
 
-    /// Runs the init logic that needs to happen before [`Executor`] can enter its main loop.
-    #[instrument(skip_all, err)]
-    async fn init(&mut self) -> eyre::Result<()> {
-        self.set_initial_node_state()
-            .await
-            .wrap_err("failed setting initial rollup node state")?;
-
-        let max_spread: usize = self.calculate_max_spread();
-        self.max_spread.replace(max_spread);
-        if let Some(channel) = self.soft_blocks.as_mut() {
-            channel.set_capacity(max_spread);
-            info!(
-                max_spread,
-                "setting capacity of soft blocks channel to maximum permitted firm<>soft \
-                 commitment spread (this has no effect if conductor is set to perform soft-sync \
-                 only)"
+                else => break Ok(Some(self.state.get().clone()))
             );
         }
-
-        Ok(())
-    }
-
-    /// Calculates the maximum allowed spread between firm and soft commitments heights.
-    ///
-    /// The maximum allowed spread is taken as `max_spread = variance * 6`, where `variance`
-    /// is the `celestia_block_variance` as defined in the rollup node's genesis that this
-    /// executor/conductor talks to.
-    ///
-    /// The heuristic 6 is the largest number of Sequencer heights that will be found at
-    /// one Celestia height.
-    ///
-    /// # Panics
-    /// Panics if the `u32` underlying the celestia block variance tracked in the state could
-    /// not be converted to a `usize`. This should never happen on any reasonable architecture
-    /// that Conductor will run on.
-    fn calculate_max_spread(&self) -> usize {
-        usize::try_from(self.state.celestia_block_variance())
-            .expect("converting a u32 to usize should work on any architecture conductor runs on")
-            .saturating_mul(6)
     }
 
     /// Returns if the spread between firm and soft commitment heights in the tracked state is too
@@ -363,7 +384,7 @@ impl Executor {
     ///
     /// Panics if called before [`Executor::init`] because `max_spread` must be set.
     fn is_spread_too_large(&self) -> bool {
-        if self.firm_blocks.is_none() {
+        if !self.config.is_with_firm() {
             return false;
         }
         let (next_firm, next_soft) = {
@@ -372,14 +393,8 @@ impl Executor {
             (next_firm, next_soft)
         };
 
-        let is_too_far_ahead = usize::try_from(next_soft.saturating_sub(next_firm))
-            .map(|spread| {
-                spread
-                    >= self
-                        .max_spread
-                        .expect("executor must be initalized and this field set")
-            })
-            .unwrap_or(false);
+        let is_too_far_ahead = next_soft.saturating_sub(next_firm)
+            >= self.state.celestia_search_height_max_look_ahead();
 
         if is_too_far_ahead {
             debug!("soft blocks are too far ahead of firm; skipping soft blocks");
@@ -388,7 +403,7 @@ impl Executor {
     }
 
     #[instrument(skip_all, fields(
-        block.hash = %telemetry::display::base64(&block.block_hash()),
+        block.hash = %block.block_hash(),
         block.height = block.height().value(),
         err,
     ))]
@@ -413,23 +428,21 @@ impl Executor {
             std::cmp::Ordering::Equal => {}
         }
 
-        let genesis_height = self.state.sequencer_genesis_block_height();
-        let block_height = executable_block.height;
-        let Some(block_number) =
-            state::map_sequencer_height_to_rollup_height(genesis_height, block_height)
-        else {
-            bail!(
-                "failed to map block height rollup number. This means the operation
-                `sequencer_height - sequencer_genesis_height` underflowed or was not a valid
-                cometbft height. Sequencer height: `{block_height}`, sequencer genesis height: \
-                 `{genesis_height}`",
-            )
-        };
+        let sequencer_start_block_height = self.state.sequencer_start_block_height();
+        let rollup_start_block_number = self.state.rollup_start_block_number();
+        let current_block_height = executable_block.height;
+        let block_number = state::try_map_sequencer_height_to_rollup_height(
+            sequencer_start_block_height,
+            rollup_start_block_number,
+            current_block_height,
+        )
+        .wrap_err("failed to map current block height to rollup number")?;
 
         // The parent hash of the next block is the hash of the block at the current head.
         let parent_hash = self.state.soft_hash();
+        let session_id = self.state.execution_session_id();
         let executed_block = self
-            .execute_block(parent_hash, executable_block)
+            .execute_block(session_id, parent_hash, executable_block)
             .await
             .wrap_err("failed to execute block")?;
 
@@ -452,13 +465,13 @@ impl Executor {
     }
 
     #[instrument(skip_all, fields(
-        block.hash = %telemetry::display::base64(&block.block_hash),
+        block.hash = %block.block_hash(),
         block.height = block.sequencer_height().value(),
         err,
     ))]
-    async fn execute_firm(&mut self, block: ReconstructedBlock) -> eyre::Result<()> {
+    async fn execute_firm(&mut self, block: Box<ReconstructedBlock>) -> eyre::Result<()> {
         let celestia_height = block.celestia_height;
-        let executable_block = ExecutableBlock::from_reconstructed(block);
+        let executable_block = ExecutableBlock::from_reconstructed(*block);
         let expected_height = self.state.next_expected_firm_sequencer_height();
         let block_height = executable_block.height;
         ensure!(
@@ -466,22 +479,20 @@ impl Executor {
             "expected block at sequencer height {expected_height}, but got {block_height}",
         );
 
-        let genesis_height = self.state.sequencer_genesis_block_height();
-        let Some(block_number) =
-            state::map_sequencer_height_to_rollup_height(genesis_height, block_height)
-        else {
-            bail!(
-                "failed to map block height rollup number. This means the operation
-                `sequencer_height - sequencer_genesis_height` underflowed or was not a valid
-                cometbft height. Sequencer height: `{block_height}`, sequencer genesis height: \
-                 `{genesis_height}`",
-            )
-        };
+        let sequencer_start_block_height = self.state.sequencer_start_block_height();
+        let rollup_start_block_number = self.state.rollup_start_block_number();
+        let block_number = state::try_map_sequencer_height_to_rollup_height(
+            sequencer_start_block_height,
+            rollup_start_block_number,
+            block_height,
+        )
+        .wrap_err("failed to map current block height to rollup number")?;
 
         let update = if self.should_execute_firm_block() {
             let parent_hash = self.state.firm_hash();
+            let session_id = self.state.execution_session_id();
             let executed_block = self
-                .execute_block(parent_hash, executable_block)
+                .execute_block(session_id, parent_hash, executable_block)
                 .await
                 .wrap_err("failed to execute block")?;
             self.does_block_response_fulfill_contract(ExecutionKind::Firm, &executed_block)
@@ -499,7 +510,11 @@ impl Executor {
                 "pending block not found for block number in cache. THIS SHOULD NOT HAPPEN. \
                  Trying to fetch the already-executed block from the rollup before giving up."
             );
-            match self.client.get_block_with_retry(block_number).await {
+            match self
+                .client
+                .get_executed_block_metadata_with_retry(block_number)
+                .await
+            {
                 Ok(block) => Update::OnlyFirm(block, celestia_height),
                 Err(error) => {
                     error!(
@@ -532,7 +547,7 @@ impl Executor {
     /// This function is called via [`Executor::execute_firm`] or [`Executor::execute_soft`],
     /// and should not be called directly.
     #[instrument(skip_all, fields(
-        block.hash = %telemetry::display::base64(&block.hash),
+        block.hash = %block.hash,
         block.height = block.height.value(),
         block.num_of_transactions = block.transactions.len(),
         rollup.parent_hash = %telemetry::display::base64(&parent_hash),
@@ -540,10 +555,12 @@ impl Executor {
     ))]
     async fn execute_block(
         &mut self,
-        parent_hash: Bytes,
+        session_id: String,
+        parent_hash: String,
         block: ExecutableBlock,
-    ) -> eyre::Result<Block> {
+    ) -> eyre::Result<ExecutedBlockMetadata> {
         let ExecutableBlock {
+            hash,
             transactions,
             timestamp,
             ..
@@ -551,9 +568,9 @@ impl Executor {
 
         let n_transactions = transactions.len();
 
-        let executed_block = self
+        let executed_block_metadata = self
             .client
-            .execute_block_with_retry(parent_hash, transactions, timestamp)
+            .execute_block_with_retry(session_id, parent_hash, transactions, timestamp, hash)
             .await
             .wrap_err("failed to run execute_block RPC")?;
 
@@ -561,49 +578,12 @@ impl Executor {
             .record_transactions_per_executed_block(n_transactions);
 
         info!(
-            executed_block.hash = %telemetry::display::base64(&executed_block.hash()),
-            executed_block.number = executed_block.number(),
+            executed_block_metadata.hash = executed_block_metadata.hash(),
+            executed_block_metadata.number = executed_block_metadata.number(),
             "executed block",
         );
 
-        Ok(executed_block)
-    }
-
-    #[instrument(skip_all, err)]
-    async fn set_initial_node_state(&mut self) -> eyre::Result<()> {
-        let genesis_info = {
-            async {
-                self.client
-                    .clone()
-                    .get_genesis_info_with_retry()
-                    .await
-                    .wrap_err("failed getting genesis info")
-            }
-        };
-        let commitment_state = {
-            async {
-                self.client
-                    .clone()
-                    .get_commitment_state_with_retry()
-                    .await
-                    .wrap_err("failed getting commitment state")
-            }
-        };
-        let (genesis_info, commitment_state) = tokio::try_join!(genesis_info, commitment_state)?;
-        self.state
-            .try_init(genesis_info, commitment_state)
-            .wrap_err("failed initializing state tracking")?;
-
-        self.metrics
-            .absolute_set_executed_firm_block_number(self.state.firm_number());
-        self.metrics
-            .absolute_set_executed_soft_block_number(self.state.soft_number());
-        info!(
-            initial_state = serde_json::to_string(&*self.state.get())
-                .expect("writing json to a string should not fail"),
-            "received genesis info from rollup",
-        );
-        Ok(())
+        Ok(executed_block_metadata)
     }
 
     #[instrument(skip_all, err)]
@@ -613,24 +593,38 @@ impl Executor {
             OnlySoft,
             ToSame,
         };
-        let (firm, soft, celestia_height) = match update {
-            OnlyFirm(firm, celestia_height) => (firm, self.state.soft(), celestia_height),
+
+        use crate::config::CommitLevel;
+        let (firm, soft, celestia_height, commit_level) = match update {
+            OnlyFirm(firm, celestia_height) => (
+                firm,
+                self.state.soft(),
+                celestia_height,
+                CommitLevel::FirmOnly,
+            ),
             OnlySoft(soft) => (
                 self.state.firm(),
                 soft,
-                self.state.celestia_base_block_height(),
+                self.state.lowest_celestia_search_height(),
+                CommitLevel::SoftOnly,
             ),
-            ToSame(block, celestia_height) => (block.clone(), block, celestia_height),
+            ToSame(block, celestia_height) => (
+                block.clone(),
+                block,
+                celestia_height,
+                CommitLevel::SoftAndFirm,
+            ),
         };
         let commitment_state = CommitmentState::builder()
-            .firm(firm)
-            .soft(soft)
-            .base_celestia_height(celestia_height)
+            .firm_executed_block_metadata(firm)
+            .soft_executed_block_metadata(soft)
+            .lowest_celestia_search_height(celestia_height)
             .build()
             .wrap_err("failed constructing commitment state")?;
+        let session_id = self.state.execution_session_id();
         let new_state = self
             .client
-            .update_commitment_state_with_retry(commitment_state)
+            .update_commitment_state_with_retry(session_id, commitment_state)
             .await
             .wrap_err("failed updating remote commitment state")?;
         info!(
@@ -641,7 +635,7 @@ impl Executor {
             "updated commitment state",
         );
         self.state
-            .try_update_commitment_state(new_state)
+            .try_update_commitment_state(new_state, commit_level)
             .wrap_err("failed updating internal state tracking rollup state; invalid?")?;
         Ok(())
     }
@@ -649,9 +643,9 @@ impl Executor {
     fn does_block_response_fulfill_contract(
         &mut self,
         kind: ExecutionKind,
-        block: &Block,
+        block_metadata: &ExecutedBlockMetadata,
     ) -> Result<(), ContractViolation> {
-        does_block_response_fulfill_contract(&mut self.state, kind, block)
+        does_block_response_fulfill_contract(&mut self.state, kind, block_metadata)
     }
 
     /// Returns whether a firm block should be executed.
@@ -663,34 +657,121 @@ impl Executor {
         should_execute_firm_block(
             self.state.next_expected_firm_sequencer_height().value(),
             self.state.next_expected_soft_sequencer_height().value(),
-            self.mode,
+            self.config.execution_commit_level,
         )
     }
-}
 
-#[instrument(skip_all)]
-fn report_exit(reason: eyre::Result<&str>, message: &str) -> eyre::Result<()> {
-    match reason {
-        Ok(reason) => {
-            info!(%reason, message);
-            Ok(())
+    #[instrument(skip_all, err)]
+    fn handle_task_exit(
+        &mut self,
+        task: ReaderKind,
+        res: Result<eyre::Result<()>, JoinError>,
+    ) -> eyre::Result<()> {
+        match task {
+            ReaderKind::Firm if self.config.is_with_firm() => {
+                match (
+                    self.state.rollup_end_block_number().is_some(),
+                    self.state.has_firm_number_reached_stop_height(),
+                ) {
+                    (true, true) => {
+                        info!(
+                            "firm number has reached stop height; signalling all readers to stop \
+                             and closing channels"
+                        );
+                        self.reader_cancellation_token.cancel();
+                        self.firm_blocks.close();
+                        self.soft_blocks.close();
+                        Ok(())
+                    }
+
+                    (true, false) => match res {
+                        Ok(Ok(())) => Err(eyre!("task exited with success value")),
+                        Ok(Err(err)) => Err(err).wrap_err("task exited with error"),
+                        Err(err) => Err(err).wrap_err("task panicked"),
+                    }
+                    .wrap_err_with(|| {
+                        format!("task `{task}` exited unexpectedly before stop height was reached")
+                    }),
+
+                    // fall-through case, no stop height was configured
+                    (false, _) => match res {
+                        Ok(Ok(())) => Err(eyre!("task exited with sucess value")),
+                        Ok(Err(err)) => Err(err).wrap_err("task exited with error"),
+                        Err(err) => Err(err).wrap_err("task panicked"),
+                    }
+                    .wrap_err_with(|| format!("task `{task}` exited unexpectedly")),
+                }
+            }
+
+            ReaderKind::Soft if self.config.is_with_soft() => {
+                match (
+                    self.state.rollup_end_block_number().is_some(),
+                    self.state.has_soft_number_reached_stop_height(),
+                ) {
+                    (true, true) => {
+                        info!("soft number has reached stop height");
+                        Ok(())
+                    }
+                    (true, false) => match res {
+                        Ok(Ok(())) => Err(eyre!("task exited with success value")),
+                        Ok(Err(err)) => Err(err).wrap_err("task exited with error"),
+                        Err(err) => Err(err).wrap_err("task panicked"),
+                    }
+                    .wrap_err_with(|| {
+                        format!("task `{task}` exited unexpectedly before stop height was reached")
+                    }),
+
+                    (false, _) => match res {
+                        Ok(Ok(())) => Err(eyre!("task exited with sucess value")),
+                        Ok(Err(err)) => Err(err).wrap_err("task exited with error"),
+                        Err(err) => Err(err).wrap_err("task panicked"),
+                    }
+                    .wrap_err_with(|| format!("task `{task}` exited unexpectedly")),
+                }
+            }
+
+            ReaderKind::Firm | ReaderKind::Soft => Err(eyre!(
+                "task `{task}` exited but it shouldn't have run in the first place because \
+                 because commit level is set to `{}`",
+                self.config.execution_commit_level
+            )),
         }
-        Err(error) => {
-            error!(%error, message);
-            Err(error)
+    }
+
+    #[instrument(skip_all)]
+    async fn shutdown(mut self, reason: &eyre::Result<Option<State>>) {
+        let message = "shutting down";
+        match &reason {
+            Ok(_) => {
+                info!(message);
+            }
+            Err(reason) => {
+                error!(%reason, message);
+            }
+        }
+
+        info!("signaling all reader tasks to exit, closing all channels");
+        self.reader_cancellation_token.cancel();
+        self.firm_blocks.close();
+        self.soft_blocks.close();
+        while let Some((task, exit_status)) = self.reader_tasks.join_next().await {
+            match crate::utils::flatten(exit_status) {
+                Ok(()) => info!(%task, "task exited"),
+                Err(error) => warn!(%task, %error, "task exited"),
+            }
         }
     }
 }
 
 enum Update {
-    OnlyFirm(Block, CelestiaHeight),
-    OnlySoft(Block),
-    ToSame(Block, CelestiaHeight),
+    OnlyFirm(ExecutedBlockMetadata, CelestiaHeight),
+    OnlySoft(ExecutedBlockMetadata),
+    ToSame(ExecutedBlockMetadata, CelestiaHeight),
 }
 
 #[derive(Debug)]
 struct ExecutableBlock {
-    hash: [u8; 32],
+    hash: block::Hash,
     height: SequencerHeight,
     timestamp: pbjson_types::Timestamp,
     transactions: Vec<Bytes>,
@@ -702,9 +783,12 @@ impl ExecutableBlock {
             block_hash,
             header,
             transactions,
+            extended_commit_info,
             ..
         } = block;
         let timestamp = convert_tendermint_time_to_protobuf_timestamp(header.time());
+        let transactions =
+            prepend_transactions_by_price_feed_if_exists(transactions, extended_commit_info);
         Self {
             hash: block_hash,
             height: header.height(),
@@ -714,6 +798,7 @@ impl ExecutableBlock {
     }
 
     fn from_sequencer(block: FilteredSequencerBlock, id: RollupId) -> Self {
+        let extended_commit_info = block.extended_commit_info().cloned();
         let FilteredSequencerBlockParts {
             block_hash,
             header,
@@ -726,6 +811,9 @@ impl ExecutableBlock {
             .swap_remove(&id)
             .map(|txs| txs.transactions().to_vec())
             .unwrap_or_default();
+
+        let transactions =
+            prepend_transactions_by_price_feed_if_exists(transactions, extended_commit_info);
         Self {
             hash: block_hash,
             height,
@@ -733,6 +821,47 @@ impl ExecutableBlock {
             transactions,
         }
     }
+}
+
+/// Prepends the price data to the transactions if it can be calculated from `extended_commit_info`.
+///
+/// Regardless of the order of the returned collection, the rollup can choose whichever execution
+/// order suits best for its use case, but it's anticipated that applying the updated price feed
+/// before executing transactions would be a common use case, so the price feed is prepended for
+/// convenience.
+#[instrument(skip_all)]
+fn prepend_transactions_by_price_feed_if_exists(
+    transactions: Vec<Bytes>,
+    extended_commit_info: Option<ExtendedCommitInfoWithCurrencyPairMapping>,
+) -> Vec<Bytes> {
+    use astria_core::oracles::price_feed::utils::calculate_prices_from_vote_extensions;
+    use prost::Message as _;
+
+    let Some(extended_commit_info) = extended_commit_info else {
+        return transactions;
+    };
+
+    let prices = match calculate_prices_from_vote_extensions(
+        &extended_commit_info.extended_commit_info,
+        &extended_commit_info.id_to_currency_pair,
+    ) {
+        Ok(prices) => prices,
+        Err(error) => {
+            warn!(
+                error = %error,
+                "failed to calculate prices from vote extensions; continuing without price feed \
+                data"
+            );
+            return transactions;
+        }
+    };
+
+    let rollup_data = RollupData::PriceFeedData(Box::new(PriceFeedData::new(prices)));
+    prepend(rollup_data.into_raw().encode_to_vec().into(), transactions)
+}
+
+fn prepend(item_to_prepend: Bytes, txs: Vec<Bytes>) -> Vec<Bytes> {
+    std::iter::once(item_to_prepend).chain(txs).collect()
 }
 
 /// Converts a [`tendermint::Time`] to a [`prost_types::Timestamp`].
@@ -771,24 +900,24 @@ enum ContractViolation {
     )]
     WrongBlock {
         kind: ExecutionKind,
-        current: u32,
-        expected: u32,
-        actual: u32,
+        current: u64,
+        expected: u64,
+        actual: u64,
     },
     #[error("contract violated: current height cannot be incremented")]
-    CurrentBlockNumberIsMax { kind: ExecutionKind, actual: u32 },
+    CurrentBlockNumberIsMax { kind: ExecutionKind, actual: u64 },
 }
 
 fn does_block_response_fulfill_contract(
     state: &mut StateSender,
     kind: ExecutionKind,
-    block: &Block,
+    block_metadata: &ExecutedBlockMetadata,
 ) -> Result<(), ContractViolation> {
     let current = match kind {
         ExecutionKind::Firm => state.firm_number(),
         ExecutionKind::Soft => state.soft_number(),
     };
-    let actual = block.number();
+    let actual = block_metadata.number();
     let expected = current
         .checked_add(1)
         .ok_or(ContractViolation::CurrentBlockNumberIsMax {

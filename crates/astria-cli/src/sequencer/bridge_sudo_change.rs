@@ -39,18 +39,10 @@ pub(crate) struct Command {
     #[arg(long, env = "SEQUENCER_PRIVATE_KEY")]
     pub(crate) private_key: String,
     /// The url of the Sequencer node
-    #[arg(
-        long,
-        env = "SEQUENCER_URL",
-        default_value = crate::DEFAULT_SEQUENCER_RPC
-    )]
+    #[arg(long, env = "SEQUENCER_URL")]
     pub(crate) sequencer_url: String,
     /// The chain id of the sequencing chain being used
-    #[arg(
-        long = "sequencer.chain-id",
-        env = "ROLLUP_SEQUENCER_CHAIN_ID",
-        default_value = crate::DEFAULT_SEQUENCER_CHAIN_ID
-    )]
+    #[arg(long = "sequencer.chain-id", env = "ROLLUP_SEQUENCER_CHAIN_ID")]
     pub(crate) sequencer_chain_id: String,
     /// The asset to pay the transfer fees with.
     #[arg(long, default_value = "nria")]

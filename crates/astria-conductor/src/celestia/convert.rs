@@ -1,6 +1,6 @@
 use astria_core::{
     brotli::decompress_bytes,
-    generated::sequencerblock::v1::{
+    generated::astria::sequencerblock::v1::{
         SubmittedMetadataList,
         SubmittedRollupDataList,
     },

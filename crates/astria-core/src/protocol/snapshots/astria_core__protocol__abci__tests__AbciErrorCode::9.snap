@@ -1,0 +1,5 @@
+---
+source: crates/astria-core/src/protocol/abci.rs
+expression: error_code
+---
+9: the transaction expired in the app's mempool

@@ -64,7 +64,7 @@ spec:
     {{- tpl (toYaml .) $ | nindent 4 }}
   {{- end }}
   {{- else if $ingress.hostname }}
-    - host: rpc.{{ $ingress.hostname }}
+    - host: rpc.{{- tpl $ingress.hostname . }}
       http:
         paths:
           - path: "/"
@@ -140,7 +140,7 @@ spec:
     {{- tpl (toYaml .) $ | nindent 4 }}
   {{- end }}
   {{- else if $ingress.hostname }}
-    - host: grpc.{{ $ingress.hostname }}
+    - host: grpc.{{- tpl $ingress.hostname . }}
       http:
         paths:
           - path: "/"

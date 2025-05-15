@@ -3,21 +3,28 @@ use std::collections::HashMap;
 use astria_core::primitive::v1::asset;
 use astria_eyre::eyre::Result;
 use cnidarium::StateRead;
-use tracing::instrument;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use crate::accounts::{
     AddressBytes,
     StateReadExt as _,
 };
 
-#[instrument(skip_all)]
+#[instrument(
+    skip_all,
+    fields(address = %address_bytes.display_address()),
+    err(level = Level::DEBUG)
+)]
 pub(crate) async fn get_account_balances<S: StateRead, T: AddressBytes>(
     state: S,
-    address: &T,
+    address_bytes: &T,
 ) -> Result<HashMap<asset::IbcPrefixed, u128>> {
     use futures::TryStreamExt as _;
     state
-        .account_asset_balances(address)
+        .account_asset_balances(address_bytes)
         .map_ok(
             |crate::accounts::AssetBalance {
                  asset,
@@ -41,7 +48,7 @@ mod tests {
             StateReadExt as _,
             StateWriteExt as _,
         },
-        benchmark_and_test_utils::{
+        test_utils::{
             astria_address,
             nria,
         },

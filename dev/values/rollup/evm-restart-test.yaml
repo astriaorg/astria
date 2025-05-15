@@ -1,0 +1,243 @@
+global:
+  useTTY: true
+  dev: true
+  evmChainId: 1337
+  rollupName: astria
+  sequencerRpc: http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657
+  sequencerGrpc: http://node0-sequencer-grpc-service.astria-dev-cluster.svc.cluster.local:8080
+  sequencerChainId: sequencer-test-chain-0
+  celestiaChainId: celestia-local-0
+
+evm-rollup:
+  genesis:
+    # The name of the rollup chain, used to generate the Rollup ID
+    rollupName: "{{ .Values.global.rollupName }}"
+
+    # The "forks" for upgrading the chain. Contains necessary information for starting
+    # and, if desired, restarting the chain at a given height. The necessary fields
+    # for the genesis fork are provided, and additional forks can be added as needed.
+    forks:
+      ## These values are used to configure the genesis block of the rollup chain
+      ## no defaults as they are unique to each chain
+      launch:
+        # The rollup number to start executing blocks at, lowest possible is 1
+        height: 1
+        # Configure the fee collector for the evm tx fees, activated at block heights.
+        # If not configured, all tx fees will be burned.
+        feeCollector: "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
+        sequencer:
+          # The chain id of the sequencer chain
+          chainId: "sequencer-test-chain-0"
+          # The hrp for bech32m addresses, unlikely to be changed
+          addressPrefix: "astria"
+          # Block height to start syncing rollup from (inclusive), lowest possible is 2
+          startHeight: 2
+        celestia:
+          # The chain id of the celestia chain
+          chainId: "celestia-local-0"
+          # The first Celestia height to utilize when looking for rollup data
+          startHeight: 2
+          # The maximum number of blocks ahead of the lowest Celestia search height
+          # to search for a firm commitment
+          searchHeightMaxLookAhead: 50
+        # Configure the sequencer bridge addresses and allowed assets if using
+        # the astria canonical bridge. Recommend removing alloc values if so.
+        bridgeAddresses:
+          - bridgeAddress: "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
+            senderAddress: "0x0000000000000000000000000000000000000000"
+            assetDenom: "nria"
+            assetPrecision: 9
+      restart:
+        height: 19
+
+    ## These are general configuration values with some recommended defaults
+
+    # Configure the gas Limit
+    gasLimit: "50000000"
+    # If set to true the genesis block will contain extra data
+    overrideGenesisExtraData: true
+
+    ## Standard Eth Genesis config values
+    # Configuration of Eth forks, setting to 0 will enable from height,
+    # left as is these forks will not activate.
+    cancunTime: ""
+    pragueTime: ""
+    verkleTime: ""
+    # Can configure the genesis allocs for the chain
+    alloc:
+      # Deploying the deterministic deploy proxy contract in genesis
+      # Forge and other tools use this for their CREATE2 usage, but
+      # can only be included through the genesis block after EIP-155
+      # https://github.com/Arachnid/deterministic-deployment-proxy
+      - address: "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+        value:
+          balance: "0"
+          code: "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3"
+      - address: "0xA58639fB5458e65E4fA917FF951C390292C24A15"
+        value:
+          balance: "0"
+          code: "0x6080604052600436106100f35760003560e01c8063b6476c7e1161008a578063e74b981b11610059578063e74b981b1461027b578063ebd090541461029b578063f2fde38b146102bb578063fc88d31b146102db57600080fd5b8063b6476c7e1461021c578063bab916d01461023e578063d294f09314610251578063db97dc981461026657600080fd5b80638da5cb5b116100c65780638da5cb5b146101a1578063a7eaa739146101d3578063a996e020146101f3578063ad2282471461020657600080fd5b80636f46384a146100f8578063715018a6146101215780637eb6dec7146101385780638897397914610181575b600080fd5b34801561010457600080fd5b5061010e60035481565b6040519081526020015b60405180910390f35b34801561012d57600080fd5b506101366102f1565b005b34801561014457600080fd5b5061016c7f000000000000000000000000000000000000000000000000000000000000000981565b60405163ffffffff9091168152602001610118565b34801561018d57600080fd5b5061013661019c3660046107a6565b610305565b3480156101ad57600080fd5b506000546001600160a01b03165b6040516001600160a01b039091168152602001610118565b3480156101df57600080fd5b506101366101ee3660046107a6565b610312565b610136610201366004610808565b61031f565b34801561021257600080fd5b5061010e60065481565b34801561022857600080fd5b50610231610414565b6040516101189190610874565b61013661024c3660046108c3565b6104a2565b34801561025d57600080fd5b50610136610588565b34801561027257600080fd5b506102316106b4565b34801561028757600080fd5b50610136610296366004610905565b6106c1565b3480156102a757600080fd5b506005546101bb906001600160a01b031681565b3480156102c757600080fd5b506101366102d6366004610905565b6106eb565b3480156102e757600080fd5b5061010e60045481565b6102f9610729565b6103036000610756565b565b61030d610729565b600455565b61031a610729565b600355565b3460045480821161034b5760405162461bcd60e51b815260040161034290610935565b60405180910390fd5b60007f000000000000000000000000000000000000000000000000000000003b9aca006103788385610998565b61038291906109b1565b1161039f5760405162461bcd60e51b8152600401610342906109d3565b600454600660008282546103b39190610a61565b90915550506004546103c59034610998565b336001600160a01b03167f0c64e29a5254a71c7f4e52b3d2d236348c80e00a00ba2e1961962bd2827c03fb888888886040516104049493929190610a9d565b60405180910390a3505050505050565b6002805461042190610acf565b80601f016020809104026020016040519081016040528092919081815260200182805461044d90610acf565b801561049a5780601f1061046f5761010080835404028352916020019161049a565b820191906000526020600020905b81548152906001019060200180831161047d57829003601f168201915b505050505081565b346003548082116104c55760405162461bcd60e51b815260040161034290610935565b60007f000000000000000000000000000000000000000000000000000000003b9aca006104f28385610998565b6104fc91906109b1565b116105195760405162461bcd60e51b8152600401610342906109d3565b6003546006600082825461052d9190610a61565b909155505060035461053f9034610998565b336001600160a01b03167f0f4961cab7530804898499aa89f5ec81d1a73102e2e4a1f30f88e5ae3513ba2a868660405161057a929190610b09565b60405180910390a350505050565b6005546001600160a01b031633146105f45760405162461bcd60e51b815260206004820152602960248201527f41737472696142726964676561626c6545524332303a206f6e6c7920666565206044820152681c9958da5c1a595b9d60ba1b6064820152608401610342565b6005546006546040516000926001600160a01b031691908381818185875af1925050503d8060008114610643576040519150601f19603f3d011682016040523d82523d6000602084013e610648565b606091505b50509050806106ac5760405162461bcd60e51b815260206004820152602a60248201527f41737472696142726964676561626c6545524332303a20666565207472616e7360448201526919995c8819985a5b195960b21b6064820152608401610342565b506000600655565b6001805461042190610acf565b6106c9610729565b600580546001600160a01b0319166001600160a01b0392909216919091179055565b6106f3610729565b6001600160a01b03811661071d57604051631e4fbdf760e01b815260006004820152602401610342565b61072681610756565b50565b6000546001600160a01b031633146103035760405163118cdaa760e01b8152336004820152602401610342565b600080546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b6000602082840312156107b857600080fd5b5035919050565b60008083601f8401126107d157600080fd5b50813567ffffffffffffffff8111156107e957600080fd5b60208301915083602082850101111561080157600080fd5b9250929050565b6000806000806040858703121561081e57600080fd5b843567ffffffffffffffff8082111561083657600080fd5b610842888389016107bf565b9096509450602087013591508082111561085b57600080fd5b50610868878288016107bf565b95989497509550505050565b60006020808352835180602085015260005b818110156108a257858101830151858201604001528201610886565b506000604082860101526040601f19601f8301168501019250505092915050565b600080602083850312156108d657600080fd5b823567ffffffffffffffff8111156108ed57600080fd5b6108f9858286016107bf565b90969095509350505050565b60006020828403121561091757600080fd5b81356001600160a01b038116811461092e57600080fd5b9392505050565b6020808252602d908201527f417374726961576974686472617765723a20696e73756666696369656e74207760408201526c69746864726177616c2066656560981b606082015260800190565b634e487b7160e01b600052601160045260246000fd5b818103818111156109ab576109ab610982565b92915050565b6000826109ce57634e487b7160e01b600052601260045260246000fd5b500490565b60208082526062908201527f417374726961576974686472617765723a20696e73756666696369656e74207660408201527f616c75652c206d7573742062652067726561746572207468616e203130202a2a60608201527f20283138202d20424153455f434841494e5f41535345545f505245434953494f6080820152614e2960f01b60a082015260c00190565b808201808211156109ab576109ab610982565b81835281816020850137506000828201602090810191909152601f909101601f19169091010190565b604081526000610ab1604083018688610a74565b8281036020840152610ac4818587610a74565b979650505050505050565b600181811c90821680610ae357607f821691505b602082108103610b0357634e487b7160e01b600052602260045260246000fd5b50919050565b602081526000610b1d602083018486610a74565b94935050505056fea2646970667358221220842bd8104ffc1c611919341f64a8277f2fc808138b97720a6dc1382e5670099064736f6c63430008190033"
+
+
+  geth:
+    # The level at which core astria components will log out
+    # Options are: error, warn, info, and debug
+    logLevel: 4
+
+  conductor:
+    # Determines what will drive block execution, options are:
+    # - "SoftOnly" -> blocks are only pulled from the sequencer
+    # - "FirmOnly" -> blocks are only pulled from DA
+    # - "SoftAndFirm" -> blocks are pulled from both the sequencer and DA
+    executionCommitLevel: 'SoftAndFirm'
+    celestiaRpc: "http://celestia-service.astria-dev-cluster.svc.cluster.local:26658"
+
+  resources:
+    conductor:
+      requests:
+        cpu: 0.01
+        memory: 1Mi
+      limits:
+        cpu: 0.1
+        memory: 20Mi
+    geth:
+      requests:
+        cpu: 0.25
+        memory: 256Mi
+      limits:
+        cpu: 2
+        memory: 1Gi
+
+  storage:
+    enabled: false
+
+  ingress:
+    enabled: true
+    services:
+      rpc:
+        enabled: true
+      ws:
+        enabled: true
+
+celestia-node:
+  enabled: false
+
+composer:
+  enabled: true
+  config:
+    privateKey:
+      devContent: "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
+
+evm-bridge-withdrawer:
+  enabled: true
+  config:
+    minExpectedFeeAssetBalance: "0"
+    sequencerBridgeAddress: "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
+    feeAssetDenom: "nria"
+    rollupAssetDenom: "nria"
+    evmContractAddress: "0xA58639fB5458e65E4fA917FF951C390292C24A15"
+    sequencerPrivateKey:
+      devContent: "dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0"
+
+evm-faucet:
+  enabled: true
+  ingress:
+    enabled: true
+  config:
+    privateKey:
+      devContent: "8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203"
+
+postgresql:
+  enabled: true
+  nameOverride: blockscout-postegres
+  primary:
+    persistence:
+      enabled: false
+    resourcesPreset: "medium"
+  auth:
+    enablePostgresUser: true
+    postgresPassword: bigsecretpassword
+    username: blockscout
+    password: blockscout
+    database: blockscout
+  audit:
+    logHostname: true
+    logConnections: true
+    logDisconnections: true
+blockscout-stack:
+  enabled: true
+  config:
+    network:
+      id: 1337
+      name: Astria
+      shortname: Astria
+      currency:
+        name: RIA
+        symbol: RIA
+        decimals: 18
+    testnet: true
+    prometheus:
+      enabled: false
+  blockscout:
+    extraEnv:
+      - name: ECTO_USE_SSL
+        value: "false"
+      - name: DATABASE_URL
+        value: "postgres://postgres:bigsecretpassword@astria-chain-chart-blockscout-postegres.astria-dev-cluster.svc.cluster.local:5432/blockscout"
+      - name: ETHEREUM_JSONRPC_VARIANT
+        value: "geth"
+      - name: ETHEREUM_JSONRPC_HTTP_URL
+        value: "http://astria-evm-service.astria-dev-cluster.svc.cluster.local:8545/"
+      - name: ETHEREUM_JSONRPC_INSECURE
+        value: "true"
+      - name: ETHEREUM_JSONRPC_WS_URL
+        value: "ws://astria-evm-service.astria-dev-cluster.svc.cluster.local:8546/"
+      - name: INDEXER_DISABLE_BEACON_BLOB_FETCHER
+        value: "true"
+      - name: NETWORK
+        value: "Astria"
+      - name: SUBNETWORK
+        value: "Local"
+      - name: CONTRACT_VERIFICATION_ALLOWED_SOLIDITY_EVM_VERSIONS
+        value: "homestead,tangerineWhistle,spuriousDragon,byzantium,constantinople,petersburg,istanbul,berlin,london,paris,shanghai,default"
+      - name: CONTRACT_VERIFICATION_ALLOWED_VYPER_EVM_VERSIONS
+        value: "byzantium,constantinople,petersburg,istanbul,berlin,paris,shanghai,default"
+      - name: DISABLE_EXCHANGE_RATES
+        value: "true"
+
+    ingress:
+      enabled: true
+      hostname: explorer.astria.127.0.0.1.nip.io
+      paths:
+        - path: /api
+          pathType: Prefix
+        - path: /socket
+          pathType: Prefix
+        - path: /sitemap.xml
+          pathType: ImplementationSpecific
+        - path: /public-metrics
+          pathType: Prefix
+        - path: /auth/auth0
+          pathType: Exact
+        - path: /auth/auth0/callback
+          pathType: Exact
+        - path: /auth/logout
+          pathType: Exact
+
+  frontend:
+    extraEnv:
+      - name: NEXT_PUBLIC_NETWORK_VERIFICATION_TYPE
+        value: "validation"
+      - name: NEXT_PUBLIC_AD_BANNER_PROVIDER
+        value: "none"
+      - name: NEXT_PUBLIC_API_PROTOCOL
+        value: "http"
+      - name: NEXT_PUBLIC_API_WEBSOCKET_PROTOCOL
+        value: "ws"
+      - name: NEXT_PUBLIC_NETWORK_CURRENCY_WEI_NAME
+        value: "aRia"
+      - name: NEXT_PUBLIC_AD_TEXT_PROVIDER
+        value: "none"
+    ingress:
+      enabled: true
+      hostname: explorer.astria.127.0.0.1.nip.io

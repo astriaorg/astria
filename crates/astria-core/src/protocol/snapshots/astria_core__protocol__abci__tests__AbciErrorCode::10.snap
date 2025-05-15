@@ -1,0 +1,5 @@
+---
+source: crates/astria-core/src/protocol/abci.rs
+expression: error_code
+---
+10: the transaction failed to execute in prepare_proposal()

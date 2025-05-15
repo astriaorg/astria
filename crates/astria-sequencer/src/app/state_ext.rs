@@ -12,7 +12,10 @@ use cnidarium::{
     StateWrite,
 };
 use tendermint::Time;
-use tracing::instrument;
+use tracing::{
+    instrument,
+    Level,
+};
 
 use super::storage::{
     self,
@@ -22,7 +25,7 @@ use crate::storage::StoredValue;
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_chain_id(&self) -> Result<tendermint::chain::Id> {
         let Some(bytes) = self
             .get_raw(keys::CHAIN_ID)
@@ -37,7 +40,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid chain id bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_revision_number(&self) -> Result<u64> {
         let Some(bytes) = self
             .get_raw(keys::REVISION_NUMBER)
@@ -52,7 +55,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid revision number bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_block_height(&self) -> Result<u64> {
         let Some(bytes) = self
             .get_raw(keys::BLOCK_HEIGHT)
@@ -60,14 +63,14 @@ pub(crate) trait StateReadExt: StateRead {
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read raw block_height from state")?
         else {
-            bail!("block height not found state");
+            bail!("block height not found in state");
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| storage::BlockHeight::try_from(value).map(u64::from))
             .context("invalid block height bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_block_timestamp(&self) -> Result<Time> {
         let Some(bytes) = self
             .get_raw(keys::BLOCK_TIMESTAMP)
@@ -82,7 +85,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid block timestamp bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(%height), err(level = Level::WARN))]
     async fn get_storage_version_by_height(&self, height: u64) -> Result<u64> {
         use astria_eyre::eyre::WrapErr as _;
 
@@ -97,7 +100,25 @@ pub(crate) trait StateReadExt: StateRead {
         };
         StoredValue::deserialize(&bytes)
             .and_then(|value| storage::StorageVersion::try_from(value).map(u64::from))
-            .context("invalid storage version bytes")
+            .wrap_err("invalid storage version bytes")
+    }
+
+    #[instrument(skip_all)]
+    async fn get_consensus_params(&self) -> Result<Option<tendermint::consensus::Params>> {
+        let Some(bytes) = self
+            .nonverifiable_get_raw(keys::CONSENSUS_PARAMS.as_bytes())
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed to read raw consensus params from state")?
+        else {
+            return Ok(None);
+        };
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| {
+                storage::ConsensusParams::try_from(value)
+                    .map(|params| Some(tendermint::consensus::Params::from(params)))
+            })
+            .wrap_err("invalid consensus params bytes")
     }
 }
 
@@ -110,7 +131,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let revision_number = revision_number_from_chain_id(chain_id.as_str());
         let bytes = StoredValue::from(storage::ChainId::from(&chain_id))
             .serialize()
-            .context("failed to serialize chain id")?;
+            .wrap_err("failed to serialize chain id")?;
         self.put_raw(keys::CHAIN_ID.into(), bytes);
         self.put_revision_number(revision_number)
     }
@@ -119,7 +140,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_revision_number(&mut self, revision_number: u64) -> Result<()> {
         let bytes = StoredValue::from(storage::RevisionNumber::from(revision_number))
             .serialize()
-            .context("failed to serialize revision number")?;
+            .wrap_err("failed to serialize revision number")?;
         self.put_raw(keys::REVISION_NUMBER.into(), bytes);
         Ok(())
     }
@@ -128,7 +149,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_block_height(&mut self, height: u64) -> Result<()> {
         let bytes = StoredValue::from(storage::BlockHeight::from(height))
             .serialize()
-            .context("failed to serialize block height")?;
+            .wrap_err("failed to serialize block height")?;
         self.put_raw(keys::BLOCK_HEIGHT.into(), bytes);
         Ok(())
     }
@@ -137,7 +158,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_block_timestamp(&mut self, timestamp: Time) -> Result<()> {
         let bytes = StoredValue::from(storage::BlockTimestamp::from(timestamp))
             .serialize()
-            .context("failed to serialize block timestamp")?;
+            .wrap_err("failed to serialize block timestamp")?;
         self.put_raw(keys::BLOCK_TIMESTAMP.into(), bytes);
         Ok(())
     }
@@ -146,8 +167,17 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_storage_version_by_height(&mut self, height: u64, version: u64) -> Result<()> {
         let bytes = StoredValue::from(storage::StorageVersion::from(version))
             .serialize()
-            .context("failed to serialize storage version")?;
+            .wrap_err("failed to serialize storage version")?;
         self.nonverifiable_put_raw(keys::storage_version_by_height(height).into_bytes(), bytes);
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    fn put_consensus_params(&mut self, params: tendermint::consensus::Params) -> Result<()> {
+        let bytes = StoredValue::from(storage::ConsensusParams::from(params))
+            .serialize()
+            .wrap_err("failed to serialize consensus params")?;
+        self.nonverifiable_put_raw(keys::CONSENSUS_PARAMS.into(), bytes);
         Ok(())
     }
 }
@@ -418,6 +448,60 @@ mod tests {
                 ),
             storage_version_update,
             "original but updated storage version was not what was expected"
+        );
+    }
+
+    #[tokio::test]
+    async fn consensus_params() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        // doesn't exist at first
+        assert!(state.get_consensus_params().await.unwrap().is_none());
+
+        // can write new
+        let original_params = tendermint::consensus::Params {
+            block: tendermint::block::Size {
+                max_bytes: 22_020_096,
+                max_gas: -1,
+                time_iota_ms: 1000,
+            },
+            evidence: tendermint::evidence::Params {
+                max_age_num_blocks: 100_000,
+                max_age_duration: tendermint::evidence::Duration(std::time::Duration::from_secs(
+                    172_800_000_000_000,
+                )),
+                max_bytes: 1_048_576,
+            },
+            validator: tendermint::consensus::params::ValidatorParams {
+                pub_key_types: vec![tendermint::public_key::Algorithm::Ed25519],
+            },
+            version: Some(tendermint::consensus::params::VersionParams {
+                app: 0,
+            }),
+            abci: tendermint::consensus::params::AbciParams {
+                vote_extensions_enable_height: Some(tendermint::block::Height::from(1_u8)),
+            },
+        };
+        state.put_consensus_params(original_params.clone()).unwrap();
+        assert_eq!(
+            state.get_consensus_params().await.unwrap(),
+            Some(original_params.clone()),
+        );
+
+        // can rewrite with new value
+        let updated_params = tendermint::consensus::Params {
+            abci: tendermint::consensus::params::AbciParams {
+                vote_extensions_enable_height: Some(tendermint::block::Height::from(8_u8)),
+            },
+            ..original_params.clone()
+        };
+        assert_ne!(original_params, updated_params);
+        state.put_consensus_params(updated_params.clone()).unwrap();
+        assert_eq!(
+            state.get_consensus_params().await.unwrap(),
+            Some(updated_params),
         );
     }
 }

@@ -214,7 +214,7 @@ impl<TFormat, TBytes, TPrefix> Builder<TFormat, TBytes, TPrefix> {
     }
 }
 
-impl<'a, 'b, TFormat, TBytesIter> Builder<TFormat, WithBytes<'a, TBytesIter>, WithPrefix<'b>>
+impl<TFormat, TBytesIter> Builder<TFormat, WithBytes<'_, TBytesIter>, WithPrefix<'_>>
 where
     TBytesIter: IntoIterator<Item = u8>,
     TBytesIter::IntoIter: ExactSizeIterator,
@@ -302,9 +302,9 @@ enum ErrorKind {
     },
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Hash)]
 pub enum Bech32m {}
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Hash)]
 pub enum Bech32 {}
 #[derive(Clone, Copy, Debug)]
 pub enum NoFormat {}

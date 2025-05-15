@@ -1,0 +1,5 @@
+---
+source: crates/astria-core/src/protocol/abci.rs
+expression: error_code
+---
+12: lower nonce was invalidated in mempool

@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/oracles/price_feed/market_map/storage/keys.rs
+expression: LAST_UPDATED
+---
+price_feed/market_map/last_updated

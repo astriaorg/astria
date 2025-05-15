@@ -118,7 +118,7 @@ async fn constant_response_works() {
         status: 1,
     };
     let mock = Mock::for_rpc_given("check", matcher::message_type::<HealthCheckRequest>())
-        .respond_with(response::constant_response(expected_response.clone()));
+        .respond_with(response::constant_response(expected_response));
     server.mocked.register(mock).await;
     let rsp = client
         .check(HealthCheckRequest {
@@ -139,7 +139,7 @@ async fn constant_response_expect_two_works() {
         status: 1,
     };
     let mock = Mock::for_rpc_given("check", matcher::message_type::<HealthCheckRequest>())
-        .respond_with(response::constant_response(expected_response.clone()))
+        .respond_with(response::constant_response(expected_response))
         .expect(2);
 
     let guard = server.mocked.register_as_scoped(mock).await;
@@ -174,7 +174,7 @@ async fn constant_response_guard_works() {
         status: 1,
     };
     let mock = Mock::for_rpc_given("check", matcher::message_type::<HealthCheckRequest>())
-        .respond_with(response::constant_response(expected_response.clone()))
+        .respond_with(response::constant_response(expected_response))
         .expect(1);
 
     let guard = server.mocked.register_as_scoped(mock).await;
@@ -200,7 +200,7 @@ async fn exact_pbjson_match_works() {
         status: 1,
     };
     let mock = Mock::for_rpc_given("check", matcher::message_exact_pbjson(&expected_request))
-        .respond_with(response::constant_response(expected_response.clone()));
+        .respond_with(response::constant_response(expected_response));
     server.mocked.register(mock).await;
     let rsp = client
         .check(HealthCheckRequest {
@@ -225,7 +225,7 @@ async fn partial_pbjson_match_works() {
     };
     // FIXME: Right now this is equivalent to an exact check because the request only has one field.
     let mock = Mock::for_rpc_given("check", matcher::message_partial_pbjson(&expected_request))
-        .respond_with(response::constant_response(expected_response.clone()));
+        .respond_with(response::constant_response(expected_response));
     server.mocked.register(mock).await;
     let rsp = client
         .check(HealthCheckRequest {

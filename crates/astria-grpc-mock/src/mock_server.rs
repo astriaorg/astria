@@ -178,7 +178,7 @@ impl MockServer {
         if let VerificationOutcome::Failure(failed_verifications) = self.state.read().await.verify()
         {
             let received_requests_message =
-                received_requests_message(&self.state.read().await.received_requests);
+                received_requests_message(self.state.read().await.received_requests.as_ref());
 
             let verifications_errors: String =
                 failed_verifications.iter().fold(String::new(), |mut s, m| {
@@ -366,7 +366,8 @@ impl Drop for MockGuard {
             if report.is_satisfied() {
                 state.mock_set.deactivate(*mock_id);
             } else {
-                let received_requests_message = received_requests_message(&state.received_requests);
+                let received_requests_message =
+                    received_requests_message(state.received_requests.as_ref());
 
                 let verifications_error = format!("- {}\n", report.error_message());
                 let error_message = format!(
@@ -385,7 +386,7 @@ impl Drop for MockGuard {
 }
 
 fn received_requests_message(
-    received_requests: &Option<Vec<(&'static str, MockRequest)>>,
+    received_requests: Option<&Vec<(&'static str, MockRequest)>>,
 ) -> String {
     if let Some(received_requests) = received_requests {
         if received_requests.is_empty() {

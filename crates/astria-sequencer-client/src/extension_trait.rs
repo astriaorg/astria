@@ -450,7 +450,7 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::protocol::accounts::v1::BalanceResponse::decode(
+            astria_core::generated::astria::protocol::accounts::v1::BalanceResponse::decode(
                 &*response.value,
             )
             .map_err(|e| {
@@ -492,7 +492,7 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::protocol::asset::v1::AllowedFeeAssetsResponse::decode(
+            astria_core::generated::astria::protocol::asset::v1::AllowedFeeAssetsResponse::decode(
                 &*response.value,
             )
             .map_err(|e| {
@@ -532,14 +532,12 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::protocol::accounts::v1::NonceResponse::decode(&*response.value)
-                .map_err(|e| {
-                    Error::abci_query_deserialization(
-                        "astria.sequencer.v1.NonceResponse",
-                        response,
-                        e,
-                    )
-                })?;
+            astria_core::generated::astria::protocol::accounts::v1::NonceResponse::decode(
+                &*response.value,
+            )
+            .map_err(|e| {
+                Error::abci_query_deserialization("astria.sequencer.v1.NonceResponse", response, e)
+            })?;
         Ok(proto_response.to_native())
     }
 
@@ -567,7 +565,7 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::protocol::bridge::v1::BridgeAccountInfoResponse::decode(
+            astria_core::generated::astria::protocol::bridge::v1::BridgeAccountInfoResponse::decode(
                 &*response.value,
             )
             .map_err(|e| {
@@ -599,7 +597,7 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::protocol::bridge::v1::BridgeAccountLastTxHashResponse::decode(
+            astria_core::generated::astria::protocol::bridge::v1::BridgeAccountLastTxHashResponse::decode(
                 &*response.value,
             )
             .map_err(|e| {
@@ -631,7 +629,7 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            astria_core::generated::protocol::fees::v1::TransactionFeeResponse::decode(
+            astria_core::generated::astria::protocol::fees::v1::TransactionFeeResponse::decode(
                 &*response.value,
             )
             .map_err(|e| {

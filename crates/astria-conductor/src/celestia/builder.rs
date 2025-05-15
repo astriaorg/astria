@@ -10,21 +10,23 @@ use jsonrpsee::http_client::HttpClient as CelestiaClient;
 use tendermint_rpc::HttpClient as SequencerClient;
 use tokio_util::sync::CancellationToken;
 
-use super::Reader;
+use super::{
+    Reader,
+    ReconstructedBlock,
+};
 use crate::{
-    executor,
     metrics::Metrics,
+    state::StateReceiver,
 };
 
 pub(crate) struct Builder {
     pub(crate) celestia_block_time: Duration,
     pub(crate) celestia_http_endpoint: String,
     pub(crate) celestia_token: Option<String>,
-    pub(crate) executor: executor::Handle,
+    pub(crate) firm_blocks: tokio::sync::mpsc::Sender<Box<ReconstructedBlock>>,
+    pub(crate) rollup_state: StateReceiver,
     pub(crate) sequencer_cometbft_client: SequencerClient,
     pub(crate) sequencer_requests_per_second: u32,
-    pub(crate) expected_celestia_chain_id: String,
-    pub(crate) expected_sequencer_chain_id: String,
     pub(crate) shutdown: CancellationToken,
     pub(crate) metrics: &'static Metrics,
 }
@@ -36,13 +38,12 @@ impl Builder {
             celestia_block_time,
             celestia_http_endpoint,
             celestia_token,
-            executor,
             sequencer_cometbft_client,
             sequencer_requests_per_second,
-            expected_celestia_chain_id,
-            expected_sequencer_chain_id,
             shutdown,
             metrics,
+            firm_blocks,
+            rollup_state,
         } = self;
 
         let celestia_client = create_celestia_client(celestia_http_endpoint, celestia_token)
@@ -51,11 +52,10 @@ impl Builder {
         Ok(Reader {
             celestia_block_time,
             celestia_client,
-            executor,
+            firm_blocks,
+            rollup_state,
             sequencer_cometbft_client,
             sequencer_requests_per_second,
-            expected_celestia_chain_id,
-            expected_sequencer_chain_id,
             shutdown,
             metrics,
         })

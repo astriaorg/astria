@@ -1,0 +1,11 @@
+syntax = "proto3";
+package connect.types.v2;
+
+option go_package = "github.com/skip-mev/connect/v2/pkg/types";
+
+// CurrencyPair is the standard representation of a pair of assets, where one
+// (Base) is priced in terms of the other (Quote)
+message CurrencyPair {
+  string Base = 1;
+  string Quote = 2;
+}

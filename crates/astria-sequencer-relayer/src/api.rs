@@ -1,5 +1,15 @@
-use std::net::SocketAddr;
+use std::{
+    future::{
+        Future,
+        IntoFuture as _,
+    },
+    net::SocketAddr,
+};
 
+use astria_eyre::eyre::{
+    self,
+    WrapErr as _,
+};
 use axum::{
     extract::{
         FromRef,
@@ -9,38 +19,24 @@ use axum::{
         IntoResponse,
         Response,
     },
-    routing::{
-        get,
-        IntoMakeService,
-    },
+    routing::get,
     Json,
     Router,
 };
+use futures::FutureExt as _;
 use http::status::StatusCode;
-use hyper::server::conn::AddrIncoming;
 use serde::Serialize;
 use tokio::sync::watch;
+use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
 use crate::relayer;
 
-pub(crate) type ApiServer = axum::Server<AddrIncoming, IntoMakeService<Router>>;
-
-type RelayerState = watch::Receiver<relayer::StateSnapshot>;
-
-#[derive(Clone)]
-/// `AppState` is used for as an axum extractor in its method handlers.
-struct AppState {
-    relayer_state: RelayerState,
-}
-
-impl FromRef<AppState> for RelayerState {
-    fn from_ref(app_state: &AppState) -> Self {
-        app_state.relayer_state.clone()
-    }
-}
-
-pub(crate) fn start(socket_addr: SocketAddr, relayer_state: RelayerState) -> ApiServer {
+pub(super) async fn serve(
+    socket_addr: &str,
+    relayer_state: watch::Receiver<relayer::StateSnapshot>,
+    shutdown_token: CancellationToken,
+) -> eyre::Result<Serve> {
     let app = Router::new()
         .route("/healthz", get(get_healthz))
         .route("/readyz", get(get_readyz))
@@ -48,11 +44,58 @@ pub(crate) fn start(socket_addr: SocketAddr, relayer_state: RelayerState) -> Api
         .with_state(AppState {
             relayer_state,
         });
-    axum::Server::bind(&socket_addr).serve(app.into_make_service())
+    let listener = tokio::net::TcpListener::bind(socket_addr)
+        .await
+        .wrap_err_with(|| format!("failed to bind TCP socket at `{socket_addr}`"))?;
+    let serve = axum::serve(listener, app).with_graceful_shutdown(shutdown_token.cancelled_owned());
+    let local_addr = serve
+        .local_addr()
+        .wrap_err("bound TCP listener failed to yield local address")?;
+    Ok(Serve {
+        local_addr,
+        fut: serve.into_future().boxed(),
+    })
+}
+
+/// A wrapper around a type-erased [`axum::Serve::serve`] future.
+pub(super) struct Serve {
+    local_addr: SocketAddr,
+    fut: futures::future::BoxFuture<'static, std::io::Result<()>>,
+}
+
+impl Serve {
+    pub(super) fn local_addr(&self) -> SocketAddr {
+        self.local_addr
+    }
+}
+
+impl Future for Serve {
+    type Output = std::io::Result<()>;
+
+    fn poll(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        self.fut.as_mut().poll(cx)
+    }
+}
+
+#[derive(Clone)]
+/// `AppState` is used for as an axum extractor in its method handlers.
+struct AppState {
+    relayer_state: watch::Receiver<relayer::StateSnapshot>,
+}
+
+impl FromRef<AppState> for watch::Receiver<relayer::StateSnapshot> {
+    fn from_ref(app_state: &AppState) -> Self {
+        app_state.relayer_state.clone()
+    }
 }
 
 #[instrument(skip_all)]
-async fn get_healthz(State(relayer_state): State<RelayerState>) -> Healthz {
+async fn get_healthz(
+    State(relayer_state): State<watch::Receiver<relayer::StateSnapshot>>,
+) -> Healthz {
     if relayer_state.borrow().is_healthy() {
         Healthz::Ok
     } else {
@@ -67,7 +110,9 @@ async fn get_healthz(State(relayer_state): State<RelayerState>) -> Healthz {
 /// + there is a current sequencer height (implying a block from sequencer was received)
 /// + there is a current data availability height (implying a height was received from the DA)
 #[instrument(skip_all)]
-async fn get_readyz(State(relayer_state): State<RelayerState>) -> Readyz {
+async fn get_readyz(
+    State(relayer_state): State<watch::Receiver<relayer::StateSnapshot>>,
+) -> Readyz {
     let is_relayer_online = relayer_state.borrow().is_ready();
     if is_relayer_online {
         Readyz::Ok
@@ -77,7 +122,9 @@ async fn get_readyz(State(relayer_state): State<RelayerState>) -> Readyz {
 }
 
 #[instrument(skip_all)]
-async fn get_status(State(relayer_state): State<RelayerState>) -> Json<relayer::StateSnapshot> {
+async fn get_status(
+    State(relayer_state): State<watch::Receiver<relayer::StateSnapshot>>,
+) -> Json<relayer::StateSnapshot> {
     Json(*relayer_state.borrow())
 }
 

@@ -1,5 +1,6 @@
 name: Scheduled
 on:
+  workflow_dispatch:
   schedule:
     - cron: '0 0 * * *'
 
@@ -14,3 +15,38 @@ jobs:
       - uses: rustsec/audit-check@v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+  stale:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/stale@v9
+        with:
+          # Utilize a separate token for the stale worker to avoid rate limiting
+          repo-token: ${{ secrets.STALE_WORKER_TOKEN }}
+          # This is half the number of operations allowed per hour for the
+          # GitHub API.
+          operations-per-run: 2500
+          days-before-stale: 45
+          days-before-close: 7
+          # start with the oldest issues first, as they are most likely to be stale.
+          ascending: true
+          stale-issue-label: 'stale'
+          stale-pr-label: 'stale'
+          # Allow tagging issues in such a way that they are exempt from the stale check
+          exempt-issue-labels: 'ignore-stale'
+          exempt-pr-labels: 'ignore-stale'
+          # Labels to easily find issues closed because they are stale.
+          close-issue-label: 'closed-stale'
+          close-pr-label: 'closed-stale'
+          stale-issue-message: |
+            This issue is stale because it has been open 45 days with no activity. Remove stale label or this issue
+            be closed in 7 days.
+          close-issue-message: 'This issue was closed because it was stale'
+          stale-pr-message: |
+            This PR is stale because it has been open 45 days with no activity. Remove stale label or this PR will be
+            closed in 7 days.
+          close-pr-message: 'This PR was closed because it has been stale.'
+          # Exempt anything added to a milestone from being considered stale
+          exempt-all-milestones: true

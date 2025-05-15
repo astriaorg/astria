@@ -6,7 +6,11 @@ use std::{
 
 use astria_core::{
     primitive::v1::RollupId,
-    sequencerblock::v1::block::SequencerBlockHeader,
+    protocol::price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
+    sequencerblock::v1::block::{
+        self,
+        SequencerBlockHeader,
+    },
 };
 use astria_eyre::eyre::{
     self,
@@ -55,16 +59,13 @@ use tracing::{
     trace,
     trace_span,
     warn,
+    Instrument as _,
 };
 
 use crate::{
     block_cache::GetSequencerHeight,
-    executor::{
-        FirmSendError,
-        FirmTrySendError,
-        StateIsInit,
-    },
     metrics::Metrics,
+    state::StateReceiver,
     utils::flatten,
 };
 
@@ -92,10 +93,7 @@ use self::{
         BlobVerifier,
     },
 };
-use crate::{
-    block_cache::BlockCache,
-    executor,
-};
+use crate::block_cache::BlockCache;
 
 /// Sequencer Block information reconstructed from Celestia blobs.
 ///
@@ -103,12 +101,17 @@ use crate::{
 #[derive(Clone, Debug)]
 pub(crate) struct ReconstructedBlock {
     pub(crate) celestia_height: u64,
-    pub(crate) block_hash: [u8; 32],
+    pub(crate) block_hash: block::Hash,
     pub(crate) header: SequencerBlockHeader,
     pub(crate) transactions: Vec<Bytes>,
+    pub(crate) extended_commit_info: Option<ExtendedCommitInfoWithCurrencyPairMapping>,
 }
 
 impl ReconstructedBlock {
+    pub(crate) fn block_hash(&self) -> &block::Hash {
+        &self.block_hash
+    }
+
     pub(crate) fn sequencer_height(&self) -> SequencerHeight {
         self.header.height()
     }
@@ -131,8 +134,11 @@ pub(crate) struct Reader {
     /// Client to fetch heights and blocks from Celestia.
     celestia_client: CelestiaClient,
 
-    /// The channel used to send messages to the executor task.
-    executor: executor::Handle,
+    /// The channel to forward firm blocks to the executor.
+    firm_blocks: mpsc::Sender<Box<ReconstructedBlock>>,
+
+    /// The channel to read updates of the rollup state from.
+    rollup_state: StateReceiver,
 
     /// The client to get the sequencer namespace and verify blocks.
     sequencer_cometbft_client: SequencerClient,
@@ -140,12 +146,6 @@ pub(crate) struct Reader {
     /// The number of requests per second that will be sent to Sequencer
     /// (usually to verify block data retrieved from Celestia blobs).
     sequencer_requests_per_second: u32,
-
-    /// The chain ID of the Celestia network the reader should be communicating with.
-    expected_celestia_chain_id: String,
-
-    /// The chain ID of the Sequencer the reader should be communicating with.
-    expected_sequencer_chain_id: String,
 
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
@@ -155,7 +155,7 @@ pub(crate) struct Reader {
 
 impl Reader {
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        let ((), executor, sequencer_chain_id) = select!(
+        let sequencer_chain_id = select!(
             () = self.shutdown.clone().cancelled_owned() => {
                 info_span!("conductor::celestia::Reader::run_until_stopped").in_scope(||
                     info!("received shutdown signal while waiting for Celestia reader task to initialize")
@@ -168,69 +168,62 @@ impl Reader {
             }
         );
 
-        RunningReader::from_parts(self, executor, sequencer_chain_id)
+        RunningReader::from_parts(self, sequencer_chain_id)
             .wrap_err("failed entering run loop")?
             .run_until_stopped()
             .await
     }
 
     #[instrument(skip_all, err)]
-    async fn initialize(
-        &mut self,
-    ) -> eyre::Result<((), executor::Handle<StateIsInit>, tendermint::chain::Id)> {
+    async fn initialize(&mut self) -> eyre::Result<tendermint::chain::Id> {
+        let expected_celestia_chain_id = self.rollup_state.celestia_chain_id();
         let validate_celestia_chain_id = async {
             let actual_celestia_chain_id = get_celestia_chain_id(&self.celestia_client)
                 .await
                 .wrap_err("failed to fetch Celestia chain ID")?;
-            let expected_celestia_chain_id = &self.expected_celestia_chain_id;
             ensure!(
-                self.expected_celestia_chain_id == actual_celestia_chain_id.as_str(),
+                expected_celestia_chain_id == actual_celestia_chain_id.as_str(),
                 "expected Celestia chain id `{expected_celestia_chain_id}` does not match actual: \
                  `{actual_celestia_chain_id}`"
             );
             Ok(())
-        };
+        }
+        .in_current_span();
 
-        let wait_for_init_executor = async {
-            self.executor
-                .wait_for_init()
-                .await
-                .wrap_err("handle to executor failed while waiting for it being initialized")
-        };
-
+        let expected_sequencer_chain_id = self.rollup_state.sequencer_chain_id();
         let get_and_validate_sequencer_chain_id = async {
             let actual_sequencer_chain_id =
                 get_sequencer_chain_id(self.sequencer_cometbft_client.clone())
                     .await
                     .wrap_err("failed to get sequencer chain ID")?;
-            let expected_sequencer_chain_id = &self.expected_sequencer_chain_id;
             ensure!(
-                self.expected_sequencer_chain_id == actual_sequencer_chain_id.to_string(),
+                expected_sequencer_chain_id == actual_sequencer_chain_id.as_str(),
                 "expected Celestia chain id `{expected_sequencer_chain_id}` does not match \
                  actual: `{actual_sequencer_chain_id}`"
             );
             Ok(actual_sequencer_chain_id)
-        };
+        }
+        .in_current_span();
 
         try_join!(
             validate_celestia_chain_id,
-            wait_for_init_executor,
             get_and_validate_sequencer_chain_id
         )
+        .map(|((), sequencer_chain_id)| sequencer_chain_id)
     }
 }
 
-#[instrument(skip_all, err)]
+#[instrument(skip_all, err, ret(Display))]
 async fn get_celestia_chain_id(
     celestia_client: &CelestiaClient,
-) -> eyre::Result<celestia_tendermint::chain::Id> {
+) -> eyre::Result<tendermint::chain::Id> {
     let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
         .exponential_backoff(Duration::from_millis(100))
         .max_delay(Duration::from_secs(20))
         .on_retry(
-            |attempt: u32, next_delay: Option<Duration>, error: &jsonrpsee::core::Error| {
+            |attempt: u32, next_delay: Option<Duration>, error: &jsonrpsee::core::ClientError| {
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     attempt,
@@ -255,8 +248,11 @@ struct RunningReader {
     // Client to fetch heights and blocks from Celestia.
     celestia_client: CelestiaClient,
 
-    /// The channel used to send messages to the executor task.
-    executor: executor::Handle<StateIsInit>,
+    /// The channel to forward firm blocks to the executor.
+    firm_blocks: mpsc::Sender<Box<ReconstructedBlock>>,
+
+    /// The channel to read updates of the rollup state from.
+    rollup_state: StateReceiver,
 
     /// Token to listen for Conductor being shut down.
     shutdown: CancellationToken,
@@ -272,7 +268,8 @@ struct RunningReader {
     /// capacity again. Used as a back pressure mechanism so that this task does not fetch more
     /// blobs if there is no capacity in the executor to execute them against the rollup in
     /// time.
-    enqueued_block: Fuse<BoxFuture<'static, Result<u64, FirmSendError>>>,
+    enqueued_block:
+        Fuse<BoxFuture<'static, Result<u64, mpsc::error::SendError<Box<ReconstructedBlock>>>>>,
 
     /// The latest observed head height of the Celestia network. Set by values read from
     /// the `latest_height` stream.
@@ -281,18 +278,18 @@ struct RunningReader {
     /// The next Celestia height that will be fetched.
     celestia_next_height: u64,
 
-    /// The reference Celestia height. `celestia_reference_height` + `celestia_variance` = C is the
-    /// maximum Celestia height up to which Celestia's blobs will be fetched.
-    /// `celestia_reference_height` is initialized to the base Celestia height stored in the
-    /// rollup genesis. It is later advanced to that Celestia height from which the next block
-    /// is derived that will be executed against the rollup (only if greater than the current
-    /// value; it will never go down).
+    /// The reference Celestia height. `celestia_reference_height` +
+    /// `celestia_search_height_max_look_ahead` = C is the maximum Celestia height up to which
+    /// Celestia's blobs will be fetched. `celestia_reference_height` is initialized to the
+    /// base Celestia height stored in the rollup state. It is later advanced to that Celestia
+    /// height from which the next block is derived that will be executed against the rollup
+    /// (only if greater than the current value; it will never go down).
     celestia_reference_height: u64,
 
-    /// `celestia_variance` + `celestia_reference_height` define the maximum Celestia height from
-    /// Celestia blobs can be fetched. Set once during initialization to the value stored in
-    /// the rollup genesis.
-    celestia_variance: u64,
+    /// `celestia_search_height_max_look_ahead` + `celestia_reference_height` define the maximum
+    /// Celestia height from Celestia blobs that can be fetched. Set once during initialization
+    /// to the value stored in the rollup state.
+    celestia_search_height_max_look_ahead: u64,
 
     /// The rollup ID of the rollup that conductor is driving. Set once during initialization to
     /// the value stored in the
@@ -315,7 +312,6 @@ struct RunningReader {
 impl RunningReader {
     fn from_parts(
         exposed_reader: Reader,
-        mut executor: executor::Handle<StateIsInit>,
         sequencer_chain_id: tendermint::chain::Id,
     ) -> eyre::Result<Self> {
         let Reader {
@@ -325,21 +321,24 @@ impl RunningReader {
             shutdown,
             sequencer_requests_per_second,
             metrics,
+            firm_blocks,
+            rollup_state,
             ..
         } = exposed_reader;
         let block_cache =
-            BlockCache::with_next_height(executor.next_expected_firm_sequencer_height())
+            BlockCache::with_next_height(rollup_state.next_expected_firm_sequencer_height())
                 .wrap_err("failed constructing sequential block cache")?;
 
         let latest_heights = stream_latest_heights(celestia_client.clone(), celestia_block_time);
-        let rollup_id = executor.rollup_id();
+        let rollup_id = rollup_state.rollup_id();
         let rollup_namespace = astria_core::celestia::namespace_v0_from_rollup_id(rollup_id);
         let sequencer_namespace =
             astria_core::celestia::namespace_v0_from_sha256_of_bytes(sequencer_chain_id.as_bytes());
 
-        let celestia_next_height = executor.celestia_base_block_height();
-        let celestia_reference_height = executor.celestia_base_block_height();
-        let celestia_variance = executor.celestia_block_variance();
+        let celestia_next_height = rollup_state.lowest_celestia_search_height();
+        let celestia_reference_height = rollup_state.lowest_celestia_search_height();
+        let celestia_search_height_max_look_ahead =
+            rollup_state.celestia_search_height_max_look_ahead();
 
         Ok(Self {
             block_cache,
@@ -349,7 +348,8 @@ impl RunningReader {
             ),
             celestia_client,
             enqueued_block: Fuse::terminated(),
-            executor,
+            firm_blocks,
+            rollup_state,
             latest_heights,
             shutdown,
             reconstruction_tasks: JoinMap::new(),
@@ -357,7 +357,7 @@ impl RunningReader {
             celestia_head_height: None,
             celestia_next_height,
             celestia_reference_height,
-            celestia_variance,
+            celestia_search_height_max_look_ahead,
 
             rollup_id,
             rollup_namespace,
@@ -372,7 +372,7 @@ impl RunningReader {
             info!(
                 initial_celestia_height = self.celestia_next_height,
                 initial_max_celestia_height = self.max_permitted_celestia_height(),
-                celestia_variance = self.celestia_variance,
+                celestia_search_height_max_look_ahead = self.celestia_search_height_max_look_ahead,
                 rollup_namespace = %base64(&self.rollup_namespace.as_bytes()),
                 rollup_id = %self.rollup_id,
                 sequencer_chain_id = %self.sequencer_chain_id,
@@ -382,6 +382,10 @@ impl RunningReader {
         });
 
         let reason = loop {
+            if self.has_reached_stop_height() {
+                break Ok("stop height reached");
+            }
+
             self.schedule_new_blobs();
 
             select!(
@@ -447,6 +451,17 @@ impl RunningReader {
         }
     }
 
+    /// The stop height is reached if a) the next height to be forwarded would be greater
+    /// than the stop height, and b) there is no block currently in flight.
+    fn has_reached_stop_height(&self) -> bool {
+        self.rollup_state
+            .sequencer_stop_height()
+            .map_or(false, |height| {
+                self.block_cache.next_height_to_pop() > height.get()
+                    && self.enqueued_block.is_terminated()
+            })
+    }
+
     #[instrument(skip_all)]
     fn cache_reconstructed_blocks(&mut self, reconstructed: ReconstructedBlocks) {
         for block in reconstructed.blocks {
@@ -458,7 +473,7 @@ impl RunningReader {
                     error = %eyre::Report::new(e),
                     source_celestia_height = celestia_height,
                     sequencer_height,
-                    block_hash = %base64(&block_hash),
+                    block_hash = %block_hash,
                     "failed pushing reconstructed block into sequential cache; dropping it",
                 );
             }
@@ -490,7 +505,7 @@ impl RunningReader {
                 rollup_id: self.rollup_id,
                 rollup_namespace: self.rollup_namespace,
                 sequencer_namespace: self.sequencer_namespace,
-                executor: self.executor.clone(),
+                rollup_state: self.rollup_state.clone(),
                 metrics: self.metrics,
             };
             self.reconstruction_tasks.spawn(height, task.execute());
@@ -512,39 +527,33 @@ impl RunningReader {
     #[instrument(skip_all)]
     fn forward_block_to_executor(&mut self, block: ReconstructedBlock) -> eyre::Result<()> {
         let celestia_height = block.celestia_height;
-        match self.executor.try_send_firm_block(block) {
+        match self.firm_blocks.try_send(block.into()) {
             Ok(()) => self.advance_reference_celestia_height(celestia_height),
-            Err(FirmTrySendError::Channel {
-                source: mpsc::error::TrySendError::Full(block),
-            }) => {
+            Err(mpsc::error::TrySendError::Full(block)) => {
                 trace!(
                     "executor channel is full; rescheduling block fetch until the channel opens up"
                 );
-                self.enqueued_block = enqueue_block(self.executor.clone(), block).boxed().fuse();
+                self.enqueued_block = enqueue_block(self.firm_blocks.clone(), block)
+                    .boxed()
+                    .fuse();
             }
-
-            Err(FirmTrySendError::Channel {
-                source: mpsc::error::TrySendError::Closed(_),
-            }) => bail!("exiting because executor channel is closed"),
-
-            Err(FirmTrySendError::NotSet) => bail!(
-                "exiting because executor was configured without firm commitments; this Celestia \
-                 reader should have never been started"
-            ),
-        }
+            Err(mpsc::error::TrySendError::Closed(_)) => {
+                bail!("exiting because executor channel is closed");
+            }
+        };
         Ok(())
     }
 
     /// Returns the maximum permitted Celestia height given the current state.
     ///
-    /// The maximum permitted Celestia height is calculated as `ref_height + 6 * variance`, with:
+    /// The maximum permitted Celestia height is calculated as `ref_height +
+    /// celestia_search_height_max_look_ahead`, with:
     ///
     /// - `ref_height` the height from which the last expected sequencer block was derived,
-    /// - `variance` the `celestia_block_variance` received from the connected rollup genesis info,
-    /// - and the factor 6 based on the assumption that there are up to 6 sequencer heights stored
-    ///   per Celestia height.
+    /// - `celestia_search_height_max_look_ahead` received from the current rollup state,
     fn max_permitted_celestia_height(&self) -> u64 {
-        max_permitted_celestia_height(self.celestia_reference_height, self.celestia_variance)
+        self.celestia_reference_height
+            .saturating_add(self.celestia_search_height_max_look_ahead)
     }
 
     fn record_latest_celestia_height(&mut self, height: u64) {
@@ -564,7 +573,7 @@ struct FetchConvertVerifyAndReconstruct {
     rollup_id: RollupId,
     rollup_namespace: Namespace,
     sequencer_namespace: Namespace,
-    executor: executor::Handle<StateIsInit>,
+    rollup_state: StateReceiver,
     metrics: &'static Metrics,
 }
 
@@ -583,7 +592,7 @@ impl FetchConvertVerifyAndReconstruct {
             rollup_id,
             rollup_namespace,
             sequencer_namespace,
-            executor,
+            rollup_state,
             metrics,
         } = self;
 
@@ -623,7 +632,7 @@ impl FetchConvertVerifyAndReconstruct {
             "decoded Sequencer header and rollup info from raw Celestia blobs",
         );
 
-        let verified_blobs = verify_metadata(blob_verifier, decoded_blobs, executor).await;
+        let verified_blobs = verify_metadata(blob_verifier, decoded_blobs, rollup_state).await;
 
         metrics.record_sequencer_blocks_metadata_verified_per_celestia_fetch(
             verified_blobs.len_header_blobs(),
@@ -661,15 +670,15 @@ impl FetchConvertVerifyAndReconstruct {
 
 #[instrument(skip_all, err)]
 async fn enqueue_block(
-    executor: executor::Handle<StateIsInit>,
-    block: ReconstructedBlock,
-) -> Result<u64, FirmSendError> {
+    firm_blocks_tx: mpsc::Sender<Box<ReconstructedBlock>>,
+    block: Box<ReconstructedBlock>,
+) -> Result<u64, mpsc::error::SendError<Box<ReconstructedBlock>>> {
     let celestia_height = block.celestia_height;
-    executor.send_firm_block(block).await?;
+    firm_blocks_tx.send(block).await?;
     Ok(celestia_height)
 }
 
-#[instrument(skip_all, err)]
+#[instrument(skip_all, err, ret(Display))]
 async fn get_sequencer_chain_id(client: SequencerClient) -> eyre::Result<tendermint::chain::Id> {
     use sequencer_client::Client as _;
 
@@ -679,7 +688,7 @@ async fn get_sequencer_chain_id(client: SequencerClient) -> eyre::Result<tenderm
         .on_retry(
             |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     attempt,
@@ -697,10 +706,6 @@ async fn get_sequencer_chain_id(client: SequencerClient) -> eyre::Result<tenderm
         .wrap_err("failed to get genesis info from Sequencer after a lot of attempts")?;
 
     Ok(genesis.chain_id)
-}
-
-fn max_permitted_celestia_height(reference: u64, variance: u64) -> u64 {
-    reference.saturating_add(variance.saturating_mul(6))
 }
 
 #[instrument(skip_all)]

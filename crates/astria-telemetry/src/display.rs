@@ -8,6 +8,7 @@ use std::{
     },
     io,
     str,
+    time::Duration,
 };
 
 use base64_serde::base64_serde_type;
@@ -97,7 +98,7 @@ pub struct Json<'a, T>(&'a T);
 
 // NOTE: This implementation is lifted straight from serde_json:
 // https://docs.rs/serde_json/1.0.114/src/serde_json/value/mod.rs.html#197
-impl<'a, T> Display for Json<'a, T>
+impl<T> Display for Json<'_, T>
 where
     T: serde::Serialize,
 {
@@ -106,7 +107,7 @@ where
             inner: &'a mut Formatter<'b>,
         }
 
-        impl<'a, 'b> io::Write for WriterFormatter<'a, 'b> {
+        impl io::Write for WriterFormatter<'_, '_> {
             fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
                 // NOTE: Same argument for safety as in
                 // https://docs.rs/serde_json/1.0.114/src/serde_json/value/mod.rs.html#229
@@ -132,5 +133,37 @@ where
             inner: f,
         };
         serde_json::to_writer(&mut wr, self.0).map_err(|_| fmt::Error)
+    }
+}
+
+/// Format `duration` using human-readable format.
+///
+/// See the [`base64::engine::general_purpose::STANDARD`] for the formatting definition.
+#[must_use]
+pub fn format_duration(duration: Duration) -> FormattedDuration {
+    FormattedDuration(duration)
+}
+
+pub struct FormattedDuration(Duration);
+
+impl Display for FormattedDuration {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        use jiff::{
+            fmt::{
+                friendly::SpanPrinter,
+                StdFmtWrite,
+            },
+            SignedDuration,
+        };
+
+        static PRINTER: SpanPrinter = SpanPrinter::new();
+        match SignedDuration::try_from(self.0) {
+            Ok(signed_duration) => PRINTER
+                .print_duration(&signed_duration, StdFmtWrite(f))
+                .map_err(|_| fmt::Error),
+            Err(_) => {
+                write!(f, "<duration greater than {:#}>", SignedDuration::MAX)
+            }
+        }
     }
 }

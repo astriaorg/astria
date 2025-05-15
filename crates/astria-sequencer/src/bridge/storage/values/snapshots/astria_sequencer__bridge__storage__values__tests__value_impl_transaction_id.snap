@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/bridge/storage/values/mod.rs
+expression: "borsh_then_hex(&ValueImpl::TransactionId((&DomainTransactionId::new([0;\nTRANSACTION_ID_LEN])).into()))"
+---
+050000000000000000000000000000000000000000000000000000000000000000

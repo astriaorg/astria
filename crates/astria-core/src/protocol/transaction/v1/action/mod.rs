@@ -1,3 +1,8 @@
+use std::{
+    fmt::Display,
+    str::FromStr,
+};
+
 use bytes::Bytes;
 use ibc_types::{
     core::{
@@ -11,6 +16,16 @@ use prost::Name as _;
 
 use super::raw;
 use crate::{
+    oracles::price_feed::{
+        market_map::v2::{
+            Market,
+            MarketError,
+        },
+        types::v2::{
+            CurrencyPair,
+            CurrencyPairError,
+        },
+    },
     primitive::v1::{
         asset::{
             self,
@@ -22,26 +37,15 @@ use crate::{
         RollupId,
     },
     protocol::fees::v1::{
-        BridgeLockFeeComponents,
-        BridgeSudoChangeFeeComponents,
-        BridgeUnlockFeeComponents,
-        FeeAssetChangeFeeComponents,
-        FeeChangeFeeComponents,
         FeeComponentError,
-        IbcRelayFeeComponents,
-        IbcRelayerChangeFeeComponents,
-        IbcSudoChangeFeeComponents,
-        Ics20WithdrawalFeeComponents,
-        InitBridgeAccountFeeComponents,
-        RollupDataSubmissionFeeComponents,
-        SudoAddressChangeFeeComponents,
-        TransferFeeComponents,
-        ValidatorUpdateFeeComponents,
+        FeeComponents,
     },
     Protobuf,
 };
 
 pub mod group;
+
+const MAX_VALIDATOR_NAME_LENGTH: usize = 32;
 
 #[derive(Clone, Debug)]
 #[cfg_attr(
@@ -63,7 +67,11 @@ pub enum Action {
     BridgeLock(BridgeLock),
     BridgeUnlock(BridgeUnlock),
     BridgeSudoChange(BridgeSudoChange),
+    BridgeTransfer(BridgeTransfer),
     FeeChange(FeeChange),
+    RecoverIbcClient(RecoverIbcClient),
+    CurrencyPairsChange(CurrencyPairsChange),
+    MarketsChange(MarketsChange),
 }
 
 impl Protobuf for Action {
@@ -87,7 +95,11 @@ impl Protobuf for Action {
             Action::BridgeLock(act) => Value::BridgeLock(act.to_raw()),
             Action::BridgeUnlock(act) => Value::BridgeUnlock(act.to_raw()),
             Action::BridgeSudoChange(act) => Value::BridgeSudoChange(act.to_raw()),
+            Action::BridgeTransfer(act) => Value::BridgeTransfer(act.to_raw()),
             Action::FeeChange(act) => Value::FeeChange(act.to_raw()),
+            Action::RecoverIbcClient(act) => Value::RecoverIbcClient(act.to_raw()),
+            Action::CurrencyPairsChange(act) => Value::CurrencyPairsChange(act.to_raw()),
+            Action::MarketsChange(act) => Value::MarketsChange(act.to_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -158,9 +170,21 @@ impl Protobuf for Action {
             Value::BridgeSudoChange(act) => Self::BridgeSudoChange(
                 BridgeSudoChange::try_from_raw(act).map_err(Error::bridge_sudo_change)?,
             ),
+            Value::BridgeTransfer(act) => Self::BridgeTransfer(
+                BridgeTransfer::try_from_raw(act).map_err(Error::bridge_transfer)?,
+            ),
             Value::FeeChange(act) => {
                 Self::FeeChange(FeeChange::try_from_raw_ref(&act).map_err(Error::fee_change)?)
             }
+            Value::RecoverIbcClient(act) => Self::RecoverIbcClient(
+                RecoverIbcClient::try_from_raw(act).map_err(Error::recover_ibc_client)?,
+            ),
+            Value::CurrencyPairsChange(act) => Self::CurrencyPairsChange(
+                CurrencyPairsChange::try_from_raw(act).map_err(Error::currency_pairs_change)?,
+            ),
+            Value::MarketsChange(act) => Self::MarketsChange(
+                MarketsChange::try_from_raw(act).map_err(Error::markets_change)?,
+            ),
         };
         Ok(action)
     }
@@ -202,6 +226,12 @@ impl From<RollupDataSubmission> for Action {
 impl From<Transfer> for Action {
     fn from(value: Transfer) -> Self {
         Self::Transfer(value)
+    }
+}
+
+impl From<ValidatorUpdate> for Action {
+    fn from(value: ValidatorUpdate) -> Self {
+        Self::ValidatorUpdate(value)
     }
 }
 
@@ -265,9 +295,33 @@ impl From<BridgeSudoChange> for Action {
     }
 }
 
+impl From<BridgeTransfer> for Action {
+    fn from(value: BridgeTransfer) -> Self {
+        Self::BridgeTransfer(value)
+    }
+}
+
 impl From<FeeChange> for Action {
     fn from(value: FeeChange) -> Self {
         Self::FeeChange(value)
+    }
+}
+
+impl From<RecoverIbcClient> for Action {
+    fn from(value: RecoverIbcClient) -> Self {
+        Self::RecoverIbcClient(value)
+    }
+}
+
+impl From<CurrencyPairsChange> for Action {
+    fn from(value: CurrencyPairsChange) -> Self {
+        Self::CurrencyPairsChange(value)
+    }
+}
+
+impl From<MarketsChange> for Action {
+    fn from(value: MarketsChange) -> Self {
+        Self::MarketsChange(value)
     }
 }
 
@@ -307,7 +361,11 @@ impl ActionName for Action {
             Action::BridgeLock(_) => "BridgeLock",
             Action::BridgeUnlock(_) => "BridgeUnlock",
             Action::BridgeSudoChange(_) => "BridgeSudoChange",
+            Action::BridgeTransfer(_) => "BridgeTransfer",
             Action::FeeChange(_) => "FeeChange",
+            Action::RecoverIbcClient(_) => "RecoverIbcClient",
+            Action::CurrencyPairsChange(_) => "CurrencyPairsChange",
+            Action::MarketsChange(_) => "MarketsChange",
         }
     }
 }
@@ -373,8 +431,24 @@ impl Error {
         Self(ActionErrorKind::BridgeSudoChange(inner))
     }
 
+    fn bridge_transfer(inner: BridgeTransferError) -> Self {
+        Self(ActionErrorKind::BridgeTransfer(inner))
+    }
+
     fn fee_change(inner: FeeChangeError) -> Self {
         Self(ActionErrorKind::FeeChange(inner))
+    }
+
+    fn recover_ibc_client(inner: RecoverIbcClientError) -> Self {
+        Self(ActionErrorKind::RecoverIbcClient(inner))
+    }
+
+    fn currency_pairs_change(inner: CurrencyPairsChangeError) -> Self {
+        Self(ActionErrorKind::CurrencyPairsChange(inner))
+    }
+
+    fn markets_change(inner: MarketsChangeError) -> Self {
+        Self(ActionErrorKind::MarketsChange(inner))
     }
 }
 
@@ -408,8 +482,16 @@ enum ActionErrorKind {
     BridgeUnlock(#[source] BridgeUnlockError),
     #[error("bridge sudo change action was not valid")]
     BridgeSudoChange(#[source] BridgeSudoChangeError),
+    #[error("bridge transfer action was not valid")]
+    BridgeTransfer(#[source] BridgeTransferError),
     #[error("fee change action was not valid")]
     FeeChange(#[source] FeeChangeError),
+    #[error("recover ibc client action was not valid")]
+    RecoverIbcClient(#[source] RecoverIbcClientError),
+    #[error("currency pairs change action was not valid")]
+    CurrencyPairsChange(#[source] CurrencyPairsChangeError),
+    #[error("markets change action was not valid")]
+    MarketsChange(#[source] MarketsChangeError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -587,6 +669,56 @@ enum TransferActionErrorKind {
 }
 
 #[derive(Debug, thiserror::Error)]
+#[error(
+    "input was `{length}` bytes but validator names can only be up to \
+     `{MAX_VALIDATOR_NAME_LENGTH}` bytes long"
+)]
+pub struct ValidatorNameError {
+    length: usize,
+}
+
+/// Wrapper for validator name field of [`ValidatorUpdate`]. Cannot be longer than
+/// [`MAX_VALIDATOR_NAME_LENGTH`].
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ValidatorName(String);
+
+impl ValidatorName {
+    #[must_use]
+    pub fn empty() -> Self {
+        Self(String::new())
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    #[must_use]
+    pub fn into_inner(self) -> String {
+        self.0
+    }
+}
+
+impl FromStr for ValidatorName {
+    type Err = ValidatorNameError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        if value.len() > MAX_VALIDATOR_NAME_LENGTH {
+            return Err(ValidatorNameError {
+                length: value.len(),
+            });
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+
+impl Display for ValidatorName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct ValidatorUpdateError(ValidatorUpdateErrorKind);
 
@@ -610,6 +742,12 @@ impl ValidatorUpdateError {
             source,
         })
     }
+
+    fn invalid_name(source: ValidatorNameError) -> Self {
+        Self(ValidatorUpdateErrorKind::InvalidName {
+            source,
+        })
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -622,82 +760,78 @@ enum ValidatorUpdateErrorKind {
     Secp256k1NotSupported,
     #[error("bytes stored in the .pub_key field could not be read as an ed25519 verification key")]
     VerificationKey { source: crate::crypto::Error },
+    #[error("field `.name` was invalid")]
+    InvalidName { source: ValidatorNameError },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "serde",
-    derive(::serde::Deserialize, ::serde::Serialize),
-    serde(
-        into = "crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate",
-        try_from = "crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate",
-    )
-)]
 pub struct ValidatorUpdate {
     pub power: u32,
     pub verification_key: crate::crypto::VerificationKey,
+    pub name: ValidatorName,
 }
 
 impl Protobuf for ValidatorUpdate {
     type Error = ValidatorUpdateError;
-    type Raw = crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate;
+    type Raw = raw::ValidatorUpdate;
 
     /// Create a validator update by verifying a raw protobuf-decoded
-    /// [`crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate`].
+    /// [`crate::generated::protocol::transaction::v1alpha1::ValidatorUpdate`].
     ///
     /// # Errors
     /// Returns an error if the `.power` field is negative, if `.pub_key`
     /// is not set, or if `.pub_key` contains a non-ed25519 variant, or
     /// if the ed25519 has invalid bytes (that is, bytes from which an
     /// ed25519 public key cannot be constructed).
-    fn try_from_raw(
-        value: crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate,
-    ) -> Result<Self, ValidatorUpdateError> {
+    fn try_from_raw(value: Self::Raw) -> Result<Self, Self::Error> {
         use crate::generated::astria_vendored::tendermint::crypto::{
             public_key,
             PublicKey,
         };
-        let crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate {
+        let Self::Raw {
             pub_key,
             power,
+            name,
         } = value;
+        let name = name.parse().map_err(ValidatorUpdateError::invalid_name)?;
         let power = power
             .try_into()
-            .map_err(|_| ValidatorUpdateError::negative_power(power))?;
+            .map_err(|_| Self::Error::negative_power(power))?;
         let verification_key = match pub_key {
             None
             | Some(PublicKey {
                 sum: None,
-            }) => Err(ValidatorUpdateError::public_key_not_set()),
+            }) => Err(Self::Error::public_key_not_set()),
             Some(PublicKey {
                 sum: Some(public_key::Sum::Secp256k1(..)),
-            }) => Err(ValidatorUpdateError::secp256k1_not_supported()),
+            }) => Err(Self::Error::secp256k1_not_supported()),
 
             Some(PublicKey {
                 sum: Some(public_key::Sum::Ed25519(bytes)),
             }) => crate::crypto::VerificationKey::try_from(&*bytes)
-                .map_err(ValidatorUpdateError::verification_key),
+                .map_err(Self::Error::verification_key),
         }?;
         Ok(Self {
             power,
             verification_key,
+            name,
         })
     }
 
     /// Create a validator update by verifying a reference to raw protobuf-decoded
-    /// [`crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate`].
+    /// [`crate::generated::protocol::transaction::v1alpha1::ValidatorUpdate`].
     ///
     /// # Errors
     /// Returns an error if the `.power` field is negative, if `.pub_key`
     /// is not set, or if `.pub_key` contains a non-ed25519 variant, or
     /// if the ed25519 has invalid bytes (that is, bytes from which an
     /// ed25519 public key cannot be constructed).
-    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, ValidatorUpdateError> {
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         Self::try_from_raw(raw.clone())
     }
 
     #[must_use]
-    fn to_raw(&self) -> crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate {
+    fn to_raw(&self) -> Self::Raw {
         use crate::generated::astria_vendored::tendermint::crypto::{
             public_key,
             PublicKey,
@@ -705,34 +839,36 @@ impl Protobuf for ValidatorUpdate {
         let Self {
             power,
             verification_key,
+            name,
         } = self;
 
-        crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate {
+        Self::Raw {
             power: (*power).into(),
             pub_key: Some(PublicKey {
                 sum: Some(public_key::Sum::Ed25519(
                     verification_key.to_bytes().to_vec(),
                 )),
             }),
+            name: name.clone().into_inner(),
         }
     }
 }
 
 impl From<ValidatorUpdate>
-    for crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate
+    for crate::generated::astria::protocol::transaction::v1::ValidatorUpdate
 {
     fn from(value: ValidatorUpdate) -> Self {
         value.into_raw()
     }
 }
 
-impl TryFrom<crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate>
+impl TryFrom<crate::generated::astria::protocol::transaction::v1::ValidatorUpdate>
     for ValidatorUpdate
 {
     type Error = ValidatorUpdateError;
 
     fn try_from(
-        value: crate::generated::astria_vendored::tendermint::abci::ValidatorUpdate,
+        value: crate::generated::astria::protocol::transaction::v1::ValidatorUpdate,
     ) -> Result<Self, Self::Error> {
         Self::try_from_raw(value)
     }
@@ -1098,7 +1234,6 @@ impl Protobuf for Ics20Withdrawal {
             })?;
 
         let timeout_height = timeout_height
-            .clone()
             .ok_or(Ics20WithdrawalError::field_not_set("timeout_height"))?
             .into();
         let bridge_address = bridge_address
@@ -1907,6 +2042,155 @@ enum BridgeSudoChangeErrorKind {
     InvalidFeeAsset(#[source] asset::ParseDenomError),
 }
 
+#[derive(Debug, Clone)]
+pub struct BridgeTransfer {
+    pub to: Address,
+    pub amount: u128,
+    // asset to use for fee payment.
+    pub fee_asset: asset::Denom,
+    // the address on the destination chain to send the transfer to.
+    pub destination_chain_address: String,
+    // the address of the bridge account to transfer from.
+    pub bridge_address: Address,
+    // The block number of the rollup block containing the withdrawal event.
+    pub rollup_block_number: u64,
+    // The identifier of the withdrawal event in the rollup block.
+    pub rollup_withdrawal_event_id: String,
+}
+
+impl Protobuf for BridgeTransfer {
+    type Error = BridgeTransferError;
+    type Raw = raw::BridgeTransfer;
+
+    #[must_use]
+    fn into_raw(self) -> raw::BridgeTransfer {
+        raw::BridgeTransfer {
+            to: Some(self.to.into_raw()),
+            amount: Some(self.amount.into()),
+            fee_asset: self.fee_asset.to_string(),
+            bridge_address: Some(self.bridge_address.into_raw()),
+            destination_chain_address: self.destination_chain_address,
+            rollup_block_number: self.rollup_block_number,
+            rollup_withdrawal_event_id: self.rollup_withdrawal_event_id,
+        }
+    }
+
+    #[must_use]
+    fn to_raw(&self) -> raw::BridgeTransfer {
+        raw::BridgeTransfer {
+            to: Some(self.to.to_raw()),
+            amount: Some(self.amount.into()),
+            fee_asset: self.fee_asset.to_string(),
+            bridge_address: Some(self.bridge_address.to_raw()),
+            destination_chain_address: self.destination_chain_address.clone(),
+            rollup_block_number: self.rollup_block_number,
+            rollup_withdrawal_event_id: self.rollup_withdrawal_event_id.clone(),
+        }
+    }
+
+    /// Convert from a raw, unchecked protobuf [`raw::BridgeTransferAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `to` field is not set
+    /// - if the `to` field is invalid
+    /// - if the `amount` field is invalid
+    /// - if the `fee_asset` field is invalid
+    /// - if the `from` field is invalid
+    /// - if `destination_chain_address` is not set
+    fn try_from_raw(proto: raw::BridgeTransfer) -> Result<Self, BridgeTransferError> {
+        let raw::BridgeTransfer {
+            to,
+            amount,
+            fee_asset,
+            bridge_address,
+            destination_chain_address,
+            rollup_block_number,
+            rollup_withdrawal_event_id,
+        } = proto;
+        let to = to
+            .ok_or_else(|| BridgeTransferError::field_not_set("to"))
+            .and_then(|to| Address::try_from_raw(to).map_err(BridgeTransferError::address))?;
+        let amount = amount.ok_or_else(|| BridgeTransferError::field_not_set("amount"))?;
+        let fee_asset = fee_asset.parse().map_err(BridgeTransferError::fee_asset)?;
+        if destination_chain_address.is_empty() {
+            return Err(BridgeTransferError::field_not_set(
+                "destination_chain_address",
+            ));
+        }
+
+        let bridge_address = bridge_address
+            .ok_or_else(|| BridgeTransferError::field_not_set("bridge_address"))
+            .and_then(|to| {
+                Address::try_from_raw(to).map_err(BridgeTransferError::bridge_address)
+            })?;
+        Ok(Self {
+            to,
+            amount: amount.into(),
+            fee_asset,
+            bridge_address,
+            destination_chain_address,
+            rollup_block_number,
+            rollup_withdrawal_event_id,
+        })
+    }
+
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::BridgeTransferAction`].
+    /// # Errors
+    /// - if the `to` field is not set
+    /// - if the `to` field is invalid
+    /// - if the `amount` field is invalid
+    /// - if the `fee_asset` field is invalid
+    /// - if the `from` field is invalid
+    fn try_from_raw_ref(proto: &raw::BridgeTransfer) -> Result<Self, BridgeTransferError> {
+        Self::try_from_raw(proto.clone())
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct BridgeTransferError(BridgeTransferErrorKind);
+
+impl BridgeTransferError {
+    #[must_use]
+    fn field_not_set(field: &'static str) -> Self {
+        Self(BridgeTransferErrorKind::FieldNotSet(field))
+    }
+
+    #[must_use]
+    fn address(source: AddressError) -> Self {
+        Self(BridgeTransferErrorKind::Address {
+            source,
+        })
+    }
+
+    #[must_use]
+    fn fee_asset(source: asset::ParseDenomError) -> Self {
+        Self(BridgeTransferErrorKind::FeeAsset {
+            source,
+        })
+    }
+
+    #[must_use]
+    fn bridge_address(source: AddressError) -> Self {
+        Self(BridgeTransferErrorKind::BridgeAddress {
+            source,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum BridgeTransferErrorKind {
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error("the `to` field was invalid")]
+    Address { source: AddressError },
+    #[error("the `fee_asset` field was invalid")]
+    FeeAsset { source: asset::ParseDenomError },
+    #[error("the `bridge_address` field was invalid")]
+    BridgeAddress { source: AddressError },
+}
+
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct FeeChangeError(FeeChangeErrorKind);
@@ -1942,20 +2226,24 @@ enum FeeChangeErrorKind {
 
 #[derive(Debug, Clone)]
 pub enum FeeChange {
-    Transfer(TransferFeeComponents),
-    RollupDataSubmission(RollupDataSubmissionFeeComponents),
-    Ics20Withdrawal(Ics20WithdrawalFeeComponents),
-    InitBridgeAccount(InitBridgeAccountFeeComponents),
-    BridgeLock(BridgeLockFeeComponents),
-    BridgeUnlock(BridgeUnlockFeeComponents),
-    BridgeSudoChange(BridgeSudoChangeFeeComponents),
-    IbcRelay(IbcRelayFeeComponents),
-    ValidatorUpdate(ValidatorUpdateFeeComponents),
-    FeeAssetChange(FeeAssetChangeFeeComponents),
-    FeeChange(FeeChangeFeeComponents),
-    IbcRelayerChange(IbcRelayerChangeFeeComponents),
-    SudoAddressChange(SudoAddressChangeFeeComponents),
-    IbcSudoChange(IbcSudoChangeFeeComponents),
+    Transfer(FeeComponents<Transfer>),
+    RollupDataSubmission(FeeComponents<RollupDataSubmission>),
+    Ics20Withdrawal(FeeComponents<Ics20Withdrawal>),
+    InitBridgeAccount(FeeComponents<InitBridgeAccount>),
+    BridgeLock(FeeComponents<BridgeLock>),
+    BridgeUnlock(FeeComponents<BridgeUnlock>),
+    BridgeSudoChange(FeeComponents<BridgeSudoChange>),
+    IbcRelay(FeeComponents<IbcRelay>),
+    ValidatorUpdate(FeeComponents<ValidatorUpdate>),
+    FeeAssetChange(FeeComponents<FeeAssetChange>),
+    FeeChange(FeeComponents<FeeChange>),
+    IbcRelayerChange(FeeComponents<IbcRelayerChange>),
+    SudoAddressChange(FeeComponents<SudoAddressChange>),
+    IbcSudoChange(FeeComponents<IbcSudoChange>),
+    BridgeTransfer(FeeComponents<BridgeTransfer>),
+    RecoverIbcClient(FeeComponents<RecoverIbcClient>),
+    CurrencyPairsChange(FeeComponents<CurrencyPairsChange>),
+    MarketsChange(FeeComponents<MarketsChange>),
 }
 
 impl Protobuf for FeeChange {
@@ -2008,6 +2296,18 @@ impl Protobuf for FeeChange {
                 Self::IbcSudoChange(fee_change) => {
                     raw::fee_change::FeeComponents::IbcSudoChange(fee_change.to_raw())
                 }
+                Self::BridgeTransfer(fee_change) => {
+                    raw::fee_change::FeeComponents::BridgeTransfer(fee_change.to_raw())
+                }
+                Self::RecoverIbcClient(fee_change) => {
+                    raw::fee_change::FeeComponents::RecoverIbcClient(fee_change.to_raw())
+                }
+                Self::CurrencyPairsChange(fee_change) => {
+                    raw::fee_change::FeeComponents::CurrencyPairsChange(fee_change.to_raw())
+                }
+                Self::MarketsChange(fee_change) => {
+                    raw::fee_change::FeeComponents::MarketsChange(fee_change.to_raw())
+                }
             }),
         }
     }
@@ -2021,54 +2321,459 @@ impl Protobuf for FeeChange {
     fn try_from_raw_ref(proto: &raw::FeeChange) -> Result<Self, Self::Error> {
         Ok(match &proto.fee_components {
             Some(raw::fee_change::FeeComponents::Transfer(fee_change)) => {
-                Self::Transfer(TransferFeeComponents::try_from_raw_ref(fee_change)?)
+                Self::Transfer(FeeComponents::<Transfer>::try_from_raw_ref(fee_change)?)
             }
             Some(raw::fee_change::FeeComponents::RollupDataSubmission(fee_change)) => {
-                Self::RollupDataSubmission(RollupDataSubmissionFeeComponents::try_from_raw_ref(
+                Self::RollupDataSubmission(FeeComponents::<RollupDataSubmission>::try_from_raw_ref(
                     fee_change,
                 )?)
             }
             Some(raw::fee_change::FeeComponents::Ics20Withdrawal(fee_change)) => {
-                Self::Ics20Withdrawal(Ics20WithdrawalFeeComponents::try_from_raw_ref(fee_change)?)
+                Self::Ics20Withdrawal(FeeComponents::<Ics20Withdrawal>::try_from_raw_ref(
+                    fee_change,
+                )?)
             }
             Some(raw::fee_change::FeeComponents::InitBridgeAccount(fee_change)) => {
-                Self::InitBridgeAccount(InitBridgeAccountFeeComponents::try_from_raw_ref(
+                Self::InitBridgeAccount(FeeComponents::<InitBridgeAccount>::try_from_raw_ref(
                     fee_change,
                 )?)
             }
             Some(raw::fee_change::FeeComponents::BridgeLock(fee_change)) => {
-                Self::BridgeLock(BridgeLockFeeComponents::try_from_raw_ref(fee_change)?)
+                Self::BridgeLock(FeeComponents::<BridgeLock>::try_from_raw_ref(fee_change)?)
             }
             Some(raw::fee_change::FeeComponents::BridgeUnlock(fee_change)) => {
-                Self::BridgeUnlock(BridgeUnlockFeeComponents::try_from_raw_ref(fee_change)?)
+                Self::BridgeUnlock(FeeComponents::<BridgeUnlock>::try_from_raw_ref(fee_change)?)
             }
             Some(raw::fee_change::FeeComponents::BridgeSudoChange(fee_change)) => {
-                Self::BridgeSudoChange(BridgeSudoChangeFeeComponents::try_from_raw_ref(fee_change)?)
-            }
-            Some(raw::fee_change::FeeComponents::IbcRelay(fee_change)) => {
-                Self::IbcRelay(IbcRelayFeeComponents::try_from_raw_ref(fee_change)?)
-            }
-            Some(raw::fee_change::FeeComponents::ValidatorUpdate(fee_change)) => {
-                Self::ValidatorUpdate(ValidatorUpdateFeeComponents::try_from_raw_ref(fee_change)?)
-            }
-            Some(raw::fee_change::FeeComponents::FeeAssetChange(fee_change)) => {
-                Self::FeeAssetChange(FeeAssetChangeFeeComponents::try_from_raw_ref(fee_change)?)
-            }
-            Some(raw::fee_change::FeeComponents::FeeChange(fee_change)) => {
-                Self::FeeChange(FeeChangeFeeComponents::try_from_raw_ref(fee_change)?)
-            }
-            Some(raw::fee_change::FeeComponents::IbcRelayerChange(fee_change)) => {
-                Self::IbcRelayerChange(IbcRelayerChangeFeeComponents::try_from_raw_ref(fee_change)?)
-            }
-            Some(raw::fee_change::FeeComponents::SudoAddressChange(fee_change)) => {
-                Self::SudoAddressChange(SudoAddressChangeFeeComponents::try_from_raw_ref(
+                Self::BridgeSudoChange(FeeComponents::<BridgeSudoChange>::try_from_raw_ref(
                     fee_change,
                 )?)
             }
-            Some(raw::fee_change::FeeComponents::IbcSudoChange(fee_change)) => {
-                Self::IbcSudoChange(IbcSudoChangeFeeComponents::try_from_raw_ref(fee_change)?)
+            Some(raw::fee_change::FeeComponents::IbcRelay(fee_change)) => {
+                Self::IbcRelay(FeeComponents::<IbcRelay>::try_from_raw_ref(fee_change)?)
             }
+            Some(raw::fee_change::FeeComponents::ValidatorUpdate(fee_change)) => {
+                Self::ValidatorUpdate(FeeComponents::<ValidatorUpdate>::try_from_raw_ref(
+                    fee_change,
+                )?)
+            }
+            Some(raw::fee_change::FeeComponents::FeeAssetChange(fee_change)) => {
+                Self::FeeAssetChange(FeeComponents::<FeeAssetChange>::try_from_raw_ref(
+                    fee_change,
+                )?)
+            }
+            Some(raw::fee_change::FeeComponents::FeeChange(fee_change)) => {
+                Self::FeeChange(FeeComponents::<FeeChange>::try_from_raw_ref(fee_change)?)
+            }
+            Some(raw::fee_change::FeeComponents::IbcRelayerChange(fee_change)) => {
+                Self::IbcRelayerChange(FeeComponents::<IbcRelayerChange>::try_from_raw_ref(
+                    fee_change,
+                )?)
+            }
+            Some(raw::fee_change::FeeComponents::SudoAddressChange(fee_change)) => {
+                Self::SudoAddressChange(FeeComponents::<SudoAddressChange>::try_from_raw_ref(
+                    fee_change,
+                )?)
+            }
+            Some(raw::fee_change::FeeComponents::IbcSudoChange(fee_change)) => Self::IbcSudoChange(
+                FeeComponents::<IbcSudoChange>::try_from_raw_ref(fee_change)?,
+            ),
+            Some(raw::fee_change::FeeComponents::BridgeTransfer(fee_change)) => {
+                Self::BridgeTransfer(FeeComponents::<BridgeTransfer>::try_from_raw_ref(
+                    fee_change,
+                )?)
+            }
+            Some(raw::fee_change::FeeComponents::RecoverIbcClient(fee_change)) => {
+                Self::RecoverIbcClient(FeeComponents::<RecoverIbcClient>::try_from_raw_ref(
+                    fee_change,
+                )?)
+            }
+            Some(raw::fee_change::FeeComponents::CurrencyPairsChange(fee_change)) => {
+                Self::CurrencyPairsChange(FeeComponents::<CurrencyPairsChange>::try_from_raw_ref(
+                    fee_change,
+                )?)
+            }
+            Some(raw::fee_change::FeeComponents::MarketsChange(fee_change)) => Self::MarketsChange(
+                FeeComponents::<MarketsChange>::try_from_raw_ref(fee_change)?,
+            ),
             None => return Err(FeeChangeError::field_unset("fee_components")),
         })
     }
+}
+
+impl From<FeeComponents<Transfer>> for FeeChange {
+    fn from(fee: FeeComponents<Transfer>) -> Self {
+        FeeChange::Transfer(fee)
+    }
+}
+
+impl From<FeeComponents<RollupDataSubmission>> for FeeChange {
+    fn from(fee: FeeComponents<RollupDataSubmission>) -> Self {
+        FeeChange::RollupDataSubmission(fee)
+    }
+}
+
+impl From<FeeComponents<Ics20Withdrawal>> for FeeChange {
+    fn from(fee: FeeComponents<Ics20Withdrawal>) -> Self {
+        FeeChange::Ics20Withdrawal(fee)
+    }
+}
+
+impl From<FeeComponents<InitBridgeAccount>> for FeeChange {
+    fn from(fee: FeeComponents<InitBridgeAccount>) -> Self {
+        FeeChange::InitBridgeAccount(fee)
+    }
+}
+
+impl From<FeeComponents<BridgeLock>> for FeeChange {
+    fn from(fee: FeeComponents<BridgeLock>) -> Self {
+        FeeChange::BridgeLock(fee)
+    }
+}
+
+impl From<FeeComponents<BridgeUnlock>> for FeeChange {
+    fn from(fee: FeeComponents<BridgeUnlock>) -> Self {
+        FeeChange::BridgeUnlock(fee)
+    }
+}
+
+impl From<FeeComponents<BridgeSudoChange>> for FeeChange {
+    fn from(fee: FeeComponents<BridgeSudoChange>) -> Self {
+        FeeChange::BridgeSudoChange(fee)
+    }
+}
+
+impl From<FeeComponents<IbcRelay>> for FeeChange {
+    fn from(fee: FeeComponents<IbcRelay>) -> Self {
+        FeeChange::IbcRelay(fee)
+    }
+}
+
+impl From<FeeComponents<ValidatorUpdate>> for FeeChange {
+    fn from(fee: FeeComponents<ValidatorUpdate>) -> Self {
+        FeeChange::ValidatorUpdate(fee)
+    }
+}
+
+impl From<FeeComponents<FeeAssetChange>> for FeeChange {
+    fn from(fee: FeeComponents<FeeAssetChange>) -> Self {
+        FeeChange::FeeAssetChange(fee)
+    }
+}
+
+impl From<FeeComponents<FeeChange>> for FeeChange {
+    fn from(fee: FeeComponents<FeeChange>) -> Self {
+        FeeChange::FeeChange(fee)
+    }
+}
+
+impl From<FeeComponents<IbcRelayerChange>> for FeeChange {
+    fn from(fee: FeeComponents<IbcRelayerChange>) -> Self {
+        FeeChange::IbcRelayerChange(fee)
+    }
+}
+
+impl From<FeeComponents<SudoAddressChange>> for FeeChange {
+    fn from(fee: FeeComponents<SudoAddressChange>) -> Self {
+        FeeChange::SudoAddressChange(fee)
+    }
+}
+
+impl From<FeeComponents<IbcSudoChange>> for FeeChange {
+    fn from(fee: FeeComponents<IbcSudoChange>) -> Self {
+        FeeChange::IbcSudoChange(fee)
+    }
+}
+
+impl From<FeeComponents<BridgeTransfer>> for FeeChange {
+    fn from(fee: FeeComponents<BridgeTransfer>) -> Self {
+        FeeChange::BridgeTransfer(fee)
+    }
+}
+
+impl From<FeeComponents<RecoverIbcClient>> for FeeChange {
+    fn from(fee: FeeComponents<RecoverIbcClient>) -> Self {
+        FeeChange::RecoverIbcClient(fee)
+    }
+}
+
+impl From<FeeComponents<CurrencyPairsChange>> for FeeChange {
+    fn from(fee: FeeComponents<CurrencyPairsChange>) -> Self {
+        FeeChange::CurrencyPairsChange(fee)
+    }
+}
+
+impl From<FeeComponents<MarketsChange>> for FeeChange {
+    fn from(fee: FeeComponents<MarketsChange>) -> Self {
+        FeeChange::MarketsChange(fee)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RecoverIbcClient {
+    pub client_id: ibc_types::core::client::ClientId,
+    pub replacement_client_id: ibc_types::core::client::ClientId,
+}
+
+impl Protobuf for RecoverIbcClient {
+    type Error = RecoverIbcClientError;
+    type Raw = raw::RecoverIbcClient;
+
+    #[must_use]
+    fn into_raw(self) -> raw::RecoverIbcClient {
+        raw::RecoverIbcClient {
+            client_id: self.client_id.to_string(),
+            replacement_client_id: self.replacement_client_id.to_string(),
+        }
+    }
+
+    #[must_use]
+    fn to_raw(&self) -> raw::RecoverIbcClient {
+        raw::RecoverIbcClient {
+            client_id: self.client_id.clone().to_string(),
+            replacement_client_id: self.replacement_client_id.clone().to_string(),
+        }
+    }
+
+    /// Convert from a raw, unchecked protobuf [`raw::RecoverIbcClientAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `client_id` field is not set
+    /// - if the `replacement_client_id` field is not set
+    fn try_from_raw(proto: raw::RecoverIbcClient) -> Result<Self, RecoverIbcClientError> {
+        let client_id = proto.client_id.parse().map_err(|_| {
+            RecoverIbcClientError(RecoverIbcClientErrorKind::InvalidSubjectClientId)
+        })?;
+        let replacement_client_id = proto.replacement_client_id.parse().map_err(|_| {
+            RecoverIbcClientError(RecoverIbcClientErrorKind::InvalidSubstituteClientId)
+        })?;
+        Ok(Self {
+            client_id,
+            replacement_client_id,
+        })
+    }
+
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::RecoverIbcClientAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `client_id` field is not set
+    /// - if the `replacement_client_id` field is not set
+    fn try_from_raw_ref(proto: &Self::Raw) -> Result<Self, RecoverIbcClientError> {
+        Self::try_from_raw(proto.clone())
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct RecoverIbcClientError(RecoverIbcClientErrorKind);
+
+#[derive(Debug, thiserror::Error)]
+enum RecoverIbcClientErrorKind {
+    #[error("the `client_id` field was invalid")]
+    InvalidSubjectClientId,
+    #[error("the `replacement_client_id` field was invalid")]
+    InvalidSubstituteClientId,
+}
+
+#[derive(Debug, Clone)]
+pub enum CurrencyPairsChange {
+    Addition(Vec<CurrencyPair>),
+    Removal(Vec<CurrencyPair>),
+}
+
+impl Protobuf for CurrencyPairsChange {
+    type Error = CurrencyPairsChangeError;
+    type Raw = raw::CurrencyPairsChange;
+
+    #[must_use]
+    fn into_raw(self) -> Self::Raw {
+        let raw = match self {
+            CurrencyPairsChange::Addition(pairs) => {
+                raw::currency_pairs_change::Value::Addition(raw::CurrencyPairs {
+                    pairs: pairs.into_iter().map(CurrencyPair::into_raw).collect(),
+                })
+            }
+            CurrencyPairsChange::Removal(pairs) => {
+                raw::currency_pairs_change::Value::Removal(raw::CurrencyPairs {
+                    pairs: pairs.into_iter().map(CurrencyPair::into_raw).collect(),
+                })
+            }
+        };
+        Self::Raw {
+            value: Some(raw),
+        }
+    }
+
+    #[must_use]
+    fn to_raw(&self) -> Self::Raw {
+        self.clone().into_raw()
+    }
+
+    /// Convert from a raw, unchecked protobuf [`raw::CurrencyPairsChange`].
+    ///
+    /// # Errors
+    ///
+    /// - if the raw value is `None`
+    /// - if any of the `pairs` field is invalid
+    fn try_from_raw(raw: raw::CurrencyPairsChange) -> Result<Self, Self::Error> {
+        match raw.value {
+            Some(raw::currency_pairs_change::Value::Addition(raw::CurrencyPairs {
+                pairs,
+            })) => {
+                let pairs = pairs
+                    .into_iter()
+                    .map(CurrencyPair::try_from_raw)
+                    .collect::<Result<_, _>>()
+                    .map_err(Self::Error::invalid_currency_pair)?;
+                Ok(Self::Addition(pairs))
+            }
+            Some(raw::currency_pairs_change::Value::Removal(raw::CurrencyPairs {
+                pairs,
+            })) => {
+                let pairs = pairs
+                    .into_iter()
+                    .map(CurrencyPair::try_from_raw)
+                    .collect::<Result<_, _>>()
+                    .map_err(Self::Error::invalid_currency_pair)?;
+                Ok(Self::Removal(pairs))
+            }
+            None => Err(Self::Error::unset()),
+        }
+    }
+
+    /// Convert from a reference to a raw, unchecked protobuf [`raw::PriceFeed`].
+    ///
+    /// # Errors
+    ///
+    /// - if the raw value is `None`
+    /// - if any of the `pairs` field is invalid
+    fn try_from_raw_ref(raw: &raw::CurrencyPairsChange) -> Result<Self, Self::Error> {
+        Self::try_from_raw(raw.clone())
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct CurrencyPairsChangeError(CurrencyPairsChangeErrorKind);
+
+impl CurrencyPairsChangeError {
+    #[must_use]
+    fn unset() -> Self {
+        Self(CurrencyPairsChangeErrorKind::Unset)
+    }
+
+    #[must_use]
+    fn invalid_currency_pair(err: CurrencyPairError) -> Self {
+        Self(CurrencyPairsChangeErrorKind::InvalidCurrencyPair(err))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum CurrencyPairsChangeErrorKind {
+    #[error("required action value was not set")]
+    Unset,
+    #[error("a currency pair was invalid")]
+    InvalidCurrencyPair(#[from] CurrencyPairError),
+}
+
+/// Takes a list of markets and either creates, removes or updates them depending on its variant.
+/// - **Creation:** Creates the markets in the market map. If no market map is found, one will be
+///   created. If any of the markets to create already exist, this action will err.
+/// - **Removal:** Removes the markets from the market map. If a market is not found in the map, it
+///   will be ignored.
+/// - **Update:** Updates the markets in the market map, matching based on `Ticker.currency_pair`.
+///   If no market map is found, or any market is missing a counterpart in the map, this action will
+///   err.
+#[derive(Debug, Clone)]
+pub enum MarketsChange {
+    Creation(Vec<Market>),
+    Removal(Vec<Market>),
+    Update(Vec<Market>),
+}
+
+impl Protobuf for MarketsChange {
+    type Error = MarketsChangeError;
+    type Raw = raw::MarketsChange;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        match &raw.action {
+            Some(raw::markets_change::Action::Creation(markets)) => Ok(Self::Creation(
+                markets
+                    .markets
+                    .iter()
+                    .map(|market| Market::try_from_raw(market.clone()))
+                    .collect::<Result<_, _>>()
+                    .map_err(MarketsChangeError::invalid_market)?,
+            )),
+            Some(raw::markets_change::Action::Removal(markets)) => Ok(Self::Removal(
+                markets
+                    .markets
+                    .iter()
+                    .map(|market| Market::try_from_raw(market.clone()))
+                    .collect::<Result<_, _>>()
+                    .map_err(MarketsChangeError::invalid_market)?,
+            )),
+            Some(raw::markets_change::Action::Update(markets)) => Ok(Self::Update(
+                markets
+                    .markets
+                    .iter()
+                    .map(|market| Market::try_from_raw(market.clone()))
+                    .collect::<Result<_, _>>()
+                    .map_err(MarketsChangeError::invalid_market)?,
+            )),
+            None => Err(MarketsChangeError::missing_markets()),
+        }
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let action = match self {
+            Self::Creation(markets) => raw::markets_change::Action::Creation(raw::Markets {
+                markets: markets
+                    .iter()
+                    .map(|market| Market::into_raw(market.clone()))
+                    .collect(),
+            }),
+            Self::Removal(markets) => raw::markets_change::Action::Removal(raw::Markets {
+                markets: markets
+                    .iter()
+                    .map(|market| Market::into_raw(market.clone()))
+                    .collect(),
+            }),
+            Self::Update(markets) => raw::markets_change::Action::Update(raw::Markets {
+                markets: markets
+                    .iter()
+                    .map(|market| Market::into_raw(market.clone()))
+                    .collect(),
+            }),
+        };
+        Self::Raw {
+            action: Some(action),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct MarketsChangeError(MarketsChangeErrorKind);
+
+impl MarketsChangeError {
+    #[must_use]
+    pub fn invalid_market(err: MarketError) -> Self {
+        Self(MarketsChangeErrorKind::InvalidMarket(err))
+    }
+
+    #[must_use]
+    pub fn missing_markets() -> Self {
+        Self(MarketsChangeErrorKind::MissingMarkets)
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum MarketsChangeErrorKind {
+    #[error("invalid market in market list")]
+    InvalidMarket(#[from] MarketError),
+    #[error("change market action contained no markets to change")]
+    MissingMarkets,
 }

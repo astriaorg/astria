@@ -5,17 +5,25 @@ use std::{
 
 use astria_core::{
     self,
-    generated::sequencerblock::v1::{
-        sequencer_service_server::{
-            SequencerService,
-            SequencerServiceServer,
+    generated::{
+        astria::sequencerblock::v1::{
+            sequencer_service_server::{
+                SequencerService,
+                SequencerServiceServer,
+            },
+            FilteredSequencerBlock as RawFilteredSequencerBlock,
+            GetFilteredSequencerBlockRequest,
+            GetPendingNonceRequest,
+            GetPendingNonceResponse,
+            GetSequencerBlockRequest,
+            SequencerBlock as RawSequencerBlock,
         },
-        FilteredSequencerBlock as RawFilteredSequencerBlock,
-        GetFilteredSequencerBlockRequest,
-        GetPendingNonceRequest,
-        GetPendingNonceResponse,
-        GetSequencerBlockRequest,
-        SequencerBlock as RawSequencerBlock,
+        sequencerblock::v1::{
+            GetUpgradesInfoRequest,
+            GetUpgradesInfoResponse,
+            GetValidatorNameRequest,
+            GetValidatorNameResponse,
+        },
     },
 };
 use astria_eyre::eyre::{
@@ -76,6 +84,7 @@ impl MockGrpcSequencer {
         &self,
         nonce_to_mount: u32,
         debug_name: impl Into<String>,
+        expected_requests: u64,
     ) {
         let resp = GetPendingNonceResponse {
             inner: nonce_to_mount,
@@ -86,7 +95,7 @@ impl MockGrpcSequencer {
         )
         .respond_with(constant_response(resp))
         .up_to_n_times(1)
-        .expect(1)
+        .expect(expected_requests)
         .with_name(debug_name)
         .mount(&self.mock_server)
         .await;
@@ -118,5 +127,19 @@ impl SequencerService for SequencerServiceImpl {
         self.0
             .handle_request(GET_PENDING_NONCE_GRPC_NAME, request)
             .await
+    }
+
+    async fn get_upgrades_info(
+        self: Arc<Self>,
+        _request: Request<GetUpgradesInfoRequest>,
+    ) -> Result<Response<GetUpgradesInfoResponse>, Status> {
+        unimplemented!()
+    }
+
+    async fn get_validator_name(
+        self: Arc<Self>,
+        _request: Request<GetValidatorNameRequest>,
+    ) -> Result<Response<GetValidatorNameResponse>, Status> {
+        unimplemented!()
     }
 }

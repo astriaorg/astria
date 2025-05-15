@@ -8,7 +8,7 @@ use std::{
 };
 
 use astria_core::{
-    generated::sequencerblock::v1::{
+    generated::astria::sequencerblock::v1::{
         sequencer_service_client::SequencerServiceClient,
         GetSequencerBlockRequest,
     },
@@ -205,7 +205,7 @@ async fn fetch_block(
                 state.set_sequencer_connected(false);
 
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
 
                 warn!(

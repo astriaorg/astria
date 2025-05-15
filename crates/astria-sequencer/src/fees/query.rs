@@ -1,10 +1,7 @@
-use std::{
-    collections::HashMap,
-    future::ready,
-};
+use std::future::ready;
 
 use astria_core::{
-    generated::protocol::transaction::v1::TransactionBody as RawBody,
+    generated::astria::protocol::transaction::v1::TransactionBody as RawBody,
     primitive::v1::asset::{
         self,
         Denom,
@@ -12,8 +9,27 @@ use astria_core::{
     protocol::{
         abci::AbciErrorCode,
         asset::v1::AllowedFeeAssetsResponse,
+        fees::v1::FeeComponents,
         transaction::v1::{
-            Action,
+            action::{
+                BridgeLock,
+                BridgeSudoChange,
+                BridgeTransfer,
+                BridgeUnlock,
+                CurrencyPairsChange,
+                FeeAssetChange,
+                FeeChange,
+                IbcRelayerChange,
+                IbcSudoChange,
+                Ics20Withdrawal,
+                InitBridgeAccount,
+                MarketsChange,
+                RecoverIbcClient,
+                RollupDataSubmission,
+                SudoAddressChange,
+                Transfer,
+                ValidatorUpdate,
+            },
             TransactionBody,
         },
     },
@@ -32,6 +48,7 @@ use futures::{
     FutureExt as _,
     StreamExt as _,
 };
+use penumbra_ibc::IbcRelay;
 use prost::{
     Message as _,
     Name as _,
@@ -42,7 +59,7 @@ use tendermint::abci::{
     Code,
 };
 use tokio::{
-    sync::OnceCell,
+    join,
     try_join,
 };
 use tracing::{
@@ -50,15 +67,17 @@ use tracing::{
     warn,
 };
 
-use super::{
-    FeeHandler,
-    StateReadExt as _,
-};
 use crate::{
     app::StateReadExt as _,
     assets::StateReadExt as _,
+    checked_actions::{
+        utils::total_fees,
+        ActionRef,
+    },
+    fees::StateReadExt as _,
 };
 
+#[instrument(skip_all, fields(%asset))]
 async fn find_trace_prefixed_or_return_ibc<S: StateRead>(
     state: S,
     asset: asset::IbcPrefixed,
@@ -89,6 +108,7 @@ async fn get_allowed_fee_assets<S: StateRead>(state: &S) -> Vec<Denom> {
     stream.collect::<Vec<_>>().await
 }
 
+#[instrument(skip_all)]
 pub(crate) async fn allowed_fee_assets_request(
     storage: Storage,
     request: request::Query,
@@ -134,6 +154,44 @@ pub(crate) async fn allowed_fee_assets_request(
     }
 }
 
+pub(crate) async fn components(
+    storage: Storage,
+    request: request::Query,
+    _params: Vec<(String, String)>,
+) -> response::Query {
+    let snapshot = storage.latest_snapshot();
+
+    let height = async {
+        snapshot
+            .get_block_height()
+            .await
+            .wrap_err("failed getting block height")
+    };
+    let fee_components = get_all_fee_components(&snapshot).map(Ok);
+    let (height, fee_components) = match try_join!(height, fee_components) {
+        Ok(vals) => vals,
+        Err(err) => {
+            return response::Query {
+                code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
+                info: AbciErrorCode::INTERNAL_ERROR.info(),
+                log: format!("{err:#}"),
+                ..response::Query::default()
+            };
+        }
+    };
+
+    let height = tendermint::block::Height::try_from(height).expect("height must fit into an i64");
+    response::Query {
+        code: tendermint::abci::Code::Ok,
+        key: request.path.into_bytes().into(),
+        value: serde_json::to_vec(&fee_components)
+            .expect("object does not contain keys that don't map to json keys")
+            .into(),
+        height,
+        ..response::Query::default()
+    }
+}
+
 pub(crate) async fn transaction_fee_request(
     storage: Storage,
     request: request::Query,
@@ -160,17 +218,18 @@ pub(crate) async fn transaction_fee_request(
         }
     };
 
-    let fees_with_ibc_denoms = match get_fees_for_transaction(&tx, &snapshot).await {
-        Ok(fees) => fees,
-        Err(err) => {
-            return response::Query {
-                code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
-                info: AbciErrorCode::INTERNAL_ERROR.info(),
-                log: format!("failed calculating fees for provided transaction: {err:#}"),
-                ..response::Query::default()
-            };
-        }
-    };
+    let fees_with_ibc_denoms =
+        match total_fees(tx.actions().iter().map(ActionRef::from), &snapshot).await {
+            Ok(fees) => fees,
+            Err(err) => {
+                return response::Query {
+                    code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
+                    info: AbciErrorCode::INTERNAL_ERROR.info(),
+                    log: format!("failed calculating fees for provided transaction: {err:#}"),
+                    ..response::Query::default()
+                };
+            }
+        };
 
     let mut fees = Vec::with_capacity(fees_with_ibc_denoms.len());
     for (ibc_denom, value) in fees_with_ibc_denoms {
@@ -216,215 +275,6 @@ pub(crate) async fn transaction_fee_request(
     }
 }
 
-#[instrument(skip_all)]
-pub(crate) async fn get_fees_for_transaction<S: StateRead>(
-    tx: &TransactionBody,
-    state: &S,
-) -> eyre::Result<HashMap<asset::IbcPrefixed, u128>> {
-    let transfer_fees = OnceCell::new();
-    let rollup_data_submission_fees = OnceCell::new();
-    let ics20_withdrawal_fees = OnceCell::new();
-    let init_bridge_account_fees = OnceCell::new();
-    let bridge_lock_fees = OnceCell::new();
-    let bridge_unlock_fees = OnceCell::new();
-    let bridge_sudo_change_fees = OnceCell::new();
-    let validator_update_fees = OnceCell::new();
-    let sudo_address_change_fees = OnceCell::new();
-    let ibc_sudo_change_fees = OnceCell::new();
-    let ibc_relay_fees = OnceCell::new();
-    let ibc_relayer_change_fees = OnceCell::new();
-    let fee_asset_change_fees = OnceCell::new();
-    let fee_change_fees = OnceCell::new();
-
-    let mut fees_by_asset = HashMap::new();
-    for action in tx.actions() {
-        match action {
-            Action::Transfer(act) => {
-                let transfer_fees = transfer_fees
-                    .get_or_try_init(|| async { state.get_transfer_fees().await })
-                    .await
-                    .wrap_err("failed to get transfer fees")?
-                    .ok_or_eyre("fees not found for `Transfer` action, hence it is disabled")?;
-                calculate_and_add_fees(
-                    act,
-                    act.fee_asset.to_ibc_prefixed(),
-                    &mut fees_by_asset,
-                    transfer_fees.base,
-                    transfer_fees.multiplier,
-                );
-            }
-            Action::RollupDataSubmission(act) => {
-                let rollup_data_submission_fees = rollup_data_submission_fees
-                    .get_or_try_init(|| async { state.get_rollup_data_submission_fees().await })
-                    .await
-                    .wrap_err("failed to get rollup data submission fees")?
-                    .ok_or_eyre(
-                        "fees not found for `RollupDataSubmission` action, hence it is disabled",
-                    )?;
-                calculate_and_add_fees(
-                    act,
-                    act.fee_asset.to_ibc_prefixed(),
-                    &mut fees_by_asset,
-                    rollup_data_submission_fees.base,
-                    rollup_data_submission_fees.multiplier,
-                );
-            }
-            Action::Ics20Withdrawal(act) => {
-                let ics20_withdrawal_fees = ics20_withdrawal_fees
-                    .get_or_try_init(|| async { state.get_ics20_withdrawal_fees().await })
-                    .await
-                    .wrap_err("failed to get ics20 withdrawal fees")?
-                    .ok_or_eyre(
-                        "fees not found for `Ics20Withdrawal` action, hence it is disabled",
-                    )?;
-                calculate_and_add_fees(
-                    act,
-                    act.fee_asset.to_ibc_prefixed(),
-                    &mut fees_by_asset,
-                    ics20_withdrawal_fees.base,
-                    ics20_withdrawal_fees.multiplier,
-                );
-            }
-            Action::InitBridgeAccount(act) => {
-                let init_bridge_account_fees = init_bridge_account_fees
-                    .get_or_try_init(|| async { state.get_init_bridge_account_fees().await })
-                    .await
-                    .wrap_err("failed to get init bridge account fees")?
-                    .ok_or_eyre(
-                        "fees not found for `InitBridgeAccount` action, hence it is disabled",
-                    )?;
-                calculate_and_add_fees(
-                    act,
-                    act.fee_asset.to_ibc_prefixed(),
-                    &mut fees_by_asset,
-                    init_bridge_account_fees.base,
-                    init_bridge_account_fees.multiplier,
-                );
-            }
-            Action::BridgeLock(act) => {
-                let bridge_lock_fees = bridge_lock_fees
-                    .get_or_try_init(|| async { state.get_bridge_lock_fees().await })
-                    .await
-                    .wrap_err("failed to get bridge lock fees")?
-                    .ok_or_eyre("fees not found for `BridgeLock` action, hence it is disabled")?;
-                calculate_and_add_fees(
-                    act,
-                    act.fee_asset.to_ibc_prefixed(),
-                    &mut fees_by_asset,
-                    bridge_lock_fees.base,
-                    bridge_lock_fees.multiplier,
-                );
-            }
-            Action::BridgeUnlock(act) => {
-                let bridge_unlock_fees = bridge_unlock_fees
-                    .get_or_try_init(|| async { state.get_bridge_unlock_fees().await })
-                    .await
-                    .wrap_err("failed to get bridge unlock fees")?
-                    .ok_or_eyre("fees not found for `BridgeUnlock` action, hence it is disabled")?;
-                calculate_and_add_fees(
-                    act,
-                    act.fee_asset.to_ibc_prefixed(),
-                    &mut fees_by_asset,
-                    bridge_unlock_fees.base,
-                    bridge_unlock_fees.multiplier,
-                );
-            }
-            Action::BridgeSudoChange(act) => {
-                let bridge_sudo_change_fees = bridge_sudo_change_fees
-                    .get_or_try_init(|| async { state.get_bridge_sudo_change_fees().await })
-                    .await
-                    .wrap_err("failed to get bridge sudo change fees")?
-                    .ok_or_eyre(
-                        "fees not found for `BridgeSudoChange` action, hence it is disabled",
-                    )?;
-                calculate_and_add_fees(
-                    act,
-                    act.fee_asset.to_ibc_prefixed(),
-                    &mut fees_by_asset,
-                    bridge_sudo_change_fees.base,
-                    bridge_sudo_change_fees.multiplier,
-                );
-            }
-            Action::ValidatorUpdate(_) => {
-                validator_update_fees
-                    .get_or_try_init(|| async { state.get_validator_update_fees().await })
-                    .await
-                    .wrap_err("failed to get validator update fees")?
-                    .ok_or_eyre(
-                        "fees not found for `ValidatorUpdate` action, hence it is disabled",
-                    )?;
-            }
-            Action::SudoAddressChange(_) => {
-                sudo_address_change_fees
-                    .get_or_try_init(|| async { state.get_sudo_address_change_fees().await })
-                    .await
-                    .wrap_err("failed to get sudo address change fees")?
-                    .ok_or_eyre(
-                        "fees not found for `SudoAddressChange` action, hence it is disabled",
-                    )?;
-            }
-            Action::IbcSudoChange(_) => {
-                ibc_sudo_change_fees
-                    .get_or_try_init(|| async { state.get_ibc_sudo_change_fees().await })
-                    .await
-                    .wrap_err("failed to get ibc sudo change fees")?
-                    .ok_or_eyre(
-                        "fees not found for `IbcSudoChange` action, hence it is disabled",
-                    )?;
-            }
-            Action::Ibc(_) => {
-                ibc_relay_fees
-                    .get_or_try_init(|| async { state.get_ibc_relay_fees().await })
-                    .await
-                    .wrap_err("failed to get ibc relay fees")?
-                    .ok_or_eyre("fees not found for `IbcRelay` action, hence it is disabled")?;
-            }
-            Action::IbcRelayerChange(_) => {
-                ibc_relayer_change_fees
-                    .get_or_try_init(|| async { state.get_ibc_relayer_change_fees().await })
-                    .await
-                    .wrap_err("failed to get ibc relayer change fees")?
-                    .ok_or_eyre(
-                        "fees not found for `IbcRelayerChange` action, hence it is disabled",
-                    )?;
-            }
-            Action::FeeAssetChange(_) => {
-                fee_asset_change_fees
-                    .get_or_try_init(|| async { state.get_fee_asset_change_fees().await })
-                    .await
-                    .wrap_err("failed to get fee asset change fees")?
-                    .ok_or_eyre(
-                        "fees not found for `FeeAssetChange` action, hence it is disabled",
-                    )?;
-            }
-            Action::FeeChange(_) => {
-                fee_change_fees
-                    .get_or_try_init(|| async { state.get_fee_change_fees().await })
-                    .await
-                    .wrap_err("failed to get fee change fees")?
-                    .ok_or_eyre(
-                        "fees not found for `FeeChange` action, which cannot be disabled",
-                    )?;
-            }
-        }
-    }
-    Ok(fees_by_asset)
-}
-
-fn calculate_and_add_fees<T: FeeHandler>(
-    act: &T,
-    fee_asset: asset::IbcPrefixed,
-    fees_by_asset: &mut HashMap<asset::IbcPrefixed, u128>,
-    base: u128,
-    multiplier: u128,
-) {
-    let total_fees = base.saturating_add(multiplier.saturating_mul(act.variable_component()));
-    fees_by_asset
-        .entry(fee_asset)
-        .and_modify(|amt| *amt = amt.saturating_add(total_fees))
-        .or_insert(total_fees);
-}
-
 fn preprocess_fees_request(request: &request::Query) -> Result<TransactionBody, response::Query> {
     let tx = match RawBody::decode(&*request.data) {
         Ok(tx) => tx,
@@ -457,4 +307,226 @@ fn preprocess_fees_request(request: &request::Query) -> Result<TransactionBody, 
     };
 
     Ok(tx)
+}
+
+#[derive(serde::Serialize)]
+struct AllFeeComponents {
+    transfer: FetchResult,
+    rollup_data_submission: FetchResult,
+    ics20_withdrawal: FetchResult,
+    init_bridge_account: FetchResult,
+    bridge_lock: FetchResult,
+    bridge_unlock: FetchResult,
+    bridge_transfer: FetchResult,
+    bridge_sudo_change: FetchResult,
+    ibc_relay: FetchResult,
+    validator_update: FetchResult,
+    fee_asset_change: FetchResult,
+    fee_change: FetchResult,
+    ibc_relayer_change: FetchResult,
+    sudo_address_change: FetchResult,
+    ibc_sudo_change: FetchResult,
+    recover_ibc_client: FetchResult,
+    currency_pairs_change: FetchResult,
+    markets_change: FetchResult,
+}
+
+#[derive(serde::Serialize)]
+#[serde(untagged)]
+enum FetchResult {
+    Err(String),
+    Missing(&'static str),
+    Component(FeeComponent),
+}
+
+impl<T> From<eyre::Result<Option<FeeComponents<T>>>> for FetchResult {
+    fn from(value: eyre::Result<Option<FeeComponents<T>>>) -> Self {
+        match value {
+            Ok(Some(val)) => Self::Component(FeeComponent {
+                base: val.base(),
+                multiplier: val.multiplier(),
+            }),
+            Ok(None) => Self::Missing("not set"),
+            Err(err) => Self::Err(err.to_string()),
+        }
+    }
+}
+
+async fn get_all_fee_components<S: StateRead>(state: &S) -> AllFeeComponents {
+    let (
+        transfer,
+        rollup_data_submission,
+        ics20_withdrawal,
+        init_bridge_account,
+        bridge_lock,
+        bridge_unlock,
+        bridge_transfer,
+        bridge_sudo_change,
+        validator_update,
+        sudo_address_change,
+        ibc_sudo_change,
+        ibc_relay,
+        ibc_relayer_change,
+        fee_asset_change,
+        fee_change,
+        recover_ibc_client,
+        currency_pairs_change,
+        markets_change,
+    ) = join!(
+        state.get_fees::<Transfer>().map(FetchResult::from),
+        state
+            .get_fees::<RollupDataSubmission>()
+            .map(FetchResult::from),
+        state.get_fees::<Ics20Withdrawal>().map(FetchResult::from),
+        state.get_fees::<InitBridgeAccount>().map(FetchResult::from),
+        state.get_fees::<BridgeLock>().map(FetchResult::from),
+        state.get_fees::<BridgeUnlock>().map(FetchResult::from),
+        state.get_fees::<BridgeTransfer>().map(FetchResult::from),
+        state.get_fees::<BridgeSudoChange>().map(FetchResult::from),
+        state.get_fees::<ValidatorUpdate>().map(FetchResult::from),
+        state.get_fees::<SudoAddressChange>().map(FetchResult::from),
+        state.get_fees::<IbcSudoChange>().map(FetchResult::from),
+        state.get_fees::<IbcRelay>().map(FetchResult::from),
+        state.get_fees::<IbcRelayerChange>().map(FetchResult::from),
+        state.get_fees::<FeeAssetChange>().map(FetchResult::from),
+        state.get_fees::<FeeChange>().map(FetchResult::from),
+        state.get_fees::<RecoverIbcClient>().map(FetchResult::from),
+        state
+            .get_fees::<CurrencyPairsChange>()
+            .map(FetchResult::from),
+        state.get_fees::<MarketsChange>().map(FetchResult::from),
+    );
+    AllFeeComponents {
+        transfer,
+        rollup_data_submission,
+        ics20_withdrawal,
+        init_bridge_account,
+        bridge_lock,
+        bridge_unlock,
+        bridge_transfer,
+        bridge_sudo_change,
+        ibc_relay,
+        validator_update,
+        fee_asset_change,
+        fee_change,
+        ibc_relayer_change,
+        sudo_address_change,
+        ibc_sudo_change,
+        recover_ibc_client,
+        currency_pairs_change,
+        markets_change,
+    }
+}
+
+#[derive(serde::Serialize)]
+struct FeeComponent {
+    base: u128,
+    multiplier: u128,
+}
+
+#[cfg(test)]
+mod test {
+    use astria_core::{
+        generated::astria::protocol::fees::v1::TransactionFeeResponse as RawTransactionFeeResponse,
+        primitive::v1::RollupId,
+        protocol::fees::v1::TransactionFeeResponse,
+    };
+
+    use super::*;
+    use crate::{
+        app::StateWriteExt as _,
+        assets::StateWriteExt as _,
+        fees::{
+            fee_handler::FeeHandler,
+            StateWriteExt as _,
+        },
+        test_utils::astria_address,
+    };
+
+    #[tokio::test]
+    async fn transaction_fee_request_ok() {
+        let asset_a: Denom = "test-asset-a".parse().unwrap();
+        let asset_b: Denom = "test-asset-b".parse().unwrap();
+        let action_a = Transfer {
+            to: astria_address([1u8; 20].as_slice()),
+            amount: 100,
+            asset: asset_a.clone(),
+            fee_asset: asset_a.clone(),
+        };
+        let action_b = RollupDataSubmission {
+            data: vec![1, 2, 3].into(),
+            rollup_id: RollupId::from_unhashed_bytes(b"rollupid"),
+            fee_asset: asset_b.clone(),
+        };
+        let chain_id = "test-1";
+
+        let body = TransactionBody::builder()
+            .actions(vec![action_a.clone().into(), action_b.clone().into()])
+            .chain_id(chain_id)
+            .nonce(0)
+            .try_build()
+            .unwrap();
+
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = cnidarium::StateDelta::new(snapshot);
+
+        let transfer_base_fee = 10;
+        let transfer_multiplier = 1;
+        let rollup_data_submission_base_fee = 20;
+        let rollup_data_submission_multiplier = 2;
+        state
+            .put_fees::<Transfer>(FeeComponents::new(transfer_base_fee, transfer_multiplier))
+            .unwrap();
+        state
+            .put_fees::<RollupDataSubmission>(FeeComponents::new(
+                rollup_data_submission_base_fee,
+                rollup_data_submission_multiplier,
+            ))
+            .unwrap();
+        state.put_allowed_fee_asset(&asset_a).unwrap();
+        state.put_allowed_fee_asset(&asset_b).unwrap();
+        state.put_block_height(1).unwrap();
+        state
+            .put_ibc_asset(asset_a.clone().unwrap_trace_prefixed())
+            .unwrap();
+        state
+            .put_ibc_asset(asset_b.clone().unwrap_trace_prefixed())
+            .unwrap();
+        storage.commit(state).await.unwrap();
+
+        let query = request::Query {
+            data: body.into_raw().encode_to_vec().into(),
+            path: "path".to_string(),
+            height: 0u32.into(),
+            prove: false,
+        };
+
+        let resp = transaction_fee_request(storage.clone(), query, vec![]).await;
+        assert_eq!(resp.code, 0.into(), "{}", resp.log);
+
+        let proto = RawTransactionFeeResponse::decode(&*resp.value).unwrap();
+        let mut resp = TransactionFeeResponse::try_from_raw(proto).unwrap();
+        let mut expected = TransactionFeeResponse {
+            height: 1,
+            fees: vec![
+                (
+                    asset_a,
+                    transfer_base_fee + transfer_multiplier * action_a.variable_component(),
+                ),
+                (
+                    asset_b,
+                    rollup_data_submission_base_fee
+                        + rollup_data_submission_multiplier * action_b.variable_component(),
+                ),
+            ],
+        };
+        resp.fees
+            .sort_by(|a: &(Denom, u128), b: &(Denom, u128)| a.0.cmp(&b.0));
+        expected
+            .fees
+            .sort_by(|a: &(Denom, u128), b: &(Denom, u128)| a.0.cmp(&b.0));
+
+        assert_eq!(resp, expected);
+    }
 }

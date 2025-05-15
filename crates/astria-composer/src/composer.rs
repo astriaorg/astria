@@ -12,11 +12,15 @@ use astria_eyre::eyre::{
 use itertools::Itertools as _;
 use tokio::{
     io,
+    join,
     signal::unix::{
         signal,
         SignalKind,
     },
-    sync::watch,
+    sync::{
+        watch,
+        OnceCell,
+    },
     task::{
         JoinError,
         JoinHandle,
@@ -35,10 +39,7 @@ use tracing::{
 };
 
 use crate::{
-    api::{
-        self,
-        ApiServer,
-    },
+    api,
     collectors,
     collectors::geth,
     composer,
@@ -61,7 +62,10 @@ const GETH_COLLECTOR_SHUTDOWN_DURATION: Duration = Duration::from_secs(5);
 /// at the same time funneling data from multiple rollup nodes.
 pub struct Composer {
     /// used for monitoring the status of the Composer service.
-    api_server: ApiServer,
+    api: api::Serve,
+    /// A token separate from the `shutdown_token` to ensure the
+    /// API server shuts down last.
+    api_shutdown_token: CancellationToken,
     /// used to announce the current status of the Composer for other
     /// modules in the crate to use.
     composer_status_sender: watch::Sender<composer::Status>,
@@ -154,10 +158,17 @@ impl Composer {
             "gRPC server listening"
         );
 
-        let api_server = api::start(cfg.api_listen_addr, composer_status_sender.subscribe());
+        let api_shutdown_token = CancellationToken::new();
+        let api = api::serve(
+            cfg.api_listen_addr,
+            composer_status_sender.subscribe(),
+            api_shutdown_token.clone(),
+        )
+        .await
+        .wrap_err("failed to start API server")?;
 
         info!(
-            listen_addr = %api_server.local_addr(),
+            listen_addr = %api.local_addr(),
             "API server listening"
         );
 
@@ -184,7 +195,8 @@ impl Composer {
                 .collect();
 
         Ok(Self {
-            api_server,
+            api,
+            api_shutdown_token,
             composer_status_sender,
             executor_handle,
             executor,
@@ -201,7 +213,7 @@ impl Composer {
 
     /// Returns the socket address the api server is served over
     pub fn local_addr(&self) -> SocketAddr {
-        self.api_server.local_addr()
+        self.api.local_addr()
     }
 
     /// Returns the socket address the grpc server is served over
@@ -225,8 +237,9 @@ impl Composer {
     )]
     pub async fn run_until_stopped(self) -> eyre::Result<()> {
         let Self {
-            api_server,
-            mut composer_status_sender,
+            api,
+            api_shutdown_token,
+            composer_status_sender,
             executor,
             executor_handle,
             mut geth_collector_tasks,
@@ -239,18 +252,10 @@ impl Composer {
             fee_asset,
         } = self;
 
-        // we need the API server to shutdown at the end, since it is used by k8s
-        // to report the liveness of the service
-        let api_server_shutdown_token = CancellationToken::new();
+        let mut exit_err: OnceCell<eyre::Report> = OnceCell::new();
 
-        let api_server_task_shutdown_token = api_server_shutdown_token.clone();
-        // run the api server
-        let mut api_task = tokio::spawn(async move {
-            api_server
-                .with_graceful_shutdown(api_server_task_shutdown_token.cancelled())
-                .await
-                .wrap_err("api server ended unexpectedly")
-        });
+        let mut api_task =
+            tokio::spawn(async move { api.await.wrap_err("API server exited with error") });
 
         // run the collectors and executor
         spawn_geth_collectors(&mut geth_collectors, &mut geth_collector_tasks);
@@ -259,12 +264,18 @@ impl Composer {
         let mut executor_task = tokio::spawn(executor.run_until_stopped());
 
         // wait for collectors and executor to come online
-        wait_for_collectors(&geth_collector_statuses, &mut composer_status_sender)
-            .await
-            .wrap_err("geth collectors failed to become ready")?;
-        wait_for_executor(executor_status, &mut composer_status_sender)
-            .await
-            .wrap_err("executor failed to become ready")?;
+        let collectors_startup_fut =
+            wait_for_collectors(&geth_collector_statuses, composer_status_sender.clone());
+        let executor_startup_fut = wait_for_executor(executor_status, composer_status_sender);
+
+        match join!(collectors_startup_fut, executor_startup_fut) {
+            (Ok(()), Ok(())) => {}
+            (Err(e), Ok(())) => error!(%e, "geth collectors failed to become ready"),
+            (Ok(()), Err(e)) => error!(%e, "executor failed to become ready"),
+            (Err(collector_err), Err(executor_err)) => {
+                error!(%collector_err, %executor_err, "geth collectors and executor failed to become ready");
+            }
+        };
 
         // run the grpc server
         let mut grpc_server_handle = tokio::spawn(async move {
@@ -284,49 +295,49 @@ impl Composer {
             _ = sigterm.recv() => {
                     info!("received SIGTERM; shutting down");
                     break ShutdownInfo {
-                        api_server_shutdown_token,
+                        api_shutdown_token,
                         composer_shutdown_token: shutdown_token,
-                        api_server_task_handle: Some(api_task),
+                        api_task_handle: Some(api_task),
                         executor_task_handle: Some(executor_task),
                         grpc_server_task_handle: Some(grpc_server_handle),
                         geth_collector_tasks,
                     };
             },
             o = &mut api_task => {
-                    report_exit("api server unexpectedly ended", o);
+                    report_exit("api server unexpectedly ended", o, &exit_err);
                     break ShutdownInfo {
-                        api_server_shutdown_token,
+                        api_shutdown_token,
                         composer_shutdown_token: shutdown_token,
-                        api_server_task_handle: None,
+                        api_task_handle: None,
                         executor_task_handle: Some(executor_task),
                         grpc_server_task_handle: Some(grpc_server_handle),
                         geth_collector_tasks,
                     };
             },
             o = &mut executor_task => {
-                    report_exit("executor unexpectedly ended", o);
+                    report_exit("executor unexpectedly ended", o, &exit_err);
                     break ShutdownInfo {
-                        api_server_shutdown_token,
+                        api_shutdown_token,
                         composer_shutdown_token: shutdown_token,
-                        api_server_task_handle: Some(api_task),
+                        api_task_handle: Some(api_task),
                         executor_task_handle: None,
                         grpc_server_task_handle: Some(grpc_server_handle),
                         geth_collector_tasks,
                     };
             },
             o = &mut grpc_server_handle => {
-                    report_exit("grpc server unexpectedly ended", o);
+                    report_exit("grpc server unexpectedly ended", o, &exit_err);
                     break ShutdownInfo {
-                        api_server_shutdown_token,
+                        api_shutdown_token,
                         composer_shutdown_token: shutdown_token,
-                        api_server_task_handle: Some(api_task),
+                        api_task_handle: Some(api_task),
                         executor_task_handle: Some(executor_task),
                         grpc_server_task_handle: None,
                         geth_collector_tasks,
                     };
             },
             Some((rollup, collector_exit)) = geth_collector_tasks.join_next() => {
-                report_exit("collector", collector_exit);
+                report_exit("collector", collector_exit, &exit_err);
                 if let Some(url) = rollups.get(&rollup) {
                     let collector = geth::Builder {
                         chain_name: rollup.clone(),
@@ -348,14 +359,18 @@ impl Composer {
             });
         };
 
-        shutdown_info.run().await
+        let shutdown_res = shutdown_info.run().await;
+        if let Some(exit_err) = exit_err.take() {
+            return Err(exit_err);
+        }
+        shutdown_res
     }
 }
 
 struct ShutdownInfo {
-    api_server_shutdown_token: CancellationToken,
+    api_shutdown_token: CancellationToken,
     composer_shutdown_token: CancellationToken,
-    api_server_task_handle: Option<JoinHandle<eyre::Result<()>>>,
+    api_task_handle: Option<JoinHandle<eyre::Result<()>>>,
     executor_task_handle: Option<JoinHandle<eyre::Result<()>>>,
     grpc_server_task_handle: Option<JoinHandle<eyre::Result<()>>>,
     geth_collector_tasks: JoinMap<String, eyre::Result<()>>,
@@ -365,8 +380,8 @@ impl ShutdownInfo {
     async fn run(self) -> eyre::Result<()> {
         let Self {
             composer_shutdown_token,
-            api_server_shutdown_token,
-            api_server_task_handle,
+            api_shutdown_token,
+            api_task_handle,
             executor_task_handle,
             grpc_server_task_handle,
             mut geth_collector_tasks,
@@ -437,9 +452,9 @@ impl ShutdownInfo {
         // cancel the api server at the end
         // we give the api server 2s, since it shouldn't be getting too much traffic and should
         // be able to shut down faster.
-        api_server_shutdown_token.cancel();
-        if let Some(api_server_task_handle) = api_server_task_handle {
-            match tokio::time::timeout(API_SERVER_SHUTDOWN_DURATION, api_server_task_handle)
+        api_shutdown_token.cancel();
+        if let Some(api_task_handle) = api_task_handle {
+            match tokio::time::timeout(API_SERVER_SHUTDOWN_DURATION, api_task_handle)
                 .await
                 .map(flatten_result)
             {
@@ -467,7 +482,7 @@ fn spawn_geth_collectors(
 #[instrument(skip_all, err)]
 async fn wait_for_executor(
     mut executor_status: watch::Receiver<executor::Status>,
-    composer_status_sender: &mut watch::Sender<composer::Status>,
+    composer_status_sender: watch::Sender<composer::Status>,
 ) -> eyre::Result<()> {
     executor_status
         .wait_for(executor::Status::is_connected)
@@ -485,7 +500,7 @@ async fn wait_for_executor(
 #[instrument(skip_all, err)]
 async fn wait_for_collectors(
     collector_statuses: &HashMap<String, watch::Receiver<collectors::geth::Status>>,
-    composer_status_sender: &mut watch::Sender<composer::Status>,
+    composer_status_sender: watch::Sender<composer::Status>,
 ) -> eyre::Result<()> {
     use futures::{
         future::FutureExt as _,
@@ -532,14 +547,20 @@ async fn wait_for_collectors(
     Ok(())
 }
 
-fn report_exit(task_name: &str, outcome: Result<eyre::Result<()>, JoinError>) {
+fn report_exit(
+    task_name: &str,
+    outcome: Result<eyre::Result<()>, JoinError>,
+    exit_err: &OnceCell<eyre::Report>,
+) {
     match outcome {
         Ok(Ok(())) => info!(task = task_name, "task exited successfully"),
         Ok(Err(error)) => {
             error!(%error, task = task_name, "task returned with error");
+            let _ = exit_err.set(error);
         }
         Err(error) => {
             error!(%error, task = task_name, "task failed to complete");
+            let _ = exit_err.set(error.into());
         }
     }
 }

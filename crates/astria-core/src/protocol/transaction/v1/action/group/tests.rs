@@ -16,17 +16,22 @@ use crate::{
         Action,
         BridgeLock,
         BridgeSudoChange,
+        BridgeTransfer,
         BridgeUnlock,
+        CurrencyPairsChange,
         FeeAssetChange,
         FeeChange,
+        FeeComponents,
+        IbcRelay,
         IbcRelayerChange,
         IbcSudoChange,
         Ics20Withdrawal,
         InitBridgeAccount,
+        MarketsChange,
+        RecoverIbcClient,
         RollupDataSubmission,
         SudoAddressChange,
         Transfer,
-        TransferFeeComponents,
         ValidatorUpdate,
     },
 };
@@ -72,6 +77,7 @@ fn try_from_list_of_actions_bundleable_general() {
         Action::ValidatorUpdate(ValidatorUpdate {
             power: 100,
             verification_key: VerificationKey::try_from([0; 32]).unwrap(),
+            name: "test_validator".parse().unwrap(),
         }),
         Action::Ics20Withdrawal(Ics20Withdrawal {
             denom: asset.clone(),
@@ -86,6 +92,16 @@ fn try_from_list_of_actions_bundleable_general() {
             bridge_address: Some(address),
             use_compat_address: false,
         }),
+        Action::BridgeTransfer(BridgeTransfer {
+            to: address,
+            amount: 100,
+            fee_asset: asset.clone(),
+            destination_chain_address: String::new(),
+            bridge_address: address,
+            rollup_block_number: 0,
+            rollup_withdrawal_event_id: String::new(),
+        }),
+        Action::Ibc(IbcRelay::Unknown(pbjson_types::Any::default())),
     ];
 
     assert!(matches!(
@@ -104,12 +120,15 @@ fn from_list_of_actions_bundleable_sudo() {
 
     let asset: Denom = "nria".parse().unwrap();
     let actions = vec![
-        Action::FeeChange(FeeChange::Transfer(TransferFeeComponents {
-            base: 100,
-            multiplier: 0,
-        })),
+        Action::FeeChange(FeeChange::Transfer(FeeComponents::<Transfer>::new(100, 0))),
         Action::FeeAssetChange(FeeAssetChange::Addition(asset)),
         Action::IbcRelayerChange(IbcRelayerChange::Addition(address)),
+        Action::RecoverIbcClient(RecoverIbcClient {
+            client_id: "07-tendermint-0".parse().unwrap(),
+            replacement_client_id: "07-tendermint-1".parse().unwrap(),
+        }),
+        Action::CurrencyPairsChange(CurrencyPairsChange::Addition(vec![])),
+        Action::MarketsChange(MarketsChange::Creation(vec![])),
     ];
 
     assert!(matches!(

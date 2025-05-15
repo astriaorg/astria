@@ -5,6 +5,7 @@ use std::{
 };
 
 use astria_core::sequencerblock::v1::{
+    block,
     SubmittedMetadata,
     SubmittedRollupData,
 };
@@ -25,10 +26,9 @@ use sequencer_client::{
     Client as _,
     HttpClient as SequencerClient,
 };
-use telemetry::display::base64;
 use tokio_util::task::JoinMap;
 use tower::{
-    util::BoxService,
+    util::BoxCloneSyncService,
     BoxError,
     Service as _,
     ServiceExt as _,
@@ -51,14 +51,11 @@ use super::{
     block_verifier,
     convert::ConvertedBlobs,
 };
-use crate::executor::{
-    self,
-    StateIsInit,
-};
+use crate::state::StateReceiver;
 
 pub(super) struct VerifiedBlobs {
     celestia_height: u64,
-    header_blobs: HashMap<[u8; 32], SubmittedMetadata>,
+    header_blobs: HashMap<block::Hash, SubmittedMetadata>,
     rollup_blobs: Vec<SubmittedRollupData>,
 }
 
@@ -75,7 +72,7 @@ impl VerifiedBlobs {
         self,
     ) -> (
         u64,
-        HashMap<[u8; 32], SubmittedMetadata>,
+        HashMap<block::Hash, SubmittedMetadata>,
         Vec<SubmittedRollupData>,
     ) {
         (self.celestia_height, self.header_blobs, self.rollup_blobs)
@@ -88,7 +85,7 @@ impl VerifiedBlobs {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 struct VerificationTaskKey {
     index: usize,
-    block_hash: [u8; 32],
+    block_hash: block::Hash,
     sequencer_height: SequencerHeight,
 }
 
@@ -99,7 +96,7 @@ struct VerificationTaskKey {
 pub(super) async fn verify_metadata(
     blob_verifier: Arc<BlobVerifier>,
     converted_blobs: ConvertedBlobs,
-    mut executor: executor::Handle<StateIsInit>,
+    rollup_state: StateReceiver,
 ) -> VerifiedBlobs {
     let (celestia_height, header_blobs, rollup_blobs) = converted_blobs.into_parts();
 
@@ -107,7 +104,7 @@ pub(super) async fn verify_metadata(
     let mut verified_header_blobs = HashMap::with_capacity(header_blobs.len());
 
     let next_expected_firm_sequencer_height =
-        executor.next_expected_firm_sequencer_height().value();
+        rollup_state.next_expected_firm_sequencer_height().value();
 
     for (index, blob) in header_blobs.into_iter().enumerate() {
         if blob.height().value() < next_expected_firm_sequencer_height {
@@ -142,7 +139,7 @@ pub(super) async fn verify_metadata(
                         .get(dropped_entry.block_hash())
                         .expect("must exist; just inserted an item under the same key");
                     info!(
-                        block_hash = %base64(&dropped_entry.block_hash()),
+                        block_hash = %dropped_entry.block_hash(),
                         dropped_blob.sequencer_height = dropped_entry.height().value(),
                         accepted_blob.sequencer_height = accepted_entry.height().value(),
                         "two Sequencer header blobs were well formed and validated against \
@@ -154,7 +151,7 @@ pub(super) async fn verify_metadata(
             Ok(None) => {}
             Err(error) => {
                 info!(
-                    block_hash = %base64(&key.block_hash),
+                    block_hash = %key.block_hash,
                     sequencer_height = %key.sequencer_height,
                     %error,
                     "verification of sequencer blob was cancelled abruptly; dropping it"
@@ -311,7 +308,7 @@ async fn fetch_commit_with_retry(
         .on_retry(
             |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     attempt,
@@ -347,7 +344,7 @@ async fn fetch_validators_with_retry(
         .on_retry(
             |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
                 let wait_duration = next_delay
-                    .map(humantime::format_duration)
+                    .map(telemetry::display::format_duration)
                     .map(tracing::field::display);
                 warn!(
                     attempt,
@@ -444,10 +441,7 @@ impl From<tendermint_rpc::endpoint::validators::Response> for VerificationRespon
 
 #[derive(Clone)]
 struct RateLimitedVerificationClient {
-    inner: tower::buffer::Buffer<
-        BoxService<VerificationRequest, VerificationResponse, VerificationMetaError>,
-        VerificationRequest,
-    >,
+    inner: BoxCloneSyncService<VerificationRequest, VerificationResponse, tower::BoxError>,
 }
 
 impl RateLimitedVerificationClient {
@@ -502,43 +496,38 @@ impl RateLimitedVerificationClient {
     }
 
     fn try_new(client: SequencerClient, requests_per_second: u32) -> eyre::Result<Self> {
-        // XXX: the construction in here is a bit strange:
-        // the straight forward way to create a type-erased tower service is to use
-        // ServiceBuilder::boxed_clone().
-        //
-        // However, this gives a BoxCloneService which is always Clone + Send, but !Sync.
-        // Therefore we can't use the ServiceBuilder::buffer adapter.
-        //
-        // We can however work around it: ServiceBuilder::boxed gives a BoxService, which is
-        // Send + Sync, but not Clone. We then manually evoke Buffer::new to create a
-        // Buffer<BoxService>, which is Send + Sync + Clone.
-        let service = tower::ServiceBuilder::new()
-            .boxed()
-            .rate_limit(requests_per_second.into(), Duration::from_secs(1))
-            .service_fn(move |req: VerificationRequest| {
-                let client = client.clone();
-                async move {
-                    match req {
-                        VerificationRequest::Commit {
-                            height,
-                        } => fetch_commit_with_retry(client, height).await,
-                        VerificationRequest::Validators {
-                            prev_height,
-                            height,
-                        } => fetch_validators_with_retry(client, prev_height, height).await,
-                    }
+        let service_builder = tower::ServiceBuilder::new()
+            // XXX: This number is arbitarily set to the same number os the rate-limit. Does that
+            // make sense? Should the number be set higher?
+            .buffer(
+                requests_per_second
+                    .try_into()
+                    .wrap_err("failed to convert u32 requests-per-second to usize")?,
+            )
+            .rate_limit(requests_per_second.into(), Duration::from_secs(1));
+        // TODO(janis): use the ServiceBuilder::boxed_clone_sync adapter implemented in
+        //              https://github.com/tower-rs/tower/pull/804/ once a new tower
+        //              release is cut.
+        let service = {
+            let layer = service_builder.into_inner();
+            tower::ServiceBuilder::new().layer(tower::util::BoxCloneSyncServiceLayer::new(layer))
+        }
+        .service_fn(move |req: VerificationRequest| {
+            let client = client.clone();
+            async move {
+                match req {
+                    VerificationRequest::Commit {
+                        height,
+                    } => fetch_commit_with_retry(client, height).await,
+                    VerificationRequest::Validators {
+                        prev_height,
+                        height,
+                    } => fetch_validators_with_retry(client, prev_height, height).await,
                 }
-            });
-        // XXX: This number is arbitarily set to the same number os the rate-limit. Does that
-        // make sense? Should the number be set higher?
-        let inner = tower::buffer::Buffer::new(
-            service,
-            requests_per_second
-                .try_into()
-                .wrap_err("failed to convert u32 requests-per-second to usize")?,
-        );
+            }
+        });
         Ok(Self {
-            inner,
+            inner: service,
         })
     }
 }
@@ -552,13 +541,16 @@ fn ensure_chain_ids_match(in_commit: &str, in_header: &str) -> eyre::Result<()> 
     Ok(())
 }
 
-fn ensure_block_hashes_match(in_commit: &[u8], in_header: &[u8]) -> eyre::Result<()> {
+fn ensure_block_hashes_match(in_commit: &[u8], in_header: &block::Hash) -> eyre::Result<()> {
     use base64::prelude::*;
+    // NOTE: we still re-encode the block hash using base64 instead of its display impl
+    // to ensure that the formatting of the two byte slices doesn't accidentally go
+    // out of whack should the display impl change.
     ensure!(
-        in_commit == in_header,
+        in_commit == in_header.as_bytes(),
         "expected block hash `{}` (from commit), but found `{}` in retrieved metadata",
         BASE64_STANDARD.encode(in_commit),
-        BASE64_STANDARD.encode(in_header),
+        BASE64_STANDARD.encode(in_header.as_bytes()),
     );
     Ok(())
 }

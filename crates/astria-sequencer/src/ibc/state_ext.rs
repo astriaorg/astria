@@ -5,6 +5,7 @@ use std::{
 
 use astria_core::primitive::v1::{
     asset,
+    TransactionId,
     ADDRESS_LEN,
 };
 use astria_eyre::{
@@ -25,6 +26,7 @@ use ibc_types::core::channel::ChannelId;
 use tracing::{
     debug,
     instrument,
+    Level,
 };
 
 use super::storage::{
@@ -38,7 +40,7 @@ use crate::{
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip_all, fields(%channel, %asset), err)]
+    #[instrument(skip_all, fields(%channel, %asset), err(level = Level::WARN))]
     async fn get_ibc_channel_balance<'a, TAsset>(
         &self,
         channel: &ChannelId,
@@ -62,7 +64,7 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid ibc channel balance bytes")
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, err(level = Level::WARN))]
     async fn get_ibc_sudo_address(&self) -> Result<[u8; ADDRESS_LEN]> {
         let Some(bytes) = self
             .get_raw(keys::IBC_SUDO)
@@ -78,14 +80,18 @@ pub(crate) trait StateReadExt: StateRead {
             .wrap_err("invalid ibc sudo address bytes")
     }
 
-    #[instrument(skip_all)]
-    async fn is_ibc_relayer<T: AddressBytes>(&self, address: T) -> Result<bool> {
+    #[instrument(skip_all, err(level = Level::WARN))]
+    async fn is_ibc_relayer<T: AddressBytes>(&self, address: &T) -> Result<bool> {
         Ok(self
-            .get_raw(&keys::ibc_relayer(&address))
+            .get_raw(&keys::ibc_relayer(address))
             .await
             .map_err(anyhow_to_eyre)
             .wrap_err("failed to read ibc relayer key from state")?
             .is_some())
+    }
+
+    fn ephemeral_get_ibc_context(&mut self) -> Option<Context> {
+        self.object_get(keys::CONTEXT_EPHEMERAL)
     }
 }
 
@@ -93,7 +99,7 @@ impl<T: StateRead + ?Sized> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip_all, fields(%channel, %asset, balance), err)]
+    #[instrument(skip_all, fields(%channel, %asset, balance), err(level = Level::WARN))]
     fn put_ibc_channel_balance<'a, TAsset>(
         &mut self,
         channel: &ChannelId,
@@ -111,7 +117,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(skip_all, fields(%channel, %asset, amount), err)]
+    #[instrument(skip_all, fields(%channel, %asset, amount), err(level = Level::DEBUG))]
     async fn decrease_ibc_channel_balance<'a, TAsset>(
         &mut self,
         channel: &ChannelId,
@@ -157,9 +163,25 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn delete_ibc_relayer_address<T: AddressBytes>(&mut self, address: &T) {
         self.delete(keys::ibc_relayer(address));
     }
+
+    fn ephemeral_put_ibc_context(&mut self, tx_id: TransactionId, position_in_tx: u64) {
+        self.object_put(
+            keys::CONTEXT_EPHEMERAL,
+            Context {
+                tx_id,
+                source_action_index: position_in_tx,
+            },
+        );
+    }
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
+
+#[derive(Clone)]
+pub(crate) struct Context {
+    pub(crate) tx_id: TransactionId,
+    pub(crate) source_action_index: u64,
+}
 
 #[cfg(test)]
 mod tests {
@@ -168,11 +190,11 @@ mod tests {
     use super::*;
     use crate::{
         address::StateWriteExt,
-        benchmark_and_test_utils::{
+        ibc::StateWriteExt as _,
+        test_utils::{
             astria_address,
             ASTRIA_PREFIX,
         },
-        ibc::StateWriteExt as _,
     };
 
     fn asset_0() -> asset::Denom {
@@ -245,7 +267,7 @@ mod tests {
         let address = astria_address(&[42u8; 20]);
         assert!(
             !state
-                .is_ibc_relayer(address)
+                .is_ibc_relayer(&address)
                 .await
                 .expect("calls to properly formatted addresses should not fail"),
             "inputted address should've returned false"
@@ -265,7 +287,7 @@ mod tests {
         state.put_ibc_relayer_address(&address).unwrap();
         assert!(
             state
-                .is_ibc_relayer(address)
+                .is_ibc_relayer(&address)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
             "stored relayer address could not be verified"
@@ -275,7 +297,7 @@ mod tests {
         state.delete_ibc_relayer_address(&address);
         assert!(
             !state
-                .is_ibc_relayer(address)
+                .is_ibc_relayer(&address)
                 .await
                 .expect("calls on unset addresses should not fail"),
             "relayer address was not deleted as was intended"
@@ -295,7 +317,7 @@ mod tests {
         state.put_ibc_relayer_address(&address).unwrap();
         assert!(
             state
-                .is_ibc_relayer(address)
+                .is_ibc_relayer(&address)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
             "stored relayer address could not be verified"
@@ -306,14 +328,14 @@ mod tests {
         state.put_ibc_relayer_address(&address_1).unwrap();
         assert!(
             state
-                .is_ibc_relayer(address_1)
+                .is_ibc_relayer(&address_1)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
             "additional stored relayer address could not be verified"
         );
         assert!(
             state
-                .is_ibc_relayer(address)
+                .is_ibc_relayer(&address)
                 .await
                 .expect("a relayer address was written and must exist inside the database"),
             "original stored relayer address could not be verified"

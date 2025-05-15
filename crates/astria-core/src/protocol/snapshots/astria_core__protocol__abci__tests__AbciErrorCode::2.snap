@@ -1,0 +1,5 @@
+---
+source: crates/astria-core/src/protocol/abci.rs
+expression: error_code
+---
+2: one or more path parameters were invalid

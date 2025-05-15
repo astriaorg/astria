@@ -1,0 +1,10 @@
+syntax = 'proto3';
+
+package astria.signer.v1;
+
+message RoundOneResponse {
+  bytes commitment = 1;
+  // required for the participant to internally track the nonce
+  // corresponding to the commitment.
+  uint32 request_identifier = 2;
+}

@@ -1,0 +1,6 @@
+---
+source: crates/astria-bridge-contracts/src/lib.rs
+assertion_line: 757
+expression: json_encoded_memo
+---
+{"rollupBlockNumber":"999","rollupWithdrawalEventId":"0x0101010101010101010101010101010101010101010101010101010101010101.0x0000000000000000000000000000000000000000000000000000000000000001","rollupReturnAddress":"0x00000000000000000000000014cbd075f796969cf5dbd853da492d86071f97ed","memo":"<a third party memo>"}

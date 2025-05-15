@@ -1,37 +1,60 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 use astria_core::{
     primitive::v1::RollupId,
-    protocol::{
-        group_rollup_data_submissions_in_signed_transaction_transactions_by_rollup_id,
-        transaction::v1::Transaction,
-    },
+    protocol::group_rollup_data_submissions_by_rollup_id,
     sequencerblock::v1::block::{
+        DataItem,
         Deposit,
         RollupData,
     },
 };
 use bytes::Bytes;
 
+use crate::checked_transaction::CheckedTransaction;
+
 /// Wrapper for values returned by [`generate_rollup_datas_commitment`].
-pub(crate) struct GeneratedCommitments {
+// NOTE: The generic arg can be removed when we no longer support running a network where the raw
+//       txs are not encoded `DataItem`s, i.e. after `Aspen`. This is not needed for syncing to a
+//       network with such legacy blocks, since it's only used via prepare-/process-proposal.
+pub(crate) struct GeneratedCommitments<const USES_DATA_ITEM_ENUM: bool> {
     pub(crate) rollup_datas_root: [u8; 32],
     pub(crate) rollup_ids_root: [u8; 32],
 }
 
-impl GeneratedCommitments {
-    /// The total size of the commitments in bytes.
-    pub(crate) const TOTAL_SIZE: usize = 64;
+impl<const USES_DATA_ITEM_ENUM: bool> GeneratedCommitments<USES_DATA_ITEM_ENUM> {
+    /// The total size of the commitments, encoded as `DataItem`s in bytes if `USES_DATA_ITEM_ENUM`
+    /// is true, or not encoded if false.
+    pub(crate) fn total_size() -> usize {
+        if USES_DATA_ITEM_ENUM {
+            DataItem::ENCODED_ROLLUP_TRANSACTIONS_ROOT_LENGTH
+                + DataItem::ENCODED_ROLLUP_IDS_ROOT_LENGTH
+        } else {
+            64
+        }
+    }
+}
 
-    /// Converts the commitments plus external transaction data into a vector of bytes
-    /// which can be used as the block's transactions.
-    #[must_use]
-    pub(crate) fn into_transactions(self, mut tx_data: Vec<Bytes>) -> Vec<Bytes> {
-        let mut txs = Vec::with_capacity(tx_data.len().saturating_add(2));
-        txs.push(self.rollup_datas_root.to_vec().into());
-        txs.push(self.rollup_ids_root.to_vec().into());
-        txs.append(&mut tx_data);
-        txs
+impl<const USES_DATA_ITEM_ENUM: bool> IntoIterator for GeneratedCommitments<USES_DATA_ITEM_ENUM> {
+    type IntoIter = std::array::IntoIter<Self::Item, 2>;
+    type Item = Bytes;
+
+    fn into_iter(self) -> Self::IntoIter {
+        if USES_DATA_ITEM_ENUM {
+            let rollup_datas_root =
+                DataItem::RollupTransactionsRoot(self.rollup_datas_root).encode();
+            let rollup_ids_root = DataItem::RollupIdsRoot(self.rollup_ids_root).encode();
+            [rollup_datas_root, rollup_ids_root].into_iter()
+        } else {
+            [
+                self.rollup_datas_root.to_vec().into(),
+                self.rollup_ids_root.to_vec().into(),
+            ]
+            .into_iter()
+        }
     }
 }
 
@@ -54,14 +77,16 @@ impl GeneratedCommitments {
 /// implemented as ( `rollup_id` || root of merkle tree of the `sequence::Action`s ).
 /// This is somewhat arbitrary, but could be useful for proof of an action within the rollup datas
 /// tree.
-pub(crate) fn generate_rollup_datas_commitment(
-    signed_txs: &[Transaction],
+pub(crate) fn generate_rollup_datas_commitment<const USES_DATA_ITEM_ENUM: bool>(
+    checked_txs: &[Arc<CheckedTransaction>],
     deposits: HashMap<RollupId, Vec<Deposit>>,
-) -> GeneratedCommitments {
+) -> GeneratedCommitments<USES_DATA_ITEM_ENUM> {
     use prost::Message as _;
 
-    let mut rollup_ids_to_txs =
-        group_rollup_data_submissions_in_signed_transaction_transactions_by_rollup_id(signed_txs);
+    let rollup_data_bytes = checked_txs
+        .iter()
+        .flat_map(|checked_tx| checked_tx.rollup_data_bytes());
+    let mut rollup_ids_to_txs = group_rollup_data_submissions_by_rollup_id(rollup_data_bytes);
 
     for (rollup_id, deposit) in deposits {
         rollup_ids_to_txs
@@ -83,6 +108,7 @@ pub(crate) fn generate_rollup_datas_commitment(
     // the leaves are sorted in ascending order by `rollup_id`.
     let rollup_datas_root =
         astria_core::primitive::v1::derive_merkle_tree_from_rollup_txs(&rollup_ids_to_txs).root();
+
     GeneratedCommitments {
         rollup_datas_root,
         rollup_ids_root,
@@ -91,26 +117,25 @@ pub(crate) fn generate_rollup_datas_commitment(
 
 #[cfg(test)]
 mod tests {
-    use astria_core::{
-        crypto::SigningKey,
-        protocol::transaction::v1::{
-            action::{
-                RollupDataSubmission,
-                Transfer,
-            },
-            TransactionBody,
-        },
+    use astria_core::protocol::transaction::v1::action::{
+        RollupDataSubmission,
+        Transfer,
     };
-    use rand::rngs::OsRng;
+    use bytes::Bytes;
 
     use super::*;
-    use crate::benchmark_and_test_utils::{
+    use crate::test_utils::{
         astria_address,
         nria,
+        Fixture,
+        ALICE,
+        BOB,
     };
 
-    #[test]
-    fn generate_rollup_datas_commitment_should_ignore_transfers() {
+    #[tokio::test]
+    async fn generate_rollup_datas_commitment_should_ignore_transfers() {
+        let fixture = Fixture::default_initialized().await;
+
         let rollup_data_submission = RollupDataSubmission {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
             data: Bytes::from_static(b"hello world"),
@@ -123,45 +148,38 @@ mod tests {
             fee_asset: nria().into(),
         };
 
-        let signing_key = SigningKey::new(OsRng);
+        let tx = fixture
+            .checked_tx_builder()
+            .with_action(rollup_data_submission.clone())
+            .with_action(transfer_action)
+            .with_signer(ALICE.clone())
+            .build()
+            .await;
 
-        let tx = TransactionBody::builder()
-            .actions(vec![
-                rollup_data_submission.clone().into(),
-                transfer_action.into(),
-            ])
-            .chain_id("test-chain-1")
-            .try_build()
-            .unwrap();
-
-        let signed_tx = tx.sign(&signing_key);
-        let txs = vec![signed_tx];
         let GeneratedCommitments {
             rollup_datas_root: commitment_0,
             ..
-        } = generate_rollup_datas_commitment(&txs, HashMap::new());
+        } = generate_rollup_datas_commitment::<false>(&[tx], HashMap::new());
 
-        let signing_key = SigningKey::new(OsRng);
-        let tx = TransactionBody::builder()
-            .actions(vec![rollup_data_submission.into()])
-            .chain_id("test-chain-1")
-            .try_build()
-            .unwrap();
+        let tx = fixture
+            .checked_tx_builder()
+            .with_action(rollup_data_submission.clone())
+            .with_signer(BOB.clone())
+            .build()
+            .await;
 
-        let signed_tx = tx.sign(&signing_key);
-
-        let txs = vec![signed_tx];
         let GeneratedCommitments {
             rollup_datas_root: commitment_1,
             ..
-        } = generate_rollup_datas_commitment(&txs, HashMap::new());
+        } = generate_rollup_datas_commitment::<false>(&[tx], HashMap::new());
         assert_eq!(commitment_0, commitment_1);
     }
 
-    #[test]
+    #[tokio::test]
     // TODO(https://github.com/astriaorg/astria/issues/312): ensure this test is stable
     // against changes in the serialization format (protobuf is not deterministic)
-    fn generate_rollup_datas_commitment_snapshot() {
+    async fn generate_rollup_datas_commitment_snapshot() {
+        let fixture = Fixture::default_initialized().await;
         // this tests that the commitment generated is what is expected via a test vector.
         // this test will only break in the case of a breaking change to the commitment scheme,
         // thus if this test needs to be updated, we should cut a new release.
@@ -178,26 +196,22 @@ mod tests {
             fee_asset: nria().into(),
         };
 
-        let signing_key = SigningKey::new(OsRng);
-        let tx = TransactionBody::builder()
-            .actions(vec![
-                rollup_data_submission.clone().into(),
-                transfer_action.into(),
-            ])
-            .chain_id("test-chain-1")
-            .try_build()
-            .unwrap();
+        let tx = fixture
+            .checked_tx_builder()
+            .with_action(rollup_data_submission.clone())
+            .with_action(transfer_action)
+            .with_signer(ALICE.clone())
+            .build()
+            .await;
 
-        let signed_tx = tx.sign(&signing_key);
-        let txs = vec![signed_tx];
         let GeneratedCommitments {
             rollup_datas_root: actual,
             ..
-        } = generate_rollup_datas_commitment(&txs, HashMap::new());
+        } = generate_rollup_datas_commitment::<false>(&[tx], HashMap::new());
 
-        let expected: [u8; 32] = [
-            189, 156, 127, 228, 51, 249, 64, 237, 150, 91, 219, 216, 1, 99, 135, 28, 235, 15, 249,
-            129, 3, 59, 231, 75, 92, 72, 103, 106, 173, 167, 251, 238,
+        let expected = [
+            189_u8, 156, 127, 228, 51, 249, 64, 237, 150, 91, 219, 216, 1, 99, 135, 28, 235, 15,
+            249, 129, 3, 59, 231, 75, 92, 72, 103, 106, 173, 167, 251, 238,
         ];
         assert_eq!(expected, actual);
     }

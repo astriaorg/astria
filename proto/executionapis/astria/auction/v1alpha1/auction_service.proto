@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package astria.auction.v1alpha1;
+
+import "astria/auction/v1alpha1/get_bid_stream_request.proto";
+import "astria/auction/v1alpha1/get_bid_stream_response.proto";
+
+service AuctionService {
+  // An auctioneer will initiate this long running stream to receive bids from the rollup node,
+  // until either a timeout or the connection is closed by the client.
+  rpc GetBidStream(GetBidStreamRequest) returns (stream GetBidStreamResponse);
+}

@@ -14,6 +14,7 @@ fn new_msg_pay_for_blobs_should_succeed() {
             Blob::new(
                 Namespace::const_v0([index; 10]),
                 vec![index; index as usize],
+                celestia_types::AppVersion::V3,
             )
             .unwrap()
         })
@@ -37,7 +38,7 @@ fn new_msg_pay_for_blobs_should_succeed() {
 
     let share_commitments: Vec<_> = blobs
         .iter()
-        .map(|blob| blob.commitment.0.to_vec())
+        .map(|blob| blob.commitment.hash().to_vec())
         .collect();
     assert_eq!(msg.share_commitments, share_commitments);
 
@@ -54,7 +55,9 @@ fn new_msg_pay_for_blobs_should_fail_for_large_blob() {
         namespace: Namespace::TRANSACTION,
         data: vec![0; u32::MAX as usize + 1],
         share_version: 0,
-        commitment: Commitment([0; 32]),
+        commitment: Commitment::new([0; 32]),
+        index: None,
+        signer: None,
     };
     let error = new_msg_pay_for_blobs(&[blob], Bech32Address("a".to_string())).unwrap_err();
 

@@ -1,4 +1,4 @@
-use astria_core::generated::protocol::transaction::v1::TransactionBody;
+use astria_core::generated::astria::protocol::transaction::v1::TransactionBody;
 use color_eyre::eyre::{
     self,
     WrapErr as _,

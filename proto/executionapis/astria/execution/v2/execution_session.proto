@@ -1,0 +1,22 @@
+syntax = 'proto3';
+
+package astria.execution.v2;
+
+import "astria/execution/v2/commitment_state.proto";
+import "astria/execution/v2/execution_session_parameters.proto";
+
+// ExecutionSession contains the information needed to drive the full execution
+// of a rollup chain in the rollup.
+//
+// The execution session is only valid for the execution config params with
+// which it was created. Once all blocks within the session have been executed,
+// the execution client must request a new session. The session_id is used to
+// to track which session is being used.
+message ExecutionSession {
+  // An ID for the session.
+  string session_id = 1;
+  // The configuration for the execution session.
+  ExecutionSessionParameters execution_session_parameters = 2;
+  // The commitment state for executing client to start from.
+  CommitmentState commitment_state = 3;
+}

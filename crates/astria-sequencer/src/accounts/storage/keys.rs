@@ -85,8 +85,8 @@ mod tests {
 
     #[test]
     fn keys_should_not_change() {
-        insta::assert_snapshot!(balance(&address(), &asset()));
-        insta::assert_snapshot!(nonce(&address()));
+        insta::assert_snapshot!("balance_key", balance(&address(), &asset()));
+        insta::assert_snapshot!("nonce_key", nonce(&address()));
     }
 
     #[test]

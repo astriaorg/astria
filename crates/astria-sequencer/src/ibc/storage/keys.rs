@@ -12,6 +12,7 @@ use crate::{
 };
 
 pub(in crate::ibc) const IBC_SUDO: &str = "ibc/sudo";
+pub(in crate::ibc) const CONTEXT_EPHEMERAL: &str = "ibc/context";
 const IBC_RELAYER_PREFIX: &str = "ibc/relayer/";
 
 /// Example: `ibc/channel-xxx/balance/ibc/0101....0101`.
@@ -56,14 +57,19 @@ mod tests {
 
     #[test]
     fn keys_should_not_change() {
-        insta::assert_snapshot!(IBC_SUDO);
-        insta::assert_snapshot!(channel_balance(&channel_id(), &asset()));
-        insta::assert_snapshot!(ibc_relayer(&address()));
+        insta::assert_snapshot!("ibc_sudo_key", IBC_SUDO);
+        insta::assert_snapshot!("ibc_context_key", CONTEXT_EPHEMERAL);
+        insta::assert_snapshot!(
+            "channel_balance_key",
+            channel_balance(&channel_id(), &asset())
+        );
+        insta::assert_snapshot!("ibc_relayer_key", ibc_relayer(&address()));
     }
 
     #[test]
     fn keys_should_have_component_prefix() {
         assert!(IBC_SUDO.starts_with(COMPONENT_PREFIX));
+        assert!(CONTEXT_EPHEMERAL.starts_with(COMPONENT_PREFIX));
         assert!(channel_balance(&channel_id(), &asset()).starts_with(COMPONENT_PREFIX));
         assert!(ibc_relayer(&address()).starts_with(COMPONENT_PREFIX));
     }

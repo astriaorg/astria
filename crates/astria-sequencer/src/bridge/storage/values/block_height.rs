@@ -36,7 +36,7 @@ impl From<BlockHeight> for u64 {
     }
 }
 
-impl<'a> From<BlockHeight> for crate::storage::StoredValue<'a> {
+impl From<BlockHeight> for crate::storage::StoredValue<'_> {
     fn from(block_height: BlockHeight) -> Self {
         crate::storage::StoredValue::Bridge(Value(ValueImpl::BlockHeight(block_height)))
     }

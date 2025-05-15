@@ -22,7 +22,7 @@ fn main() {
         .extern_path(".google.protobuf", "::pbjson_types")
         .file_descriptor_set_path(&file_descriptor_set_path)
         .out_dir(&out_dir)
-        .compile_with_config(prost_config, protos, includes)
+        .compile_protos_with_config(prost_config, protos, includes)
         .unwrap();
 
     let descriptor_set = std::fs::read(&file_descriptor_set_path).unwrap();

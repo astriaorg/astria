@@ -8,10 +8,10 @@ use std::{
 use astria_eyre::eyre::{
     self,
     Result,
+    WrapErr as _,
 };
 use inner::{
-    ConductorInner,
-    InnerHandle,
+    Inner,
     RestartOrShutdown,
 };
 use pin_project_lite::pin_project;
@@ -20,10 +20,7 @@ use tokio::task::{
     JoinHandle,
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{
-    info,
-    instrument,
-};
+use tracing::instrument;
 
 use crate::{
     metrics::Metrics,
@@ -81,7 +78,7 @@ pub struct Conductor {
     shutdown_token: CancellationToken,
 
     /// Handle for the inner conductor task.
-    inner: InnerHandle,
+    inner: JoinHandle<eyre::Result<RestartOrShutdown>>,
 
     /// Configuration for the conductor, necessary upon a restart.
     cfg: Config,
@@ -97,11 +94,10 @@ impl Conductor {
     /// Returns an error if [`ConductorInner`] could not be created.
     pub fn new(cfg: Config, metrics: &'static Metrics) -> eyre::Result<Self> {
         let shutdown_token = CancellationToken::new();
-        let conductor_inner_handle =
-            ConductorInner::spawn(cfg.clone(), metrics, shutdown_token.child_token())?;
+        let inner = Inner::new(cfg.clone(), metrics, shutdown_token.child_token())?;
         Ok(Self {
             shutdown_token,
-            inner: conductor_inner_handle,
+            inner: tokio::spawn(inner.run_until_stopped()),
             cfg,
             metrics,
         })
@@ -110,42 +106,41 @@ impl Conductor {
     async fn run_until_stopped(mut self) -> eyre::Result<()> {
         loop {
             let exit_reason = (&mut self.inner).await;
-            self.shutdown_or_restart(exit_reason).await?;
-            if self.shutdown_token.is_cancelled() {
-                break;
+            match self.restart_or_shutdown(exit_reason).await? {
+                RestartOrShutdown::Restart => self.restart()?,
+                RestartOrShutdown::Shutdown => break Ok(()),
             }
         }
-        Ok(())
     }
 
     /// Creates and spawns a new [`ConductorInner`] task with the same configuration, replacing
     /// the previous one. This function should only be called after a graceful shutdown of the
     /// inner conductor task.
-    fn restart(&mut self) {
-        info!("restarting conductor");
-        let new_handle = ConductorInner::spawn(
-            self.cfg.clone(),
-            self.metrics,
-            self.shutdown_token.child_token(),
-        )
-        .expect("failed to create new conductor after restart");
-        self.inner = new_handle;
+    #[instrument(skip_all, err)]
+    fn restart(&mut self) -> eyre::Result<()> {
+        self.inner = tokio::spawn(
+            Inner::new(
+                self.cfg.clone(),
+                self.metrics,
+                self.shutdown_token.child_token(),
+            )
+            .wrap_err("failed to instantiate Conductor for restart")?
+            .run_until_stopped(),
+        );
+        Ok(())
     }
 
-    /// Initiates either a restart or a shutdown of all conductor tasks.
-    #[instrument(skip_all, err)]
-    async fn shutdown_or_restart(
+    /// Reports if conductor will shutdown or restart.
+    ///
+    /// This method only exists to encapsulate tracing and generate
+    /// events for restart, shutdown, or errors.
+    #[instrument(skip_all, err, ret(Display))]
+    async fn restart_or_shutdown(
         &mut self,
         exit_reason: Result<Result<RestartOrShutdown>, JoinError>,
-    ) -> eyre::Result<&'static str> {
+    ) -> eyre::Result<RestartOrShutdown> {
         match exit_reason {
-            Ok(Ok(restart_or_shutdown)) => match restart_or_shutdown {
-                RestartOrShutdown::Restart => {
-                    self.restart();
-                    return Ok("restarting");
-                }
-                RestartOrShutdown::Shutdown => Ok("shutting down"),
-            },
+            Ok(Ok(restart_or_shutdown)) => Ok(restart_or_shutdown),
             Ok(Err(err)) => Err(err.wrap_err("conductor exited with an error")),
             Err(err) => Err(eyre::Report::new(err).wrap_err("conductor panicked")),
         }

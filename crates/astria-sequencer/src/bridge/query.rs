@@ -16,8 +16,10 @@ use tendermint::abci::{
     response,
     Code,
 };
+use tracing::instrument;
 
 use crate::{
+    accounts::AddressBytes as _,
     address::StateReadExt,
     app::StateReadExt as _,
     assets::StateReadExt as _,
@@ -43,7 +45,7 @@ fn error_query_response(
 
 // FIXME (https://github.com/astriaorg/astria/issues/1582): there is a lot of code duplication due to `error_query_response`.
 // this could be significantly shortened.
-#[expect(clippy::too_many_lines, reason = "should be refactored")]
+#[instrument(skip_all, fields(address = %address.display_address()))]
 async fn get_bridge_account_info(
     snapshot: cnidarium::Snapshot,
     address: &Address,
@@ -162,6 +164,7 @@ async fn get_bridge_account_info(
     }))
 }
 
+#[instrument(skip_all)]
 pub(crate) async fn bridge_account_info_request(
     storage: Storage,
     request: request::Query,
@@ -210,6 +213,7 @@ pub(crate) async fn bridge_account_info_request(
     }
 }
 
+#[instrument(skip_all)]
 pub(crate) async fn bridge_account_last_tx_hash_request(
     storage: Storage,
     request: request::Query,
@@ -293,9 +297,15 @@ fn preprocess_request(params: &[(String, String)]) -> Result<Address, response::
 #[cfg(test)]
 mod tests {
     use astria_core::{
-        generated::protocol::bridge::v1::BridgeAccountInfoResponse as RawBridgeAccountInfoResponse,
+        generated::astria::protocol::bridge::v1::{
+            BridgeAccountInfoResponse as RawBridgeAccountInfoResponse,
+            BridgeAccountLastTxHashResponse as RawBridgeAccountLastTxHashResponse,
+        },
         primitive::v1::RollupId,
-        protocol::bridge::v1::BridgeAccountInfoResponse,
+        protocol::bridge::v1::{
+            BridgeAccountInfoResponse,
+            BridgeAccountLastTxHashResponse,
+        },
     };
     use cnidarium::StateDelta;
 
@@ -304,11 +314,11 @@ mod tests {
         address::StateWriteExt as _,
         app::StateWriteExt as _,
         assets::StateWriteExt as _,
-        benchmark_and_test_utils::{
+        bridge::StateWriteExt as _,
+        test_utils::{
             astria_address,
             ASTRIA_PREFIX,
         },
-        bridge::StateWriteExt as _,
     };
 
     #[tokio::test]
@@ -363,6 +373,42 @@ mod tests {
                 sudo_address,
                 withdrawer_address,
             }),
+        };
+        assert_eq!(native, expected);
+    }
+
+    #[tokio::test]
+    async fn bridge_account_last_tx_hash_ok() {
+        let storage = cnidarium::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let mut state = StateDelta::new(snapshot);
+
+        state.put_base_prefix(ASTRIA_PREFIX.to_string()).unwrap();
+
+        let bridge_address = astria_address(&[0u8; 20]);
+        let tx_id = astria_core::primitive::v1::TransactionId::new([0u8; 32]);
+        state.put_block_height(1).unwrap();
+        state
+            .put_last_transaction_id_for_bridge_account(&bridge_address, tx_id)
+            .unwrap();
+        storage.commit(state).await.unwrap();
+
+        let query = request::Query {
+            data: vec![].into(),
+            path: "path".to_string(),
+            height: 0u32.into(),
+            prove: false,
+        };
+
+        let params = vec![("address".to_string(), bridge_address.to_string())];
+        let resp = bridge_account_last_tx_hash_request(storage.clone(), query, params).await;
+        assert_eq!(resp.code, 0.into(), "{}", resp.log);
+
+        let proto = RawBridgeAccountLastTxHashResponse::decode(resp.value).unwrap();
+        let native = BridgeAccountLastTxHashResponse::try_from_raw(proto).unwrap();
+        let expected = BridgeAccountLastTxHashResponse {
+            height: 1,
+            tx_hash: Some(tx_id.get()),
         };
         assert_eq!(native, expected);
     }

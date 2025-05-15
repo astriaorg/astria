@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/grpc/storage/values/mod.rs
+expression: "borsh_then_hex(&ValueImpl::RollupIds(Vec::<DomainRollupId>::new().iter().into()))"
+---
+0000000000

@@ -4,6 +4,7 @@ use clap::{
 };
 
 use super::{
+    activation_point_estimator,
     blob_parser,
     genesis_example,
     genesis_parser,
@@ -18,6 +19,10 @@ struct Cli {
 }
 
 #[derive(Debug, Subcommand)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "this doesn't matter for this enum"
+)]
 pub enum Command {
     /// Copy genesis state to a JSON file
     #[command(arg_required_else_help = true)]
@@ -29,6 +34,10 @@ pub enum Command {
     /// Parse blob data from an arg, a file, or stdin
     #[command(arg_required_else_help = true)]
     ParseBlob(blob_parser::Args),
+
+    /// Estimate the activation point of an upgrade to schedule or check an upcoming one
+    #[command(arg_required_else_help = true)]
+    EstimateActivationPoint(activation_point_estimator::Args),
 }
 
 #[must_use]

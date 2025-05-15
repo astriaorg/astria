@@ -20,7 +20,7 @@ use crate::{
             initialize_app_with_storage,
             mock_balances,
             mock_tx_cost,
-            proto_genesis_state,
+            AppInitializer,
         },
         App,
     },
@@ -39,7 +39,7 @@ const MAX_TIME: Duration = Duration::from_secs(120);
 ///
 /// Taken from the actual value seen in `prepare_proposal.max_tx_bytes` when handling
 /// `prepare_proposal` during stress testing using spamoor.
-const COMETBFT_MAX_TX_BYTES: usize = 22_019_254;
+const COMETBFT_MAX_TX_BYTES: i64 = 22_019_254;
 
 struct Fixture {
     app: App,
@@ -63,23 +63,26 @@ impl Fixture {
             .collect::<Vec<_>>();
         let first_address = accounts.first().cloned().unwrap().address;
         let genesis_state = GenesisAppState::try_from_raw(
-            astria_core::generated::protocol::genesis::v1::GenesisAppState {
+            astria_core::generated::astria::protocol::genesis::v1::GenesisAppState {
                 accounts,
                 authority_sudo_address: first_address.clone(),
                 ibc_sudo_address: first_address.clone(),
                 ..proto_genesis_state()
             },
         )
-        .unwrap();
+            .unwrap();
 
-        let (app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;
+        let (app, storage) = AppInitializer::new()
+            .with_genesis_state(genesis_state)
+            .init()
+            .await;
 
         let mock_balances = mock_balances(0, 0);
         let mock_tx_cost = mock_tx_cost(0, 0, 0);
 
         for tx in benchmark_utils::transactions(TxTypes::AllTransfers) {
             app.mempool
-                .insert(tx.clone(), 0, mock_balances.clone(), mock_tx_cost.clone())
+                .insert(tx.clone(), 0, &mock_balances.clone(), mock_tx_cost.clone())
                 .await
                 .unwrap();
         }
@@ -91,19 +94,19 @@ impl Fixture {
 }
 
 #[divan::bench(max_time = MAX_TIME)]
-fn execute_transactions_prepare_proposal(bencher: divan::Bencher) {
+fn prepare_proposal_tx_execution(bencher: divan::Bencher) {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .unwrap();
     let mut fixture = runtime.block_on(async { Fixture::new().await });
     bencher
-        .with_inputs(|| BlockSizeConstraints::new(COMETBFT_MAX_TX_BYTES).unwrap())
+        .with_inputs(|| BlockSizeConstraints::new(COMETBFT_MAX_TX_BYTES, true).unwrap())
         .bench_local_refs(|constraints| {
             let (_tx_bytes, included_txs) = runtime.block_on(async {
                 fixture
                     .app
-                    .execute_transactions_prepare_proposal(constraints)
+                    .prepare_proposal_tx_execution(*constraints)
                     .await
                     .unwrap()
             });
