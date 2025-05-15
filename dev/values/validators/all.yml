@@ -18,6 +18,8 @@ genesis:
     relayerAddresses:
       - astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm
       - astria1xnlvg0rle2u6auane79t4p27g8hxnj36ja960z
+      # Corresponds to privKey 38a8d7a3e6ee3504f3a39eadad8c36a8cadbb7b6b9fd70c3dbd12f88b6f29441
+      - astria1z523vzla0chwyfz7dnhlzwsvnjnq3lhcxgmrl6
   # Note large balances must be strings support templating with the u128 size
   # account balances
   genesisAccounts:
@@ -36,6 +38,8 @@ genesis:
     # address of the bridge account. needs funds to sign bridge init tx
     - address: astria1d7zjjljc0dsmxa545xkpwxym86g8uvvwhtezcr
       balance: "69000000"
+    - address: astria1z523vzla0chwyfz7dnhlzwsvnjnq3lhcxgmrl6
+      balance: "100000000000000000"
 
 sequencer:
   optimisticBlockApis:

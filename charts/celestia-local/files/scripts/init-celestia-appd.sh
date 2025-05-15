@@ -31,14 +31,26 @@ celestia-appd gentx \
   --home "$home_dir"
 
 # add ibc account
-echo "$ibc_account_mnemonic" | celestia-appd keys add \
-  "$ibc_account_key_name" \
+echo "$relayer_one_mnemonic" | celestia-appd keys add \
+  "$relayer_one_account_key_name" \
   --home "$home_dir" \
   --keyring-backend="$keyring_backend" \
   --recover
-ibc_account_key=$(celestia-appd keys show "$ibc_account_key_name" -a --keyring-backend="$keyring_backend" --home "$home_dir")
+relayer_one_account_key=$(celestia-appd keys show "$relayer_one_account_key_name" -a --keyring-backend="$keyring_backend" --home "$home_dir")
 celestia-appd add-genesis-account \
-  "$ibc_account_key" \
+  "$relayer_one_account_key" \
+  --home "$home_dir" \
+  "$coins"
+
+# add relayer two
+echo "$relayer_two_mnemonic" | celestia-appd keys add \
+  "$relayer_two_account_key_name" \
+  --home "$home_dir" \
+  --keyring-backend="$keyring_backend" \
+  --recover
+relayer_two_account_key=$(celestia-appd keys show "$relayer_two_account_key_name" -a --keyring-backend="$keyring_backend" --home "$home_dir")
+celestia-appd add-genesis-account \
+  "$relayer_two_account_key" \
   --home "$home_dir" \
   "$coins"
 
