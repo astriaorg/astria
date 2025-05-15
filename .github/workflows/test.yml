@@ -142,25 +142,41 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
+          components: "llvm-tools-preview"
       - uses: Swatinem/rust-cache@v2.7.8
         with:
           cache-provider: "buildjet"
       - name: Install nextest
         uses: taiki-e/install-action@nextest
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
       - uses: arduino/setup-protoc@v3
         with:
           version: "24.4"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build tests
         run: |
-          cargo nextest archive --archive-file=archive.tar.zst --release \
-          --all-features \
-          --all-targets
+          cargo llvm-cov nextest-archive --archive-file=archive.tar.zst \
+            --release \
+            --all-features \
+            --all-targets \
+            --no-clean
       - name: Run tests
         timeout-minutes: 20
         run: |
-          cargo nextest run --archive-file=archive.tar.zst
-
+          cargo llvm-cov nextest \
+            --archive-file=archive.tar.zst \
+            --codecov --output-path codecov.json \
+            --no-clean
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: codecov.json
+          flags: doctest
+          fail_ci_if_error: true
+      - name: cleanup
+        run: cargo +nightly-2024-10-03 llvm-cov clean --workspace
   rust-ethereum:
     runs-on: depot-ubuntu-24.04-8
     needs: run_checker
@@ -172,11 +188,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
+          components: "llvm-tools-preview"
       - uses: Swatinem/rust-cache@v2.7.8
         with:
           cache-provider: "buildjet"
       - name: Install nextest
         uses: taiki-e/install-action@nextest
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
       - uses: arduino/setup-protoc@v3
         with:
           version: "24.4"
@@ -186,7 +205,22 @@ jobs:
       - name: Run tests
         timeout-minutes: 20
         run: |
-          cargo nextest run --package astria-bridge-withdrawer -- --include-ignored
+          cargo llvm-cov nextest --release \
+            --locked \
+            --package astria-bridge-withdrawer \
+            --run-ignored all \
+            --codecov --output-path codecov.json \
+            --no-clean
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: codecov.json
+          flags: doctest
+          fail_ci_if_error: true
+      - name: cleanup
+        run: cargo +nightly-2024-10-03 llvm-cov clean --workspace
+
 
   doctest:
     runs-on: depot-ubuntu-24.04-8
@@ -198,16 +232,33 @@ jobs:
           submodules: 'true'
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
+          toolchain: nightly-2024-10-03
+          components: "llvm-tools-preview"
       - uses: Swatinem/rust-cache@v2.7.8
         with:
           cache-provider: "buildjet"
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
       - uses: arduino/setup-protoc@v3
         with:
           version: "24.4"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: run doctests
-        run: cargo test --doc --all-features
+        run: |
+          cargo +nightly-2024-10-03 llvm-cov --doc \
+            --all-features \
+            --codecov --output-path codecov.json \
+            --no-clean
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: codecov.json
+          flags: doctest
+          fail_ci_if_error: true
+      - name: cleanup
+        run: cargo +nightly-2024-10-03 llvm-cov clean --workspace
+
 
   clippy:
     runs-on: depot-ubuntu-24.04-8

@@ -1,0 +1,85 @@
+comment:
+  layout: condensed_header, condensed_files, condensed_footer
+  behavior: once
+  after_n_builds: 3
+
+coverage:
+  status:
+    patch:
+      default:
+        target: auto
+        threshold: 5
+        informational: true
+    project:
+      default:
+        target: auto
+        threshold: 5
+        informational: true
+
+slack_app: false
+
+component_management:
+  individual_components:
+    - component_id: astria-account-monitor
+      name: account-monitor
+      paths:
+          - crates/astria-account-monitor/**
+    - component_id: auctioneer
+      name: auctioneer
+      paths:
+        - crates/astria-auctioneer/**
+    - component_id: bridge-withdrawer
+      name: bridge-withdrawer
+      paths:
+        - crates/astria-bridge-withdrawer/**
+    - component_id: cli
+      name: cli
+      paths:
+        - crates/astria-cli/**
+    - component_id: conductor
+      name: conductor
+      paths:
+        - crates/astria-conductor/**
+    - component_id: composer
+      name: composer
+      paths:
+        - crates/astria-composer/**
+    - component_id: common
+      name: common
+      paths:
+        - crates/astria-core/**
+        - crates/astria-core-address/**
+        - crates/astria-core-crypto/**
+        - crates/astria-eyre/**
+        - crates/astria-config/**
+        - crates/astria-sequencer-client/**
+        - crates/astria-telemetry/**
+    - component_id: sequencer
+      name: sequencer
+      paths:
+        - crates/astria-sequencer/**
+    - component_id: sequencer-relayer
+      name: sequencer-relayer
+      paths:
+        - crates/astria-sequencer-relayer/**
+    - component_id: merkle
+      name: astria-merkle
+      paths:
+        - crates/astria-merkle/**
+    - component_id: utils
+      name: utils
+      paths:
+        - crates/astria-sequencer-utils/**
+        - crates/astria-build-info/**
+
+ignore:
+  - crates/astria-bridge-contracts/astria-bridge-contracts/**
+  - crates/astria-bridge-contracts/src/generated/**
+  - crates/astria-bridge-withdrawer/ethereum/out/**
+  - crates/astria-core/src/generated/**
+  - crates/astria-grpc-mock/**
+  - crates/astria-grpc-mock-test/**
+  - crates/astria-grpc-mock-test-codegen/**
+  - crates/astria-test-utils/**
+  - tools/**
+  - lint/**

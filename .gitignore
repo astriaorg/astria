@@ -8,6 +8,9 @@ target/
 # direnv
 .envrc
 
+# code coverage
+codecov.json
+
 # mac os
 .DS_Store
 
