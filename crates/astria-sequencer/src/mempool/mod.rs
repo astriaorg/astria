@@ -1,5 +1,5 @@
-// #[cfg(feature = "benchmark")]
-// mod benchmarks;
+#[cfg(feature = "benchmark")]
+mod benchmarks;
 mod mempool_state;
 mod transactions_container;
 
@@ -723,7 +723,7 @@ mod tests {
             .await;
         assert_eq!(
             mempool
-                .insert(tx1_replacement, 0, &account_balances, tx_costs.clone(), )
+                .insert(tx1_replacement, 0, &account_balances, tx_costs.clone(),)
                 .await
                 .unwrap_err(),
             InsertionError::NonceTaken,
@@ -1334,7 +1334,7 @@ mod tests {
                 .unwrap()
                 .saturating_add(1),
         )
-            .await;
+        .await;
         assert_eq!(
             mempool
                 .insert(tx, 0, &account_balances, tx_costs.clone())

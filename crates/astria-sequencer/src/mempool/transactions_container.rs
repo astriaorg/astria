@@ -119,10 +119,6 @@ impl TimemarkedTransaction {
     pub(super) fn address_bytes(&self) -> &[u8; ADDRESS_LENGTH] {
         self.checked_tx.address_bytes()
     }
-
-    pub(super) fn costs(&self) -> &HashMap<IbcPrefixed, u128> {
-        &self.costs
-    }
 }
 
 impl fmt::Display for TimemarkedTransaction {
@@ -262,6 +258,7 @@ impl PendingTransactionsForAccount {
             if tx.deduct_costs(&mut available_balances).is_err() {
                 break;
             }
+
             split_at = nonce.saturating_add(1);
         }
 
@@ -585,7 +582,7 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
     fn check_total_tx_count(&self) -> Result<(), InsertionError>;
 
     /// Returns all of the currently tracked addresses.
-    fn addresses<'a>(&'a self) -> impl Iterator<Item=&'a [u8; ADDRESS_LENGTH]>
+    fn addresses<'a>(&'a self) -> impl Iterator<Item = &'a [u8; ADDRESS_LENGTH]>
     where
         T: 'a,
     {
@@ -1794,7 +1791,7 @@ mod tests {
                 .txs
                 .get(&0)
                 .unwrap()
-                .costs()
+                .costs
                 .get(&denom_0().to_ibc_prefixed())
                 .unwrap(),
             &0,
@@ -1833,7 +1830,7 @@ mod tests {
                 .txs
                 .get(&0)
                 .unwrap()
-                .costs()
+                .costs
                 .get(&denom_0().to_ibc_prefixed())
                 .unwrap(),
             &expected_cost,

@@ -1,5 +1,5 @@
-// #[cfg(feature = "benchmark")]
-// mod benchmarks;
+#[cfg(feature = "benchmark")]
+mod benchmarks;
 pub(crate) mod event_bus;
 mod execution_state;
 mod state_ext;
