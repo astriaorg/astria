@@ -56,6 +56,7 @@ use crate::{
         AbciListenUrl,
         Config,
     },
+    grpc::SequencerGrpcServer,
     mempool::Mempool,
     metrics::Metrics,
     service,
@@ -235,7 +236,6 @@ impl Sequencer {
 
         let mempool_service = service::Mempool::new(storage.clone(), mempool.clone(), metrics);
 
-        let (grpc_shutdown_tx, grpc_shutdown_rx) = tokio::sync::oneshot::channel();
         let (abci_shutdown_tx, abci_shutdown_rx) = tokio::sync::oneshot::channel();
 
         let grpc_addr = config
@@ -243,19 +243,17 @@ impl Sequencer {
             .parse()
             .wrap_err("failed to parse grpc_addr address")?;
 
-        // TODO(janis): need a mechanism to check and report if the grpc server setup failed.
-        // right now it's fire and forget and the grpc server is only reaped if sequencer
-        // itself is taken down.
-        let grpc_server_handle = tokio::spawn(crate::grpc::serve(
-            storage.clone(),
-            mempool,
-            upgrades,
-            metrics,
-            grpc_addr,
-            config.no_optimistic_blocks,
-            event_bus_subscription,
-            grpc_shutdown_rx,
-        ));
+        let (grpc_server, grpc_shutdown_tx) = SequencerGrpcServer::builder()
+            .storage(storage.clone())
+            .mempool(mempool)
+            .upgrades(upgrades)
+            .metrics(metrics)
+            .grpc_addr(grpc_addr)
+            .no_optimistic_blocks(config.no_optimistic_blocks)
+            .event_bus_subscription(event_bus_subscription)
+            .build()
+            .wrap_err("failed to build grpc server")?;
+        let grpc_server_handle = tokio::spawn(grpc_server.serve());
 
         debug!(%config.abci_listen_url, "starting sequencer");
         let consensus_cancellation_token = tokio_util::sync::CancellationToken::new();
