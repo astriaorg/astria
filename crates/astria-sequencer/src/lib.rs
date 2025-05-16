@@ -26,6 +26,7 @@ pub(crate) mod ibc;
 mod mempool;
 pub(crate) mod metrics;
 pub(crate) mod oracles;
+pub(crate) mod orderbook;
 pub(crate) mod proposal;
 mod sequencer;
 pub(crate) mod service;

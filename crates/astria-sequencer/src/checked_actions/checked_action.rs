@@ -98,6 +98,10 @@ pub(crate) enum CheckedAction {
     RecoverIbcClient(CheckedRecoverIbcClient),
     CurrencyPairsChange(CheckedCurrencyPairsChange),
     MarketsChange(CheckedMarketsChange),
+    OrderbookCreateOrder(Box<crate::orderbook::component::CheckedCreateOrder>),
+    OrderbookCancelOrder(Box<crate::orderbook::component::CheckedCancelOrder>),
+    OrderbookCreateMarket(Box<crate::orderbook::component::CheckedCreateMarket>),
+    OrderbookUpdateMarket(Box<crate::orderbook::component::CheckedUpdateMarket>),
 }
 
 impl CheckedAction {

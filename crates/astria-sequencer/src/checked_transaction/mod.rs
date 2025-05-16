@@ -11,12 +11,17 @@ use astria_core::{
         RollupId,
         TransactionId,
     },
-    protocol::transaction::v1::{
-        Action,
-        Group,
-        Transaction,
-        TransactionParams,
-        TransactionParts,
+    protocol::{
+        transaction::v1::{
+            Action,
+            Group,
+            Transaction,
+            TransactionParams,
+            TransactionParts,
+        },
+        orderbook::v1::{
+            CreateOrder, CancelOrder, CreateMarket, UpdateMarket
+        },
     },
     Protobuf as _,
 };
@@ -54,6 +59,12 @@ use crate::{
         CheckedAction,
         CheckedActionFeeError,
         CheckedActionMutableCheckError,
+    },
+    orderbook::component::{
+        CheckedCreateOrder,
+        CheckedCancelOrder,
+        CheckedCreateMarket,
+        CheckedUpdateMarket,
     },
 };
 
@@ -406,6 +417,58 @@ async fn convert_actions<S: StateRead>(
                     }
                     Action::MarketsChange(action) => {
                         CheckedAction::new_markets_change(action, tx_signer, state).await
+                    }
+                    Action::CreateOrder(action) => {
+                        Ok(CheckedAction::OrderbookCreateOrder(Box::new(CheckedCreateOrder {
+                            sender: Address::try_from(tx_signer.to_vec())
+                                .map_err(|_| CheckedTransactionInitialCheckError::InvalidAddress)?,
+                            market: action.market,
+                            side: action.side.into(),
+                            order_type: action.type_.into(),
+                            price: action.price.to_string(),
+                            quantity: action.quantity.to_string(),
+                            time_in_force: action.time_in_force.into(),
+                            fee_asset: action.fee_asset,
+                        })))
+                    }
+                    Action::CancelOrder(action) => {
+                        Ok(CheckedAction::OrderbookCancelOrder(Box::new(CheckedCancelOrder {
+                            sender: Address::try_from(tx_signer.to_vec())
+                                .map_err(|_| CheckedTransactionInitialCheckError::InvalidAddress)?,
+                            order_id: action.order_id,
+                            fee_asset: action.fee_asset,
+                        })))
+                    }
+                    Action::CreateMarket(action) => {
+                        Ok(CheckedAction::OrderbookCreateMarket(Box::new(CheckedCreateMarket {
+                            sender: Address::try_from(tx_signer.to_vec())
+                                .map_err(|_| CheckedTransactionInitialCheckError::InvalidAddress)?,
+                            market: action.market,
+                            base_asset: action.base_asset,
+                            quote_asset: action.quote_asset,
+                            tick_size: action.tick_size.to_string(),
+                            lot_size: action.lot_size.to_string(),
+                            fee_asset: action.fee_asset,
+                        })))
+                    }
+                    Action::UpdateMarket(action) => {
+                        Ok(CheckedAction::OrderbookUpdateMarket(Box::new(CheckedUpdateMarket {
+                            sender: Address::try_from(tx_signer.to_vec())
+                                .map_err(|_| CheckedTransactionInitialCheckError::InvalidAddress)?,
+                            market: action.market,
+                            tick_size: if action.tick_size.is_empty() {
+                                None
+                            } else {
+                                Some(action.tick_size.to_string())
+                            },
+                            lot_size: if action.lot_size.is_empty() {
+                                None
+                            } else {
+                                Some(action.lot_size.to_string())
+                            },
+                            paused: action.paused,
+                            fee_asset: action.fee_asset,
+                        })))
                     }
                 }
             });

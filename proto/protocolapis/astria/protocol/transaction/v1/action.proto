@@ -4,6 +4,8 @@ package astria.protocol.transaction.v1;
 
 import "astria/primitive/v1/types.proto";
 import "astria/protocol/fees/v1/types.proto";
+import "astria/protocol/orderbook/v1/action.proto";
+import "astria/protocol/orderbook/v1/types.proto";
 import "astria_vendored/penumbra/core/component/ibc/v1/ibc.proto";
 import "astria_vendored/tendermint/crypto/keys.proto";
 import "connect/marketmap/v2/market.proto";
@@ -38,6 +40,12 @@ message Action {
     // Price feed actions are defined on 71-80
     CurrencyPairsChange currency_pairs_change = 71;
     MarketsChange markets_change = 72;
+    
+    // Order book actions are defined on 81-90
+    astria.protocol.orderbook.v1.CreateOrder create_order = 81;
+    astria.protocol.orderbook.v1.CancelOrder cancel_order = 82;
+    astria.protocol.orderbook.v1.CreateMarket create_market = 83;
+    astria.protocol.orderbook.v1.UpdateMarket update_market = 84;
   }
 }
 
@@ -273,6 +281,10 @@ message FeeChange {
     astria.protocol.fees.v1.RecoverIbcClientFeeComponents recover_ibc_client = 16;
     astria.protocol.fees.v1.CurrencyPairsChangeFeeComponents currency_pairs_change = 17;
     astria.protocol.fees.v1.MarketsChangeFeeComponents markets_change = 18;
+    astria.protocol.fees.v1.CreateOrderFeeComponents create_order = 19;
+    astria.protocol.fees.v1.CancelOrderFeeComponents cancel_order = 20;
+    astria.protocol.fees.v1.CreateMarketFeeComponents create_market = 21;
+    astria.protocol.fees.v1.UpdateMarketFeeComponents update_market = 22;
   }
 }
 
