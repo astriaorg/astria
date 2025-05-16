@@ -43,6 +43,9 @@ pub(crate) enum ActionRef<'a> {
     RecoverIbcClient(&'a RecoverIbcClient),
     CurrencyPairsChange(&'a CurrencyPairsChange),
     MarketsChange(&'a MarketsChange),
+    OrderbookCreateOrder(&'a crate::orderbook::component::CheckedCreateOrder),
+    OrderbookCancelOrder(&'a crate::orderbook::component::CheckedCancelOrder),
+    OrderbookCreateMarket(&'a crate::orderbook::component::CheckedCreateMarket),
 }
 
 impl<'a> From<&'a Action> for ActionRef<'a> {

@@ -31,6 +31,7 @@ mod ibc_sudo_change;
 mod ics20_withdrawal;
 mod init_bridge_account;
 mod markets_change;
+mod orderbook;
 mod recover_ibc_client;
 mod rollup_data_submission;
 mod sudo_address_change;

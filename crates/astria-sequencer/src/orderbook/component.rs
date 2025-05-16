@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use astria_core::{
     primitive::v1::Address,
@@ -7,9 +7,8 @@ use astria_core::{
         Order, OrderSide, OrderTimeInForce, OrderType, OrderMatch,
     },
 };
-use cnidarium::StateDelta;
-use tendermint::abci::{request, Event, EventAttribute, Response};
-use tendermint_informal::block;
+use cnidarium::{StateRead, StateWrite};
+use tendermint::abci::{self, request, Event, EventAttribute};
 use thiserror::Error;
 use tracing::{debug, error, info};
 use uuid::Uuid;
@@ -18,7 +17,7 @@ use crate::orderbook::MatchingEngine;
 
 use crate::{
     checked_actions::{
-        self, ActionRef, CheckedAction, CheckedActionError, CheckedActionKind,
+        self, ActionRef, CheckedAction, CheckedActionError,
     },
     component::Component,
     orderbook::state_ext::{MarketParams, OrderbookError, StateReadExt, StateWriteExt},
@@ -28,35 +27,30 @@ use crate::{
 #[derive(Debug, Default)]
 pub struct OrderbookComponent;
 
+#[async_trait::async_trait]
 impl Component for OrderbookComponent {
-    type Error = OrderbookComponentError;
+    type AppState = ();
 
     /// Initialize the order book component at genesis.
-    fn init_chain(
-        &self,
-        state: &mut StateDelta,
-        _request: &request::InitChain,
-    ) -> Result<(), Self::Error> {
+    async fn init_chain<S: StateWrite>(state: S, _app_state: &Self::AppState) -> astria_eyre::eyre::Result<()> {
         info!("Initializing OrderbookComponent");
         Ok(())
     }
 
     /// Process begin_block events for the order book.
-    fn begin_block(
-        &self,
-        _state: &mut StateDelta,
-        _request: &request::BeginBlock,
-    ) -> Result<Response<block::BeginBlock>, Self::Error> {
-        Ok(Response::<block::BeginBlock>::default())
+    async fn begin_block<S: StateWrite + 'static>(
+        _state: &mut Arc<S>,
+        _begin_block: &abci::request::BeginBlock,
+    ) -> astria_eyre::eyre::Result<()> {
+        Ok(())
     }
 
     /// Process end_block events for the order book.
-    fn end_block(
-        &self,
-        _state: &mut StateDelta,
-        _request: &request::EndBlock,
-    ) -> Result<Response<block::EndBlock>, Self::Error> {
-        Ok(Response::<block::EndBlock>::default())
+    async fn end_block<S: StateWrite + 'static>(
+        _state: &mut Arc<S>,
+        _end_block: &abci::request::EndBlock,
+    ) -> astria_eyre::eyre::Result<()> {
+        Ok(())
     }
 }
 
@@ -92,8 +86,14 @@ pub struct CheckedCreateOrder {
     pub fee_asset: String,
 }
 
+// Create types that match the protobuf definitions
+pub type CreateOrder = astria_core::protocol::orderbook::v1::CreateOrder;
+pub type CancelOrder = astria_core::protocol::orderbook::v1::CancelOrder;
+pub type CreateMarket = astria_core::protocol::orderbook::v1::CreateMarket;
+pub type UpdateMarket = astria_core::protocol::orderbook::v1::UpdateMarket;
+
 impl CheckedAction for CheckedCreateOrder {
-    fn execute(self, state: &mut StateDelta) -> Result<Vec<Event>, CheckedActionError> {
+    fn execute<S: StateRead>(self, state: &mut StateDelta<S>) -> Result<Vec<Event>, CheckedActionError> {
         debug!(?self, "Executing CheckedCreateOrder");
 
         // Check if market exists
@@ -206,7 +206,7 @@ pub struct CheckedCancelOrder {
 }
 
 impl CheckedAction for CheckedCancelOrder {
-    fn execute(self, state: &mut StateDelta) -> Result<Vec<Event>, CheckedActionError> {
+    fn execute<S: StateRead>(self, state: &mut StateDelta<S>) -> Result<Vec<Event>, CheckedActionError> {
         debug!(?self, "Executing CheckedCancelOrder");
 
         // Get the order
@@ -265,7 +265,7 @@ pub struct CheckedCreateMarket {
 }
 
 impl CheckedAction for CheckedCreateMarket {
-    fn execute(self, state: &mut StateDelta) -> Result<Vec<Event>, CheckedActionError> {
+    fn execute<S: StateRead>(self, state: &mut StateDelta<S>) -> Result<Vec<Event>, CheckedActionError> {
         debug!(?self, "Executing CheckedCreateMarket");
 
         // Check if market already exists
@@ -326,7 +326,7 @@ pub struct CheckedUpdateMarket {
 }
 
 impl CheckedAction for CheckedUpdateMarket {
-    fn execute(self, state: &mut StateDelta) -> Result<Vec<Event>, CheckedActionError> {
+    fn execute<S: StateRead>(self, state: &mut StateDelta<S>) -> Result<Vec<Event>, CheckedActionError> {
         debug!(?self, "Executing CheckedUpdateMarket");
 
         // Check if market exists
@@ -377,76 +377,3 @@ impl CheckedAction for CheckedUpdateMarket {
     }
 }
 
-// Extension to convert protocol actions to checked actions
-impl checked_actions::ConvertAction for CreateOrder {
-    fn convert_action(
-        self,
-        context: &mut checked_actions::ConversionContext,
-    ) -> Result<CheckedActionKind, checked_actions::ActionError> {
-        Ok(CheckedActionKind::OrderbookCreateOrder(Box::new(CheckedCreateOrder {
-            sender: context.payer.clone().into(),
-            market: self.market,
-            side: OrderSide::from_i32(self.side).unwrap_or(OrderSide::ORDER_SIDE_UNSPECIFIED),
-            order_type: OrderType::from_i32(self.type_).unwrap_or(OrderType::ORDER_TYPE_UNSPECIFIED),
-            price: self.price.to_string(),
-            quantity: self.quantity.to_string(),
-            time_in_force: OrderTimeInForce::from_i32(self.time_in_force)
-                .unwrap_or(OrderTimeInForce::ORDER_TIME_IN_FORCE_UNSPECIFIED),
-            fee_asset: self.fee_asset,
-        })))
-    }
-}
-
-impl checked_actions::ConvertAction for CancelOrder {
-    fn convert_action(
-        self,
-        context: &mut checked_actions::ConversionContext,
-    ) -> Result<CheckedActionKind, checked_actions::ActionError> {
-        Ok(CheckedActionKind::OrderbookCancelOrder(Box::new(CheckedCancelOrder {
-            sender: context.payer.clone().into(),
-            order_id: self.order_id,
-            fee_asset: self.fee_asset,
-        })))
-    }
-}
-
-impl checked_actions::ConvertAction for CreateMarket {
-    fn convert_action(
-        self,
-        context: &mut checked_actions::ConversionContext,
-    ) -> Result<CheckedActionKind, checked_actions::ActionError> {
-        Ok(CheckedActionKind::OrderbookCreateMarket(Box::new(CheckedCreateMarket {
-            sender: context.payer.clone().into(),
-            market: self.market,
-            base_asset: self.base_asset,
-            quote_asset: self.quote_asset,
-            tick_size: self.tick_size.to_string(),
-            lot_size: self.lot_size.to_string(),
-            fee_asset: self.fee_asset,
-        })))
-    }
-}
-
-impl checked_actions::ConvertAction for UpdateMarket {
-    fn convert_action(
-        self,
-        context: &mut checked_actions::ConversionContext,
-    ) -> Result<CheckedActionKind, checked_actions::ActionError> {
-        Ok(CheckedActionKind::OrderbookUpdateMarket(Box::new(CheckedUpdateMarket {
-            sender: context.payer.clone().into(),
-            market: self.market,
-            tick_size: if self.tick_size.is_empty() {
-                None
-            } else {
-                Some(self.tick_size.to_string())
-            },
-            lot_size: if self.lot_size.is_empty() {
-                None
-            } else {
-                Some(self.lot_size.to_string())
-            },
-            paused: self.paused,
-            fee_asset: self.fee_asset,
-        })))
-    }
-}

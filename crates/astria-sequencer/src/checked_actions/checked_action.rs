@@ -2,11 +2,17 @@ use astria_core::{
     crypto::ADDRESS_LENGTH,
     primitive::v1::{
         asset::IbcPrefixed,
+        Address,
         TransactionId,
         ADDRESS_LEN,
     },
     protocol::{
         fees::v1::FeeComponents,
+        orderbook::v1::{
+            OrderSide,
+            OrderTimeInForce,
+            OrderType,
+        },
         transaction::v1::action::{
             BridgeLock,
             BridgeSudoChange,
@@ -322,6 +328,95 @@ impl CheckedAction {
             .await
             .map_err(|source| CheckedActionInitialCheckError::new(action_name, source))?;
         Ok(Self::MarketsChange(checked_action))
+    }
+
+    pub(crate) async fn new_orderbook_create_order<S: StateRead>(
+        action: crate::orderbook::component::CreateOrder,
+        tx_signer: [u8; ADDRESS_LEN],
+        _state: S,
+    ) -> Result<Self, CheckedActionInitialCheckError> {
+        let sender = Address::try_from(tx_signer.to_vec())
+            .map_err(|_| CheckedActionInitialCheckError::InvalidAddress)?;
+            
+        Ok(Self::OrderbookCreateOrder(Box::new(
+            crate::orderbook::component::CheckedCreateOrder {
+                sender,
+                market: action.market,
+                side: OrderSide::from_i32(action.side).unwrap_or(OrderSide::ORDER_SIDE_UNSPECIFIED),
+                order_type: OrderType::from_i32(action.type_).unwrap_or(OrderType::ORDER_TYPE_UNSPECIFIED),
+                price: action.price.to_string(),
+                quantity: action.quantity.to_string(),
+                time_in_force: OrderTimeInForce::from_i32(action.time_in_force)
+                    .unwrap_or(OrderTimeInForce::ORDER_TIME_IN_FORCE_UNSPECIFIED),
+                fee_asset: action.fee_asset,
+            }
+        )))
+    }
+
+    pub(crate) async fn new_orderbook_cancel_order<S: StateRead>(
+        action: crate::orderbook::component::CancelOrder,
+        tx_signer: [u8; ADDRESS_LEN],
+        _state: S,
+    ) -> Result<Self, CheckedActionInitialCheckError> {
+        let sender = Address::try_from(tx_signer.to_vec())
+            .map_err(|_| CheckedActionInitialCheckError::InvalidAddress)?;
+            
+        Ok(Self::OrderbookCancelOrder(Box::new(
+            crate::orderbook::component::CheckedCancelOrder {
+                sender,
+                order_id: action.order_id,
+                fee_asset: action.fee_asset,
+            }
+        )))
+    }
+
+    pub(crate) async fn new_orderbook_create_market<S: StateRead>(
+        action: crate::orderbook::component::CreateMarket,
+        tx_signer: [u8; ADDRESS_LEN],
+        _state: S,
+    ) -> Result<Self, CheckedActionInitialCheckError> {
+        let sender = Address::try_from(tx_signer.to_vec())
+            .map_err(|_| CheckedActionInitialCheckError::InvalidAddress)?;
+            
+        Ok(Self::OrderbookCreateMarket(Box::new(
+            crate::orderbook::component::CheckedCreateMarket {
+                sender,
+                market: action.market,
+                base_asset: action.base_asset,
+                quote_asset: action.quote_asset,
+                tick_size: action.tick_size.to_string(),
+                lot_size: action.lot_size.to_string(),
+                fee_asset: action.fee_asset,
+            }
+        )))
+    }
+
+    pub(crate) async fn new_orderbook_update_market<S: StateRead>(
+        action: crate::orderbook::component::UpdateMarket,
+        tx_signer: [u8; ADDRESS_LEN],
+        _state: S,
+    ) -> Result<Self, CheckedActionInitialCheckError> {
+        let sender = Address::try_from(tx_signer.to_vec())
+            .map_err(|_| CheckedActionInitialCheckError::InvalidAddress)?;
+            
+        Ok(Self::OrderbookUpdateMarket(Box::new(
+            crate::orderbook::component::CheckedUpdateMarket {
+                sender,
+                market: action.market,
+                tick_size: if action.tick_size.is_empty() {
+                    None
+                } else {
+                    Some(action.tick_size.to_string())
+                },
+                lot_size: if action.lot_size.is_empty() {
+                    None
+                } else {
+                    Some(action.lot_size.to_string())
+                },
+                paused: action.paused,
+                fee_asset: action.fee_asset,
+            }
+        )))
     }
 
     pub(crate) async fn run_mutable_checks<S: StateRead>(

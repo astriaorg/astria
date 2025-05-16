@@ -27,6 +27,10 @@ pub(crate) enum StoredValue<'a> {
     PriceFeedOracle(crate::oracles::price_feed::oracle::storage::Value<'a>),
     Order(Order),
     MarketParams(MarketParams),
+    // New variants for our order book types
+    Market(crate::orderbook::Market),
+    Trade(crate::orderbook::Trade),
+    Bytes(Vec<u8>),
 }
 
 impl StoredValue<'_> {

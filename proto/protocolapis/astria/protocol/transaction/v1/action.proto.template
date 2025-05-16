@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package astria.protocol.transaction.v1;
+
+import "astria/protocol/accounts/v1/types.proto";
+import "astria/protocol/asset/v1/types.proto";
+import "astria/protocol/bridge/v1/types.proto";
+import "astria/protocol/fees/v1/types.proto";
+import "astria/protocol/memos/v1/types.proto";
+import "astria/protocol/orderbook/v1/action.proto";  // Import orderbook actions
+
+message Action {
+  oneof action {
+    // ... existing actions ...
+    
+    // Orderbook actions
+    astria.protocol.orderbook.v1.CreateOrder orderbook_create_order = 200;
+    astria.protocol.orderbook.v1.CancelOrder orderbook_cancel_order = 201;
+    astria.protocol.orderbook.v1.CreateMarket orderbook_create_market = 202;
+    astria.protocol.orderbook.v1.UpdateMarket orderbook_update_market = 203;
+  }
+}

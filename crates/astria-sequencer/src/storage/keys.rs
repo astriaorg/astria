@@ -92,6 +92,9 @@ const ORDERBOOK_MARKET_SIDE_PRICE_ORDERS: &str = "orderbook/market_side_price_or
 const ORDERBOOK_MARKET_PRICE_LEVELS: &str = "orderbook/market_price_levels/";
 const ORDERBOOK_OWNER_ORDERS: &str = "orderbook/owner_orders/";
 const ORDERBOOK_MARKET_TRADES: &str = "orderbook/market_trades/";
+const ORDERBOOK_ALL_MARKETS: &str = "orderbook/all_markets";
+const ORDERBOOK_NEXT_ORDER_ID: &str = "orderbook/next_order_id";
+const ORDERBOOK_NEXT_TRADE_ID: &str = "orderbook/next_trade_id";
 
 // Get the list of all markets
 pub fn orderbook_markets() -> String {
@@ -186,6 +189,70 @@ pub fn orderbook_market_trades(market: &str) -> String {
 // Get a specific trade
 pub fn orderbook_market_trade(market: &str, trade_id: &str) -> String {
     format!("{}{}/{}", ORDERBOOK_MARKET_TRADES, market, trade_id)
+}
+
+// Get all market IDs
+pub fn orderbook_all_markets() -> String {
+    ORDERBOOK_ALL_MARKETS.to_string()
+}
+
+// Get the next order ID
+pub fn orderbook_next_order_id() -> String {
+    ORDERBOOK_NEXT_ORDER_ID.to_string()
+}
+
+// Get the next trade ID
+pub fn orderbook_next_trade_id() -> String {
+    ORDERBOOK_NEXT_TRADE_ID.to_string()
+}
+
+/// A key builder for constructing hierarchical keys with segments
+#[derive(Debug, Clone)]
+pub struct Key {
+    segments: Vec<String>,
+}
+
+impl Key {
+    /// Create a new empty key
+    pub fn new() -> Self {
+        Self {
+            segments: Vec::new(),
+        }
+    }
+
+    /// Push a segment to the key
+    pub fn push_segment<S: Into<String>>(mut self, segment: S) -> Self {
+        self.segments.push(segment.into());
+        self
+    }
+
+    /// Convert the key to a string representation
+    pub fn to_string(&self) -> String {
+        self.segments.join("/")
+    }
+
+    /// Get the key as bytes
+    pub fn as_bytes(&self) -> Vec<u8> {
+        self.to_string().into_bytes()
+    }
+}
+
+impl Default for Key {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl From<Key> for String {
+    fn from(key: Key) -> Self {
+        key.to_string()
+    }
+}
+
+impl AsRef<[u8]> for Key {
+    fn as_ref(&self) -> &[u8] {
+        self.segments.join("/").as_bytes()
+    }
 }
 
 #[cfg(test)]

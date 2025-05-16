@@ -8,15 +8,15 @@ use crate::orderbook::state_ext::{OrderbookError, StateReadExt, StateWriteExt};
 
 /// A matching engine for matching orders in the order book.
 #[derive(Debug, Default)]
-pub(crate) struct MatchingEngine;
+pub struct MatchingEngine;
 
 impl MatchingEngine {
     /// Process a new order, matching it against existing orders if possible.
     ///
     /// Returns a list of matches that occurred during processing.
-    pub(crate) fn process_order(
+    pub fn process_order<S: StateRead>(
         &self,
-        state: &mut StateDelta,
+        state: &mut StateDelta<S>,
         order: Order,
     ) -> Result<Vec<OrderMatch>, OrderbookError> {
         match order.type_ {
@@ -27,9 +27,9 @@ impl MatchingEngine {
     }
 
     /// Process a limit order.
-    fn process_limit_order(
+    pub(crate) fn process_limit_order<S: StateRead>(
         &self,
-        state: &mut StateDelta,
+        state: &mut StateDelta<S>,
         order: Order,
     ) -> Result<Vec<OrderMatch>, OrderbookError> {
         let is_buy = order.side == OrderSide::ORDER_SIDE_BUY;
@@ -159,9 +159,9 @@ impl MatchingEngine {
     }
 
     /// Process a market order, which is executed immediately at the best available price.
-    fn process_market_order(
+    pub(crate) fn process_market_order<S: StateRead>(
         &self,
-        state: &mut StateDelta,
+        state: &mut StateDelta<S>,
         order: Order,
     ) -> Result<Vec<OrderMatch>, OrderbookError> {
         let is_buy = order.side == OrderSide::ORDER_SIDE_BUY;
