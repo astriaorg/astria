@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use astria_core::{
     oracles::price_feed::{
         oracle::v2::CurrencyPairState,
@@ -24,6 +22,7 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
+use indexmap::IndexSet;
 use tracing::{
     instrument,
     Level,
@@ -131,7 +130,7 @@ impl AssetTransfer for CheckedCurrencyPairsChange {
 
 async fn execute_currency_pairs_addition<S: StateWrite>(
     mut state: S,
-    currency_pairs: &BTreeSet<CurrencyPair>,
+    currency_pairs: &IndexSet<CurrencyPair>,
 ) -> Result<()> {
     let mut next_currency_pair_id = state
         .get_next_currency_pair_id()
@@ -169,7 +168,7 @@ async fn execute_currency_pairs_addition<S: StateWrite>(
 
 async fn execute_currency_pairs_removal<S: StateWrite>(
     mut state: S,
-    currency_pairs: &BTreeSet<CurrencyPair>,
+    currency_pairs: &IndexSet<CurrencyPair>,
 ) -> Result<()> {
     let mut num_currency_pairs = state
         .get_num_currency_pairs()
@@ -193,8 +192,6 @@ async fn execute_currency_pairs_removal<S: StateWrite>(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
-
     use astria_core::{
         oracles::price_feed::types::v2::CurrencyPairId,
         protocol::transaction::v1::action::SudoAddressChange,
@@ -215,7 +212,7 @@ mod tests {
         pairs_iter: I,
     ) -> CurrencyPairsChange {
         let count = pairs_iter.clone().into_iter().count();
-        let pairs: BTreeSet<_> = pairs_iter.into_iter().map(|s| s.parse().unwrap()).collect();
+        let pairs: IndexSet<_> = pairs_iter.into_iter().map(|s| s.parse().unwrap()).collect();
         assert_eq!(pairs.len(), count, "cannot use duplicate pairs");
         CurrencyPairsChange::Addition(pairs)
     }
@@ -224,7 +221,7 @@ mod tests {
         pairs_iter: I,
     ) -> CurrencyPairsChange {
         let count = pairs_iter.clone().into_iter().count();
-        let pairs: BTreeSet<_> = pairs_iter.into_iter().map(|s| s.parse().unwrap()).collect();
+        let pairs: IndexSet<_> = pairs_iter.into_iter().map(|s| s.parse().unwrap()).collect();
         assert_eq!(pairs.len(), count, "cannot use duplicate pairs");
         CurrencyPairsChange::Removal(pairs)
     }

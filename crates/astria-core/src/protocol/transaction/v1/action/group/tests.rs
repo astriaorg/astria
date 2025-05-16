@@ -1,6 +1,5 @@
-use std::collections::BTreeSet;
-
 use ibc_types::core::client::Height;
+use indexmap::IndexSet;
 
 use crate::{
     crypto::VerificationKey,
@@ -129,7 +128,7 @@ fn from_list_of_actions_bundleable_sudo() {
             client_id: "07-tendermint-0".parse().unwrap(),
             replacement_client_id: "07-tendermint-1".parse().unwrap(),
         }),
-        Action::CurrencyPairsChange(CurrencyPairsChange::Addition(BTreeSet::new())),
+        Action::CurrencyPairsChange(CurrencyPairsChange::Addition(IndexSet::new())),
         Action::MarketsChange(MarketsChange::Creation(vec![])),
     ];
 
