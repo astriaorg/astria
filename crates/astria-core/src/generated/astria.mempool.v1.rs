@@ -112,29 +112,6 @@ pub mod transaction_status {
             super::super::super::super::tendermint::abci::ExecTxResult,
         >,
     }
-    /// Nested message and enum types in `Executed`.
-    pub mod executed {
-        /// EventAttribute is a single key-value pair, associated with an event.
-        #[derive(Clone, PartialEq, ::prost::Message)]
-        pub struct EventAttribute {
-            #[prost(string, tag = "1")]
-            pub key: ::prost::alloc::string::String,
-            #[prost(string, tag = "2")]
-            pub value: ::prost::alloc::string::String,
-            #[prost(bool, tag = "3")]
-            pub index: bool,
-        }
-        impl ::prost::Name for EventAttribute {
-            const NAME: &'static str = "EventAttribute";
-            const PACKAGE: &'static str = "astria.mempool.v1";
-            fn full_name() -> ::prost::alloc::string::String {
-                "astria.mempool.v1.TransactionStatus.Executed.EventAttribute".into()
-            }
-            fn type_url() -> ::prost::alloc::string::String {
-                "/astria.mempool.v1.TransactionStatus.Executed.EventAttribute".into()
-            }
-        }
-    }
     impl ::prost::Name for Executed {
         const NAME: &'static str = "Executed";
         const PACKAGE: &'static str = "astria.mempool.v1";

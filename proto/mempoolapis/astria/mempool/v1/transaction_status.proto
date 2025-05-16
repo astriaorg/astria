@@ -46,12 +46,5 @@ message TransactionStatus {
 
     // The transaction result.
     tendermint.abci.ExecTxResult result = 2;
-
-    // EventAttribute is a single key-value pair, associated with an event.
-    message EventAttribute {
-      string key = 1;
-      string value = 2;
-      bool index = 3;
-    }
   }
 }
