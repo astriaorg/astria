@@ -6,12 +6,18 @@ use astria_sequencer_client::{
     HttpClient,
     SequencerClientExt as _,
 };
-use clap::Subcommand;
+use clap::{
+    builder::{
+        PossibleValuesParser,
+        TypedValueParser,
+    },
+    Subcommand,
+};
 use color_eyre::eyre::{
     self,
+    Ok,
     WrapErr as _,
 };
-use rand::rngs::OsRng;
 
 #[derive(Debug, clap::Args)]
 pub(super) struct Command {
@@ -25,14 +31,17 @@ impl Command {
             SubCommand::Create(create) => create.run(),
             SubCommand::Balance(balance) => balance.run().await,
             SubCommand::Nonce(nonce) => nonce.run().await,
+            SubCommand::Recover(recover) => recover.run(),
         }
     }
 }
 
 #[derive(Debug, Subcommand)]
 enum SubCommand {
-    /// Generates a new ED25519 keypair.
+    /// Generates a new Ed25519 keypair.
     Create(Create),
+    /// Recovers an Ed25519 keypair from a mnemonic.
+    Recover(Recover),
     /// Queries the Sequencer for the balances of an account.
     Balance(Balance),
     /// Queries the Sequencer for the current nonce of an account.
@@ -40,15 +49,76 @@ enum SubCommand {
 }
 
 #[derive(Debug, clap::Args)]
+struct Recover {
+    /// The address prefix
+    #[arg(long, default_value = "astria")]
+    prefix: String,
+    /// The recovery mnemonic phrase, must be wrapped in quotes.
+    #[arg(long, short)]
+    mnemonic: String,
+}
+
+impl Recover {
+    fn run(self) -> eyre::Result<()> {
+        let bip39_mnemonic = bip39::Mnemonic::from_phrase(&self.mnemonic, bip39::Language::English)
+            .wrap_err("failed to recover mnemonic from phrase")?;
+        let seed = bip39::Seed::new(&bip39_mnemonic, "");
+        let seed_bytes: [u8; 32] = seed.as_bytes()[0..32]
+            .try_into()
+            .wrap_err("failed to convert seed to 32 bytes")?;
+
+        let signing_key = SigningKey::from(seed_bytes);
+
+        let pretty_signing_key = hex::encode(signing_key.as_bytes());
+        let pretty_verifying_key = hex::encode(signing_key.verification_key().as_bytes());
+
+        let pretty_address: Address = Address::builder()
+            .array(signing_key.address_bytes())
+            .prefix(&self.prefix)
+            .try_build()?;
+
+        println!("Recover Sequencer Account");
+        println!();
+        // TODO: don't print private keys to CLI, prefer writing to file:
+        // https://github.com/astriaorg/astria/issues/594
+        println!("Private Key: {pretty_signing_key}");
+        println!("Public Key:  {pretty_verifying_key}");
+        println!("Address:     {pretty_address}");
+        Ok(())
+    }
+}
+
+#[derive(Debug, clap::Args)]
 struct Create {
     /// The address prefix
     #[arg(long, default_value = "astria")]
     prefix: String,
+    /// Number of words to use in the mnemonic phrase
+    #[arg(
+        long,
+        short = 'l',
+        default_value = "24",
+        value_parser(mnemonic_length_value_parser())
+    )]
+    mnemonic_length: u8,
 }
 
 impl Create {
     fn run(self) -> eyre::Result<()> {
-        let signing_key = SigningKey::new(OsRng);
+        let mnemonic_type = match self.mnemonic_length {
+            12 => bip39::MnemonicType::Words12,
+            24 => bip39::MnemonicType::Words24,
+            _ => unreachable!("clap arg value parsing should make this unreachable"),
+        };
+        let bip39_mnemonic = bip39::Mnemonic::new(mnemonic_type, bip39::Language::English);
+
+        let seed = bip39::Seed::new(&bip39_mnemonic, "");
+        let seed_bytes: [u8; 32] = seed.as_bytes()[0..32]
+            .try_into()
+            .wrap_err("failed to convert seed to 32 bytes")?;
+
+        let signing_key = SigningKey::from(seed_bytes);
+
         let pretty_signing_key = hex::encode(signing_key.as_bytes());
         let pretty_verifying_key = hex::encode(signing_key.verification_key().as_bytes());
 
@@ -61,6 +131,7 @@ impl Create {
         println!();
         // TODO: don't print private keys to CLI, prefer writing to file:
         // https://github.com/astriaorg/astria/issues/594
+        println!("Mnemonic:    {bip39_mnemonic}");
         println!("Private Key: {pretty_signing_key}");
         println!("Public Key:  {pretty_verifying_key}");
         println!("Address:     {pretty_address}");
@@ -125,4 +196,8 @@ struct ArgsInner {
     sequencer_url: String,
     /// The address of the Sequencer account
     address: Address,
+}
+
+fn mnemonic_length_value_parser() -> impl TypedValueParser {
+    PossibleValuesParser::new(["12", "24"]).map(|v| v.parse::<u8>().unwrap())
 }
