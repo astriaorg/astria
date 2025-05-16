@@ -185,6 +185,7 @@ impl Protobuf for Action {
             Value::MarketsChange(act) => Self::MarketsChange(
                 MarketsChange::try_from_raw(act).map_err(Error::markets_change)?,
             ),
+            _ => todo!(),
         };
         Ok(action)
     }
@@ -2397,6 +2398,7 @@ impl Protobuf for FeeChange {
                 FeeComponents::<MarketsChange>::try_from_raw_ref(fee_change)?,
             ),
             None => return Err(FeeChangeError::field_unset("fee_components")),
+            _ => todo!(),
         })
     }
 }
