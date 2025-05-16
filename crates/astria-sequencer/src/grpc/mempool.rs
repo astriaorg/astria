@@ -1,24 +1,31 @@
 use std::sync::Arc;
 
 use astria_core::{
-    generated::mempool::v1::{
-        transaction_service_server::TransactionService,
-        transaction_status::{
-            Executed as RawExecuted,
-            Parked as RawParked,
-            Pending as RawPending,
-            Removed as RawRemoved,
-            Status as RawTransactionStatus,
+    generated::{
+        mempool::v1::{
+            transaction_service_server::TransactionService,
+            transaction_status::{
+                Executed as RawExecuted,
+                Parked as RawParked,
+                Pending as RawPending,
+                Removed as RawRemoved,
+                Status as RawTransactionStatus,
+            },
+            GetTransactionFeesRequest,
+            GetTransactionFeesResponse,
+            GetTransactionStatusRequest,
+            SubmitTransactionRequest,
+            SubmitTransactionResponse,
+            TransactionStatus as TransactionStatusResponse,
         },
-        GetTransactionStatusRequest,
-        SubmitTransactionRequest,
-        SubmitTransactionResponse,
-        TransactionStatus as TransactionStatusResponse,
+        protocol::fees::v1::TransactionFee,
     },
     primitive::v1::{
         TransactionId,
         TRANSACTION_ID_LEN,
     },
+    protocol::transaction::v1::TransactionBody,
+    Protobuf as _,
 };
 use bytes::Bytes;
 use cnidarium::Storage;
@@ -30,6 +37,12 @@ use tonic::{
 };
 
 use crate::{
+    app::StateReadExt as _,
+    assets::StateReadExt as _,
+    checked_actions::{
+        utils::total_fees,
+        ActionRef,
+    },
     mempool::{
         Mempool,
         RemovalReason,
@@ -96,6 +109,58 @@ impl TransactionService for Server {
                 status: Some(submission_outcome.status),
             }),
             duplicate: submission_outcome.duplicate,
+        }))
+    }
+
+    async fn get_transaction_fees(
+        self: Arc<Self>,
+        request: Request<GetTransactionFeesRequest>,
+    ) -> Result<Response<GetTransactionFeesResponse>, Status> {
+        let tx_body = TransactionBody::try_from_raw(
+            request
+                .into_inner()
+                .transaction_body
+                .ok_or_else(|| Status::invalid_argument("transaction is empty"))?,
+        )
+        .map_err(|err| {
+            Status::invalid_argument(format!("failed to decode transaction from raw: {err}"))
+        })?;
+
+        let snapshot = self.storage.latest_snapshot();
+        let block_height = snapshot
+            .get_block_height()
+            .await
+            .map_err(|err| Status::internal(format!("failed to get block height: {err}")))?;
+        let fees_with_ibc_denoms =
+            total_fees(tx_body.actions().iter().map(ActionRef::from), &snapshot)
+                .await
+                .map_err(|err| {
+                    Status::internal(format!("failed to get fees for transaction: {err}"))
+                })?;
+        let mut fees = Vec::with_capacity(fees_with_ibc_denoms.len());
+        for (ibc_denom, value) in fees_with_ibc_denoms {
+            let trace_denom = match snapshot.map_ibc_to_trace_prefixed_asset(&ibc_denom).await {
+                Ok(Some(trace_denom)) => trace_denom,
+                Ok(None) => {
+                    return Err(Status::internal(format!(
+                        "failed mapping ibc denom to trace denom: {ibc_denom}; asset does not \
+                         exist in state"
+                    )));
+                }
+                Err(err) => {
+                    return Err(Status::internal(format!(
+                        "failed mapping ibc denom to trace denom: {err:#}"
+                    )));
+                }
+            };
+            fees.push(TransactionFee {
+                asset: trace_denom.to_string(),
+                fee: Some(value.into()),
+            });
+        }
+        Ok(Response::new(GetTransactionFeesResponse {
+            block_height,
+            fees,
         }))
     }
 }
@@ -184,18 +249,37 @@ mod tests {
         HashSet,
     };
 
-    use astria_core::generated::protocol::transaction::v1::Transaction as RawTransaction;
+    use astria_core::{
+        generated::protocol::transaction::v1::Transaction as RawTransaction,
+        primitive::v1::RollupId,
+        protocol::transaction::v1::{
+            action::{
+                RollupDataSubmission,
+                Transfer,
+            },
+            TransactionBody,
+        },
+        Protobuf as _,
+    };
     use cnidarium::StateDelta;
-    use prost::Message as _;
 
     use super::*;
     use crate::{
         accounts::StateWriteExt as _,
+        assets::StateWriteExt,
         checked_transaction::CheckedTransaction,
+        fees::{
+            FeeHandler as _,
+            StateReadExt as _,
+            StateWriteExt as _,
+        },
         mempool::RemovalReason,
         test_utils::{
+            denom_0,
+            denom_1,
             Fixture,
             ALICE,
+            ALICE_ADDRESS,
             ALICE_ADDRESS_BYTES,
         },
     };
@@ -511,10 +595,110 @@ mod tests {
         assert_eq!(rsp.code(), tonic::Code::InvalidArgument);
         assert_eq!(
             rsp.message(),
-            format!(
-                "transaction nonce already used; current nonce `{account_nonce}`, transaction \
-                 nonce `{tx_nonce}`"
-            )
+            "transaction nonce already used; current nonce `2`, transaction nonce `1`"
         );
+    }
+
+    #[tokio::test]
+    async fn get_transaction_fees_fails_if_transaction_missing() {
+        let fixture = Fixture::default_initialized().await;
+
+        let server = new_server(&fixture);
+
+        let req = GetTransactionFeesRequest {
+            transaction_body: None,
+        };
+        let rsp = server
+            .get_transaction_fees(Request::new(req))
+            .await
+            .unwrap_err();
+        assert_eq!(rsp.code(), tonic::Code::InvalidArgument);
+        assert_eq!(rsp.message(), "transaction is empty".to_string());
+    }
+
+    #[tokio::test]
+    async fn get_transaction_fees_works_as_expected() {
+        let action_a = Transfer {
+            to: *ALICE_ADDRESS,
+            amount: 100,
+            asset: denom_0(),
+            fee_asset: denom_0(),
+        };
+        let action_b = RollupDataSubmission {
+            data: vec![1, 2, 3].into(),
+            rollup_id: RollupId::from_unhashed_bytes(b"rollupid"),
+            fee_asset: denom_1(),
+        };
+        let chain_id = "test";
+
+        let body = TransactionBody::builder()
+            .actions(vec![action_a.clone().into(), action_b.clone().into()])
+            .chain_id(chain_id)
+            .nonce(0)
+            .try_build()
+            .unwrap();
+
+        let mut fixture = Fixture::default_initialized().await;
+        let mut state = fixture.app.new_state_delta();
+        state.put_allowed_fee_asset(&denom_1()).unwrap();
+        state
+            .put_ibc_asset(denom_1().as_trace_prefixed().unwrap().clone())
+            .unwrap();
+        fixture.app.apply_and_commit(state, fixture.storage()).await;
+
+        let server = new_server(&fixture);
+
+        let transfer_fees = fixture
+            .state()
+            .get_fees::<Transfer>()
+            .await
+            .unwrap()
+            .unwrap();
+        let rollup_data_submission_fees = fixture
+            .state()
+            .get_fees::<RollupDataSubmission>()
+            .await
+            .unwrap()
+            .unwrap();
+
+        let request = Request::new(GetTransactionFeesRequest {
+            transaction_body: Some(body.into_raw()),
+        });
+
+        let mut rsp = server
+            .get_transaction_fees(request)
+            .await
+            .unwrap()
+            .into_inner();
+
+        let mut expected = GetTransactionFeesResponse {
+            block_height: fixture.block_height().await.value(),
+            fees: vec![
+                TransactionFee {
+                    asset: denom_0().to_string(),
+                    fee: Some(
+                        (transfer_fees.base()
+                            + transfer_fees.multiplier() * action_a.variable_component())
+                        .into(),
+                    ),
+                },
+                TransactionFee {
+                    asset: denom_1().to_string(),
+                    fee: Some(
+                        (rollup_data_submission_fees.base()
+                            + rollup_data_submission_fees.multiplier()
+                                * action_b.variable_component())
+                        .into(),
+                    ),
+                },
+            ],
+        };
+        rsp.fees
+            .sort_by(|a, b| u128::from(a.fee.unwrap()).cmp(&u128::from(b.fee.unwrap())));
+        expected
+            .fees
+            .sort_by(|a, b| u128::from(a.fee.unwrap()).cmp(&u128::from(b.fee.unwrap())));
+
+        assert_eq!(rsp, expected);
     }
 }
