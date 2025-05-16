@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use astria_core::sequencerblock::v1::block::FilteredSequencerBlock;
+use astria_core::sequencerblock::v1alpha1::block::FilteredSequencerBlock;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
