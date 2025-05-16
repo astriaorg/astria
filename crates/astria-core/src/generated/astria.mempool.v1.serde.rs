@@ -6,12 +6,12 @@ impl serde::Serialize for GetTransactionFeesRequest {
     {
         use serde::ser::SerializeStruct;
         let mut len = 0;
-        if self.transaction.is_some() {
+        if self.transaction_body.is_some() {
             len += 1;
         }
         let mut struct_ser = serializer.serialize_struct("astria.mempool.v1.GetTransactionFeesRequest", len)?;
-        if let Some(v) = self.transaction.as_ref() {
-            struct_ser.serialize_field("transaction", v)?;
+        if let Some(v) = self.transaction_body.as_ref() {
+            struct_ser.serialize_field("transactionBody", v)?;
         }
         struct_ser.end()
     }
@@ -23,12 +23,13 @@ impl<'de> serde::Deserialize<'de> for GetTransactionFeesRequest {
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "transaction",
+            "transaction_body",
+            "transactionBody",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
-            Transaction,
+            TransactionBody,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -50,7 +51,7 @@ impl<'de> serde::Deserialize<'de> for GetTransactionFeesRequest {
                         E: serde::de::Error,
                     {
                         match value {
-                            "transaction" => Ok(GeneratedField::Transaction),
+                            "transactionBody" | "transaction_body" => Ok(GeneratedField::TransactionBody),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -70,19 +71,19 @@ impl<'de> serde::Deserialize<'de> for GetTransactionFeesRequest {
                 where
                     V: serde::de::MapAccess<'de>,
             {
-                let mut transaction__ = None;
+                let mut transaction_body__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
-                        GeneratedField::Transaction => {
-                            if transaction__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("transaction"));
+                        GeneratedField::TransactionBody => {
+                            if transaction_body__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("transactionBody"));
                             }
-                            transaction__ = map_.next_value()?;
+                            transaction_body__ = map_.next_value()?;
                         }
                     }
                 }
                 Ok(GetTransactionFeesRequest {
-                    transaction: transaction__,
+                    transaction_body: transaction_body__,
                 })
             }
         }

@@ -6,5 +6,5 @@ import "astria/protocol/transaction/v1/transaction.proto";
 
 // A request to get the fees for the given transaction on the Astria Sequencer.
 message GetTransactionFeesRequest {
-  astria.protocol.transaction.v1.Transaction transaction = 1;
+  astria.protocol.transaction.v1.TransactionBody transaction_body = 1;
 }

@@ -24,7 +24,8 @@ use astria_core::{
         TransactionId,
         TRANSACTION_ID_LEN,
     },
-    protocol::transaction::v1::Transaction,
+    protocol::transaction::v1::TransactionBody,
+    Protobuf as _,
 };
 use bytes::Bytes;
 use cnidarium::Storage;
@@ -115,26 +116,27 @@ impl TransactionService for Server {
         self: Arc<Self>,
         request: Request<GetTransactionFeesRequest>,
     ) -> Result<Response<GetTransactionFeesResponse>, Status> {
-        let unchecked_tx: Transaction = request
-            .into_inner()
-            .transaction
-            .ok_or_else(|| Status::invalid_argument("transaction is empty"))?
-            .try_into()
-            .map_err(|err| {
-                Status::invalid_argument(format!("failed to decode transaction from raw: {err}"))
-            })?;
+        let tx_body = TransactionBody::try_from_raw(
+            request
+                .into_inner()
+                .transaction_body
+                .ok_or_else(|| Status::invalid_argument("transaction is empty"))?,
+        )
+        .map_err(|err| {
+            Status::invalid_argument(format!("failed to decode transaction from raw: {err}"))
+        })?;
 
         let snapshot = self.storage.latest_snapshot();
         let block_height = snapshot
             .get_block_height()
             .await
             .map_err(|err| Status::internal(format!("failed to get block height: {err}")))?;
-        let fees_with_ibc_denoms = total_fees(
-            unchecked_tx.actions().iter().map(ActionRef::from),
-            &snapshot,
-        )
-        .await
-        .map_err(|err| Status::internal(format!("failed to get fees for transaction: {err}")))?;
+        let fees_with_ibc_denoms =
+            total_fees(tx_body.actions().iter().map(ActionRef::from), &snapshot)
+                .await
+                .map_err(|err| {
+                    Status::internal(format!("failed to get fees for transaction: {err}"))
+                })?;
         let mut fees = Vec::with_capacity(fees_with_ibc_denoms.len());
         for (ibc_denom, value) in fees_with_ibc_denoms {
             let trace_denom = match snapshot.map_ibc_to_trace_prefixed_asset(&ibc_denom).await {
@@ -604,7 +606,7 @@ mod tests {
         let server = new_server(&fixture);
 
         let req = GetTransactionFeesRequest {
-            transaction: None,
+            transaction_body: None,
         };
         let rsp = server
             .get_transaction_fees(Request::new(req))
@@ -612,29 +614,6 @@ mod tests {
             .unwrap_err();
         assert_eq!(rsp.code(), tonic::Code::InvalidArgument);
         assert_eq!(rsp.message(), "transaction is empty".to_string());
-    }
-
-    #[tokio::test]
-    async fn get_transaction_fees_fails_if_checked_transaction_construction_fails() {
-        let fixture = Fixture::default_initialized().await;
-
-        let server = new_server(&fixture);
-
-        let req = GetTransactionFeesRequest {
-            transaction: Some(RawTransaction {
-                signature: Bytes::new(),
-                public_key: Bytes::new(),
-                body: None,
-            }),
-        };
-        let rsp = server
-            .get_transaction_fees(Request::new(req))
-            .await
-            .unwrap_err();
-        assert_eq!(rsp.code(), tonic::Code::InvalidArgument);
-        assert!(rsp
-            .message()
-            .contains("failed to decode transaction from raw:"));
     }
 
     #[tokio::test]
@@ -657,8 +636,7 @@ mod tests {
             .chain_id(chain_id)
             .nonce(0)
             .try_build()
-            .unwrap()
-            .sign(&ALICE);
+            .unwrap();
 
         let mut fixture = Fixture::default_initialized().await;
         let mut state = fixture.app.new_state_delta();
@@ -684,7 +662,7 @@ mod tests {
             .unwrap();
 
         let request = Request::new(GetTransactionFeesRequest {
-            transaction: Some(body.to_raw()),
+            transaction_body: Some(body.into_raw()),
         });
 
         let mut rsp = server

@@ -3,8 +3,8 @@
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetTransactionFeesRequest {
     #[prost(message, optional, tag = "1")]
-    pub transaction: ::core::option::Option<
-        super::super::protocol::transaction::v1::Transaction,
+    pub transaction_body: ::core::option::Option<
+        super::super::protocol::transaction::v1::TransactionBody,
     >,
 }
 impl ::prost::Name for GetTransactionFeesRequest {
