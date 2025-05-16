@@ -18,6 +18,9 @@ use crate::{
         BridgeSudoChange,
         BridgeTransfer,
         BridgeUnlock,
+        CancelOrder,
+        CreateMarket,
+        CreateOrder,
         CurrencyPairsChange,
         FeeAssetChange,
         FeeChange,
@@ -30,6 +33,7 @@ use crate::{
         RollupDataSubmission,
         SudoAddressChange,
         Transfer,
+        UpdateMarket,
         ValidatorUpdate,
     },
     Protobuf,
@@ -116,6 +120,10 @@ impl_protobuf_for_fee_components!(
     FeeComponents<RecoverIbcClient> => raw::RecoverIbcClientFeeComponents,
     FeeComponents<CurrencyPairsChange> => raw::CurrencyPairsChangeFeeComponents,
     FeeComponents<MarketsChange> => raw::MarketsChangeFeeComponents,
+    FeeComponents<CreateOrder> => raw::CreateOrderFeeComponents,
+    FeeComponents<CancelOrder> => raw::CancelOrderFeeComponents,
+    FeeComponents<CreateMarket> => raw::CreateMarketFeeComponents,
+    FeeComponents<UpdateMarket> => raw::UpdateMarketFeeComponents,
 );
 
 pub struct FeeComponents<T: ?Sized> {

@@ -34,7 +34,11 @@ impl Action {
             | Action::BridgeLock(_)
             | Action::BridgeUnlock(_)
             | Action::BridgeTransfer(_)
-            | Action::Ibc(_) => Group::BundleableGeneral,
+            | Action::Ibc(_)
+            | Action::CreateOrder(_)
+            | Action::CancelOrder(_)
+            | Action::CreateMarket(_)
+            | Action::UpdateMarket(_) => Group::BundleableGeneral,
         }
     }
 }

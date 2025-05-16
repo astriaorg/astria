@@ -36,9 +36,16 @@ use crate::{
         IncorrectRollupIdLength,
         RollupId,
     },
-    protocol::fees::v1::{
-        FeeComponentError,
-        FeeComponents,
+    protocol::{
+        fees::v1::{
+            FeeComponentError,
+            FeeComponents,
+        },
+        orderbook::v1::{
+            OrderSide, 
+            OrderType, 
+            OrderTimeInForce,
+        },
     },
     Protobuf,
 };
@@ -72,6 +79,10 @@ pub enum Action {
     RecoverIbcClient(RecoverIbcClient),
     CurrencyPairsChange(CurrencyPairsChange),
     MarketsChange(MarketsChange),
+    CreateOrder(CreateOrder),
+    CancelOrder(CancelOrder),
+    CreateMarket(CreateMarket),
+    UpdateMarket(UpdateMarket),
 }
 
 impl Protobuf for Action {
@@ -100,6 +111,10 @@ impl Protobuf for Action {
             Action::RecoverIbcClient(act) => Value::RecoverIbcClient(act.to_raw()),
             Action::CurrencyPairsChange(act) => Value::CurrencyPairsChange(act.to_raw()),
             Action::MarketsChange(act) => Value::MarketsChange(act.to_raw()),
+            Action::CreateOrder(act) => Value::CreateOrder(act.to_raw()),
+            Action::CancelOrder(act) => Value::CancelOrder(act.to_raw()),
+            Action::CreateMarket(act) => Value::CreateMarket(act.to_raw()),
+            Action::UpdateMarket(act) => Value::UpdateMarket(act.to_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -185,7 +200,18 @@ impl Protobuf for Action {
             Value::MarketsChange(act) => Self::MarketsChange(
                 MarketsChange::try_from_raw(act).map_err(Error::markets_change)?,
             ),
-            _ => todo!(),
+            Value::CreateOrder(act) => Self::CreateOrder(
+                CreateOrder::try_from_raw(act).map_err(Error::create_order)?,
+            ),
+            Value::CancelOrder(act) => Self::CancelOrder(
+                CancelOrder::try_from_raw(act).map_err(Error::cancel_order)?,
+            ),
+            Value::CreateMarket(act) => Self::CreateMarket(
+                CreateMarket::try_from_raw(act).map_err(Error::create_market)?,
+            ),
+            Value::UpdateMarket(act) => Self::UpdateMarket(
+                UpdateMarket::try_from_raw(act).map_err(Error::update_market)?,
+            ),
         };
         Ok(action)
     }
@@ -326,6 +352,30 @@ impl From<MarketsChange> for Action {
     }
 }
 
+impl From<CreateOrder> for Action {
+    fn from(value: CreateOrder) -> Self {
+        Self::CreateOrder(value)
+    }
+}
+
+impl From<CancelOrder> for Action {
+    fn from(value: CancelOrder) -> Self {
+        Self::CancelOrder(value)
+    }
+}
+
+impl From<CreateMarket> for Action {
+    fn from(value: CreateMarket) -> Self {
+        Self::CreateMarket(value)
+    }
+}
+
+impl From<UpdateMarket> for Action {
+    fn from(value: UpdateMarket) -> Self {
+        Self::UpdateMarket(value)
+    }
+}
+
 impl From<Action> for raw::Action {
     fn from(value: Action) -> Self {
         value.into_raw()
@@ -367,6 +417,10 @@ impl ActionName for Action {
             Action::RecoverIbcClient(_) => "RecoverIbcClient",
             Action::CurrencyPairsChange(_) => "CurrencyPairsChange",
             Action::MarketsChange(_) => "MarketsChange",
+            Action::CreateOrder(_) => "CreateOrder",
+            Action::CancelOrder(_) => "CancelOrder",
+            Action::CreateMarket(_) => "CreateMarket",
+            Action::UpdateMarket(_) => "UpdateMarket",
         }
     }
 }
@@ -451,6 +505,22 @@ impl Error {
     fn markets_change(inner: MarketsChangeError) -> Self {
         Self(ActionErrorKind::MarketsChange(inner))
     }
+
+    fn create_order(inner: CreateOrderError) -> Self {
+        Self(ActionErrorKind::CreateOrder(inner))
+    }
+
+    fn cancel_order(inner: CancelOrderError) -> Self {
+        Self(ActionErrorKind::CancelOrder(inner))
+    }
+
+    fn create_market(inner: CreateMarketError) -> Self {
+        Self(ActionErrorKind::CreateMarket(inner))
+    }
+
+    fn update_market(inner: UpdateMarketError) -> Self {
+        Self(ActionErrorKind::UpdateMarket(inner))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -493,6 +563,14 @@ enum ActionErrorKind {
     CurrencyPairsChange(#[source] CurrencyPairsChangeError),
     #[error("markets change action was not valid")]
     MarketsChange(#[source] MarketsChangeError),
+    #[error("create order action was not valid")]
+    CreateOrder(#[source] CreateOrderError),
+    #[error("cancel order action was not valid")]
+    CancelOrder(#[source] CancelOrderError),
+    #[error("create market action was not valid")]
+    CreateMarket(#[source] CreateMarketError),
+    #[error("update market action was not valid")]
+    UpdateMarket(#[source] UpdateMarketError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -2778,4 +2856,429 @@ pub enum MarketsChangeErrorKind {
     InvalidMarket(#[from] MarketError),
     #[error("change market action contained no markets to change")]
     MissingMarkets,
+}
+
+//--------- ORDERBOOK ACTIONS ---------//
+
+/// Create a new order in the order book
+#[derive(Debug, Clone)]
+pub struct CreateOrder {
+    /// Market identifier (e.g., "BTC/USD")
+    pub market: String,
+    /// Order side (buy or sell)
+    pub side: OrderSide,
+    /// Order type (limit, market)
+    pub r#type: OrderType,
+    /// Limit price (required for limit orders)
+    pub price: Option<u128>,
+    /// Amount to buy or sell
+    pub quantity: Option<u128>,
+    /// Time in force parameter
+    pub time_in_force: OrderTimeInForce,
+    /// The asset used to pay the transaction fee
+    pub fee_asset: asset::Denom,
+}
+
+impl Protobuf for CreateOrder {
+    type Error = CreateOrderError;
+    type Raw = raw::CreateOrder;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let raw::CreateOrder {
+            market,
+            side,
+            r#type,
+            price,
+            quantity,
+            time_in_force,
+            fee_asset,
+        } = raw;
+
+        if market.is_empty() {
+            return Err(CreateOrderError::empty_market());
+        }
+
+        let side = OrderSide::try_from(*side).map_err(|_| CreateOrderError::invalid_side(*side))?;
+        let r#type = OrderType::try_from(*r#type).map_err(|_| CreateOrderError::invalid_type(*r#type))?;
+        let time_in_force = OrderTimeInForce::try_from(*time_in_force)
+            .map_err(|_| CreateOrderError::invalid_time_in_force(*time_in_force))?;
+
+        let price = price.as_ref().map(|p| p.clone().into());
+        let quantity = quantity.as_ref().map(|q| q.clone().into());
+
+        if matches!(r#type, OrderType::Limit) && price.is_none() {
+            return Err(CreateOrderError::missing_price_for_limit_order());
+        }
+
+        if quantity.is_none() {
+            return Err(CreateOrderError::missing_quantity());
+        }
+
+        let fee_asset = fee_asset.parse().map_err(CreateOrderError::invalid_fee_asset)?;
+
+        Ok(Self {
+            market: market.clone(),
+            side,
+            r#type,
+            price,
+            quantity,
+            time_in_force,
+            fee_asset,
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let Self {
+            market,
+            side,
+            r#type,
+            price,
+            quantity,
+            time_in_force,
+            fee_asset,
+        } = self;
+
+        raw::CreateOrder {
+            market: market.clone(),
+            side: *side as i32,
+            r#type: *r#type as i32,
+            price: price.map(Into::into),
+            quantity: quantity.map(Into::into),
+            time_in_force: *time_in_force as i32,
+            fee_asset: fee_asset.to_string(),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct CreateOrderError(CreateOrderErrorKind);
+
+impl CreateOrderError {
+    #[must_use]
+    pub fn empty_market() -> Self {
+        Self(CreateOrderErrorKind::EmptyMarket)
+    }
+
+    #[must_use]
+    pub fn invalid_side(side: i32) -> Self {
+        Self(CreateOrderErrorKind::InvalidSide(side))
+    }
+
+    #[must_use]
+    pub fn invalid_type(typ: i32) -> Self {
+        Self(CreateOrderErrorKind::InvalidType(typ))
+    }
+
+    #[must_use]
+    pub fn invalid_time_in_force(tif: i32) -> Self {
+        Self(CreateOrderErrorKind::InvalidTimeInForce(tif))
+    }
+
+    #[must_use]
+    pub fn missing_price_for_limit_order() -> Self {
+        Self(CreateOrderErrorKind::MissingPriceForLimitOrder)
+    }
+
+    #[must_use]
+    pub fn missing_quantity() -> Self {
+        Self(CreateOrderErrorKind::MissingQuantity)
+    }
+
+    #[must_use]
+    pub fn invalid_fee_asset(err: asset::ParseDenomError) -> Self {
+        Self(CreateOrderErrorKind::InvalidFeeAsset(err))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum CreateOrderErrorKind {
+    #[error("market cannot be empty")]
+    EmptyMarket,
+    #[error("invalid order side: {0}")]
+    InvalidSide(i32),
+    #[error("invalid order type: {0}")]
+    InvalidType(i32),
+    #[error("invalid time in force: {0}")]
+    InvalidTimeInForce(i32),
+    #[error("limit orders must specify a price")]
+    MissingPriceForLimitOrder,
+    #[error("order must specify a quantity")]
+    MissingQuantity,
+    #[error("invalid fee asset")]
+    InvalidFeeAsset(#[source] asset::ParseDenomError),
+}
+
+/// Cancel an existing order
+#[derive(Debug, Clone)]
+pub struct CancelOrder {
+    /// ID of the order to cancel
+    pub order_id: String,
+    /// The asset used to pay the transaction fee
+    pub fee_asset: asset::Denom,
+}
+
+impl Protobuf for CancelOrder {
+    type Error = CancelOrderError;
+    type Raw = raw::CancelOrder;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let raw::CancelOrder {
+            order_id,
+            fee_asset,
+        } = raw;
+
+        if order_id.is_empty() {
+            return Err(CancelOrderError::empty_order_id());
+        }
+
+        let fee_asset = fee_asset.parse().map_err(CancelOrderError::invalid_fee_asset)?;
+
+        Ok(Self {
+            order_id: order_id.clone(),
+            fee_asset,
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let Self {
+            order_id,
+            fee_asset,
+        } = self;
+
+        raw::CancelOrder {
+            order_id: order_id.clone(),
+            fee_asset: fee_asset.to_string(),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct CancelOrderError(CancelOrderErrorKind);
+
+impl CancelOrderError {
+    #[must_use]
+    pub fn empty_order_id() -> Self {
+        Self(CancelOrderErrorKind::EmptyOrderId)
+    }
+
+    #[must_use]
+    pub fn invalid_fee_asset(err: asset::ParseDenomError) -> Self {
+        Self(CancelOrderErrorKind::InvalidFeeAsset(err))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum CancelOrderErrorKind {
+    #[error("order ID cannot be empty")]
+    EmptyOrderId,
+    #[error("invalid fee asset")]
+    InvalidFeeAsset(#[source] asset::ParseDenomError),
+}
+
+/// Create a new market for trading
+#[derive(Debug, Clone)]
+pub struct CreateMarket {
+    /// Market identifier (e.g., "BTC/USD")
+    pub market: String,
+    /// Base asset of the market (e.g., "BTC")
+    pub base_asset: String,
+    /// Quote asset of the market (e.g., "USD")
+    pub quote_asset: String,
+    /// Minimum price increment
+    pub tick_size: Option<u128>,
+    /// Minimum quantity increment
+    pub lot_size: Option<u128>,
+    /// The asset used to pay the transaction fee
+    pub fee_asset: asset::Denom,
+}
+
+impl Protobuf for CreateMarket {
+    type Error = CreateMarketError;
+    type Raw = raw::CreateMarket;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let raw::CreateMarket {
+            market,
+            base_asset,
+            quote_asset,
+            tick_size,
+            lot_size,
+            fee_asset,
+        } = raw;
+
+        if market.is_empty() {
+            return Err(CreateMarketError::empty_market());
+        }
+
+        if base_asset.is_empty() {
+            return Err(CreateMarketError::empty_base_asset());
+        }
+
+        if quote_asset.is_empty() {
+            return Err(CreateMarketError::empty_quote_asset());
+        }
+
+        let tick_size = tick_size.as_ref().map(|ts| ts.clone().into());
+        let lot_size = lot_size.as_ref().map(|ls| ls.clone().into());
+
+        let fee_asset = fee_asset.parse().map_err(CreateMarketError::invalid_fee_asset)?;
+
+        Ok(Self {
+            market: market.clone(),
+            base_asset: base_asset.clone(),
+            quote_asset: quote_asset.clone(),
+            tick_size,
+            lot_size,
+            fee_asset,
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let Self {
+            market,
+            base_asset,
+            quote_asset,
+            tick_size,
+            lot_size,
+            fee_asset,
+        } = self;
+
+        raw::CreateMarket {
+            market: market.clone(),
+            base_asset: base_asset.clone(),
+            quote_asset: quote_asset.clone(),
+            tick_size: tick_size.map(Into::into),
+            lot_size: lot_size.map(Into::into),
+            fee_asset: fee_asset.to_string(),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct CreateMarketError(CreateMarketErrorKind);
+
+impl CreateMarketError {
+    #[must_use]
+    pub fn empty_market() -> Self {
+        Self(CreateMarketErrorKind::EmptyMarket)
+    }
+
+    #[must_use]
+    pub fn empty_base_asset() -> Self {
+        Self(CreateMarketErrorKind::EmptyBaseAsset)
+    }
+
+    #[must_use]
+    pub fn empty_quote_asset() -> Self {
+        Self(CreateMarketErrorKind::EmptyQuoteAsset)
+    }
+
+    #[must_use]
+    pub fn invalid_fee_asset(err: asset::ParseDenomError) -> Self {
+        Self(CreateMarketErrorKind::InvalidFeeAsset(err))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum CreateMarketErrorKind {
+    #[error("market identifier cannot be empty")]
+    EmptyMarket,
+    #[error("base asset cannot be empty")]
+    EmptyBaseAsset,
+    #[error("quote asset cannot be empty")]
+    EmptyQuoteAsset,
+    #[error("invalid fee asset")]
+    InvalidFeeAsset(#[source] asset::ParseDenomError),
+}
+
+/// Sudo action to update market parameters
+#[derive(Debug, Clone)]
+pub struct UpdateMarket {
+    /// Market identifier
+    pub market: String,
+    /// New minimum price increment (if provided)
+    pub tick_size: Option<u128>,
+    /// New minimum quantity increment (if provided)
+    pub lot_size: Option<u128>,
+    /// Whether the market is paused
+    pub paused: bool,
+    /// The asset used to pay the transaction fee
+    pub fee_asset: asset::Denom,
+}
+
+impl Protobuf for UpdateMarket {
+    type Error = UpdateMarketError;
+    type Raw = raw::UpdateMarket;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let raw::UpdateMarket {
+            market,
+            tick_size,
+            lot_size,
+            paused,
+            fee_asset,
+        } = raw;
+
+        if market.is_empty() {
+            return Err(UpdateMarketError::empty_market());
+        }
+
+        let tick_size = tick_size.as_ref().map(|ts| ts.clone().into());
+        let lot_size = lot_size.as_ref().map(|ls| ls.clone().into());
+
+        let fee_asset = fee_asset.parse().map_err(UpdateMarketError::invalid_fee_asset)?;
+
+        Ok(Self {
+            market: market.clone(),
+            tick_size,
+            lot_size,
+            paused: *paused,
+            fee_asset,
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let Self {
+            market,
+            tick_size,
+            lot_size,
+            paused,
+            fee_asset,
+        } = self;
+
+        raw::UpdateMarket {
+            market: market.clone(),
+            tick_size: tick_size.map(Into::into),
+            lot_size: lot_size.map(Into::into),
+            paused: *paused,
+            fee_asset: fee_asset.to_string(),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct UpdateMarketError(UpdateMarketErrorKind);
+
+impl UpdateMarketError {
+    #[must_use]
+    pub fn empty_market() -> Self {
+        Self(UpdateMarketErrorKind::EmptyMarket)
+    }
+
+    #[must_use]
+    pub fn invalid_fee_asset(err: asset::ParseDenomError) -> Self {
+        Self(UpdateMarketErrorKind::InvalidFeeAsset(err))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum UpdateMarketErrorKind {
+    #[error("market identifier cannot be empty")]
+    EmptyMarket,
+    #[error("invalid fee asset")]
+    InvalidFeeAsset(#[source] asset::ParseDenomError),
 }
