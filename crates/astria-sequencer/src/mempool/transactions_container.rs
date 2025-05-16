@@ -119,10 +119,6 @@ impl TimemarkedTransaction {
     pub(super) fn address_bytes(&self) -> &[u8; ADDRESS_LENGTH] {
         self.checked_tx.address_bytes()
     }
-
-    pub(super) fn costs(&self) -> &HashMap<IbcPrefixed, u128> {
-        &self.costs
-    }
 }
 
 impl fmt::Display for TimemarkedTransaction {
@@ -257,26 +253,10 @@ impl PendingTransactionsForAccount {
     ) -> Vec<TimemarkedTransaction> {
         let mut split_at = 0;
 
-        'outer: for (nonce, tx) in &self.txs {
+        for (nonce, tx) in &self.txs {
             // ensure we have enough balance to cover inclusion
-            for (denom, cost) in tx.costs() {
-                if *cost == 0 {
-                    continue;
-                }
-                match available_balances.entry(*denom) {
-                    hash_map::Entry::Occupied(mut entry) => {
-                        // try to subtract cost, if not enough balance, do not include
-                        let current_balance = entry.get_mut();
-                        *current_balance = match current_balance.checked_sub(*cost) {
-                            None => break 'outer,
-                            Some(new_value) => new_value,
-                        };
-                    }
-                    hash_map::Entry::Vacant(_) => {
-                        // not enough balance, do not include
-                        break 'outer;
-                    }
-                }
+            if tx.deduct_costs(&mut available_balances).is_err() {
+                break;
             }
 
             split_at = nonce.saturating_add(1);
@@ -1811,7 +1791,7 @@ mod tests {
                 .txs
                 .get(&0)
                 .unwrap()
-                .costs()
+                .costs
                 .get(&denom_0().to_ibc_prefixed())
                 .unwrap(),
             &0,
@@ -1850,7 +1830,7 @@ mod tests {
                 .txs
                 .get(&0)
                 .unwrap()
-                .costs()
+                .costs
                 .get(&denom_0().to_ibc_prefixed())
                 .unwrap(),
             &expected_cost,
