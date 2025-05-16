@@ -25,6 +25,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for all action types [#2142](https://github.com/astriaorg/astria/pull/2142).
 - Rename metric `ASTRIA_SEQUENCER_CHECK_TX_REMOVED_TOO_LARGE` to
   `ASTRIA_SEQUENCER_CHECK_TX_FAILED_TX_TOO_LARGE` [#2142](https://github.com/astriaorg/astria/pull/2142)
+- Changed `CurrencyPairsChange::Addition` action to fail if any currency pair to
+  be added is already stored [#2171](https://github.com/astriaorg/astria/pull/2171).
+- Changed `CurrencyPairsChange::Removal` action to fail if any currency pair to
+  be removed is not currently stored [#2171](https://github.com/astriaorg/astria/pull/2171).
+- Changed `FeeAssetChange::Addition` action to fail if the fee asset to be added
+  is already stored [#2171](https://github.com/astriaorg/astria/pull/2171).
+- Changed `FeeAssetChange::Removal` action to fail if the fee asset to be
+  removed is not currently stored [#2171](https://github.com/astriaorg/astria/pull/2171).
+- Changed `IbcRelayerChange::Addition` action to fail if the address to be added
+  is already stored [#2171](https://github.com/astriaorg/astria/pull/2171).
+- Changed `IbcRelayerChange::Removal` action to fail if the address to be
+  removed is not currently stored [#2171](https://github.com/astriaorg/astria/pull/2171).
+- Changed `MarketsChange::Removal` action to fail if any market to be removed is
+  not currently stored [#2171](https://github.com/astriaorg/astria/pull/2171).
 
 ### Removed
 

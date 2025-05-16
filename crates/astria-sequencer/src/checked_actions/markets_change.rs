@@ -7,7 +7,6 @@ use astria_core::{
     protocol::transaction::v1::action::MarketsChange,
 };
 use astria_eyre::eyre::{
-    bail,
     ensure,
     eyre,
     OptionExt as _,
@@ -74,42 +73,46 @@ impl CheckedMarketsChange {
             "transaction signer not authorized to change markets",
         );
 
-        let market_map = state
+        let current_market_map = state
             .get_market_map()
             .await
             .wrap_err("failed to read market map from storage")?
             .ok_or_eyre("market map not found in storage")?;
 
-        match &self.action {
-            MarketsChange::Creation(create_markets) => {
-                for market in create_markets {
-                    let ticker_key = market.ticker.currency_pair.to_string();
-                    if market_map.markets.contains_key(&ticker_key) {
-                        bail!("market for ticker {ticker_key} already exists");
-                    }
-                }
-            }
-            MarketsChange::Removal(_) => (),
-            MarketsChange::Update(update_markets) => {
-                for market in update_markets {
-                    let ticker_key = market.ticker.currency_pair.to_string();
-                    if !market_map.markets.contains_key(&ticker_key) {
-                        // NOTE: In order to allow
-                        // `app_legacy_execute_transactions_with_every_action_snapshot` to continue
-                        // to pass, we need to make an exception for `testAssetOne/testAssetTwo`
-                        // here to allow the test tx to be constructed. This exception can be
-                        // removed once the legacy test is removed.
-                        #[cfg(test)]
-                        if ticker_key == "testAssetOne/testAssetTwo" {
-                            continue;
-                        }
-                        bail!("market for ticker {ticker_key} not found in market map");
-                    }
-                }
-            }
+        let markets_to_change = match &self.action {
+            MarketsChange::Creation(markets)
+            | MarketsChange::Removal(markets)
+            | MarketsChange::Update(markets) => markets,
         };
 
-        Ok(market_map)
+        for market in markets_to_change {
+            let ticker_key = market.ticker.currency_pair.to_string();
+            // NOTE: To allow `app_legacy_execute_transactions_with_every_action_snapshot` to
+            // continue to pass, we need to make an exception for `testAssetOne/testAssetTwo` here
+            // to allow the test tx to be constructed. This exception can be removed once the legacy
+            // test is removed.
+            #[cfg(test)]
+            if ticker_key == "testAssetOne/testAssetTwo" {
+                continue;
+            }
+            let is_in_current = current_market_map.markets.contains_key(&ticker_key);
+            match &self.action {
+                MarketsChange::Creation(_) => ensure!(
+                    !is_in_current,
+                    "failed to create market for `{ticker_key}`: already exists in market map"
+                ),
+                MarketsChange::Removal(_) => ensure!(
+                    is_in_current,
+                    "failed to remove market for `{ticker_key}`: doesn't exist in market map"
+                ),
+                MarketsChange::Update(_) => ensure!(
+                    is_in_current,
+                    "failed to update market for `{ticker_key}`: doesn't exist in market map"
+                ),
+            }
+        }
+
+        Ok(current_market_map)
     }
 
     #[instrument(skip_all, err(level = Level::DEBUG))]
@@ -283,7 +286,25 @@ mod tests {
             .new_checked_action(action, *SUDO_ADDRESS_BYTES)
             .await
             .unwrap_err();
-        assert_error_contains(&err, "market for ticker BTC/USD already exists");
+        assert_error_contains(
+            &err,
+            "failed to create market for `BTC/USD`: already exists in market map",
+        );
+    }
+
+    #[tokio::test]
+    async fn should_fail_construction_of_removal_if_market_does_not_exist() {
+        let fixture = Fixture::default_initialized().await;
+
+        let action = new_removal_action("TIA/USD");
+        let err = fixture
+            .new_checked_action(action, *SUDO_ADDRESS_BYTES)
+            .await
+            .unwrap_err();
+        assert_error_contains(
+            &err,
+            "failed to remove market for `TIA/USD`: doesn't exist in market map",
+        );
     }
 
     #[tokio::test]
@@ -295,7 +316,10 @@ mod tests {
             .new_checked_action(action, *SUDO_ADDRESS_BYTES)
             .await
             .unwrap_err();
-        assert_error_contains(&err, "market for ticker TIA/USD not found in market map");
+        assert_error_contains(
+            &err,
+            "failed to update market for `TIA/USD`: doesn't exist in market map",
+        );
     }
 
     #[tokio::test]
@@ -384,7 +408,37 @@ mod tests {
             .execute(fixture.state_mut())
             .await
             .unwrap_err();
-        assert_error_contains(&err, "market for ticker TIA/USD already exists");
+        assert_error_contains(
+            &err,
+            "failed to create market for `TIA/USD`: already exists in market map",
+        );
+    }
+
+    #[tokio::test]
+    async fn should_fail_execution_of_removal_if_market_does_not_exist() {
+        let mut fixture = Fixture::default_initialized().await;
+
+        let action = new_removal_action("BTC/USD");
+        let checked_action_1: CheckedMarketsChange = fixture
+            .new_checked_action(action.clone(), *SUDO_ADDRESS_BYTES)
+            .await
+            .unwrap()
+            .into();
+        let checked_action_2: CheckedMarketsChange = fixture
+            .new_checked_action(action, *SUDO_ADDRESS_BYTES)
+            .await
+            .unwrap()
+            .into();
+        checked_action_1.execute(fixture.state_mut()).await.unwrap();
+
+        let err = checked_action_2
+            .execute(fixture.state_mut())
+            .await
+            .unwrap_err();
+        assert_error_contains(
+            &err,
+            "failed to remove market for `BTC/USD`: doesn't exist in market map",
+        );
     }
 
     #[tokio::test]
@@ -413,7 +467,10 @@ mod tests {
             .execute(fixture.state_mut())
             .await
             .unwrap_err();
-        assert_error_contains(&err, "market for ticker BTC/USD not found in market map");
+        assert_error_contains(
+            &err,
+            "failed to update market for `BTC/USD`: doesn't exist in market map",
+        );
     }
 
     #[tokio::test]
@@ -478,8 +535,7 @@ mod tests {
         // The Aspen upgrade initializes markets for "BTC/USD" and "ETH/USD".
         let mut fixture = Fixture::default_initialized().await;
 
-        let existing_pair_to_remove = "ETH/USD".to_string();
-        let non_existing_pair_to_remove = "TIA/USD".to_string();
+        let pair_to_remove = "ETH/USD".to_string();
 
         let markets_before = fixture
             .state()
@@ -487,14 +543,7 @@ mod tests {
             .await
             .expect("should get market map")
             .expect("market map should be Some");
-        assert!(markets_before
-            .markets
-            .get(&existing_pair_to_remove)
-            .is_some());
-        assert!(markets_before
-            .markets
-            .get(&non_existing_pair_to_remove)
-            .is_none());
+        assert!(markets_before.markets.get(&pair_to_remove).is_some());
         assert_eq!(
             fixture
                 .state()
@@ -510,16 +559,7 @@ mod tests {
             .put_block_height(new_block_height)
             .unwrap();
 
-        let action = MarketsChange::Removal(vec![
-            Market {
-                ticker: dummy_ticker(&existing_pair_to_remove, "ticker metadata"),
-                provider_configs: vec![],
-            },
-            Market {
-                ticker: dummy_ticker(&non_existing_pair_to_remove, "ticker metadata"),
-                provider_configs: vec![],
-            },
-        ]);
+        let action = new_removal_action(&pair_to_remove);
         let checked_action: CheckedMarketsChange = fixture
             .new_checked_action(action.clone(), *SUDO_ADDRESS_BYTES)
             .await
@@ -534,10 +574,7 @@ mod tests {
             .await
             .expect("should get market map")
             .expect("market map should be Some");
-        assert!(markets_after
-            .markets
-            .get(&existing_pair_to_remove)
-            .is_none());
+        assert!(markets_after.markets.get(&pair_to_remove).is_none());
         assert_eq!(
             fixture
                 .state()

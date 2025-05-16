@@ -22,8 +22,8 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
+use indexmap::IndexSet;
 use tracing::{
-    debug,
     instrument,
     Level,
 };
@@ -73,6 +73,33 @@ impl CheckedCurrencyPairsChange {
             &sudo_address == self.tx_signer.as_bytes(),
             "transaction signer not authorized to change currency pairs",
         );
+
+        match &self.action {
+            CurrencyPairsChange::Addition(currency_pairs) => {
+                for currency_pair in currency_pairs {
+                    let maybe_pair_id = state
+                        .get_currency_pair_id(currency_pair)
+                        .await
+                        .wrap_err("failed to read currency pair id from storage")?;
+                    ensure!(
+                        maybe_pair_id.is_none(),
+                        "failed to add currency pair `{currency_pair}`: already added"
+                    );
+                }
+            }
+            CurrencyPairsChange::Removal(currency_pairs) => {
+                for currency_pair in currency_pairs {
+                    let maybe_pair_id = state
+                        .get_currency_pair_id(currency_pair)
+                        .await
+                        .wrap_err("failed to read currency pair id from storage")?;
+                    ensure!(
+                        maybe_pair_id.is_some(),
+                        "failed to remove currency pair `{currency_pair}`: not currently included"
+                    );
+                }
+            }
+        }
         Ok(())
     }
 
@@ -103,7 +130,7 @@ impl AssetTransfer for CheckedCurrencyPairsChange {
 
 async fn execute_currency_pairs_addition<S: StateWrite>(
     mut state: S,
-    currency_pairs: &[CurrencyPair],
+    currency_pairs: &IndexSet<CurrencyPair>,
 ) -> Result<()> {
     let mut next_currency_pair_id = state
         .get_next_currency_pair_id()
@@ -115,16 +142,6 @@ async fn execute_currency_pairs_addition<S: StateWrite>(
         .wrap_err("failed to read number of currency pairs from storage")?;
 
     for pair in currency_pairs {
-        if state
-            .get_currency_pair_state(pair)
-            .await
-            .wrap_err("failed to read currency pair state from storage")?
-            .is_some()
-        {
-            debug!(%pair, "currency pair already exists, skipping");
-            continue;
-        }
-
         let currency_pair_state = CurrencyPairState {
             price: None,
             nonce: CurrencyPairNonce::new(0),
@@ -151,7 +168,7 @@ async fn execute_currency_pairs_addition<S: StateWrite>(
 
 async fn execute_currency_pairs_removal<S: StateWrite>(
     mut state: S,
-    currency_pairs: &[CurrencyPair],
+    currency_pairs: &IndexSet<CurrencyPair>,
 ) -> Result<()> {
     let mut num_currency_pairs = state
         .get_num_currency_pairs()
@@ -159,17 +176,15 @@ async fn execute_currency_pairs_removal<S: StateWrite>(
         .wrap_err("failed to read number of currency pairs from storage")?;
 
     for pair in currency_pairs {
-        if state
+        state
             .remove_currency_pair(pair)
             .await
-            .wrap_err("failed to delete currency pair from storage")?
-        {
-            num_currency_pairs = num_currency_pairs
-                .checked_sub(1)
-                .ok_or_eyre("failed to decrement number of currency pairs")?;
-        }
+            .wrap_err("failed to delete currency pair from storage")?;
     }
 
+    num_currency_pairs = num_currency_pairs
+        .checked_sub(u64::try_from(currency_pairs.len()).expect("will never exceed u64::MAX"))
+        .ok_or_eyre("failed to decrement number of currency pairs")?;
     state
         .put_num_currency_pairs(num_currency_pairs)
         .wrap_err("failed to write number of currency pairs to storage")
@@ -193,18 +208,22 @@ mod tests {
         },
     };
 
-    fn new_addition<'a, I: IntoIterator<Item = &'a str>>(pairs: I) -> CurrencyPairsChange {
-        CurrencyPairsChange::Addition(pairs.into_iter().map(|s| s.parse().unwrap()).collect())
+    fn new_addition<'a, I: IntoIterator<Item = &'a str> + Clone>(
+        pairs_iter: I,
+    ) -> CurrencyPairsChange {
+        let count = pairs_iter.clone().into_iter().count();
+        let pairs: IndexSet<_> = pairs_iter.into_iter().map(|s| s.parse().unwrap()).collect();
+        assert_eq!(pairs.len(), count, "cannot use duplicate pairs");
+        CurrencyPairsChange::Addition(pairs)
     }
 
-    fn new_removal<'a, I: IntoIterator<Item = &'a str>>(pairs: I) -> CurrencyPairsChange {
-        CurrencyPairsChange::Removal(pairs.into_iter().map(|s| s.parse().unwrap()).collect())
-    }
-
-    fn pairs(action: CurrencyPairsChange) -> Vec<CurrencyPair> {
-        match action {
-            CurrencyPairsChange::Addition(pairs) | CurrencyPairsChange::Removal(pairs) => pairs,
-        }
+    fn new_removal<'a, I: IntoIterator<Item = &'a str> + Clone>(
+        pairs_iter: I,
+    ) -> CurrencyPairsChange {
+        let count = pairs_iter.clone().into_iter().count();
+        let pairs: IndexSet<_> = pairs_iter.into_iter().map(|s| s.parse().unwrap()).collect();
+        assert_eq!(pairs.len(), count, "cannot use duplicate pairs");
+        CurrencyPairsChange::Removal(pairs)
     }
 
     #[tokio::test]
@@ -236,12 +255,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn should_fail_construction_of_addition_if_pair_already_exists() {
+        // `Fixture::default_initialized` executes the Aspen upgrade, which adds currency pairs
+        // "BTC/USD" and "ETH/USD", so we'll use these for this test.
+        let fixture = Fixture::default_initialized().await;
+
+        let action = new_addition(["BTC/USD"]);
+        let err = fixture
+            .new_checked_action(action, *SUDO_ADDRESS_BYTES)
+            .await
+            .unwrap_err();
+        assert_error_contains(&err, "failed to add currency pair `BTC/USD`: already added");
+    }
+
+    #[tokio::test]
+    async fn should_fail_construction_of_removal_if_pair_doesnt_exist() {
+        let fixture = Fixture::default_initialized().await;
+
+        let action = new_removal(["BTC/ETH"]);
+        let err = fixture
+            .new_checked_action(action, *SUDO_ADDRESS_BYTES)
+            .await
+            .unwrap_err();
+        assert_error_contains(
+            &err,
+            "failed to remove currency pair `BTC/ETH`: not currently included",
+        );
+    }
+
+    #[tokio::test]
     async fn should_fail_execution_if_signer_is_not_sudo_address() {
         let mut fixture = Fixture::default_initialized().await;
 
         // Construct the addition and removal checked actions while the sudo address is still the
         // tx signer so construction succeeds.
-        let addition_action = new_addition(Some("BTC/USD"));
+        let addition_action = new_addition(Some("TIA/USD"));
         let checked_addition_action: CheckedCurrencyPairsChange = fixture
             .new_checked_action(addition_action, *SUDO_ADDRESS_BYTES)
             .await
@@ -293,13 +341,71 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn should_fail_execution_of_addition_if_pair_already_exists() {
+        let mut fixture = Fixture::default_initialized().await;
+
+        // Use duplicate additions.
+        let action = new_addition(["TIA/USD"]);
+        let checked_action_1: CheckedCurrencyPairsChange = fixture
+            .new_checked_action(action.clone(), *SUDO_ADDRESS_BYTES)
+            .await
+            .unwrap()
+            .into();
+        let checked_action_2: CheckedCurrencyPairsChange = fixture
+            .new_checked_action(action, *SUDO_ADDRESS_BYTES)
+            .await
+            .unwrap()
+            .into();
+
+        // First addition should succeed.
+        checked_action_1.execute(fixture.state_mut()).await.unwrap();
+
+        // Second should fail due to pair now existing.
+        let err = checked_action_2
+            .execute(fixture.state_mut())
+            .await
+            .unwrap_err();
+        assert_error_contains(&err, "failed to add currency pair `TIA/USD`: already added");
+    }
+
+    #[tokio::test]
+    async fn should_fail_execution_of_removal_if_pair_doesnt_exist() {
+        let mut fixture = Fixture::default_initialized().await;
+
+        // Use duplicate removals.
+        let action = new_removal(["BTC/USD"]);
+        let checked_action_1: CheckedCurrencyPairsChange = fixture
+            .new_checked_action(action.clone(), *SUDO_ADDRESS_BYTES)
+            .await
+            .unwrap()
+            .into();
+        let checked_action_2: CheckedCurrencyPairsChange = fixture
+            .new_checked_action(action, *SUDO_ADDRESS_BYTES)
+            .await
+            .unwrap()
+            .into();
+
+        // First removal should succeed.
+        checked_action_1.execute(fixture.state_mut()).await.unwrap();
+
+        // Second should fail due to pair now not existing.
+        let err = checked_action_2
+            .execute(fixture.state_mut())
+            .await
+            .unwrap_err();
+        assert_error_contains(
+            &err,
+            "failed to remove currency pair `BTC/USD`: not currently included",
+        );
+    }
+
+    #[tokio::test]
     async fn should_execute_addition() {
         // `Fixture::default_initialized` executes the Aspen upgrade, which adds currency pairs
         // "BTC/USD" and "ETH/USD", so we'll use different ones for this test.
         let mut fixture = Fixture::default_initialized().await;
 
-        // Ensure providing duplicate pairs succeeds.
-        let action = new_addition(["TIA/USD", "TIA/ETH", "TIA/USD"]);
+        let action = new_addition(["TIA/USD", "TIA/ETH"]);
         let checked_action: CheckedCurrencyPairsChange = fixture
             .new_checked_action(action.clone(), *SUDO_ADDRESS_BYTES)
             .await
@@ -308,11 +414,16 @@ mod tests {
 
         checked_action.execute(fixture.state_mut()).await.unwrap();
 
-        let pairs = pairs(action);
+        let mut pairs_iter = match action {
+            CurrencyPairsChange::Addition(pairs) | CurrencyPairsChange::Removal(pairs) => {
+                pairs.into_iter()
+            }
+        };
+        let pair = pairs_iter.next().unwrap();
         assert_eq!(
             fixture
                 .state()
-                .get_currency_pair_state(&pairs[0])
+                .get_currency_pair_state(&pair)
                 .await
                 .unwrap()
                 .unwrap(),
@@ -322,10 +433,11 @@ mod tests {
                 id: CurrencyPairId::new(2),
             }
         );
+        let pair = pairs_iter.next().unwrap();
         assert_eq!(
             fixture
                 .state()
-                .get_currency_pair_state(&pairs[1])
+                .get_currency_pair_state(&pair)
                 .await
                 .unwrap()
                 .unwrap(),
@@ -360,8 +472,7 @@ mod tests {
             .unwrap()
             .is_some());
 
-        // Ensure removing duplicate pairs succeeds, and removing a non-existent pair succeeds.
-        let action = new_removal(["BTC/USD", "TIA/USD", "BTC/USD"]);
+        let action = new_removal(["BTC/USD"]);
         let checked_action: CheckedCurrencyPairsChange = fixture
             .new_checked_action(action.clone(), *SUDO_ADDRESS_BYTES)
             .await
@@ -382,12 +493,6 @@ mod tests {
             .await
             .unwrap()
             .is_some());
-        assert!(fixture
-            .state()
-            .get_currency_pair_state(&"TIA/USD".parse::<CurrencyPair>().unwrap())
-            .await
-            .unwrap()
-            .is_none());
         assert_eq!(
             fixture.state().get_next_currency_pair_id().await.unwrap(),
             CurrencyPairId::new(2)

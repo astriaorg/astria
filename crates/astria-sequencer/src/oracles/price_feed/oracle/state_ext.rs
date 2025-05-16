@@ -292,18 +292,16 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip_all)]
-    async fn remove_currency_pair(&mut self, currency_pair: &CurrencyPair) -> Result<bool> {
-        let Some(id) = self
+    async fn remove_currency_pair(&mut self, currency_pair: &CurrencyPair) -> Result<()> {
+        let id = self
             .get_currency_pair_id(currency_pair)
             .await
             .wrap_err("failed to get currency pair ID")?
-        else {
-            return Ok(false);
-        };
+            .ok_or_eyre("currency pair ID not found")?;
         self.delete(keys::currency_pair_to_id(currency_pair));
         self.delete(keys::id_to_currency_pair(id));
         self.delete(keys::currency_pair_state(currency_pair));
-        Ok(true)
+        Ok(())
     }
 }
 

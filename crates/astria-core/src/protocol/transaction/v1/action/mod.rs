@@ -11,6 +11,7 @@ use ibc_types::{
     },
     IdentifierError,
 };
+use indexmap::IndexSet;
 use penumbra_ibc::IbcRelay;
 use prost::Name as _;
 
@@ -2579,8 +2580,8 @@ enum RecoverIbcClientErrorKind {
 
 #[derive(Debug, Clone)]
 pub enum CurrencyPairsChange {
-    Addition(Vec<CurrencyPair>),
-    Removal(Vec<CurrencyPair>),
+    Addition(IndexSet<CurrencyPair>),
+    Removal(IndexSet<CurrencyPair>),
 }
 
 impl Protobuf for CurrencyPairsChange {
@@ -2622,22 +2623,30 @@ impl Protobuf for CurrencyPairsChange {
             Some(raw::currency_pairs_change::Value::Addition(raw::CurrencyPairs {
                 pairs,
             })) => {
-                let pairs = pairs
+                let pairs_len = pairs.len();
+                let parsed_pairs: IndexSet<_> = pairs
                     .into_iter()
                     .map(CurrencyPair::try_from_raw)
                     .collect::<Result<_, _>>()
                     .map_err(Self::Error::invalid_currency_pair)?;
-                Ok(Self::Addition(pairs))
+                if pairs_len != parsed_pairs.len() {
+                    return Err(Self::Error::duplicate_currency_pair());
+                }
+                Ok(Self::Addition(parsed_pairs))
             }
             Some(raw::currency_pairs_change::Value::Removal(raw::CurrencyPairs {
                 pairs,
             })) => {
-                let pairs = pairs
+                let pairs_len = pairs.len();
+                let parsed_pairs: IndexSet<_> = pairs
                     .into_iter()
                     .map(CurrencyPair::try_from_raw)
                     .collect::<Result<_, _>>()
                     .map_err(Self::Error::invalid_currency_pair)?;
-                Ok(Self::Removal(pairs))
+                if pairs_len != parsed_pairs.len() {
+                    return Err(Self::Error::duplicate_currency_pair());
+                }
+                Ok(Self::Removal(parsed_pairs))
             }
             None => Err(Self::Error::unset()),
         }
@@ -2668,6 +2677,11 @@ impl CurrencyPairsChangeError {
     fn invalid_currency_pair(err: CurrencyPairError) -> Self {
         Self(CurrencyPairsChangeErrorKind::InvalidCurrencyPair(err))
     }
+
+    #[must_use]
+    fn duplicate_currency_pair() -> Self {
+        Self(CurrencyPairsChangeErrorKind::DuplicateCurrencyPair)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -2676,6 +2690,8 @@ enum CurrencyPairsChangeErrorKind {
     Unset,
     #[error("a currency pair was invalid")]
     InvalidCurrencyPair(#[from] CurrencyPairError),
+    #[error("duplicate currency pair")]
+    DuplicateCurrencyPair,
 }
 
 /// Takes a list of markets and either creates, removes or updates them depending on its variant.
