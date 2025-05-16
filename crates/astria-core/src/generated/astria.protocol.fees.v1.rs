@@ -322,6 +322,74 @@ impl ::prost::Name for MarketsChangeFeeComponents {
         "/astria.protocol.fees.v1.MarketsChangeFeeComponents".into()
     }
 }
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct CreateOrderFeeComponents {
+    #[prost(message, optional, tag = "1")]
+    pub base: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    #[prost(message, optional, tag = "2")]
+    pub multiplier: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+}
+impl ::prost::Name for CreateOrderFeeComponents {
+    const NAME: &'static str = "CreateOrderFeeComponents";
+    const PACKAGE: &'static str = "astria.protocol.fees.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        "astria.protocol.fees.v1.CreateOrderFeeComponents".into()
+    }
+    fn type_url() -> ::prost::alloc::string::String {
+        "/astria.protocol.fees.v1.CreateOrderFeeComponents".into()
+    }
+}
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct CancelOrderFeeComponents {
+    #[prost(message, optional, tag = "1")]
+    pub base: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    #[prost(message, optional, tag = "2")]
+    pub multiplier: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+}
+impl ::prost::Name for CancelOrderFeeComponents {
+    const NAME: &'static str = "CancelOrderFeeComponents";
+    const PACKAGE: &'static str = "astria.protocol.fees.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        "astria.protocol.fees.v1.CancelOrderFeeComponents".into()
+    }
+    fn type_url() -> ::prost::alloc::string::String {
+        "/astria.protocol.fees.v1.CancelOrderFeeComponents".into()
+    }
+}
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct CreateMarketFeeComponents {
+    #[prost(message, optional, tag = "1")]
+    pub base: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    #[prost(message, optional, tag = "2")]
+    pub multiplier: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+}
+impl ::prost::Name for CreateMarketFeeComponents {
+    const NAME: &'static str = "CreateMarketFeeComponents";
+    const PACKAGE: &'static str = "astria.protocol.fees.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        "astria.protocol.fees.v1.CreateMarketFeeComponents".into()
+    }
+    fn type_url() -> ::prost::alloc::string::String {
+        "/astria.protocol.fees.v1.CreateMarketFeeComponents".into()
+    }
+}
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct UpdateMarketFeeComponents {
+    #[prost(message, optional, tag = "1")]
+    pub base: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    #[prost(message, optional, tag = "2")]
+    pub multiplier: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+}
+impl ::prost::Name for UpdateMarketFeeComponents {
+    const NAME: &'static str = "UpdateMarketFeeComponents";
+    const PACKAGE: &'static str = "astria.protocol.fees.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        "astria.protocol.fees.v1.UpdateMarketFeeComponents".into()
+    }
+    fn type_url() -> ::prost::alloc::string::String {
+        "/astria.protocol.fees.v1.UpdateMarketFeeComponents".into()
+    }
+}
 /// Response to a transaction fee ABCI query.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TransactionFeeResponse {

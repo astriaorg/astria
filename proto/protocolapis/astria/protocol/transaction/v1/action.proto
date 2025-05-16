@@ -4,7 +4,6 @@ package astria.protocol.transaction.v1;
 
 import "astria/primitive/v1/types.proto";
 import "astria/protocol/fees/v1/types.proto";
-import "astria/protocol/orderbook/v1/action.proto";
 import "astria/protocol/orderbook/v1/types.proto";
 import "astria_vendored/penumbra/core/component/ibc/v1/ibc.proto";
 import "astria_vendored/tendermint/crypto/keys.proto";
@@ -40,12 +39,12 @@ message Action {
     // Price feed actions are defined on 71-80
     CurrencyPairsChange currency_pairs_change = 71;
     MarketsChange markets_change = 72;
-    
+
     // Order book actions are defined on 81-90
-    astria.protocol.orderbook.v1.CreateOrder create_order = 81;
-    astria.protocol.orderbook.v1.CancelOrder cancel_order = 82;
-    astria.protocol.orderbook.v1.CreateMarket create_market = 83;
-    astria.protocol.orderbook.v1.UpdateMarket update_market = 84;
+    CreateOrder create_order = 81;
+    CancelOrder cancel_order = 82;
+    CreateMarket create_market = 83;
+    UpdateMarket update_market = 84;
   }
 }
 
@@ -334,4 +333,60 @@ message MarketsChange {
 // A list of markets for creation, updating, or removal.
 message Markets {
   repeated connect.marketmap.v2.Market markets = 1;
+}
+
+// Create a new order in the order book
+message CreateOrder {
+  // Market identifier (e.g., "BTC/USD")
+  string market = 1;
+  // Order side (buy or sell)
+  astria.protocol.orderbook.v1.OrderSide side = 2;
+  // Order type (limit, market)
+  astria.protocol.orderbook.v1.OrderType type = 3;
+  // Limit price (required for limit orders)
+  astria.primitive.v1.Uint128 price = 4;
+  // Amount to buy or sell
+  astria.primitive.v1.Uint128 quantity = 5;
+  // Time in force parameter
+  astria.protocol.orderbook.v1.OrderTimeInForce time_in_force = 6;
+  // The asset used to pay the transaction fee
+  string fee_asset = 7;
+}
+
+// Cancel an existing order
+message CancelOrder {
+  // ID of the order to cancel
+  string order_id = 1;
+  // The asset used to pay the transaction fee
+  string fee_asset = 2;
+}
+
+// Create a new market for trading
+message CreateMarket {
+  // Market identifier (e.g., "BTC/USD")
+  string market = 1;
+  // Base asset of the market (e.g., "BTC")
+  string base_asset = 2;
+  // Quote asset of the market (e.g., "USD")
+  string quote_asset = 3;
+  // Minimum price increment
+  astria.primitive.v1.Uint128 tick_size = 4;
+  // Minimum quantity increment
+  astria.primitive.v1.Uint128 lot_size = 5;
+  // The asset used to pay the transaction fee
+  string fee_asset = 6;
+}
+
+// Sudo action to update market parameters
+message UpdateMarket {
+  // Market identifier
+  string market = 1;
+  // New minimum price increment (if provided)
+  astria.primitive.v1.Uint128 tick_size = 2;
+  // New minimum quantity increment (if provided)
+  astria.primitive.v1.Uint128 lot_size = 3;
+  // Whether the market is paused
+  bool paused = 4;
+  // The asset used to pay the transaction fee
+  string fee_asset = 5;
 }

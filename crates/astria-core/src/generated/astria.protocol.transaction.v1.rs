@@ -3,7 +3,7 @@
 pub struct Action {
     #[prost(
         oneof = "action::Value",
-        tags = "1, 2, 11, 12, 13, 14, 15, 21, 22, 50, 51, 52, 53, 55, 56, 57, 71, 72"
+        tags = "1, 2, 11, 12, 13, 14, 15, 21, 22, 50, 51, 52, 53, 55, 56, 57, 71, 72, 81, 82, 83, 84"
     )]
     pub value: ::core::option::Option<action::Value>,
 }
@@ -52,6 +52,15 @@ pub mod action {
         CurrencyPairsChange(super::CurrencyPairsChange),
         #[prost(message, tag = "72")]
         MarketsChange(super::MarketsChange),
+        /// Order book actions are defined on 81-90
+        #[prost(message, tag = "81")]
+        CreateOrder(super::CreateOrder),
+        #[prost(message, tag = "82")]
+        CancelOrder(super::CancelOrder),
+        #[prost(message, tag = "83")]
+        CreateMarket(super::CreateMarket),
+        #[prost(message, tag = "84")]
+        UpdateMarket(super::UpdateMarket),
     }
 }
 impl ::prost::Name for Action {
@@ -497,7 +506,7 @@ pub struct FeeChange {
     /// the new fee components values
     #[prost(
         oneof = "fee_change::FeeComponents",
-        tags = "1, 2, 3, 4, 5, 7, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18"
+        tags = "1, 2, 3, 4, 5, 7, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22"
     )]
     pub fee_components: ::core::option::Option<fee_change::FeeComponents>,
 }
@@ -546,6 +555,14 @@ pub mod fee_change {
         ),
         #[prost(message, tag = "18")]
         MarketsChange(super::super::super::fees::v1::MarketsChangeFeeComponents),
+        #[prost(message, tag = "19")]
+        CreateOrder(super::super::super::fees::v1::CreateOrderFeeComponents),
+        #[prost(message, tag = "20")]
+        CancelOrder(super::super::super::fees::v1::CancelOrderFeeComponents),
+        #[prost(message, tag = "21")]
+        CreateMarket(super::super::super::fees::v1::CreateMarketFeeComponents),
+        #[prost(message, tag = "22")]
+        UpdateMarket(super::super::super::fees::v1::UpdateMarketFeeComponents),
     }
 }
 impl ::prost::Name for FeeChange {
@@ -690,6 +707,122 @@ impl ::prost::Name for Markets {
     }
     fn type_url() -> ::prost::alloc::string::String {
         "/astria.protocol.transaction.v1.Markets".into()
+    }
+}
+/// Create a new order in the order book
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateOrder {
+    /// Market identifier (e.g., "BTC/USD")
+    #[prost(string, tag = "1")]
+    pub market: ::prost::alloc::string::String,
+    /// Order side (buy or sell)
+    #[prost(enumeration = "super::super::orderbook::v1::OrderSide", tag = "2")]
+    pub side: i32,
+    /// Order type (limit, market)
+    #[prost(enumeration = "super::super::orderbook::v1::OrderType", tag = "3")]
+    pub r#type: i32,
+    /// Limit price (required for limit orders)
+    #[prost(message, optional, tag = "4")]
+    pub price: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    /// Amount to buy or sell
+    #[prost(message, optional, tag = "5")]
+    pub quantity: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    /// Time in force parameter
+    #[prost(enumeration = "super::super::orderbook::v1::OrderTimeInForce", tag = "6")]
+    pub time_in_force: i32,
+    /// The asset used to pay the transaction fee
+    #[prost(string, tag = "7")]
+    pub fee_asset: ::prost::alloc::string::String,
+}
+impl ::prost::Name for CreateOrder {
+    const NAME: &'static str = "CreateOrder";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        "astria.protocol.transaction.v1.CreateOrder".into()
+    }
+    fn type_url() -> ::prost::alloc::string::String {
+        "/astria.protocol.transaction.v1.CreateOrder".into()
+    }
+}
+/// Cancel an existing order
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CancelOrder {
+    /// ID of the order to cancel
+    #[prost(string, tag = "1")]
+    pub order_id: ::prost::alloc::string::String,
+    /// The asset used to pay the transaction fee
+    #[prost(string, tag = "2")]
+    pub fee_asset: ::prost::alloc::string::String,
+}
+impl ::prost::Name for CancelOrder {
+    const NAME: &'static str = "CancelOrder";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        "astria.protocol.transaction.v1.CancelOrder".into()
+    }
+    fn type_url() -> ::prost::alloc::string::String {
+        "/astria.protocol.transaction.v1.CancelOrder".into()
+    }
+}
+/// Create a new market for trading
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CreateMarket {
+    /// Market identifier (e.g., "BTC/USD")
+    #[prost(string, tag = "1")]
+    pub market: ::prost::alloc::string::String,
+    /// Base asset of the market (e.g., "BTC")
+    #[prost(string, tag = "2")]
+    pub base_asset: ::prost::alloc::string::String,
+    /// Quote asset of the market (e.g., "USD")
+    #[prost(string, tag = "3")]
+    pub quote_asset: ::prost::alloc::string::String,
+    /// Minimum price increment
+    #[prost(message, optional, tag = "4")]
+    pub tick_size: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    /// Minimum quantity increment
+    #[prost(message, optional, tag = "5")]
+    pub lot_size: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    /// The asset used to pay the transaction fee
+    #[prost(string, tag = "6")]
+    pub fee_asset: ::prost::alloc::string::String,
+}
+impl ::prost::Name for CreateMarket {
+    const NAME: &'static str = "CreateMarket";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        "astria.protocol.transaction.v1.CreateMarket".into()
+    }
+    fn type_url() -> ::prost::alloc::string::String {
+        "/astria.protocol.transaction.v1.CreateMarket".into()
+    }
+}
+/// Sudo action to update market parameters
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct UpdateMarket {
+    /// Market identifier
+    #[prost(string, tag = "1")]
+    pub market: ::prost::alloc::string::String,
+    /// New minimum price increment (if provided)
+    #[prost(message, optional, tag = "2")]
+    pub tick_size: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    /// New minimum quantity increment (if provided)
+    #[prost(message, optional, tag = "3")]
+    pub lot_size: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
+    /// Whether the market is paused
+    #[prost(bool, tag = "4")]
+    pub paused: bool,
+    /// The asset used to pay the transaction fee
+    #[prost(string, tag = "5")]
+    pub fee_asset: ::prost::alloc::string::String,
+}
+impl ::prost::Name for UpdateMarket {
+    const NAME: &'static str = "UpdateMarket";
+    const PACKAGE: &'static str = "astria.protocol.transaction.v1";
+    fn full_name() -> ::prost::alloc::string::String {
+        "astria.protocol.transaction.v1.UpdateMarket".into()
+    }
+    fn type_url() -> ::prost::alloc::string::String {
+        "/astria.protocol.transaction.v1.UpdateMarket".into()
     }
 }
 /// `Transaction` is a transaction `TransactionBody` together with a public
