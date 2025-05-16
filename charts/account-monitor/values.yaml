@@ -14,7 +14,8 @@ images:
 
 config:
   logLevel: "debug"
-  sequencerFeeAsset: ""
+  sequencerAssets:
+  # - "nria"
   queryIntervalMs: "10000"
   sequencerRpc: ""
   sequencerChainId: ""

@@ -40,7 +40,6 @@ use tracing::{
 
 use crate::{
     config::{
-        Asset,
         Config,
         SequencerAccountsToMonitor,
     },
@@ -87,7 +86,7 @@ impl Future for AccountMonitor {
         let task = self
             .task
             .as_mut()
-            .expect("auctioneer must not be polled after shutdown");
+            .expect("account monitor must not be polled after shutdown");
         task.poll_unpin(ctx).map(flatten_join_result)
     }
 }
@@ -96,7 +95,6 @@ struct Inner {
     shutdown_token: CancellationToken,
     sequencer_abci_client: sequencer_client::HttpClient,
     sequencer_accounts: SequencerAccountsToMonitor,
-    sequencer_asset: Asset,
     metrics: &'static Metrics,
     interval: Duration,
 }
@@ -112,7 +110,6 @@ impl Inner {
     fn new(cfg: Config, metrics: &'static Metrics) -> eyre::Result<Self> {
         let Config {
             sequencer_abci_endpoint,
-            sequencer_asset,
             sequencer_accounts,
             ..
         } = cfg;
@@ -128,7 +125,6 @@ impl Inner {
             shutdown_token,
             sequencer_abci_client: sequencer_cometbft_client,
             sequencer_accounts,
-            sequencer_asset,
             metrics,
             interval,
         })
@@ -153,7 +149,6 @@ impl Inner {
                         self.metrics,
                         &self.sequencer_abci_client,
                         &self.sequencer_accounts,
-                        &self.sequencer_asset,
                     );
                 }
             }
@@ -173,23 +168,20 @@ fn fetch_all_info(
     metrics: &'static Metrics,
     client: &sequencer_client::HttpClient,
     accounts: &SequencerAccountsToMonitor,
-    asset: &Asset,
 ) {
     for account in accounts {
         let client = client.clone();
-        let asset = asset.clone();
         let address = account.address;
-        tokio::spawn(fetch_account_info(metrics, client, address, asset));
+        tokio::spawn(fetch_account_info(metrics, client, address));
     }
 }
 
 /// Note: The return value of this function exists only to be emitted as part of instrumentation.
-#[instrument(skip_all, fields(%address, %asset), ret(Display))]
+#[instrument(skip_all, fields(%address), ret(Display))]
 async fn fetch_account_info(
     metrics: &'static Metrics,
     client: sequencer_client::HttpClient,
     address: Address,
-    asset: Asset,
 ) -> AccountInfo {
     metrics.increment_nonce_fetch_count();
     metrics.increment_balance_fetch_count();
@@ -200,7 +192,7 @@ async fn fetch_account_info(
         ),
         timeout(
             Duration::from_millis(1000),
-            get_latest_balance(&client, address, asset)
+            get_latest_balance(&client, address)
         )
     );
 
@@ -223,8 +215,14 @@ async fn fetch_account_info(
 
     let account_balance = match balance {
         Ok(Ok(balance)) => {
-            metrics.set_account_balance(&address.into(), balance.balance);
-            QueryResponse::Value(balance.balance)
+            for asset_balance in balance.clone() {
+                metrics.set_account_balance(
+                    &address.into(),
+                    &asset_balance.denom.into(),
+                    asset_balance.balance,
+                );
+            }
+            QueryResponse::Value(balance)
         }
         Ok(Err(error)) => {
             warn!(%error, "failed to get balance");
@@ -251,12 +249,6 @@ enum QueryResponse<T> {
     Timeout,
 }
 
-#[derive(Debug, Clone)]
-struct AccountInfo {
-    nonce: QueryResponse<u32>,
-    balance: QueryResponse<u128>,
-}
-
 impl<T: Display> Display for QueryResponse<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
@@ -267,27 +259,27 @@ impl<T: Display> Display for QueryResponse<T> {
     }
 }
 
-// Implement Display for AccountInfo
+#[derive(Debug, Clone)]
+struct AccountInfo {
+    nonce: QueryResponse<u32>,
+    balance: QueryResponse<Vec<AssetBalance>>,
+}
+
 impl Display for AccountInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "nonce = {}, balance = {}", self.nonce, self.balance)
+        write!(f, "nonce = {}, balance = {:?}", self.nonce, self.balance)
     }
 }
 
 async fn get_latest_balance(
     client: &sequencer_client::HttpClient,
     account: Address,
-    asset: Asset,
-) -> eyre::Result<AssetBalance> {
+) -> eyre::Result<Vec<AssetBalance>> {
     let balances = client
         .get_latest_balance(account)
         .await
         .wrap_err("failed to fetch the balance")?;
-    balances
-        .balances
-        .into_iter()
-        .find(|b| b.denom == asset.asset)
-        .ok_or_else(|| eyre::eyre!("response did not contain target asset `{asset}`"))
+    Ok(balances.balances)
 }
 
 async fn get_latest_nonce(
