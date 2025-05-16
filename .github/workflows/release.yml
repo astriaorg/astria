@@ -1,10 +1,15 @@
 name: Release
+
 on:
   pull_request:
   merge_group:
   push:
     branches:
         - main
+
+env:
+  REPO_NAME: astriaorg/astria
+  CHARTS_REPO: astriaorg/charts
 
 jobs:
   run_checker:
@@ -14,7 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     environment: BUF
     needs: run_checker
-    if: github.event_name != 'merge_group' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && needs.run_checker.outputs.run_release_proto == 'true'
+    if: |
+      github.event_name != 'merge_group' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') &&
+      needs.run_checker.outputs.run_release_proto == 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: bufbuild/buf-setup-action@v1
@@ -45,10 +53,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: 'mono'
-      - name: Checkout Mono Repo
+      - name: Checkout Charts Repo (to charts)
         uses: actions/checkout@v4
         with:
-          repository: astriaorg/charts
+          repository: ${{ env.CHARTS_REPO }}
           ref: 'main'
           path: 'charts'
           token: ${{ secrets.CHARTS_REPO_TOKEN }}
@@ -63,7 +71,7 @@ jobs:
           git config --global user.email "${{ github.actor }}@users.noreply.github.com"
           git config --global user.name "${{ github.actor }}"
           git add .
-          git commit -m "Changes from astriaorg/astria@${{ github.sha }}"
+          git commit -m "Changes from ${{ env.REPO_NAME }}@${{ github.sha }}"
           git push
 
   conductor:
