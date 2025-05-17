@@ -30,6 +30,18 @@ pub fn uint128_option_to_string(value: &Option<Uint128>) -> String {
     }
 }
 
+/// Convert an Option<primitive::v1::Uint128> to a string representation
+pub fn primitive_uint128_option_to_string(value: &Option<astria_core::generated::astria::primitive::v1::Uint128>) -> String {
+    match value {
+        Some(uint128) => {
+            // Reconstruct u128 from hi and lo (as described in the Uint128 docs)
+            let val = ((uint128.hi as u128) << 64) + (uint128.lo as u128);
+            val.to_string()
+        }
+        None => "0".to_string(),
+    }
+}
+
 /// Parse a string to u128
 pub fn parse_string_to_u128(s: &str) -> u128 {
     s.parse::<u128>().unwrap_or(0)

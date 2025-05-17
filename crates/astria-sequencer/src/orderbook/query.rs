@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use astria_core::{
-    primitive::v1::Address,
+    primitive::v1::{Address, Bech32m},
     protocol::{
         abci::AbciErrorCode,
         orderbook::v1::{Order, OrderSide, OrderMatch, Orderbook}
@@ -11,7 +11,8 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
-use borsh::BorshSerialize;
+use borsh::{BorshSerialize, BorshDeserialize};
+use crate::orderbook::compat::{OrderWrapper, OrderMatchWrapper, OrderbookWrapper};
 use cnidarium::{
     Snapshot,
     StateRead,
@@ -37,14 +38,14 @@ pub async fn orderbook_request(
     let parts: Vec<&str> = req.path.split('/').collect();
     if parts.len() < 3 || parts[0] != "orderbook" {
         return Ok(response::Query {
-            code: Code::Err(AbciErrorCode::InvalidRequest as u32),
+            code: Code::Err(std::num::NonZeroU32::new(AbciErrorCode::INVALID_PARAMETER.value().get()).unwrap()),
             log: format!("Invalid path: {}", req.path),
             info: "Expected path format: orderbook/:market".to_string(),
             index: 0,
             key: req.data.clone(),
-            value: Vec::new(),
+            value: Vec::new().into(),
             proof: None,
-            height: 0,
+            height: tendermint::block::Height::from(0_u32),
             codespace: "".to_string(),
         });
     }
@@ -54,14 +55,14 @@ pub async fn orderbook_request(
     // Check if market exists
     if !snapshot.market_exists(market) {
         return Ok(response::Query {
-            code: Code::Err(AbciErrorCode::NotFound as u32),
+            code: Code::Err(std::num::NonZeroU32::new(AbciErrorCode::VALUE_NOT_FOUND.value().get()).unwrap()),
             log: format!("Market not found: {}", market),
             info: "The requested market does not exist".to_string(),
             index: 0,
             key: req.data.clone(),
-            value: Vec::new(),
+            value: Vec::new().into(),
             proof: None,
-            height: 0,
+            height: tendermint::block::Height::from(0_u32),
             codespace: "".to_string(),
         });
     }
@@ -70,18 +71,19 @@ pub async fn orderbook_request(
     let orderbook = snapshot.get_orderbook(market);
 
     // Serialize the response
-    let value = match orderbook.try_to_vec() {
+    let wrapped_orderbook = OrderbookWrapper(orderbook);
+    let value = match borsh::to_vec(&wrapped_orderbook) {
         Ok(bytes) => bytes,
         Err(err) => {
             return Ok(response::Query {
-                code: Code::Err(AbciErrorCode::InternalError as u32),
+                code: Code::Err(std::num::NonZeroU32::new(AbciErrorCode::INTERNAL_ERROR.value().get()).unwrap()),
                 log: format!("Failed to serialize orderbook: {}", err),
                 info: "Internal error".to_string(),
                 index: 0,
                 key: req.data.clone(),
-                value: Vec::new(),
+                value: Vec::new().into(),
                 proof: None,
-                height: 0,
+                height: tendermint::block::Height::from(0_u32),
                 codespace: "".to_string(),
             });
         }
@@ -93,9 +95,9 @@ pub async fn orderbook_request(
         info: "".to_string(),
         index: 0,
         key: req.data.clone(),
-        value,
+        value: value.into(),
         proof: None,
-        height: 0,
+        height: tendermint::block::Height::from(0_u32),
         codespace: "".to_string(),
     })
 }
@@ -110,14 +112,14 @@ pub async fn order_request(
     let parts: Vec<&str> = req.path.split('/').collect();
     if parts.len() < 3 || parts[0] != "orderbook" || parts[1] != "order" {
         return Ok(response::Query {
-            code: Code::Err(AbciErrorCode::InvalidRequest as u32),
+            code: Code::Err(std::num::NonZeroU32::new(AbciErrorCode::INVALID_PARAMETER.value().get()).unwrap()),
             log: format!("Invalid path: {}", req.path),
             info: "Expected path format: orderbook/order/:order_id".to_string(),
             index: 0,
             key: req.data.clone(),
-            value: Vec::new(),
+            value: Vec::new().into(),
             proof: None,
-            height: 0,
+            height: tendermint::block::Height::from(0_u32),
             codespace: "".to_string(),
         });
     }
@@ -129,32 +131,32 @@ pub async fn order_request(
         Some(order) => order,
         None => {
             return Ok(response::Query {
-                code: Code::Err(AbciErrorCode::NotFound as u32),
+                code: Code::Err(std::num::NonZeroU32::new(AbciErrorCode::VALUE_NOT_FOUND.value().get()).unwrap()),
                 log: format!("Order not found: {}", order_id),
                 info: "The requested order does not exist".to_string(),
                 index: 0,
                 key: req.data.clone(),
-                value: Vec::new(),
+                value: Vec::new().into(),
                 proof: None,
-                height: 0,
+                height: tendermint::block::Height::from(0_u32),
                 codespace: "".to_string(),
             });
         }
     };
 
     // Serialize the response
-    let value = match order.try_to_vec() {
+    let value = match borsh::to_vec(&OrderWrapper(order)) {
         Ok(bytes) => bytes,
         Err(err) => {
             return Ok(response::Query {
-                code: Code::Err(AbciErrorCode::InternalError as u32),
+                code: Code::Err(std::num::NonZeroU32::new(AbciErrorCode::INTERNAL_ERROR.value().get()).unwrap()),
                 log: format!("Failed to serialize order: {}", err),
                 info: "Internal error".to_string(),
                 index: 0,
                 key: req.data.clone(),
-                value: Vec::new(),
+                value: Vec::new().into(),
                 proof: None,
-                height: 0,
+                height: tendermint::block::Height::from(0_u32),
                 codespace: "".to_string(),
             });
         }
@@ -166,9 +168,9 @@ pub async fn order_request(
         info: "".to_string(),
         index: 0,
         key: req.data.clone(),
-        value,
+        value: value.into(),
         proof: None,
-        height: 0,
+        height: tendermint::block::Height::from(0_u32),
         codespace: "".to_string(),
     })
 }
@@ -183,14 +185,14 @@ pub async fn market_orders_request(
     let parts: Vec<&str> = req.path.split('/').collect();
     if parts.len() < 4 || parts[0] != "orderbook" || parts[1] != "orders" || parts[2] != "market" {
         return Ok(response::Query {
-            code: Code::Err(AbciErrorCode::InvalidRequest as u32),
+            code: Code::Err(std::num::NonZeroU32::new(AbciErrorCode::INVALID_PARAMETER.value().get()).unwrap()),
             log: format!("Invalid path: {}", req.path),
             info: "Expected path format: orderbook/orders/market/:market[/:side]".to_string(),
             index: 0,
             key: req.data.clone(),
-            value: Vec::new(),
+            value: Vec::new().into(),
             proof: None,
-            height: 0,
+            height: tendermint::block::Height::from(0_u32),
             codespace: "".to_string(),
         });
     }
@@ -200,14 +202,14 @@ pub async fn market_orders_request(
     // Check if market exists
     if !snapshot.market_exists(market) {
         return Ok(response::Query {
-            code: Code::Err(AbciErrorCode::NotFound as u32),
+            code: Code::Err(std::num::NonZeroU32::new(AbciErrorCode::VALUE_NOT_FOUND.value().get()).unwrap()),
             log: format!("Market not found: {}", market),
             info: "The requested market does not exist".to_string(),
             index: 0,
             key: req.data.clone(),
-            value: Vec::new(),
+            value: Vec::new().into(),
             proof: None,
-            height: 0,
+            height: tendermint::block::Height::from(0_u32),
             codespace: "".to_string(),
         });
     }
@@ -215,8 +217,8 @@ pub async fn market_orders_request(
     // Parse optional side parameter
     let side = if parts.len() > 4 {
         match parts[4] {
-            "buy" => Some(OrderSide::ORDER_SIDE_BUY),
-            "sell" => Some(OrderSide::ORDER_SIDE_SELL),
+            "buy" => Some(OrderSide::Buy),
+            "sell" => Some(OrderSide::Sell),
             _ => None,
         }
     } else {
@@ -224,21 +226,22 @@ pub async fn market_orders_request(
     };
 
     // Get orders
-    let orders: Vec<Order> = snapshot.get_market_orders(market, side).collect();
+    let orders: Vec<Order> = snapshot.get_market_orders(market, side);
 
     // Serialize the response
-    let value = match orders.try_to_vec() {
+    let wrapped_orders: Vec<OrderWrapper> = orders.into_iter().map(OrderWrapper).collect();
+    let value = match borsh::to_vec(&wrapped_orders) {
         Ok(bytes) => bytes,
         Err(err) => {
             return Ok(response::Query {
-                code: Code::Err(AbciErrorCode::InternalError as u32),
+                code: Code::Err(std::num::NonZeroU32::new(AbciErrorCode::INTERNAL_ERROR.value().get()).unwrap()),
                 log: format!("Failed to serialize orders: {}", err),
                 info: "Internal error".to_string(),
                 index: 0,
                 key: req.data.clone(),
-                value: Vec::new(),
+                value: Vec::new().into(),
                 proof: None,
-                height: 0,
+                height: tendermint::block::Height::from(0_u32),
                 codespace: "".to_string(),
             });
         }
@@ -250,9 +253,9 @@ pub async fn market_orders_request(
         info: "".to_string(),
         index: 0,
         key: req.data.clone(),
-        value,
+        value: value.into(),
         proof: None,
-        height: 0,
+        height: tendermint::block::Height::from(0_u32),
         codespace: "".to_string(),
     })
 }
@@ -267,14 +270,14 @@ pub async fn owner_orders_request(
     let parts: Vec<&str> = req.path.split('/').collect();
     if parts.len() < 4 || parts[0] != "orderbook" || parts[1] != "orders" || parts[2] != "owner" {
         return Ok(response::Query {
-            code: Code::Err(AbciErrorCode::InvalidRequest as u32),
+            code: Code::Err(std::num::NonZeroU32::new(AbciErrorCode::INVALID_PARAMETER.value().get()).unwrap()),
             log: format!("Invalid path: {}", req.path),
             info: "Expected path format: orderbook/orders/owner/:owner".to_string(),
             index: 0,
             key: req.data.clone(),
-            value: Vec::new(),
+            value: Vec::new().into(),
             proof: None,
-            height: 0,
+            height: tendermint::block::Height::from(0_u32),
             codespace: "".to_string(),
         });
     }
@@ -282,39 +285,40 @@ pub async fn owner_orders_request(
     let owner = parts[3];
     
     // Validate owner address
-    let address = match Address::from_str(owner) {
+    let address = match Address::<Bech32m>::from_str(owner) {
         Ok(_) => owner,
         Err(_) => {
             return Ok(response::Query {
-                code: Code::Err(AbciErrorCode::InvalidRequest as u32),
+                code: Code::Err(std::num::NonZeroU32::new(AbciErrorCode::INVALID_PARAMETER.value().get()).unwrap()),
                 log: format!("Invalid owner address: {}", owner),
                 info: "The provided address is not a valid Astria address".to_string(),
                 index: 0,
                 key: req.data.clone(),
-                value: Vec::new(),
+                value: Vec::new().into(),
                 proof: None,
-                height: 0,
+                height: tendermint::block::Height::from(0_u32),
                 codespace: "".to_string(),
             });
         }
     };
 
     // Get orders
-    let orders: Vec<Order> = snapshot.get_owner_orders(address).collect();
+    let orders: Vec<Order> = snapshot.get_owner_orders(address);
 
     // Serialize the response
-    let value = match orders.try_to_vec() {
+    let wrapped_orders: Vec<OrderWrapper> = orders.into_iter().map(OrderWrapper).collect();
+    let value = match borsh::to_vec(&wrapped_orders) {
         Ok(bytes) => bytes,
         Err(err) => {
             return Ok(response::Query {
-                code: Code::Err(AbciErrorCode::InternalError as u32),
+                code: Code::Err(std::num::NonZeroU32::new(AbciErrorCode::INTERNAL_ERROR.value().get()).unwrap()),
                 log: format!("Failed to serialize orders: {}", err),
                 info: "Internal error".to_string(),
                 index: 0,
                 key: req.data.clone(),
-                value: Vec::new(),
+                value: Vec::new().into(),
                 proof: None,
-                height: 0,
+                height: tendermint::block::Height::from(0_u32),
                 codespace: "".to_string(),
             });
         }
@@ -326,9 +330,9 @@ pub async fn owner_orders_request(
         info: "".to_string(),
         index: 0,
         key: req.data.clone(),
-        value,
+        value: value.into(),
         proof: None,
-        height: 0,
+        height: tendermint::block::Height::from(0_u32),
         codespace: "".to_string(),
     })
 }
@@ -343,34 +347,34 @@ pub async fn markets_request(
     let parts: Vec<&str> = req.path.split('/').collect();
     if parts.len() < 2 || parts[0] != "orderbook" || parts[1] != "markets" {
         return Ok(response::Query {
-            code: Code::Err(AbciErrorCode::InvalidRequest as u32),
+            code: Code::Err(std::num::NonZeroU32::new(AbciErrorCode::INVALID_PARAMETER.value().get()).unwrap()),
             log: format!("Invalid path: {}", req.path),
             info: "Expected path format: orderbook/markets".to_string(),
             index: 0,
             key: req.data.clone(),
-            value: Vec::new(),
+            value: Vec::new().into(),
             proof: None,
-            height: 0,
+            height: tendermint::block::Height::from(0_u32),
             codespace: "".to_string(),
         });
     }
 
     // Get markets
-    let markets: Vec<String> = snapshot.get_markets().collect();
+    let markets: Vec<String> = snapshot.get_markets();
 
     // Serialize the response
-    let value = match markets.try_to_vec() {
+    let value = match borsh::to_vec(&markets) {
         Ok(bytes) => bytes,
         Err(err) => {
             return Ok(response::Query {
-                code: Code::Err(AbciErrorCode::InternalError as u32),
+                code: Code::Err(std::num::NonZeroU32::new(AbciErrorCode::INTERNAL_ERROR.value().get()).unwrap()),
                 log: format!("Failed to serialize markets: {}", err),
                 info: "Internal error".to_string(),
                 index: 0,
                 key: req.data.clone(),
-                value: Vec::new(),
+                value: Vec::new().into(),
                 proof: None,
-                height: 0,
+                height: tendermint::block::Height::from(0_u32),
                 codespace: "".to_string(),
             });
         }
@@ -382,9 +386,9 @@ pub async fn markets_request(
         info: "".to_string(),
         index: 0,
         key: req.data.clone(),
-        value,
+        value: value.into(),
         proof: None,
-        height: 0,
+        height: tendermint::block::Height::from(0_u32),
         codespace: "".to_string(),
     })
 }
@@ -399,14 +403,14 @@ pub async fn market_params_request(
     let parts: Vec<&str> = req.path.split('/').collect();
     if parts.len() < 3 || parts[0] != "orderbook" || parts[1] != "market_params" {
         return Ok(response::Query {
-            code: Code::Err(AbciErrorCode::InvalidRequest as u32),
+            code: Code::Err(std::num::NonZeroU32::new(AbciErrorCode::INVALID_PARAMETER.value().get()).unwrap()),
             log: format!("Invalid path: {}", req.path),
             info: "Expected path format: orderbook/market_params/:market".to_string(),
             index: 0,
             key: req.data.clone(),
-            value: Vec::new(),
+            value: Vec::new().into(),
             proof: None,
-            height: 0,
+            height: tendermint::block::Height::from(0_u32),
             codespace: "".to_string(),
         });
     }
@@ -418,32 +422,32 @@ pub async fn market_params_request(
         Some(params) => params,
         None => {
             return Ok(response::Query {
-                code: Code::Err(AbciErrorCode::NotFound as u32),
+                code: Code::Err(std::num::NonZeroU32::new(AbciErrorCode::VALUE_NOT_FOUND.value().get()).unwrap()),
                 log: format!("Market not found: {}", market),
                 info: "The requested market does not exist".to_string(),
                 index: 0,
                 key: req.data.clone(),
-                value: Vec::new(),
+                value: Vec::new().into(),
                 proof: None,
-                height: 0,
+                height: tendermint::block::Height::from(0_u32),
                 codespace: "".to_string(),
             });
         }
     };
 
     // Serialize the response
-    let value = match params.try_to_vec() {
+    let value = match borsh::to_vec(&params) {
         Ok(bytes) => bytes,
         Err(err) => {
             return Ok(response::Query {
-                code: Code::Err(AbciErrorCode::InternalError as u32),
+                code: Code::Err(std::num::NonZeroU32::new(AbciErrorCode::INTERNAL_ERROR.value().get()).unwrap()),
                 log: format!("Failed to serialize market parameters: {}", err),
                 info: "Internal error".to_string(),
                 index: 0,
                 key: req.data.clone(),
-                value: Vec::new(),
+                value: Vec::new().into(),
                 proof: None,
-                height: 0,
+                height: tendermint::block::Height::from(0_u32),
                 codespace: "".to_string(),
             });
         }
@@ -455,9 +459,9 @@ pub async fn market_params_request(
         info: "".to_string(),
         index: 0,
         key: req.data.clone(),
-        value,
+        value: value.into(),
         proof: None,
-        height: 0,
+        height: tendermint::block::Height::from(0_u32),
         codespace: "".to_string(),
     })
 }
@@ -472,14 +476,14 @@ pub async fn trades_request(
     let parts: Vec<&str> = req.path.split('/').collect();
     if parts.len() < 3 || parts[0] != "orderbook" || parts[1] != "trades" {
         return Ok(response::Query {
-            code: Code::Err(AbciErrorCode::InvalidRequest as u32),
+            code: Code::Err(std::num::NonZeroU32::new(AbciErrorCode::INVALID_PARAMETER.value().get()).unwrap()),
             log: format!("Invalid path: {}", req.path),
             info: "Expected path format: orderbook/trades/:market[/:limit]".to_string(),
             index: 0,
             key: req.data.clone(),
-            value: Vec::new(),
+            value: Vec::new().into(),
             proof: None,
-            height: 0,
+            height: tendermint::block::Height::from(0_u32),
             codespace: "".to_string(),
         });
     }
@@ -489,14 +493,14 @@ pub async fn trades_request(
     // Check if market exists
     if !snapshot.market_exists(market) {
         return Ok(response::Query {
-            code: Code::Err(AbciErrorCode::NotFound as u32),
+            code: Code::Err(std::num::NonZeroU32::new(AbciErrorCode::VALUE_NOT_FOUND.value().get()).unwrap()),
             log: format!("Market not found: {}", market),
             info: "The requested market does not exist".to_string(),
             index: 0,
             key: req.data.clone(),
-            value: Vec::new(),
+            value: Vec::new().into(),
             proof: None,
-            height: 0,
+            height: tendermint::block::Height::from(0_u32),
             codespace: "".to_string(),
         });
     }
@@ -507,14 +511,14 @@ pub async fn trades_request(
             Ok(l) => l,
             Err(_) => {
                 return Ok(response::Query {
-                    code: Code::Err(AbciErrorCode::InvalidRequest as u32),
+                    code: Code::Err(std::num::NonZeroU32::new(AbciErrorCode::INVALID_PARAMETER.value().get()).unwrap()),
                     log: format!("Invalid limit: {}", parts[3]),
                     info: "Limit must be a positive integer".to_string(),
                     index: 0,
                     key: req.data.clone(),
-                    value: Vec::new(),
+                    value: Vec::new().into(),
                     proof: None,
-                    height: 0,
+                    height: tendermint::block::Height::from(0_u32),
                     codespace: "".to_string(),
                 });
             }
@@ -527,18 +531,19 @@ pub async fn trades_request(
     let trades = snapshot.get_recent_trades(market, limit);
 
     // Serialize the response
-    let value = match trades.try_to_vec() {
+    let wrapped_trades: Vec<OrderMatchWrapper> = trades.into_iter().map(OrderMatchWrapper).collect();
+    let value = match borsh::to_vec(&wrapped_trades) {
         Ok(bytes) => bytes,
         Err(err) => {
             return Ok(response::Query {
-                code: Code::Err(AbciErrorCode::InternalError as u32),
+                code: Code::Err(std::num::NonZeroU32::new(AbciErrorCode::INTERNAL_ERROR.value().get()).unwrap()),
                 log: format!("Failed to serialize trades: {}", err),
                 info: "Internal error".to_string(),
                 index: 0,
                 key: req.data.clone(),
-                value: Vec::new(),
+                value: Vec::new().into(),
                 proof: None,
-                height: 0,
+                height: tendermint::block::Height::from(0_u32),
                 codespace: "".to_string(),
             });
         }
@@ -550,9 +555,9 @@ pub async fn trades_request(
         info: "".to_string(),
         index: 0,
         key: req.data.clone(),
-        value,
+        value: value.into(),
         proof: None,
-        height: 0,
+        height: tendermint::block::Height::from(0_u32),
         codespace: "".to_string(),
     })
 }

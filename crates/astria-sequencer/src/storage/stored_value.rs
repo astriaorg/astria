@@ -8,6 +8,8 @@ use borsh::{
     BorshSerialize,
 };
 
+use crate::orderbook::compat::{OrderWrapper, OrderMatchWrapper};
+
 use crate::orderbook::state_ext::MarketParams;
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
@@ -25,12 +27,12 @@ pub(crate) enum StoredValue<'a> {
     Upgrades(crate::upgrades::storage::Value<'a>),
     PriceFeedMarketMap(crate::oracles::price_feed::market_map::storage::Value<'a>),
     PriceFeedOracle(crate::oracles::price_feed::oracle::storage::Value<'a>),
-    Order(Order),
+    Order(OrderWrapper),
     MarketParams(MarketParams),
     // New variants for our order book types
     Market(crate::orderbook::Market),
     Trade(crate::orderbook::Trade),
-    OrderMatch(OrderMatch),
+    OrderMatch(OrderMatchWrapper),
     Bytes(Vec<u8>),
 }
 

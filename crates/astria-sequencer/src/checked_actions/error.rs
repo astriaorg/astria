@@ -21,6 +21,13 @@ impl CheckedActionInitialCheckError {
             source,
         }
     }
+    
+    pub(super) fn InvalidAddress() -> Self {
+        Self {
+            action_name: "address_conversion",
+            source: eyre::eyre!("Invalid address bytes"),
+        }
+    }
 }
 
 #[derive(Debug, Error)]

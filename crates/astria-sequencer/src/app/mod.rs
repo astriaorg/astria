@@ -328,7 +328,7 @@ impl App {
         IbcComponent::init_chain(&mut state_tx, &genesis_state)
             .await
             .wrap_err("init_chain failed on IbcComponent")?;
-        OrderbookComponent::init_chain(&mut state_tx, &genesis_state)
+        OrderbookComponent::init_chain(&mut state_tx, &())
             .await
             .wrap_err("init_chain failed on OrderbookComponent")?;
 

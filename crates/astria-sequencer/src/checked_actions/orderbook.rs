@@ -7,7 +7,7 @@ use cnidarium::StateRead;
 
 use crate::orderbook::{
     component::{CheckedCreateMarket, CheckedCreateOrder, CheckedCancelOrder, ExecuteOrderbookAction},
-    OrderbookComponent, StateReadExt, StateWriteExt,
+    OrderbookComponent, StateReadExt,
 };
 // Use our own simplified ExecutionState instead of app's private one
 struct ExecutionState<'a, S: StateRead> {
@@ -26,13 +26,16 @@ impl<'a, S: StateRead> ExecutionState<'a, S> {
 
     fn get_order(&self, order_id: &str) -> Option<crate::orderbook::Order> {
         // This is a simplified implementation
-        self.state.get_order(order_id)
+        if let Some(proto_order) = self.state.get_order(order_id) {
+            // Convert from protocol Order to our local Order
+            Some(crate::orderbook::compat::order_from_proto(&proto_order))
+        } else {
+            None
+        }
     }
 }
-use crate::component::Component;
 use crate::checked_actions::{
-    ActionRef, CheckedAction, CheckedActionExecutionError,
-    error::{CheckedActionInitialCheckError, CheckedActionMutableCheckError},
+    ActionRef, CheckedActionExecutionError,
 };
 
 /// Error type for checked orderbook actions
@@ -92,25 +95,37 @@ impl CheckCreateOrder for OrderbookComponent {
         }
 
         // Validate order parameters
-        if action.quantity == 0 {
+        if action.quantity.is_none() || action.quantity == Some(0) {
             return Err(CheckedActionError::from(OrderbookError::InvalidOrderParameters(
                 "Quantity must be greater than 0".to_string(),
             )));
         }
 
+        // Parse address
+        let address = sender.parse().map_err(|_| {
+            CheckedActionError::from(OrderbookError::InvalidOrderParameters(
+                "Invalid sender address".to_string(),
+            ))
+        })?;
+
+        // Convert fee_asset to string
+        let fee_asset = action.fee_asset.to_string();
+
         Ok(CheckedCreateOrder {
-            sender: sender.parse().map_err(|_| {
-                CheckedActionError::from(OrderbookError::InvalidOrderParameters(
-                    "Invalid sender address".to_string(),
-                ))
-            })?,
+            sender: address,
             market: action.market.clone(),
-            side: crate::orderbook::order_side_from_i32(action.side),
-            order_type: crate::orderbook::order_type_from_i32(action.r#type),
-            price: action.price.to_string(),
-            quantity: action.quantity.to_string(),
-            time_in_force: crate::orderbook::time_in_force_from_i32(action.time_in_force),
-            fee_asset: action.fee_asset.clone(),
+            side: crate::orderbook::order_side_from_i32(action.side.into()),
+            order_type: crate::orderbook::order_type_from_i32(action.r#type.into()),
+            price: match &action.price {
+                Some(val) => val.to_string(),
+                None => "0".to_string(),
+            },
+            quantity: match &action.quantity {
+                Some(val) => val.to_string(),
+                None => "0".to_string(),
+            },
+            time_in_force: crate::orderbook::time_in_force_from_i32(action.time_in_force.into()),
+            fee_asset,
         })
     }
 }
@@ -149,15 +164,21 @@ impl CheckCancelOrder for OrderbookComponent {
                 "Only the owner can cancel their order".to_string(),
             )));
         }
+        
+        // Parse address
+        let address = sender.parse().map_err(|_| {
+            CheckedActionError::from(OrderbookError::InvalidOrderParameters(
+                "Invalid sender address".to_string(),
+            ))
+        })?;
+        
+        // Convert fee_asset to string
+        let fee_asset = action.fee_asset.to_string();
 
         Ok(CheckedCancelOrder {
-            sender: sender.parse().map_err(|_| {
-                CheckedActionError::from(OrderbookError::InvalidOrderParameters(
-                    "Invalid sender address".to_string(),
-                ))
-            })?,
+            sender: address,
             order_id: action.order_id.clone(),
-            fee_asset: action.fee_asset.clone(),
+            fee_asset,
         })
     }
 }
@@ -194,19 +215,37 @@ impl CheckCreateMarket for OrderbookComponent {
                 "Base and quote assets must be specified".to_string(),
             )));
         }
+        
+        // Parse address
+        let address = sender.parse().map_err(|_| {
+            CheckedActionError::from(OrderbookError::InvalidOrderParameters(
+                "Invalid sender address".to_string(),
+            ))
+        })?;
+        
+        // Convert tick_size to string
+        let tick_size = match action.tick_size {
+            Some(val) => val.to_string(),
+            None => "0".to_string(),
+        };
+        
+        // Convert lot_size to string
+        let lot_size = match action.lot_size {
+            Some(val) => val.to_string(),
+            None => "0".to_string(),
+        };
+        
+        // Convert fee_asset to string
+        let fee_asset = action.fee_asset.to_string();
 
         Ok(CheckedCreateMarket {
-            sender: sender.parse().map_err(|_| {
-                CheckedActionError::from(OrderbookError::InvalidOrderParameters(
-                    "Invalid sender address".to_string(),
-                ))
-            })?,
+            sender: address,
             market: action.market.clone(),
             base_asset: action.base_asset.clone(),
             quote_asset: action.quote_asset.clone(),
-            tick_size: action.tick_size.clone(),
-            lot_size: action.lot_size.clone(),
-            fee_asset: action.fee_asset.clone(),
+            tick_size,
+            lot_size,
+            fee_asset,
         })
     }
 }
@@ -236,27 +275,67 @@ impl CheckUpdateMarket for OrderbookComponent {
                 format!("Market {} not found", action.market),
             )));
         }
+        
+        // Parse address
+        let address = sender.parse().map_err(|_| {
+            CheckedActionError::from(OrderbookError::InvalidOrderParameters(
+                "Invalid sender address".to_string(),
+            ))
+        })?;
+        
+        // Convert tick_size to Option<String>
+        let tick_size = match action.tick_size {
+            Some(val) => Some(val.to_string()),
+            None => None,
+        };
+        
+        // Convert lot_size to Option<String>
+        let lot_size = match action.lot_size {
+            Some(val) => Some(val.to_string()),
+            None => None,
+        };
+        
+        // Convert fee_asset to string
+        let fee_asset = action.fee_asset.to_string();
 
         Ok(crate::orderbook::component::CheckedUpdateMarket {
-            sender: sender.parse().map_err(|_| {
-                CheckedActionError::from(OrderbookError::InvalidOrderParameters(
-                    "Invalid sender address".to_string(),
-                ))
-            })?,
+            sender: address,
             market: action.market.clone(),
-            tick_size: if action.tick_size.is_empty() {
-                None
-            } else {
-                Some(action.tick_size.clone())
-            },
-            lot_size: if action.lot_size.is_empty() {
-                None
-            } else {
-                Some(action.lot_size.clone())
-            },
+            tick_size,
+            lot_size,
             paused: action.paused,
-            fee_asset: action.fee_asset.clone(),
+            fee_asset,
         })
+    }
+}
+
+// We need to implement ExecuteOrderbookAction as a wrapper around our action references
+// to handle the borrow semantics correctly
+impl<'a> ExecuteOrderbookAction for &'a CheckedCreateOrder {
+    fn execute<S: StateRead>(&self, component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
+        // Just forward to the implementation on CheckedCreateOrder
+        (*self).execute(component, state)
+    }
+}
+
+impl<'a> ExecuteOrderbookAction for &'a CheckedCancelOrder {
+    fn execute<S: StateRead>(&self, component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
+        // Just forward to the implementation on CheckedCancelOrder
+        (*self).execute(component, state)
+    }
+}
+
+impl<'a> ExecuteOrderbookAction for &'a CheckedCreateMarket {
+    fn execute<S: StateRead>(&self, component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
+        // Just forward to the implementation on CheckedCreateMarket
+        (*self).execute(component, state)
+    }
+}
+
+impl<'a> ExecuteOrderbookAction for &'a crate::orderbook::component::CheckedUpdateMarket {
+    fn execute<S: StateRead>(&self, component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
+        // Just forward to the implementation on CheckedUpdateMarket
+        (*self).execute(component, state)
     }
 }
 
@@ -267,22 +346,25 @@ impl<'a> ActionRef<'a> {
         component: &OrderbookComponent,
         state: &mut S,
     ) -> Result<(), CheckedActionExecutionError> {
+        // Create a new OrderbookComponent (it's small and has no state) and wrap it in Arc
+        let component_arc = Arc::new(OrderbookComponent::default());
+        
         match self {
             ActionRef::OrderbookCreateOrder(action) => {
-                let component = Arc::new(component.clone());
-                action.execute(component, state)
+                // Now we can just use ExecuteOrderbookAction directly on the reference
+                action.execute(component_arc.clone(), state)
             }
             ActionRef::OrderbookCancelOrder(action) => {
-                let component = Arc::new(component.clone());
-                action.execute(component, state)
+                // Now we can just use ExecuteOrderbookAction directly on the reference
+                action.execute(component_arc.clone(), state)
             }
             ActionRef::OrderbookCreateMarket(action) => {
-                let component = Arc::new(component.clone());
-                action.execute(component, state)
+                // Now we can just use ExecuteOrderbookAction directly on the reference
+                action.execute(component_arc.clone(), state)
             }
             ActionRef::OrderbookUpdateMarket(action) => {
-                let component = Arc::new(component.clone());
-                action.execute(component, state)
+                // Now we can just use ExecuteOrderbookAction directly on the reference
+                action.execute(component_arc.clone(), state)
             }
             _ => Ok(()),
         }

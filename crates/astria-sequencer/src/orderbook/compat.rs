@@ -8,70 +8,142 @@ use crate::orderbook::types::{
 };
 use crate::orderbook::state_ext::MarketParams;
 
-// Implement Borsh serialization for proto::Order
-impl BorshSerialize for proto::Order {
+// Wrapper types for protocol buffer types
+// This allows us to implement Borsh traits without violating the orphan rule
+
+/// Wrapper for proto::Order
+#[derive(Debug, Clone)]
+pub struct OrderWrapper(pub proto::Order);
+
+/// Wrapper for proto::OrderMatch
+#[derive(Debug, Clone)]
+pub struct OrderMatchWrapper(pub proto::OrderMatch);
+
+/// Wrapper for proto::OrderbookEntry
+#[derive(Debug, Clone)]
+pub struct OrderbookEntryWrapper(pub proto::OrderbookEntry);
+
+/// Wrapper for proto::Orderbook
+#[derive(Debug, Clone)]
+pub struct OrderbookWrapper(pub proto::Orderbook);
+
+// Implement From traits for easy conversion
+impl From<proto::Order> for OrderWrapper {
+    fn from(order: proto::Order) -> Self {
+        OrderWrapper(order)
+    }
+}
+
+impl From<OrderWrapper> for proto::Order {
+    fn from(wrapper: OrderWrapper) -> Self {
+        wrapper.0
+    }
+}
+
+impl From<proto::OrderMatch> for OrderMatchWrapper {
+    fn from(order_match: proto::OrderMatch) -> Self {
+        OrderMatchWrapper(order_match)
+    }
+}
+
+impl From<OrderMatchWrapper> for proto::OrderMatch {
+    fn from(wrapper: OrderMatchWrapper) -> Self {
+        wrapper.0
+    }
+}
+
+impl From<proto::OrderbookEntry> for OrderbookEntryWrapper {
+    fn from(entry: proto::OrderbookEntry) -> Self {
+        OrderbookEntryWrapper(entry)
+    }
+}
+
+impl From<OrderbookEntryWrapper> for proto::OrderbookEntry {
+    fn from(wrapper: OrderbookEntryWrapper) -> Self {
+        wrapper.0
+    }
+}
+
+impl From<proto::Orderbook> for OrderbookWrapper {
+    fn from(orderbook: proto::Orderbook) -> Self {
+        OrderbookWrapper(orderbook)
+    }
+}
+
+impl From<OrderbookWrapper> for proto::Orderbook {
+    fn from(wrapper: OrderbookWrapper) -> Self {
+        wrapper.0
+    }
+}
+
+// Implement Borsh serialization for OrderWrapper
+impl BorshSerialize for OrderWrapper {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let bytes = self.encode_to_vec();
+        let bytes = self.0.encode_to_vec();
         BorshSerialize::serialize(&bytes, writer)
     }
 }
 
-// Implement Borsh deserialization for proto::Order
-impl BorshDeserialize for proto::Order {
+// Implement Borsh deserialization for OrderWrapper
+impl BorshDeserialize for OrderWrapper {
     fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let bytes: Vec<u8> = BorshDeserialize::deserialize_reader(reader)?;
         proto::Order::decode(&*bytes)
+            .map(OrderWrapper)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
     }
 }
 
-// Implement Borsh serialization for proto::OrderMatch
-impl BorshSerialize for proto::OrderMatch {
+// Implement Borsh serialization for OrderMatchWrapper
+impl BorshSerialize for OrderMatchWrapper {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let bytes = self.encode_to_vec();
+        let bytes = self.0.encode_to_vec();
         BorshSerialize::serialize(&bytes, writer)
     }
 }
 
-// Implement Borsh deserialization for proto::OrderMatch
-impl BorshDeserialize for proto::OrderMatch {
+// Implement Borsh deserialization for OrderMatchWrapper
+impl BorshDeserialize for OrderMatchWrapper {
     fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let bytes: Vec<u8> = BorshDeserialize::deserialize_reader(reader)?;
         proto::OrderMatch::decode(&*bytes)
+            .map(OrderMatchWrapper)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
     }
 }
 
-// Implement Borsh serialization for proto::OrderbookEntry
-impl BorshSerialize for proto::OrderbookEntry {
+// Implement Borsh serialization for OrderbookEntryWrapper
+impl BorshSerialize for OrderbookEntryWrapper {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let bytes = self.encode_to_vec();
+        let bytes = self.0.encode_to_vec();
         BorshSerialize::serialize(&bytes, writer)
     }
 }
 
-// Implement Borsh deserialization for proto::OrderbookEntry
-impl BorshDeserialize for proto::OrderbookEntry {
+// Implement Borsh deserialization for OrderbookEntryWrapper
+impl BorshDeserialize for OrderbookEntryWrapper {
     fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let bytes: Vec<u8> = BorshDeserialize::deserialize_reader(reader)?;
         proto::OrderbookEntry::decode(&*bytes)
+            .map(OrderbookEntryWrapper)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
     }
 }
 
-// Implement Borsh serialization for proto::Orderbook
-impl BorshSerialize for proto::Orderbook {
+// Implement Borsh serialization for OrderbookWrapper
+impl BorshSerialize for OrderbookWrapper {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        let bytes = self.encode_to_vec();
+        let bytes = self.0.encode_to_vec();
         BorshSerialize::serialize(&bytes, writer)
     }
 }
 
-// Implement Borsh deserialization for proto::Orderbook
-impl BorshDeserialize for proto::Orderbook {
+// Implement Borsh deserialization for OrderbookWrapper
+impl BorshDeserialize for OrderbookWrapper {
     fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let bytes: Vec<u8> = BorshDeserialize::deserialize_reader(reader)?;
         proto::Orderbook::decode(&*bytes)
+            .map(OrderbookWrapper)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
     }
 }
@@ -154,7 +226,7 @@ pub fn order_to_proto(order: &Order) -> proto::Order {
     let owner = if order.owner.is_empty() {
         None
     } else {
-        Some(astria_core::primitive::v1::Address {
+        Some(astria_core::generated::astria::primitive::v1::Address {
             bech32m: order.owner.clone(),
         })
     };

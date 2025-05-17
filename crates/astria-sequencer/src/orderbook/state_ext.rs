@@ -1,14 +1,15 @@
-use std::collections::{BTreeMap, BTreeSet};
-
 use astria_core::protocol::orderbook::v1::{
     Order, OrderSide, OrderTimeInForce, OrderType, Orderbook, OrderbookEntry, OrderMatch,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 use cnidarium::{StateRead, StateWrite};
 use futures::{pin_mut, stream::StreamExt};
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+use crate::orderbook::compat::{
+    OrderWrapper, OrderMatchWrapper, OrderbookEntryWrapper, OrderbookWrapper
+};
 
 use crate::storage::{keys, StoredValue};
 
@@ -68,9 +69,9 @@ pub trait StateReadExt: StateRead {
         match bytes_result {
             Ok(Some(bytes)) => {
                 match StoredValue::deserialize(&bytes) {
-                    Ok(StoredValue::Order(order)) => {
-                        // Return the proto Order directly
-                        Some(order)
+                    Ok(StoredValue::Order(wrapper)) => {
+                        // Return the proto Order directly from our wrapper
+                        Some(wrapper.0)
                     },
                     _ => None,
                 }
@@ -168,8 +169,9 @@ pub trait StateReadExt: StateRead {
                     if key_bytes.len() >= 16 {
                         let price = String::from_utf8_lossy(&key_bytes[key_bytes.len() - 16..]).to_string();
                         
-                        // Try to deserialize the entry
-                        if let Ok(entry) = <OrderbookEntry as BorshDeserialize>::deserialize(&mut value.as_slice()) {
+                        // Try to deserialize the entry using our wrapper
+                        if let Ok(wrapper) = <OrderbookEntryWrapper as BorshDeserialize>::deserialize(&mut value.as_slice()) {
+                            let entry = wrapper.0;
                             entries.push((price, entry));
                         }
                     }
@@ -195,8 +197,9 @@ pub trait StateReadExt: StateRead {
                     if key_bytes.len() >= 16 {
                         let price = String::from_utf8_lossy(&key_bytes[key_bytes.len() - 16..]).to_string();
                         
-                        // Try to deserialize the entry
-                        if let Ok(entry) = <OrderbookEntry as BorshDeserialize>::deserialize(&mut value.as_slice()) {
+                        // Try to deserialize the entry using our wrapper
+                        if let Ok(wrapper) = <OrderbookEntryWrapper as BorshDeserialize>::deserialize(&mut value.as_slice()) {
+                            let entry = wrapper.0;
                             entries.push((price, entry));
                         }
                     }
@@ -275,7 +278,8 @@ pub trait StateReadExt: StateRead {
             
             while let Some(result) = stream.next().await {
                 if let Ok((_, value)) = result {
-                    if let Ok(trade) = <OrderMatch as BorshDeserialize>::deserialize(&mut value.as_slice()) {
+                    if let Ok(wrapper) = <OrderMatchWrapper as BorshDeserialize>::deserialize(&mut value.as_slice()) {
+                        let trade = wrapper.0;
                         vec.push(trade);
                     }
                 }
@@ -303,8 +307,8 @@ pub trait StateWriteExt: StateWrite {
         // Convert the i32 side to OrderSide enum for storage operations
         let order_side = crate::orderbook::order_side_from_i32(order.side);
         
-        // Store the order itself
-        let serialized = StoredValue::Order(order.clone()).serialize()
+        // Store the order itself using our wrapper
+        let serialized = StoredValue::Order(OrderWrapper(order.clone())).serialize()
             .map_err(|_| OrderbookError::SerializationError(String::from("Failed to serialize order")))?;
             
         self.put_raw(
@@ -486,7 +490,7 @@ pub trait StateWriteExt: StateWrite {
         order.remaining_quantity = crate::orderbook::string_to_uint128_option(remaining_quantity);
         
         // Serialize the updated order
-        let serialized = StoredValue::Order(order.clone()).serialize()
+        let serialized = StoredValue::Order(OrderWrapper(order.clone())).serialize()
             .map_err(|_| OrderbookError::SerializationError(String::from("Failed to serialize order")))?;
             
         self.put_raw(
@@ -576,8 +580,8 @@ pub trait StateWriteExt: StateWrite {
     fn record_trade(&mut self, trade: OrderMatch) -> Result<(), OrderbookError> {
         let trade_key = keys::orderbook_market_trade(&trade.market, &trade.id);
         
-        // Convert the trade to a StoredValue and serialize it
-        let serialized = StoredValue::OrderMatch(trade).serialize()
+        // Convert the trade to a StoredValue and serialize it using our wrapper
+        let serialized = StoredValue::OrderMatch(OrderMatchWrapper(trade)).serialize()
             .map_err(|_| OrderbookError::SerializationError(String::from("Failed to serialize trade")))?;
             
         self.put_raw(trade_key, serialized);
