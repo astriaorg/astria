@@ -19,6 +19,7 @@ use astria_core::{
         TransactionId,
         TRANSACTION_ID_LEN,
     },
+    Protobuf as _,
 };
 use bytes::Bytes;
 use cnidarium::Storage;
@@ -114,11 +115,13 @@ async fn get_transaction_status(
     let status = match mempool.transaction_status(&tx_id).await {
         Some(TransactionStatus::Pending) => Some(RawTransactionStatus::Pending(RawPending {})),
         Some(TransactionStatus::Parked) => Some(RawTransactionStatus::Parked(RawParked {})),
-        Some(TransactionStatus::Removed(RemovalReason::IncludedInBlock(height))) => {
-            Some(RawTransactionStatus::Executed(RawExecuted {
-                height,
-            }))
-        }
+        Some(TransactionStatus::Removed(RemovalReason::IncludedInBlock {
+            height,
+            result,
+        })) => Some(RawTransactionStatus::Executed(RawExecuted {
+            height,
+            result: Some(result.into_raw()),
+        })),
         Some(TransactionStatus::Removed(reason)) => {
             Some(RawTransactionStatus::Removed(RawRemoved {
                 reason: reason.to_string(),
@@ -179,14 +182,12 @@ impl TryFrom<CheckTxOutcome> for SubmissionOutcome {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{
-        HashMap,
-        HashSet,
-    };
+    use std::collections::HashMap;
 
     use astria_core::generated::protocol::transaction::v1::Transaction as RawTransaction;
     use cnidarium::StateDelta;
     use prost::Message as _;
+    use tendermint::abci::types::ExecTxResult;
 
     use super::*;
     use crate::{
@@ -336,10 +337,14 @@ mod tests {
             .await
             .unwrap();
         let height = 100;
-        let mut included_txs = HashSet::new();
-        included_txs.insert(*tx.id());
+        let mut included_txs = HashMap::new();
+        let exec_tx_result = ExecTxResult {
+            log: "ethan_was_here".to_string(),
+            ..ExecTxResult::default()
+        };
+        included_txs.insert(*tx.id(), exec_tx_result.clone());
         mempool
-            .run_maintenance(&storage.latest_snapshot(), false, &included_txs, height)
+            .run_maintenance(&storage.latest_snapshot(), false, included_txs, height)
             .await;
 
         let req = GetTransactionStatusRequest {
@@ -354,7 +359,8 @@ mod tests {
         assert_eq!(
             rsp.status,
             Some(RawTransactionStatus::Executed(RawExecuted {
-                height
+                height,
+                result: Some(exec_tx_result.into_raw()),
             }))
         );
     }
