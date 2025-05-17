@@ -1,6 +1,7 @@
 #[cfg(feature = "benchmark")]
 mod benchmarks;
 mod mempool_state;
+mod recently_included_transactions;
 mod transactions_container;
 
 use std::{
@@ -22,6 +23,7 @@ use astria_core::{
 };
 use astria_eyre::eyre::Result;
 pub(crate) use mempool_state::get_account_balances;
+use recently_included_transactions::RecentlyIncludedTransactions;
 use tendermint::abci::types::ExecTxResult;
 use tokio::{
     sync::RwLock,
@@ -29,6 +31,7 @@ use tokio::{
 };
 use tracing::{
     error,
+    info,
     instrument,
     warn,
     Level,
@@ -315,6 +318,7 @@ struct MempoolInner {
     pending: PendingTransactions,
     parked: ParkedTransactions<MAX_PARKED_TXS_PER_ACCOUNT>,
     comet_bft_removal_cache: RemovalCache,
+    recently_included_transactions: RecentlyIncludedTransactions,
     contained_txs: HashSet<TransactionId>,
     metrics: &'static Metrics,
 }
@@ -329,6 +333,7 @@ impl MempoolInner {
                 NonZeroUsize::try_from(REMOVAL_CACHE_SIZE)
                     .expect("Removal cache cannot be zero sized"),
             ),
+            recently_included_transactions: RecentlyIncludedTransactions::new(),
             contained_txs: HashSet::new(),
             metrics,
         }
@@ -454,6 +459,7 @@ impl MempoolInner {
         self.comet_bft_removal_cache.remove(tx_id);
     }
 
+    #[expect(clippy::too_many_lines, reason = "should be refactored")]
     async fn run_maintenance<S: accounts::StateReadExt>(
         &mut self,
         state: &S,
@@ -477,6 +483,8 @@ impl MempoolInner {
             .chain(self.parked.addresses())
             .copied()
             .collect();
+
+        self.recently_included_transactions.clean_stale();
 
         // TODO: Make this concurrent, all account state is separate with IO bound disk reads.
         for address_bytes in &addresses {
@@ -579,6 +587,23 @@ impl MempoolInner {
 
         // add to removal cache for cometbft and remove from the tracked set
         for (tx_id, reason) in removed_txs {
+            if let RemovalReason::IncludedInBlock {
+                height,
+                result,
+            } = reason.clone()
+            {
+                if let Err(err) = self
+                    .recently_included_transactions
+                    .add_transaction(tx_id, height, result)
+                {
+                    // No need to propagate or panic here, since this cache is not service-critical
+                    info!(
+                        tx_hash = %telemetry::display::hex(tx_id.get()),
+                        %err,
+                        "failed to add transaction to recently included transactions cache"
+                    );
+                }
+            }
             self.contained_txs.remove(&tx_id);
             self.comet_bft_removal_cache.add(tx_id, reason);
         }
@@ -596,10 +621,20 @@ impl MempoolInner {
                 Some(TransactionStatus::Parked)
             }
         } else {
-            self.comet_bft_removal_cache
-                .cache
-                .get(tx_id)
-                .map(|reason| TransactionStatus::Removed(reason.clone()))
+            self.recently_included_transactions
+                .get_by_tx_id(tx_id)
+                .map(|tx_data| {
+                    TransactionStatus::Removed(RemovalReason::IncludedInBlock {
+                        height: tx_data.height(),
+                        result: tx_data.result().clone(),
+                    })
+                })
+                .or_else(|| {
+                    self.comet_bft_removal_cache
+                        .cache
+                        .get(tx_id)
+                        .map(|reason| TransactionStatus::Removed(reason.clone()))
+                })
         }
     }
 
@@ -1319,6 +1354,187 @@ mod tests {
         // check that the transactions are in the tracked set on re-insertion
         assert!(mempool.is_tracked(tx0.id()).await);
         assert!(mempool.is_tracked(tx1.id()).await);
+    }
+
+    #[tokio::test]
+    async fn transaction_still_exists_in_recently_included_after_being_removed() {
+        const INCLUDED_TX_BLOCK_NUMBER: u64 = 42;
+        let mut fixture = Fixture::default_initialized().await;
+        let mempool = fixture.mempool();
+        let account_balances = dummy_balances(100, 100);
+        let tx_cost = dummy_tx_costs(10, 10, 0);
+
+        // Create and insert transactions
+        let tx_1 = new_alice_tx(&fixture, 1).await;
+        let tx_2 = new_alice_tx(&fixture, 2).await;
+
+        mempool
+            .insert(tx_1.clone(), 1, &account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+        mempool
+            .insert(tx_2.clone(), 1, &account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        // Check that transactions are in pending state
+        assert!(matches!(
+            mempool.transaction_status(tx_1.id()).await.unwrap(),
+            TransactionStatus::Pending
+        ));
+        assert!(matches!(
+            mempool.transaction_status(tx_2.id()).await.unwrap(),
+            TransactionStatus::Pending
+        ));
+
+        // Setup state for maintenance
+        fixture
+            .state_mut()
+            .put_account_nonce(&*ALICE_ADDRESS_BYTES, 3)
+            .unwrap();
+        put_ibc_assets(&mut fixture);
+
+        // Create the transaction result to be used in the execution result
+        let exec_result_1 = ExecTxResult {
+            log: "tx_1 executed".to_string(),
+            ..ExecTxResult::default()
+        };
+        let exec_result_2 = ExecTxResult {
+            log: "tx_2 executed".to_string(),
+            ..ExecTxResult::default()
+        };
+
+        // Remove transactions as included in a block
+        let mut included_txs = HashMap::new();
+        included_txs.insert(*tx_1.id(), exec_result_1.clone());
+        included_txs.insert(*tx_2.id(), exec_result_2.clone());
+        mempool
+            .run_maintenance(
+                fixture.state(),
+                false,
+                included_txs,
+                INCLUDED_TX_BLOCK_NUMBER,
+            )
+            .await;
+
+        let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
+            height: tx1_height,
+            result: tx1_result,
+        }) = mempool.transaction_status(tx_1.id()).await.unwrap()
+        else {
+            panic!("tx_1 not marked as included in block");
+        };
+        assert_eq!(tx1_height, INCLUDED_TX_BLOCK_NUMBER);
+        assert_eq!(tx1_result, exec_result_1);
+
+        let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
+            height: tx2_height,
+            result: tx2_result,
+        }) = mempool.transaction_status(tx_2.id()).await.unwrap()
+        else {
+            panic!("tx_2 not marked as included in block");
+        };
+        assert_eq!(tx2_height, INCLUDED_TX_BLOCK_NUMBER);
+        assert_eq!(tx2_result, exec_result_2);
+
+        // Remove actions from removal cache to simulate recheck
+        mempool.remove_from_removal_cache(tx_1.id()).await;
+        mempool.remove_from_removal_cache(tx_2.id()).await;
+        let removal_cache = mempool.removal_cache().await;
+        assert!(removal_cache.is_empty(), "removal cache should be empty");
+
+        // Check that transaction status is still removed with "included" reason
+        let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
+            height,
+            result,
+        }) = mempool.transaction_status(tx_1.id()).await.unwrap()
+        else {
+            panic!("tx_1 not marked as included in block");
+        };
+        assert_eq!(height, INCLUDED_TX_BLOCK_NUMBER);
+        assert_eq!(result, exec_result_1);
+
+        let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
+            height,
+            result,
+        }) = mempool.transaction_status(tx_2.id()).await.unwrap()
+        else {
+            panic!("tx_2 not marked as included in block");
+        };
+        assert_eq!(height, INCLUDED_TX_BLOCK_NUMBER);
+        assert_eq!(result, exec_result_2);
+    }
+
+    #[tokio::test]
+    async fn transaction_status_none_after_recently_included_expiration() {
+        use tokio::time;
+
+        const INCLUDED_TX_BLOCK_NUMBER: u64 = 42;
+        let mut fixture = Fixture::default_initialized().await;
+        let mempool = fixture.mempool();
+        let account_balances = dummy_balances(100, 100);
+        let tx_cost = dummy_tx_costs(10, 10, 0);
+
+        // Create and insert a transaction
+        let tx = new_alice_tx(&fixture, 1).await;
+        mempool
+            .insert(tx.clone(), 1, &account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        // Setup state for maintenance
+        fixture
+            .state_mut()
+            .put_account_nonce(&*ALICE_ADDRESS_BYTES, 2)
+            .unwrap();
+        put_ibc_assets(&mut fixture);
+
+        // Mark transaction as included in a block
+        let exec_result = ExecTxResult {
+            log: "tx executed".to_string(),
+            ..ExecTxResult::default()
+        };
+        let mut included_txs = HashMap::new();
+        included_txs.insert(*tx.id(), exec_result.clone());
+        mempool
+            .run_maintenance(
+                fixture.state(),
+                false,
+                included_txs,
+                INCLUDED_TX_BLOCK_NUMBER,
+            )
+            .await;
+
+        let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
+            height,
+            result,
+        }) = mempool.transaction_status(tx.id()).await.unwrap()
+        else {
+            panic!("transaction not marked as included in block");
+        };
+        assert_eq!(height, INCLUDED_TX_BLOCK_NUMBER);
+        assert_eq!(result, exec_result);
+
+        // Advance time to expire the transaction in the `recently_included_transactions` cache
+        time::pause();
+        time::advance(time::Duration::from_secs(61)).await;
+
+        // Remove from CometBFT removal cache
+        mempool.remove_from_removal_cache(tx.id()).await;
+        // Maintenance should remove from recently included transactions
+        mempool
+            .run_maintenance(
+                fixture.state(),
+                false,
+                HashMap::new(),
+                INCLUDED_TX_BLOCK_NUMBER + 1,
+            )
+            .await;
+
+        assert!(
+            mempool.transaction_status(tx.id()).await.is_none(),
+            "Transaction status should be None after expiration from recently included cache"
+        );
     }
 
     #[tokio::test]
