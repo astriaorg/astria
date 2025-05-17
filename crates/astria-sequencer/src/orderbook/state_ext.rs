@@ -5,6 +5,7 @@ use astria_core::protocol::orderbook::v1::{
 };
 use borsh::{BorshDeserialize, BorshSerialize};
 use cnidarium::{StateRead, StateWrite};
+use futures::stream::StreamExt;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -66,7 +67,10 @@ pub trait StateReadExt: StateRead {
         match bytes_result {
             Ok(Some(bytes)) => {
                 match StoredValue::deserialize(&bytes) {
-                    Ok(StoredValue::Order(order)) => Some(order),
+                    Ok(StoredValue::Order(order)) => {
+                        // Return the proto Order directly
+                        Some(order)
+                    },
                     _ => None,
                 }
             },
@@ -78,7 +82,7 @@ pub trait StateReadExt: StateRead {
     fn get_market_orders(
         &self,
         market: &str,
-        side: Option<OrderSide>,
+        side: Option<astria_core::protocol::orderbook::v1::OrderSide>,
     ) -> Vec<Order> {
         let prefix = match side {
             Some(side) => keys::orderbook_market_side_orders(market, side),
@@ -86,13 +90,16 @@ pub trait StateReadExt: StateRead {
         };
 
         // Use collect to gather all values, then process them
-        let order_ids: Vec<String> = self.prefix_raw(&prefix)
-            .filter_map(|result| {
-                result.ok().map(|(_, value)| {
-                    String::from_utf8_lossy(&value).to_string()
-                })
-            })
-            .collect();
+        let order_ids: Vec<String> = futures::executor::block_on(async {
+            let mut ids = Vec::new();
+            let mut stream = self.prefix_raw(&prefix);
+            while let Some(result) = stream.next().await {
+                if let Ok((_, value)) = result {
+                    ids.push(String::from_utf8_lossy(&value).to_string());
+                }
+            }
+            ids
+        });
             
         // Now get each order
         order_ids.into_iter()
@@ -105,13 +112,16 @@ pub trait StateReadExt: StateRead {
         let prefix = keys::orderbook_owner_orders(owner);
         
         // Use collect to gather all values, then process them
-        let order_ids: Vec<String> = self.prefix_raw(&prefix)
-            .filter_map(|result| {
-                result.ok().map(|(_, value)| {
-                    String::from_utf8_lossy(&value).to_string()
-                })
-            })
-            .collect();
+        let order_ids: Vec<String> = futures::executor::block_on(async {
+            let mut ids = Vec::new();
+            let mut stream = self.prefix_raw(&prefix);
+            while let Some(result) = stream.next().await {
+                if let Ok((_, value)) = result {
+                    ids.push(String::from_utf8_lossy(&value).to_string());
+                }
+            }
+            ids
+        });
             
         // Now get each order
         order_ids.into_iter()
@@ -124,45 +134,55 @@ pub trait StateReadExt: StateRead {
         let bid_prefix = keys::orderbook_market_price_levels(market, OrderSide::ORDER_SIDE_BUY);
         let ask_prefix = keys::orderbook_market_price_levels(market, OrderSide::ORDER_SIDE_SELL);
         
-        // Process bids
-        let mut bids: Vec<(String, OrderbookEntry)> = self.prefix_raw(&bid_prefix)
-            .filter_map(|result| {
-                result.ok().and_then(|(key, value)| {
-                    // Extract the price from the key, assuming it's in the last 16 bytes
+        // Process bids - this version properly handles async streams
+        let bids: Vec<(String, OrderbookEntry)> = futures::executor::block_on(async {
+            let mut bid_entries = Vec::new();
+            let mut stream = self.prefix_raw(&bid_prefix);
+            
+            while let Some(result) = stream.next().await {
+                if let Ok((key, value)) = result {
+                    // Extract the price from the key
                     let key_bytes = key.as_bytes();
                     if key_bytes.len() >= 16 {
                         let price = String::from_utf8_lossy(&key_bytes[key_bytes.len() - 16..]).to_string();
-                        // Use BorshDeserialize directly
-                        <OrderbookEntry as BorshDeserialize>::deserialize(&mut value.as_slice()).ok().map(|entry| (price, entry))
-                    } else {
-                        None
+                        
+                        // Try to deserialize the entry
+                        if let Ok(entry) = <OrderbookEntry as BorshDeserialize>::deserialize(&mut value.as_slice()) {
+                            bid_entries.push((price, entry));
+                        }
                     }
-                })
-            })
-            .collect();
+                }
+            }
+            
+            // Sort bids by price in descending order (highest price first for bids)
+            bid_entries.sort_by(|(a, _), (b, _)| b.cmp(a));
+            bid_entries
+        });
 
-        // Sort bids by price in descending order
-        bids.sort_by(|(a, _), (b, _)| b.cmp(a));
-
-        // Process asks
-        let mut asks: Vec<(String, OrderbookEntry)> = self.prefix_raw(&ask_prefix)
-            .filter_map(|result| {
-                result.ok().and_then(|(key, value)| {
-                    // Extract the price from the key, assuming it's in the last 16 bytes
+        // Process asks - this version properly handles async streams
+        let asks: Vec<(String, OrderbookEntry)> = futures::executor::block_on(async {
+            let mut ask_entries = Vec::new();
+            let mut stream = self.prefix_raw(&ask_prefix);
+            
+            while let Some(result) = stream.next().await {
+                if let Ok((key, value)) = result {
+                    // Extract the price from the key
                     let key_bytes = key.as_bytes();
                     if key_bytes.len() >= 16 {
                         let price = String::from_utf8_lossy(&key_bytes[key_bytes.len() - 16..]).to_string();
-                        // Use BorshDeserialize directly
-                        <OrderbookEntry as BorshDeserialize>::deserialize(&mut value.as_slice()).ok().map(|entry| (price, entry))
-                    } else {
-                        None
+                        
+                        // Try to deserialize the entry
+                        if let Ok(entry) = <OrderbookEntry as BorshDeserialize>::deserialize(&mut value.as_slice()) {
+                            ask_entries.push((price, entry));
+                        }
                     }
-                })
-            })
-            .collect();
-
-        // Sort asks by price in ascending order
-        asks.sort_by(|(a, _), (b, _)| a.cmp(b));
+                }
+            }
+            
+            // Sort asks by price in ascending order (lowest price first for asks)
+            ask_entries.sort_by(|(a, _), (b, _)| a.cmp(b));
+            ask_entries
+        });
 
         Orderbook {
             market: market.to_string(),
@@ -199,30 +219,46 @@ pub trait StateReadExt: StateRead {
     fn get_markets(&self) -> Vec<String> {
         let prefix = keys::orderbook_markets();
         
-        self.prefix_raw(&prefix)
-            .filter_map(|result| {
-                result.ok().map(|(_, value)| String::from_utf8_lossy(&value).to_string())
-            })
-            .collect()
+        // Using async stream handling
+        futures::executor::block_on(async {
+            let mut markets = Vec::new();
+            let mut stream = self.prefix_raw(&prefix);
+            
+            while let Some(result) = stream.next().await {
+                if let Ok((_, value)) = result {
+                    markets.push(String::from_utf8_lossy(&value).to_string());
+                }
+            }
+            
+            markets
+        })
     }
 
     /// Get recent trades for a market.
     fn get_recent_trades(&self, market: &str, limit: usize) -> Vec<OrderMatch> {
         let prefix = keys::orderbook_market_trades(market);
         
-        let mut trades: Vec<OrderMatch> = self.prefix_raw(&prefix)
-            .filter_map(|result| {
-                result.ok().and_then(|(_, value)| {
-                    <OrderMatch as BorshDeserialize>::deserialize(&mut value.as_slice()).ok()
-                })
-            })
-            .collect();
+        // Using async stream handling
+        let trades = futures::executor::block_on(async {
+            let mut trades_vec = Vec::new();
+            let mut stream = self.prefix_raw(&prefix);
+            
+            while let Some(result) = stream.next().await {
+                if let Ok((_, value)) = result {
+                    if let Ok(trade) = <OrderMatch as BorshDeserialize>::deserialize(&mut value.as_slice()) {
+                        trades_vec.push(trade);
+                    }
+                }
+            }
+            
+            // Sort by timestamp descending (most recent first)
+            trades_vec.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+            
+            // Limit the number of trades returned
+            trades_vec.truncate(limit);
+            trades_vec
+        });
 
-        // Sort by timestamp descending (most recent first)
-        trades.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-
-        // Limit the number of trades returned
-        trades.truncate(limit);
         trades
     }
 }
@@ -234,6 +270,13 @@ impl<T: StateRead + ?Sized> StateReadExt for T {}
 pub trait StateWriteExt: StateWrite {
     /// Add a new order to the order book.
     fn put_order(&mut self, order: Order) -> Result<(), OrderbookError> {
+        // Convert the i32 side to OrderSide enum for storage operations
+        let order_side = match order.side() {
+            astria_core::protocol::orderbook::v1::OrderSide::ORDER_SIDE_BUY => astria_core::protocol::orderbook::v1::OrderSide::ORDER_SIDE_BUY,
+            astria_core::protocol::orderbook::v1::OrderSide::ORDER_SIDE_SELL => astria_core::protocol::orderbook::v1::OrderSide::ORDER_SIDE_SELL,
+            _ => astria_core::protocol::orderbook::v1::OrderSide::ORDER_SIDE_UNSPECIFIED,
+        };
+        
         // Store the order itself
         let serialized = StoredValue::Order(order.clone()).serialize()
             .map_err(|_| OrderbookError::SerializationError(String::from("Failed to serialize order")))?;
@@ -243,15 +286,18 @@ pub trait StateWriteExt: StateWrite {
             serialized,
         );
 
+        // Get the price as a string, handling the case where it might be empty
+        let price_str = order.price.clone();
+
         // Add to market-side-price index
         self.put_raw(
-            keys::orderbook_market_side_price_order(&order.market, order.side, &order.price.to_string(), &order.id),
+            keys::orderbook_market_side_price_order(&order.market, order_side, &price_str, &order.id),
             order.id.as_bytes().to_vec(),
         );
 
         // Add to market-side index
         self.put_raw(
-            keys::orderbook_market_side_order(&order.market, order.side, &order.id),
+            keys::orderbook_market_side_order(&order.market, order_side, &order.id),
             order.id.as_bytes().to_vec(),
         );
 
@@ -263,22 +309,21 @@ pub trait StateWriteExt: StateWrite {
 
         // Add to owner's orders index
         self.put_raw(
-            keys::orderbook_owner_order(&order.owner.to_string(), &order.id),
+            keys::orderbook_owner_order(&order.owner, &order.id),
             order.id.as_bytes().to_vec(),
         );
 
         // Update price level
         self.update_price_level(
             &order.market,
-            order.side,
-            &order.price.to_string(),
+            order_side,
+            &price_str,
             |level| {
                 level.quantity = level
                     .quantity
-                    .to_string()
                     .parse::<u128>()
                     .unwrap_or(0)
-                    .checked_add(order.quantity.to_string().parse::<u128>().unwrap_or(0))
+                    .checked_add(order.quantity.parse::<u128>().unwrap_or(0))
                     .map(|q| q.to_string())
                     .unwrap_or_else(|| "0".to_string());
                 level.order_count += 1;
@@ -293,7 +338,17 @@ pub trait StateWriteExt: StateWrite {
     fn remove_order(&mut self, order_id: &str) -> Result<(), OrderbookError> {
         let order = self
             .get_order(order_id)
-            .ok_or(OrderbookError::OrderNotFound)?;
+            .ok_or_else(|| OrderbookError::OrderNotFound(order_id.to_string()))?;
+
+        // Convert the i32 side to OrderSide enum for storage operations
+        let order_side = match order.side() {
+            astria_core::protocol::orderbook::v1::OrderSide::ORDER_SIDE_BUY => astria_core::protocol::orderbook::v1::OrderSide::ORDER_SIDE_BUY,
+            astria_core::protocol::orderbook::v1::OrderSide::ORDER_SIDE_SELL => astria_core::protocol::orderbook::v1::OrderSide::ORDER_SIDE_SELL,
+            _ => astria_core::protocol::orderbook::v1::OrderSide::ORDER_SIDE_UNSPECIFIED,
+        };
+
+        // Get the price as a string, handling the case where it might be empty
+        let price_str = order.price.clone();
 
         // Remove the order itself
         self.delete_raw(keys::orderbook_order(order_id));
@@ -301,34 +356,32 @@ pub trait StateWriteExt: StateWrite {
         // Remove from market-side-price index
         self.delete_raw(keys::orderbook_market_side_price_order(
             &order.market,
-            order.side,
-            &order.price.to_string(),
+            order_side,
+            &price_str,
             order_id,
         ));
 
         // Remove from market-side index
-        self.delete_raw(keys::orderbook_market_side_order(&order.market, order.side, order_id));
+        self.delete_raw(keys::orderbook_market_side_order(&order.market, order_side, order_id));
 
         // Remove from market index
         self.delete_raw(keys::orderbook_market_order(&order.market, order_id));
 
         // Remove from owner's orders index
-        self.delete_raw(keys::orderbook_owner_order(&order.owner.to_string(), order_id));
+        self.delete_raw(keys::orderbook_owner_order(&order.owner, order_id));
 
         // Update price level
         self.update_price_level(
             &order.market,
-            order.side,
-            &order.price.to_string(),
+            order_side,
+            &price_str,
             |level| {
                 let current_quantity = level
                     .quantity
-                    .to_string()
                     .parse::<u128>()
                     .unwrap_or(0);
                 let order_quantity = order
                     .remaining_quantity
-                    .to_string()
                     .parse::<u128>()
                     .unwrap_or(0);
                 
@@ -345,12 +398,17 @@ pub trait StateWriteExt: StateWrite {
         // If the price level is now empty, remove it
         let price_level_key = keys::orderbook_market_price_level(
             &order.market,
-            order.side,
-            &order.price.to_string(),
+            order_side,
+            &price_str,
         );
-        if let Some(bytes) = self.get_raw(&price_level_key) {
-            if let Ok(entry) = OrderbookEntry::try_from_slice(&bytes) {
-                if entry.order_count == 0 || entry.quantity == "0".to_string() {
+        
+        // Use async get_raw properly
+        let bytes_result = futures::executor::block_on(self.get_raw(price_level_key.as_str()));
+        
+        if let Ok(Some(bytes)) = bytes_result {
+            // Use our local OrderbookEntry instead of the proto one
+            if let Ok(entry) = crate::orderbook::OrderbookEntry::try_from_slice(&bytes) {
+                if entry.order_count == 0 || entry.quantity == "0" {
                     self.delete_raw(&price_level_key);
                 }
             }
@@ -367,11 +425,20 @@ pub trait StateWriteExt: StateWrite {
     ) -> Result<(), OrderbookError> {
         let mut order = self
             .get_order(order_id)
-            .ok_or(OrderbookError::OrderNotFound)?;
+            .ok_or_else(|| OrderbookError::OrderNotFound(order_id.to_string()))?;
+
+        // Convert the i32 side to OrderSide enum for storage operations
+        let order_side = match order.side() {
+            astria_core::protocol::orderbook::v1::OrderSide::ORDER_SIDE_BUY => astria_core::protocol::orderbook::v1::OrderSide::ORDER_SIDE_BUY,
+            astria_core::protocol::orderbook::v1::OrderSide::ORDER_SIDE_SELL => astria_core::protocol::orderbook::v1::OrderSide::ORDER_SIDE_SELL,
+            _ => astria_core::protocol::orderbook::v1::OrderSide::ORDER_SIDE_UNSPECIFIED,
+        };
+
+        // Get the price as a string, handling the case where it might be empty
+        let price_str = order.price.clone();
 
         let old_remaining = order
             .remaining_quantity
-            .to_string()
             .parse::<u128>()
             .unwrap_or(0);
         let new_remaining = remaining_quantity.parse::<u128>().unwrap_or(0);
@@ -389,20 +456,24 @@ pub trait StateWriteExt: StateWrite {
 
         // Update the order
         order.remaining_quantity = remaining_quantity.to_string();
+        
+        // Serialize the updated order
+        let serialized = StoredValue::Order(order.clone()).serialize()
+            .map_err(|_| OrderbookError::SerializationError(String::from("Failed to serialize order")))?;
+            
         self.put_raw(
-            &keys::orderbook_order(order_id),
-            &StoredValue::Order(order.clone()).serialize(),
+            keys::orderbook_order(order_id),
+            serialized,
         );
 
         // Update price level
         self.update_price_level(
             &order.market,
-            order.side,
-            &order.price.to_string(),
+            order_side,
+            &price_str,
             |level| {
                 let current_quantity = level
                     .quantity
-                    .to_string()
                     .parse::<u128>()
                     .unwrap_or(0);
                 
@@ -492,7 +563,7 @@ pub trait StateWriteExt: StateWrite {
     fn update_price_level(
         &mut self,
         market: &str,
-        side: OrderSide,
+        side: astria_core::protocol::orderbook::v1::OrderSide,
         price: &str,
         update_fn: impl FnOnce(crate::orderbook::OrderbookEntry) -> crate::orderbook::OrderbookEntry,
     ) -> Result<(), OrderbookError> {
@@ -517,7 +588,7 @@ pub trait StateWriteExt: StateWrite {
         };
 
         let updated_entry = update_fn(entry);
-        // Use borsh serialization instead of serde
+        // Use borsh serialization
         let buf = borsh::to_vec(&updated_entry)
             .map_err(|_| OrderbookError::SerializationError(String::from("Failed to serialize OrderbookEntry")))?;
         

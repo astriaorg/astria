@@ -18,14 +18,14 @@ impl<'a, S: StateRead> ExecutionState<'a, S> {
     fn new(state: &'a S) -> Self {
         Self { state }
     }
-    
+
     fn market_exists(&self, market_id: &str) -> bool {
         // This is a simplified implementation
         self.state.get_market_params(market_id).is_some()
     }
-    
+
     fn get_order(&self, order_id: &str) -> Option<crate::orderbook::Order> {
-        // This is a simplified implementation 
+        // This is a simplified implementation
         self.state.get_order(order_id)
     }
 }
@@ -51,16 +51,16 @@ pub enum CheckedActionError {
 pub enum OrderbookError {
     #[error("Invalid order parameters: {0}")]
     InvalidOrderParameters(String),
-    
+
     #[error("Market not found: {0}")]
     MarketNotFound(String),
-    
+
     #[error("Market already exists: {0}")]
     MarketAlreadyExists(String),
-    
+
     #[error("Order not found: {0}")]
     OrderNotFound(String),
-    
+
     #[error("Order book operation failed: {0}")]
     OperationFailed(String),
 }
@@ -83,7 +83,7 @@ impl CheckCreateOrder for OrderbookComponent {
         sender: String,
     ) -> Result<CheckedCreateOrder, CheckedActionError> {
         let execution_state = ExecutionState::new(state);
-        
+
         // Check that the market exists
         if !execution_state.market_exists(&action.market) {
             return Err(CheckedActionError::from(OrderbookError::MarketNotFound(
@@ -133,7 +133,7 @@ impl CheckCancelOrder for OrderbookComponent {
         sender: String,
     ) -> Result<CheckedCancelOrder, CheckedActionError> {
         let execution_state = ExecutionState::new(state);
-        
+
         // Check that the order exists
         let order = execution_state
             .get_order(&action.order_id)
@@ -180,7 +180,7 @@ impl CheckCreateMarket for OrderbookComponent {
         sender: String,
     ) -> Result<CheckedCreateMarket, CheckedActionError> {
         let execution_state = ExecutionState::new(state);
-        
+
         // Check that the market doesn't already exist
         if execution_state.market_exists(&action.market) {
             return Err(CheckedActionError::from(OrderbookError::MarketAlreadyExists(
@@ -229,7 +229,7 @@ impl CheckUpdateMarket for OrderbookComponent {
         sender: String,
     ) -> Result<crate::orderbook::component::CheckedUpdateMarket, CheckedActionError> {
         let execution_state = ExecutionState::new(state);
-        
+
         // Check that the market exists
         if !execution_state.market_exists(&action.market) {
             return Err(CheckedActionError::from(OrderbookError::MarketNotFound(
