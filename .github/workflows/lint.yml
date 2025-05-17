@@ -61,6 +61,18 @@ jobs:
         with:
           input: "proto/composerapis"
           against: "buf.build/astria/composer-apis"
+      - uses: bufbuild/buf-breaking-action@v1
+        if: always()
+        continue-on-error: ${{ contains(github.event.pull_request.labels.*.name, 'allow-breaking-proto') }}
+        with:
+          input: "proto/mempoolapis"
+          against: "buf.build/astria/mempool-apis"
+      - uses: bufbuild/buf-breaking-action@v1
+        if: always()
+        continue-on-error: ${{ contains(github.event.pull_request.labels.*.name, 'allow-breaking-proto') }}
+        with:
+          input: "proto/upgrades"
+          against: "buf.build/astria/upgrades"
 
   rust:
     runs-on: ubuntu-22.04

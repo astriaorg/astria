@@ -1,5 +1,5 @@
-// #[cfg(feature = "benchmark")]
-// mod benchmarks;
+#[cfg(feature = "benchmark")]
+mod benchmarks;
 pub(crate) mod event_bus;
 mod execution_state;
 mod state_ext;
@@ -1559,12 +1559,12 @@ impl App {
         // clear validator updates
         state_tx.clear_block_validator_updates();
 
-        // gather block fees and transfer them to the block proposer
-        let fees = self.state.get_block_fees();
+        // gather block fees and transfer them to the fee recipient
+        let block_fees = self.state.get_block_fees();
 
-        for fee in fees {
+        for (fee_asset, total_amount) in block_fees {
             state_tx
-                .increase_balance(fee_recipient, fee.asset(), fee.amount())
+                .increase_balance(fee_recipient, &fee_asset, total_amount)
                 .await
                 .wrap_err("failed to increase fee recipient balance")?;
         }

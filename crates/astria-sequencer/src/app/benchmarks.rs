@@ -5,31 +5,18 @@
 
 use std::time::Duration;
 
-use astria_core::{
-    protocol::genesis::v1::{
-        Account,
-        GenesisAppState,
-    },
-    Protobuf,
-};
-use cnidarium::Storage;
-
 use crate::{
-    app::{
-        benchmark_and_test_utils::{
-            mock_balances,
-            mock_tx_cost,
-            AppInitializer,
-        },
-        App,
-    },
-    benchmark_and_test_utils::astria_address,
     benchmark_utils::{
         self,
+        new_fixture,
         TxTypes,
-        SIGNER_COUNT,
     },
     proposal::block_size_constraints::BlockSizeConstraints,
+    test_utils::{
+        dummy_balances,
+        dummy_tx_costs,
+        Fixture,
+    },
 };
 
 /// The max time for any benchmark.
@@ -40,69 +27,37 @@ const MAX_TIME: Duration = Duration::from_secs(120);
 /// `prepare_proposal` during stress testing using spamoor.
 const COMETBFT_MAX_TX_BYTES: i64 = 22_019_254;
 
-struct Fixture {
-    app: App,
-    _storage: Storage,
-}
-
-impl Fixture {
-    /// Initializes a new `App` instance with the genesis accounts derived from the secret keys of
-    /// `benchmark_utils::signing_keys()`, and inserts transactions into the app mempool.
-    async fn new() -> Fixture {
-        let accounts = benchmark_utils::signing_keys()
-            .enumerate()
-            .take(usize::from(SIGNER_COUNT))
-            .map(|(index, signing_key)| Account {
-                address: astria_address(&signing_key.address_bytes()),
-                balance: 10u128
-                    .pow(19)
-                    .saturating_add(u128::try_from(index).unwrap()),
-            })
-            .map(Protobuf::into_raw)
-            .collect::<Vec<_>>();
-        let first_address = accounts.first().cloned().unwrap().address;
-        let genesis_state = GenesisAppState::try_from_raw(
-            astria_core::generated::astria::protocol::genesis::v1::GenesisAppState {
-                accounts,
-                authority_sudo_address: first_address.clone(),
-                ibc_sudo_address: first_address.clone(),
-                ..crate::app::benchmark_and_test_utils::proto_genesis_state()
-            },
-        )
-            .unwrap();
-
-        let (app, storage) = AppInitializer::new()
-            .with_genesis_state(genesis_state)
-            .init()
-            .await;
-
-        let mock_balances = mock_balances(0, 0);
-        let mock_tx_cost = mock_tx_cost(0, 0, 0);
-
-        for tx in benchmark_utils::transactions(TxTypes::AllTransfers) {
-            app.mempool
-                .insert(tx.clone(), 0, &mock_balances.clone(), mock_tx_cost.clone())
+/// Initializes a new `App` instance with the genesis accounts derived from the secret keys of
+/// `benchmark_utils::signing_keys()`, and inserts transactions into the app mempool.
+fn initialize() -> Fixture {
+    let dummy_balances = dummy_balances(0, 0);
+    let dummy_tx_costs = dummy_tx_costs(0, 0, 0);
+    let txs = benchmark_utils::transactions(TxTypes::AllTransfers);
+    let fixture = new_fixture();
+    let mempool = fixture.mempool();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        for tx in txs {
+            mempool
+                .insert(tx.clone(), 0, &dummy_balances, dummy_tx_costs.clone())
                 .await
                 .unwrap();
         }
-        Fixture {
-            app,
-            _storage: storage,
-        }
-    }
+    });
+
+    fixture
 }
 
 #[divan::bench(max_time = MAX_TIME)]
 fn prepare_proposal_tx_execution(bencher: divan::Bencher) {
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap();
-    let mut fixture = runtime.block_on(async { Fixture::new().await });
+    let runtime = tokio::runtime::Builder::new_multi_thread().build().unwrap();
+    let mut fixture = initialize();
     bencher
         .with_inputs(|| BlockSizeConstraints::new(COMETBFT_MAX_TX_BYTES, true).unwrap())
         .bench_local_refs(|constraints| {
-            let (_tx_bytes, included_txs) = runtime.block_on(async {
+            let executed_txs = runtime.block_on(async {
                 fixture
                     .app
                     .prepare_proposal_tx_execution(*constraints)
@@ -111,6 +66,6 @@ fn prepare_proposal_tx_execution(bencher: divan::Bencher) {
             });
             // Ensure we actually processed some txs.  This will trip if execution fails for all
             // txs, or more likely, if the mempool becomes exhausted of txs.
-            assert!(!included_txs.is_empty());
+            assert!(!executed_txs.is_empty());
         });
 }
