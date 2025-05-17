@@ -22,8 +22,8 @@ impl MatchingEngine {
             order_id = order.id,
             market = order.market,
             side = ?order.side,
-            price = order.price,
-            quantity = order.quantity,
+            price = %crate::orderbook::format_uint128_option(&order.price),
+            quantity = %crate::orderbook::format_uint128_option(&order.quantity),
             "Processing order"
         );
         
@@ -40,7 +40,7 @@ impl MatchingEngine {
                 id: Uuid::new_v4().to_string(),
                 market: order.market.clone(),
                 price: order.price.clone(),
-                quantity: "10".to_string(), // Arbitrary quantity for demo
+                quantity: crate::orderbook::string_to_uint128_option("10"), // Arbitrary quantity for demo
                 maker_order_id: "maker_order_123".to_string(), // Arbitrary ID
                 taker_order_id: order.id.clone(),
                 taker_side: order.side,

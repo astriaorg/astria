@@ -6,7 +6,7 @@ use thiserror::Error;
 use cnidarium::StateRead;
 
 use crate::orderbook::{
-    component::{CheckedCreateMarket, CheckedCreateOrder, CheckedCancelOrder},
+    component::{CheckedCreateMarket, CheckedCreateOrder, CheckedCancelOrder, ExecuteOrderbookAction},
     OrderbookComponent, StateReadExt, StateWriteExt,
 };
 // Use our own simplified ExecutionState instead of app's private one
@@ -67,9 +67,9 @@ pub enum OrderbookError {
 
 /// Extension trait for OrderbookComponent to check CreateOrder actions
 pub trait CheckCreateOrder {
-    fn check_create_order(
+    fn check_create_order<S: StateRead>(
         &self,
-        execution_state: &ExecutionState,
+        state: &S,
         action: &CreateOrder,
         sender: String,
     ) -> Result<CheckedCreateOrder, CheckedActionError>;
@@ -92,7 +92,7 @@ impl CheckCreateOrder for OrderbookComponent {
         }
 
         // Validate order parameters
-        if action.quantity.is_empty() || action.quantity == "0" {
+        if action.quantity == 0 {
             return Err(CheckedActionError::from(OrderbookError::InvalidOrderParameters(
                 "Quantity must be greater than 0".to_string(),
             )));
@@ -105,11 +105,11 @@ impl CheckCreateOrder for OrderbookComponent {
                 ))
             })?,
             market: action.market.clone(),
-            side: action.side(),
-            order_type: action.type_(),
-            price: action.price.clone(),
-            quantity: action.quantity.clone(),
-            time_in_force: action.time_in_force(),
+            side: crate::orderbook::order_side_from_i32(action.side),
+            order_type: crate::orderbook::order_type_from_i32(action.r#type),
+            price: action.price.to_string(),
+            quantity: action.quantity.to_string(),
+            time_in_force: crate::orderbook::time_in_force_from_i32(action.time_in_force),
             fee_asset: action.fee_asset.clone(),
         })
     }
