@@ -716,11 +716,11 @@ pub struct CreateOrder {
     #[prost(string, tag = "1")]
     pub market: ::prost::alloc::string::String,
     /// Order side (buy or sell)
-    #[prost(enumeration = "super::super::orderbook::v1::OrderSide", tag = "2")]
-    pub side: i32,
+    #[prost(message, optional, tag = "2")]
+    pub side: ::core::option::Option<super::super::orderbook::v1::OrderSide>,
     /// Order type (limit, market)
-    #[prost(enumeration = "super::super::orderbook::v1::OrderType", tag = "3")]
-    pub r#type: i32,
+    #[prost(message, optional, tag = "3")]
+    pub r#type: ::core::option::Option<super::super::orderbook::v1::OrderType>,
     /// Limit price (required for limit orders)
     #[prost(message, optional, tag = "4")]
     pub price: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
@@ -728,8 +728,10 @@ pub struct CreateOrder {
     #[prost(message, optional, tag = "5")]
     pub quantity: ::core::option::Option<super::super::super::primitive::v1::Uint128>,
     /// Time in force parameter
-    #[prost(enumeration = "super::super::orderbook::v1::OrderTimeInForce", tag = "6")]
-    pub time_in_force: i32,
+    #[prost(message, optional, tag = "6")]
+    pub time_in_force: ::core::option::Option<
+        super::super::orderbook::v1::OrderTimeInForce,
+    >,
     /// The asset used to pay the transaction fee
     #[prost(string, tag = "7")]
     pub fee_asset: ::prost::alloc::string::String,

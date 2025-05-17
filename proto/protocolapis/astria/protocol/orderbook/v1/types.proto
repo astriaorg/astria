@@ -4,23 +4,35 @@ package astria.protocol.orderbook.v1;
 
 import "astria/primitive/v1/types.proto";
 
-enum OrderSide {
-  ORDER_SIDE_UNSPECIFIED = 0;
-  ORDER_SIDE_BUY = 1;
-  ORDER_SIDE_SELL = 2;
+enum OrderSideInner {
+  ORDER_SIDE_INNER_UNSPECIFIED = 0;
+  ORDER_SIDE_INNER_BUY = 1;
+  ORDER_SIDE_INNER_SELL = 2;
 }
 
-enum OrderType {
-  ORDER_TYPE_UNSPECIFIED = 0;
-  ORDER_TYPE_LIMIT = 1;
-  ORDER_TYPE_MARKET = 2;
+enum OrderTypeInner {
+  ORDER_TYPE_INNER_UNSPECIFIED = 0;
+  ORDER_TYPE_INNER_LIMIT = 1;
+  ORDER_TYPE_INNER_MARKET = 2;
 }
 
-enum OrderTimeInForce {
-  ORDER_TIME_IN_FORCE_UNSPECIFIED = 0;
-  ORDER_TIME_IN_FORCE_GTC = 1;  // Good Till Cancelled
-  ORDER_TIME_IN_FORCE_IOC = 2;  // Immediate or Cancel
-  ORDER_TIME_IN_FORCE_FOK = 3;  // Fill or Kill
+enum OrderTimeInForceInner {
+  ORDER_TIME_IN_FORCE_INNER_UNSPECIFIED = 0;
+  ORDER_TIME_IN_FORCE_INNER_GTC = 1; // Good Till Cancelled
+  ORDER_TIME_IN_FORCE_INNER_IOC = 2; // Immediate or Cancel
+  ORDER_TIME_IN_FORCE_INNER_FOK = 3; // Fill or Kill
+}
+
+message OrderTimeInForce {
+  OrderTimeInForceInner inner = 1;
+}
+
+message OrderType {
+  OrderTypeInner inner = 1;
+}
+
+message OrderSide {
+  OrderSideInner inner = 1;
 }
 
 message Order {

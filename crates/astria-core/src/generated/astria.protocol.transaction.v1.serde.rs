@@ -1399,10 +1399,10 @@ impl serde::Serialize for CreateOrder {
         if !self.market.is_empty() {
             len += 1;
         }
-        if self.side != 0 {
+        if self.side.is_some() {
             len += 1;
         }
-        if self.r#type != 0 {
+        if self.r#type.is_some() {
             len += 1;
         }
         if self.price.is_some() {
@@ -1411,7 +1411,7 @@ impl serde::Serialize for CreateOrder {
         if self.quantity.is_some() {
             len += 1;
         }
-        if self.time_in_force != 0 {
+        if self.time_in_force.is_some() {
             len += 1;
         }
         if !self.fee_asset.is_empty() {
@@ -1421,15 +1421,11 @@ impl serde::Serialize for CreateOrder {
         if !self.market.is_empty() {
             struct_ser.serialize_field("market", &self.market)?;
         }
-        if self.side != 0 {
-            let v = super::super::orderbook::v1::OrderSide::try_from(self.side)
-                .map_err(|_| serde::ser::Error::custom(format!("Invalid variant {}", self.side)))?;
-            struct_ser.serialize_field("side", &v)?;
+        if let Some(v) = self.side.as_ref() {
+            struct_ser.serialize_field("side", v)?;
         }
-        if self.r#type != 0 {
-            let v = super::super::orderbook::v1::OrderType::try_from(self.r#type)
-                .map_err(|_| serde::ser::Error::custom(format!("Invalid variant {}", self.r#type)))?;
-            struct_ser.serialize_field("type", &v)?;
+        if let Some(v) = self.r#type.as_ref() {
+            struct_ser.serialize_field("type", v)?;
         }
         if let Some(v) = self.price.as_ref() {
             struct_ser.serialize_field("price", v)?;
@@ -1437,10 +1433,8 @@ impl serde::Serialize for CreateOrder {
         if let Some(v) = self.quantity.as_ref() {
             struct_ser.serialize_field("quantity", v)?;
         }
-        if self.time_in_force != 0 {
-            let v = super::super::orderbook::v1::OrderTimeInForce::try_from(self.time_in_force)
-                .map_err(|_| serde::ser::Error::custom(format!("Invalid variant {}", self.time_in_force)))?;
-            struct_ser.serialize_field("timeInForce", &v)?;
+        if let Some(v) = self.time_in_force.as_ref() {
+            struct_ser.serialize_field("timeInForce", v)?;
         }
         if !self.fee_asset.is_empty() {
             struct_ser.serialize_field("feeAsset", &self.fee_asset)?;
@@ -1541,13 +1535,13 @@ impl<'de> serde::Deserialize<'de> for CreateOrder {
                             if side__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("side"));
                             }
-                            side__ = Some(map_.next_value::<super::super::orderbook::v1::OrderSide>()? as i32);
+                            side__ = map_.next_value()?;
                         }
                         GeneratedField::Type => {
                             if r#type__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("type"));
                             }
-                            r#type__ = Some(map_.next_value::<super::super::orderbook::v1::OrderType>()? as i32);
+                            r#type__ = map_.next_value()?;
                         }
                         GeneratedField::Price => {
                             if price__.is_some() {
@@ -1565,7 +1559,7 @@ impl<'de> serde::Deserialize<'de> for CreateOrder {
                             if time_in_force__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("timeInForce"));
                             }
-                            time_in_force__ = Some(map_.next_value::<super::super::orderbook::v1::OrderTimeInForce>()? as i32);
+                            time_in_force__ = map_.next_value()?;
                         }
                         GeneratedField::FeeAsset => {
                             if fee_asset__.is_some() {
@@ -1577,11 +1571,11 @@ impl<'de> serde::Deserialize<'de> for CreateOrder {
                 }
                 Ok(CreateOrder {
                     market: market__.unwrap_or_default(),
-                    side: side__.unwrap_or_default(),
-                    r#type: r#type__.unwrap_or_default(),
+                    side: side__,
+                    r#type: r#type__,
                     price: price__,
                     quantity: quantity__,
-                    time_in_force: time_in_force__.unwrap_or_default(),
+                    time_in_force: time_in_force__,
                     fee_asset: fee_asset__.unwrap_or_default(),
                 })
             }

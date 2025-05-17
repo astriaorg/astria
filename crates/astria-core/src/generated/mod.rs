@@ -187,6 +187,19 @@ pub mod astria {
                 }
             }
         }
+
+        #[path = ""]
+        pub mod orderbook {
+            pub mod v1 {
+                include!("astria.protocol.orderbook.v1.rs");
+
+                #[cfg(feature = "serde")]
+                mod _serde_impl {
+                    use super::*;
+                    include!("astria.protocol.orderbook.v1.serde.rs");
+                }
+            }
+        }
     }
 
     #[path = ""]

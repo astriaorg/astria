@@ -15,10 +15,10 @@ impl serde::Serialize for Order {
         if !self.market.is_empty() {
             len += 1;
         }
-        if self.side != 0 {
+        if self.side.is_some() {
             len += 1;
         }
-        if self.r#type != 0 {
+        if self.r#type.is_some() {
             len += 1;
         }
         if self.price.is_some() {
@@ -33,7 +33,7 @@ impl serde::Serialize for Order {
         if self.created_at != 0 {
             len += 1;
         }
-        if self.time_in_force != 0 {
+        if self.time_in_force.is_some() {
             len += 1;
         }
         if !self.fee_asset.is_empty() {
@@ -49,15 +49,11 @@ impl serde::Serialize for Order {
         if !self.market.is_empty() {
             struct_ser.serialize_field("market", &self.market)?;
         }
-        if self.side != 0 {
-            let v = OrderSide::try_from(self.side)
-                .map_err(|_| serde::ser::Error::custom(format!("Invalid variant {}", self.side)))?;
-            struct_ser.serialize_field("side", &v)?;
+        if let Some(v) = self.side.as_ref() {
+            struct_ser.serialize_field("side", v)?;
         }
-        if self.r#type != 0 {
-            let v = OrderType::try_from(self.r#type)
-                .map_err(|_| serde::ser::Error::custom(format!("Invalid variant {}", self.r#type)))?;
-            struct_ser.serialize_field("type", &v)?;
+        if let Some(v) = self.r#type.as_ref() {
+            struct_ser.serialize_field("type", v)?;
         }
         if let Some(v) = self.price.as_ref() {
             struct_ser.serialize_field("price", v)?;
@@ -73,10 +69,8 @@ impl serde::Serialize for Order {
             #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("createdAt", ToString::to_string(&self.created_at).as_str())?;
         }
-        if self.time_in_force != 0 {
-            let v = OrderTimeInForce::try_from(self.time_in_force)
-                .map_err(|_| serde::ser::Error::custom(format!("Invalid variant {}", self.time_in_force)))?;
-            struct_ser.serialize_field("timeInForce", &v)?;
+        if let Some(v) = self.time_in_force.as_ref() {
+            struct_ser.serialize_field("timeInForce", v)?;
         }
         if !self.fee_asset.is_empty() {
             struct_ser.serialize_field("feeAsset", &self.fee_asset)?;
@@ -207,13 +201,13 @@ impl<'de> serde::Deserialize<'de> for Order {
                             if side__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("side"));
                             }
-                            side__ = Some(map_.next_value::<OrderSide>()? as i32);
+                            side__ = map_.next_value()?;
                         }
                         GeneratedField::Type => {
                             if r#type__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("type"));
                             }
-                            r#type__ = Some(map_.next_value::<OrderType>()? as i32);
+                            r#type__ = map_.next_value()?;
                         }
                         GeneratedField::Price => {
                             if price__.is_some() {
@@ -245,7 +239,7 @@ impl<'de> serde::Deserialize<'de> for Order {
                             if time_in_force__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("timeInForce"));
                             }
-                            time_in_force__ = Some(map_.next_value::<OrderTimeInForce>()? as i32);
+                            time_in_force__ = map_.next_value()?;
                         }
                         GeneratedField::FeeAsset => {
                             if fee_asset__.is_some() {
@@ -259,13 +253,13 @@ impl<'de> serde::Deserialize<'de> for Order {
                     id: id__.unwrap_or_default(),
                     owner: owner__,
                     market: market__.unwrap_or_default(),
-                    side: side__.unwrap_or_default(),
-                    r#type: r#type__.unwrap_or_default(),
+                    side: side__,
+                    r#type: r#type__,
                     price: price__,
                     quantity: quantity__,
                     remaining_quantity: remaining_quantity__,
                     created_at: created_at__.unwrap_or_default(),
-                    time_in_force: time_in_force__.unwrap_or_default(),
+                    time_in_force: time_in_force__,
                     fee_asset: fee_asset__.unwrap_or_default(),
                 })
             }
@@ -299,7 +293,7 @@ impl serde::Serialize for OrderMatch {
         if !self.taker_order_id.is_empty() {
             len += 1;
         }
-        if self.taker_side != 0 {
+        if self.taker_side.is_some() {
             len += 1;
         }
         if self.timestamp != 0 {
@@ -324,10 +318,8 @@ impl serde::Serialize for OrderMatch {
         if !self.taker_order_id.is_empty() {
             struct_ser.serialize_field("takerOrderId", &self.taker_order_id)?;
         }
-        if self.taker_side != 0 {
-            let v = OrderSide::try_from(self.taker_side)
-                .map_err(|_| serde::ser::Error::custom(format!("Invalid variant {}", self.taker_side)))?;
-            struct_ser.serialize_field("takerSide", &v)?;
+        if let Some(v) = self.taker_side.as_ref() {
+            struct_ser.serialize_field("takerSide", v)?;
         }
         if self.timestamp != 0 {
             #[allow(clippy::needless_borrow)]
@@ -465,7 +457,7 @@ impl<'de> serde::Deserialize<'de> for OrderMatch {
                             if taker_side__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("takerSide"));
                             }
-                            taker_side__ = Some(map_.next_value::<OrderSide>()? as i32);
+                            taker_side__ = map_.next_value()?;
                         }
                         GeneratedField::Timestamp => {
                             if timestamp__.is_some() {
@@ -484,7 +476,7 @@ impl<'de> serde::Deserialize<'de> for OrderMatch {
                     quantity: quantity__,
                     maker_order_id: maker_order_id__.unwrap_or_default(),
                     taker_order_id: taker_order_id__.unwrap_or_default(),
-                    taker_side: taker_side__.unwrap_or_default(),
+                    taker_side: taker_side__,
                     timestamp: timestamp__.unwrap_or_default(),
                 })
             }
@@ -498,12 +490,18 @@ impl serde::Serialize for OrderSide {
     where
         S: serde::Serializer,
     {
-        let variant = match self {
-            Self::Unspecified => "ORDER_SIDE_UNSPECIFIED",
-            Self::Buy => "ORDER_SIDE_BUY",
-            Self::Sell => "ORDER_SIDE_SELL",
-        };
-        serializer.serialize_str(variant)
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.inner != 0 {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.orderbook.v1.OrderSide", len)?;
+        if self.inner != 0 {
+            let v = OrderSideInner::try_from(self.inner)
+                .map_err(|_| serde::ser::Error::custom(format!("Invalid variant {}", self.inner)))?;
+            struct_ser.serialize_field("inner", &v)?;
+        }
+        struct_ser.end()
     }
 }
 impl<'de> serde::Deserialize<'de> for OrderSide {
@@ -513,15 +511,102 @@ impl<'de> serde::Deserialize<'de> for OrderSide {
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "ORDER_SIDE_UNSPECIFIED",
-            "ORDER_SIDE_BUY",
-            "ORDER_SIDE_SELL",
+            "inner",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Inner,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "inner" => Ok(GeneratedField::Inner),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = OrderSide;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.orderbook.v1.OrderSide")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<OrderSide, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut inner__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Inner => {
+                            if inner__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("inner"));
+                            }
+                            inner__ = Some(map_.next_value::<OrderSideInner>()? as i32);
+                        }
+                    }
+                }
+                Ok(OrderSide {
+                    inner: inner__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.orderbook.v1.OrderSide", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for OrderSideInner {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let variant = match self {
+            Self::Unspecified => "ORDER_SIDE_INNER_UNSPECIFIED",
+            Self::Buy => "ORDER_SIDE_INNER_BUY",
+            Self::Sell => "ORDER_SIDE_INNER_SELL",
+        };
+        serializer.serialize_str(variant)
+    }
+}
+impl<'de> serde::Deserialize<'de> for OrderSideInner {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "ORDER_SIDE_INNER_UNSPECIFIED",
+            "ORDER_SIDE_INNER_BUY",
+            "ORDER_SIDE_INNER_SELL",
         ];
 
         struct GeneratedVisitor;
 
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = OrderSide;
+            type Value = OrderSideInner;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(formatter, "expected one of: {:?}", &FIELDS)
@@ -556,9 +641,9 @@ impl<'de> serde::Deserialize<'de> for OrderSide {
                 E: serde::de::Error,
             {
                 match value {
-                    "ORDER_SIDE_UNSPECIFIED" => Ok(OrderSide::Unspecified),
-                    "ORDER_SIDE_BUY" => Ok(OrderSide::Buy),
-                    "ORDER_SIDE_SELL" => Ok(OrderSide::Sell),
+                    "ORDER_SIDE_INNER_UNSPECIFIED" => Ok(OrderSideInner::Unspecified),
+                    "ORDER_SIDE_INNER_BUY" => Ok(OrderSideInner::Buy),
+                    "ORDER_SIDE_INNER_SELL" => Ok(OrderSideInner::Sell),
                     _ => Err(serde::de::Error::unknown_variant(value, FIELDS)),
                 }
             }
@@ -572,13 +657,18 @@ impl serde::Serialize for OrderTimeInForce {
     where
         S: serde::Serializer,
     {
-        let variant = match self {
-            Self::Unspecified => "ORDER_TIME_IN_FORCE_UNSPECIFIED",
-            Self::Gtc => "ORDER_TIME_IN_FORCE_GTC",
-            Self::Ioc => "ORDER_TIME_IN_FORCE_IOC",
-            Self::Fok => "ORDER_TIME_IN_FORCE_FOK",
-        };
-        serializer.serialize_str(variant)
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.inner != 0 {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.orderbook.v1.OrderTimeInForce", len)?;
+        if self.inner != 0 {
+            let v = OrderTimeInForceInner::try_from(self.inner)
+                .map_err(|_| serde::ser::Error::custom(format!("Invalid variant {}", self.inner)))?;
+            struct_ser.serialize_field("inner", &v)?;
+        }
+        struct_ser.end()
     }
 }
 impl<'de> serde::Deserialize<'de> for OrderTimeInForce {
@@ -588,16 +678,104 @@ impl<'de> serde::Deserialize<'de> for OrderTimeInForce {
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "ORDER_TIME_IN_FORCE_UNSPECIFIED",
-            "ORDER_TIME_IN_FORCE_GTC",
-            "ORDER_TIME_IN_FORCE_IOC",
-            "ORDER_TIME_IN_FORCE_FOK",
+            "inner",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Inner,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "inner" => Ok(GeneratedField::Inner),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = OrderTimeInForce;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.orderbook.v1.OrderTimeInForce")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<OrderTimeInForce, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut inner__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Inner => {
+                            if inner__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("inner"));
+                            }
+                            inner__ = Some(map_.next_value::<OrderTimeInForceInner>()? as i32);
+                        }
+                    }
+                }
+                Ok(OrderTimeInForce {
+                    inner: inner__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.orderbook.v1.OrderTimeInForce", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for OrderTimeInForceInner {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let variant = match self {
+            Self::Unspecified => "ORDER_TIME_IN_FORCE_INNER_UNSPECIFIED",
+            Self::Gtc => "ORDER_TIME_IN_FORCE_INNER_GTC",
+            Self::Ioc => "ORDER_TIME_IN_FORCE_INNER_IOC",
+            Self::Fok => "ORDER_TIME_IN_FORCE_INNER_FOK",
+        };
+        serializer.serialize_str(variant)
+    }
+}
+impl<'de> serde::Deserialize<'de> for OrderTimeInForceInner {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "ORDER_TIME_IN_FORCE_INNER_UNSPECIFIED",
+            "ORDER_TIME_IN_FORCE_INNER_GTC",
+            "ORDER_TIME_IN_FORCE_INNER_IOC",
+            "ORDER_TIME_IN_FORCE_INNER_FOK",
         ];
 
         struct GeneratedVisitor;
 
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = OrderTimeInForce;
+            type Value = OrderTimeInForceInner;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(formatter, "expected one of: {:?}", &FIELDS)
@@ -632,10 +810,10 @@ impl<'de> serde::Deserialize<'de> for OrderTimeInForce {
                 E: serde::de::Error,
             {
                 match value {
-                    "ORDER_TIME_IN_FORCE_UNSPECIFIED" => Ok(OrderTimeInForce::Unspecified),
-                    "ORDER_TIME_IN_FORCE_GTC" => Ok(OrderTimeInForce::Gtc),
-                    "ORDER_TIME_IN_FORCE_IOC" => Ok(OrderTimeInForce::Ioc),
-                    "ORDER_TIME_IN_FORCE_FOK" => Ok(OrderTimeInForce::Fok),
+                    "ORDER_TIME_IN_FORCE_INNER_UNSPECIFIED" => Ok(OrderTimeInForceInner::Unspecified),
+                    "ORDER_TIME_IN_FORCE_INNER_GTC" => Ok(OrderTimeInForceInner::Gtc),
+                    "ORDER_TIME_IN_FORCE_INNER_IOC" => Ok(OrderTimeInForceInner::Ioc),
+                    "ORDER_TIME_IN_FORCE_INNER_FOK" => Ok(OrderTimeInForceInner::Fok),
                     _ => Err(serde::de::Error::unknown_variant(value, FIELDS)),
                 }
             }
@@ -649,12 +827,18 @@ impl serde::Serialize for OrderType {
     where
         S: serde::Serializer,
     {
-        let variant = match self {
-            Self::Unspecified => "ORDER_TYPE_UNSPECIFIED",
-            Self::Limit => "ORDER_TYPE_LIMIT",
-            Self::Market => "ORDER_TYPE_MARKET",
-        };
-        serializer.serialize_str(variant)
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.inner != 0 {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.orderbook.v1.OrderType", len)?;
+        if self.inner != 0 {
+            let v = OrderTypeInner::try_from(self.inner)
+                .map_err(|_| serde::ser::Error::custom(format!("Invalid variant {}", self.inner)))?;
+            struct_ser.serialize_field("inner", &v)?;
+        }
+        struct_ser.end()
     }
 }
 impl<'de> serde::Deserialize<'de> for OrderType {
@@ -664,15 +848,102 @@ impl<'de> serde::Deserialize<'de> for OrderType {
         D: serde::Deserializer<'de>,
     {
         const FIELDS: &[&str] = &[
-            "ORDER_TYPE_UNSPECIFIED",
-            "ORDER_TYPE_LIMIT",
-            "ORDER_TYPE_MARKET",
+            "inner",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Inner,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "inner" => Ok(GeneratedField::Inner),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = OrderType;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.orderbook.v1.OrderType")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<OrderType, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut inner__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Inner => {
+                            if inner__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("inner"));
+                            }
+                            inner__ = Some(map_.next_value::<OrderTypeInner>()? as i32);
+                        }
+                    }
+                }
+                Ok(OrderType {
+                    inner: inner__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.orderbook.v1.OrderType", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for OrderTypeInner {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let variant = match self {
+            Self::Unspecified => "ORDER_TYPE_INNER_UNSPECIFIED",
+            Self::Limit => "ORDER_TYPE_INNER_LIMIT",
+            Self::Market => "ORDER_TYPE_INNER_MARKET",
+        };
+        serializer.serialize_str(variant)
+    }
+}
+impl<'de> serde::Deserialize<'de> for OrderTypeInner {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "ORDER_TYPE_INNER_UNSPECIFIED",
+            "ORDER_TYPE_INNER_LIMIT",
+            "ORDER_TYPE_INNER_MARKET",
         ];
 
         struct GeneratedVisitor;
 
         impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
-            type Value = OrderType;
+            type Value = OrderTypeInner;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(formatter, "expected one of: {:?}", &FIELDS)
@@ -707,9 +978,9 @@ impl<'de> serde::Deserialize<'de> for OrderType {
                 E: serde::de::Error,
             {
                 match value {
-                    "ORDER_TYPE_UNSPECIFIED" => Ok(OrderType::Unspecified),
-                    "ORDER_TYPE_LIMIT" => Ok(OrderType::Limit),
-                    "ORDER_TYPE_MARKET" => Ok(OrderType::Market),
+                    "ORDER_TYPE_INNER_UNSPECIFIED" => Ok(OrderTypeInner::Unspecified),
+                    "ORDER_TYPE_INNER_LIMIT" => Ok(OrderTypeInner::Limit),
+                    "ORDER_TYPE_INNER_MARKET" => Ok(OrderTypeInner::Market),
                     _ => Err(serde::de::Error::unknown_variant(value, FIELDS)),
                 }
             }
