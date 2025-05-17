@@ -81,6 +81,7 @@ impl Info {
         )?;
         query_router.insert(TRANSACTION_FEE, crate::fees::query::transaction_fee_request)?;
         query_router.insert(FEES_COMPONENTS, crate::fees::query::components)?;
+        
         Ok(Self {
             storage,
             query_router,

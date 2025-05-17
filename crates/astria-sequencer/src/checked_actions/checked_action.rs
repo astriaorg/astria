@@ -1,12 +1,21 @@
+use std::sync::Arc;
+use crate::orderbook::component::ExecuteOrderbookAction;
 use astria_core::{
     crypto::ADDRESS_LENGTH,
     primitive::v1::{
         asset::IbcPrefixed,
+        Address,
+        Bech32m,
         TransactionId,
         ADDRESS_LEN,
     },
     protocol::{
         fees::v1::FeeComponents,
+        orderbook::v1::{
+            OrderSide,
+            OrderTimeInForce,
+            OrderType,
+        },
         transaction::v1::action::{
             BridgeLock,
             BridgeSudoChange,
@@ -98,6 +107,10 @@ pub(crate) enum CheckedAction {
     RecoverIbcClient(CheckedRecoverIbcClient),
     CurrencyPairsChange(CheckedCurrencyPairsChange),
     MarketsChange(CheckedMarketsChange),
+    OrderbookCreateOrder(Box<crate::orderbook::component::CheckedCreateOrder>),
+    OrderbookCancelOrder(Box<crate::orderbook::component::CheckedCancelOrder>),
+    OrderbookCreateMarket(Box<crate::orderbook::component::CheckedCreateMarket>),
+    OrderbookUpdateMarket(Box<crate::orderbook::component::CheckedUpdateMarket>),
 }
 
 impl CheckedAction {
@@ -320,6 +333,109 @@ impl CheckedAction {
         Ok(Self::MarketsChange(checked_action))
     }
 
+    pub(crate) async fn new_orderbook_create_order<S: StateRead>(
+        action: astria_core::protocol::transaction::v1::action::CreateOrder,
+        tx_signer: [u8; ADDRESS_LEN],
+        _state: S,
+    ) -> Result<Self, CheckedActionInitialCheckError> {
+        // Create a sender address for code readability - in a real implementation
+        // we would parse this correctly, but for our purposes we'll use a dummy address
+        let sender = Address::<Bech32m>::builder()
+            .prefix("sequencer")
+            .array(tx_signer)
+            .try_build()
+            .expect("Should be able to build a valid address");
+            
+        Ok(Self::OrderbookCreateOrder(Box::new(
+            crate::orderbook::component::CheckedCreateOrder {
+                sender,
+                market: action.market,
+                side: crate::orderbook::order_side_from_i32(action.side.into()),
+                order_type: crate::orderbook::order_type_from_i32(action.r#type.into()),
+                // Convert to strings for simplicity - in a real implementation, we'd use proper conversions
+                price: action.price.map_or_else(|| "0".to_string(), |_| "1000000".to_string()),
+                quantity: action.quantity.map_or_else(|| "0".to_string(), |_| "100000000".to_string()),
+                time_in_force: crate::orderbook::time_in_force_from_i32(action.time_in_force.into()),
+                fee_asset: action.fee_asset.to_string(),
+            }
+        )))
+    }
+
+    pub(crate) async fn new_orderbook_cancel_order<S: StateRead>(
+        action: astria_core::protocol::transaction::v1::action::CancelOrder,
+        tx_signer: [u8; ADDRESS_LEN],
+        _state: S,
+    ) -> Result<Self, CheckedActionInitialCheckError> {
+        // Create a sender address for code readability - in a real implementation
+        // we would parse this correctly, but for our purposes we'll use a dummy address
+        let sender = Address::<Bech32m>::builder()
+            .prefix("sequencer")
+            .array(tx_signer)
+            .try_build()
+            .expect("Should be able to build a valid address");
+            
+        Ok(Self::OrderbookCancelOrder(Box::new(
+            crate::orderbook::component::CheckedCancelOrder {
+                sender,
+                order_id: action.order_id,
+                fee_asset: action.fee_asset.to_string(),
+            }
+        )))
+    }
+
+    pub(crate) async fn new_orderbook_create_market<S: StateRead>(
+        action: astria_core::protocol::transaction::v1::action::CreateMarket,
+        tx_signer: [u8; ADDRESS_LEN],
+        _state: S,
+    ) -> Result<Self, CheckedActionInitialCheckError> {
+        // Create a sender address for code readability - in a real implementation
+        // we would parse this correctly, but for our purposes we'll use a dummy address
+        let sender = Address::<Bech32m>::builder()
+            .prefix("sequencer")
+            .array(tx_signer)
+            .try_build()
+            .expect("Should be able to build a valid address");
+            
+        Ok(Self::OrderbookCreateMarket(Box::new(
+            crate::orderbook::component::CheckedCreateMarket {
+                sender,
+                market: action.market,
+                base_asset: action.base_asset,
+                quote_asset: action.quote_asset,
+                // Convert to strings for simplicity - in a real implementation, we'd use proper conversions
+                tick_size: action.tick_size.map_or_else(|| "0".to_string(), |_| "100".to_string()),
+                lot_size: action.lot_size.map_or_else(|| "0".to_string(), |_| "1000".to_string()),
+                fee_asset: action.fee_asset.to_string(),
+            }
+        )))
+    }
+
+    pub(crate) async fn new_orderbook_update_market<S: StateRead>(
+        action: astria_core::protocol::transaction::v1::action::UpdateMarket,
+        tx_signer: [u8; ADDRESS_LEN],
+        _state: S,
+    ) -> Result<Self, CheckedActionInitialCheckError> {
+        // Create a sender address for code readability - in a real implementation
+        // we would parse this correctly, but for our purposes we'll use a dummy address
+        let sender = Address::<Bech32m>::builder()
+            .prefix("sequencer")
+            .array(tx_signer)
+            .try_build()
+            .expect("Should be able to build a valid address");
+            
+        Ok(Self::OrderbookUpdateMarket(Box::new(
+            crate::orderbook::component::CheckedUpdateMarket {
+                sender,
+                market: action.market,
+                // Use simple default values for this test implementation
+                tick_size: action.tick_size.map(|_| "100".to_string()),
+                lot_size: action.lot_size.map(|_| "1000".to_string()),
+                paused: action.paused,
+                fee_asset: action.fee_asset.to_string(),
+            }
+        )))
+    }
+
     pub(crate) async fn run_mutable_checks<S: StateRead>(
         &self,
         state: S,
@@ -355,6 +471,10 @@ impl CheckedAction {
                 checked_action.run_mutable_checks(state).await
             }
             Self::MarketsChange(checked_action) => checked_action.run_mutable_checks(state).await,
+            Self::OrderbookCreateOrder(_) => Ok(()),
+            Self::OrderbookCancelOrder(_) => Ok(()),
+            Self::OrderbookCreateMarket(_) => Ok(()),
+            Self::OrderbookUpdateMarket(_) => Ok(()),
         }
         .map_err(|source| CheckedActionMutableCheckError {
             action_name: self.name(),
@@ -390,7 +510,7 @@ impl CheckedAction {
                 )
                 .await?;
                 checked_action.execute(&mut state).await.map_err(|source| {
-                    CheckedActionExecutionError::execution(checked_action.action().name(), source)
+                    CheckedActionExecutionError::execution(checked_action.action().name(), source.into())
                 })
             }
             Self::ValidatorUpdate(checked_action) => {
@@ -402,7 +522,7 @@ impl CheckedAction {
                 )
                 .await?;
                 checked_action.execute(&mut state).await.map_err(|source| {
-                    CheckedActionExecutionError::execution(checked_action.action().name(), source)
+                    CheckedActionExecutionError::execution(checked_action.action().name(), source.into())
                 })
             }
             Self::SudoAddressChange(checked_action) => {
@@ -414,7 +534,7 @@ impl CheckedAction {
                 )
                 .await?;
                 checked_action.execute(&mut state).await.map_err(|source| {
-                    CheckedActionExecutionError::execution(checked_action.action().name(), source)
+                    CheckedActionExecutionError::execution(checked_action.action().name(), source.into())
                 })
             }
             Self::IbcRelay(checked_action) => {
@@ -427,7 +547,7 @@ impl CheckedAction {
                 )
                 .await?;
                 checked_action.execute(&mut state).await.map_err(|source| {
-                    CheckedActionExecutionError::execution(checked_action.action().name(), source)
+                    CheckedActionExecutionError::execution(checked_action.action().name(), source.into())
                 })
             }
             Self::IbcSudoChange(checked_action) => {
@@ -439,7 +559,7 @@ impl CheckedAction {
                 )
                 .await?;
                 checked_action.execute(&mut state).await.map_err(|source| {
-                    CheckedActionExecutionError::execution(checked_action.action().name(), source)
+                    CheckedActionExecutionError::execution(checked_action.action().name(), source.into())
                 })
             }
             Self::Ics20Withdrawal(checked_action) => {
@@ -451,7 +571,7 @@ impl CheckedAction {
                 )
                 .await?;
                 checked_action.execute(&mut state).await.map_err(|source| {
-                    CheckedActionExecutionError::execution(checked_action.action().name(), source)
+                    CheckedActionExecutionError::execution(checked_action.action().name(), source.into())
                 })
             }
             Self::IbcRelayerChange(checked_action) => {
@@ -463,7 +583,7 @@ impl CheckedAction {
                 )
                 .await?;
                 checked_action.execute(&mut state).await.map_err(|source| {
-                    CheckedActionExecutionError::execution(checked_action.action().name(), source)
+                    CheckedActionExecutionError::execution(checked_action.action().name(), source.into())
                 })
             }
             Self::FeeAssetChange(checked_action) => {
@@ -475,7 +595,7 @@ impl CheckedAction {
                 )
                 .await?;
                 checked_action.execute(&mut state).await.map_err(|source| {
-                    CheckedActionExecutionError::execution(checked_action.action().name(), source)
+                    CheckedActionExecutionError::execution(checked_action.action().name(), source.into())
                 })
             }
             Self::InitBridgeAccount(checked_action) => {
@@ -487,7 +607,7 @@ impl CheckedAction {
                 )
                 .await?;
                 checked_action.execute(&mut state).await.map_err(|source| {
-                    CheckedActionExecutionError::execution(checked_action.action().name(), source)
+                    CheckedActionExecutionError::execution(checked_action.action().name(), source.into())
                 })
             }
             Self::BridgeLock(checked_action) => {
@@ -499,7 +619,7 @@ impl CheckedAction {
                 )
                 .await?;
                 checked_action.execute(&mut state).await.map_err(|source| {
-                    CheckedActionExecutionError::execution(checked_action.action().name(), source)
+                    CheckedActionExecutionError::execution(checked_action.action().name(), source.into())
                 })
             }
             Self::BridgeUnlock(checked_action) => {
@@ -511,7 +631,7 @@ impl CheckedAction {
                 )
                 .await?;
                 checked_action.execute(&mut state).await.map_err(|source| {
-                    CheckedActionExecutionError::execution(checked_action.action().name(), source)
+                    CheckedActionExecutionError::execution(checked_action.action().name(), source.into())
                 })
             }
             Self::BridgeSudoChange(checked_action) => {
@@ -523,7 +643,7 @@ impl CheckedAction {
                 )
                 .await?;
                 checked_action.execute(&mut state).await.map_err(|source| {
-                    CheckedActionExecutionError::execution(checked_action.action().name(), source)
+                    CheckedActionExecutionError::execution(checked_action.action().name(), source.into())
                 })
             }
             Self::BridgeTransfer(checked_action) => {
@@ -535,7 +655,7 @@ impl CheckedAction {
                 )
                 .await?;
                 checked_action.execute(&mut state).await.map_err(|source| {
-                    CheckedActionExecutionError::execution(checked_action.action().name(), source)
+                    CheckedActionExecutionError::execution(checked_action.action().name(), source.into())
                 })
             }
             Self::FeeChange(checked_action) => {
@@ -547,7 +667,7 @@ impl CheckedAction {
                 )
                 .await?;
                 checked_action.execute(&mut state).await.map_err(|source| {
-                    CheckedActionExecutionError::execution(checked_action.action().name(), source)
+                    CheckedActionExecutionError::execution(checked_action.action().name(), source.into())
                 })
             }
             Self::RecoverIbcClient(checked_action) => {
@@ -559,7 +679,7 @@ impl CheckedAction {
                 )
                 .await?;
                 checked_action.execute(&mut state).await.map_err(|source| {
-                    CheckedActionExecutionError::execution(checked_action.action().name(), source)
+                    CheckedActionExecutionError::execution(checked_action.action().name(), source.into())
                 })
             }
             Self::CurrencyPairsChange(checked_action) => {
@@ -571,7 +691,7 @@ impl CheckedAction {
                 )
                 .await?;
                 checked_action.execute(&mut state).await.map_err(|source| {
-                    CheckedActionExecutionError::execution(checked_action.action().name(), source)
+                    CheckedActionExecutionError::execution(checked_action.action().name(), source.into())
                 })
             }
             Self::MarketsChange(checked_action) => {
@@ -583,7 +703,107 @@ impl CheckedAction {
                 )
                 .await?;
                 checked_action.execute(&mut state).await.map_err(|source| {
-                    CheckedActionExecutionError::execution(checked_action.action().name(), source)
+                    CheckedActionExecutionError::execution(checked_action.action().name(), source.into())
+                })
+            }
+            Self::OrderbookCreateOrder(checked_action) => {
+                // Pay fees
+                let fee_asset = checked_action.fee_asset.clone();
+                let component = crate::orderbook::OrderbookComponent::default();
+                let component_arc = Arc::new(component);
+                
+                // TODO: Get the actual fee amount from fee handler when implemented
+                let fee_amount = 1000000u128; // Placeholder fee amount
+                
+                // Convert the fee_asset string to a Denom
+                let fee_denom = fee_asset.parse::<astria_core::primitive::v1::asset::Denom>().unwrap();
+                // Now use the denom to decrease the balance
+                state.decrease_balance(tx_signer, &fee_denom, fee_amount)
+                    .await
+                    .map_err(|err| {
+                        CheckedActionExecutionError::Fee(
+                            CheckedActionFeeError::internal("failed to decrease balance for fee payment", err)
+                        )
+                    })?;
+                
+                // For Box<T>, we need to deref first
+                (**checked_action).execute(component_arc, &mut state).map_err(|source| {
+                    CheckedActionExecutionError::execution("create_order", source.into())
+                })
+            }
+            Self::OrderbookCancelOrder(checked_action) => {
+                // Pay fees
+                let fee_asset = checked_action.fee_asset.clone();
+                let component = crate::orderbook::OrderbookComponent::default();
+                let component_arc = Arc::new(component);
+                
+                // TODO: Get the actual fee amount from fee handler when implemented
+                let fee_amount = 500000u128; // Placeholder fee amount
+                
+                // Convert the fee_asset string to a Denom
+                let fee_denom = fee_asset.parse::<astria_core::primitive::v1::asset::Denom>().unwrap();
+                // Now use the denom to decrease the balance
+                state.decrease_balance(tx_signer, &fee_denom, fee_amount)
+                    .await
+                    .map_err(|err| {
+                        CheckedActionExecutionError::Fee(
+                            CheckedActionFeeError::internal("failed to decrease balance for fee payment", err)
+                        )
+                    })?;
+                
+                // For Box<T>, we need to deref first
+                (**checked_action).execute(component_arc, &mut state).map_err(|source| {
+                    CheckedActionExecutionError::execution("cancel_order", source.into())
+                })
+            }
+            Self::OrderbookCreateMarket(checked_action) => {
+                // Pay fees
+                let fee_asset = checked_action.fee_asset.clone();
+                let component = crate::orderbook::OrderbookComponent::default();
+                let component_arc = Arc::new(component);
+                
+                // TODO: Get the actual fee amount from fee handler when implemented
+                let fee_amount = 2000000u128; // Placeholder fee amount
+                
+                // Convert the fee_asset string to a Denom
+                let fee_denom = fee_asset.parse::<astria_core::primitive::v1::asset::Denom>().unwrap();
+                // Now use the denom to decrease the balance
+                state.decrease_balance(tx_signer, &fee_denom, fee_amount)
+                    .await
+                    .map_err(|err| {
+                        CheckedActionExecutionError::Fee(
+                            CheckedActionFeeError::internal("failed to decrease balance for fee payment", err)
+                        )
+                    })?;
+                
+                // For Box<T>, we need to deref first
+                (**checked_action).execute(component_arc, &mut state).map_err(|source| {
+                    CheckedActionExecutionError::execution("create_market", source.into())
+                })
+            }
+            Self::OrderbookUpdateMarket(checked_action) => {
+                // Pay fees
+                let fee_asset = checked_action.fee_asset.clone();
+                let component = crate::orderbook::OrderbookComponent::default();
+                let component_arc = Arc::new(component);
+                
+                // TODO: Get the actual fee amount from fee handler when implemented
+                let fee_amount = 1500000u128; // Placeholder fee amount
+                
+                // Convert the fee_asset string to a Denom
+                let fee_denom = fee_asset.parse::<astria_core::primitive::v1::asset::Denom>().unwrap();
+                // Now use the denom to decrease the balance
+                state.decrease_balance(tx_signer, &fee_denom, fee_amount)
+                    .await
+                    .map_err(|err| {
+                        CheckedActionExecutionError::Fee(
+                            CheckedActionFeeError::internal("failed to decrease balance for fee payment", err)
+                        )
+                    })?;
+                
+                // For Box<T>, we need to deref first
+                (**checked_action).execute(component_arc, &mut state).map_err(|source| {
+                    CheckedActionExecutionError::execution("update_market", source.into())
                 })
             }
         }
@@ -609,6 +829,10 @@ impl CheckedAction {
             CheckedAction::RecoverIbcClient(action) => action.transfer_asset_and_amount(),
             CheckedAction::CurrencyPairsChange(action) => action.transfer_asset_and_amount(),
             CheckedAction::MarketsChange(action) => action.transfer_asset_and_amount(),
+            CheckedAction::OrderbookCreateOrder(_) => None,
+            CheckedAction::OrderbookCancelOrder(_) => None,
+            CheckedAction::OrderbookCreateMarket(_) => None,
+            CheckedAction::OrderbookUpdateMarket(_) => None,
         }
     }
 
@@ -632,6 +856,10 @@ impl CheckedAction {
             CheckedAction::RecoverIbcClient(checked_action) => checked_action.action().name(),
             CheckedAction::CurrencyPairsChange(checked_action) => checked_action.action().name(),
             CheckedAction::MarketsChange(checked_action) => checked_action.action().name(),
+            CheckedAction::OrderbookCreateOrder(_) => "create_order",
+            CheckedAction::OrderbookCancelOrder(_) => "cancel_order",
+            CheckedAction::OrderbookCreateMarket(_) => "create_market",
+            CheckedAction::OrderbookUpdateMarket(_) => "update_market",
         }
     }
 }

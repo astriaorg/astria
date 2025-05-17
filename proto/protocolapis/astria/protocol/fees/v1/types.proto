@@ -99,6 +99,26 @@ message MarketsChangeFeeComponents {
   astria.primitive.v1.Uint128 multiplier = 2;
 }
 
+message CreateOrderFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
+message CancelOrderFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
+message CreateMarketFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
+message UpdateMarketFeeComponents {
+  astria.primitive.v1.Uint128 base = 1;
+  astria.primitive.v1.Uint128 multiplier = 2;
+}
+
 // Response to a transaction fee ABCI query.
 message TransactionFeeResponse {
   uint64 height = 2;

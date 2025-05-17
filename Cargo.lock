@@ -889,6 +889,7 @@ dependencies = [
  "base64 0.21.7",
  "borsh",
  "bytes",
+ "chrono",
  "cnidarium",
  "divan",
  "futures",
@@ -926,6 +927,7 @@ dependencies = [
  "tracing",
  "tryhard",
  "url",
+ "uuid 1.16.0",
 ]
 
 [[package]]

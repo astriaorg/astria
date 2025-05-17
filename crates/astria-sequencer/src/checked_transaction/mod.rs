@@ -55,6 +55,12 @@ use crate::{
         CheckedActionFeeError,
         CheckedActionMutableCheckError,
     },
+    orderbook::component::{
+        CheckedCreateOrder,
+        CheckedCancelOrder,
+        CheckedCreateMarket,
+        CheckedUpdateMarket,
+    },
 };
 
 mod error;
@@ -406,6 +412,18 @@ async fn convert_actions<S: StateRead>(
                     }
                     Action::MarketsChange(action) => {
                         CheckedAction::new_markets_change(action, tx_signer, state).await
+                    }
+                    Action::CreateOrder(action) => {
+                        CheckedAction::new_orderbook_create_order(action, tx_signer, state).await
+                    }
+                    Action::CancelOrder(action) => {
+                        CheckedAction::new_orderbook_cancel_order(action, tx_signer, state).await
+                    }
+                    Action::CreateMarket(action) => {
+                        CheckedAction::new_orderbook_create_market(action, tx_signer, state).await
+                    }
+                    Action::UpdateMarket(action) => {
+                        CheckedAction::new_orderbook_update_market(action, tx_signer, state).await
                     }
                 }
             });

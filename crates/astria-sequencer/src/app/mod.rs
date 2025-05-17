@@ -1,7 +1,7 @@
 #[cfg(feature = "benchmark")]
 mod benchmarks;
 pub(crate) mod event_bus;
-mod execution_state;
+pub mod execution_state;
 mod state_ext;
 pub(crate) mod storage;
 #[cfg(test)]
@@ -127,6 +127,7 @@ use crate::{
         StateWriteExt as _,
     },
     checked_actions::CheckedAction,
+    orderbook::component::OrderbookComponent,
     checked_transaction::{
         CheckedTransaction,
         CheckedTransactionExecutionError,
@@ -327,6 +328,9 @@ impl App {
         IbcComponent::init_chain(&mut state_tx, &genesis_state)
             .await
             .wrap_err("init_chain failed on IbcComponent")?;
+        OrderbookComponent::init_chain(&mut state_tx, &())
+            .await
+            .wrap_err("init_chain failed on OrderbookComponent")?;
 
         state_tx.apply();
 
