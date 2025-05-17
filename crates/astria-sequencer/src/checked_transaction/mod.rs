@@ -11,17 +11,12 @@ use astria_core::{
         RollupId,
         TransactionId,
     },
-    protocol::{
-        transaction::v1::{
-            Action,
-            Group,
-            Transaction,
-            TransactionParams,
-            TransactionParts,
-        },
-        orderbook::v1::{
-            CreateOrder, CancelOrder, CreateMarket, UpdateMarket
-        },
+    protocol::transaction::v1::{
+        Action,
+        Group,
+        Transaction,
+        TransactionParams,
+        TransactionParts,
     },
     Protobuf as _,
 };

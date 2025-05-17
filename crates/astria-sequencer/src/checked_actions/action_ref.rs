@@ -46,6 +46,7 @@ pub(crate) enum ActionRef<'a> {
     OrderbookCreateOrder(&'a crate::orderbook::component::CheckedCreateOrder),
     OrderbookCancelOrder(&'a crate::orderbook::component::CheckedCancelOrder),
     OrderbookCreateMarket(&'a crate::orderbook::component::CheckedCreateMarket),
+    OrderbookUpdateMarket(&'a crate::orderbook::component::CheckedUpdateMarket),
 }
 
 impl<'a> From<&'a Action> for ActionRef<'a> {
@@ -69,6 +70,62 @@ impl<'a> From<&'a Action> for ActionRef<'a> {
             Action::RecoverIbcClient(action) => ActionRef::RecoverIbcClient(action),
             Action::CurrencyPairsChange(action) => ActionRef::CurrencyPairsChange(action),
             Action::MarketsChange(action) => ActionRef::MarketsChange(action),
+            Action::CreateOrder(action) => {
+                // Convert to OrderbookCreateOrder
+                let checked_action = crate::orderbook::component::CheckedCreateOrder {
+                    sender: Default::default(), // This will be replaced in CheckedAction::new_orderbook_create_order
+                    market: action.market.clone(),
+                    side: action.side(),
+                    order_type: action.type_(),
+                    price: action.price.clone(),
+                    quantity: action.quantity.clone(),
+                    time_in_force: action.time_in_force(),
+                    fee_asset: action.fee_asset.clone(),
+                };
+                ActionRef::OrderbookCreateOrder(&checked_action)
+            },
+            Action::CancelOrder(action) => {
+                // Convert to OrderbookCancelOrder
+                let checked_action = crate::orderbook::component::CheckedCancelOrder {
+                    sender: Default::default(), // This will be replaced in CheckedAction::new_orderbook_cancel_order
+                    order_id: action.order_id.clone(),
+                    fee_asset: action.fee_asset.clone(),
+                };
+                ActionRef::OrderbookCancelOrder(&checked_action)
+            },
+            Action::CreateMarket(action) => {
+                // Convert to OrderbookCreateMarket
+                let checked_action = crate::orderbook::component::CheckedCreateMarket {
+                    sender: Default::default(), // This will be replaced in CheckedAction::new_orderbook_create_market
+                    market: action.market.clone(),
+                    base_asset: action.base_asset.clone(),
+                    quote_asset: action.quote_asset.clone(),
+                    tick_size: action.tick_size.clone(),
+                    lot_size: action.lot_size.clone(),
+                    fee_asset: action.fee_asset.clone(),
+                };
+                ActionRef::OrderbookCreateMarket(&checked_action)
+            },
+            Action::UpdateMarket(action) => {
+                // Convert to OrderbookUpdateMarket
+                let checked_action = crate::orderbook::component::CheckedUpdateMarket {
+                    sender: Default::default(), // This will be replaced in CheckedAction::new_orderbook_update_market
+                    market: action.market.clone(),
+                    tick_size: if action.tick_size.is_empty() {
+                        None
+                    } else {
+                        Some(action.tick_size.clone())
+                    },
+                    lot_size: if action.lot_size.is_empty() {
+                        None
+                    } else {
+                        Some(action.lot_size.clone())
+                    },
+                    paused: action.paused,
+                    fee_asset: action.fee_asset.clone(),
+                };
+                ActionRef::OrderbookUpdateMarket(&checked_action)
+            },
         }
     }
 }
@@ -125,6 +182,18 @@ impl<'a> From<&'a CheckedAction> for ActionRef<'a> {
             }
             CheckedAction::MarketsChange(checked_action) => {
                 ActionRef::MarketsChange(checked_action.action())
+            }
+            CheckedAction::OrderbookCreateOrder(checked_action) => {
+                ActionRef::OrderbookCreateOrder(checked_action)
+            }
+            CheckedAction::OrderbookCancelOrder(checked_action) => {
+                ActionRef::OrderbookCancelOrder(checked_action)
+            }
+            CheckedAction::OrderbookCreateMarket(checked_action) => {
+                ActionRef::OrderbookCreateMarket(checked_action)
+            }
+            CheckedAction::OrderbookUpdateMarket(checked_action) => {
+                ActionRef::OrderbookUpdateMarket(checked_action)
             }
         }
     }

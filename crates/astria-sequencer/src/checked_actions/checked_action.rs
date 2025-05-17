@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use astria_core::{
     crypto::ADDRESS_LENGTH,
     primitive::v1::{
@@ -331,7 +332,7 @@ impl CheckedAction {
     }
 
     pub(crate) async fn new_orderbook_create_order<S: StateRead>(
-        action: crate::orderbook::component::CreateOrder,
+        action: astria_core::protocol::transaction::v1::action::CreateOrder,
         tx_signer: [u8; ADDRESS_LEN],
         _state: S,
     ) -> Result<Self, CheckedActionInitialCheckError> {
@@ -354,7 +355,7 @@ impl CheckedAction {
     }
 
     pub(crate) async fn new_orderbook_cancel_order<S: StateRead>(
-        action: crate::orderbook::component::CancelOrder,
+        action: astria_core::protocol::transaction::v1::action::CancelOrder,
         tx_signer: [u8; ADDRESS_LEN],
         _state: S,
     ) -> Result<Self, CheckedActionInitialCheckError> {
@@ -371,7 +372,7 @@ impl CheckedAction {
     }
 
     pub(crate) async fn new_orderbook_create_market<S: StateRead>(
-        action: crate::orderbook::component::CreateMarket,
+        action: astria_core::protocol::transaction::v1::action::CreateMarket,
         tx_signer: [u8; ADDRESS_LEN],
         _state: S,
     ) -> Result<Self, CheckedActionInitialCheckError> {
@@ -392,7 +393,7 @@ impl CheckedAction {
     }
 
     pub(crate) async fn new_orderbook_update_market<S: StateRead>(
-        action: crate::orderbook::component::UpdateMarket,
+        action: astria_core::protocol::transaction::v1::action::UpdateMarket,
         tx_signer: [u8; ADDRESS_LEN],
         _state: S,
     ) -> Result<Self, CheckedActionInitialCheckError> {
@@ -454,6 +455,10 @@ impl CheckedAction {
                 checked_action.run_mutable_checks(state).await
             }
             Self::MarketsChange(checked_action) => checked_action.run_mutable_checks(state).await,
+            Self::OrderbookCreateOrder(_) => Ok(()),
+            Self::OrderbookCancelOrder(_) => Ok(()),
+            Self::OrderbookCreateMarket(_) => Ok(()),
+            Self::OrderbookUpdateMarket(_) => Ok(()),
         }
         .map_err(|source| CheckedActionMutableCheckError {
             action_name: self.name(),
@@ -685,6 +690,94 @@ impl CheckedAction {
                     CheckedActionExecutionError::execution(checked_action.action().name(), source)
                 })
             }
+            Self::OrderbookCreateOrder(checked_action) => {
+                // Pay fees
+                let fee_asset = checked_action.fee_asset.clone();
+                let component = crate::orderbook::OrderbookComponent::default();
+                let component_arc = Arc::new(component);
+                
+                // TODO: Get the actual fee amount from fee handler when implemented
+                let fee_amount = 1000000u128; // Placeholder fee amount
+                
+                state.decrease_balance(tx_signer, fee_asset.parse().unwrap(), fee_amount)
+                    .await
+                    .map_err(|err| {
+                        CheckedActionExecutionError::fee(
+                            "create_order",
+                            CheckedActionFeeError::internal("failed to decrease balance for fee payment", err),
+                        )
+                    })?;
+                
+                checked_action.execute(component_arc, &mut state).map_err(|source| {
+                    CheckedActionExecutionError::execution("create_order", source)
+                })
+            }
+            Self::OrderbookCancelOrder(checked_action) => {
+                // Pay fees
+                let fee_asset = checked_action.fee_asset.clone();
+                let component = crate::orderbook::OrderbookComponent::default();
+                let component_arc = Arc::new(component);
+                
+                // TODO: Get the actual fee amount from fee handler when implemented
+                let fee_amount = 500000u128; // Placeholder fee amount
+                
+                state.decrease_balance(tx_signer, fee_asset.parse().unwrap(), fee_amount)
+                    .await
+                    .map_err(|err| {
+                        CheckedActionExecutionError::fee(
+                            "cancel_order",
+                            CheckedActionFeeError::internal("failed to decrease balance for fee payment", err),
+                        )
+                    })?;
+                
+                checked_action.execute(component_arc, &mut state).map_err(|source| {
+                    CheckedActionExecutionError::execution("cancel_order", source)
+                })
+            }
+            Self::OrderbookCreateMarket(checked_action) => {
+                // Pay fees
+                let fee_asset = checked_action.fee_asset.clone();
+                let component = crate::orderbook::OrderbookComponent::default();
+                let component_arc = Arc::new(component);
+                
+                // TODO: Get the actual fee amount from fee handler when implemented
+                let fee_amount = 2000000u128; // Placeholder fee amount
+                
+                state.decrease_balance(tx_signer, fee_asset.parse().unwrap(), fee_amount)
+                    .await
+                    .map_err(|err| {
+                        CheckedActionExecutionError::fee(
+                            "create_market",
+                            CheckedActionFeeError::internal("failed to decrease balance for fee payment", err),
+                        )
+                    })?;
+                
+                checked_action.execute(component_arc, &mut state).map_err(|source| {
+                    CheckedActionExecutionError::execution("create_market", source)
+                })
+            }
+            Self::OrderbookUpdateMarket(checked_action) => {
+                // Pay fees
+                let fee_asset = checked_action.fee_asset.clone();
+                let component = crate::orderbook::OrderbookComponent::default();
+                let component_arc = Arc::new(component);
+                
+                // TODO: Get the actual fee amount from fee handler when implemented
+                let fee_amount = 1500000u128; // Placeholder fee amount
+                
+                state.decrease_balance(tx_signer, fee_asset.parse().unwrap(), fee_amount)
+                    .await
+                    .map_err(|err| {
+                        CheckedActionExecutionError::fee(
+                            "update_market",
+                            CheckedActionFeeError::internal("failed to decrease balance for fee payment", err),
+                        )
+                    })?;
+                
+                checked_action.execute(component_arc, &mut state).map_err(|source| {
+                    CheckedActionExecutionError::execution("update_market", source)
+                })
+            }
         }
     }
 
@@ -708,6 +801,10 @@ impl CheckedAction {
             CheckedAction::RecoverIbcClient(action) => action.transfer_asset_and_amount(),
             CheckedAction::CurrencyPairsChange(action) => action.transfer_asset_and_amount(),
             CheckedAction::MarketsChange(action) => action.transfer_asset_and_amount(),
+            CheckedAction::OrderbookCreateOrder(_) => None,
+            CheckedAction::OrderbookCancelOrder(_) => None,
+            CheckedAction::OrderbookCreateMarket(_) => None,
+            CheckedAction::OrderbookUpdateMarket(_) => None,
         }
     }
 
@@ -731,6 +828,10 @@ impl CheckedAction {
             CheckedAction::RecoverIbcClient(checked_action) => checked_action.action().name(),
             CheckedAction::CurrencyPairsChange(checked_action) => checked_action.action().name(),
             CheckedAction::MarketsChange(checked_action) => checked_action.action().name(),
+            CheckedAction::OrderbookCreateOrder(_) => "create_order",
+            CheckedAction::OrderbookCancelOrder(_) => "cancel_order",
+            CheckedAction::OrderbookCreateMarket(_) => "create_market",
+            CheckedAction::OrderbookUpdateMarket(_) => "update_market",
         }
     }
 }

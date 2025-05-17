@@ -1,4 +1,4 @@
-use astria_core::protocol::orderbook::v1::Order;
+use astria_core::protocol::orderbook::v1::{Order, OrderMatch};
 use astria_eyre::{
     eyre::WrapErr as _,
     Result,
@@ -30,6 +30,7 @@ pub(crate) enum StoredValue<'a> {
     // New variants for our order book types
     Market(crate::orderbook::Market),
     Trade(crate::orderbook::Trade),
+    OrderMatch(OrderMatch),
     Bytes(Vec<u8>),
 }
 

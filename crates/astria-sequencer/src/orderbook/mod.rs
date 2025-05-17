@@ -1,8 +1,8 @@
-mod component;
+pub mod component;
 mod compat;
 mod matching_engine;
 mod query;
-mod state_ext;
+pub mod state_ext;
 mod types;
 #[cfg(test)]
 mod tests;

@@ -1,10 +1,46 @@
 use astria_core::protocol::orderbook::v1 as proto;
+use borsh::{BorshSerialize, BorshDeserialize};
+use prost::Message;
 
 use crate::orderbook::types::{
     Order, OrderSide, OrderTimeInForce, OrderType, Market as LocalMarket, 
     OrderMatch as LocalOrderMatch, Trade as LocalTrade
 };
 use crate::orderbook::state_ext::MarketParams;
+
+// Implement Borsh serialization for proto::Order
+impl BorshSerialize for proto::Order {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        let bytes = self.encode_to_vec();
+        BorshSerialize::serialize(&bytes, writer)
+    }
+}
+
+// Implement Borsh deserialization for proto::Order
+impl BorshDeserialize for proto::Order {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let bytes: Vec<u8> = BorshDeserialize::deserialize_reader(reader)?;
+        proto::Order::decode(&*bytes)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+    }
+}
+
+// Implement Borsh serialization for proto::OrderMatch
+impl BorshSerialize for proto::OrderMatch {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        let bytes = self.encode_to_vec();
+        BorshSerialize::serialize(&bytes, writer)
+    }
+}
+
+// Implement Borsh deserialization for proto::OrderMatch
+impl BorshDeserialize for proto::OrderMatch {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let bytes: Vec<u8> = BorshDeserialize::deserialize_reader(reader)?;
+        proto::OrderMatch::decode(&*bytes)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+    }
+}
 
 /// Converts from protocol OrderSide to our local OrderSide
 pub fn order_side_from_proto(side: proto::OrderSide) -> OrderSide {
