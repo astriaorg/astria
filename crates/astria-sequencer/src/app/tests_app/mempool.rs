@@ -569,10 +569,10 @@ async fn proposer_flow_included_transactions_sent_to_mempool() {
     // The flow of this test simulates a proposer gathering transactions from the builder queue in
     // mempool and executing a full round of the consensus protocol. This includes:
     // 1. prepare_proposal - transactions are executed here.
-    // 2. process_proposal - transactions not executed, and should still be in pending.
-    // 3. finalize_block - transactions not executed, and should still be in pending.
-    // 4. commit - transactions should still be in mempool. After execution of this method,
-    //    transactions should be removed from mempool and added to the removal cache.
+    // 2. process_proposal - transactions not executed, and IDs should still be in pending.
+    // 3. finalize_block - transactions not executed, and IDs should still be in pending.
+    // 4. commit - transaction IDs should still be in mempool. After execution of this method, they
+    //    should be removed from mempool and added to the removal cache.
     let mut fixture = Fixture::default_initialized().await;
     let height = fixture.block_height().await.increment();
 
@@ -723,8 +723,9 @@ async fn proposer_flow_included_transactions_sent_to_mempool() {
 
     // Ensure transactions are removed from mempool
     assert_eq!(fixture.mempool().len().await, 0, "mempool should be empty");
-    assert!(
-        fixture.mempool().removal_cache().await.len() == 2,
+    assert_eq!(
+        fixture.mempool().removal_cache().await.len(),
+        2,
         "removal cache should have 2 txs"
     );
     let TransactionStatus::Removed(RemovalReason::IncludedInBlock(height_1)) =
@@ -755,9 +756,9 @@ async fn non_proposer_validator_flow_included_transactions_sent_to_mempool() {
     // The flow of this test simulates a validator receiving a block from the current proposer and
     // executing a full round of the consensus protocol. This includes:
     // 1. process_proposal - transactions are executed here.
-    // 2. finalize_block - transactions not executed, and should still be in pending.
-    // 3. commit - transactions should still be in mempool. After execution of this method,
-    //    transactions should be removed from mempool and added to the removal cache.
+    // 2. finalize_block - transactions not executed, and IDs should still be in pending.
+    // 3. commit - transaction IDs should still be in mempool. After execution of this method, they
+    //    should be removed from mempool and added to the removal cache.
     let mut fixture = Fixture::default_initialized().await;
     let height = fixture.block_height().await.increment();
 
@@ -877,8 +878,9 @@ async fn non_proposer_validator_flow_included_transactions_sent_to_mempool() {
 
     // Ensure transactions are removed from mempool
     assert_eq!(fixture.mempool().len().await, 0, "mempool should be empty");
-    assert!(
-        fixture.mempool().removal_cache().await.len() == 2,
+    assert_eq!(
+        fixture.mempool().removal_cache().await.len(),
+        2,
         "removal cache should have 2 txs"
     );
     let TransactionStatus::Removed(RemovalReason::IncludedInBlock(height_1)) =
@@ -909,8 +911,8 @@ async fn non_validator_flow_included_transactions_sent_to_mempool() {
     // receiving a `FinalizeBlock` from CometBFT and committing it. This includes:
     // 1. finalize_block - transactions are executed for the first time since the node is not a
     //    validator, then added to the write batch.
-    // 2. commit - transactions should still be in mempool. After execution of this method,
-    //    transactions should be removed from mempool and added to the removal cache.
+    // 2. commit - transaction IDs should still be in mempool. After execution of this method, they
+    //    should be removed from mempool and added to the removal cache.
     let mut fixture = Fixture::default_initialized().await;
     let height = fixture.block_height().await.increment();
 
@@ -1000,8 +1002,9 @@ async fn non_validator_flow_included_transactions_sent_to_mempool() {
 
     // Ensure transactions are removed from mempool
     assert_eq!(fixture.mempool().len().await, 0, "mempool should be empty");
-    assert!(
-        fixture.mempool().removal_cache().await.len() == 2,
+    assert_eq!(
+        fixture.mempool().removal_cache().await.len(),
+        2,
         "removal cache should have 2 txs"
     );
     let TransactionStatus::Removed(RemovalReason::IncludedInBlock(height_1)) =
