@@ -6,16 +6,9 @@ use astria_sequencer_client::{
     HttpClient,
     SequencerClientExt as _,
 };
-use clap::{
-    builder::{
-        PossibleValuesParser,
-        TypedValueParser,
-    },
-    Subcommand,
-};
+use clap::Subcommand;
 use color_eyre::eyre::{
     self,
-    Ok,
     WrapErr as _,
 };
 
@@ -54,7 +47,7 @@ struct Recover {
     #[arg(long, default_value = "astria")]
     prefix: String,
     /// The recovery mnemonic phrase, must be wrapped in quotes.
-    #[arg(long, short)]
+    #[arg(long)]
     mnemonic: String,
 }
 
@@ -75,15 +68,16 @@ impl Recover {
         let pretty_address: Address = Address::builder()
             .array(signing_key.address_bytes())
             .prefix(&self.prefix)
-            .try_build()?;
+            .try_build()
+            .wrap_err("failed constructing a valid from address from the provided prefix")?;
 
-        println!("Recover Sequencer Account");
-        println!();
         // TODO: don't print private keys to CLI, prefer writing to file:
         // https://github.com/astriaorg/astria/issues/594
-        println!("Private Key: {pretty_signing_key}");
-        println!("Public Key:  {pretty_verifying_key}");
-        println!("Address:     {pretty_address}");
+        println!(
+            "Recover Sequencer Account\n\nPrivate Key: {pretty_signing_key}\nPublic Key: \
+             {pretty_verifying_key}\nAddress: {pretty_address}"
+        );
+
         Ok(())
     }
 }
@@ -93,24 +87,12 @@ struct Create {
     /// The address prefix
     #[arg(long, default_value = "astria")]
     prefix: String,
-    /// Number of words to use in the mnemonic phrase
-    #[arg(
-        long,
-        short = 'l',
-        default_value = "24",
-        value_parser(mnemonic_length_value_parser())
-    )]
-    mnemonic_length: u8,
 }
 
 impl Create {
     fn run(self) -> eyre::Result<()> {
-        let mnemonic_type = match self.mnemonic_length {
-            12 => bip39::MnemonicType::Words12,
-            24 => bip39::MnemonicType::Words24,
-            _ => unreachable!("clap arg value parsing should make this unreachable"),
-        };
-        let bip39_mnemonic = bip39::Mnemonic::new(mnemonic_type, bip39::Language::English);
+        let bip39_mnemonic =
+            bip39::Mnemonic::new(bip39::MnemonicType::Words12, bip39::Language::English);
 
         let seed = bip39::Seed::new(&bip39_mnemonic, "");
         let seed_bytes: [u8; 32] = seed.as_bytes()[0..32]
@@ -125,16 +107,16 @@ impl Create {
         let pretty_address: Address = Address::builder()
             .array(signing_key.address_bytes())
             .prefix(&self.prefix)
-            .try_build()?;
+            .try_build()
+            .wrap_err("failed constructing a valid from address from the provided prefix")?;
 
-        println!("Create Sequencer Account");
-        println!();
         // TODO: don't print private keys to CLI, prefer writing to file:
         // https://github.com/astriaorg/astria/issues/594
-        println!("Mnemonic:    {bip39_mnemonic}");
-        println!("Private Key: {pretty_signing_key}");
-        println!("Public Key:  {pretty_verifying_key}");
-        println!("Address:     {pretty_address}");
+        println!(
+            "Create Sequencer Account\n\nMnemonic: {bip39_mnemonic} Private Key: \
+             {pretty_signing_key}\nPublic Key: {pretty_verifying_key}\nAddress: {pretty_address}"
+        );
+
         Ok(())
     }
 }
@@ -196,8 +178,4 @@ struct ArgsInner {
     sequencer_url: String,
     /// The address of the Sequencer account
     address: Address,
-}
-
-fn mnemonic_length_value_parser() -> impl TypedValueParser {
-    PossibleValuesParser::new(["12", "24"]).map(|v| v.parse::<u8>().unwrap())
 }
