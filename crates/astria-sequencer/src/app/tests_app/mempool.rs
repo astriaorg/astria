@@ -568,16 +568,11 @@ async fn assert_tx_in_pending(fixture: &Fixture, tx_id: &TransactionId, tx_name:
 async fn proposer_flow_included_transactions_sent_to_mempool() {
     // The flow of this test simulates a proposer gathering transactions from the builder queue in
     // mempool and executing a full round of the consensus protocol. This includes:
-    // 1. prepare_proposal - transactions should be executed and stored in ephemeral cache with
-    //    `EXECUTION_RESULTS_KEY` key.
-    // 2. process_proposal - execution should be skipped since they already were in
-    //    "prepare_proposal". Transactions should be moved within ephemeral cache to
-    //    `POST_TRANSACTION_EXECUTION_RESULT_KEY` key.
-    // 3. finalize_block - execution should be skipped. Transactions should be moved to the write
-    //    batch.
-    // 4. commit - transactions should still be in mempool and should be in the write batch. After
-    //    execution of this method, transactions should be removed from mempool and added to the
-    //    removal cache.
+    // 1. prepare_proposal - transactions are executed here.
+    // 2. process_proposal - transactions not executed, and should still be in pending.
+    // 3. finalize_block - transactions not executed, and should still be in pending.
+    // 4. commit - transactions should still be in mempool. After execution of this method,
+    //    transactions should be removed from mempool and added to the removal cache.
     let mut fixture = Fixture::default_initialized().await;
     let height = fixture.block_height().await.increment();
 
@@ -647,15 +642,14 @@ async fn proposer_flow_included_transactions_sent_to_mempool() {
         .await
         .unwrap();
 
-    // Ensure executed transactions are in state under EXECUTION_RESULTS_KEY
-    let (_, _, executed_tx_ids): (
-        Vec<(RollupId, Bytes)>,
-        Vec<ExecTxResult>,
-        HashSet<TransactionId>,
-    ) = fixture.state().object_get(EXECUTION_RESULTS_KEY).unwrap();
-    assert_eq!(executed_tx_ids.len(), 2, "both txs should be in state");
-    assert!(executed_tx_ids.contains(tx_1_id), "tx_1 should be in state");
-    assert!(executed_tx_ids.contains(tx_2_id), "tx_2 should be in state");
+    // Ensure transactions are still in pending after prepare_proposal
+    assert_eq!(
+        fixture.mempool().len().await,
+        2,
+        "two txs in mempool after prepare_proposal"
+    );
+    assert_tx_in_pending(&fixture, tx_1_id, "tx_1").await;
+    assert_tx_in_pending(&fixture, tx_2_id, "tx_2").await;
 
     // Submit process_proposal
     let txs = transactions_with_extended_commit_info_and_commitments(
@@ -684,39 +678,14 @@ async fn proposer_flow_included_transactions_sent_to_mempool() {
         .await
         .unwrap();
 
-    // Ensure executed transactions are in state
-    assert!(
-        fixture
-            .state()
-            .object_get::<(
-                Vec<(RollupId, Bytes)>,
-                Vec<ExecTxResult>,
-                HashSet<TransactionId>
-            )>(EXECUTION_RESULTS_KEY)
-            .is_none(),
-        "EXECUTION_RESULTS_KEY should be empty"
-    );
-    let post_transaction_execution_results: PostTransactionExecutionResult = fixture
-        .state()
-        .object_get(POST_TRANSACTION_EXECUTION_RESULT_KEY)
-        .unwrap();
+    // Ensure transactions are still in pending after process_proposal
     assert_eq!(
-        post_transaction_execution_results.executed_tx_ids.len(),
+        fixture.mempool().len().await,
         2,
-        "both txs should be in state"
+        "two txs in mempool after process_proposal"
     );
-    assert!(
-        post_transaction_execution_results
-            .executed_tx_ids
-            .contains(tx_1_id),
-        "tx_1 should be in state"
-    );
-    assert!(
-        post_transaction_execution_results
-            .executed_tx_ids
-            .contains(tx_2_id),
-        "tx_2 should be in state"
-    );
+    assert_tx_in_pending(&fixture, tx_1_id, "tx_1").await;
+    assert_tx_in_pending(&fixture, tx_2_id, "tx_2").await;
 
     // Submit finalize_block
     fixture
@@ -740,24 +709,12 @@ async fn proposer_flow_included_transactions_sent_to_mempool() {
         .await
         .unwrap();
 
-    // Ensure transactions are in write batch
-    let write_batch = fixture.app.write_batch.as_ref().unwrap();
+    // Ensure transactions are still in pending after finalize_block
     assert_eq!(
-        write_batch.executed_tx_ids.len(),
+        fixture.mempool().len().await,
         2,
-        "both txs should be in write batch"
+        "two txs in mempool after finalize_block"
     );
-    assert!(
-        write_batch.executed_tx_ids.contains(tx_1_id),
-        "tx_1 should be in write batch"
-    );
-    assert!(
-        write_batch.executed_tx_ids.contains(tx_2_id),
-        "tx_2 should be in write batch"
-    );
-
-    // Ensure transactions are still in pending
-    assert_eq!(fixture.mempool().len().await, 2, "two txs in mempool");
     assert_tx_in_pending(&fixture, tx_1_id, "tx_1").await;
     assert_tx_in_pending(&fixture, tx_2_id, "tx_2").await;
 
@@ -797,13 +754,10 @@ async fn proposer_flow_included_transactions_sent_to_mempool() {
 async fn non_proposer_validator_flow_included_transactions_sent_to_mempool() {
     // The flow of this test simulates a validator receiving a block from the current proposer and
     // executing a full round of the consensus protocol. This includes:
-    // 1. process_proposal - transactions are executed and then added to the ephemeral cache under
-    //    the `POST_TRANSACTION_EXECUTION_RESULT_KEY` key.
-    // 2. finalize_block - execution should be skipped since they were already executed in
-    //    "process_proposal". Transactions should be moved to the write batch.
-    // 3. commit - transactions should still be in mempool and should be in the write batch. After
-    //    execution of this method, transactions should be removed from mempool and added to the
-    //    removal cache.
+    // 1. process_proposal - transactions are executed here.
+    // 2. finalize_block - transactions not executed, and should still be in pending.
+    // 3. commit - transactions should still be in mempool. After execution of this method,
+    //    transactions should be removed from mempool and added to the removal cache.
     let mut fixture = Fixture::default_initialized().await;
     let height = fixture.block_height().await.increment();
 
@@ -878,39 +832,14 @@ async fn non_proposer_validator_flow_included_transactions_sent_to_mempool() {
         .await
         .unwrap();
 
-    // Ensure executed transactions are in state
-    assert!(
-        fixture
-            .state()
-            .object_get::<(
-                Vec<(RollupId, Bytes)>,
-                Vec<ExecTxResult>,
-                HashSet<TransactionId>
-            )>(EXECUTION_RESULTS_KEY)
-            .is_none(),
-        "EXECUTION_RESULTS_KEY should be empty"
-    );
-    let post_transaction_execution_results: PostTransactionExecutionResult = fixture
-        .state()
-        .object_get(POST_TRANSACTION_EXECUTION_RESULT_KEY)
-        .unwrap();
+    // Ensure transactions are still in pending after process_proposal
     assert_eq!(
-        post_transaction_execution_results.executed_tx_ids.len(),
+        fixture.mempool().len().await,
         2,
-        "both txs should be in state"
+        "two txs in mempool after process_proposal"
     );
-    assert!(
-        post_transaction_execution_results
-            .executed_tx_ids
-            .contains(tx_1_id),
-        "tx_1 should be in state"
-    );
-    assert!(
-        post_transaction_execution_results
-            .executed_tx_ids
-            .contains(tx_2_id),
-        "tx_2 should be in state"
-    );
+    assert_tx_in_pending(&fixture, tx_1_id, "tx_1").await;
+    assert_tx_in_pending(&fixture, tx_2_id, "tx_2").await;
 
     // Submit finalize_block
     fixture
@@ -934,24 +863,12 @@ async fn non_proposer_validator_flow_included_transactions_sent_to_mempool() {
         .await
         .unwrap();
 
-    // Ensure transactions are in write batch
-    let write_batch = fixture.app.write_batch.as_ref().unwrap();
+    // Ensure transactions are still in pending after finalize_block
     assert_eq!(
-        write_batch.executed_tx_ids.len(),
+        fixture.mempool().len().await,
         2,
-        "both txs should be in write batch"
+        "two txs in mempool after finalize_block"
     );
-    assert!(
-        write_batch.executed_tx_ids.contains(tx_1_id),
-        "tx_1 should be in write batch"
-    );
-    assert!(
-        write_batch.executed_tx_ids.contains(tx_2_id),
-        "tx_2 should be in write batch"
-    );
-
-    // Ensure transactions are still in pending
-    assert_eq!(fixture.mempool().len().await, 2, "two txs in mempool");
     assert_tx_in_pending(&fixture, tx_1_id, "tx_1").await;
     assert_tx_in_pending(&fixture, tx_2_id, "tx_2").await;
 
@@ -986,16 +903,14 @@ async fn non_proposer_validator_flow_included_transactions_sent_to_mempool() {
     );
 }
 
-#[expect(clippy::too_many_lines, reason = "it's a test")]
 #[tokio::test]
 async fn non_validator_flow_included_transactions_sent_to_mempool() {
     // The flow of this test simulates a full node (running a mempool) that is not a validator
     // receiving a `FinalizeBlock` from CometBFT and committing it. This includes:
     // 1. finalize_block - transactions are executed for the first time since the node is not a
     //    validator, then added to the write batch.
-    // 2. commit - transactions should still be in mempool and should be in the write batch. After
-    //    execution of this method, transactions should be removed from mempool and added to the
-    //    removal cache.
+    // 2. commit - transactions should still be in mempool. After execution of this method,
+    //    transactions should be removed from mempool and added to the removal cache.
     let mut fixture = Fixture::default_initialized().await;
     let height = fixture.block_height().await.increment();
 
@@ -1071,24 +986,12 @@ async fn non_validator_flow_included_transactions_sent_to_mempool() {
         .await
         .unwrap();
 
-    // Ensure transactions are in write batch
-    let write_batch = fixture.app.write_batch.as_ref().unwrap();
+    // Ensure transactions are still in pending after finalize_block
     assert_eq!(
-        write_batch.executed_tx_ids.len(),
+        fixture.mempool().len().await,
         2,
-        "both txs should be in write batch"
+        "two txs in mempool after finalize_block"
     );
-    assert!(
-        write_batch.executed_tx_ids.contains(tx_1_id),
-        "tx_1 should be in write batch"
-    );
-    assert!(
-        write_batch.executed_tx_ids.contains(tx_2_id),
-        "tx_2 should be in write batch"
-    );
-
-    // Ensure transactions are still in pending
-    assert_eq!(fixture.mempool().len().await, 2, "two txs in mempool");
     assert_tx_in_pending(&fixture, tx_1_id, "tx_1").await;
     assert_tx_in_pending(&fixture, tx_2_id, "tx_2").await;
 
