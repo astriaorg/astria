@@ -100,21 +100,18 @@ impl BackgroundTasks {
     }
 }
 
-// TODO(https://github.com/astriaorg/astria/issues/2134): this should be fixed
-#[expect(
-    clippy::too_many_arguments,
-    reason = "this should probably be replaced with a builder or dedicated struct"
-)]
-pub(crate) async fn serve(
-    storage: cnidarium::Storage,
-    mempool: Mempool,
-    upgrades: Upgrades,
-    metrics: &'static Metrics,
-    grpc_addr: std::net::SocketAddr,
-    no_optimistic_blocks: bool,
-    event_bus_subscription: EventBusSubscription,
-    shutdown_rx: oneshot::Receiver<()>,
-) -> eyre::Result<(), tonic::transport::Error> {
+pub(crate) struct SequencerServerArgs {
+    pub storage: cnidarium::Storage,
+    pub mempool: Mempool,
+    pub upgrades: Upgrades,
+    pub metrics: &'static Metrics,
+    pub grpc_addr: std::net::SocketAddr,
+    pub no_optimistic_blocks: bool,
+    pub event_bus_subscription: EventBusSubscription,
+    pub shutdown_rx: oneshot::Receiver<()>,
+}
+
+pub(crate) async fn serve(args: SequencerServerArgs) -> eyre::Result<(), tonic::transport::Error> {
     use ibc_proto::ibc::core::{
         channel::v1::query_server::QueryServer as ChannelQueryServer,
         client::v1::query_server::QueryServer as ClientQueryServer,
@@ -122,6 +119,17 @@ pub(crate) async fn serve(
     };
     use penumbra_tower_trace::remote_addr;
     use tower_http::cors::CorsLayer;
+
+    let SequencerServerArgs {
+        storage,
+        mempool,
+        upgrades,
+        metrics,
+        grpc_addr,
+        no_optimistic_blocks,
+        event_bus_subscription,
+        shutdown_rx,
+    } = args;
 
     let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
     let sequencer_api = SequencerServer::new(storage.clone(), mempool.clone(), upgrades);
