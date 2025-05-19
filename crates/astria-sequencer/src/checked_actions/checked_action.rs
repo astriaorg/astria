@@ -869,7 +869,6 @@ mod tests {
 
     #[tokio::test]
     async fn should_report_insufficient_funds() {
-        astria_eyre::install().unwrap();
         let mut fixture = Fixture::default_initialized().await;
         let tx_signer = [20; ADDRESS_LENGTH];
         let action = dummy_rollup_data_submission();
