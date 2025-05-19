@@ -1,7 +1,7 @@
 #[cfg(feature = "benchmark")]
 mod benchmarks;
 mod mempool_state;
-mod recently_included_transactions;
+mod recent_execution_results;
 mod transactions_container;
 
 use std::{
@@ -23,15 +23,17 @@ use astria_core::{
 };
 use astria_eyre::eyre::Result;
 pub(crate) use mempool_state::get_account_balances;
-use recently_included_transactions::RecentlyIncludedTransactions;
+use recent_execution_results::RecentExecutionResults;
 use tendermint::abci::types::ExecTxResult;
 use tokio::{
     sync::RwLock,
-    time::Duration,
+    time::{
+        Duration,
+        Instant,
+    },
 };
 use tracing::{
     error,
-    info,
     instrument,
     warn,
     Level,
@@ -58,7 +60,10 @@ pub(crate) enum RemovalReason {
     LowerNonceInvalidated,
     FailedPrepareProposal(String),
     InternalError,
-    IncludedInBlock { height: u64, result: ExecTxResult },
+    IncludedInBlock {
+        height: u64,
+        result: Arc<ExecTxResult>,
+    },
 }
 
 impl std::fmt::Display for RemovalReason {
@@ -318,7 +323,7 @@ struct MempoolInner {
     pending: PendingTransactions,
     parked: ParkedTransactions<MAX_PARKED_TXS_PER_ACCOUNT>,
     comet_bft_removal_cache: RemovalCache,
-    recently_included_transactions: RecentlyIncludedTransactions,
+    recent_execution_results: RecentExecutionResults,
     contained_txs: HashSet<TransactionId>,
     metrics: &'static Metrics,
 }
@@ -333,7 +338,7 @@ impl MempoolInner {
                 NonZeroUsize::try_from(REMOVAL_CACHE_SIZE)
                     .expect("Removal cache cannot be zero sized"),
             ),
-            recently_included_transactions: RecentlyIncludedTransactions::new(),
+            recent_execution_results: RecentExecutionResults::new(),
             contained_txs: HashSet::new(),
             metrics,
         }
@@ -484,7 +489,7 @@ impl MempoolInner {
             .copied()
             .collect();
 
-        self.recently_included_transactions.clean_stale();
+        self.recent_execution_results.clean_stale(Instant::now());
 
         // TODO: Make this concurrent, all account state is separate with IO bound disk reads.
         for address_bytes in &addresses {
@@ -585,28 +590,20 @@ impl MempoolInner {
             }
         }
 
+        let mut recently_included_transactions_to_add = HashMap::new();
         // add to removal cache for cometbft and remove from the tracked set
         for (tx_id, reason) in removed_txs {
             if let RemovalReason::IncludedInBlock {
-                height,
-                result,
+                result, ..
             } = reason.clone()
             {
-                if let Err(err) = self
-                    .recently_included_transactions
-                    .add_transaction(tx_id, height, result)
-                {
-                    // No need to propagate or panic here, since this cache is not service-critical
-                    info!(
-                        tx_hash = %telemetry::display::hex(tx_id.get()),
-                        %err,
-                        "failed to add transaction to recently included transactions cache"
-                    );
-                }
+                recently_included_transactions_to_add.insert(tx_id, result);
             }
             self.contained_txs.remove(&tx_id);
             self.comet_bft_removal_cache.add(tx_id, reason);
         }
+        self.recent_execution_results
+            .add(recently_included_transactions_to_add, block_height);
     }
 
     fn pending_nonce(&self, address_bytes: &[u8; ADDRESS_LENGTH]) -> Option<u32> {
@@ -621,12 +618,12 @@ impl MempoolInner {
                 Some(TransactionStatus::Parked)
             }
         } else {
-            self.recently_included_transactions
-                .get_by_tx_id(tx_id)
+            self.recent_execution_results
+                .get(tx_id)
                 .map(|tx_data| {
                     TransactionStatus::Removed(RemovalReason::IncludedInBlock {
-                        height: tx_data.height(),
-                        result: tx_data.result().clone(),
+                        height: tx_data.block_height(),
+                        result: tx_data.result(),
                     })
                 })
                 .or_else(|| {
@@ -1425,7 +1422,7 @@ mod tests {
             panic!("tx_1 not marked as included in block");
         };
         assert_eq!(tx1_height, INCLUDED_TX_BLOCK_NUMBER);
-        assert_eq!(tx1_result, exec_result_1);
+        assert_eq!(*tx1_result, exec_result_1);
 
         let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
             height: tx2_height,
@@ -1435,7 +1432,7 @@ mod tests {
             panic!("tx_2 not marked as included in block");
         };
         assert_eq!(tx2_height, INCLUDED_TX_BLOCK_NUMBER);
-        assert_eq!(tx2_result, exec_result_2);
+        assert_eq!(*tx2_result, exec_result_2);
 
         // Remove actions from removal cache to simulate recheck
         mempool.remove_from_removal_cache(tx_1.id()).await;
@@ -1452,7 +1449,7 @@ mod tests {
             panic!("tx_1 not marked as included in block");
         };
         assert_eq!(height, INCLUDED_TX_BLOCK_NUMBER);
-        assert_eq!(result, exec_result_1);
+        assert_eq!(*result, exec_result_1);
 
         let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
             height,
@@ -1462,7 +1459,7 @@ mod tests {
             panic!("tx_2 not marked as included in block");
         };
         assert_eq!(height, INCLUDED_TX_BLOCK_NUMBER);
-        assert_eq!(result, exec_result_2);
+        assert_eq!(*result, exec_result_2);
     }
 
     #[tokio::test]
@@ -1513,7 +1510,7 @@ mod tests {
             panic!("transaction not marked as included in block");
         };
         assert_eq!(height, INCLUDED_TX_BLOCK_NUMBER);
-        assert_eq!(result, exec_result);
+        assert_eq!(*result, exec_result);
 
         // Advance time to expire the transaction in the `recently_included_transactions` cache
         time::pause();
@@ -1646,7 +1643,7 @@ mod tests {
             *removal_cache.get(tx1.id()).unwrap(),
             RemovalReason::IncludedInBlock {
                 height: INCLUDED_TX_BLOCK_NUMBER,
-                result: ExecTxResult::default()
+                result: Arc::new(ExecTxResult::default())
             },
             "removal reason should be included"
         );
@@ -1654,7 +1651,7 @@ mod tests {
             *removal_cache.get(tx2.id()).unwrap(),
             RemovalReason::IncludedInBlock {
                 height: INCLUDED_TX_BLOCK_NUMBER,
-                result: ExecTxResult::default()
+                result: Arc::new(ExecTxResult::default())
             },
             "removal reason should be included"
         );

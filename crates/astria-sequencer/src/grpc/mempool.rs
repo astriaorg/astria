@@ -120,7 +120,7 @@ async fn get_transaction_status(
             result,
         })) => Some(RawTransactionStatus::Executed(RawExecuted {
             height,
-            result: Some(result.into_raw()),
+            result: Some((*result).clone().into_raw()),
         })),
         Some(TransactionStatus::Removed(reason)) => {
             Some(RawTransactionStatus::Removed(RawRemoved {

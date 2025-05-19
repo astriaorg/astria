@@ -706,7 +706,7 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
                         *ttx.id(),
                         RemovalReason::IncludedInBlock {
                             height: block_height,
-                            result: result.clone(),
+                            result: Arc::new(result.clone()),
                         },
                     )
                 } else {
