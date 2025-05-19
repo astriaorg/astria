@@ -32,7 +32,7 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
-      - uses: Swatinem/rust-cache@v2.7.3
+      - uses: Swatinem/rust-cache@v2.7.8
         with:
           cache-provider: "buildjet"
       - name: Install just
@@ -59,7 +59,7 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
-      - uses: Swatinem/rust-cache@v2.7.3
+      - uses: Swatinem/rust-cache@v2.7.8
         with:
           cache-provider: "buildjet"
       - name: Install just
@@ -90,7 +90,7 @@ jobs:
       - uses: taiki-e/install-action@v2.15.2
         with:
           tool: cargo-hack@0.5.29
-      - uses: Swatinem/rust-cache@v2.7.3
+      - uses: Swatinem/rust-cache@v2.7.8
         with:
           cache-provider: "buildjet"
       - uses: arduino/setup-protoc@v3
@@ -112,7 +112,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
-      - uses: Swatinem/rust-cache@v2.7.3
+      - uses: Swatinem/rust-cache@v2.7.8
         with:
           cache-provider: "github"
       - name: Check that the lockfile is updated
@@ -142,7 +142,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
-      - uses: Swatinem/rust-cache@v2.7.3
+      - uses: Swatinem/rust-cache@v2.7.8
         with:
           cache-provider: "buildjet"
       - name: Install nextest
@@ -172,7 +172,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
-      - uses: Swatinem/rust-cache@v2.7.3
+      - uses: Swatinem/rust-cache@v2.7.8
         with:
           cache-provider: "buildjet"
       - name: Install nextest
@@ -199,7 +199,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
-      - uses: Swatinem/rust-cache@v2.7.3
+      - uses: Swatinem/rust-cache@v2.7.8
         with:
           cache-provider: "buildjet"
       - uses: arduino/setup-protoc@v3
@@ -223,7 +223,7 @@ jobs:
         with:
           toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
           components: clippy
-      - uses: Swatinem/rust-cache@v2.7.3
+      - uses: Swatinem/rust-cache@v2.7.8
         with:
           cache-provider: "buildjet"
       - uses: arduino/setup-protoc@v3
@@ -252,7 +252,7 @@ jobs:
           # This has to match `rust-toolchain` in the rust-toolchain file of the dylint lints
           toolchain: nightly-2024-10-03
           components: "clippy, llvm-tools-preview, rustc-dev, rust-src"
-      - uses: Swatinem/rust-cache@v2.7.3
+      - uses: Swatinem/rust-cache@v2.7.8
         with:
           cache-provider: "buildjet"
       - name: install cargo-dylint and dylint-link

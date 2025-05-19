@@ -108,78 +108,9 @@ pub mod transaction_status {
         pub height: u64,
         /// The transaction result.
         #[prost(message, optional, tag = "2")]
-        pub result: ::core::option::Option<executed::ExecTxResult>,
-    }
-    /// Nested message and enum types in `Executed`.
-    pub mod executed {
-        /// EventAttribute is a single key-value pair, associated with an event.
-        #[derive(Clone, PartialEq, ::prost::Message)]
-        pub struct EventAttribute {
-            #[prost(string, tag = "1")]
-            pub key: ::prost::alloc::string::String,
-            #[prost(string, tag = "2")]
-            pub value: ::prost::alloc::string::String,
-            #[prost(bool, tag = "3")]
-            pub index: bool,
-        }
-        impl ::prost::Name for EventAttribute {
-            const NAME: &'static str = "EventAttribute";
-            const PACKAGE: &'static str = "astria.mempool.v1";
-            fn full_name() -> ::prost::alloc::string::String {
-                "astria.mempool.v1.TransactionStatus.Executed.EventAttribute".into()
-            }
-            fn type_url() -> ::prost::alloc::string::String {
-                "/astria.mempool.v1.TransactionStatus.Executed.EventAttribute".into()
-            }
-        }
-        /// A record of an event which occurred during transaction execution.
-        #[derive(Clone, PartialEq, ::prost::Message)]
-        pub struct Event {
-            #[prost(string, tag = "1")]
-            pub kind: ::prost::alloc::string::String,
-            #[prost(message, repeated, tag = "2")]
-            pub attributes: ::prost::alloc::vec::Vec<EventAttribute>,
-        }
-        impl ::prost::Name for Event {
-            const NAME: &'static str = "Event";
-            const PACKAGE: &'static str = "astria.mempool.v1";
-            fn full_name() -> ::prost::alloc::string::String {
-                "astria.mempool.v1.TransactionStatus.Executed.Event".into()
-            }
-            fn type_url() -> ::prost::alloc::string::String {
-                "/astria.mempool.v1.TransactionStatus.Executed.Event".into()
-            }
-        }
-        /// The result of transaction execution.
-        #[derive(Clone, PartialEq, ::prost::Message)]
-        pub struct ExecTxResult {
-            #[prost(uint32, tag = "1")]
-            pub code: u32,
-            #[prost(bytes = "bytes", tag = "2")]
-            pub data: ::prost::bytes::Bytes,
-            #[prost(string, tag = "3")]
-            pub log: ::prost::alloc::string::String,
-            #[prost(string, tag = "4")]
-            pub info: ::prost::alloc::string::String,
-            #[prost(int64, tag = "5")]
-            pub gas_wanted: i64,
-            #[prost(int64, tag = "6")]
-            pub gas_used: i64,
-            #[prost(message, repeated, tag = "7")]
-            pub events: ::prost::alloc::vec::Vec<Event>,
-            #[prost(string, tag = "8")]
-            pub codespace: ::prost::alloc::string::String,
-        }
-        impl ::prost::Name for ExecTxResult {
-            const NAME: &'static str = "ExecTxResult";
-            const PACKAGE: &'static str = "astria.mempool.v1";
-            fn full_name() -> ::prost::alloc::string::String {
-                "astria.mempool.v1.TransactionStatus.Executed.ExecTxResult".into()
-            }
-            fn type_url() -> ::prost::alloc::string::String {
-                "/astria.mempool.v1.TransactionStatus.Executed.ExecTxResult".into()
-            }
-        }
+        pub result: ::core::option::Option<
+            super::super::super::super::tendermint::abci::ExecTxResult,
+        >,
     }
     impl ::prost::Name for Executed {
         const NAME: &'static str = "Executed";

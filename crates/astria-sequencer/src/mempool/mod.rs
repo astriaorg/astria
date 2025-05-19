@@ -1,5 +1,5 @@
-// #[cfg(feature = "benchmark")]
-// mod benchmarks;
+#[cfg(feature = "benchmark")]
+mod benchmarks;
 mod mempool_state;
 mod recently_included_transactions;
 mod transactions_container;
@@ -77,9 +77,11 @@ impl std::fmt::Display for RemovalReason {
                 height,
                 result,
             } => {
+                let json_result = serde_json::to_string(result)
+                    .unwrap_or_else(|_| "failed to serialize result".to_string());
                 write!(
                     f,
-                    "included in sequencer block {height} with result {result:?}"
+                    "included in sequencer block {height} with result: {json_result}"
                 )
             }
         }
@@ -99,6 +101,7 @@ const REMOVAL_CACHE_SIZE: usize = 50_000;
 ///
 /// This is useful for when a transaction fails execution or when
 /// a transaction is invalidated due to mempool removal policies.
+#[cfg_attr(feature = "benchmark", derive(Clone))]
 struct RemovalCache {
     cache: HashMap<TransactionId, RemovalReason>,
     remove_queue: VecDeque<TransactionId>,
@@ -295,6 +298,13 @@ impl Mempool {
     pub(crate) async fn is_tracked(&self, tx_id: &TransactionId) -> bool {
         self.inner.read().await.is_tracked(tx_id)
     }
+
+    #[cfg(feature = "benchmark")]
+    pub(crate) async fn deep_clone(&self) -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(self.inner.read().await.clone())),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -303,6 +313,7 @@ pub(crate) enum InsertionStatus {
     AddedToPending,
 }
 
+#[cfg_attr(feature = "benchmark", derive(Clone))]
 struct MempoolInner {
     pending: PendingTransactions,
     parked: ParkedTransactions<MAX_PARKED_TXS_PER_ACCOUNT>,

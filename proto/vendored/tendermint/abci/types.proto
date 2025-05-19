@@ -1,0 +1,49 @@
+// Copyright 2022 Tendermint
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// This file contains types lifted from https://github.com/tendermint/tendermint/blob/main/proto/tendermint/abci/types.proto.
+// The changes made to the original are as follows:
+// - `Event.type` renamed to `Event.kind` to avoid keyword collision in Rust.
+// - `ResponseDeliverTx` renamed to `ExecTxResult`.
+// - `EventAttribute.key` and `EventAttribute.value` changed from `bytes` to `string`.
+
+syntax = "proto3";
+package tendermint.abci;
+
+// Event allows application developers to attach additional information to
+// ResponseBeginBlock, ResponseEndBlock, ResponseCheckTx and ResponseDeliverTx.
+// Later, transactions may be queried using these events.
+message Event {
+  string kind = 1;
+  repeated EventAttribute attributes = 2;
+}
+
+// EventAttribute is a single key-value pair, associated with an event.
+message EventAttribute {
+  string key = 1;
+  string value = 2;
+  bool index = 3; // nondeterministic
+}
+
+// The result of transaction execution.
+message ExecTxResult {
+  uint32 code = 1;
+  bytes data = 2;
+  string log = 3;
+  string info = 4;
+  int64 gas_wanted = 5;
+  int64 gas_used = 6;
+  repeated Event events = 7;
+  string codespace = 8;
+}
