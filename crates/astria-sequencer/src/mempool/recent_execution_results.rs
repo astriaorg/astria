@@ -15,11 +15,11 @@ use tracing::{
     instrument,
 };
 
-/// The maximum number of transactions that can be stored in the [`RecentExecutionResults`]
+/// The maximum number of retuls that can be stored in the [`RecentExecutionResults`]
 /// cache. This number is calculated based on an assumed timeout time of 1 minute and a maximum
 /// throughput of 1000 transactions per second.
 const MAX_RECENT_EXECUTION_RESULTS: usize = 60_000;
-/// The timeout time for the transactions in the [`RecentExecutionResults`] cache.
+/// The timeout time for the results in the [`RecentExecutionResults`] cache.
 const RETENTION_DURATION: Duration = Duration::from_secs(60);
 
 #[derive(Debug)]
@@ -39,20 +39,19 @@ impl ExecutionResult {
     }
 }
 
-/// A cache of transaction data for transactions which were recently included in a block. The cache
-/// has a maximum size of [`MAX_RECENTLY_INCLUDED_TRANSACTIONS`] transactions. Transactions are
-/// cleared from the cache after [`MAX_TIME_RECENTLY_INCLUDED_TRANSACTIONS_SECS`] seconds if the
-/// cache is not full.
+/// A cache of execution results for transactions which were recently included in a block. The cache
+/// has a maximum size of [`MAX_RECENT_EXECUTION_RESULTS`] results. Results are cleared from the
+/// cache after [`RETENTION_DURATION`] if the cache is not full.
 ///
 /// Supports O(1) lookups by transaction ID while maintaining O(1) insertion and removal of oldest
 /// element. Worst case time complexity for cleaning stale transactions is O(n), where n is the
-/// number of transactions in the cache.
+/// number of results in the cache.
 #[derive(Debug)]
 #[cfg_attr(feature = "benchmark", derive(Clone))]
 pub(super) struct RecentExecutionResults {
     /// Transaction IDs in chronological order (oldest first)
     timestamped_ids: VecDeque<(TransactionId, Instant)>,
-    /// Hash map containing transaction metadata, keyed by transaction ID
+    /// Hash map containing transaction execution results, keyed by transaction ID
     execution_results: HashMap<TransactionId, ExecutionResult>,
 }
 
@@ -70,9 +69,9 @@ impl RecentExecutionResults {
         self.execution_results.get(tx_id)
     }
 
-    /// Adds new transaction data to the cache. Cleans stale transactions before attempting to add
-    /// the new transaction. If the cache is full, removes the oldest transaction until the cache
-    /// is not full. Returns an error if the transaction ID already exists in the cache.
+    /// Adds new execution results to the cache. Cleans stale results before attempting to add
+    /// the new one. If the cache is full, removes the oldest execution result until the cache
+    /// is not full. If the transaction ID already exists in the cache, it is not added again.
     #[instrument(skip_all)]
     pub(super) fn add(
         &mut self,
@@ -81,16 +80,16 @@ impl RecentExecutionResults {
     ) {
         let now = Instant::now();
 
-        // Clean any stale transactions before adding a new one.
+        // Clean any stale results before adding a new one.
         self.clean_stale(now);
 
         for (tx_id, result) in execution_results {
-            // If the cache is full, remove the oldest transaction until the cache is not full.
+            // If the cache is full, remove the oldest result until the cache is not full.
             while self.timestamped_ids.len() >= MAX_RECENT_EXECUTION_RESULTS {
                 let Some((oldest_tx_id, _)) = self.timestamped_ids.pop_front() else {
                     debug!(
-                        "failed to remove oldest transaction from recently included cache to make \
-                         space for tx {tx_id}, not adding it"
+                        "failed to remove oldest execution result from recent execution results \
+                         cache to make space for tx {tx_id}, not adding it"
                     );
                     return;
                 };
@@ -99,14 +98,14 @@ impl RecentExecutionResults {
                 // Check if the transaction ID already exists in the cache.
                 if self.execution_results.contains_key(&tx_id) {
                     debug!(
-                        "transaction ID {tx_id} already exists in recently included cache, not \
-                         adding it"
+                        "transaction ID {tx_id} already exists in recent execution results cache, \
+                         not adding it"
                     );
                     return;
                 }
             }
 
-            // Add new transaction to the cache and push to the back of the ID vec.
+            // Add new result to the cache and push to the back of the ID vec.
             if self
                 .execution_results
                 .insert(
@@ -119,8 +118,8 @@ impl RecentExecutionResults {
                 .is_some()
             {
                 debug!(
-                    "transaction ID {tx_id} already exists in recently included cache, not adding \
-                     it"
+                    "transaction ID {tx_id} already exists in recent execution results cache, not \
+                     adding it"
                 );
             } else {
                 self.timestamped_ids.push_back((tx_id, now));
@@ -129,7 +128,7 @@ impl RecentExecutionResults {
     }
 
     /// Removes all transactions from the cache that are older than
-    /// [`MAX_TIME_RECENTLY_INCLUDED_TRANSACTIONS_SECS`] seconds.
+    /// [`RETENTION_DURATION`].
     #[instrument(skip_all)]
     pub(super) fn clean_stale(&mut self, now: Instant) {
         let partition_index = self
@@ -138,7 +137,8 @@ impl RecentExecutionResults {
         for (tx_id, _) in self.timestamped_ids.drain(0..partition_index) {
             if self.execution_results.remove(&tx_id).is_none() {
                 debug!(
-                    "transaction ID {tx_id} not found in recently included cache, not removing it"
+                    "transaction ID {tx_id} not found in recent execution results cache, not \
+                     removing it"
                 );
             };
         }
