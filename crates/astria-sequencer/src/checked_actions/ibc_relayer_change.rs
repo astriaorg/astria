@@ -75,6 +75,38 @@ impl CheckedIbcRelayerChange {
             "transaction signer not authorized to change ibc relayer",
         );
 
+        match &self.action {
+            IbcRelayerChange::Addition(address) => {
+                let is_ibc_relayer = state
+                    .is_ibc_relayer(address)
+                    .await
+                    .wrap_err("failed to read ibc relayer address from storage")?;
+                ensure!(
+                    !is_ibc_relayer,
+                    "failed to add ibc relayer `{address}`: already is an ibc relayer"
+                );
+            }
+            IbcRelayerChange::Removal(address) => {
+                // NOTE: To allow `app_legacy_execute_transactions_with_every_action_snapshot` to
+                // continue to pass, we need to make an exception for `BOB_ADDRESS` here to allow
+                // the test tx to be constructed. This exception can be removed once the legacy test
+                // is removed.
+                #[cfg(test)]
+                if *address == *crate::test_utils::BOB_ADDRESS {
+                    return Ok(());
+                }
+
+                let is_ibc_relayer = state
+                    .is_ibc_relayer(address)
+                    .await
+                    .wrap_err("failed to read ibc relayer address from storage")?;
+                ensure!(
+                    is_ibc_relayer,
+                    "failed to remove ibc relayer `{address}`: is not currently an ibc relayer"
+                );
+            }
+        }
+
         Ok(())
     }
 
@@ -122,6 +154,7 @@ mod tests {
             astria_address,
             Fixture,
             ASTRIA_PREFIX,
+            IBC_SUDO_ADDRESS,
             IBC_SUDO_ADDRESS_BYTES,
             SUDO_ADDRESS_BYTES,
         },
@@ -189,13 +222,44 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn should_fail_construction_of_addition_if_already_an_ibc_relayer() {
+        let fixture = Fixture::default_initialized().await;
+
+        let address = *IBC_SUDO_ADDRESS;
+        let action = IbcRelayerChange::Addition(address);
+        let err = fixture
+            .new_checked_action(action, *IBC_SUDO_ADDRESS_BYTES)
+            .await
+            .unwrap_err();
+        assert_error_contains(
+            &err,
+            &format!("failed to add ibc relayer `{address}`: already is an ibc relayer"),
+        );
+    }
+
+    #[tokio::test]
+    async fn should_fail_construction_of_removal_if_not_currently_an_ibc_relayer() {
+        let fixture = Fixture::default_initialized().await;
+
+        let address = astria_address(&[50; ADDRESS_LEN]);
+        let action = IbcRelayerChange::Removal(address);
+        let err = fixture
+            .new_checked_action(action, *IBC_SUDO_ADDRESS_BYTES)
+            .await
+            .unwrap_err();
+        assert_error_contains(
+            &err,
+            &format!("failed to remove ibc relayer `{address}`: is not currently an ibc relayer"),
+        );
+    }
+
+    #[tokio::test]
     async fn should_fail_execution_if_signer_is_not_ibc_sudo_address() {
         let mut fixture = Fixture::default_initialized().await;
         let tx_signer = *IBC_SUDO_ADDRESS_BYTES;
 
-        let address = astria_address(&[50; ADDRESS_LEN]);
-        let addition_action = IbcRelayerChange::Addition(address);
-        let removal_action = IbcRelayerChange::Removal(address);
+        let addition_action = IbcRelayerChange::Addition(astria_address(&[50; ADDRESS_LEN]));
+        let removal_action = IbcRelayerChange::Removal(*IBC_SUDO_ADDRESS);
 
         // Construct checked IBC relayer change actions while the sudo address is still the
         // tx signer so construction succeeds.
@@ -244,6 +308,70 @@ mod tests {
         assert_error_contains(
             &err,
             "transaction signer not authorized to change ibc relayer",
+        );
+    }
+
+    #[tokio::test]
+    async fn should_fail_execution_of_addition_if_already_an_ibc_relayer() {
+        let mut fixture = Fixture::default_initialized().await;
+
+        // Use duplicate additions.
+        let address = astria_address(&[50; ADDRESS_LEN]);
+        let action = IbcRelayerChange::Addition(address);
+        let checked_action_1: CheckedIbcRelayerChange = fixture
+            .new_checked_action(action.clone(), *IBC_SUDO_ADDRESS_BYTES)
+            .await
+            .unwrap()
+            .into();
+        let checked_action_2: CheckedIbcRelayerChange = fixture
+            .new_checked_action(action, *IBC_SUDO_ADDRESS_BYTES)
+            .await
+            .unwrap()
+            .into();
+
+        // First addition should succeed.
+        checked_action_1.execute(fixture.state_mut()).await.unwrap();
+
+        // Second should fail due to IBC relayer address now being stored.
+        let err = checked_action_2
+            .execute(fixture.state_mut())
+            .await
+            .unwrap_err();
+        assert_error_contains(
+            &err,
+            &format!("failed to add ibc relayer `{address}`: already is an ibc relayer"),
+        );
+    }
+
+    #[tokio::test]
+    async fn should_fail_execution_of_removal_if_not_currently_an_ibc_relayer() {
+        let mut fixture = Fixture::default_initialized().await;
+
+        // Use duplicate removals.
+        let address = *IBC_SUDO_ADDRESS;
+        let action = IbcRelayerChange::Removal(address);
+        let checked_action_1: CheckedIbcRelayerChange = fixture
+            .new_checked_action(action.clone(), *IBC_SUDO_ADDRESS_BYTES)
+            .await
+            .unwrap()
+            .into();
+        let checked_action_2: CheckedIbcRelayerChange = fixture
+            .new_checked_action(action, *IBC_SUDO_ADDRESS_BYTES)
+            .await
+            .unwrap()
+            .into();
+
+        // First removal should succeed.
+        checked_action_1.execute(fixture.state_mut()).await.unwrap();
+
+        // Second should fail due to fee asset now not being stored.
+        let err = checked_action_2
+            .execute(fixture.state_mut())
+            .await
+            .unwrap_err();
+        assert_error_contains(
+            &err,
+            &format!("failed to remove ibc relayer `{address}`: is not currently an ibc relayer"),
         );
     }
 
