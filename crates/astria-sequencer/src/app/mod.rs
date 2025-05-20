@@ -1469,6 +1469,9 @@ impl App {
         FeesComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .wrap_err("begin_block failed on FeesComponent")?;
+        OrderbookComponent::begin_block(&mut arc_state_tx, begin_block)
+            .await
+            .wrap_err("begin_block failed on OrderbookComponent")?;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1537,6 +1540,9 @@ impl App {
         IbcComponent::end_block(&mut arc_state_tx, &end_block)
             .await
             .wrap_err("end_block failed on IbcComponent")?;
+        OrderbookComponent::end_block(&mut arc_state_tx, &end_block)
+            .await
+            .wrap_err("end_block failed on OrderbookComponent")?;
 
         let mut state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");

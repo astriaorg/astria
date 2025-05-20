@@ -249,6 +249,20 @@ pub trait StateReadExt: StateRead {
 
     /// Get all available markets.
     fn get_markets(&self) -> Vec<String> {
+        // First try to get from the ALL_MARKETS key
+        let all_markets_key = keys::orderbook_all_markets();
+        let all_markets_bytes = futures::executor::block_on(self.get_raw(all_markets_key.as_str()));
+        
+        if let Ok(Some(bytes)) = all_markets_bytes {
+            // Try to deserialize as StoredValue and then as Vec<String>
+            if let Ok(StoredValue::Bytes(inner_bytes)) = StoredValue::deserialize(&bytes) {
+                if let Ok(markets) = borsh::from_slice::<Vec<String>>(&inner_bytes) {
+                    return markets;
+                }
+            }
+        }
+        
+        // Fallback to scanning the orderbook_markets prefix
         let prefix = keys::orderbook_markets();
         
         futures::executor::block_on(async {
@@ -537,10 +551,41 @@ pub trait StateWriteExt: StateWrite {
             market.as_bytes().to_vec(),
         );
 
-        // Add to markets list
+        // Add to markets list (for backward compatibility)
         self.put_raw(
             keys::orderbook_markets(),
             market.as_bytes().to_vec(),
+        );
+
+        // Get existing markets from the ALL_MARKETS key
+        let all_markets_key = keys::orderbook_all_markets();
+        let all_markets_bytes = futures::executor::block_on(self.get_raw(all_markets_key.as_str()));
+        
+        let mut markets = Vec::new();
+        if let Ok(Some(bytes)) = all_markets_bytes {
+            // Try to deserialize existing markets list
+            if let Ok(StoredValue::Bytes(inner_bytes)) = StoredValue::deserialize(&bytes) {
+                if let Ok(existing_markets) = borsh::from_slice::<Vec<String>>(&inner_bytes) {
+                    markets = existing_markets;
+                }
+            }
+        }
+        
+        // Add the new market if it's not already in the list
+        if !markets.contains(&market.to_string()) {
+            markets.push(market.to_string());
+        }
+        
+        // Serialize and store the updated markets list
+        let markets_serialized = borsh::to_vec(&markets)
+            .map_err(|_| OrderbookError::SerializationError(String::from("Failed to serialize markets list")))?;
+            
+        let wrapped_markets_serialized = StoredValue::Bytes(markets_serialized).serialize()
+            .map_err(|_| OrderbookError::SerializationError(String::from("Failed to serialize StoredValue")))?;
+            
+        self.put_raw(
+            all_markets_key,
+            wrapped_markets_serialized,
         );
 
         // Store market parameters

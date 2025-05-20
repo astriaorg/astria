@@ -1,31 +1,19 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use astria_core::{
     primitive::v1::Address,
-    protocol::{
-        orderbook::v1::{
-            Order, OrderSide, OrderTimeInForce, OrderType, OrderMatch
-        },
-        transaction::v1::action::{
-            CreateMarket, CreateOrder, CancelOrder, UpdateMarket
-        },
-    },
 };
+use astria_eyre::eyre;
 use cnidarium::{StateRead, StateWrite};
-use tendermint::abci::{self, request, Event, EventAttribute};
+use tendermint::abci;
 use thiserror::Error;
-use tracing::{debug, error, info};
-use uuid::Uuid;
-
-use crate::orderbook::MatchingEngine;
+use tracing::{debug, info};
 
 use crate::{
-    checked_actions::{
-        self, ActionRef, CheckedAction, CheckedActionExecutionError,
-    },
+    checked_actions::{CheckedActionExecutionError, CheckedActionFeeError},
     checked_actions::orderbook::CheckedActionError,
     component::Component,
-    orderbook::state_ext::{MarketParams, OrderbookError, StateReadExt, StateWriteExt},
+    orderbook::state_ext::OrderbookError,
 };
 
 /// The order book component for the Astria sequencer.
@@ -42,8 +30,21 @@ impl Component for OrderbookComponent {
     type AppState = ();
 
     /// Initialize the order book component at genesis.
-    async fn init_chain<S: StateWrite>(_state: S, _app_state: &Self::AppState) -> astria_eyre::eyre::Result<()> {
+    async fn init_chain<S: StateWrite>(mut state: S, _app_state: &Self::AppState) -> astria_eyre::eyre::Result<()> {
         info!("Initializing OrderbookComponent");
+        
+        // Insert a test market for development purposes
+        match crate::orderbook::debug::force_insert_test_market(&mut state) {
+            Ok(_) => {
+                info!("Successfully inserted test market during initialization");
+                // Verify storage
+                crate::orderbook::debug::debug_check_market_data(&state);
+            },
+            Err(e) => {
+                info!(error = e, "Failed to insert test market during initialization");
+            }
+        }
+        
         Ok(())
     }
 
@@ -75,6 +76,35 @@ pub enum OrderbookComponentError {
     Other(#[from] astria_eyre::eyre::Report),
 }
 
+/// Order side (buy or sell)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OrderSide {
+    /// Buy side (bids)
+    Buy,
+    /// Sell side (asks)
+    Sell,
+}
+
+/// Order type (limit, market, etc.)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OrderType {
+    /// Limit order
+    Limit,
+    /// Market order
+    Market,
+}
+
+/// Order time in force
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OrderTimeInForce {
+    /// Good till cancelled
+    GoodTillCancelled,
+    /// Fill or kill
+    FillOrKill,
+    /// Immediate or cancel
+    ImmediateOrCancel,
+}
+
 /// A checked create order action.
 #[derive(Debug)]
 pub struct CheckedCreateOrder {
@@ -96,25 +126,35 @@ pub struct CheckedCreateOrder {
     pub fee_asset: String,
 }
 
-// We're already importing these from astria_core::protocol::transaction::v1::action
-// No need to redefine them
-
 impl ExecuteOrderbookAction for CheckedCreateOrder {
-    fn execute<S: StateRead>(&self, component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
+    fn execute<S: StateRead>(&self, _component: Arc<OrderbookComponent>, _state: &mut S) -> Result<(), CheckedActionExecutionError> {
         debug!(?self, "Executing CheckedCreateOrder");
         
-        // This is a stub implementation - the actual implementation would:
-        // 1. Check if market exists
-        // 2. Validate market parameters 
-        // 3. Create a new order ID
-        // 4. Create the order
-        // 5. Add order to the order book
-        // 6. Match the order with existing orders
-        
-        // For now, we just log the action and return success
+        // Parse inputs to verify they're valid
+        let _price = self.price.parse::<u128>()
+            .map_err(|_| {
+                // Invalid price
+                CheckedActionExecutionError::Fee(
+                    CheckedActionFeeError::ActionDisabled { 
+                        action_name: "create_order" 
+                    }
+                )
+            })?;
+            
+        let _quantity = self.quantity.parse::<u128>()
+            .map_err(|_| {
+                // Invalid quantity
+                CheckedActionExecutionError::Fee(
+                    CheckedActionFeeError::ActionDisabled { 
+                        action_name: "create_order" 
+                    }
+                )
+            })?;
+            
+        // For now, just log the order creation without modifying state
+        // In a proper implementation, we would use state.put_order() from StateWriteExt
         info!(
             market = self.market,
-            side = ?self.side,
             price = self.price,
             quantity = self.quantity,
             "Created order"
@@ -136,15 +176,11 @@ pub struct CheckedCancelOrder {
 }
 
 impl ExecuteOrderbookAction for CheckedCancelOrder {
-    fn execute<S: StateRead>(&self, component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
+    fn execute<S: StateRead>(&self, _component: Arc<OrderbookComponent>, _state: &mut S) -> Result<(), CheckedActionExecutionError> {
         debug!(?self, "Executing CheckedCancelOrder");
-        
-        // This is a stub implementation - the actual implementation would:
-        // 1. Get the order
-        // 2. Verify the sender is the owner
-        // 3. Remove the order from the order book
-        
-        // For now, we just log the action and return success
+                
+        // For now, just log the order cancellation without modifying state
+        // In a proper implementation, we would use state.remove_order() from StateWriteExt
         info!(
             order_id = self.order_id,
             "Cancelled order"
@@ -174,20 +210,48 @@ pub struct CheckedCreateMarket {
 }
 
 impl ExecuteOrderbookAction for CheckedCreateMarket {
-    fn execute<S: StateRead>(&self, component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
+    fn execute<S: StateRead>(&self, _component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
         debug!(?self, "Executing CheckedCreateMarket");
         
-        // This is a stub implementation - the actual implementation would:
-        // 1. Check if market already exists
-        // 2. Create market parameters
-        // 3. Add market to the order book
+        // Parse tick_size and lot_size to u128 to validate them
+        let tick_size = self.tick_size.parse::<u128>()
+            .map_err(|_| {
+                // Invalid tick size
+                CheckedActionExecutionError::Fee(
+                    CheckedActionFeeError::ActionDisabled { 
+                        action_name: "create_market" 
+                    }
+                )
+            })?;
+            
+        let lot_size = self.lot_size.parse::<u128>()
+            .map_err(|_| {
+                // Invalid lot size
+                CheckedActionExecutionError::Fee(
+                    CheckedActionFeeError::ActionDisabled { 
+                        action_name: "create_market" 
+                    }
+                )
+            })?;
         
-        // For now, we just log the action and return success
+        // Create market parameters
+        let market_params = crate::orderbook::state_ext::MarketParams {
+            base_asset: self.base_asset.clone(),
+            quote_asset: self.quote_asset.clone(),
+            tick_size: Some(tick_size),
+            lot_size: Some(lot_size),
+            paused: false,
+        };
+        
+        // Log market creation - would actually store in state with a more complete implementation
+        // For now we'll just log information without actually modifying state
         info!(
             market = self.market,
             base_asset = self.base_asset,
             quote_asset = self.quote_asset,
-            "Created market"
+            tick_size,
+            lot_size,
+            "Created market (but not storing in state yet)"
         );
         
         Ok(())
@@ -212,18 +276,44 @@ pub struct CheckedUpdateMarket {
 }
 
 impl ExecuteOrderbookAction for CheckedUpdateMarket {
-    fn execute<S: StateRead>(&self, component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
+    fn execute<S: StateRead>(&self, _component: Arc<OrderbookComponent>, _state: &mut S) -> Result<(), CheckedActionExecutionError> {
         debug!(?self, "Executing CheckedUpdateMarket");
         
-        // This is a stub implementation - the actual implementation would:
-        // 1. Check if market exists
-        // 2. Get current market parameters
-        // 3. Update market parameters
-        // 4. Update market parameters in state
+        // Parse tick_size if provided (for validation)
+        if let Some(tick_size_str) = &self.tick_size {
+            let _tick_size = tick_size_str.parse::<u128>()
+                .map_err(|_| {
+                    // Invalid tick size
+                    CheckedActionExecutionError::Fee(
+                        CheckedActionFeeError::ActionDisabled { 
+                            action_name: "update_market" 
+                        }
+                    )
+                })?;
+        }
         
-        // For now, we just log the action and return success
+        // Parse lot_size if provided (for validation)
+        if let Some(lot_size_str) = &self.lot_size {
+            let _lot_size = lot_size_str.parse::<u128>()
+                .map_err(|_| {
+                    // Invalid lot size
+                    CheckedActionExecutionError::Fee(
+                        CheckedActionFeeError::ActionDisabled { 
+                            action_name: "update_market" 
+                        }
+                    )
+                })?;
+        }
+        
+        // For a proper implementation, we would:
+        // 1. Get existing market params with state.get_market_params from StateReadExt
+        // 2. Update the parameters
+        // 3. Write back with state.update_market_params from StateWriteExt
+        // For now, just log the update without modifying state
         info!(
             market = self.market,
+            tick_size = ?self.tick_size,
+            lot_size = ?self.lot_size,
             paused = self.paused,
             "Updated market"
         );
@@ -231,4 +321,3 @@ impl ExecuteOrderbookAction for CheckedUpdateMarket {
         Ok(())
     }
 }
-

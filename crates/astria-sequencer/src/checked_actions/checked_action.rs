@@ -11,11 +11,6 @@ use astria_core::{
     },
     protocol::{
         fees::v1::FeeComponents,
-        orderbook::v1::{
-            OrderSide,
-            OrderTimeInForce,
-            OrderType,
-        },
         transaction::v1::action::{
             BridgeLock,
             BridgeSudoChange,
@@ -350,12 +345,18 @@ impl CheckedAction {
             crate::orderbook::component::CheckedCreateOrder {
                 sender,
                 market: action.market,
-                side: crate::orderbook::order_side_from_i32(action.side.into()),
-                order_type: crate::orderbook::order_type_from_i32(action.r#type.into()),
+                side: crate::orderbook::utils::order_side_from_proto(
+                    crate::orderbook::utils::order_side_from_i32(action.side.into())
+                ),
+                order_type: crate::orderbook::utils::order_type_from_proto(
+                    crate::orderbook::utils::order_type_from_i32(action.r#type.into())
+                ),
                 // Convert to strings for simplicity - in a real implementation, we'd use proper conversions
                 price: action.price.map_or_else(|| "0".to_string(), |_| "1000000".to_string()),
                 quantity: action.quantity.map_or_else(|| "0".to_string(), |_| "100000000".to_string()),
-                time_in_force: crate::orderbook::time_in_force_from_i32(action.time_in_force.into()),
+                time_in_force: crate::orderbook::utils::time_in_force_from_proto(
+                    crate::orderbook::utils::time_in_force_from_i32(action.time_in_force.into())
+                ),
                 fee_asset: action.fee_asset.to_string(),
             }
         )))

@@ -1,10 +1,12 @@
 pub mod component;
 pub mod compat;
+pub mod debug;
 mod matching_engine;
-mod query;
+pub mod mock_data;
+pub mod query;
 pub mod state_ext;
 mod types;
-mod utils;
+pub mod utils;
 #[cfg(test)]
 mod tests;
 

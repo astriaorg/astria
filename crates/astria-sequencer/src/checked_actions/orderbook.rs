@@ -7,7 +7,7 @@ use cnidarium::StateRead;
 
 use crate::orderbook::{
     component::{CheckedCreateMarket, CheckedCreateOrder, CheckedCancelOrder, ExecuteOrderbookAction},
-    OrderbookComponent, StateReadExt,
+    OrderbookComponent, StateReadExt, utils,
 };
 // Use our own simplified ExecutionState instead of app's private one
 struct ExecutionState<'a, S: StateRead> {
@@ -110,12 +110,22 @@ impl CheckCreateOrder for OrderbookComponent {
 
         // Convert fee_asset to string
         let fee_asset = action.fee_asset.to_string();
+        
+        // First get the protocol enums using the from_i32 methods
+        let proto_side = utils::order_side_from_i32(action.side.into());
+        let proto_type = utils::order_type_from_i32(action.r#type.into());
+        let proto_tif = utils::time_in_force_from_i32(action.time_in_force.into());
+        
+        // Then convert to our local enums
+        let side = utils::order_side_from_proto(proto_side);
+        let order_type = utils::order_type_from_proto(proto_type);
+        let time_in_force = utils::time_in_force_from_proto(proto_tif);
 
         Ok(CheckedCreateOrder {
             sender: address,
             market: action.market.clone(),
-            side: crate::orderbook::order_side_from_i32(action.side.into()),
-            order_type: crate::orderbook::order_type_from_i32(action.r#type.into()),
+            side,
+            order_type,
             price: match &action.price {
                 Some(val) => val.to_string(),
                 None => "0".to_string(),
@@ -124,7 +134,7 @@ impl CheckCreateOrder for OrderbookComponent {
                 Some(val) => val.to_string(),
                 None => "0".to_string(),
             },
-            time_in_force: crate::orderbook::time_in_force_from_i32(action.time_in_force.into()),
+            time_in_force,
             fee_asset,
         })
     }
@@ -343,7 +353,7 @@ impl<'a> ExecuteOrderbookAction for &'a crate::orderbook::component::CheckedUpda
 impl<'a> ActionRef<'a> {
     pub fn apply_orderbook<S: StateRead>(
         &self,
-        component: &OrderbookComponent,
+        _component: &OrderbookComponent,
         state: &mut S,
     ) -> Result<(), CheckedActionExecutionError> {
         // Create a new OrderbookComponent (it's small and has no state) and wrap it in Arc

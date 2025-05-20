@@ -1,21 +1,51 @@
 use astria_core::{
     generated::astria::primitive::v1::Uint128,
-    protocol::orderbook::v1::{OrderSide, OrderType, OrderTimeInForce},
+    protocol::orderbook::v1 as proto,
 };
 
+use crate::orderbook::component::{OrderSide, OrderType, OrderTimeInForce};
+
+/// Convert a protocol OrderSide to our local OrderSide
+pub fn order_side_from_proto(side: proto::OrderSide) -> OrderSide {
+    match side {
+        proto::OrderSide::Buy => OrderSide::Buy,
+        proto::OrderSide::Sell => OrderSide::Sell,
+        _ => OrderSide::Buy, // Default to Buy for unspecified/unknown
+    }
+}
+
 /// Convert an i32 representing OrderSide to the enum
-pub fn order_side_from_i32(side: i32) -> OrderSide {
-    OrderSide::try_from(side).unwrap_or(OrderSide::Unspecified)
+pub fn order_side_from_i32(side: i32) -> proto::OrderSide {
+    proto::OrderSide::try_from(side).unwrap_or(proto::OrderSide::Unspecified)
+}
+
+/// Convert a protocol OrderType to our local OrderType
+pub fn order_type_from_proto(order_type: proto::OrderType) -> OrderType {
+    match order_type {
+        proto::OrderType::Limit => OrderType::Limit,
+        proto::OrderType::Market => OrderType::Market,
+        _ => OrderType::Limit, // Default to Limit for unspecified/unknown
+    }
 }
 
 /// Convert an i32 representing OrderType to the enum
-pub fn order_type_from_i32(order_type: i32) -> OrderType {
-    OrderType::try_from(order_type).unwrap_or(OrderType::Unspecified)
+pub fn order_type_from_i32(order_type: i32) -> proto::OrderType {
+    proto::OrderType::try_from(order_type).unwrap_or(proto::OrderType::Unspecified)
 }
 
-/// Convert an i32 representing OrderTimeInForce to the enum
-pub fn time_in_force_from_i32(time_in_force: i32) -> OrderTimeInForce {
-    OrderTimeInForce::try_from(time_in_force).unwrap_or(OrderTimeInForce::Unspecified)
+/// Convert a protocol OrderTimeInForce to our local OrderTimeInForce
+pub fn time_in_force_from_proto(time_in_force: proto::OrderTimeInForce) -> OrderTimeInForce {
+    match time_in_force {
+        proto::OrderTimeInForce::Gtc => OrderTimeInForce::GoodTillCancelled,
+        proto::OrderTimeInForce::Fok => OrderTimeInForce::FillOrKill,
+        proto::OrderTimeInForce::Ioc => OrderTimeInForce::ImmediateOrCancel,
+        _ => OrderTimeInForce::GoodTillCancelled, // Default for unspecified/unknown
+    }
+}
+
+/// Convert an i32 representing OrderTimeInForce to the protocol enum
+pub fn time_in_force_from_i32(time_in_force: i32) -> proto::OrderTimeInForce {
+    proto::OrderTimeInForce::try_from(time_in_force).unwrap_or(proto::OrderTimeInForce::Unspecified)
 }
 
 /// Convert an Option<Uint128> to a string representation

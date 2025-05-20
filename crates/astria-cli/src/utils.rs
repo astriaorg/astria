@@ -18,7 +18,7 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 
-pub(crate) async fn submit_transaction(
+pub async fn submit_transaction(
     sequencer_url: &str,
     chain_id: String,
     prefix: &str,
@@ -62,7 +62,7 @@ pub(crate) async fn submit_transaction(
     Ok(tx_response)
 }
 
-pub(crate) fn signing_key_from_private_key(private_key: &str) -> eyre::Result<SigningKey> {
+pub fn signing_key_from_private_key(private_key: &str) -> eyre::Result<SigningKey> {
     // Decode the hex string to get the private key bytes
     let private_key_bytes: [u8; 32] = hex::decode(private_key)
         .wrap_err("failed to decode private key bytes from hex string")?
@@ -73,7 +73,7 @@ pub(crate) fn signing_key_from_private_key(private_key: &str) -> eyre::Result<Si
     Ok(SigningKey::from(private_key_bytes))
 }
 
-pub(crate) fn address_from_signing_key(
+pub fn address_from_signing_key(
     signing_key: &SigningKey,
     prefix: &str,
 ) -> eyre::Result<Address> {

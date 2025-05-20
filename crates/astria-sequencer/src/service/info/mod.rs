@@ -59,6 +59,14 @@ const TRANSACTION_FEE: &str = "transaction/fee";
 
 const FEES_COMPONENTS: &str = "fees/components";
 
+const ORDERBOOK: &str = "orderbook/:market";
+const ORDERBOOK_ORDER: &str = "orderbook/order/:order_id";
+const ORDERBOOK_MARKET_ORDERS: &str = "orderbook/orders/market/:market/:side";
+const ORDERBOOK_OWNER_ORDERS: &str = "orderbook/orders/owner/:owner";
+const ORDERBOOK_MARKETS: &str = "orderbook/markets";
+const ORDERBOOK_MARKET_PARAMS: &str = "orderbook/market_params/:market";
+const ORDERBOOK_TRADES: &str = "orderbook/trades/:market/:limit";
+
 impl Info {
     pub(crate) fn new(storage: Storage) -> Result<Self> {
         let mut query_router = abci_query_router::Router::new();
@@ -81,6 +89,15 @@ impl Info {
         )?;
         query_router.insert(TRANSACTION_FEE, crate::fees::query::transaction_fee_request)?;
         query_router.insert(FEES_COMPONENTS, crate::fees::query::components)?;
+
+        // Register orderbook query handlers
+        query_router.insert(ORDERBOOK, crate::orderbook::query::orderbook_request)?;
+        query_router.insert(ORDERBOOK_ORDER, crate::orderbook::query::order_request)?;
+        query_router.insert(ORDERBOOK_MARKET_ORDERS, crate::orderbook::query::market_orders_request)?;
+        query_router.insert(ORDERBOOK_OWNER_ORDERS, crate::orderbook::query::owner_orders_request)?;
+        query_router.insert(ORDERBOOK_MARKETS, crate::orderbook::query::markets_request)?;
+        query_router.insert(ORDERBOOK_MARKET_PARAMS, crate::orderbook::query::market_params_request)?;
+        query_router.insert(ORDERBOOK_TRADES, crate::orderbook::query::trades_request)?;
         
         Ok(Self {
             storage,
