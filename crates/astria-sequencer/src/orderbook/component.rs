@@ -22,7 +22,7 @@ pub struct OrderbookComponent;
 
 /// A trait for executing checked actions in the orderbook component.
 pub trait ExecuteOrderbookAction {
-    fn execute<S: StateRead>(&self, component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError>;
+    fn execute<S: StateRead + cnidarium::StateWrite>(&self, component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError>;
 }
 
 #[async_trait::async_trait]
@@ -127,7 +127,7 @@ pub struct CheckedCreateOrder {
 }
 
 impl ExecuteOrderbookAction for CheckedCreateOrder {
-    fn execute<S: StateRead>(&self, _component: Arc<OrderbookComponent>, _state: &mut S) -> Result<(), CheckedActionExecutionError> {
+    fn execute<S: StateRead + cnidarium::StateWrite>(&self, _component: Arc<OrderbookComponent>, _state: &mut S) -> Result<(), CheckedActionExecutionError> {
         debug!(?self, "Executing CheckedCreateOrder");
         
         // Parse inputs to verify they're valid
@@ -176,7 +176,7 @@ pub struct CheckedCancelOrder {
 }
 
 impl ExecuteOrderbookAction for CheckedCancelOrder {
-    fn execute<S: StateRead>(&self, _component: Arc<OrderbookComponent>, _state: &mut S) -> Result<(), CheckedActionExecutionError> {
+    fn execute<S: StateRead + cnidarium::StateWrite>(&self, _component: Arc<OrderbookComponent>, _state: &mut S) -> Result<(), CheckedActionExecutionError> {
         debug!(?self, "Executing CheckedCancelOrder");
                 
         // For now, just log the order cancellation without modifying state
@@ -210,13 +210,24 @@ pub struct CheckedCreateMarket {
 }
 
 impl ExecuteOrderbookAction for CheckedCreateMarket {
-    fn execute<S: StateRead>(&self, _component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
-        debug!(?self, "Executing CheckedCreateMarket");
+    fn execute<S: StateRead + cnidarium::StateWrite>(&self, _component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
+        use crate::orderbook::state_ext::StateWriteExt;
+        // Add very prominent logging for create market actions
+        tracing::warn!("🔷🔷🔷 CREATE MARKET ACTION RECEIVED 🔷🔷🔷");
+        tracing::warn!(
+            market = %self.market,
+            base_asset = %self.base_asset,
+            quote_asset = %self.quote_asset,
+            tick_size = %self.tick_size,
+            lot_size = %self.lot_size,
+            "📊 MARKET CREATION PARAMETERS 📊"
+        );
         
         // Parse tick_size and lot_size to u128 to validate them
         let tick_size = self.tick_size.parse::<u128>()
             .map_err(|_| {
                 // Invalid tick size
+                tracing::error!("❌ Invalid tick size in create market action: {}", self.tick_size);
                 CheckedActionExecutionError::Fee(
                     CheckedActionFeeError::ActionDisabled { 
                         action_name: "create_market" 
@@ -227,6 +238,7 @@ impl ExecuteOrderbookAction for CheckedCreateMarket {
         let lot_size = self.lot_size.parse::<u128>()
             .map_err(|_| {
                 // Invalid lot size
+                tracing::error!("❌ Invalid lot size in create market action: {}", self.lot_size);
                 CheckedActionExecutionError::Fee(
                     CheckedActionFeeError::ActionDisabled { 
                         action_name: "create_market" 
@@ -243,16 +255,25 @@ impl ExecuteOrderbookAction for CheckedCreateMarket {
             paused: false,
         };
         
-        // Log market creation - would actually store in state with a more complete implementation
-        // For now we'll just log information without actually modifying state
-        info!(
-            market = self.market,
-            base_asset = self.base_asset,
-            quote_asset = self.quote_asset,
-            tick_size,
-            lot_size,
-            "Created market (but not storing in state yet)"
-        );
+        // Now actually try to store the market
+        match state.add_market(&self.market, market_params.clone()) {
+            Ok(_) => {
+                tracing::warn!(
+                    "✅ MARKET SUCCESSFULLY CREATED AND STORED: {}",
+                    self.market
+                );
+                
+                // Verify storage immediately
+                crate::orderbook::debug::debug_check_market_data(state);
+            },
+            Err(err) => {
+                tracing::error!(
+                    error = ?err,
+                    "❌ FAILED TO CREATE MARKET: {}",
+                    self.market
+                );
+            }
+        }
         
         Ok(())
     }
@@ -276,7 +297,7 @@ pub struct CheckedUpdateMarket {
 }
 
 impl ExecuteOrderbookAction for CheckedUpdateMarket {
-    fn execute<S: StateRead>(&self, _component: Arc<OrderbookComponent>, _state: &mut S) -> Result<(), CheckedActionExecutionError> {
+    fn execute<S: StateRead + cnidarium::StateWrite>(&self, _component: Arc<OrderbookComponent>, _state: &mut S) -> Result<(), CheckedActionExecutionError> {
         debug!(?self, "Executing CheckedUpdateMarket");
         
         // Parse tick_size if provided (for validation)

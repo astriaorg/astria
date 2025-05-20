@@ -4,28 +4,23 @@ use astria_core::{
     primitive::v1::{Address, Bech32m},
     protocol::{
         abci::AbciErrorCode,
-        orderbook::v1::{Order, OrderSide, OrderMatch, Orderbook}
+        orderbook::v1::{Order, OrderSide}
     }
 };
-use astria_eyre::eyre::{
-    Result,
-    WrapErr as _,
-};
-use borsh::{BorshSerialize, BorshDeserialize};
+use borsh::BorshSerialize;
 use crate::orderbook::compat::{OrderWrapper, OrderMatchWrapper, OrderbookWrapper};
 use cnidarium::{
-    Snapshot,
     StateRead,
     Storage,
 };
-use serde::{Deserialize, Serialize};
+use futures::StreamExt;
 use tendermint::abci::{
     request,
     response,
     Code,
 };
 
-use crate::orderbook::state_ext::{MarketParams, StateReadExt};
+use crate::orderbook::state_ext::StateReadExt;
 
 /// Handles orderbook ABCI query request.
 pub(crate) async fn orderbook_request(
@@ -346,19 +341,120 @@ pub(crate) async fn owner_orders_request(
 pub(crate) async fn markets_request(
     storage: Storage,
     request: request::Query,
-    params: Vec<(String, String)>,
+    _params: Vec<(String, String)>,
 ) -> response::Query {
+    // Add very prominent logging for this handler
+    tracing::warn!("🔷🔷🔷 GET MARKETS QUERY HANDLER CALLED 🔷🔷🔷");
+    
     let snapshot = storage.latest_snapshot();
 
     // No params required for this endpoint
     
-    // Get markets
+    // Check markets storage and add debug logs
+    let all_markets_key = crate::storage::keys::orderbook_all_markets();
+    let markets_prefix = crate::storage::keys::orderbook_markets();
+    
+    tracing::warn!("📊 Checking ALL_MARKETS at key: {}", all_markets_key);
+    match futures::executor::block_on(snapshot.get_raw(all_markets_key.as_str())) {
+        Ok(Some(bytes)) => {
+            tracing::warn!("✅ Found ALL_MARKETS data ({} bytes)", bytes.len());
+            
+            match crate::storage::StoredValue::deserialize(&bytes) {
+                Ok(crate::storage::StoredValue::Bytes(inner_bytes)) => {
+                    match borsh::from_slice::<Vec<String>>(&inner_bytes) {
+                        Ok(markets_list) => {
+                            tracing::warn!("✅ Successfully deserialized markets list: {:?}", markets_list);
+                        },
+                        Err(e) => {
+                            tracing::warn!("❌ Failed to deserialize inner bytes into markets list: {:?}", e);
+                        }
+                    }
+                },
+                Ok(other) => {
+                    tracing::warn!("❌ StoredValue isn't Bytes but: {:?}", other);
+                },
+                Err(e) => {
+                    tracing::warn!("❌ Failed to deserialize ALL_MARKETS as StoredValue: {:?}", e);
+                }
+            }
+        },
+        Ok(None) => {
+            tracing::warn!("❌ ALL_MARKETS key not found");
+        },
+        Err(e) => {
+            tracing::warn!("❌ Error reading ALL_MARKETS key: {:?}", e);
+        }
+    }
+    
+    tracing::warn!("📊 Checking markets prefix: {}", markets_prefix);
+    
+    // Check keys under the markets prefix
+    futures::executor::block_on(async {
+        let stream = snapshot.prefix_raw(&markets_prefix);
+        futures::pin_mut!(stream);
+        
+        let mut count = 0;
+        while let Some(result) = stream.next().await {
+            match result {
+                Ok((key_bytes, value_bytes)) => {
+                    let key = String::from_utf8_lossy(key_bytes.as_bytes());
+                    let value = String::from_utf8_lossy(value_bytes.as_slice());
+                    tracing::warn!("✅ Found market at key {}: {:?}", key, value);
+                    count += 1;
+                },
+                Err(e) => {
+                    tracing::warn!("❌ Error during prefix scan: {:?}", e);
+                }
+            }
+        }
+        
+        if count == 0 {
+            tracing::warn!("❌ No markets found under markets prefix");
+        } else {
+            tracing::warn!("✅ Found {} markets under markets prefix", count);
+        }
+    });
+    
+    // Debug all keys starting with "orderbook/"
+    futures::executor::block_on(async {
+        tracing::warn!("📊 Scanning all orderbook/ keys");
+        let stream = snapshot.prefix_raw("orderbook/");
+        futures::pin_mut!(stream);
+        
+        let mut count = 0;
+        while let Some(result) = stream.next().await {
+            match result {
+                Ok((key_bytes, value_bytes)) => {
+                    let key = String::from_utf8_lossy(key_bytes.as_bytes());
+                    let value = String::from_utf8_lossy(value_bytes.as_slice());
+                    tracing::warn!("- Key: {}, Value: {:?}", key, value);
+                    count += 1;
+                },
+                Err(e) => {
+                    tracing::warn!("Error scanning orderbook keys: {:?}", e);
+                }
+            }
+        }
+        
+        if count == 0 {
+            tracing::warn!("❌ No keys found under orderbook/ prefix");
+        } else {
+            tracing::warn!("✅ Found {} keys under orderbook/ prefix", count);
+        }
+    });
+    
+    // Get markets (after all the debug)
     let markets: Vec<String> = snapshot.get_markets();
+    tracing::warn!("📊 Markets from get_markets(): {:?}", markets);
 
     // Serialize the response
     let value = match borsh::to_vec(&markets) {
-        Ok(bytes) => bytes,
+        Ok(bytes) => {
+            tracing::warn!("✅ Successfully serialized markets response ({} bytes)", bytes.len());
+            bytes
+        },
         Err(err) => {
+            tracing::warn!("❌ Failed to serialize markets: {}", err);
             return response::Query {
                 code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
                 log: format!("Failed to serialize markets: {}", err),
@@ -373,6 +469,7 @@ pub(crate) async fn markets_request(
         }
     };
 
+    tracing::warn!("✅ Returning markets response with {} markets", markets.len());
     response::Query {
         code: Code::Ok,
         log: "".to_string(),

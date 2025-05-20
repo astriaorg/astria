@@ -322,28 +322,28 @@ impl CheckUpdateMarket for OrderbookComponent {
 // We need to implement ExecuteOrderbookAction as a wrapper around our action references
 // to handle the borrow semantics correctly
 impl<'a> ExecuteOrderbookAction for &'a CheckedCreateOrder {
-    fn execute<S: StateRead>(&self, component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
+    fn execute<S: StateRead + cnidarium::StateWrite>(&self, component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
         // Just forward to the implementation on CheckedCreateOrder
         (*self).execute(component, state)
     }
 }
 
 impl<'a> ExecuteOrderbookAction for &'a CheckedCancelOrder {
-    fn execute<S: StateRead>(&self, component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
+    fn execute<S: StateRead + cnidarium::StateWrite>(&self, component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
         // Just forward to the implementation on CheckedCancelOrder
         (*self).execute(component, state)
     }
 }
 
 impl<'a> ExecuteOrderbookAction for &'a CheckedCreateMarket {
-    fn execute<S: StateRead>(&self, component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
+    fn execute<S: StateRead + cnidarium::StateWrite>(&self, component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
         // Just forward to the implementation on CheckedCreateMarket
         (*self).execute(component, state)
     }
 }
 
 impl<'a> ExecuteOrderbookAction for &'a crate::orderbook::component::CheckedUpdateMarket {
-    fn execute<S: StateRead>(&self, component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
+    fn execute<S: StateRead + cnidarium::StateWrite>(&self, component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
         // Just forward to the implementation on CheckedUpdateMarket
         (*self).execute(component, state)
     }
@@ -351,7 +351,7 @@ impl<'a> ExecuteOrderbookAction for &'a crate::orderbook::component::CheckedUpda
 
 // Add the orderbook-specific action references to ActionRef
 impl<'a> ActionRef<'a> {
-    pub fn apply_orderbook<S: StateRead>(
+    pub fn apply_orderbook<S: StateRead + cnidarium::StateWrite>(
         &self,
         _component: &OrderbookComponent,
         state: &mut S,

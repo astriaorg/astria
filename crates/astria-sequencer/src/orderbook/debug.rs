@@ -2,7 +2,7 @@ use cnidarium::{StateRead, StateWrite};
 use futures::StreamExt;
 use tracing::{debug, info, warn};
 
-use crate::orderbook::state_ext::{MarketParams, StateReadExt, StateWriteExt};
+use crate::orderbook::state_ext::{MarketParams, StateReadExt};
 use crate::storage::{keys, StoredValue};
 
 /// Manually insert a test market into the database
@@ -33,7 +33,7 @@ pub fn force_insert_test_market<S: StateWrite>(state: &mut S) -> Result<(), Stri
     info!("Directly wrote market entry for market key: {}", keys::orderbook_market(market_id));
 
     // 2. Add to ALL_MARKETS key (this is what was missing!)
-    let mut markets = vec![market_id.to_string()];
+    let markets = vec![market_id.to_string()];
     
     match crate::storage::StoredValue::Bytes(borsh::to_vec(&markets).unwrap_or_default()).serialize() {
         Ok(serialized) => {
@@ -179,8 +179,10 @@ pub fn debug_check_market_data<S: StateRead>(state: &S) {
         
         while let Some(result) = stream.next().await {
             match result {
-                Ok((key, value)) => {
-                    info!("- Key: {}, Value: {:?}", key, String::from_utf8_lossy(&value));
+                Ok((key_bytes, value_bytes)) => {
+                    let key = String::from_utf8_lossy(key_bytes.as_bytes());
+                    let value = String::from_utf8_lossy(value_bytes.as_slice());
+                    info!("- Key: {}, Value: {:?}", key, value);
                 }
                 Err(e) => {
                     warn!("Error iterating orderbook keys: {:?}", e);
