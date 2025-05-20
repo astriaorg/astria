@@ -37,6 +37,7 @@ sha2 = { workspace = true }
 tendermint = { workspace = true }
 tokio = { workspace = true, features = ["rt", "macros", "signal"] }
 tracing = { workspace = true }
+urlencoding = "2.1.3"
 which = { workspace = true }
 jiff.workspace = true
 tryhard.workspace = true

@@ -81,7 +81,7 @@ impl CreateMarketCommand {
     async fn run(self) -> eyre::Result<()> {
         // Constructing the action JSON manually for now
         // This avoids having to deal with complex type conversions
-        let action_json = format!(
+        let action_json = format\!(
             r#"{{
                 "createMarket": {{
                     "market": "{}",
@@ -108,10 +108,10 @@ impl CreateMarketCommand {
         // First get a client to check transaction status
         let url = tendermint_rpc::Url::from_str(&self.sequencer_url)
             .wrap_err("failed to parse sequencer URL")?;
-        let sequencer_client = HttpClient::new(url)
+        let _sequencer_client = HttpClient::new(url)
             .wrap_err("failed constructing http sequencer client")?;
             
-        println!("Submitting transaction to create market...");
+        println\!("Submitting transaction to create market...");
         
         let hash = match submit_transaction(
             &self.sequencer_url,
@@ -122,22 +122,22 @@ impl CreateMarketCommand {
         )
         .await {
             Ok(response) => {
-                println!("Transaction submitted successfully!");
-                println!("Transaction hash: {}", response.hash);
-                println!("Block height: {}", response.height);
+                println\!("Transaction submitted successfully\!");
+                println\!("Transaction hash: {}", response.hash);
+                println\!("Block height: {}", response.height);
                 response.hash
             },
             Err(e) => {
-                println!("Transaction submission completed with error: {}", e);
-                println!("The transaction may still have been accepted.");
-                println!("Check the sequencer logs for more information.");
+                println\!("Transaction submission completed with error: {}", e);
+                println\!("The transaction may still have been accepted.");
+                println\!("Check the sequencer logs for more information.");
                 return Err(e);
             }
         };
         
         // Try to query the transaction status
-        println!("You can query this transaction with:");
-        println!("curl -s '{}/tx?hash=0x{}' | jq", self.sequencer_url, hex::encode(hash.as_bytes()));
+        println\!("You can query this transaction with:");
+        println\!("curl -s '{}/tx?hash=0x{}' | jq", self.sequencer_url, hex::encode(hash.as_bytes()));
 
         Ok(())
     }
@@ -180,14 +180,14 @@ impl CreateOrderCommand {
         let side_value = match self.side.to_uppercase().as_str() {
             "BUY" => 1,
             "SELL" => 2,
-            _ => return Err(eyre!("Invalid order side. Must be BUY or SELL")),
+            _ => return Err(eyre\!("Invalid order side. Must be BUY or SELL")),
         };
 
         // Map order type string to the expected enum value
         let order_type_value = match self.order_type.to_uppercase().as_str() {
             "LIMIT" => 1,
             "MARKET" => 2,
-            _ => return Err(eyre!("Invalid order type. Must be LIMIT or MARKET")),
+            _ => return Err(eyre\!("Invalid order type. Must be LIMIT or MARKET")),
         };
 
         // Map time in force string to the expected enum value
@@ -195,11 +195,11 @@ impl CreateOrderCommand {
             "GTC" => 1,
             "IOC" => 2,
             "FOK" => 3,
-            _ => return Err(eyre!("Invalid time in force. Must be GTC, IOC, or FOK")),
+            _ => return Err(eyre\!("Invalid time in force. Must be GTC, IOC, or FOK")),
         };
 
         // Constructing the action JSON manually
-        let action_json = format!(
+        let action_json = format\!(
             r#"{{
                 "createOrder": {{
                     "market": "{}",
@@ -227,10 +227,10 @@ impl CreateOrderCommand {
         // First get a client to check transaction status
         let url = tendermint_rpc::Url::from_str(&self.sequencer_url)
             .wrap_err("failed to parse sequencer URL")?;
-        let sequencer_client = HttpClient::new(url)
+        let _sequencer_client = HttpClient::new(url)
             .wrap_err("failed constructing http sequencer client")?;
             
-        println!("Submitting transaction to create order...");
+        println\!("Submitting transaction to create order...");
         
         let hash = match submit_transaction(
             &self.sequencer_url,
@@ -241,22 +241,22 @@ impl CreateOrderCommand {
         )
         .await {
             Ok(response) => {
-                println!("Transaction submitted successfully!");
-                println!("Transaction hash: {}", response.hash);
-                println!("Block height: {}", response.height);
+                println\!("Transaction submitted successfully\!");
+                println\!("Transaction hash: {}", response.hash);
+                println\!("Block height: {}", response.height);
                 response.hash
             },
             Err(e) => {
-                println!("Transaction submission completed with error: {}", e);
-                println!("The transaction may still have been accepted.");
-                println!("Check the sequencer logs for more information.");
+                println\!("Transaction submission completed with error: {}", e);
+                println\!("The transaction may still have been accepted.");
+                println\!("Check the sequencer logs for more information.");
                 return Err(e);
             }
         };
         
         // Try to query the transaction status
-        println!("You can query this transaction with:");
-        println!("curl -s '{}/tx?hash=0x{}' | jq", self.sequencer_url, hex::encode(hash.as_bytes()));
+        println\!("You can query this transaction with:");
+        println\!("curl -s '{}/tx?hash=0x{}' | jq", self.sequencer_url, hex::encode(hash.as_bytes()));
 
         Ok(())
     }
@@ -286,7 +286,7 @@ struct CancelOrderCommand {
 impl CancelOrderCommand {
     async fn run(self) -> eyre::Result<()> {
         // Constructing the action JSON manually
-        let action_json = format!(
+        let action_json = format\!(
             r#"{{
                 "cancelOrder": {{
                     "order_id": "{}",
@@ -302,10 +302,10 @@ impl CancelOrderCommand {
         // First get a client to check transaction status
         let url = tendermint_rpc::Url::from_str(&self.sequencer_url)
             .wrap_err("failed to parse sequencer URL")?;
-        let sequencer_client = HttpClient::new(url)
+        let _sequencer_client = HttpClient::new(url)
             .wrap_err("failed constructing http sequencer client")?;
             
-        println!("Submitting transaction to cancel order...");
+        println\!("Submitting transaction to cancel order...");
         
         let hash = match submit_transaction(
             &self.sequencer_url,
@@ -316,22 +316,22 @@ impl CancelOrderCommand {
         )
         .await {
             Ok(response) => {
-                println!("Transaction submitted successfully!");
-                println!("Transaction hash: {}", response.hash);
-                println!("Block height: {}", response.height);
+                println\!("Transaction submitted successfully\!");
+                println\!("Transaction hash: {}", response.hash);
+                println\!("Block height: {}", response.height);
                 response.hash
             },
             Err(e) => {
-                println!("Transaction submission completed with error: {}", e);
-                println!("The transaction may still have been accepted.");
-                println!("Check the sequencer logs for more information.");
+                println\!("Transaction submission completed with error: {}", e);
+                println\!("The transaction may still have been accepted.");
+                println\!("Check the sequencer logs for more information.");
                 return Err(e);
             }
         };
         
         // Try to query the transaction status
-        println!("You can query this transaction with:");
-        println!("curl -s '{}/tx?hash=0x{}' | jq", self.sequencer_url, hex::encode(hash.as_bytes()));
+        println\!("You can query this transaction with:");
+        println\!("curl -s '{}/tx?hash=0x{}' | jq", self.sequencer_url, hex::encode(hash.as_bytes()));
 
         Ok(())
     }
@@ -351,74 +351,74 @@ impl GetMarketsCommand {
         let sequencer_client = HttpClient::new(url)
             .wrap_err("failed constructing http sequencer client")?;
         
-        println!("Querying markets from sequencer at {}", self.sequencer_url);
+        println\!("Querying markets from sequencer at {}", self.sequencer_url);
         
         // Print the current version of the sequencer to check features
         let version_response = match sequencer_client.abci_info().await {
-            Ok(info) => format!("Sequencer version: {}, App version: {}", info.version, info.app_version),
-            Err(e) => format!("Failed to get sequencer version: {}", e),
+            Ok(info) => format\!("Sequencer version: {}, App version: {}", info.version, info.app_version),
+            Err(e) => format\!("Failed to get sequencer version: {}", e),
         };
-        println!("{}", version_response);
+        println\!("{}", version_response);
         
         // First, try to get all component state to check if orderbook is available
         let components_response = sequencer_client
-            .abci_query(Some("app/components".to_string()), vec![], Some(0u32.into()), false)
+            .abci_query(Some("app/components".to_string()), vec\![], Some(0u32.into()), false)
             .await
             .wrap_err("failed to query app components")?;
         
         let components_str = String::from_utf8(components_response.value.to_vec())
             .wrap_err("failed to convert components response to string")?;
         
-        println!("Available components: {}", components_str);
+        println\!("Available components: {}", components_str);
         
         // Query the orderbook state
-        println!("Querying orderbook markets...");
+        println\!("Querying orderbook markets...");
         let response = sequencer_client
-            .abci_query(Some("orderbook/markets".to_string()), vec![], Some(0u32.into()), false)
+            .abci_query(Some("orderbook/markets".to_string()), vec\![], Some(0u32.into()), false)
             .await
             .wrap_err("failed to query markets")?;
         
-        println!("Got response - code: {:?}, log: {}", response.code, response.log);
-        println!("Response value size: {} bytes", response.value.len());
+        println\!("Got response - code: {:?}, log: {}", response.code, response.log);
+        println\!("Response value size: {} bytes", response.value.len());
         
         // If response is empty
         if response.value.is_empty() {
-            println!("No markets found in response.");
+            println\!("No markets found in response.");
             return Ok(());
         }
         
         // Try to parse as JSON first
         let raw_string = String::from_utf8_lossy(&response.value);
-        println!("Raw response: {}", raw_string);
+        println\!("Raw response: {}", raw_string);
         
         match serde_json::from_str::<Vec<String>>(&raw_string) {
             Ok(markets) => {
                 if markets.is_empty() {
-                    println!("No markets found.");
+                    println\!("No markets found.");
                 } else {
-                    println!("Markets found:");
+                    println\!("Markets found:");
                     for (i, market) in markets.iter().enumerate() {
-                        println!("{}. {}", i + 1, market);
+                        println\!("{}. {}", i + 1, market);
                     }
                 }
             },
             Err(_) => {
                 // If JSON parsing fails, try splitting by delimiters
-                println!("Response is not in JSON format. Trying to parse manually...");
+                println\!("Response is not in JSON format. Trying to parse manually...");
                 
                 // Try to parse potential market names
                 let markets: Vec<&str> = raw_string
-                    .split(|c: char| !c.is_alphanumeric() && c != '-' && c != '/' && c != '_')
-                    .filter(|s| !s.is_empty() && s.len() > 2) // filter out very short segments
+                    .split(|c: char| \!c.is_alphanumeric() && c \!= '-' && c \!= '/' && c \!= '_')
+                    .filter(|s| \!s.is_empty() && s.len() > 2) // filter out very short segments
                     .collect();
                 
-                if !markets.is_empty() {
-                    println!("Markets found:");
+                if \!markets.is_empty() {
+                    println\!("Markets found:");
                     for (i, market) in markets.iter().enumerate() {
-                        println!("{}. {}", i + 1, market);
+                        println\!("{}. {}", i + 1, market);
                     }
                 } else {
-                    println!("No markets could be parsed from the response.");
+                    println\!("No markets could be parsed from the response.");
                 }
             }
         }
@@ -446,63 +446,71 @@ impl GetOrdersCommand {
         let sequencer_client = HttpClient::new(url)
             .wrap_err("failed constructing http sequencer client")?;
         
-        println!("Querying orders for market {} from sequencer at {}", self.market, self.sequencer_url);
+        println\!("Querying orders for market {} from sequencer at {}", self.market, self.sequencer_url);
         
-        // Based on the server-side route definition ORDERBOOK_MARKET_ORDERS = "orderbook/orders/market/:market/:side"
-        // We need to construct the path properly with URL encoding for the market parameter
-        let side = self.side.as_deref().unwrap_or("buy").to_lowercase();
-        // URL encode the market name since it may contain slashes (e.g., "BTC/USD-1")
-        let encoded_market = urlencoding::encode(&self.market);
-        let path = format!("orderbook/orders/market/{}/{}", encoded_market, side);
-        println!("Querying path: {}", path);
+        // Try multiple paths to see which one works
+        let possible_paths = vec\![
+            format\!("orderbook/{}", self.market),
+            format\!("orderbook/orders/market/{}/buy", self.market),
+            format\!("orderbook/orders/market/{}/sell", self.market)
+        ];
         
-        match sequencer_client.abci_query(Some(path.clone()), vec![], Some(0u32.into()), false).await {
-            Ok(response) => {
-                println!("Got response - code: {:?}, log: {}", response.code, response.log);
-                
-                if !response.code.is_ok() {
-                    println!("Error response: {}", response.log);
-                    return Ok(());
-                }
-                
-                if response.value.is_empty() {
-                    println!("No orders found for market {} with side {}", self.market, side);
-                    return Ok(());
-                }
-                
-                println!("Response value size: {} bytes", response.value.len());
-                
-                // Try to extract meaningful information from the response
-                // Since the server uses Borsh serialization, we'll just display bytes and look for patterns
-                let raw_string = String::from_utf8_lossy(&response.value);
-                
-                // Try to find order IDs and other identifiable patterns
-                let potential_ids: Vec<&str> = raw_string
-                    .split(|c: char| !c.is_alphanumeric() && c != '-')
-                    .filter(|s| 
-                        !s.is_empty() && 
-                        (s.len() == 36 || // UUID length
-                        (s.len() > 8 && s.contains('-'))) // Partial UUID or similar ID
-                    )
-                    .collect();
-                
-                if !potential_ids.is_empty() {
-                    println!("\nPotential order IDs found:");
-                    for (i, id) in potential_ids.iter().enumerate() {
-                        if i < 10 { // Just show a few
-                            println!("{}. {}", i + 1, id);
+        let mut found_data = false;
+        
+        for path in &possible_paths {
+            println\!("Trying path: {}", path);
+            
+            match sequencer_client.abci_query(Some(path.clone()), vec\![], Some(0u32.into()), false).await {
+                Ok(response) => {
+                    println\!("Got response - code: {:?}, log: {}", response.code, response.log);
+                    println\!("Response value size: {} bytes", response.value.len());
+                    
+                    // If we got an OK response and the response has data, use it
+                    if response.code.is_ok() && \!response.value.is_empty() {
+                        println\!("Found a working query path: {}", path);
+                        
+                        // For now, just print the raw response since we can't easily deserialize it
+                        let raw_string = String::from_utf8_lossy(&response.value);
+                        println\!("Raw response: {}", raw_string);
+                        println\!("Response bytes (first 50): {:?}", 
+                            &response.value[0..std::cmp::min(50, response.value.len())]);
+                        
+                        // Try to extract some meaningful information from the response
+                        // Look for uuid-like strings (order IDs) and other patterns
+                        let potential_ids: Vec<&str> = raw_string
+                            .split(|c: char| \!c.is_alphanumeric() && c \!= '-')
+                            .filter(|s| 
+                                \!s.is_empty() && 
+                                (s.len() == 36 || // UUID length
+                                (s.len() > 8 && s.contains('-'))) // Partial UUID or similar ID
+                            )
+                            .collect();
+                        
+                        if \!potential_ids.is_empty() {
+                            println\!("\nPotential order IDs found:");
+                            for (i, id) in potential_ids.iter().enumerate() {
+                                if i < 10 { // Just show a few
+                                    println\!("{}. {}", i + 1, id);
+                                }
+                            }
+                            println\!("Found {} potential IDs in total", potential_ids.len());
+                        } else {
+                            println\!("No order IDs could be identified in the response.");
                         }
+                        
+                        found_data = true;
+                        break;
                     }
-                    println!("Found {} potential IDs in total", potential_ids.len());
-                } else {
-                    println!("No order IDs could be identified in the response.");
-                    println!("Raw response first 100 bytes: {:?}", 
-                        &response.value[0..std::cmp::min(100, response.value.len())]);
+                },
+                Err(e) => {
+                    println\!("Error querying {}: {}", path, e);
                 }
-            },
-            Err(e) => {
-                println!("Error querying {}: {}", path, e);
             }
+        }
+        
+        // If we get here and found_data is false, none of the paths worked
+        if \!found_data {
+            println\!("No orders found for market {}. None of the query paths returned valid data.", self.market);
         }
         
         Ok(())

@@ -166,6 +166,9 @@ impl MatchingEngine {
             quantity = ?order.quantity,
             "Processing order"
         );
+        
+        // NOTE: In a production system, we would check the sender's balance here 
+        // for SELL orders. However, this functionality is not yet implemented.
 
         // Parse order details
         let side = crate::orderbook::compat::order_side_from_proto(

@@ -120,6 +120,10 @@ impl CheckCreateOrder for OrderbookComponent {
         let side = utils::order_side_from_proto(proto_side);
         let order_type = utils::order_type_from_proto(proto_type);
         let time_in_force = utils::time_in_force_from_proto(proto_tif);
+        
+        // NOTE: In a production system, we would check the sender's balance here
+        // for SELL orders. However, this functionality is not yet implemented.
+        // TODO: Implement balance checking for SELL orders
 
         Ok(CheckedCreateOrder {
             sender: address,
