@@ -604,6 +604,8 @@ impl MempoolInner {
         }
         self.recent_execution_results
             .add(block_execution_results, block_height);
+        self.metrics
+            .set_results_in_recently_executed_cache(self.recent_execution_results.len());
     }
 
     fn pending_nonce(&self, address_bytes: &[u8; ADDRESS_LENGTH]) -> Option<u32> {

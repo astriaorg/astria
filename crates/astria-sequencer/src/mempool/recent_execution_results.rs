@@ -68,6 +68,11 @@ impl RecentExecutionResults {
         self.execution_results.get(tx_id)
     }
 
+    /// Returns the number of execution results in the cache.
+    pub(super) fn len(&self) -> usize {
+        self.execution_results.len()
+    }
+
     /// Adds new execution results to the cache. Cleans stale results before attempting to add
     /// the new one. If the cache is full, removes the oldest execution result until the cache
     /// is not full. If the transaction ID already exists in the cache, it is not added again.
