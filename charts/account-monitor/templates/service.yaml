@@ -1,0 +1,14 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: account-monitor-metrics
+  namespace: {{ include "account-monitor.namespace" . }}
+  labels:
+    app: account-monitor
+spec:
+  selector:
+    app: account-monitor
+  ports:
+    - name: monitor-metric
+      port: {{ .Values.ports.metrics }}
+      targetPort: monitor-metric

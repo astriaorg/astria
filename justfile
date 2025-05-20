@@ -81,6 +81,7 @@ _crate_short_name crate quiet="":
   #!/usr/bin/env sh
   set -eu
   case {{crate}} in
+    astria-account-monitor) short_name=account-monitor ;;
     astria-auctioneer) short_name=auctioneer ;;
     astria-bridge-withdrawer) short_name=evm-bridge-withdrawer ;;
     astria-cli) short_name=astria-cli ;;
@@ -228,3 +229,4 @@ _lint-proto:
   buf breaking proto/protocolapis --against 'buf.build/astria/protocol-apis'
   buf breaking proto/composerapis --against 'buf.build/astria/composer-apis'
   buf breaking proto/upgrades --against 'buf.build/astria/upgrades'
+  buf breaking proto/mempoolapis --against 'buf.build/astria/mempool-apis'

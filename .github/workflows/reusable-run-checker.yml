@@ -90,6 +90,7 @@ jobs:
             proto:
               - 'proto/composerapis/**'
               - 'proto/executionapis/**'
+              - 'proto/mempoolapis/**'
               - 'proto/primitives/**'
               - 'proto/protocolapis/**'
               - 'proto/sequencerblockapis/**'

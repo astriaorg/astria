@@ -1,0 +1,520 @@
+use std::sync::Arc;
+
+use astria_core::{
+    generated::mempool::v1::{
+        transaction_service_server::TransactionService,
+        transaction_status::{
+            Executed as RawExecuted,
+            Parked as RawParked,
+            Pending as RawPending,
+            Removed as RawRemoved,
+            Status as RawTransactionStatus,
+        },
+        GetTransactionStatusRequest,
+        SubmitTransactionRequest,
+        SubmitTransactionResponse,
+        TransactionStatus as TransactionStatusResponse,
+    },
+    primitive::v1::{
+        TransactionId,
+        TRANSACTION_ID_LEN,
+    },
+};
+use bytes::Bytes;
+use cnidarium::Storage;
+use prost::Message as _;
+use tonic::{
+    Request,
+    Response,
+    Status,
+};
+
+use crate::{
+    mempool::{
+        Mempool,
+        RemovalReason,
+        TransactionStatus,
+    },
+    service::mempool::{
+        check_tx,
+        CheckTxOutcome,
+    },
+    Metrics,
+};
+
+pub(crate) struct Server {
+    storage: Storage,
+    mempool: Mempool,
+    metrics: &'static Metrics,
+}
+
+impl Server {
+    pub(crate) fn new(storage: Storage, mempool: Mempool, metrics: &'static Metrics) -> Self {
+        Self {
+            storage,
+            mempool,
+            metrics,
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl TransactionService for Server {
+    async fn get_transaction_status(
+        self: Arc<Self>,
+        request: Request<GetTransactionStatusRequest>,
+    ) -> Result<Response<TransactionStatusResponse>, Status> {
+        let tx_hash_bytes = request.into_inner().transaction_hash;
+        Ok(Response::new(
+            get_transaction_status(&self.mempool, tx_hash_bytes).await?,
+        ))
+    }
+
+    async fn submit_transaction(
+        self: Arc<Self>,
+        request: Request<SubmitTransactionRequest>,
+    ) -> Result<Response<SubmitTransactionResponse>, Status> {
+        let tx_bytes: Bytes = request
+            .into_inner()
+            .transaction
+            .ok_or_else(|| Status::invalid_argument("Transaction is empty"))?
+            .encode_to_vec()
+            .into();
+
+        let submission_outcome: SubmissionOutcome = check_tx(
+            tx_bytes,
+            self.storage.latest_snapshot(),
+            &self.mempool,
+            self.metrics,
+        )
+        .await
+        .try_into()?;
+
+        Ok(Response::new(SubmitTransactionResponse {
+            status: Some(TransactionStatusResponse {
+                transaction_hash: submission_outcome.tx_id.get().to_vec().into(),
+                status: Some(submission_outcome.status),
+            }),
+            duplicate: submission_outcome.duplicate,
+        }))
+    }
+}
+
+async fn get_transaction_status(
+    mempool: &Mempool,
+    tx_hash_bytes: Bytes,
+) -> Result<TransactionStatusResponse, Status> {
+    let tx_hash: [u8; 32] = tx_hash_bytes.as_ref().try_into().map_err(|_| {
+        Status::invalid_argument(format!(
+            "Invalid transaction hash contained {} bytes, expected {TRANSACTION_ID_LEN}",
+            tx_hash_bytes.len()
+        ))
+    })?;
+    let tx_id = TransactionId::new(tx_hash);
+    let status = match mempool.transaction_status(&tx_id).await {
+        Some(TransactionStatus::Pending) => Some(RawTransactionStatus::Pending(RawPending {})),
+        Some(TransactionStatus::Parked) => Some(RawTransactionStatus::Parked(RawParked {})),
+        Some(TransactionStatus::Removed(RemovalReason::IncludedInBlock(height))) => {
+            Some(RawTransactionStatus::Executed(RawExecuted {
+                height,
+            }))
+        }
+        Some(TransactionStatus::Removed(reason)) => {
+            Some(RawTransactionStatus::Removed(RawRemoved {
+                reason: reason.to_string(),
+            }))
+        }
+        None => None,
+    };
+    Ok(TransactionStatusResponse {
+        transaction_hash: tx_hash_bytes,
+        status,
+    })
+}
+
+struct SubmissionOutcome {
+    tx_id: TransactionId,
+    status: RawTransactionStatus,
+    duplicate: bool,
+}
+
+impl TryFrom<CheckTxOutcome> for SubmissionOutcome {
+    type Error = Status;
+
+    fn try_from(value: CheckTxOutcome) -> Result<SubmissionOutcome, Self::Error> {
+        match value {
+            CheckTxOutcome::AddedToPending(tx_id) => Ok(SubmissionOutcome {
+                tx_id,
+                status: RawTransactionStatus::Pending(RawPending {}),
+                duplicate: false,
+            }),
+            CheckTxOutcome::AddedToParked(tx_id) => Ok(SubmissionOutcome {
+                tx_id,
+                status: RawTransactionStatus::Parked(RawParked {}),
+                duplicate: false,
+            }),
+            CheckTxOutcome::AlreadyInPending(tx_id) => Ok(SubmissionOutcome {
+                tx_id,
+                status: RawTransactionStatus::Pending(RawPending {}),
+                duplicate: true,
+            }),
+            CheckTxOutcome::AlreadyInParked(tx_id) => Ok(SubmissionOutcome {
+                tx_id,
+                status: RawTransactionStatus::Parked(RawParked {}),
+                duplicate: true,
+            }),
+            CheckTxOutcome::FailedChecks(err) => Err(err.into()),
+            CheckTxOutcome::FailedInsertion(err) => Err(err.into()),
+            CheckTxOutcome::InternalError(source) => {
+                Err(Status::internal(format!("internal error: {source}")))
+            }
+            CheckTxOutcome::RemovedFromMempool {
+                reason, ..
+            } => Err(Status::not_found(format!(
+                "transaction has been removed from the app-side mempool: {reason}"
+            ))),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::{
+        HashMap,
+        HashSet,
+    };
+
+    use astria_core::generated::protocol::transaction::v1::Transaction as RawTransaction;
+    use cnidarium::StateDelta;
+    use prost::Message as _;
+
+    use super::*;
+    use crate::{
+        accounts::StateWriteExt as _,
+        checked_transaction::CheckedTransaction,
+        mempool::RemovalReason,
+        test_utils::{
+            Fixture,
+            ALICE,
+            ALICE_ADDRESS_BYTES,
+        },
+    };
+
+    fn new_server(fixture: &Fixture) -> Arc<Server> {
+        Arc::new(Server::new(
+            fixture.storage(),
+            fixture.mempool(),
+            fixture.metrics(),
+        ))
+    }
+
+    async fn new_tx(fixture: &Fixture, nonce: u32) -> Arc<CheckedTransaction> {
+        fixture
+            .checked_tx_builder()
+            .with_nonce(nonce)
+            .with_signer(ALICE.clone())
+            .build()
+            .await
+    }
+
+    #[tokio::test]
+    async fn transaction_status_pending_works_as_expected() {
+        let fixture = Fixture::default_initialized().await;
+        let mempool = fixture.mempool();
+        let server = new_server(&fixture);
+
+        let nonce = 1;
+        let tx = new_tx(&fixture, nonce).await;
+        let tx_hash_bytes: Bytes = tx.id().get().to_vec().into();
+        // Should be inserted into Pending
+        mempool
+            .insert(tx, nonce, &HashMap::new(), HashMap::new())
+            .await
+            .unwrap();
+
+        let req = GetTransactionStatusRequest {
+            transaction_hash: tx_hash_bytes.clone(),
+        };
+        let rsp = server
+            .get_transaction_status(Request::new(req))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(rsp.transaction_hash, tx_hash_bytes);
+        assert_eq!(
+            rsp.status,
+            Some(RawTransactionStatus::Pending(RawPending {}))
+        );
+    }
+
+    #[tokio::test]
+    async fn transaction_status_parked_works_as_expected() {
+        let fixture = Fixture::default_initialized().await;
+        let mempool = fixture.mempool();
+        let server = new_server(&fixture);
+
+        let nonce = 1;
+        let tx = new_tx(&fixture, nonce).await;
+        let tx_hash_bytes: Bytes = tx.id().get().to_vec().into();
+        // Should be inserted into Parked due to nonce gap
+        mempool
+            .insert(
+                tx.clone(),
+                nonce.saturating_sub(1),
+                &HashMap::default(),
+                HashMap::default(),
+            )
+            .await
+            .unwrap();
+
+        let req = GetTransactionStatusRequest {
+            transaction_hash: tx_hash_bytes.clone(),
+        };
+        let rsp = server
+            .get_transaction_status(Request::new(req))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(rsp.transaction_hash, tx_hash_bytes);
+        assert_eq!(rsp.status, Some(RawTransactionStatus::Parked(RawParked {})));
+    }
+
+    #[tokio::test]
+    async fn transaction_status_removed_works_as_expected() {
+        let fixture = Fixture::default_initialized().await;
+        let mempool = fixture.mempool();
+        let server = new_server(&fixture);
+
+        let nonce = 1;
+        let tx = new_tx(&fixture, nonce).await;
+        let tx_hash_bytes: Bytes = tx.id().get().to_vec().into();
+        mempool
+            .insert(tx.clone(), nonce, &HashMap::default(), HashMap::default())
+            .await
+            .unwrap();
+
+        let removal_reason = RemovalReason::FailedPrepareProposal("failure reason".to_string());
+        mempool
+            .remove_tx_invalid(tx.clone(), removal_reason.clone())
+            .await;
+
+        let req = GetTransactionStatusRequest {
+            transaction_hash: tx_hash_bytes.clone(),
+        };
+        let rsp = server
+            .get_transaction_status(Request::new(req))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(rsp.transaction_hash, tx_hash_bytes);
+        assert_eq!(
+            rsp.status,
+            Some(RawTransactionStatus::Removed(RawRemoved {
+                reason: removal_reason.to_string()
+            }))
+        );
+    }
+
+    #[tokio::test]
+    async fn transaction_status_included_works_as_expected() {
+        let fixture = Fixture::default_initialized().await;
+        let mempool = fixture.mempool();
+        let storage = fixture.storage();
+        let mut state_delta = StateDelta::new(storage.latest_snapshot());
+        let nonce = 1u32;
+        state_delta
+            .put_account_nonce(&*ALICE_ADDRESS_BYTES, nonce.saturating_add(1))
+            .unwrap();
+        storage.commit(state_delta).await.unwrap();
+
+        let server = new_server(&fixture);
+
+        let tx = new_tx(&fixture, nonce).await;
+        let tx_hash_bytes: Bytes = tx.id().get().to_vec().into();
+        mempool
+            .insert(tx.clone(), nonce, &HashMap::default(), HashMap::default())
+            .await
+            .unwrap();
+        let height = 100;
+        let mut included_txs = HashSet::new();
+        included_txs.insert(*tx.id());
+        mempool
+            .run_maintenance(&storage.latest_snapshot(), false, &included_txs, height)
+            .await;
+
+        let req = GetTransactionStatusRequest {
+            transaction_hash: tx_hash_bytes.clone(),
+        };
+        let rsp = server
+            .get_transaction_status(Request::new(req))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(rsp.transaction_hash, tx_hash_bytes);
+        assert_eq!(
+            rsp.status,
+            Some(RawTransactionStatus::Executed(RawExecuted {
+                height
+            }))
+        );
+    }
+
+    #[tokio::test]
+    async fn transaction_status_fails_if_invalid_address() {
+        let fixture = Fixture::default_initialized().await;
+        let server = new_server(&fixture);
+
+        let wrong_hash_len = TRANSACTION_ID_LEN.saturating_sub(10);
+        let req = GetTransactionStatusRequest {
+            transaction_hash: vec![0; wrong_hash_len].into(),
+        };
+        let rsp = server
+            .get_transaction_status(Request::new(req))
+            .await
+            .unwrap_err();
+        assert_eq!(rsp.code(), tonic::Code::InvalidArgument);
+        assert_eq!(
+            rsp.message(),
+            format!(
+                "Invalid transaction hash contained {wrong_hash_len} bytes, expected \
+                 {TRANSACTION_ID_LEN}",
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn transaction_status_returns_none_if_not_found() {
+        let fixture = Fixture::default_initialized().await;
+        let server = new_server(&fixture);
+
+        let tx_hash_bytes: Bytes = vec![0; TRANSACTION_ID_LEN].into();
+        let req = GetTransactionStatusRequest {
+            transaction_hash: tx_hash_bytes.clone(),
+        };
+        let rsp = server
+            .get_transaction_status(Request::new(req))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(rsp.transaction_hash, tx_hash_bytes);
+        assert_eq!(rsp.status, None);
+    }
+
+    #[tokio::test]
+    async fn submit_transaction_works_as_expected() {
+        let fixture = Fixture::default_initialized().await;
+        let storage = fixture.storage();
+
+        let mut state_delta = StateDelta::new(storage.latest_snapshot());
+        let nonce = 1u32;
+        state_delta
+            .put_account_nonce(&*ALICE_ADDRESS_BYTES, nonce)
+            .unwrap();
+        storage.commit(state_delta).await.unwrap();
+
+        let server = new_server(&fixture);
+
+        let checked_tx = new_tx(&fixture, nonce).await;
+        let raw_tx = RawTransaction::decode(checked_tx.encoded_bytes().clone()).unwrap();
+
+        let req = SubmitTransactionRequest {
+            transaction: Some(raw_tx),
+        };
+        let rsp = server
+            .submit_transaction(Request::new(req))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(
+            rsp.status.clone().unwrap().transaction_hash,
+            Bytes::from(checked_tx.id().get().to_vec())
+        );
+        assert_eq!(
+            rsp.status.unwrap().status.unwrap(),
+            RawTransactionStatus::Pending(RawPending {})
+        );
+        assert!(!rsp.duplicate);
+    }
+
+    #[tokio::test]
+    async fn submit_transaction_returns_duplicate_if_already_in_mempool() {
+        let fixture = Fixture::default_initialized().await;
+        let mempool = fixture.mempool();
+        let storage = fixture.storage();
+
+        let mut state_delta = StateDelta::new(storage.latest_snapshot());
+        let nonce = 1u32;
+        state_delta
+            .put_account_nonce(&*ALICE_ADDRESS_BYTES, nonce)
+            .unwrap();
+        storage.commit(state_delta).await.unwrap();
+
+        let server = new_server(&fixture);
+
+        let checked_tx = new_tx(&fixture, nonce).await;
+        let raw_tx = RawTransaction::decode(checked_tx.encoded_bytes().clone()).unwrap();
+
+        mempool
+            .insert(
+                checked_tx.clone(),
+                nonce,
+                &HashMap::default(),
+                HashMap::default(),
+            )
+            .await
+            .unwrap();
+
+        let req = SubmitTransactionRequest {
+            transaction: Some(raw_tx),
+        };
+        let rsp = server
+            .submit_transaction(Request::new(req))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(
+            rsp.status.clone().unwrap().transaction_hash,
+            Bytes::from(checked_tx.id().get().to_vec())
+        );
+        assert_eq!(
+            rsp.status.unwrap().status.unwrap(),
+            RawTransactionStatus::Pending(RawPending {})
+        );
+        assert!(rsp.duplicate);
+    }
+
+    #[tokio::test]
+    async fn submit_transaction_fails_if_check_tx_fails() {
+        let fixture = Fixture::default_initialized().await;
+        let storage = fixture.storage();
+
+        let mut state_delta = StateDelta::new(storage.latest_snapshot());
+        let tx_nonce = 1_u32;
+        let account_nonce = tx_nonce.checked_add(1).unwrap();
+        state_delta
+            .put_account_nonce(&*ALICE_ADDRESS_BYTES, account_nonce)
+            .unwrap();
+        storage.commit(state_delta).await.unwrap();
+
+        let server = new_server(&fixture);
+
+        let checked_tx = new_tx(&fixture, tx_nonce).await;
+        let raw_tx = RawTransaction::decode(checked_tx.encoded_bytes().clone()).unwrap();
+
+        let req = SubmitTransactionRequest {
+            transaction: Some(raw_tx),
+        };
+        let rsp = server
+            .submit_transaction(Request::new(req))
+            .await
+            .unwrap_err();
+        assert_eq!(rsp.code(), tonic::Code::InvalidArgument);
+        assert_eq!(
+            rsp.message(),
+            format!(
+                "transaction nonce already used; current nonce `{account_nonce}`, transaction \
+                 nonce `{tx_nonce}`"
+            )
+        );
+    }
+}

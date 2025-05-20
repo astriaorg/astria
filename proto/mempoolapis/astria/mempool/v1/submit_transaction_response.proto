@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package astria.mempool.v1;
+
+import "astria/mempool/v1/transaction_status.proto";
+
+// A response to a request to submit a transaction to the Astria Sequencer's mempool,
+// containing the outcome of the submission.
+message SubmitTransactionResponse {
+  // The status of the submitted transaction.
+  astria.mempool.v1.TransactionStatus status = 1;
+
+  // Whether or not the transaction was already in the mempool.
+  bool duplicate = 2;
+}

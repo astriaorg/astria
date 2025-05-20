@@ -63,10 +63,15 @@ metadata:
   name: {{ .Values.moniker }}-sequencer-env
   namespace: {{ include "sequencer.namespace" . }}
 data:
-  ASTRIA_SEQUENCER_LOG: "info"
+  ASTRIA_SEQUENCER_LOG: "{{ .Values.sequencer.logLevel }}"
   ASTRIA_SEQUENCER_DB_FILEPATH: "/sequencer/penumbra.db"
+  ASTRIA_SEQUENCER_UPGRADES_FILEPATH: "/sequencer-upgrades/upgrades.json"
   ASTRIA_SEQUENCER_MEMPOOL_PARKED_MAX_TX_COUNT: "{{ .Values.sequencer.mempool.parked.maxTxCount }}"
   ASTRIA_SEQUENCER_ABCI_LISTEN_URL: "{{ include "sequencer.abci_url" . }}"
+  ASTRIA_SEQUENCER_COMETBFT_RPC_ADDR: "http://127.0.0.1:{{ .Values.ports.cometbftRpc }}"
+  ASTRIA_SEQUENCER_NO_PRICE_FEED: "{{ not .Values.sequencer.priceFeed.enabled }}"
+  ASTRIA_SEQUENCER_PRICE_FEED_GRPC_ADDR: "http://127.0.0.1:{{ .Values.ports.priceFeedGrpc }}"
+  ASTRIA_SEQUENCER_PRICE_FEED_CLIENT_TIMEOUT_MILLISECONDS: "{{ .Values.sequencer.priceFeed.clientTimeout }}"
   # Socket address for GRPC server
   ASTRIA_SEQUENCER_GRPC_ADDR: "0.0.0.0:{{ .Values.ports.sequencerGrpc }}"
   ASTRIA_SEQUENCER_NO_OPTIMISTIC_BLOCKS: "{{ not .Values.sequencer.optimisticBlockApis.enabled }}"
@@ -82,16 +87,13 @@ data:
   OTEL_EXPORTER_OTLP_HEADERS: "{{ .Values.sequencer.otel.otlpHeaders }}"
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ .Values.sequencer.otel.traceHeaders }}"
   OTEL_SERVICE_NAME: "{{ tpl .Values.sequencer.otel.serviceName . }}"
-  # These values are used when we either explicitly set dev mode or running
-  # any image other than the current release version. These are generally
-  # variables which are being deleted in the future.
-  {{- if not (or .Values.global.dev (ne (include "sequencer.imageTag" .) .Chart.AppVersion)) }}
+  # For cleanup, the values are deprecated values, they are used in the current main release
+  # but will be removed in future releases. At next major release, these values will be removed,
+  # and those in the else statement should be moved into the main body above.
+  {{- if eq (include "sequencer.imageTag" .) .Chart.AppVersion }}
   # These are variables which are added in newer releases and are not present in the current release.
   ASTRIA_SEQUENCER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   {{- else }}
-  ASTRIA_SEQUENCER_UPGRADES_FILEPATH: "/sequencer-upgrades/upgrades.json"
-  ASTRIA_SEQUENCER_COMETBFT_RPC_ADDR: "http://127.0.0.1:{{ .Values.ports.cometbftRpc }}"
-  ASTRIA_SEQUENCER_NO_PRICE_FEED: "{{ not .Values.sequencer.priceFeed.enabled }}"
-  ASTRIA_SEQUENCER_PRICE_FEED_GRPC_ADDR: "http://127.0.0.1:{{ .Values.ports.priceFeedGrpc }}"
-  ASTRIA_SEQUENCER_PRICE_FEED_CLIENT_TIMEOUT_MILLISECONDS: "{{ .Values.sequencer.priceFeed.clientTimeout }}"
+  # These are new env variables which are added in development releases and images.
+
   {{- end }}

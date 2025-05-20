@@ -12,7 +12,6 @@ use astria_core::{
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
-        bail,
         OptionExt as _,
         Result,
         WrapErr as _,
@@ -24,8 +23,8 @@ use cnidarium::{
     StateWrite,
 };
 use tracing::{
-    debug,
     instrument,
+    trace,
     Level,
 };
 
@@ -58,7 +57,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw account rollup ID from state")?
         else {
-            debug!("account rollup ID not found, returning None");
+            trace!("account rollup ID not found, returning None");
             return Ok(None);
         };
         StoredValue::deserialize(&bytes)
@@ -98,7 +97,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw bridge account sudo address from state")?
         else {
-            debug!("bridge account sudo address not found, returning None");
+            trace!("bridge account sudo address not found, returning None");
             return Ok(None);
         };
         StoredValue::deserialize(&bytes)
@@ -121,7 +120,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw bridge account withdrawer address from state")?
         else {
-            debug!("bridge account withdrawer address not found, returning None");
+            trace!("bridge account withdrawer address not found, returning None");
             return Ok(None);
         };
         StoredValue::deserialize(&bytes)
@@ -131,6 +130,35 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
                 })
             })
             .wrap_err("invalid bridge account withdrawer address bytes")
+    }
+
+    /// Returns the ROLLUP block number (not sequencer block height) for the given withdrawal event.
+    #[instrument(
+        skip_all,
+        fields(address = %address.display_address(), withdrawal_event_id),
+        err(level = Level::DEBUG)
+    )]
+    async fn get_withdrawal_event_rollup_block_number<T: AddressBytes>(
+        &self,
+        address: &T,
+        withdrawal_event_id: &str,
+    ) -> Result<Option<u64>> {
+        let key = keys::bridge_account_withdrawal_event(address, withdrawal_event_id);
+
+        let Some(bytes) = self
+            .get_raw(&key)
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw withdrawal event from state")?
+        else {
+            return Ok(None);
+        };
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| {
+                storage::BlockHeight::try_from(value)
+                    .map(|stored_height| Some(u64::from(stored_height)))
+            })
+            .wrap_err("invalid withdrawal event block height bytes")
     }
 
     #[instrument(skip_all)]
@@ -250,36 +278,15 @@ pub(crate) trait StateWriteExt: StateWrite {
         Ok(())
     }
 
-    #[instrument(
-        skip_all,
-        fields(address = %address.display_address(),
-        withdrawal_event_id, block_num),
-        err(level = Level::DEBUG)
-    )]
-    async fn check_and_set_withdrawal_event_block_for_bridge_account<T: AddressBytes>(
+    /// Stores the ROLLUP block number (not sequencer block height) for the given withdrawal event.
+    #[instrument(skip_all)]
+    fn put_withdrawal_event_rollup_block_number<T: AddressBytes>(
         &mut self,
         address: &T,
         withdrawal_event_id: &str,
         block_num: u64,
     ) -> Result<()> {
         let key = keys::bridge_account_withdrawal_event(address, withdrawal_event_id);
-
-        // Check if the withdrawal ID has already been used, if so return an error.
-        let bytes = self
-            .get_raw(&key)
-            .await
-            .map_err(anyhow_to_eyre)
-            .wrap_err("failed reading raw withdrawal event from state")?;
-        if let Some(bytes) = bytes {
-            let existing_block_num = StoredValue::deserialize(&bytes)
-                .and_then(|value| storage::BlockHeight::try_from(value).map(u64::from))
-                .context("invalid withdrawal event block height bytes")?;
-            bail!(
-                "withdrawal event ID {withdrawal_event_id} used by block number \
-                 {existing_block_num}"
-            );
-        }
-
         let bytes = StoredValue::from(storage::BlockHeight::from(block_num))
             .serialize()
             .context("failed to serialize withdrawal event block height")?;
@@ -339,7 +346,7 @@ mod tests {
     use cnidarium::StateDelta;
 
     use super::*;
-    use crate::benchmark_and_test_utils::astria_address;
+    use crate::test_utils::astria_address;
 
     fn asset_0() -> asset::Denom {
         "asset_0".parse().unwrap()

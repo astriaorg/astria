@@ -9,6 +9,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0-rc.2]
+
+### Added
+
+- Add metrics:
+  - `ASTRIA_SEQUENCER_CHECK_TX_FAILED_ACTION_CHECKS`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_CHECK_ACTIONS`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_RECHECK`
+  [#2142](https://github.com/astriaorg/astria/pull/2142)
+
+### Changed
+
+- Changed to use `CheckedTransaction`, `CheckedAction` and `Checked...` wrappers
+  for all action types [#2142](https://github.com/astriaorg/astria/pull/2142).
+- Rename metric `ASTRIA_SEQUENCER_CHECK_TX_REMOVED_TOO_LARGE` to
+  `ASTRIA_SEQUENCER_CHECK_TX_FAILED_TX_TOO_LARGE` [#2142](https://github.com/astriaorg/astria/pull/2142)
+- Changed `CurrencyPairsChange::Addition` action to fail if any currency pair to
+  be added is already stored [#2171](https://github.com/astriaorg/astria/pull/2171).
+- Changed `CurrencyPairsChange::Removal` action to fail if any currency pair to
+  be removed is not currently stored [#2171](https://github.com/astriaorg/astria/pull/2171).
+- Changed `FeeAssetChange::Addition` action to fail if the fee asset to be added
+  is already stored [#2171](https://github.com/astriaorg/astria/pull/2171).
+- Changed `FeeAssetChange::Removal` action to fail if the fee asset to be
+  removed is not currently stored [#2171](https://github.com/astriaorg/astria/pull/2171).
+- Changed `IbcRelayerChange::Addition` action to fail if the address to be added
+  is already stored [#2171](https://github.com/astriaorg/astria/pull/2171).
+- Changed `IbcRelayerChange::Removal` action to fail if the address to be
+  removed is not currently stored [#2171](https://github.com/astriaorg/astria/pull/2171).
+- Changed `MarketsChange::Removal` action to fail if any market to be removed is
+  not currently stored [#2171](https://github.com/astriaorg/astria/pull/2171).
+
+### Removed
+
+- Delete metrics:
+  - `ASTRIA_SEQUENCER_CHECK_TX_REMOVED_FAILED_STATELESS`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_PARSE_TX`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_CHECK_STATELESS`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_CHECK_TRACKED`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_CHECK_CHAIN_ID`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_CHECK_REMOVED`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_CONVERT_ADDRESS`
+  [#2142](https://github.com/astriaorg/astria/pull/2142)
+
+### Fixed
+
+- Remove failed promotable instead of inserted transaction during mempool insertion
+  [#2135](https://github.com/astriaorg/astria/pull/2135).
+
 ## [3.0.0-rc.1]
 
 ### Added
@@ -37,6 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `astria_sequencer_extend_vote_duration_seconds`,
   `astria_sequencer_extend_vote_failure_count` and
   `astria_sequencer_verify_vote_extension_failure_count` [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Add mempool gRPC service [#2133](https://github.com/astriaorg/astria/pull/2133).
 
 ## [2.0.1]
 
@@ -546,7 +595,8 @@ address [#721](https://github.com/astriaorg/astria/pull/721).
 
 - Initial release.
 
-[unreleased]: https://github.com/astriaorg/astria/compare/sequencer-v3.0.0-rc.1...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/sequencer-v3.0.0-rc.2...HEAD
+[3.0.0-rc.2]: https://github.com/astriaorg/astria/compare/sequencer-v3.0.0-rc.1...sequencer-v3.0.0-rc.2
 [3.0.0-rc.1]: https://github.com/astriaorg/astria/compare/sequencer-v2.0.1...sequencer-v3.0.0-rc.1
 [2.0.1]: https://github.com/astriaorg/astria/compare/sequencer-v2.0.0...sequencer-v2.0.1
 [2.0.0]: https://github.com/astriaorg/astria/compare/sequencer-v1.0.0...sequencer-v2.0.0

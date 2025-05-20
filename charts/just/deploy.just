@@ -232,6 +232,15 @@ bridge-withdrawer:
     --namespace astria-dev-cluster \
     -f dev/values/withdrawer/values.yaml
 
+# Deploy Account Monitor
+[doc("
+Deploys local Account Monitor.
+")]
+account-monitor:
+  @echo "Deploying account-monitor..."
+  @helm install account-monitor-chart charts/account-monitor \
+    --namespace astria-dev-cluster \
+    -f dev/values/monitor/values.yaml
 
 # FIXME: This deployment currently fails
 # Deploy Hyperlane Agents

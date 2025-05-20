@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package astria.mempool.v1;
+
+// `TransactionStatus` is a resource which represents the status of a transaction
+// in the Astria Sequencer's mempool.
+message TransactionStatus {
+  // The transaction hash.
+  bytes transaction_hash = 1;
+
+  // The status of the transaction. Can be one of:
+  // - `Pending`: The transaction is pending inclusion in a block.
+  // - `Parked`: The transaction is parked and will not be proposed until both:
+  //     - The transaction's nonce matches the sender's next nonce.
+  //     - The sender has sufficient balance to pay for the transaction.
+  // - `Removed`: The transaction has been removed from the mempool. Includes
+  //      reason for removal.
+  // - `Executed`: The transaction has been included in a sequencer block. Specifies
+  //      the block height in which the transaction was included.
+  oneof status {
+    Pending pending = 2;
+    Parked parked = 3;
+    Removed removed = 4;
+    Executed executed = 5;
+  }
+
+  // Status representing a pending transaction in the Astria Sequencer's mempool.
+  message Pending {}
+
+  // Status representing a parked transaction in the Astria Sequencer's mempool.
+  message Parked {}
+
+  // Status representing a removed transaction in the Astria Sequencer's mempool.
+  message Removed {
+    // The reason for the transaction's removal from the mempool.
+    string reason = 1;
+  }
+
+  // Status representing a transaction which has been executed and is no longer
+  // in the Astria Sequencer's mempool.
+  message Executed {
+    // The height of the block in which the transaction was included.
+    uint64 height = 1;
+  }
+}

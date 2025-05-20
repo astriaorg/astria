@@ -5,7 +5,10 @@ use std::{
 
 use astria_core::{
     generated::{
-        astria::sequencerblock::v1::sequencer_service_server::SequencerServiceServer,
+        astria::{
+            mempool::v1::transaction_service_server::TransactionServiceServer,
+            sequencerblock::v1::sequencer_service_server::SequencerServiceServer,
+        },
         price_feed::{
             marketmap::v2::query_server::QueryServer as MarketMapQueryServer,
             oracle::v2::query_server::QueryServer as OracleQueryServer,
@@ -39,8 +42,10 @@ use crate::{
     grpc::sequencer::SequencerServer,
     ibc::host_interface::AstriaHost,
     mempool::Mempool,
+    Metrics,
 };
 
+pub(crate) mod mempool;
 pub(crate) mod optimistic;
 pub(crate) mod price_feed;
 pub(crate) mod sequencer;
@@ -95,15 +100,18 @@ impl BackgroundTasks {
     }
 }
 
-pub(crate) async fn serve(
-    storage: cnidarium::Storage,
-    mempool: Mempool,
-    upgrades: Upgrades,
-    grpc_addr: std::net::SocketAddr,
-    no_optimistic_blocks: bool,
-    event_bus_subscription: EventBusSubscription,
-    shutdown_rx: oneshot::Receiver<()>,
-) -> eyre::Result<(), tonic::transport::Error> {
+pub(crate) struct SequencerServerArgs {
+    pub storage: cnidarium::Storage,
+    pub mempool: Mempool,
+    pub upgrades: Upgrades,
+    pub metrics: &'static Metrics,
+    pub grpc_addr: std::net::SocketAddr,
+    pub no_optimistic_blocks: bool,
+    pub event_bus_subscription: EventBusSubscription,
+    pub shutdown_rx: oneshot::Receiver<()>,
+}
+
+pub(crate) async fn serve(args: SequencerServerArgs) -> eyre::Result<(), tonic::transport::Error> {
     use ibc_proto::ibc::core::{
         channel::v1::query_server::QueryServer as ChannelQueryServer,
         client::v1::query_server::QueryServer as ClientQueryServer,
@@ -112,8 +120,20 @@ pub(crate) async fn serve(
     use penumbra_tower_trace::remote_addr;
     use tower_http::cors::CorsLayer;
 
+    let SequencerServerArgs {
+        storage,
+        mempool,
+        upgrades,
+        metrics,
+        grpc_addr,
+        no_optimistic_blocks,
+        event_bus_subscription,
+        shutdown_rx,
+    } = args;
+
     let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
-    let sequencer_api = SequencerServer::new(storage.clone(), mempool, upgrades);
+    let sequencer_api = SequencerServer::new(storage.clone(), mempool.clone(), upgrades);
+    let mempool_api = mempool::Server::new(storage.clone(), mempool, metrics);
     let market_map_api = price_feed::SequencerServer::new(storage.clone());
     let oracle_api = price_feed::SequencerServer::new(storage.clone());
     let cors_layer: CorsLayer = CorsLayer::permissive();
@@ -154,7 +174,8 @@ pub(crate) async fn serve(
         .add_service(SequencerServiceServer::new(sequencer_api))
         .add_optional_service(optimistic_block_service)
         .add_service(MarketMapQueryServer::new(market_map_api))
-        .add_service(OracleQueryServer::new(oracle_api));
+        .add_service(OracleQueryServer::new(oracle_api))
+        .add_service(TransactionServiceServer::new(mempool_api));
 
     info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
 
