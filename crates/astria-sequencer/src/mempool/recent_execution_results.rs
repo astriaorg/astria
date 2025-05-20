@@ -11,14 +11,10 @@ use astria_core::primitive::v1::TransactionId;
 use tendermint::abci::types::ExecTxResult;
 use tokio::time::Instant;
 use tracing::{
-    debug,
     instrument,
+    warn,
 };
 
-/// The maximum number of retuls that can be stored in the [`RecentExecutionResults`]
-/// cache. This number is calculated based on an assumed timeout time of 1 minute and a maximum
-/// throughput of 1000 transactions per second.
-const MAX_RECENT_EXECUTION_RESULTS: usize = 60_000;
 /// The timeout time for the results in the [`RecentExecutionResults`] cache.
 const RETENTION_DURATION: Duration = Duration::from_secs(60);
 
@@ -49,6 +45,8 @@ impl ExecutionResult {
 #[derive(Debug)]
 #[cfg_attr(feature = "benchmark", derive(Clone))]
 pub(super) struct RecentExecutionResults {
+    /// The maximum number of results that can be stored in the cache.
+    max_size: usize,
     /// Transaction IDs in chronological order (oldest first)
     timestamped_ids: VecDeque<(TransactionId, Instant)>,
     /// Hash map containing transaction execution results, keyed by transaction ID
@@ -56,8 +54,9 @@ pub(super) struct RecentExecutionResults {
 }
 
 impl RecentExecutionResults {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(max_size: usize) -> Self {
         Self {
+            max_size,
             timestamped_ids: VecDeque::new(),
             execution_results: HashMap::new(),
         }
@@ -85,24 +84,15 @@ impl RecentExecutionResults {
 
         for (tx_id, result) in execution_results {
             // If the cache is full, remove the oldest result until the cache is not full.
-            while self.timestamped_ids.len() >= MAX_RECENT_EXECUTION_RESULTS {
+            while self.timestamped_ids.len() >= self.max_size {
                 let Some((oldest_tx_id, _)) = self.timestamped_ids.pop_front() else {
-                    debug!(
+                    warn!(
                         "failed to remove oldest execution result from recent execution results \
                          cache to make space for tx {tx_id}, not adding it"
                     );
                     return;
                 };
                 self.execution_results.remove(&oldest_tx_id);
-
-                // Check if the transaction ID already exists in the cache.
-                if self.execution_results.contains_key(&tx_id) {
-                    debug!(
-                        "transaction ID {tx_id} already exists in recent execution results cache, \
-                         not adding it"
-                    );
-                    return;
-                }
             }
 
             // Add new result to the cache and push to the back of the ID vec.
@@ -117,9 +107,9 @@ impl RecentExecutionResults {
                 )
                 .is_some()
             {
-                debug!(
+                warn!(
                     "transaction ID {tx_id} already exists in recent execution results cache, not \
-                     adding it"
+                     adding it. this may indicate duplicate transaction execution"
                 );
             } else {
                 self.timestamped_ids.push_back((tx_id, now));
@@ -136,7 +126,7 @@ impl RecentExecutionResults {
             .partition_point(|(_, timestamp)| now.duration_since(*timestamp) > RETENTION_DURATION);
         for (tx_id, _) in self.timestamped_ids.drain(0..partition_index) {
             if self.execution_results.remove(&tx_id).is_none() {
-                debug!(
+                warn!(
                     "transaction ID {tx_id} not found in recent execution results cache, not \
                      removing it"
                 );
@@ -164,7 +154,7 @@ mod tests {
 
     #[test]
     fn construct_add_and_get_work_as_expected() {
-        let mut cache = RecentExecutionResults::new();
+        let mut cache = RecentExecutionResults::new(60_000);
 
         let tx_id_1 = dummy_tx_id(0);
         let tx_height_1 = 1;
@@ -209,7 +199,7 @@ mod tests {
 
     #[tokio::test]
     async fn clean_stale_works_as_expected() {
-        let mut cache = RecentExecutionResults::new();
+        let mut cache = RecentExecutionResults::new(60_000);
         let tx_id_1 = dummy_tx_id(0);
         let tx_height_1 = 1;
         let tx_result_1 = ExecTxResult::default();
@@ -232,7 +222,7 @@ mod tests {
 
     #[tokio::test]
     async fn add_transaction_clears_stale() {
-        let mut cache = RecentExecutionResults::new();
+        let mut cache = RecentExecutionResults::new(60_000);
         let tx_id_for_removal = dummy_tx_id(0);
         let tx_height_for_removal = 1;
         let tx_result_for_removal = ExecTxResult::default();
@@ -275,8 +265,9 @@ mod tests {
 
     #[test]
     fn add_transaction_removes_oldest_when_full() {
-        let mut cache = RecentExecutionResults::new();
-        for i in 0..MAX_RECENT_EXECUTION_RESULTS {
+        let max_size = 10;
+        let mut cache = RecentExecutionResults::new(max_size);
+        for i in 0..max_size {
             let tx_id = dummy_tx_id(i as u64);
             let tx_height = i as u64;
             let tx_result = ExecTxResult {
@@ -290,8 +281,8 @@ mod tests {
         }
 
         // Check that the cache is full and that first transaction is the oldest one.
-        assert_eq!(cache.execution_results.len(), MAX_RECENT_EXECUTION_RESULTS);
-        assert_eq!(cache.timestamped_ids.len(), MAX_RECENT_EXECUTION_RESULTS);
+        assert_eq!(cache.execution_results.len(), max_size);
+        assert_eq!(cache.timestamped_ids.len(), max_size);
         let pre_clean_first_tx = cache.get(&cache.timestamped_ids[0].0).unwrap();
         assert_eq!(pre_clean_first_tx.block_height(), 0);
         assert_eq!(
@@ -315,8 +306,8 @@ mod tests {
         );
 
         // Check that cache is still full and that the oldest transaction was removed.
-        assert_eq!(cache.execution_results.len(), MAX_RECENT_EXECUTION_RESULTS);
-        assert_eq!(cache.timestamped_ids.len(), MAX_RECENT_EXECUTION_RESULTS);
+        assert_eq!(cache.execution_results.len(), max_size);
+        assert_eq!(cache.timestamped_ids.len(), max_size);
         let post_clean_first_tx = cache.get(&cache.timestamped_ids[0].0).unwrap();
         assert_eq!(post_clean_first_tx.block_height(), 1);
         assert_eq!(
@@ -329,9 +320,7 @@ mod tests {
 
         // If removal failed, this should grab the first transaction in the cache since they share
         // the same ID.
-        let post_clean_last_tx = cache
-            .get(&cache.timestamped_ids[MAX_RECENT_EXECUTION_RESULTS - 1].0)
-            .unwrap();
+        let post_clean_last_tx = cache.get(&cache.timestamped_ids[max_size - 1].0).unwrap();
 
         // Check that the last transaction is the one we just added.
         assert_eq!(post_clean_last_tx.block_height(), tx_height_to_add);
@@ -340,7 +329,7 @@ mod tests {
 
     #[test]
     fn add_duplicate_transaction_is_noop() {
-        let mut cache = RecentExecutionResults::new();
+        let mut cache = RecentExecutionResults::new(60_000);
         let tx_id = dummy_tx_id(0);
         let tx_height = 1;
         let tx_result = ExecTxResult::default();
@@ -366,7 +355,7 @@ mod tests {
 
     #[tokio::test]
     async fn clean_stale_handles_mixed_ages() {
-        let mut cache = RecentExecutionResults::new();
+        let mut cache = RecentExecutionResults::new(60_000);
 
         // Add transactions with different timestamps
         time::pause();
@@ -414,7 +403,7 @@ mod tests {
 
     #[tokio::test]
     async fn clean_stale_with_empty_cache() {
-        let mut cache = RecentExecutionResults::new();
+        let mut cache = RecentExecutionResults::new(60_000);
 
         assert_eq!(cache.timestamped_ids.len(), 0);
         assert_eq!(cache.execution_results.len(), 0);

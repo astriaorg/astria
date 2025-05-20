@@ -27,10 +27,7 @@ use recent_execution_results::RecentExecutionResults;
 use tendermint::abci::types::ExecTxResult;
 use tokio::{
     sync::RwLock,
-    time::{
-        Duration,
-        Instant,
-    },
+    time::Duration,
 };
 use tracing::{
     error,
@@ -190,9 +187,17 @@ pub(crate) struct Mempool {
 
 impl Mempool {
     #[must_use]
-    pub(crate) fn new(metrics: &'static Metrics, parked_max_tx_count: usize) -> Self {
+    pub(crate) fn new(
+        metrics: &'static Metrics,
+        parked_max_tx_count: usize,
+        execution_results_cache_size: usize,
+    ) -> Self {
         Self {
-            inner: Arc::new(RwLock::new(MempoolInner::new(metrics, parked_max_tx_count))),
+            inner: Arc::new(RwLock::new(MempoolInner::new(
+                metrics,
+                parked_max_tx_count,
+                execution_results_cache_size,
+            ))),
         }
     }
 
@@ -267,13 +272,13 @@ impl Mempool {
         &self,
         state: &S,
         recost: bool,
-        txs_included_in_block: HashMap<TransactionId, ExecTxResult>,
+        block_execution_results: HashMap<TransactionId, Arc<ExecTxResult>>,
         block_height: u64,
     ) {
         self.inner
             .write()
             .await
-            .run_maintenance(state, recost, txs_included_in_block, block_height)
+            .run_maintenance(state, recost, block_execution_results, block_height)
             .await;
     }
 
@@ -330,7 +335,11 @@ struct MempoolInner {
 
 impl MempoolInner {
     #[must_use]
-    fn new(metrics: &'static Metrics, parked_max_tx_count: usize) -> Self {
+    fn new(
+        metrics: &'static Metrics,
+        parked_max_tx_count: usize,
+        execution_results_cache_size: usize,
+    ) -> Self {
         Self {
             pending: PendingTransactions::new(TX_TTL),
             parked: ParkedTransactions::new(TX_TTL, parked_max_tx_count),
@@ -338,7 +347,7 @@ impl MempoolInner {
                 NonZeroUsize::try_from(REMOVAL_CACHE_SIZE)
                     .expect("Removal cache cannot be zero sized"),
             ),
-            recent_execution_results: RecentExecutionResults::new(),
+            recent_execution_results: RecentExecutionResults::new(execution_results_cache_size),
             contained_txs: HashSet::new(),
             metrics,
         }
@@ -469,7 +478,7 @@ impl MempoolInner {
         &mut self,
         state: &S,
         recost: bool,
-        txs_included_in_block: HashMap<TransactionId, ExecTxResult>,
+        block_execution_results: HashMap<TransactionId, Arc<ExecTxResult>>,
         block_height: u64,
     ) {
         let mut removed_txs = Vec::<(TransactionId, RemovalReason)>::new();
@@ -488,8 +497,6 @@ impl MempoolInner {
             .chain(self.parked.addresses())
             .copied()
             .collect();
-
-        self.recent_execution_results.clean_stale(Instant::now());
 
         // TODO: Make this concurrent, all account state is separate with IO bound disk reads.
         for address_bytes in &addresses {
@@ -519,7 +526,7 @@ impl MempoolInner {
             removed_txs.extend(self.pending.clean_account_stale_expired(
                 address_bytes,
                 current_nonce,
-                &txs_included_in_block,
+                &block_execution_results,
                 block_height,
             ));
             if recost {
@@ -529,7 +536,7 @@ impl MempoolInner {
             removed_txs.extend(self.parked.clean_account_stale_expired(
                 address_bytes,
                 current_nonce,
-                &txs_included_in_block,
+                &block_execution_results,
                 block_height,
             ));
             if recost {
@@ -590,20 +597,13 @@ impl MempoolInner {
             }
         }
 
-        let mut recently_included_transactions_to_add = HashMap::new();
         // add to removal cache for cometbft and remove from the tracked set
         for (tx_id, reason) in removed_txs {
-            if let RemovalReason::IncludedInBlock {
-                result, ..
-            } = reason.clone()
-            {
-                recently_included_transactions_to_add.insert(tx_id, result);
-            }
             self.contained_txs.remove(&tx_id);
             self.comet_bft_removal_cache.add(tx_id, reason);
         }
         self.recent_execution_results
-            .add(recently_included_transactions_to_add, block_height);
+            .add(block_execution_results, block_height);
     }
 
     fn pending_nonce(&self, address_bytes: &[u8; ADDRESS_LENGTH]) -> Option<u32> {
@@ -1402,14 +1402,14 @@ mod tests {
         };
 
         // Remove transactions as included in a block
-        let mut included_txs = HashMap::new();
-        included_txs.insert(*tx_1.id(), exec_result_1.clone());
-        included_txs.insert(*tx_2.id(), exec_result_2.clone());
+        let mut execution_results = HashMap::new();
+        execution_results.insert(*tx_1.id(), Arc::new(exec_result_1.clone()));
+        execution_results.insert(*tx_2.id(), Arc::new(exec_result_2.clone()));
         mempool
             .run_maintenance(
                 fixture.state(),
                 false,
-                included_txs,
+                execution_results,
                 INCLUDED_TX_BLOCK_NUMBER,
             )
             .await;
@@ -1491,13 +1491,13 @@ mod tests {
             log: "tx executed".to_string(),
             ..ExecTxResult::default()
         };
-        let mut included_txs = HashMap::new();
-        included_txs.insert(*tx.id(), exec_result.clone());
+        let mut execution_results = HashMap::new();
+        execution_results.insert(*tx.id(), Arc::new(exec_result.clone()));
         mempool
             .run_maintenance(
                 fixture.state(),
                 false,
-                included_txs,
+                execution_results,
                 INCLUDED_TX_BLOCK_NUMBER,
             )
             .await;
@@ -1612,15 +1612,15 @@ mod tests {
 
         put_alice_balances(&mut fixture, dummy_balances(0, 0));
 
-        let mut included_txs = HashMap::new();
-        included_txs.insert(*tx1.id(), ExecTxResult::default());
-        included_txs.insert(*tx2.id(), ExecTxResult::default());
+        let mut execution_results = HashMap::new();
+        execution_results.insert(*tx1.id(), Arc::new(ExecTxResult::default()));
+        execution_results.insert(*tx2.id(), Arc::new(ExecTxResult::default()));
 
         mempool
             .run_maintenance(
                 fixture.state(),
                 false,
-                included_txs,
+                execution_results,
                 INCLUDED_TX_BLOCK_NUMBER,
             )
             .await;
