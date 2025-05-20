@@ -971,7 +971,7 @@ mod tests {
                 }
                 Some(Group::BundleableSudo) => {
                     self.checked_tx_builder
-                        .with_action(FeeAssetChange::Addition(denom_0()))
+                        .with_action(FeeAssetChange::Addition(denom_1()))
                         .build()
                         .await
                 }
