@@ -185,6 +185,7 @@ sequencer:
   mempool:
     parked:
       maxTxCount: 200
+    executionResultsCacheSize: 60000
   priceFeed:
     enabled: false
     clientTimeout: 1000

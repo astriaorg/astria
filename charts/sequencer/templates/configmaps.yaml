@@ -95,5 +95,6 @@ data:
   ASTRIA_SEQUENCER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   {{- else }}
   # These are new env variables which are added in development releases and images.
+  ASTRIA_SEQUENCER_EXECUTION_RESULTS_CACHE_SIZE: "{{ .Values.sequencer.mempool.executionResultsCacheSize }}"
 
   {{- end }}
