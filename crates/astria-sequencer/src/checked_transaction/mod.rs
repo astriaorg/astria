@@ -110,8 +110,21 @@ impl CheckedTransaction {
 
         let raw_tx = raw::Transaction::decode(tx_bytes.clone())
             .map_err(CheckedTransactionInitialCheckError::Decode)?;
+        
+        // Log the raw transaction details
+        tracing::warn!(
+            "📦 Raw transaction being processed: tx_bytes_len={}",
+            tx_bytes.len()
+        );
+        
         let tx = Transaction::try_from_raw(raw_tx)
             .map_err(CheckedTransactionInitialCheckError::Convert)?;
+        
+        // Log transaction details after conversion
+        tracing::warn!(
+            "📦 Transaction parsed: chain_id={}, nonce={}",
+            tx.chain_id(), tx.nonce()
+        );
 
         let current_nonce =
             state
@@ -141,10 +154,56 @@ impl CheckedTransaction {
             verification_key,
         } = tx.into_parts();
         let tx_signer = *verification_key.address_bytes();
+        
+        // Log the unchecked actions
+        tracing::warn!(
+            "📦 Transaction contains {} actions, group={:?}", 
+            unchecked_actions.len(), group
+        );
+        
+        // Log details about each action
+        for (idx, action) in unchecked_actions.iter().enumerate() {
+            let action_name = match action {
+                Action::RollupDataSubmission(_) => "RollupDataSubmission",
+                Action::Transfer(_) => "Transfer",
+                Action::ValidatorUpdate(_) => "ValidatorUpdate",
+                Action::SudoAddressChange(_) => "SudoAddressChange",
+                Action::Ibc(_) => "Ibc",
+                Action::IbcSudoChange(_) => "IbcSudoChange",
+                Action::Ics20Withdrawal(_) => "Ics20Withdrawal",
+                Action::IbcRelayerChange(_) => "IbcRelayerChange",
+                Action::FeeAssetChange(_) => "FeeAssetChange",
+                Action::InitBridgeAccount(_) => "InitBridgeAccount",
+                Action::BridgeLock(_) => "BridgeLock",
+                Action::BridgeUnlock(_) => "BridgeUnlock",
+                Action::BridgeSudoChange(_) => "BridgeSudoChange",
+                Action::BridgeTransfer(_) => "BridgeTransfer",
+                Action::FeeChange(_) => "FeeChange",
+                Action::RecoverIbcClient(_) => "RecoverIbcClient",
+                Action::CurrencyPairsChange(_) => "CurrencyPairsChange",
+                Action::MarketsChange(_) => "MarketsChange",
+                Action::CreateOrder(order) => {
+                    tracing::warn!(
+                        "🔍 FOUND ORDER ACTION: idx={}, market={}, side={:?}, order_type={:?}",
+                        idx, order.market, order.side, order.r#type
+                    );
+                    "CreateOrder"
+                },
+                Action::CancelOrder(_) => "CancelOrder",
+                Action::CreateMarket(_) => "CreateMarket",
+                Action::UpdateMarket(_) => "UpdateMarket",
+            };
+            
+            if action_name != "CreateOrder" {  // Already logged above
+                tracing::warn!("📑 Action at idx={}: {}", idx, action_name);
+            }
+        }
+        
         let checked_actions =
             match convert_actions(unchecked_actions, tx_signer, tx_id, state).await {
                 Ok(checked_actions) => checked_actions,
                 Err(error) => {
+                    tracing::error!("❌ Failed to convert actions: {:?}", error);
                     return Err(error);
                 }
             };
@@ -224,16 +283,137 @@ impl CheckedTransaction {
         &self,
         state: &S,
     ) -> Result<HashMap<IbcPrefixed, u128>, CheckedActionFeeError> {
+        // Get the base fee costs
         let mut cost_by_asset = total_fees(self.actions.iter().map(ActionRef::from), state).await?;
+        
+        // Log the fees calculated from actions
+        tracing::warn!(
+            "💰 Transaction fees (before asset transfers): tx_id={}, fees={:?}",
+            self.tx_id, cost_by_asset
+        );
 
-        for action in &self.actions {
-            if let Some((asset, amount)) = action.asset_and_amount_to_transfer() {
+        // Add the asset transfer costs
+        for (index, action) in self.actions.iter().enumerate() {
+            // Log the action type for debugging - use a match to safely get the type
+            let action_type = match action {
+                CheckedAction::OrderbookCreateOrder(_) => "create_order",
+                CheckedAction::OrderbookCancelOrder(_) => "cancel_order",
+                CheckedAction::OrderbookCreateMarket(_) => "create_market",
+                CheckedAction::OrderbookUpdateMarket(_) => "update_market",
+                CheckedAction::RollupDataSubmission(_) => "rollup_data_submission",
+                CheckedAction::Transfer(_) => "transfer",
+                CheckedAction::ValidatorUpdate(_) => "validator_update",
+                CheckedAction::SudoAddressChange(_) => "sudo_address_change",
+                CheckedAction::IbcRelay(_) => "ibc_relay",
+                CheckedAction::IbcSudoChange(_) => "ibc_sudo_change",
+                CheckedAction::Ics20Withdrawal(_) => "ics20_withdrawal",
+                CheckedAction::IbcRelayerChange(_) => "ibc_relayer_change",
+                CheckedAction::FeeAssetChange(_) => "fee_asset_change",
+                CheckedAction::InitBridgeAccount(_) => "init_bridge_account",
+                CheckedAction::BridgeLock(_) => "bridge_lock",
+                CheckedAction::BridgeUnlock(_) => "bridge_unlock",
+                CheckedAction::BridgeSudoChange(_) => "bridge_sudo_change",
+                CheckedAction::BridgeTransfer(_) => "bridge_transfer",
+                CheckedAction::FeeChange(_) => "fee_change",
+                CheckedAction::RecoverIbcClient(_) => "recover_ibc_client",
+                CheckedAction::CurrencyPairsChange(_) => "currency_pairs_change",
+                CheckedAction::MarketsChange(_) => "markets_change",
+            };
+
+            tracing::warn!(
+                "🔍 Processing action {}/{}: type={}",
+                index + 1, self.actions.len(), action_type
+            );
+            
+            // Special handling for orderbook actions
+            match action {
+                CheckedAction::OrderbookCreateOrder(order) => {
+                    tracing::warn!(
+                        "🔖 Order details: market={}, side={:?}, quantity={}",
+                        order.market, order.side, order.quantity
+                    );
+                },
+                _ => {}
+            };
+            // Get special details for CreateOrder actions
+            let mut is_sell_order = false;
+            let mut market_name = String::new();
+            if let CheckedAction::OrderbookCreateOrder(ref order) = action {
+                if let crate::orderbook::component::OrderSide::Sell = order.side {
+                    is_sell_order = true;
+                    market_name = order.market.clone();
+                    tracing::warn!(
+                        "🔍 Processing SELL order in market '{}', checking asset cost...",
+                        market_name
+                    );
+                }
+            }
+            
+            // Get and validate asset transfer costs
+            let asset_transfer_result = action.asset_and_amount_to_transfer();
+            
+            if is_sell_order {
+                if let Some((asset, amount)) = &asset_transfer_result {
+                    tracing::warn!(
+                        "✅ SELL order successfully reported asset cost: asset={}, amount={}, market={}",
+                        asset, amount, market_name
+                    );
+                } else {
+                    tracing::error!(
+                        "❌ SELL order failed to report asset cost! This is a critical issue, market={}",
+                        market_name
+                    );
+                }
+            } else {
+                tracing::warn!(
+                    "🧐 Asset transfer for action {}: cost_reported={}", 
+                    action_type, asset_transfer_result.is_some()
+                );
+            }
+            
+            if let Some((asset, amount)) = asset_transfer_result {
+                tracing::warn!(
+                    "💰 Adding asset transfer cost to transaction budget: tx_id={}, asset={}, amount={}",
+                    self.tx_id, asset, amount
+                );
+                
+                // Add to cost accounting
                 cost_by_asset
-                    .entry(asset)
-                    .and_modify(|amt| *amt = amt.saturating_add(amount))
-                    .or_insert(amount);
+                    .entry(asset.clone())
+                    .and_modify(|amt| {
+                        let new_amt = amt.saturating_add(amount);
+                        tracing::warn!(
+                            "💰 Updated transaction cost: asset={}, previous_total={}, additional={}, new_total={}",
+                            asset, *amt, amount, new_amt
+                        );
+                        *amt = new_amt;
+                    })
+                    .or_insert_with(|| {
+                        tracing::warn!(
+                            "💰 New asset in transaction budget: asset={}, amount={}",
+                            asset, amount
+                        );
+                        amount
+                    });
+            } else {
+                if is_sell_order {
+                    tracing::error!(
+                        "❗ SELL order did not report asset transfer cost - this indicates a serious issue!"
+                    );
+                } else {
+                    tracing::warn!(
+                        "ℹ️ No asset transfer reported for action type: {} (this is normal for non-SELL orders)",
+                        action_type
+                    );
+                }
             }
         }
+        
+        // Log the final costs
+        tracing::warn!(
+            "💰 Total transaction costs: tx_id={}, total_costs={:?}",
+            self.tx_id, cost_by_asset
+        );
 
         Ok(cost_by_asset)
     }
@@ -335,12 +515,46 @@ async fn convert_actions<S: StateRead>(
     tx_id: TransactionId,
     state: &S,
 ) -> Result<Vec<CheckedAction>, CheckedTransactionInitialCheckError> {
+    tracing::warn!(
+        "🔄 Converting {} raw actions to checked actions", 
+        unchecked_actions.len()
+    );
     let actions_futures =
         unchecked_actions
             .into_iter()
             .enumerate()
             .map(|(index, unchecked_action)| async move {
-                match unchecked_action {
+                let action_type = match &unchecked_action {
+                    Action::RollupDataSubmission(_) => "RollupDataSubmission",
+                    Action::Transfer(_) => "Transfer",
+                    Action::ValidatorUpdate(_) => "ValidatorUpdate",
+                    Action::SudoAddressChange(_) => "SudoAddressChange",
+                    Action::Ibc(_) => "Ibc",
+                    Action::IbcSudoChange(_) => "IbcSudoChange",
+                    Action::Ics20Withdrawal(_) => "Ics20Withdrawal",
+                    Action::IbcRelayerChange(_) => "IbcRelayerChange",
+                    Action::FeeAssetChange(_) => "FeeAssetChange",
+                    Action::InitBridgeAccount(_) => "InitBridgeAccount",
+                    Action::BridgeLock(_) => "BridgeLock",
+                    Action::BridgeUnlock(_) => "BridgeUnlock",
+                    Action::BridgeSudoChange(_) => "BridgeSudoChange",
+                    Action::BridgeTransfer(_) => "BridgeTransfer",
+                    Action::FeeChange(_) => "FeeChange",
+                    Action::RecoverIbcClient(_) => "RecoverIbcClient",
+                    Action::CurrencyPairsChange(_) => "CurrencyPairsChange",
+                    Action::MarketsChange(_) => "MarketsChange",
+                    Action::CreateOrder(_) => "CreateOrder",
+                    Action::CancelOrder(_) => "CancelOrder",
+                    Action::CreateMarket(_) => "CreateMarket",
+                    Action::UpdateMarket(_) => "UpdateMarket",
+                };
+                
+                tracing::warn!(
+                    "🔍 Processing unchecked action at idx={}: type={}",
+                    index, action_type
+                );
+                
+                let result = match unchecked_action {
                     Action::RollupDataSubmission(action) => {
                         CheckedAction::new_rollup_data_submission(action)
                     }
@@ -414,6 +628,10 @@ async fn convert_actions<S: StateRead>(
                         CheckedAction::new_markets_change(action, tx_signer, state).await
                     }
                     Action::CreateOrder(action) => {
+                        tracing::warn!(
+                            "⭐ Processing CreateOrder action: market={}, side={:?}",
+                            action.market, action.side
+                        );
                         CheckedAction::new_orderbook_create_order(action, tx_signer, state).await
                     }
                     Action::CancelOrder(action) => {
@@ -425,7 +643,21 @@ async fn convert_actions<S: StateRead>(
                     Action::UpdateMarket(action) => {
                         CheckedAction::new_orderbook_update_market(action, tx_signer, state).await
                     }
+                };
+                
+                if let Err(ref err) = result {
+                    tracing::error!(
+                        "❌ Failed to create checked action for {}: {:?}",
+                        action_type, err
+                    );
+                } else {
+                    tracing::warn!(
+                        "✅ Successfully created checked action for {}",
+                        action_type
+                    );
                 }
+                
+                result
             });
 
     try_join_all(actions_futures)

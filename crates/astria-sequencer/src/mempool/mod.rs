@@ -190,7 +190,7 @@ impl Mempool {
     /// Will return the reason for insertion failure if failure occurs.
     #[instrument(
         skip_all,
-        fields(tx_id = %checked_tx.id(), current_account_nonce),
+        fields(tx_id = %checked_tx.id(), current_account_nonce, actions = checked_tx.checked_actions().len()),
         err(level = Level::DEBUG)
     )]
     pub(crate) async fn insert(
@@ -337,16 +337,56 @@ impl MempoolInner {
         current_account_balances: &HashMap<IbcPrefixed, u128>,
         transaction_costs: HashMap<IbcPrefixed, u128>,
     ) -> Result<InsertionStatus, InsertionError> {
+        tracing::warn!(
+            "🚀 Inserting transaction: tx_id={}, nonce={}, Actions={}",
+            checked_tx.id(), checked_tx.nonce(), checked_tx.checked_actions().len()
+        );
+        
+        tracing::warn!(
+            "💰 Current account balances: {:?}", current_account_balances
+        );
+        
+        tracing::warn!(
+            "💰 Transaction costs: {:?}", transaction_costs
+        );
+        tracing::warn!(
+            "🚀 Inserting transaction: tx_id={}, nonce={}, Actions={}",
+            checked_tx.id(), checked_tx.nonce(), checked_tx.checked_actions().len()
+        );
+        
+        tracing::warn!(
+            "💰 Current account balances: {:?}", current_account_balances
+        );
+        
+        tracing::warn!(
+            "💰 Transaction costs: {:?}", transaction_costs
+        );
+        
         let ttx_to_insert = TimemarkedTransaction::new(checked_tx, transaction_costs);
         let tx_id_to_insert = *ttx_to_insert.id();
 
         // try insert into pending
+        tracing::warn!(
+            "👉 Attempting to insert transaction to pending queue: tx_id={}",
+            tx_id_to_insert
+        );
+        
+        tracing::warn!(
+            "👉 Attempting to insert transaction to pending queue: tx_id={}",
+            tx_id_to_insert
+        );
+        
         match self.pending.add(
             ttx_to_insert.clone(),
             current_account_nonce,
             current_account_balances,
         ) {
             Err(InsertionError::NonceGap | InsertionError::AccountBalanceTooLow) => {
+                tracing::warn!(
+                    "👉 Transaction can't go to pending due to nonce gap or low balance, trying parked: {}",
+                    tx_id_to_insert
+                );
+                
                 // try to add to parked queue
                 match self.parked.add(
                     ttx_to_insert,
@@ -354,6 +394,7 @@ impl MempoolInner {
                     current_account_balances,
                 ) {
                     Ok(()) => {
+                        tracing::warn!("✅ Transaction successfully added to parked: {}", tx_id_to_insert);
                         // log current size of parked
                         self.metrics
                             .set_transactions_in_mempool_parked(self.parked.len());
@@ -362,11 +403,18 @@ impl MempoolInner {
                         self.contained_txs.insert(tx_id_to_insert);
                         Ok(InsertionStatus::AddedToParked)
                     }
-                    Err(err) => Err(err),
+                    Err(err) => {
+                        tracing::error!("❌ Failed to add transaction to parked: {} - Error: {}", tx_id_to_insert, err);
+                        Err(err)
+                    },
                 }
             }
-            Err(error) => Err(error),
+            Err(error) => {
+                tracing::error!("❌ Failed to add transaction to pending: {} - Error: {}", tx_id_to_insert, error);
+                Err(error)
+            },
             Ok(()) => {
+                tracing::warn!("✅ Transaction successfully added to pending: {}", tx_id_to_insert);
                 // check parked for txs able to be promoted
                 let address_bytes = ttx_to_insert.address_bytes();
                 let target_nonce = ttx_to_insert
@@ -401,7 +449,8 @@ impl MempoolInner {
 
                 // track in contained txs
                 self.contained_txs.insert(tx_id_to_insert);
-
+                
+                tracing::warn!("✅ Transaction successfully added to pending: {}", tx_id_to_insert);
                 Ok(InsertionStatus::AddedToPending)
             }
         }

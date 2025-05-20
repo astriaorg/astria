@@ -233,17 +233,80 @@ pub trait StateReadExt: StateRead {
 
     /// Get market parameters.
     fn get_market_params(&self, market: &str) -> Option<MarketParams> {
+        // Add detailed logging to trace the market params lookup
+        tracing::warn!("🔎 Looking up market parameters for market: {}", market);
+        
+        // Get the market params key
+        let market_params_key = keys::orderbook_market_params(market);
+        tracing::warn!("🔑 Market params storage key: {}", market_params_key);
+        
+        // Print all known markets to help diagnose issues
+        let all_markets = self.get_markets();
+        tracing::warn!("📚 All known markets: {:?}", all_markets);
+        
         // Replace direct get_raw with handling the async future
-        let bytes_result = futures::executor::block_on(self.get_raw(keys::orderbook_market_params(market).as_str()));
+        let bytes_result = futures::executor::block_on(self.get_raw(market_params_key.as_str()));
         
         match bytes_result {
             Ok(Some(bytes)) => {
+                tracing::warn!("✅ Found raw bytes for market params, length: {}", bytes.len());
                 match StoredValue::deserialize(&bytes) {
-                    Ok(StoredValue::MarketParams(params)) => Some(params),
-                    _ => None,
+                    Ok(StoredValue::MarketParams(params)) => {
+                        tracing::warn!(
+                            "✅ Parsed market params - Base: {}, Quote: {}, Paused: {}", 
+                            params.base_asset, params.quote_asset, params.paused
+                        );
+                        
+                        // Additional validation for debugging
+                        if params.base_asset.is_empty() {
+                            tracing::error!("⚠️ Base asset is empty for market {}", market);
+                        }
+                        
+                        if params.quote_asset.is_empty() {
+                            tracing::error!("⚠️ Quote asset is empty for market {}", market);
+                        }
+                        
+                        // Attempt to parse base and quote assets as Denoms for validation
+                        if let Ok(base_denom) = params.base_asset.parse::<astria_core::primitive::v1::asset::Denom>() {
+                            let prefixed: astria_core::primitive::v1::asset::IbcPrefixed = base_denom.into();
+                            tracing::warn!("✅ Base asset '{}' parsed as denom: {}", params.base_asset, prefixed);
+                        } else {
+                            tracing::error!("❌ Base asset '{}' failed to parse as a Denom", params.base_asset);
+                        }
+                        
+                        if let Ok(quote_denom) = params.quote_asset.parse::<astria_core::primitive::v1::asset::Denom>() {
+                            let prefixed: astria_core::primitive::v1::asset::IbcPrefixed = quote_denom.into();
+                            tracing::warn!("✅ Quote asset '{}' parsed as denom: {}", params.quote_asset, prefixed);
+                        } else {
+                            tracing::error!("❌ Quote asset '{}' failed to parse as a Denom", params.quote_asset);
+                        }
+                        
+                        Some(params)
+                    },
+                    Ok(other) => {
+                        tracing::error!("❌ Wrong StoredValue type: {:?}", other);
+                        None
+                    },
+                    Err(err) => {
+                        tracing::error!("❌ Failed to deserialize market params: {}", err);
+                        None
+                    }
                 }
             },
-            _ => None,
+            Ok(None) => {
+                tracing::error!("❌ No market params found for market: {}", market);
+                // Try debugging by checking if market exists at all
+                if self.market_exists(market) {
+                    tracing::warn!("⚠️ Market exists but no parameters found: {}", market);
+                } else {
+                    tracing::error!("❌ Market does not exist: {}", market);
+                }
+                None
+            },
+            Err(err) => {
+                tracing::error!("❌ Error fetching market params: {}", err);
+                None
+            }
         }
     }
 

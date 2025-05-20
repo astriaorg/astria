@@ -16,7 +16,25 @@ pub fn order_side_from_proto(side: proto::OrderSide) -> OrderSide {
 
 /// Convert an i32 representing OrderSide to the enum
 pub fn order_side_from_i32(side: i32) -> proto::OrderSide {
-    proto::OrderSide::try_from(side).unwrap_or(proto::OrderSide::Unspecified)
+    let result = proto::OrderSide::try_from(side);
+    
+    // Add detailed logging for debugging SELL order issues
+    match result {
+        Ok(proto::OrderSide::Sell) => {
+            tracing::warn!("💲 utils::order_side_from_i32 parsed value {} as SELL", side);
+        },
+        Ok(proto::OrderSide::Buy) => {
+            tracing::warn!("💰 utils::order_side_from_i32 parsed value {} as BUY", side);
+        },
+        Ok(proto::OrderSide::Unspecified) => {
+            tracing::error!("❌ utils::order_side_from_i32 parsed value {} as UNSPECIFIED", side);
+        },
+        Err(err) => {
+            tracing::error!("❌ utils::order_side_from_i32 failed to parse value {}: {}", side, err);
+        }
+    }
+    
+    result.unwrap_or(proto::OrderSide::Unspecified)
 }
 
 /// Convert a protocol OrderType to our local OrderType

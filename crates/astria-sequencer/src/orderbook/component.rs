@@ -232,11 +232,19 @@ impl ExecuteOrderbookAction for CheckedCreateOrder {
             }
         }
         
-        // Convert our local enums to protocol enums
+        // Convert our local enums to protocol enums with enhanced logging
         let proto_side = match self.side {
-            OrderSide::Buy => astria_core::protocol::orderbook::v1::OrderSide::Buy as i32,
-            OrderSide::Sell => astria_core::protocol::orderbook::v1::OrderSide::Sell as i32,
+            OrderSide::Buy => {
+                tracing::warn!("💰 Creating BUY order for market {}", self.market);
+                astria_core::protocol::orderbook::v1::OrderSide::Buy as i32
+            },
+            OrderSide::Sell => {
+                tracing::warn!("💲 Creating SELL order for market {}", self.market);
+                astria_core::protocol::orderbook::v1::OrderSide::Sell as i32
+            },
         };
+        
+        tracing::warn!("📊 Order side converted to proto value: {}", proto_side);
         
         let proto_type = match self.order_type {
             OrderType::Limit => astria_core::protocol::orderbook::v1::OrderType::Limit as i32,
@@ -281,7 +289,7 @@ impl ExecuteOrderbookAction for CheckedCreateOrder {
         
         // Process the order through the matching engine
         let matches = matching_engine.process_order(state, order.clone())
-            .map_err(|e| {
+            .map_err(|_err| {
                 CheckedActionExecutionError::Fee(
                     CheckedActionFeeError::ActionDisabled {
                         action_name: "create_order",
@@ -292,7 +300,7 @@ impl ExecuteOrderbookAction for CheckedCreateOrder {
         // Record any trades that occurred
         for trade_match in matches {
             state.record_trade(trade_match)
-                .map_err(|e| {
+                .map_err(|_err| {
                     CheckedActionExecutionError::Fee(
                         CheckedActionFeeError::ActionDisabled {
                             action_name: "create_order",
@@ -356,7 +364,7 @@ impl ExecuteOrderbookAction for CheckedCancelOrder {
         
         // Cancel the order
         state.remove_order(&self.order_id)
-            .map_err(|e| {
+            .map_err(|_err| {
                 CheckedActionExecutionError::Fee(
                     CheckedActionFeeError::ActionDisabled {
                         action_name: "cancel_order",

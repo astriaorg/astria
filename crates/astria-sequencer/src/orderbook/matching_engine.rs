@@ -169,6 +169,117 @@ impl MatchingEngine {
         
         // NOTE: In a production system, we would check the sender's balance here 
         // for SELL orders. However, this functionality is not yet implemented.
+        
+        // Enhanced validation and logging for SELL orders
+        if order.side == astria_core::protocol::orderbook::v1::OrderSide::Sell as i32 {
+            tracing::warn!(
+                "💲 Processing SELL order - order_id={}, market={}, quantity={:?}",
+                order.id, order.market, order.quantity
+            );
+            
+            // Get owner information for better debugging
+            let owner_str = match &order.owner {
+                Some(owner) => owner.bech32m.clone(),
+                None => "unknown".to_string(),
+            };
+            tracing::warn!("💲 Order owner: {}", owner_str);
+            
+            // Market validation - critical for SELL orders
+            if let Some(market_params) = state.get_market_params(&order.market) {
+                tracing::warn!(
+                    "✅ Found market parameters: market={}, base_asset={}, quote_asset={}",
+                    order.market, market_params.base_asset, market_params.quote_asset
+                );
+                
+                // Validate that the base asset is a valid Denom
+                if let Ok(denom) = market_params.base_asset.parse::<astria_core::primitive::v1::asset::Denom>() {
+                    let asset_prefixed: astria_core::primitive::v1::asset::IbcPrefixed = denom.into();
+                    tracing::warn!("✅ Base asset '{}' parsed as denom: {}", market_params.base_asset, asset_prefixed);
+                    
+                    // Verify quantity is valid
+                    if let Some(quantity) = &order.quantity {
+                        let qty_string = crate::orderbook::uint128_option_to_string(&Some(quantity.clone()));
+                        let qty_u128 = crate::orderbook::parse_string_to_u128(&qty_string);
+                        
+                        if qty_u128 > 0 {
+                            tracing::warn!(
+                                "✅ SELL order validation passed: market={}, base_asset={}, quantity={}",
+                                order.market, market_params.base_asset, qty_u128
+                            );
+                        } else {
+                            tracing::error!("❌ SELL order has quantity of 0 or failed to parse");
+                            return Err(OrderbookError::InvalidOrderParameters(
+                                "SELL order must have a valid quantity greater than 0".to_string()
+                            ));
+                        }
+                    } else {
+                        tracing::error!("❌ SELL order missing quantity");
+                        return Err(OrderbookError::InvalidOrderParameters(
+                            "SELL order must specify a quantity".to_string()
+                        ));
+                    }
+                } else {
+                    tracing::error!(
+                        "❌ Base asset '{}' in market '{}' failed to parse as a valid denom",
+                        market_params.base_asset, order.market
+                    );
+                    
+                    // Log all available markets for debugging
+                    let all_markets = state.get_markets();
+                    tracing::warn!("📊 Available markets: {:?}", all_markets);
+                    
+                    // Continue processing to allow fallback mechanisms to work
+                    // We've already added fallbacks in the asset_and_amount_to_transfer method
+                    tracing::warn!("⚠️ Continuing with order processing despite invalid base asset");
+                }
+            } else {
+                tracing::error!("❌ No market parameters found for market: {}", order.market);
+                
+                // Log all markets for debugging
+                let all_markets = state.get_markets();
+                tracing::warn!("📊 Available markets: {:?}", all_markets);
+                
+                // Try to derive base asset from market name as fallback
+                let derived_base_asset = if order.market.contains('/') {
+                    let base = order.market.split('/').next().unwrap_or("ntia");
+                    tracing::warn!("⚠️ Using derived base asset '{}' from market name", base);
+                    base
+                } else {
+                    tracing::warn!("⚠️ Using fallback base asset 'ntia'");
+                    "ntia"
+                };
+                
+                // Verify derived asset is valid
+                if let Ok(denom) = derived_base_asset.parse::<astria_core::primitive::v1::asset::Denom>() {
+                    let asset_prefixed: astria_core::primitive::v1::asset::IbcPrefixed = denom.into();
+                    tracing::warn!(
+                        "✅ Derived base asset '{}' is valid: {}",
+                        derived_base_asset, asset_prefixed
+                    );
+                } else {
+                    tracing::error!("❌ Derived base asset '{}' is invalid", derived_base_asset);
+                    // Continue processing to allow fallback mechanisms to work
+                }
+            }
+            
+            // Final validation step - check if quantity is valid and parse it
+            let quantity = match &order.quantity {
+                Some(q) => {
+                    let qty_string = crate::orderbook::uint128_option_to_string(&Some(q.clone()));
+                    crate::orderbook::parse_string_to_u128(&qty_string)
+                },
+                None => 0,
+            };
+            
+            if quantity == 0 {
+                tracing::error!("❌ SELL order has invalid or zero quantity");
+                return Err(OrderbookError::InvalidOrderParameters(
+                    "SELL order must have a valid quantity greater than 0".to_string()
+                ));
+            }
+            
+            tracing::warn!("💲 SELL order validation complete, continuing with processing");
+        }
 
         // Parse order details
         let side = crate::orderbook::compat::order_side_from_proto(
