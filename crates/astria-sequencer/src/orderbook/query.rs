@@ -447,25 +447,16 @@ pub(crate) async fn markets_request(
     let markets: Vec<String> = snapshot.get_markets();
     tracing::warn!("📊 Markets from get_markets(): {:?}", markets);
 
-    // Serialize the response
-    let value = match borsh::to_vec(&markets) {
-        Ok(bytes) => {
-            tracing::warn!("✅ Successfully serialized markets response ({} bytes)", bytes.len());
-            bytes
+    // Simple JSON serialization for better compatibility
+    let markets_json = match serde_json::to_string(&markets) {
+        Ok(json) => {
+            tracing::warn!("✅ Successfully serialized markets to JSON: {}", json);
+            json.into_bytes()
         },
         Err(err) => {
-            tracing::warn!("❌ Failed to serialize markets: {}", err);
-            return response::Query {
-                code: Code::Err(AbciErrorCode::INTERNAL_ERROR.value()),
-                log: format!("Failed to serialize markets: {}", err),
-                info: AbciErrorCode::INTERNAL_ERROR.info(),
-                index: 0,
-                key: request.data.clone(),
-                value: Vec::new().into(),
-                proof: None,
-                height: tendermint::block::Height::from(0_u32),
-                codespace: "".to_string(),
-            };
+            tracing::warn!("❌ Failed to serialize markets to JSON, falling back to plain text format: {}", err);
+            // Fall back to simple concatenation with newlines
+            markets.join("\n").into_bytes()
         }
     };
 
@@ -476,7 +467,7 @@ pub(crate) async fn markets_request(
         info: "".to_string(),
         index: 0,
         key: request.data.clone(),
-        value: value.into(),
+        value: markets_json.into(),
         proof: None,
         height: tendermint::block::Height::from(0_u32),
         codespace: "".to_string(),

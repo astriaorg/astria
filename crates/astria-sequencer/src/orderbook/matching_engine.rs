@@ -1,5 +1,4 @@
-use std::cmp::Ordering;
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{BTreeMap, VecDeque};
 
 use astria_core::protocol::orderbook::v1::{Order, OrderMatch};
 use cnidarium::StateRead;
@@ -128,7 +127,7 @@ impl OrderBookSide {
     }
 
     /// Get iterator over price levels in matching order
-    fn matching_prices(&self, side: OrderSide) -> impl Iterator<Item = (&u128, &PriceLevel)> {
+    fn matching_prices(&self, side: OrderSide) -> Box<dyn Iterator<Item = (&u128, &PriceLevel)> + '_> {
         match (side, self.is_bid_side) {
             (OrderSide::Buy, false) => {
                 // Buy order matching against ask side - iterate prices low to high
@@ -180,18 +179,18 @@ impl MatchingEngine {
         );
         
         // Parse numeric quantities
-        let price = match order.price.as_ref() {
-            Some(p) => parse_string_to_u128(&uint128_option_to_string(p)),
+        let price = match &order.price {
+            Some(p) => parse_string_to_u128(&uint128_option_to_string(&Some(p.clone()))),
             None => 0,
         };
         
-        let quantity = match order.quantity.as_ref() {
-            Some(q) => parse_string_to_u128(&uint128_option_to_string(q)),
+        let quantity = match &order.quantity {
+            Some(q) => parse_string_to_u128(&uint128_option_to_string(&Some(q.clone()))),
             None => return Err(OrderbookError::InvalidOrderParameters("Order quantity must be specified".to_string())),
         };
         
-        let remaining_quantity = match order.remaining_quantity.as_ref() {
-            Some(q) => parse_string_to_u128(&uint128_option_to_string(q)),
+        let remaining_quantity = match &order.remaining_quantity {
+            Some(q) => parse_string_to_u128(&uint128_option_to_string(&Some(q.clone()))),
             None => quantity, // If not specified, remaining = total
         };
 
@@ -259,91 +258,89 @@ impl MatchingEngine {
 
         // Only try to match if there are possible matches
         if can_match {
+            // Collect the prices and ids we need to match against first
+            let mut match_queue = Vec::new();
+            
+            // Collect all the orders we might match against to avoid iterator borrowing issues
             for (level_price, price_level) in opposite_side.matching_prices(side) {
-                // Continue matching until we run out of quantity or price levels
-                while remaining_quantity > 0 {
-                    // Get the first order at this price level
-                    let maker_order_id = match price_level.first_order() {
-                        Some(id) => id.clone(),
-                        None => break, // No more orders at this price level
-                    };
-
-                    // Get the maker order details
-                    let maker_order = match state.get_order(&maker_order_id) {
-                        Some(o) => o,
-                        None => {
-                            // This shouldn't happen, but if it does, remove the order from the price level
-                            debug!("Maker order not found: {}", maker_order_id);
-                            break;
-                        }
-                    };
-
-                    // Get maker's remaining quantity
-                    let maker_remaining = parse_string_to_u128(
-                        &uint128_option_to_string(&maker_order.remaining_quantity)
-                    );
-
-                    // Calculate the match quantity
-                    let match_quantity = std::cmp::min(remaining_quantity, maker_remaining);
-                    
-                    // Create the match
-                    let trade_price = *level_price; // Use the price level's price
-                    let order_match = OrderMatch {
-                        id: Uuid::new_v4().to_string(),
-                        market: order.market.clone(),
-                        price: order.price.clone(), // Use the original price format
-                        quantity: crate::orderbook::string_to_uint128_option(&match_quantity.to_string()),
-                        maker_order_id: maker_order_id.clone(),
-                        taker_order_id: order.id.clone(),
-                        taker_side: order.side,
-                        timestamp: chrono::Utc::now().timestamp() as u64,
-                    };
-                    
-                    // Add the match to the list
-                    matches.push(order_match);
-                    
-                    // Update remaining quantities
-                    remaining_quantity -= match_quantity;
-                    
-                    // Update maker order
-                    let new_maker_remaining = maker_remaining - match_quantity;
-                    if new_maker_remaining == 0 {
-                        // Maker order is fully filled
-                        state.remove_order(&maker_order_id)?;
-                        opposite_side.remove_order(&maker_order_id, *level_price, maker_remaining);
-                    } else {
-                        // Maker order is partially filled
-                        state.update_order(&maker_order_id, &new_maker_remaining.to_string())?;
-                        // Note: The price level's total quantity is updated when we update the order
-                    }
-                    
-                    // If the taker order is fully filled or we've run out of orders at this price level,
-                    // break out of the inner loop
-                    if remaining_quantity == 0 || price_level.is_empty() {
-                        break;
-                    }
-                }
-                
-                // If the taker order is fully filled, or if we can't match at this price anymore,
-                // break out of the price level loop
-                if remaining_quantity == 0 {
-                    break;
-                }
-                
-                // For limit orders:
-                // - If buying, we only match with asks at or below our price
-                // - If selling, we only match with bids at or above our price
+                // For limit orders, we only match with appropriate prices
                 match side {
                     OrderSide::Buy => {
                         if *level_price > price {
-                            break;
+                            continue;
                         }
                     }
                     OrderSide::Sell => {
                         if *level_price < price {
-                            break;
+                            continue;
                         }
                     }
+                }
+                
+                // Add all orders at this price level
+                for order_id in &price_level.orders {
+                    match_queue.push((*level_price, order_id.clone()));
+                }
+            }
+            
+            // Process the matches
+            for (level_price, maker_order_id) in match_queue {
+                // Stop if we're fully filled
+                if remaining_quantity == 0 {
+                    break;
+                }
+                
+                // Get the maker order details
+                let maker_order = match state.get_order(&maker_order_id) {
+                    Some(o) => o,
+                    None => {
+                        // This shouldn't happen, but if it does, skip this order
+                        debug!("Maker order not found: {}", maker_order_id);
+                        continue;
+                    }
+                };
+
+                // Get maker's remaining quantity
+                let maker_remaining = parse_string_to_u128(
+                    &uint128_option_to_string(&maker_order.remaining_quantity.clone())
+                );
+                
+                // Skip orders with no remaining quantity
+                if maker_remaining == 0 {
+                    continue;
+                }
+
+                // Calculate the match quantity
+                let match_quantity = std::cmp::min(remaining_quantity, maker_remaining);
+                
+                // Create the match
+                let order_match = OrderMatch {
+                    id: Uuid::new_v4().to_string(),
+                    market: order.market.clone(),
+                    price: order.price.clone(), // Use the original price format
+                    quantity: crate::orderbook::string_to_uint128_option(&match_quantity.to_string()),
+                    maker_order_id: maker_order_id.clone(),
+                    taker_order_id: order.id.clone(),
+                    taker_side: order.side,
+                    timestamp: chrono::Utc::now().timestamp() as u64,
+                };
+                
+                // Add the match to the list
+                matches.push(order_match);
+                
+                // Update remaining quantities
+                remaining_quantity -= match_quantity;
+                
+                // Update maker order
+                let new_maker_remaining = maker_remaining - match_quantity;
+                if new_maker_remaining == 0 {
+                    // Maker order is fully filled
+                    state.remove_order(&maker_order_id)?;
+                    opposite_side.remove_order(&maker_order_id, level_price, maker_remaining);
+                } else {
+                    // Maker order is partially filled
+                    state.update_order(&maker_order_id, &new_maker_remaining.to_string())?;
+                    // Note: The price level's total quantity is updated when we update the order
                 }
             }
         }
@@ -405,74 +402,75 @@ impl MatchingEngine {
         let mut matches = Vec::new();
         let mut remaining_quantity = quantity;
 
-        // Iterate through all price levels on the opposite side
+        // Collect the prices and ids we need to match against first
+        let mut match_queue = Vec::new();
+        
+        // Collect all the orders we might match against to avoid iterator borrowing issues
         for (level_price, price_level) in opposite_side.matching_prices(side) {
-            // Continue matching until we run out of quantity or price levels
-            while remaining_quantity > 0 {
-                // Get the first order at this price level
-                let maker_order_id = match price_level.first_order() {
-                    Some(id) => id.clone(),
-                    None => break, // No more orders at this price level
-                };
-
-                // Get the maker order details
-                let maker_order = match state.get_order(&maker_order_id) {
-                    Some(o) => o,
-                    None => {
-                        // This shouldn't happen, but if it does, remove the order from the price level
-                        debug!("Maker order not found: {}", maker_order_id);
-                        break;
-                    }
-                };
-
-                // Get maker's remaining quantity
-                let maker_remaining = parse_string_to_u128(
-                    &uint128_option_to_string(&maker_order.remaining_quantity)
-                );
-
-                // Calculate the match quantity
-                let match_quantity = std::cmp::min(remaining_quantity, maker_remaining);
-                
-                // Create the match
-                let price_opt = crate::orderbook::string_to_uint128_option(&level_price.to_string());
-                let order_match = OrderMatch {
-                    id: Uuid::new_v4().to_string(),
-                    market: order.market.clone(),
-                    price: price_opt, // Use the maker's price for market orders
-                    quantity: crate::orderbook::string_to_uint128_option(&match_quantity.to_string()),
-                    maker_order_id: maker_order_id.clone(),
-                    taker_order_id: order.id.clone(),
-                    taker_side: order.side,
-                    timestamp: chrono::Utc::now().timestamp() as u64,
-                };
-                
-                // Add the match to the list
-                matches.push(order_match);
-                
-                // Update remaining quantities
-                remaining_quantity -= match_quantity;
-                
-                // Update maker order
-                let new_maker_remaining = maker_remaining - match_quantity;
-                if new_maker_remaining == 0 {
-                    // Maker order is fully filled
-                    state.remove_order(&maker_order_id)?;
-                    opposite_side.remove_order(&maker_order_id, *level_price, maker_remaining);
-                } else {
-                    // Maker order is partially filled
-                    state.update_order(&maker_order_id, &new_maker_remaining.to_string())?;
-                }
-                
-                // If the taker order is fully filled or we've run out of orders at this price level,
-                // break out of the inner loop
-                if remaining_quantity == 0 || price_level.is_empty() {
-                    break;
-                }
+            // Add all orders at this price level
+            for order_id in &price_level.orders {
+                match_queue.push((*level_price, order_id.clone()));
             }
-            
-            // If the taker order is fully filled, break out of the price level loop
+        }
+        
+        // Process the matches
+        for (level_price, maker_order_id) in match_queue {
+            // Stop if we're fully filled
             if remaining_quantity == 0 {
                 break;
+            }
+            
+            // Get the maker order details
+            let maker_order = match state.get_order(&maker_order_id) {
+                Some(o) => o,
+                None => {
+                    // This shouldn't happen, but if it does, skip this order
+                    debug!("Maker order not found: {}", maker_order_id);
+                    continue;
+                }
+            };
+
+            // Get maker's remaining quantity
+            let maker_remaining = parse_string_to_u128(
+                &uint128_option_to_string(&maker_order.remaining_quantity.clone())
+            );
+            
+            // Skip orders with no remaining quantity
+            if maker_remaining == 0 {
+                continue;
+            }
+
+            // Calculate the match quantity
+            let match_quantity = std::cmp::min(remaining_quantity, maker_remaining);
+            
+            // Create the match
+            let price_opt = crate::orderbook::string_to_uint128_option(&level_price.to_string());
+            let order_match = OrderMatch {
+                id: Uuid::new_v4().to_string(),
+                market: order.market.clone(),
+                price: price_opt, // Use the maker's price for market orders
+                quantity: crate::orderbook::string_to_uint128_option(&match_quantity.to_string()),
+                maker_order_id: maker_order_id.clone(),
+                taker_order_id: order.id.clone(),
+                taker_side: order.side,
+                timestamp: chrono::Utc::now().timestamp() as u64,
+            };
+            
+            // Add the match to the list
+            matches.push(order_match);
+            
+            // Update remaining quantities
+            remaining_quantity -= match_quantity;
+            
+            // Update maker order
+            let new_maker_remaining = maker_remaining - match_quantity;
+            if new_maker_remaining == 0 {
+                // Maker order is fully filled
+                state.remove_order(&maker_order_id)?;
+                opposite_side.remove_order(&maker_order_id, level_price, maker_remaining);
+            } else {
+                // Maker order is partially filled
+                state.update_order(&maker_order_id, &new_maker_remaining.to_string())?;
             }
         }
 
@@ -562,17 +560,17 @@ impl MatchingEngine {
             );
             
             // Parse price and remaining quantity
-            let price = match order.price.as_ref() {
-                Some(p) => parse_string_to_u128(&uint128_option_to_string(p)),
+            let price = match &order.price {
+                Some(p) => parse_string_to_u128(&uint128_option_to_string(&Some(p.clone()))),
                 None => 0,
             };
             
-            let remaining_quantity = match order.remaining_quantity.as_ref() {
-                Some(q) => parse_string_to_u128(&uint128_option_to_string(q)),
+            let remaining_quantity = match &order.remaining_quantity {
+                Some(q) => parse_string_to_u128(&uint128_option_to_string(&Some(q.clone()))),
                 None => {
                     // If remaining quantity isn't set, use the original quantity
-                    match order.quantity.as_ref() {
-                        Some(q) => parse_string_to_u128(&uint128_option_to_string(q)),
+                    match &order.quantity {
+                        Some(q) => parse_string_to_u128(&uint128_option_to_string(&Some(q.clone()))),
                         None => 0,
                     }
                 }

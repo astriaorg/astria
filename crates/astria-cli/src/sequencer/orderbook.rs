@@ -381,58 +381,45 @@ impl GetMarketsCommand {
         println!("Got response - code: {:?}, log: {}", response.code, response.log);
         println!("Response value size: {} bytes", response.value.len());
         
-        // Parse the response as JSON for display
-        let markets_json = String::from_utf8(response.value.to_vec())
-            .wrap_err("failed to convert response to string")?;
-        
-        println!("Raw response: {}", markets_json);
-        
-        if markets_json.is_empty() || markets_json == "null" {
+        // If response is empty
+        if response.value.is_empty() {
             println!("No markets found in response.");
-            
-            // Try alternative query paths
-            println!("Trying alternative query paths...");
-            
-            for path in &[
-                "orderbook", 
-                "state/orderbook", 
-                "app/orderbook", 
-                "orderbook/state", 
-                "market", 
-                "markets", 
-                "components", 
-                "component/orderbook", 
-                "abci_info"
-            ] {
-                println!("Trying path: {}", path);
-                match sequencer_client
-                    .abci_query(Some(path.to_string()), vec![], Some(0u32.into()), false)
-                    .await {
-                        Ok(alt_response) => {
-                            if !alt_response.value.is_empty() {
-                                println!("Got response from {}: {}", path, 
-                                    String::from_utf8_lossy(&alt_response.value));
-                            } else {
-                                println!("Empty response from {}.", path);
-                            }
-                        },
-                        Err(e) => {
-                            println!("Error querying {}: {}", path, e);
-                        }
-                    }
-            }
             return Ok(());
         }
         
-        // Try to parse as JSON to pretty-print
-        match serde_json::from_str::<serde_json::Value>(&markets_json) {
-            Ok(json_value) => {
-                println!("Markets:");
-                println!("{}", serde_json::to_string_pretty(&json_value)?);
+        // Try to parse as JSON first
+        let raw_string = String::from_utf8_lossy(&response.value);
+        println!("Raw response: {}", raw_string);
+        
+        match serde_json::from_str::<Vec<String>>(&raw_string) {
+            Ok(markets) => {
+                if markets.is_empty() {
+                    println!("No markets found.");
+                } else {
+                    println!("Markets found:");
+                    for (i, market) in markets.iter().enumerate() {
+                        println!("{}. {}", i + 1, market);
+                    }
+                }
             },
-            Err(e) => {
-                println!("Failed to parse response as JSON: {}", e);
-                println!("Raw response: {}", markets_json);
+            Err(_) => {
+                // If JSON parsing fails, try splitting by delimiters
+                println!("Response is not in JSON format. Trying to parse manually...");
+                
+                // Try to parse potential market names
+                let markets: Vec<&str> = raw_string
+                    .split(|c: char| !c.is_alphanumeric() && c != '-' && c != '/' && c != '_')
+                    .filter(|s| !s.is_empty() && s.len() > 2) // filter out very short segments
+                    .collect();
+                
+                if !markets.is_empty() {
+                    println!("Markets found:");
+                    for (i, market) in markets.iter().enumerate() {
+                        println!("{}. {}", i + 1, market);
+                    }
+                } else {
+                    println!("No markets could be parsed from the response.");
+                }
             }
         }
         
@@ -469,56 +456,39 @@ impl GetOrdersCommand {
         println!("Got response - code: {:?}, log: {}", response.code, response.log);
         println!("Response value size: {} bytes", response.value.len());
         
-        // Parse the response as JSON for display
-        let orderbook_json = String::from_utf8(response.value.to_vec())
-            .wrap_err("failed to convert response to string")?;
-        
-        println!("Raw response: {}", orderbook_json);
-        
-        if orderbook_json.is_empty() || orderbook_json == "null" {
+        // If response is empty
+        if response.value.is_empty() {
             println!("No orders found for market {}.", self.market);
-            
-            // Try other potential paths
-            println!("Trying alternative query paths...");
-            let alt_paths = vec![
-                format!("orderbook/{}", self.market),
-                format!("orderbook/market/{}", self.market),
-                format!("state/orderbook/{}", self.market),
-                format!("app/orderbook/{}", self.market)
-            ];
-            
-            for alt_path in alt_paths {
-                println!("Trying path: {}", alt_path);
-                match sequencer_client
-                    .abci_query(Some(alt_path.clone()), vec![], Some(0u32.into()), false)
-                    .await {
-                        Ok(alt_response) => {
-                            if !alt_response.value.is_empty() {
-                                println!("Got response from {}: {}", alt_path, 
-                                    String::from_utf8_lossy(&alt_response.value));
-                            } else {
-                                println!("Empty response from {}.", alt_path);
-                            }
-                        },
-                        Err(e) => {
-                            println!("Error querying {}: {}", alt_path, e);
-                        }
-                    }
-            }
-            
             return Ok(());
         }
         
-        // Try to parse as JSON to pretty-print
-        match serde_json::from_str::<serde_json::Value>(&orderbook_json) {
-            Ok(json_value) => {
-                println!("Orderbook for market {}:", self.market);
-                println!("{}", serde_json::to_string_pretty(&json_value)?);
-            },
-            Err(e) => {
-                println!("Failed to parse response as JSON: {}", e);
-                println!("Raw response: {}", orderbook_json);
+        // For now, just print the raw response since we can't easily deserialize it
+        let raw_string = String::from_utf8_lossy(&response.value);
+        println!("Raw response: {}", raw_string);
+        println!("Response bytes (first 50): {:?}", 
+            &response.value[0..std::cmp::min(50, response.value.len())]);
+        
+        // Try to extract some meaningful information from the response
+        // Look for uuid-like strings (order IDs) and other patterns
+        let potential_ids: Vec<&str> = raw_string
+            .split(|c: char| !c.is_alphanumeric() && c != '-')
+            .filter(|s| 
+                !s.is_empty() && 
+                (s.len() == 36 || // UUID length
+                (s.len() > 8 && s.contains('-'))) // Partial UUID or similar ID
+            )
+            .collect();
+        
+        if !potential_ids.is_empty() {
+            println!("\nPotential order IDs found:");
+            for (i, id) in potential_ids.iter().enumerate() {
+                if i < 10 { // Just show a few
+                    println!("{}. {}", i + 1, id);
+                }
             }
+            println!("Found {} potential IDs in total", potential_ids.len());
+        } else {
+            println!("No order IDs could be identified in the response.");
         }
         
         Ok(())

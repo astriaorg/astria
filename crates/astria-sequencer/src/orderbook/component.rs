@@ -3,7 +3,6 @@ use std::sync::Arc;
 use astria_core::{
     primitive::v1::Address,
 };
-use astria_eyre::eyre;
 use cnidarium::{StateRead, StateWrite};
 use tendermint::abci;
 use thiserror::Error;
@@ -53,7 +52,7 @@ impl Component for OrderbookComponent {
     /// This method is called at the beginning of each block and can be used
     /// to prepare the orderbook for the incoming transactions.
     async fn begin_block<S: StateWrite + 'static>(
-        state: &mut Arc<S>,
+        _state: &mut Arc<S>,
         begin_block: &abci::request::BeginBlock,
     ) -> astria_eyre::eyre::Result<()> {
         info!(
@@ -75,7 +74,7 @@ impl Component for OrderbookComponent {
     /// have been processed. It can be used to finalize any pending operations,
     /// update statistics, or handle global order matching.
     async fn end_block<S: StateWrite + 'static>(
-        state: &mut Arc<S>,
+        _state: &mut Arc<S>,
         end_block: &abci::request::EndBlock,
     ) -> astria_eyre::eyre::Result<()> {
         info!(
@@ -83,8 +82,8 @@ impl Component for OrderbookComponent {
             "OrderbookComponent: end_block"
         );
         
-        // Create a matching engine
-        let matching_engine = crate::orderbook::matching_engine::MatchingEngine::default();
+        // Create a matching engine - commented out because currently unused
+        // let _matching_engine = crate::orderbook::matching_engine::MatchingEngine::default();
         
         // In a production implementation, we would:
         // 1. Process any buffered orders that haven't been matched yet
@@ -164,7 +163,7 @@ pub struct CheckedCreateOrder {
 
 impl ExecuteOrderbookAction for CheckedCreateOrder {
     fn execute<S: StateRead + cnidarium::StateWrite>(&self, _component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
-        use crate::orderbook::state_ext::StateWriteExt;
+        use crate::orderbook::state_ext::{StateWriteExt, StateReadExt};
         use uuid::Uuid;
         
         debug!(?self, "Executing CheckedCreateOrder");
@@ -256,7 +255,7 @@ impl ExecuteOrderbookAction for CheckedCreateOrder {
         
         // Create address format
         let owner = Some(astria_core::generated::astria::primitive::v1::Address {
-            bech32m: self.sender.bech32m().to_string(),
+            bech32m: self.sender.to_string(),
         });
         
         // Generate a unique order ID
@@ -328,7 +327,7 @@ pub struct CheckedCancelOrder {
 
 impl ExecuteOrderbookAction for CheckedCancelOrder {
     fn execute<S: StateRead + cnidarium::StateWrite>(&self, _component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
-        use crate::orderbook::state_ext::StateWriteExt;
+        use crate::orderbook::state_ext::{StateWriteExt, StateReadExt};
         
         debug!(?self, "Executing CheckedCancelOrder");
         
@@ -346,7 +345,7 @@ impl ExecuteOrderbookAction for CheckedCancelOrder {
         
         // Check that the sender is the owner of the order
         if let Some(owner) = &order.owner {
-            if owner.bech32m != self.sender.bech32m().to_string() {
+            if owner.bech32m != self.sender.to_string() {
                 return Err(CheckedActionExecutionError::Fee(
                     CheckedActionFeeError::ActionDisabled {
                         action_name: "cancel_order",
@@ -395,7 +394,7 @@ pub struct CheckedCreateMarket {
 
 impl ExecuteOrderbookAction for CheckedCreateMarket {
     fn execute<S: StateRead + cnidarium::StateWrite>(&self, _component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
-        use crate::orderbook::state_ext::{StateWriteExt, OrderbookError};
+        use crate::orderbook::state_ext::{StateWriteExt, StateReadExt};
         
         // Add very prominent logging for create market actions
         tracing::warn!("🔷🔷🔷 CREATE MARKET ACTION RECEIVED 🔷🔷🔷");
@@ -572,7 +571,7 @@ pub struct CheckedUpdateMarket {
 
 impl ExecuteOrderbookAction for CheckedUpdateMarket {
     fn execute<S: StateRead + cnidarium::StateWrite>(&self, _component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
-        use crate::orderbook::state_ext::StateWriteExt;
+        use crate::orderbook::state_ext::{StateWriteExt, StateReadExt};
         
         debug!(?self, "Executing CheckedUpdateMarket");
         
