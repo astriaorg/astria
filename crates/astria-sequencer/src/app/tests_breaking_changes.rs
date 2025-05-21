@@ -9,10 +9,7 @@
 //! These are due to the extensive setup needed to test them.
 //! If changes are made to the execution results of these actions, manual testing is required.
 
-use std::{
-    collections::HashMap,
-    str::FromStr as _,
-};
+use std::collections::HashMap;
 
 use astria_core::{
     crypto::SigningKey,
@@ -228,8 +225,6 @@ async fn app_legacy_execute_transactions_with_every_action_snapshot() {
         .build()
         .await;
 
-    let currency_pair_tia = CurrencyPair::from_str("TIA/USD").unwrap();
-    let currency_pair_eth = CurrencyPair::from_str("ETH/USD").unwrap();
     let tx_bundleable_sudo = fixture
         .checked_tx_builder()
         .with_action(IbcRelayerChange::Addition(bob_address))
@@ -238,12 +233,11 @@ async fn app_legacy_execute_transactions_with_every_action_snapshot() {
         .with_action(FeeAssetChange::Addition("test-0".parse().unwrap()))
         .with_action(FeeAssetChange::Addition("test-1".parse().unwrap()))
         .with_action(FeeAssetChange::Removal("test-0".parse().unwrap()))
-        .with_action(CurrencyPairsChange::Addition(vec![
-            currency_pair_tia.clone(),
-            currency_pair_eth.clone(),
-        ]))
+        .with_action(CurrencyPairsChange::Addition(
+            std::iter::once("TIA/USD".parse::<CurrencyPair>().unwrap()).collect(),
+        ))
         .with_action(CurrencyPairsChange::Removal(
-            vec![currency_pair_eth.clone()],
+            std::iter::once("ETH/USD".parse::<CurrencyPair>().unwrap()).collect(),
         ))
         .with_action(MarketsChange::Creation(vec![Market {
             ticker: dummy_ticker("testAssetOne/testAssetTwo", "create market"),
