@@ -82,10 +82,10 @@ pub trait StateReadExt: StateRead {
 
     /// Get all order IDs for a specific market without filtering - used for cleanup operations
     fn get_all_market_orders_raw(&self, market: &str) -> Vec<String> {
-        tracing::warn!("🔍 Getting all raw order IDs for market: {}", market);
+        tracing::warn!(" Getting all raw order IDs for market: {}", market);
         
         let prefix = keys::orderbook_market_orders(market);
-        tracing::warn!("🔑 Using market prefix: {}", prefix);
+        tracing::warn!(" Using market prefix: {}", prefix);
         
         // Collect order IDs using the stream API with pin_mut
         futures::executor::block_on(async {
@@ -100,7 +100,7 @@ pub trait StateReadExt: StateRead {
                 }
             }
             
-            tracing::warn!("📋 Found {} raw order IDs for market {}", ids.len(), market);
+            tracing::warn!(" Found {} raw order IDs for market {}", ids.len(), market);
             ids
         })
     }
@@ -114,23 +114,23 @@ pub trait StateReadExt: StateRead {
         // Enhanced logging, especially helpful for debugging SELL orders
         if let Some(side_val) = side {
             if side_val == astria_core::protocol::orderbook::v1::OrderSide::Sell {
-                tracing::warn!("🔍 Specifically querying SELL orders for market: {}", market);
+                tracing::warn!(" Specifically querying SELL orders for market: {}", market);
             } else {
-                tracing::warn!("🔍 Specifically querying BUY orders for market: {}", market);
+                tracing::warn!(" Specifically querying BUY orders for market: {}", market);
             }
         } else {
-            tracing::warn!("🔍 Querying ALL orders for market: {}", market);
+            tracing::warn!(" Querying ALL orders for market: {}", market);
         }
         
         let prefix = match side {
             Some(side) => {
                 let prefix_str = keys::orderbook_market_side_orders(market, side);
-                tracing::warn!("🔑 Using market-side prefix: {}", prefix_str);
+                tracing::warn!(" Using market-side prefix: {}", prefix_str);
                 prefix_str
             },
             None => {
                 let prefix_str = keys::orderbook_market_orders(market);
-                tracing::warn!("🔑 Using market prefix: {}", prefix_str);
+                tracing::warn!(" Using market prefix: {}", prefix_str);
                 prefix_str
             },
         };
@@ -146,14 +146,14 @@ pub trait StateReadExt: StateRead {
                     // Log the raw key for debugging
                     let key_str = String::from_utf8_lossy(key.as_bytes());
                     let value_str = String::from_utf8_lossy(&value);
-                    tracing::warn!("🔑 Found order entry - Key: {}, Value: {}", key_str, value_str);
+                    tracing::warn!(" Found order entry - Key: {}, Value: {}", key_str, value_str);
                     
                     ids.push(value_str.to_string());
                 }
             }
             
             // Log how many order IDs were found
-            tracing::warn!("📋 Found {} order IDs for market {} and prefix {}", 
+            tracing::warn!(" Found {} order IDs for market {} and prefix {}", 
                 ids.len(), market, prefix);
             
             ids
@@ -162,34 +162,34 @@ pub trait StateReadExt: StateRead {
         // Now get each order with detailed logging
         let mut orders = Vec::new();
         for (idx, order_id) in order_ids.iter().enumerate() {
-            tracing::warn!("🔍 Getting order {}/{}: {}", idx+1, order_ids.len(), order_id);
+            tracing::warn!(" Getting order {}/{}: {}", idx+1, order_ids.len(), order_id);
             
             if let Some(order) = self.get_order(order_id) {
                 // For SELL orders, log additional details
                 if order.side == astria_core::protocol::orderbook::v1::OrderSide::Sell as i32 {
-                    tracing::warn!("💲 Found SELL order: id={}, market={}, remaining_quantity={:?}", 
+                    tracing::warn!(" Found SELL order: id={}, market={}, remaining_quantity={:?}", 
                         order.id, order.market, order.remaining_quantity);
                 } else {
-                    tracing::warn!("💰 Found BUY order: id={}, market={}, remaining_quantity={:?}",
+                    tracing::warn!(" Found BUY order: id={}, market={}, remaining_quantity={:?}",
                         order.id, order.market, order.remaining_quantity);
                 }
                 
                 // Skip orders with zero remaining quantity
                 let remaining_qty = crate::orderbook::uint128_option_to_string(&order.remaining_quantity);
                 if remaining_qty == "0" {
-                    tracing::warn!("⚠️ Skipping order with zero remaining quantity: {}", order_id);
+                    tracing::warn!(" Skipping order with zero remaining quantity: {}", order_id);
                     continue;
                 }
                 
                 // Add the order to the results
                 orders.push(order);
             } else {
-                tracing::warn!("❌ Order not found in storage: {}", order_id);
+                tracing::warn!(" Order not found in storage: {}", order_id);
             }
         }
         
         // Final count of orders returned
-        tracing::warn!("📊 Returning {} orders for market {}", orders.len(), market);
+        tracing::warn!(" Returning {} orders for market {}", orders.len(), market);
         
         orders
     }
@@ -311,22 +311,22 @@ pub trait StateReadExt: StateRead {
     /// Get market parameters.
     fn get_market_params(&self, market: &str) -> Option<MarketParams> {
         // Add detailed logging to trace the market params lookup
-        tracing::warn!("🔎 Looking up market parameters for market: {}", market);
+        tracing::warn!(" Looking up market parameters for market: {}", market);
         
         // Get the market params key
         let market_params_key = keys::orderbook_market_params(market);
-        tracing::warn!("🔑 Market params storage key: {}", market_params_key);
+        tracing::warn!(" Market params storage key: {}", market_params_key);
         
         // Print all known markets to help diagnose issues
         let all_markets = self.get_markets();
-        tracing::warn!("📚 All known markets: {:?}", all_markets);
+        tracing::warn!(" All known markets: {:?}", all_markets);
         
         // Replace direct get_raw with handling the async future
         let bytes_result = futures::executor::block_on(self.get_raw(market_params_key.as_str()));
         
         match bytes_result {
             Ok(Some(bytes)) => {
-                tracing::warn!("✅ Found raw bytes for market params, length: {}", bytes.len());
+                tracing::warn!(" Found raw bytes for market params, length: {}", bytes.len());
                 match StoredValue::deserialize(&bytes) {
                     Ok(StoredValue::MarketParams(params)) => {
                         tracing::warn!(
@@ -336,52 +336,52 @@ pub trait StateReadExt: StateRead {
                         
                         // Additional validation for debugging
                         if params.base_asset.is_empty() {
-                            tracing::error!("⚠️ Base asset is empty for market {}", market);
+                            tracing::error!(" Base asset is empty for market {}", market);
                         }
                         
                         if params.quote_asset.is_empty() {
-                            tracing::error!("⚠️ Quote asset is empty for market {}", market);
+                            tracing::error!(" Quote asset is empty for market {}", market);
                         }
                         
                         // Attempt to parse base and quote assets as Denoms for validation
                         if let Ok(base_denom) = params.base_asset.parse::<astria_core::primitive::v1::asset::Denom>() {
                             let prefixed: astria_core::primitive::v1::asset::IbcPrefixed = base_denom.into();
-                            tracing::warn!("✅ Base asset '{}' parsed as denom: {}", params.base_asset, prefixed);
+                            tracing::warn!(" Base asset '{}' parsed as denom: {}", params.base_asset, prefixed);
                         } else {
-                            tracing::error!("❌ Base asset '{}' failed to parse as a Denom", params.base_asset);
+                            tracing::error!(" Base asset '{}' failed to parse as a Denom", params.base_asset);
                         }
                         
                         if let Ok(quote_denom) = params.quote_asset.parse::<astria_core::primitive::v1::asset::Denom>() {
                             let prefixed: astria_core::primitive::v1::asset::IbcPrefixed = quote_denom.into();
-                            tracing::warn!("✅ Quote asset '{}' parsed as denom: {}", params.quote_asset, prefixed);
+                            tracing::warn!(" Quote asset '{}' parsed as denom: {}", params.quote_asset, prefixed);
                         } else {
-                            tracing::error!("❌ Quote asset '{}' failed to parse as a Denom", params.quote_asset);
+                            tracing::error!(" Quote asset '{}' failed to parse as a Denom", params.quote_asset);
                         }
                         
                         Some(params)
                     },
                     Ok(other) => {
-                        tracing::error!("❌ Wrong StoredValue type: {:?}", other);
+                        tracing::error!(" Wrong StoredValue type: {:?}", other);
                         None
                     },
                     Err(err) => {
-                        tracing::error!("❌ Failed to deserialize market params: {}", err);
+                        tracing::error!(" Failed to deserialize market params: {}", err);
                         None
                     }
                 }
             },
             Ok(None) => {
-                tracing::error!("❌ No market params found for market: {}", market);
+                tracing::error!(" No market params found for market: {}", market);
                 // Try debugging by checking if market exists at all
                 if self.market_exists(market) {
-                    tracing::warn!("⚠️ Market exists but no parameters found: {}", market);
+                    tracing::warn!(" Market exists but no parameters found: {}", market);
                 } else {
-                    tracing::error!("❌ Market does not exist: {}", market);
+                    tracing::error!(" Market does not exist: {}", market);
                 }
                 None
             },
             Err(err) => {
-                tracing::error!("❌ Error fetching market params: {}", err);
+                tracing::error!(" Error fetching market params: {}", err);
                 None
             }
         }
@@ -460,19 +460,19 @@ pub trait StateWriteExt: StateWrite {
     fn put_order(&mut self, order: Order) -> Result<(), OrderbookError> {
         // Special logging for SELL orders to track their journey through the system
         if order.side == astria_core::protocol::orderbook::v1::OrderSide::Sell as i32 {
-            tracing::warn!("💾 Saving SELL order to database: id={}, market={}", order.id, order.market);
+            tracing::warn!(" Saving SELL order to database: id={}, market={}", order.id, order.market);
             
             // Verify the SELL order has a remaining_quantity set
             let remaining_qty = crate::orderbook::uint128_option_to_string(&order.remaining_quantity);
-            tracing::warn!("📏 SELL order remaining quantity: {}", remaining_qty);
+            tracing::warn!(" SELL order remaining quantity: {}", remaining_qty);
             
             if remaining_qty == "0" {
-                tracing::error!("❌ SELL order has zero remaining quantity, this is likely incorrect");
+                tracing::error!(" SELL order has zero remaining quantity, this is likely incorrect");
                 
                 // If quantity exists but remaining_quantity is missing, copy quantity to remaining_quantity
                 let quantity = crate::orderbook::uint128_option_to_string(&order.quantity);
                 if quantity != "0" {
-                    tracing::warn!("🔄 SELL order quantity is {}, copying to remaining_quantity", quantity);
+                    tracing::warn!(" SELL order quantity is {}, copying to remaining_quantity", quantity);
                     // We can't modify the order directly due to ownership rules, but we'll log this issue
                 }
             }
@@ -480,92 +480,92 @@ pub trait StateWriteExt: StateWrite {
         
         // Convert the i32 side to OrderSide enum for storage operations
         let order_side = crate::orderbook::order_side_from_i32(order.side);
-        tracing::warn!("🏷️ Order side converted to enum: {:?}", order_side);
+        tracing::warn!(" Order side converted to enum: {:?}", order_side);
         
         // Store the order itself using our wrapper
         let serialized = match StoredValue::Order(OrderWrapper(order.clone())).serialize() {
             Ok(s) => s,
             Err(err) => {
-                tracing::error!("❌ Failed to serialize order: {:?}", err);
+                tracing::error!(" Failed to serialize order: {:?}", err);
                 return Err(OrderbookError::SerializationError(format!("Failed to serialize order: {:?}", err)));
             }
         };
         
         // Try storing the order with error handling
         let order_key = keys::orderbook_order(&order.id);
-        tracing::warn!("💾 Storing order at key: {}", order_key);
+        tracing::warn!(" Storing order at key: {}", order_key);
         self.put_raw(order_key, serialized.clone());
 
         // Get the price as a string, handling the case where it might be empty
         let price_str = crate::orderbook::uint128_option_to_string(&order.price);
-        tracing::warn!("💰 Order price: {} (formatted from {:?})", price_str, order.price);
+        tracing::warn!(" Order price: {} (formatted from {:?})", price_str, order.price);
 
         // For SELL orders, verify the price string is valid
         if order.side == astria_core::protocol::orderbook::v1::OrderSide::Sell as i32 {
             let price_u128 = crate::orderbook::parse_string_to_u128(&price_str);
             if price_u128 == 0 {
-                tracing::error!("❌ SELL order has zero or invalid price: {}", price_str);
+                tracing::error!(" SELL order has zero or invalid price: {}", price_str);
             } else {
-                tracing::warn!("✅ SELL order has valid price: {}", price_u128);
+                tracing::warn!(" SELL order has valid price: {}", price_u128);
             }
         }
 
         // Add to market-side-price index with error handling
         let market_side_price_key = keys::orderbook_market_side_price_order(&order.market, order_side, &price_str, &order.id);
-        tracing::warn!("💾 Storing market-side-price index at key: {}", market_side_price_key);
+        tracing::warn!(" Storing market-side-price index at key: {}", market_side_price_key);
         self.put_raw(market_side_price_key, order.id.as_bytes().to_vec());
         
         // Verification for SELL orders to ensure they appear in the market-side index
         if order.side == astria_core::protocol::orderbook::v1::OrderSide::Sell as i32 {
-            tracing::warn!("🔍 SELL order - ensuring proper indexing in market-side");
+            tracing::warn!(" SELL order - ensuring proper indexing in market-side");
             
             // Double check with the correct order_side value
             if order_side != astria_core::protocol::orderbook::v1::OrderSide::Sell {
-                tracing::error!("❌ Order side conversion error for SELL order - this is a critical bug");
-                tracing::warn!("🔄 Forcing order_side to SELL for order {}", order.id);
+                tracing::error!(" Order side conversion error for SELL order - this is a critical bug");
+                tracing::warn!(" Forcing order_side to SELL for order {}", order.id);
                 // Force the correct order_side for the next operations
                 let sell_side = astria_core::protocol::orderbook::v1::OrderSide::Sell;
                 
                 // Re-add to market-side-price index with correct side
                 let corrected_key = keys::orderbook_market_side_price_order(&order.market, sell_side, &price_str, &order.id);
-                tracing::warn!("🔄 Also storing market-side-price index with corrected side at key: {}", corrected_key);
+                tracing::warn!(" Also storing market-side-price index with corrected side at key: {}", corrected_key);
                 self.put_raw(corrected_key, order.id.as_bytes().to_vec());
                 
                 // Re-add to market-side index with correct side
                 let corrected_side_key = keys::orderbook_market_side_order(&order.market, sell_side, &order.id);
-                tracing::warn!("🔄 Also storing market-side index with corrected side at key: {}", corrected_side_key);
+                tracing::warn!(" Also storing market-side index with corrected side at key: {}", corrected_side_key);
                 self.put_raw(corrected_side_key, order.id.as_bytes().to_vec());
             }
         }
 
         // Add to market-side index with error handling
         let market_side_key = keys::orderbook_market_side_order(&order.market, order_side, &order.id);
-        tracing::warn!("💾 Storing market-side index at key: {}", market_side_key);
+        tracing::warn!(" Storing market-side index at key: {}", market_side_key);
         self.put_raw(market_side_key, order.id.as_bytes().to_vec());
 
         // Add to market index with error handling
         let market_key = keys::orderbook_market_order(&order.market, &order.id);
-        tracing::warn!("💾 Storing market index at key: {}", market_key);
+        tracing::warn!(" Storing market index at key: {}", market_key);
         self.put_raw(market_key, order.id.as_bytes().to_vec());
 
         // Add to owner's orders index
         let owner_str = match &order.owner {
             Some(addr) => {
-                tracing::warn!("👤 Order owner: {}", addr.bech32m);
+                tracing::warn!(" Order owner: {}", addr.bech32m);
                 addr.bech32m.clone()
             },
             None => {
-                tracing::warn!("⚠️ Order has no owner, using 'unknown'");
+                tracing::warn!(" Order has no owner, using 'unknown'");
                 "unknown".to_string()
             },
         };
         
         let owner_key = keys::orderbook_owner_order(&owner_str, &order.id);
-        tracing::warn!("💾 Storing owner index at key: {}", owner_key);
+        tracing::warn!(" Storing owner index at key: {}", owner_key);
         self.put_raw(owner_key, order.id.as_bytes().to_vec());
 
         // Update price level with detailed error handling
-        tracing::warn!("📊 Updating price level for market: {}, side: {:?}, price: {}", 
+        tracing::warn!(" Updating price level for market: {}, side: {:?}, price: {}", 
             order.market, order_side, price_str);
         match self.update_price_level(
             &order.market,
@@ -577,7 +577,7 @@ pub trait StateWriteExt: StateWrite {
                 let order_qty = crate::orderbook::uint128_option_to_string(&order.remaining_quantity);
                 let order_qty_num = crate::orderbook::parse_string_to_u128(&order_qty);
                 
-                tracing::warn!("🔢 Updating price level - current quantity: {}, adding: {}", level_qty, order_qty_num);
+                tracing::warn!(" Updating price level - current quantity: {}, adding: {}", level_qty, order_qty_num);
                 
                 // Add the quantities
                 level.quantity = level_qty
@@ -586,19 +586,19 @@ pub trait StateWriteExt: StateWrite {
                     .unwrap_or_else(|| "0".to_string());
                 
                 level.order_count += 1;
-                tracing::warn!("📊 Updated price level - new quantity: {}, order count: {}", level.quantity, level.order_count);
+                tracing::warn!(" Updated price level - new quantity: {}, order count: {}", level.quantity, level.order_count);
                 level
             },
         ) {
             Ok(_) => {
-                tracing::warn!("✅ Successfully updated price level");
+                tracing::warn!(" Successfully updated price level");
             },
             Err(err) => {
-                tracing::error!("❌ Failed to update price level: {:?}", err);
+                tracing::error!(" Failed to update price level: {:?}", err);
                 // Don't fail the entire operation if price level update fails
                 // Just log it and continue - this is especially important for SELL orders
                 if order.side == astria_core::protocol::orderbook::v1::OrderSide::Sell as i32 {
-                    tracing::warn!("⚠️ Continuing despite price level update failure for SELL order");
+                    tracing::warn!(" Continuing despite price level update failure for SELL order");
                 } else {
                     return Err(err);
                 }
@@ -612,9 +612,9 @@ pub trait StateWriteExt: StateWrite {
             let exists = futures::executor::block_on(self.get_raw(check_order_key.as_str())).is_ok();
             
             if exists {
-                tracing::warn!("✅ Verified SELL order exists in primary storage");
+                tracing::warn!(" Verified SELL order exists in primary storage");
             } else {
-                tracing::error!("❌ Failed to verify SELL order in primary storage - this is a critical bug");
+                tracing::error!(" Failed to verify SELL order in primary storage - this is a critical bug");
             }
             
             // Verify the order exists in market-side index
@@ -626,13 +626,13 @@ pub trait StateWriteExt: StateWrite {
             let market_side_exists = futures::executor::block_on(self.get_raw(check_market_side_key.as_str())).is_ok();
             
             if market_side_exists {
-                tracing::warn!("✅ Verified SELL order exists in market-side index");
+                tracing::warn!(" Verified SELL order exists in market-side index");
             } else {
-                tracing::error!("❌ Failed to verify SELL order in market-side index - this is a critical bug");
+                tracing::error!(" Failed to verify SELL order in market-side index - this is a critical bug");
             }
         }
 
-        tracing::warn!("✅ Successfully saved order to database: id={}", order.id);
+        tracing::warn!(" Successfully saved order to database: id={}", order.id);
         Ok(())
     }
 

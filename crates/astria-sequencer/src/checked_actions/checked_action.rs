@@ -824,7 +824,7 @@ impl CheckedAction {
     }
 
     pub(crate) fn asset_and_amount_to_transfer(&self) -> Option<(IbcPrefixed, u128)> {
-        tracing::warn!("🧐 Checking asset_and_amount_to_transfer for action type: {}", self.name());
+        tracing::warn!(" Checking asset_and_amount_to_transfer for action type: {}", self.name());
         match self {
             CheckedAction::RollupDataSubmission(action) => action.transfer_asset_and_amount(),
             CheckedAction::Transfer(action) => action.transfer_asset_and_amount(),
@@ -853,7 +853,7 @@ impl CheckedAction {
                 // Check order side - for SELL orders, we need to report the base asset being sold
                 // so transaction cost validation can check that the sender has enough of this asset
                 if let crate::orderbook::component::OrderSide::Sell = order.side {
-                    tracing::warn!("🔎 CONFIRMED this is a SELL order for market={}", order.market);
+                    tracing::warn!(" CONFIRMED this is a SELL order for market={}", order.market);
                     
                     // Parse the quantity
                     if let Ok(amount) = order.quantity.parse::<u128>() {
@@ -868,11 +868,11 @@ impl CheckedAction {
                         let asset_to_use = if order.market.contains('/') {
                             // Extract base asset from market name (uppercase is handled properly by Denom parsing)
                             let derived_base_asset = order.market.split('/').next().unwrap_or("ntia");
-                            tracing::warn!("🔍 Using base asset '{}' derived from market '{}'", derived_base_asset, order.market);
+                            tracing::warn!(" Using base asset '{}' derived from market '{}'", derived_base_asset, order.market);
                             derived_base_asset
                         } else {
                             // Fallback to default for non-standard market names
-                            tracing::warn!("⚠️ Non-standard market name format, using default asset 'ntia'");
+                            tracing::warn!(" Non-standard market name format, using default asset 'ntia'");
                             "ntia"
                         };
                         
@@ -887,7 +887,7 @@ impl CheckedAction {
                         }
                         
                         // Standard asset parsing failed - try with a known valid asset as fallback
-                        tracing::warn!("⚠️ Could not parse '{}' as Denom, trying fallback asset 'ntia'", asset_to_use);
+                        tracing::warn!(" Could not parse '{}' as Denom, trying fallback asset 'ntia'", asset_to_use);
                         if let Ok(denom) = "ntia".parse::<astria_core::primitive::v1::asset::Denom>() {
                             let asset_prefixed: IbcPrefixed = denom.into();
                             tracing::warn!(
@@ -898,7 +898,7 @@ impl CheckedAction {
                         }
                         
                         // Emergency fallback - use a hardcoded IBC asset
-                        tracing::error!("🚨 All asset parsing attempts failed, using emergency fallback");
+                        tracing::error!(" All asset parsing attempts failed, using emergency fallback");
                         let emergency_asset_str = "ibc/54aa0250dd7fd58e88d18dc149d826c5c23bef81e53e0598b37ce5323ab36c30";
                         
                         if let Ok(denom) = emergency_asset_str.parse::<astria_core::primitive::v1::asset::Denom>() {
@@ -921,7 +921,7 @@ impl CheckedAction {
                             Ok(denom) => IbcPrefixed::from(denom),
                             Err(_) => {
                                 // Create a fallback asset if all parsing fails
-                                tracing::error!("🚨 CRITICAL FAILURE: Even emergency asset string failed to parse!");
+                                tracing::error!(" CRITICAL FAILURE: Even emergency asset string failed to parse!");
                                 // Use a hardcoded string that's guaranteed to parse
                                 let fallback = "ibc/ntia";
                                 let denom = fallback.parse::<astria_core::primitive::v1::asset::Denom>()
@@ -936,10 +936,10 @@ impl CheckedAction {
                         );
                         return Some((hardcoded_asset, amount));
                     } else {
-                        tracing::error!("❌ Failed to parse quantity '{}' as a number", order.quantity);
+                        tracing::error!(" Failed to parse quantity '{}' as a number", order.quantity);
                     }
                 } else {
-                    tracing::warn!("👍 BUY order - no need to report asset transfer cost");
+                    tracing::warn!(" BUY order - no need to report asset transfer cost");
                 }
                 
                 None

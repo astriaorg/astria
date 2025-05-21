@@ -38,7 +38,7 @@ pub fn force_insert_test_market<S: StateWrite>(state: &mut S) -> Result<(), Stri
     };
     
     // Information about markets being created
-    tracing::warn!("🏦 Creating test markets for orderbook testing:");
+    tracing::warn!(" Creating test markets for orderbook testing:");
     tracing::warn!("  - BTC/USD: BTC base asset (for general testing)");
     tracing::warn!("  - NTIA/USDC: ntia base asset (primary test market)");
     tracing::warn!("  - IBC/USDC: IBC token base asset (fallback test market)");
@@ -61,7 +61,7 @@ pub fn force_insert_test_market<S: StateWrite>(state: &mut S) -> Result<(), Stri
     
     // Verify entry with direct key
     let market_params_key = keys::orderbook_market_params(ntia_market_id);
-    tracing::warn!("🔍 Verifying NTIA/USDC market params at key: {}", market_params_key);
+    tracing::warn!(" Verifying NTIA/USDC market params at key: {}", market_params_key);
     
     // Store the market again directly as extra insurance (redundant but helpful)
     state.put_raw(
@@ -76,7 +76,7 @@ pub fn force_insert_test_market<S: StateWrite>(state: &mut S) -> Result<(), Stri
                 market_params_key,
                 serialized,
             );
-            tracing::warn!("✅ Directly wrote NTIA/USDC market params as additional verification");
+            tracing::warn!(" Directly wrote NTIA/USDC market params as additional verification");
         },
         Err(e) => {
             warn!("Failed to serialize NTIA/USDC market parameters: {:?}", e);

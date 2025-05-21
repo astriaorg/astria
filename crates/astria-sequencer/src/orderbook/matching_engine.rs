@@ -182,7 +182,7 @@ impl MatchingEngine {
                 Some(owner) => owner.bech32m.clone(),
                 None => "unknown".to_string(),
             };
-            tracing::warn!("💲 Order owner: {}", owner_str);
+            tracing::warn!(" Order owner: {}", owner_str);
             
             // Market validation - critical for SELL orders
             if let Some(market_params) = state.get_market_params(&order.market) {
@@ -194,7 +194,7 @@ impl MatchingEngine {
                 // Validate that the base asset is a valid Denom
                 if let Ok(denom) = market_params.base_asset.parse::<astria_core::primitive::v1::asset::Denom>() {
                     let asset_prefixed: astria_core::primitive::v1::asset::IbcPrefixed = denom.into();
-                    tracing::warn!("✅ Base asset '{}' parsed as denom: {}", market_params.base_asset, asset_prefixed);
+                    tracing::warn!(" Base asset '{}' parsed as denom: {}", market_params.base_asset, asset_prefixed);
                     
                     // Verify quantity is valid
                     if let Some(quantity) = &order.quantity {
@@ -207,13 +207,13 @@ impl MatchingEngine {
                                 order.market, market_params.base_asset, qty_u128
                             );
                         } else {
-                            tracing::error!("❌ SELL order has quantity of 0 or failed to parse");
+                            tracing::error!(" SELL order has quantity of 0 or failed to parse");
                             return Err(OrderbookError::InvalidOrderParameters(
                                 "SELL order must have a valid quantity greater than 0".to_string()
                             ));
                         }
                     } else {
-                        tracing::error!("❌ SELL order missing quantity");
+                        tracing::error!(" SELL order missing quantity");
                         return Err(OrderbookError::InvalidOrderParameters(
                             "SELL order must specify a quantity".to_string()
                         ));
@@ -226,26 +226,26 @@ impl MatchingEngine {
                     
                     // Log all available markets for debugging
                     let all_markets = state.get_markets();
-                    tracing::warn!("📊 Available markets: {:?}", all_markets);
+                    tracing::warn!(" Available markets: {:?}", all_markets);
                     
                     // Continue processing to allow fallback mechanisms to work
                     // We've already added fallbacks in the asset_and_amount_to_transfer method
-                    tracing::warn!("⚠️ Continuing with order processing despite invalid base asset");
+                    tracing::warn!(" Continuing with order processing despite invalid base asset");
                 }
             } else {
-                tracing::error!("❌ No market parameters found for market: {}", order.market);
+                tracing::error!(" No market parameters found for market: {}", order.market);
                 
                 // Log all markets for debugging
                 let all_markets = state.get_markets();
-                tracing::warn!("📊 Available markets: {:?}", all_markets);
+                tracing::warn!(" Available markets: {:?}", all_markets);
                 
                 // Try to derive base asset from market name as fallback
                 let derived_base_asset = if order.market.contains('/') {
                     let base = order.market.split('/').next().unwrap_or("ntia");
-                    tracing::warn!("⚠️ Using derived base asset '{}' from market name", base);
+                    tracing::warn!(" Using derived base asset '{}' from market name", base);
                     base
                 } else {
-                    tracing::warn!("⚠️ Using fallback base asset 'ntia'");
+                    tracing::warn!(" Using fallback base asset 'ntia'");
                     "ntia"
                 };
                 
@@ -257,7 +257,7 @@ impl MatchingEngine {
                         derived_base_asset, asset_prefixed
                     );
                 } else {
-                    tracing::error!("❌ Derived base asset '{}' is invalid", derived_base_asset);
+                    tracing::error!(" Derived base asset '{}' is invalid", derived_base_asset);
                     // Continue processing to allow fallback mechanisms to work
                 }
             }
@@ -272,13 +272,13 @@ impl MatchingEngine {
             };
             
             if quantity == 0 {
-                tracing::error!("❌ SELL order has invalid or zero quantity");
+                tracing::error!(" SELL order has invalid or zero quantity");
                 return Err(OrderbookError::InvalidOrderParameters(
                     "SELL order must have a valid quantity greater than 0".to_string()
                 ));
             }
             
-            tracing::warn!("💲 SELL order validation complete, continuing with processing");
+            tracing::warn!(" SELL order validation complete, continuing with processing");
         }
 
         // Parse order details
@@ -434,7 +434,7 @@ impl MatchingEngine {
                 
                 // For SELL orders, double check the quantity is correct
                 if let OrderSide::Sell = side {
-                    tracing::warn!("💲 SELL order matching - checking quantities carefully");
+                    tracing::warn!(" SELL order matching - checking quantities carefully");
                     
                     // Verify we're not matching more than available
                     if match_quantity > maker_remaining {
@@ -444,7 +444,7 @@ impl MatchingEngine {
                         );
                         // Correct the match quantity
                         let corrected_match = maker_remaining;
-                        tracing::warn!("🔄 Correcting match quantity to: {}", corrected_match);
+                        tracing::warn!(" Correcting match quantity to: {}", corrected_match);
                     }
                     
                     if match_quantity > remaining_quantity {
@@ -454,7 +454,7 @@ impl MatchingEngine {
                         );
                         // Correct the match quantity in a separate variable
                         let corrected_match = remaining_quantity;
-                        tracing::warn!("🔄 Correcting match quantity to: {}", corrected_match);
+                        tracing::warn!(" Correcting match quantity to: {}", corrected_match);
                     }
                 }
                 
@@ -482,25 +482,25 @@ impl MatchingEngine {
                     
                     // Update remaining quantities
                     remaining_quantity -= match_quantity;
-                    tracing::warn!("📉 Taker remaining after match: {}", remaining_quantity);
+                    tracing::warn!(" Taker remaining after match: {}", remaining_quantity);
                     
                     // Update maker order
                     let new_maker_remaining = maker_remaining - match_quantity;
-                    tracing::warn!("📉 Maker remaining after match: {}", new_maker_remaining);
+                    tracing::warn!(" Maker remaining after match: {}", new_maker_remaining);
                     
                     if new_maker_remaining == 0 {
                         // Maker order is fully filled
-                        tracing::warn!("✅ Maker order fully filled, removing from book: {}", maker_order_id);
+                        tracing::warn!(" Maker order fully filled, removing from book: {}", maker_order_id);
                         state.remove_order(&maker_order_id)?;
                         opposite_side.remove_order(&maker_order_id, level_price, maker_remaining);
                     } else {
                         // Maker order is partially filled
-                        tracing::warn!("⏳ Maker order partially filled, updating quantity: {}", new_maker_remaining);
+                        tracing::warn!(" Maker order partially filled, updating quantity: {}", new_maker_remaining);
                         state.update_order(&maker_order_id, &new_maker_remaining.to_string())?;
                         // Note: The price level's total quantity is updated when we update the order
                     }
                 } else {
-                    tracing::warn!("⚠️ Skipping match with zero quantity");
+                    tracing::warn!(" Skipping match with zero quantity");
                 }
             }
         }
@@ -510,11 +510,11 @@ impl MatchingEngine {
             match time_in_force {
                 OrderTimeInForce::GoodTillCancelled => {
                     // Add the remaining quantity to the book
-                    tracing::warn!("📝 Adding remaining quantity {} to the orderbook for order {}", remaining_quantity, order.id);
+                    tracing::warn!(" Adding remaining quantity {} to the orderbook for order {}", remaining_quantity, order.id);
                     
                     // For SELL orders, make sure it's added to the book correctly
                     if let OrderSide::Sell = side {
-                        tracing::warn!("💲 SELL order with remaining quantity - ensuring it's stored in orderbook");
+                        tracing::warn!(" SELL order with remaining quantity - ensuring it's stored in orderbook");
                     }
                     
                     self.add_to_book(state, order, side, price, remaining_quantity, order_book)?;
@@ -523,39 +523,39 @@ impl MatchingEngine {
                     if let OrderSide::Sell = side {
                         // Verify order is in state by reading it back
                         if let Some(stored_order) = state.get_order(&order.id) {
-                            tracing::warn!("✅ Verified SELL order {} is stored in state", order.id);
+                            tracing::warn!(" Verified SELL order {} is stored in state", order.id);
                             
                             // Check remaining quantity is correct
                             let stored_remaining = crate::orderbook::uint128_option_to_string(&stored_order.remaining_quantity);
-                            tracing::warn!("📊 Stored remaining quantity: {}", stored_remaining);
+                            tracing::warn!(" Stored remaining quantity: {}", stored_remaining);
                         } else {
-                            tracing::error!("❌ Failed to verify SELL order in state: {}", order.id);
+                            tracing::error!(" Failed to verify SELL order in state: {}", order.id);
                         }
                     }
                 }
                 OrderTimeInForce::ImmediateOrCancel => {
                     // Cancel the remaining quantity
-                    tracing::warn!("⏱️ ImmediateOrCancel order partially filled, cancelling remainder: {}", order.id);
+                    tracing::warn!(" ImmediateOrCancel order partially filled, cancelling remainder: {}", order.id);
                 }
                 OrderTimeInForce::FillOrKill => {
                     // This shouldn't happen as we check at the beginning
-                    tracing::warn!("⏱️ FillOrKill order cannot be fully filled, cancelling: {}", order.id);
+                    tracing::warn!(" FillOrKill order cannot be fully filled, cancelling: {}", order.id);
                     return Ok(vec![]);
                 }
             }
         } else {
-            tracing::warn!("✅ Order fully filled: {}", order.id);
+            tracing::warn!(" Order fully filled: {}", order.id);
         }
 
         // Update the taker order if it was partially filled or remove it if fully filled
         if !matches.is_empty() {
             if remaining_quantity == 0 {
                 // Order fully filled, remove it from the book
-                tracing::warn!("✅ Taker order fully filled, removing from book: {}", order.id);
+                tracing::warn!(" Taker order fully filled, removing from book: {}", order.id);
                 state.remove_order(&order.id)?;
             } else if remaining_quantity < quantity {
                 // Order partially filled, update the remaining quantity
-                tracing::warn!("⏳ Taker order partially filled, updating quantity: {}", remaining_quantity);
+                tracing::warn!(" Taker order partially filled, updating quantity: {}", remaining_quantity);
                 state.update_order(&order.id, &remaining_quantity.to_string())?;
             }
         }
@@ -688,11 +688,11 @@ impl MatchingEngine {
         if !matches.is_empty() {
             if remaining_quantity == 0 {
                 // Order fully filled, remove it from the book
-                tracing::warn!("✅ Taker order fully filled, removing from book: {}", order.id);
+                tracing::warn!(" Taker order fully filled, removing from book: {}", order.id);
                 state.remove_order(&order.id)?;
             } else if remaining_quantity < quantity {
                 // Order partially filled, update the remaining quantity
-                tracing::warn!("⏳ Taker order partially filled, updating quantity: {}", remaining_quantity);
+                tracing::warn!(" Taker order partially filled, updating quantity: {}", remaining_quantity);
                 state.update_order(&order.id, &remaining_quantity.to_string())?;
             }
         }
@@ -721,10 +721,10 @@ impl MatchingEngine {
     ) -> Result<(), OrderbookError> {
         // Enhanced logging, especially for SELL orders
         if let OrderSide::Sell = side {
-            tracing::warn!("💾 Adding SELL order to orderbook: id={}, price={}, quantity={}", 
+            tracing::warn!(" Adding SELL order to orderbook: id={}, price={}, quantity={}", 
                 order.id, price, quantity);
         } else {
-            tracing::warn!("💾 Adding BUY order to orderbook: id={}, price={}, quantity={}", 
+            tracing::warn!(" Adding BUY order to orderbook: id={}, price={}, quantity={}", 
                 order.id, price, quantity);
         }
         
@@ -735,11 +735,11 @@ impl MatchingEngine {
         // Save the order in the state - always update or add
         match state.get_order(&order.id) {
             Some(_) => {
-                tracing::warn!("🔄 Updating existing order in state with new quantity: {}", quantity);
+                tracing::warn!(" Updating existing order in state with new quantity: {}", quantity);
                 state.update_order(&order.id, &quantity.to_string())?;
             },
             None => {
-                tracing::warn!("📝 Adding new order to state: {}", order.id);
+                tracing::warn!(" Adding new order to state: {}", order.id);
                 state.put_order(updated_order)?;
             }
         }
@@ -747,11 +747,11 @@ impl MatchingEngine {
         // Get the appropriate side of the book
         let book_side = match side {
             OrderSide::Buy => {
-                tracing::warn!("📊 Adding to BID side of orderbook");
+                tracing::warn!(" Adding to BID side of orderbook");
                 &mut order_book.bids
             },
             OrderSide::Sell => {
-                tracing::warn!("📊 Adding to ASK side of orderbook");
+                tracing::warn!(" Adding to ASK side of orderbook");
                 &mut order_book.asks
             },
         };
@@ -761,16 +761,16 @@ impl MatchingEngine {
         
         // For SELL orders, verify the order was added correctly to the book
         if let OrderSide::Sell = side {
-            tracing::warn!("🔍 Verifying SELL order was correctly added to book side");
+            tracing::warn!(" Verifying SELL order was correctly added to book side");
             
             // Check if the order is in the correct price level
             let mut found = false;
             for (level_price, price_level) in &book_side.price_levels {
                 if *level_price == price {
-                    tracing::warn!("✅ Found matching price level: {}", price);
+                    tracing::warn!(" Found matching price level: {}", price);
                     
                     if price_level.orders.iter().any(|id| id == &order.id) {
-                        tracing::warn!("✅ Order found in correct price level");
+                        tracing::warn!(" Order found in correct price level");
                         found = true;
                         break;
                     }
@@ -778,7 +778,7 @@ impl MatchingEngine {
             }
             
             if !found {
-                tracing::error!("❌ SELL order not found in orderbook after adding - this is a bug");
+                tracing::error!(" SELL order not found in orderbook after adding - this is a bug");
             }
         }
         
@@ -792,9 +792,9 @@ impl MatchingEngine {
         market: &str,
     ) -> Result<OrderBook, OrderbookError> {
         // Get all orders for the market with enhanced logging
-        tracing::warn!("📚 Constructing orderbook for market: {}", market);
+        tracing::warn!(" Constructing orderbook for market: {}", market);
         let market_orders = state.get_market_orders(market, None);
-        tracing::warn!("📚 Found {} existing orders for market: {}", market_orders.len(), market);
+        tracing::warn!(" Found {} existing orders for market: {}", market_orders.len(), market);
         
         // Create the order book
         let mut order_book = OrderBook {
@@ -820,11 +820,11 @@ impl MatchingEngine {
                 Some(p) => {
                     let price_str = uint128_option_to_string(&Some(p.clone()));
                     let price_u128 = parse_string_to_u128(&price_str);
-                    tracing::warn!("💰 Order price: {} (from string: {})", price_u128, price_str);
+                    tracing::warn!(" Order price: {} (from string: {})", price_u128, price_str);
                     price_u128
                 },
                 None => {
-                    tracing::warn!("⚠️ Order has no price, using 0");
+                    tracing::warn!(" Order has no price, using 0");
                     0
                 },
             };
@@ -833,7 +833,7 @@ impl MatchingEngine {
                 Some(q) => {
                     let qty_str = uint128_option_to_string(&Some(q.clone()));
                     let qty_u128 = parse_string_to_u128(&qty_str);
-                    tracing::warn!("📏 Order remaining quantity: {} (from string: {})", qty_u128, qty_str);
+                    tracing::warn!(" Order remaining quantity: {} (from string: {})", qty_u128, qty_str);
                     qty_u128
                 },
                 None => {
@@ -842,11 +842,11 @@ impl MatchingEngine {
                         Some(q) => {
                             let qty_str = uint128_option_to_string(&Some(q.clone()));
                             let qty_u128 = parse_string_to_u128(&qty_str);
-                            tracing::warn!("📏 Using original quantity: {} (from string: {})", qty_u128, qty_str);
+                            tracing::warn!(" Using original quantity: {} (from string: {})", qty_u128, qty_str);
                             qty_u128
                         },
                         None => {
-                            tracing::warn!("⚠️ Order has no quantity, using 0");
+                            tracing::warn!(" Order has no quantity, using 0");
                             0
                         },
                     }
@@ -855,19 +855,19 @@ impl MatchingEngine {
             
             // Skip orders with zero remaining quantity
             if remaining_quantity == 0 {
-                tracing::warn!("⚠️ Skipping order with zero remaining quantity: id={}", order.id);
+                tracing::warn!(" Skipping order with zero remaining quantity: id={}", order.id);
                 continue;
             }
             
             // Add the order to the appropriate side
             let book_side = match side {
                 OrderSide::Buy => {
-                    tracing::warn!("💰 Adding BUY order to orderbook: id={}, price={}, quantity={}", 
+                    tracing::warn!(" Adding BUY order to orderbook: id={}, price={}, quantity={}", 
                         order.id, price, remaining_quantity);
                     &mut order_book.bids
                 },
                 OrderSide::Sell => {
-                    tracing::warn!("💲 Adding SELL order to orderbook: id={}, price={}, quantity={}", 
+                    tracing::warn!(" Adding SELL order to orderbook: id={}, price={}, quantity={}", 
                         order.id, price, remaining_quantity);
                     &mut order_book.asks
                 },
@@ -879,12 +879,12 @@ impl MatchingEngine {
         // Log the constructed orderbook summary
         let bid_count = order_book.bids.price_levels.len();
         let ask_count = order_book.asks.price_levels.len();
-        tracing::warn!("📚 Orderbook construction complete for market {}: {} bid price levels, {} ask price levels",
+        tracing::warn!(" Orderbook construction complete for market {}: {} bid price levels, {} ask price levels",
             market, bid_count, ask_count);
             
         // If this is a market with no orders yet, add a special log
         if bid_count == 0 && ask_count == 0 {
-            tracing::warn!("🆕 This appears to be a new market with no existing orders");
+            tracing::warn!(" This appears to be a new market with no existing orders");
         }
         
         Ok(order_book)

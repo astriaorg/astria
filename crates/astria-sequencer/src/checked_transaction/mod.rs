@@ -195,7 +195,7 @@ impl CheckedTransaction {
             };
             
             if action_name != "CreateOrder" {  // Already logged above
-                tracing::warn!("📑 Action at idx={}: {}", idx, action_name);
+                tracing::warn!(" Action at idx={}: {}", idx, action_name);
             }
         }
         
@@ -203,7 +203,7 @@ impl CheckedTransaction {
             match convert_actions(unchecked_actions, tx_signer, tx_id, state).await {
                 Ok(checked_actions) => checked_actions,
                 Err(error) => {
-                    tracing::error!("❌ Failed to convert actions: {:?}", error);
+                    tracing::error!(" Failed to convert actions: {:?}", error);
                     return Err(error);
                 }
             };

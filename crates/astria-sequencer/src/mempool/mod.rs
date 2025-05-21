@@ -394,7 +394,7 @@ impl MempoolInner {
                     current_account_balances,
                 ) {
                     Ok(()) => {
-                        tracing::warn!("✅ Transaction successfully added to parked: {}", tx_id_to_insert);
+                        tracing::warn!(" Transaction successfully added to parked: {}", tx_id_to_insert);
                         // log current size of parked
                         self.metrics
                             .set_transactions_in_mempool_parked(self.parked.len());
@@ -404,17 +404,17 @@ impl MempoolInner {
                         Ok(InsertionStatus::AddedToParked)
                     }
                     Err(err) => {
-                        tracing::error!("❌ Failed to add transaction to parked: {} - Error: {}", tx_id_to_insert, err);
+                        tracing::error!(" Failed to add transaction to parked: {} - Error: {}", tx_id_to_insert, err);
                         Err(err)
                     },
                 }
             }
             Err(error) => {
-                tracing::error!("❌ Failed to add transaction to pending: {} - Error: {}", tx_id_to_insert, error);
+                tracing::error!(" Failed to add transaction to pending: {} - Error: {}", tx_id_to_insert, error);
                 Err(error)
             },
             Ok(()) => {
-                tracing::warn!("✅ Transaction successfully added to pending: {}", tx_id_to_insert);
+                tracing::warn!(" Transaction successfully added to pending: {}", tx_id_to_insert);
                 // check parked for txs able to be promoted
                 let address_bytes = ttx_to_insert.address_bytes();
                 let target_nonce = ttx_to_insert
@@ -450,7 +450,7 @@ impl MempoolInner {
                 // track in contained txs
                 self.contained_txs.insert(tx_id_to_insert);
                 
-                tracing::warn!("✅ Transaction successfully added to pending: {}", tx_id_to_insert);
+                tracing::warn!(" Transaction successfully added to pending: {}", tx_id_to_insert);
                 Ok(InsertionStatus::AddedToPending)
             }
         }

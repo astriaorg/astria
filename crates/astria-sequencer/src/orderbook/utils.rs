@@ -21,16 +21,16 @@ pub fn order_side_from_i32(side: i32) -> proto::OrderSide {
     // Add detailed logging for debugging SELL order issues
     match result {
         Ok(proto::OrderSide::Sell) => {
-            tracing::warn!("💲 utils::order_side_from_i32 parsed value {} as SELL", side);
+            tracing::warn!(" utils::order_side_from_i32 parsed value {} as SELL", side);
         },
         Ok(proto::OrderSide::Buy) => {
-            tracing::warn!("💰 utils::order_side_from_i32 parsed value {} as BUY", side);
+            tracing::warn!(" utils::order_side_from_i32 parsed value {} as BUY", side);
         },
         Ok(proto::OrderSide::Unspecified) => {
-            tracing::error!("❌ utils::order_side_from_i32 parsed value {} as UNSPECIFIED", side);
+            tracing::error!(" utils::order_side_from_i32 parsed value {} as UNSPECIFIED", side);
         },
         Err(err) => {
-            tracing::error!("❌ utils::order_side_from_i32 failed to parse value {}: {}", side, err);
+            tracing::error!(" utils::order_side_from_i32 failed to parse value {}: {}", side, err);
         }
     }
     

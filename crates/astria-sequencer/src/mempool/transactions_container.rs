@@ -87,12 +87,12 @@ impl TimemarkedTransaction {
         
         self.costs.iter().try_for_each(|(denom, cost)| {
             if *cost == 0 {
-                tracing::debug!("✓ Zero cost for asset {}, skipping", denom);
+                tracing::debug!(" Zero cost for asset {}, skipping", denom);
                 return Ok(());
             }
             
             let Some(current_balance) = available_balances.get_mut(denom) else {
-                tracing::error!("❌ Account missing balance for asset: {}", denom);
+                tracing::error!(" Account missing balance for asset: {}", denom);
                 return Err(eyre!("account missing balance for {denom}"));
             };
             
@@ -359,10 +359,10 @@ impl TransactionsForAccount for PendingTransactionsForAccount {
         
         // First check the existing transactions
         if let Err(err) = self.txs.values().try_for_each(|tx| {
-            tracing::warn!("👉 Checking existing transaction: {}", tx.id());
+            tracing::warn!(" Checking existing transaction: {}", tx.id());
             tx.deduct_costs(&mut current_account_balances)
         }) {
-            tracing::error!("❌ Existing transactions already exceed balance: {}", err);
+            tracing::error!(" Existing transactions already exceed balance: {}", err);
             return false;
         }
         

@@ -344,7 +344,7 @@ pub(crate) async fn markets_request(
     _params: Vec<(String, String)>,
 ) -> response::Query {
     // Add very prominent logging for this handler
-    tracing::warn!("🔷🔷🔷 GET MARKETS QUERY HANDLER CALLED 🔷🔷🔷");
+    tracing::warn!(" GET MARKETS QUERY HANDLER CALLED ");
     
     let snapshot = storage.latest_snapshot();
 
@@ -354,39 +354,39 @@ pub(crate) async fn markets_request(
     let all_markets_key = crate::storage::keys::orderbook_all_markets();
     let markets_prefix = crate::storage::keys::orderbook_markets();
     
-    tracing::warn!("📊 Checking ALL_MARKETS at key: {}", all_markets_key);
+    tracing::warn!(" Checking ALL_MARKETS at key: {}", all_markets_key);
     match futures::executor::block_on(snapshot.get_raw(all_markets_key.as_str())) {
         Ok(Some(bytes)) => {
-            tracing::warn!("✅ Found ALL_MARKETS data ({} bytes)", bytes.len());
+            tracing::warn!(" Found ALL_MARKETS data ({} bytes)", bytes.len());
             
             match crate::storage::StoredValue::deserialize(&bytes) {
                 Ok(crate::storage::StoredValue::Bytes(inner_bytes)) => {
                     match borsh::from_slice::<Vec<String>>(&inner_bytes) {
                         Ok(markets_list) => {
-                            tracing::warn!("✅ Successfully deserialized markets list: {:?}", markets_list);
+                            tracing::warn!(" Successfully deserialized markets list: {:?}", markets_list);
                         },
                         Err(e) => {
-                            tracing::warn!("❌ Failed to deserialize inner bytes into markets list: {:?}", e);
+                            tracing::warn!(" Failed to deserialize inner bytes into markets list: {:?}", e);
                         }
                     }
                 },
                 Ok(other) => {
-                    tracing::warn!("❌ StoredValue isn't Bytes but: {:?}", other);
+                    tracing::warn!(" StoredValue isn't Bytes but: {:?}", other);
                 },
                 Err(e) => {
-                    tracing::warn!("❌ Failed to deserialize ALL_MARKETS as StoredValue: {:?}", e);
+                    tracing::warn!(" Failed to deserialize ALL_MARKETS as StoredValue: {:?}", e);
                 }
             }
         },
         Ok(None) => {
-            tracing::warn!("❌ ALL_MARKETS key not found");
+            tracing::warn!(" ALL_MARKETS key not found");
         },
         Err(e) => {
-            tracing::warn!("❌ Error reading ALL_MARKETS key: {:?}", e);
+            tracing::warn!(" Error reading ALL_MARKETS key: {:?}", e);
         }
     }
     
-    tracing::warn!("📊 Checking markets prefix: {}", markets_prefix);
+    tracing::warn!(" Checking markets prefix: {}", markets_prefix);
     
     // Check keys under the markets prefix
     futures::executor::block_on(async {
@@ -399,25 +399,25 @@ pub(crate) async fn markets_request(
                 Ok((key_bytes, value_bytes)) => {
                     let key = String::from_utf8_lossy(key_bytes.as_bytes());
                     let value = String::from_utf8_lossy(value_bytes.as_slice());
-                    tracing::warn!("✅ Found market at key {}: {:?}", key, value);
+                    tracing::warn!(" Found market at key {}: {:?}", key, value);
                     count += 1;
                 },
                 Err(e) => {
-                    tracing::warn!("❌ Error during prefix scan: {:?}", e);
+                    tracing::warn!(" Error during prefix scan: {:?}", e);
                 }
             }
         }
         
         if count == 0 {
-            tracing::warn!("❌ No markets found under markets prefix");
+            tracing::warn!(" No markets found under markets prefix");
         } else {
-            tracing::warn!("✅ Found {} markets under markets prefix", count);
+            tracing::warn!(" Found {} markets under markets prefix", count);
         }
     });
     
     // Debug all keys starting with "orderbook/"
     futures::executor::block_on(async {
-        tracing::warn!("📊 Scanning all orderbook/ keys");
+        tracing::warn!(" Scanning all orderbook/ keys");
         let stream = snapshot.prefix_raw("orderbook/");
         futures::pin_mut!(stream);
         
@@ -437,30 +437,30 @@ pub(crate) async fn markets_request(
         }
         
         if count == 0 {
-            tracing::warn!("❌ No keys found under orderbook/ prefix");
+            tracing::warn!(" No keys found under orderbook/ prefix");
         } else {
-            tracing::warn!("✅ Found {} keys under orderbook/ prefix", count);
+            tracing::warn!(" Found {} keys under orderbook/ prefix", count);
         }
     });
     
     // Get markets (after all the debug)
     let markets: Vec<String> = snapshot.get_markets();
-    tracing::warn!("📊 Markets from get_markets(): {:?}", markets);
+    tracing::warn!(" Markets from get_markets(): {:?}", markets);
 
     // Simple JSON serialization for better compatibility
     let markets_json = match serde_json::to_string(&markets) {
         Ok(json) => {
-            tracing::warn!("✅ Successfully serialized markets to JSON: {}", json);
+            tracing::warn!(" Successfully serialized markets to JSON: {}", json);
             json.into_bytes()
         },
         Err(err) => {
-            tracing::warn!("❌ Failed to serialize markets to JSON, falling back to plain text format: {}", err);
+            tracing::warn!(" Failed to serialize markets to JSON, falling back to plain text format: {}", err);
             // Fall back to simple concatenation with newlines
             markets.join("\n").into_bytes()
         }
     };
 
-    tracing::warn!("✅ Returning markets response with {} markets", markets.len());
+    tracing::warn!(" Returning markets response with {} markets", markets.len());
     response::Query {
         code: Code::Ok,
         log: "".to_string(),

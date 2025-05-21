@@ -23,21 +23,21 @@ pub struct OrderbookComponent;
 fn clean_zero_quantity_orders<S: StateRead + cnidarium::StateWrite>(state: &mut S) -> Result<usize, OrderbookError> {
     use crate::orderbook::state_ext::{StateReadExt, StateWriteExt};
     
-    tracing::warn!("🧹 Starting cleanup of orders with zero remaining quantity");
+    tracing::warn!("Starting cleanup of orders with zero remaining quantity");
     
     // Get all markets
     let markets = state.get_markets();
-    tracing::warn!("📊 Found {} markets to check", markets.len());
+    tracing::warn!("Found {} markets to check", markets.len());
     
     let mut removed_count = 0;
     
     // Iterate through each market
     for market in markets {
-        tracing::warn!("🔍 Checking market: {}", market);
+        tracing::warn!("Checking market: {}", market);
         
         // Get all orders for the market
         let market_orders = state.get_all_market_orders_raw(&market);
-        tracing::warn!("📋 Found {} potential orders to check in market {}", market_orders.len(), market);
+        tracing::warn!(" Found {} potential orders to check in market {}", market_orders.len(), market);
         
         // Check each order and remove if it has zero remaining quantity
         for order_id in market_orders {
@@ -48,10 +48,10 @@ fn clean_zero_quantity_orders<S: StateRead + cnidarium::StateWrite>(state: &mut 
                 let remaining_qty_u128 = crate::orderbook::parse_string_to_u128(&remaining_qty);
                 
                 if remaining_qty_u128 == 0 {
-                    tracing::warn!("🗑️ Removing order with zero remaining quantity: {}", order_id);
+                    tracing::warn!(" Removing order with zero remaining quantity: {}", order_id);
                     // Remove the order
                     if let Err(err) = state.remove_order(&order_id) {
-                        tracing::error!("❌ Failed to remove order {}: {:?}", order_id, err);
+                        tracing::error!(" Failed to remove order {}: {:?}", order_id, err);
                     } else {
                         removed_count += 1;
                     }
@@ -60,7 +60,7 @@ fn clean_zero_quantity_orders<S: StateRead + cnidarium::StateWrite>(state: &mut 
         }
     }
     
-    tracing::warn!("✅ Cleanup completed - removed {} orders with zero remaining quantity", removed_count);
+    tracing::warn!(" Cleanup completed - removed {} orders with zero remaining quantity", removed_count);
     Ok(removed_count)
 }
 
@@ -129,10 +129,10 @@ impl Component for OrderbookComponent {
         
         // Perform periodic cleanup of completed orders with zero remaining quantity
         if end_block.height % 10 == 0 {  // Run cleanup every 10 blocks
-            tracing::warn!("🧹 Running periodic orderbook cleanup at height {}", end_block.height);
+            tracing::warn!(" Running periodic orderbook cleanup at height {}", end_block.height);
             let mut state_mut = std::sync::Arc::get_mut(state).expect("Failed to get mutable reference to state");
             if let Err(e) = clean_zero_quantity_orders(&mut state_mut) {
-                tracing::error!("❌ Error during orderbook cleanup: {:?}", e);
+                tracing::error!(" Error during orderbook cleanup: {:?}", e);
             }
         }
         
@@ -221,17 +221,17 @@ impl ExecuteOrderbookAction for CheckedCreateOrder {
         
         // Enhanced logging for the execution process
         if let OrderSide::Sell = self.side {
-            tracing::warn!("🚀 SELL order execution starting - market={}, quantity={}", self.market, self.quantity);
+            tracing::warn!(" SELL order execution starting - market={}, quantity={}", self.market, self.quantity);
         }
         
         // Parse numeric values with better error reporting
         let price = match self.price.parse::<u128>() {
             Ok(p) => {
-                tracing::warn!("✅ Successfully parsed price: {}", p);
+                tracing::warn!(" Successfully parsed price: {}", p);
                 p
             },
             Err(err) => {
-                tracing::error!("❌ Failed to parse price '{}': {}", self.price, err);
+                tracing::error!(" Failed to parse price '{}': {}", self.price, err);
                 return Err(CheckedActionExecutionError::Fee(
                     CheckedActionFeeError::ActionDisabled { 
                         action_name: "create_order" 
@@ -242,11 +242,11 @@ impl ExecuteOrderbookAction for CheckedCreateOrder {
             
         let quantity = match self.quantity.parse::<u128>() {
             Ok(q) => {
-                tracing::warn!("✅ Successfully parsed quantity: {}", q);
+                tracing::warn!(" Successfully parsed quantity: {}", q);
                 q
             },
             Err(err) => {
-                tracing::error!("❌ Failed to parse quantity '{}': {}", self.quantity, err);
+                tracing::error!(" Failed to parse quantity '{}': {}", self.quantity, err);
                 return Err(CheckedActionExecutionError::Fee(
                     CheckedActionFeeError::ActionDisabled { 
                         action_name: "create_order" 
@@ -257,25 +257,25 @@ impl ExecuteOrderbookAction for CheckedCreateOrder {
         
         // Market existence check with better error reporting
         if !state.market_exists(&self.market) {
-            tracing::error!("❌ Market '{}' does not exist", self.market);
+            tracing::error!(" Market '{}' does not exist", self.market);
             return Err(CheckedActionExecutionError::Fee(
                 CheckedActionFeeError::ActionDisabled {
                     action_name: "create_order",
                 }
             ));
         } else {
-            tracing::warn!("✅ Verified market '{}' exists", self.market);
+            tracing::warn!(" Verified market '{}' exists", self.market);
         }
         
         // Check market parameters with detailed logging
         let market_params = match state.get_market_params(&self.market) {
             Some(params) => {
-                tracing::warn!("✅ Got market parameters for '{}': base={}, quote={}", 
+                tracing::warn!(" Got market parameters for '{}': base={}, quote={}", 
                     self.market, params.base_asset, params.quote_asset);
                 
                 // Check if the market is paused
                 if params.paused {
-                    tracing::error!("❌ Market '{}' is paused", self.market);
+                    tracing::error!(" Market '{}' is paused", self.market);
                     return Err(CheckedActionExecutionError::Fee(
                         CheckedActionFeeError::ActionDisabled {
                             action_name: "create_order",
@@ -286,7 +286,7 @@ impl ExecuteOrderbookAction for CheckedCreateOrder {
                 params
             },
             None => {
-                tracing::error!("❌ Failed to get market parameters for '{}'", self.market);
+                tracing::error!(" Failed to get market parameters for '{}'", self.market);
                 return Err(CheckedActionExecutionError::Fee(
                     CheckedActionFeeError::ActionDisabled {
                         action_name: "create_order",
@@ -297,47 +297,47 @@ impl ExecuteOrderbookAction for CheckedCreateOrder {
         
         // Check tick size with detailed logging
         if let Some(tick_size) = market_params.tick_size {
-            tracing::warn!("🔍 Checking if price {} is divisible by tick size {}", price, tick_size);
+            tracing::warn!(" Checking if price {} is divisible by tick size {}", price, tick_size);
             if price % tick_size != 0 {
-                tracing::error!("❌ Price {} is not divisible by tick size {}", price, tick_size);
+                tracing::error!(" Price {} is not divisible by tick size {}", price, tick_size);
                 return Err(CheckedActionExecutionError::Fee(
                     CheckedActionFeeError::ActionDisabled {
                         action_name: "create_order",
                     }
                 ));
             } else {
-                tracing::warn!("✅ Price {} is divisible by tick size {}", price, tick_size);
+                tracing::warn!(" Price {} is divisible by tick size {}", price, tick_size);
             }
         }
         
         // Check lot size with detailed logging
         if let Some(lot_size) = market_params.lot_size {
-            tracing::warn!("🔍 Checking if quantity {} is divisible by lot size {}", quantity, lot_size);
+            tracing::warn!(" Checking if quantity {} is divisible by lot size {}", quantity, lot_size);
             if quantity % lot_size != 0 {
-                tracing::error!("❌ Quantity {} is not divisible by lot size {}", quantity, lot_size);
+                tracing::error!(" Quantity {} is not divisible by lot size {}", quantity, lot_size);
                 return Err(CheckedActionExecutionError::Fee(
                     CheckedActionFeeError::ActionDisabled {
                         action_name: "create_order",
                     }
                 ));
             } else {
-                tracing::warn!("✅ Quantity {} is divisible by lot size {}", quantity, lot_size);
+                tracing::warn!(" Quantity {} is divisible by lot size {}", quantity, lot_size);
             }
         }
         
         // Convert our local enums to protocol enums with enhanced logging
         let proto_side = match self.side {
             OrderSide::Buy => {
-                tracing::warn!("💰 Creating BUY order for market {}", self.market);
+                tracing::warn!(" Creating BUY order for market {}", self.market);
                 astria_core::protocol::orderbook::v1::OrderSide::Buy as i32
             },
             OrderSide::Sell => {
-                tracing::warn!("💲 Creating SELL order for market {}", self.market);
+                tracing::warn!(" Creating SELL order for market {}", self.market);
                 astria_core::protocol::orderbook::v1::OrderSide::Sell as i32
             },
         };
         
-        tracing::warn!("📊 Order side converted to proto value: {}", proto_side);
+        tracing::warn!(" Order side converted to proto value: {}", proto_side);
         
         let proto_type = match self.order_type {
             OrderType::Limit => astria_core::protocol::orderbook::v1::OrderType::Limit as i32,
@@ -361,7 +361,7 @@ impl ExecuteOrderbookAction for CheckedCreateOrder {
         
         // Generate a unique order ID
         let order_id = Uuid::new_v4().to_string();
-        tracing::warn!("📝 Generated unique order ID: {}", order_id);
+        tracing::warn!(" Generated unique order ID: {}", order_id);
         
         // Create the order
         let order = astria_core::protocol::orderbook::v1::Order {
@@ -378,13 +378,13 @@ impl ExecuteOrderbookAction for CheckedCreateOrder {
             fee_asset: self.fee_asset.clone(),
         };
         
-        tracing::warn!("📋 Created order object: id={}, market={}, side={}, type={}",
+        tracing::warn!(" Created order object: id={}, market={}, side={}, type={}",
             order_id, self.market, proto_side, proto_type);
         
         // Store the order directly in case the matching engine fails
-        tracing::warn!("💾 Storing order in database before processing");
+        tracing::warn!(" Storing order in database before processing");
         if let Err(err) = state.put_order(order.clone()) {
-            tracing::error!("❌ Failed to store order in database: {:?}", err);
+            tracing::error!(" Failed to store order in database: {:?}", err);
             return Err(CheckedActionExecutionError::Fee(
                 CheckedActionFeeError::ActionDisabled {
                     action_name: "create_order",
@@ -396,18 +396,18 @@ impl ExecuteOrderbookAction for CheckedCreateOrder {
         let matching_engine = crate::orderbook::matching_engine::MatchingEngine::default();
         
         // Process the order through the matching engine
-        tracing::warn!("⚙️ Processing order through matching engine");
+        tracing::warn!(" Processing order through matching engine");
         let matches = match matching_engine.process_order(state, order.clone()) {
             Ok(m) => {
-                tracing::warn!("✅ Matching engine processed order successfully, found {} matches", m.len());
+                tracing::warn!(" Matching engine processed order successfully, found {} matches", m.len());
                 m
             },
             Err(err) => {
-                tracing::error!("❌ Matching engine failed to process order: {:?}", err);
+                tracing::error!(" Matching engine failed to process order: {:?}", err);
                 // We already stored the order, so we don't want to fail the transaction
                 // For SELL orders specifically, return success even if matching fails
                 if let OrderSide::Sell = self.side {
-                    tracing::warn!("⚠️ SELL order was stored but matching failed - allowing transaction to succeed");
+                    tracing::warn!(" SELL order was stored but matching failed - allowing transaction to succeed");
                     Vec::new()
                 } else {
                     return Err(CheckedActionExecutionError::Fee(
@@ -421,19 +421,19 @@ impl ExecuteOrderbookAction for CheckedCreateOrder {
         
         // Record any trades that occurred
         if !matches.is_empty() {
-            tracing::warn!("📊 Recording {} trades", matches.len());
+            tracing::warn!(" Recording {} trades", matches.len());
             for (idx, trade_match) in matches.iter().enumerate() {
-                tracing::warn!("📊 Recording trade {}/{}: id={}, market={}", 
+                tracing::warn!(" Recording trade {}/{}: id={}, market={}", 
                     idx+1, matches.len(), trade_match.id, trade_match.market);
                 
                 if let Err(err) = state.record_trade(trade_match.clone()) {
-                    tracing::error!("❌ Failed to record trade: {:?}", err);
+                    tracing::error!(" Failed to record trade: {:?}", err);
                     // Continue with the next trade rather than failing
                     continue;
                 }
             }
         } else {
-            tracing::warn!("📊 No trades were executed for this order");
+            tracing::warn!(" No trades were executed for this order");
         }
         
         info!(
@@ -445,7 +445,7 @@ impl ExecuteOrderbookAction for CheckedCreateOrder {
             "Created and processed order"
         );
         
-        tracing::warn!("🎉 ORDER EXECUTION COMPLETED SUCCESSFULLY: id={}, market={}, side={:?}",
+        tracing::warn!(" ORDER EXECUTION COMPLETED SUCCESSFULLY: id={}, market={}, side={:?}",
             order_id, self.market, self.side);
         
         Ok(())
@@ -535,7 +535,7 @@ impl ExecuteOrderbookAction for CheckedCreateMarket {
         use crate::orderbook::state_ext::{StateWriteExt, StateReadExt};
         
         // Add very prominent logging for create market actions
-        tracing::warn!("🔷🔷🔷 CREATE MARKET ACTION RECEIVED 🔷🔷🔷");
+        tracing::warn!(" CREATE MARKET ACTION RECEIVED ");
         tracing::warn!(
             market = %self.market,
             base_asset = %self.base_asset,
@@ -547,7 +547,7 @@ impl ExecuteOrderbookAction for CheckedCreateMarket {
         
         // Validate market name format
         if self.market.is_empty() {
-            tracing::error!("❌ Empty market name in create market action");
+            tracing::error!(" Empty market name in create market action");
             return Err(CheckedActionExecutionError::Fee(
                 CheckedActionFeeError::ActionDisabled { 
                     action_name: "create_market" 
@@ -557,13 +557,13 @@ impl ExecuteOrderbookAction for CheckedCreateMarket {
         
         // Optionally validate market name format (example: should be BASE/QUOTE format)
         if !self.market.contains('/') {
-            tracing::warn!("⚠️ Market name does not follow BASE/QUOTE format: {}", self.market);
+            tracing::warn!(" Market name does not follow BASE/QUOTE format: {}", self.market);
             // Could return an error, but let's just warn for now to be flexible
         }
         
         // Validate asset names aren't empty
         if self.base_asset.is_empty() || self.quote_asset.is_empty() {
-            tracing::error!("❌ Empty asset name in create market action");
+            tracing::error!(" Empty asset name in create market action");
             return Err(CheckedActionExecutionError::Fee(
                 CheckedActionFeeError::ActionDisabled { 
                     action_name: "create_market" 
@@ -573,7 +573,7 @@ impl ExecuteOrderbookAction for CheckedCreateMarket {
         
         // Check if the market already exists - better to explicitly check and return custom error
         if state.market_exists(&self.market) {
-            tracing::error!("❌ Market already exists: {}", self.market);
+            tracing::error!(" Market already exists: {}", self.market);
             return Err(CheckedActionExecutionError::Fee(
                 CheckedActionFeeError::ActionDisabled { 
                     action_name: "create_market" 
@@ -585,7 +585,7 @@ impl ExecuteOrderbookAction for CheckedCreateMarket {
         let tick_size = self.tick_size.parse::<u128>()
             .map_err(|_| {
                 // Invalid tick size
-                tracing::error!("❌ Invalid tick size in create market action: {}", self.tick_size);
+                tracing::error!(" Invalid tick size in create market action: {}", self.tick_size);
                 CheckedActionExecutionError::Fee(
                     CheckedActionFeeError::ActionDisabled { 
                         action_name: "create_market" 
@@ -596,7 +596,7 @@ impl ExecuteOrderbookAction for CheckedCreateMarket {
         let lot_size = self.lot_size.parse::<u128>()
             .map_err(|_| {
                 // Invalid lot size
-                tracing::error!("❌ Invalid lot size in create market action: {}", self.lot_size);
+                tracing::error!(" Invalid lot size in create market action: {}", self.lot_size);
                 CheckedActionExecutionError::Fee(
                     CheckedActionFeeError::ActionDisabled { 
                         action_name: "create_market" 
@@ -606,7 +606,7 @@ impl ExecuteOrderbookAction for CheckedCreateMarket {
         
         // Additional validations for tick_size and lot_size
         if tick_size == 0 {
-            tracing::error!("❌ Tick size must be greater than zero");
+            tracing::error!(" Tick size must be greater than zero");
             return Err(CheckedActionExecutionError::Fee(
                 CheckedActionFeeError::ActionDisabled { 
                     action_name: "create_market" 
@@ -615,7 +615,7 @@ impl ExecuteOrderbookAction for CheckedCreateMarket {
         }
         
         if lot_size == 0 {
-            tracing::error!("❌ Lot size must be greater than zero");
+            tracing::error!(" Lot size must be greater than zero");
             return Err(CheckedActionExecutionError::Fee(
                 CheckedActionFeeError::ActionDisabled { 
                     action_name: "create_market" 
@@ -657,9 +657,9 @@ impl ExecuteOrderbookAction for CheckedCreateMarket {
                 // Verify the market was added to the list of all markets
                 let all_markets = state.get_markets();
                 if all_markets.contains(&self.market) {
-                    tracing::info!("✅ Market added to the list of all markets");
+                    tracing::info!(" Market added to the list of all markets");
                 } else {
-                    tracing::warn!("⚠️ Market not found in the list of all markets");
+                    tracing::warn!(" Market not found in the list of all markets");
                 }
             },
             Err(err) => {
@@ -714,7 +714,7 @@ impl ExecuteOrderbookAction for CheckedUpdateMarket {
         debug!(?self, "Executing CheckedUpdateMarket");
         
         // Add visible logging for market updates
-        tracing::warn!("🔸🔸🔸 UPDATE MARKET ACTION RECEIVED 🔸🔸🔸");
+        tracing::warn!(" UPDATE MARKET ACTION RECEIVED ");
         tracing::warn!(
             market = %self.market,
             tick_size = ?self.tick_size,
@@ -727,7 +727,7 @@ impl ExecuteOrderbookAction for CheckedUpdateMarket {
         let tick_size_u128 = if let Some(tick_size_str) = &self.tick_size {
             let tick_size = tick_size_str.parse::<u128>()
                 .map_err(|_| {
-                    tracing::error!("❌ Invalid tick size in update market action: {}", tick_size_str);
+                    tracing::error!(" Invalid tick size in update market action: {}", tick_size_str);
                     CheckedActionExecutionError::Fee(
                         CheckedActionFeeError::ActionDisabled { 
                             action_name: "update_market" 
@@ -742,7 +742,7 @@ impl ExecuteOrderbookAction for CheckedUpdateMarket {
         let lot_size_u128 = if let Some(lot_size_str) = &self.lot_size {
             let lot_size = lot_size_str.parse::<u128>()
                 .map_err(|_| {
-                    tracing::error!("❌ Invalid lot size in update market action: {}", lot_size_str);
+                    tracing::error!(" Invalid lot size in update market action: {}", lot_size_str);
                     CheckedActionExecutionError::Fee(
                         CheckedActionFeeError::ActionDisabled { 
                             action_name: "update_market" 
@@ -756,7 +756,7 @@ impl ExecuteOrderbookAction for CheckedUpdateMarket {
         
         // Check that the market exists
         if !state.market_exists(&self.market) {
-            tracing::error!("❌ Market not found in update market action: {}", self.market);
+            tracing::error!(" Market not found in update market action: {}", self.market);
             return Err(CheckedActionExecutionError::Fee(
                 CheckedActionFeeError::ActionDisabled {
                     action_name: "update_market",
@@ -768,7 +768,7 @@ impl ExecuteOrderbookAction for CheckedUpdateMarket {
         let existing_params = match state.get_market_params(&self.market) {
             Some(params) => params,
             None => {
-                tracing::error!("❌ Market parameters not found for existing market: {}", self.market);
+                tracing::error!(" Market parameters not found for existing market: {}", self.market);
                 return Err(CheckedActionExecutionError::Fee(
                     CheckedActionFeeError::ActionDisabled {
                         action_name: "update_market",
