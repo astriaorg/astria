@@ -357,8 +357,7 @@ impl From<RemovalReason> for response::CheckTx {
 
 impl From<CheckedTransactionInitialCheckError> for response::CheckTx {
     fn from(error: CheckedTransactionInitialCheckError) -> Self {
-        let log = format!("transaction failed initial checks: {error}");
-        let code = match error {
+        let code = match &error {
             CheckedTransactionInitialCheckError::TooLarge {
                 ..
             } => AbciErrorCode::TRANSACTION_TOO_LARGE,
@@ -379,6 +378,9 @@ impl From<CheckedTransactionInitialCheckError> for response::CheckTx {
                 ..
             } => AbciErrorCode::INTERNAL_ERROR,
         };
+        let log = Report::new(error)
+            .wrap_err("transaction failed initial checks")
+            .to_string();
         error_response(code, log)
     }
 }
