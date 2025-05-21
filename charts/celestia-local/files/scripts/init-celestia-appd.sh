@@ -17,12 +17,12 @@ echo "$validator_mnemonic" | celestia-appd keys add \
   --recover
 
 validator_key=$(celestia-appd keys show "$validator_key_name" -a --keyring-backend="$keyring_backend" --home "$home_dir")
-celestia-appd add-genesis-account \
+celestia-appd genesis add-genesis-account \
   "$validator_key" \
   --home "$home_dir" \
   "$coins"
 
-celestia-appd gentx \
+celestia-appd genesis gentx \
   "$validator_key_name" \
   "$validator_stake" \
   --keyring-backend="$keyring_backend" \
@@ -37,7 +37,7 @@ echo "$ibc_account_mnemonic" | celestia-appd keys add \
   --keyring-backend="$keyring_backend" \
   --recover
 ibc_account_key=$(celestia-appd keys show "$ibc_account_key_name" -a --keyring-backend="$keyring_backend" --home "$home_dir")
-celestia-appd add-genesis-account \
+celestia-appd genesis add-genesis-account \
   "$ibc_account_key" \
   --home "$home_dir" \
   "$coins"
@@ -49,12 +49,12 @@ echo "$dev_account_mnemonic" | celestia-appd keys add \
   --keyring-backend="$keyring_backend" \
   --recover
 dev_account_key=$(celestia-appd keys show "$dev_account_key_name" -a --keyring-backend="$keyring_backend" --home "$home_dir")
-celestia-appd add-genesis-account \
+celestia-appd genesis add-genesis-account \
   "$dev_account_key" \
   --home "$home_dir" \
   "$coins"
 
-celestia-appd collect-gentxs --home "$home_dir"
+celestia-appd genesis collect-gentxs --home "$home_dir"
 
 # Enable transaction indexing
 sed -i'.bak' 's#"null"#"kv"#g' "${home_dir}"/config/config.toml
