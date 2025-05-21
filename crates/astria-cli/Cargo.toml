@@ -43,6 +43,10 @@ jiff.workspace = true
 tryhard.workspace = true
 serde_json.workspace = true
 futures.workspace = true
+regex = "1.9"
+chrono = "0.4"
+base64 = "0.13.0"
+byteorder = "1.5.0"
 
 [dependencies.astria-sequencer-client]
 package = "astria-sequencer-client"

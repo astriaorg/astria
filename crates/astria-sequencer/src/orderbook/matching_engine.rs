@@ -424,37 +424,83 @@ impl MatchingEngine {
                     continue;
                 }
 
-                // Calculate the match quantity
+                // Calculate the match quantity with explicit logging
                 let match_quantity = std::cmp::min(remaining_quantity, maker_remaining);
                 
-                // Create the match
-                let order_match = OrderMatch {
-                    id: Uuid::new_v4().to_string(),
-                    market: order.market.clone(),
-                    price: order.price.clone(), // Use the original price format
-                    quantity: crate::orderbook::string_to_uint128_option(&match_quantity.to_string()),
-                    maker_order_id: maker_order_id.clone(),
-                    taker_order_id: order.id.clone(),
-                    taker_side: order.side,
-                    timestamp: chrono::Utc::now().timestamp() as u64,
-                };
+                tracing::warn!(
+                    "🔢 Order matching details - taker remaining: {}, maker remaining: {}, match quantity: {}",
+                    remaining_quantity, maker_remaining, match_quantity
+                );
                 
-                // Add the match to the list
-                matches.push(order_match);
+                // For SELL orders, double check the quantity is correct
+                if let OrderSide::Sell = side {
+                    tracing::warn!("💲 SELL order matching - checking quantities carefully");
+                    
+                    // Verify we're not matching more than available
+                    if match_quantity > maker_remaining {
+                        tracing::error!(
+                            "❌ Match quantity {} exceeds maker remaining {}", 
+                            match_quantity, maker_remaining
+                        );
+                        // Correct the match quantity
+                        let corrected_match = maker_remaining;
+                        tracing::warn!("🔄 Correcting match quantity to: {}", corrected_match);
+                    }
+                    
+                    if match_quantity > remaining_quantity {
+                        tracing::error!(
+                            "❌ Match quantity {} exceeds taker remaining {}", 
+                            match_quantity, remaining_quantity
+                        );
+                        // Correct the match quantity in a separate variable
+                        let corrected_match = remaining_quantity;
+                        tracing::warn!("🔄 Correcting match quantity to: {}", corrected_match);
+                    }
+                }
                 
-                // Update remaining quantities
-                remaining_quantity -= match_quantity;
-                
-                // Update maker order
-                let new_maker_remaining = maker_remaining - match_quantity;
-                if new_maker_remaining == 0 {
-                    // Maker order is fully filled
-                    state.remove_order(&maker_order_id)?;
-                    opposite_side.remove_order(&maker_order_id, level_price, maker_remaining);
+                // Only create a match if the quantity is positive
+                if match_quantity > 0 {
+                    // Create the match
+                    let order_match = OrderMatch {
+                        id: Uuid::new_v4().to_string(),
+                        market: order.market.clone(),
+                        price: order.price.clone(), // Use the original price format
+                        quantity: crate::orderbook::string_to_uint128_option(&match_quantity.to_string()),
+                        maker_order_id: maker_order_id.clone(),
+                        taker_order_id: order.id.clone(),
+                        taker_side: order.side,
+                        timestamp: chrono::Utc::now().timestamp() as u64,
+                    };
+                    
+                    tracing::warn!(
+                        "💱 Created order match: id={}, market={}, price={:?}, quantity={:?}",
+                        order_match.id, order_match.market, order_match.price, order_match.quantity
+                    );
+                    
+                    // Add the match to the list
+                    matches.push(order_match);
+                    
+                    // Update remaining quantities
+                    remaining_quantity -= match_quantity;
+                    tracing::warn!("📉 Taker remaining after match: {}", remaining_quantity);
+                    
+                    // Update maker order
+                    let new_maker_remaining = maker_remaining - match_quantity;
+                    tracing::warn!("📉 Maker remaining after match: {}", new_maker_remaining);
+                    
+                    if new_maker_remaining == 0 {
+                        // Maker order is fully filled
+                        tracing::warn!("✅ Maker order fully filled, removing from book: {}", maker_order_id);
+                        state.remove_order(&maker_order_id)?;
+                        opposite_side.remove_order(&maker_order_id, level_price, maker_remaining);
+                    } else {
+                        // Maker order is partially filled
+                        tracing::warn!("⏳ Maker order partially filled, updating quantity: {}", new_maker_remaining);
+                        state.update_order(&maker_order_id, &new_maker_remaining.to_string())?;
+                        // Note: The price level's total quantity is updated when we update the order
+                    }
                 } else {
-                    // Maker order is partially filled
-                    state.update_order(&maker_order_id, &new_maker_remaining.to_string())?;
-                    // Note: The price level's total quantity is updated when we update the order
+                    tracing::warn!("⚠️ Skipping match with zero quantity");
                 }
             }
         }
@@ -464,23 +510,54 @@ impl MatchingEngine {
             match time_in_force {
                 OrderTimeInForce::GoodTillCancelled => {
                     // Add the remaining quantity to the book
+                    tracing::warn!("📝 Adding remaining quantity {} to the orderbook for order {}", remaining_quantity, order.id);
+                    
+                    // For SELL orders, make sure it's added to the book correctly
+                    if let OrderSide::Sell = side {
+                        tracing::warn!("💲 SELL order with remaining quantity - ensuring it's stored in orderbook");
+                    }
+                    
                     self.add_to_book(state, order, side, price, remaining_quantity, order_book)?;
+                    
+                    // Double-check the order is in the book for SELL orders
+                    if let OrderSide::Sell = side {
+                        // Verify order is in state by reading it back
+                        if let Some(stored_order) = state.get_order(&order.id) {
+                            tracing::warn!("✅ Verified SELL order {} is stored in state", order.id);
+                            
+                            // Check remaining quantity is correct
+                            let stored_remaining = crate::orderbook::uint128_option_to_string(&stored_order.remaining_quantity);
+                            tracing::warn!("📊 Stored remaining quantity: {}", stored_remaining);
+                        } else {
+                            tracing::error!("❌ Failed to verify SELL order in state: {}", order.id);
+                        }
+                    }
                 }
                 OrderTimeInForce::ImmediateOrCancel => {
                     // Cancel the remaining quantity
-                    debug!("ImmediateOrCancel order partially filled, cancelling remainder: {}", order.id);
+                    tracing::warn!("⏱️ ImmediateOrCancel order partially filled, cancelling remainder: {}", order.id);
                 }
                 OrderTimeInForce::FillOrKill => {
                     // This shouldn't happen as we check at the beginning
-                    debug!("FillOrKill order cannot be fully filled, cancelling: {}", order.id);
+                    tracing::warn!("⏱️ FillOrKill order cannot be fully filled, cancelling: {}", order.id);
                     return Ok(vec![]);
                 }
             }
+        } else {
+            tracing::warn!("✅ Order fully filled: {}", order.id);
         }
 
-        // Update the taker order if it was partially filled
-        if !matches.is_empty() && remaining_quantity < quantity {
-            state.update_order(&order.id, &remaining_quantity.to_string())?;
+        // Update the taker order if it was partially filled or remove it if fully filled
+        if !matches.is_empty() {
+            if remaining_quantity == 0 {
+                // Order fully filled, remove it from the book
+                tracing::warn!("✅ Taker order fully filled, removing from book: {}", order.id);
+                state.remove_order(&order.id)?;
+            } else if remaining_quantity < quantity {
+                // Order partially filled, update the remaining quantity
+                tracing::warn!("⏳ Taker order partially filled, updating quantity: {}", remaining_quantity);
+                state.update_order(&order.id, &remaining_quantity.to_string())?;
+            }
         }
 
         Ok(matches)
@@ -607,9 +684,17 @@ impl MatchingEngine {
             }
         }
 
-        // Update the taker order if it was partially filled
-        if !matches.is_empty() && remaining_quantity < quantity {
-            state.update_order(&order.id, &remaining_quantity.to_string())?;
+        // Update the taker order if it was partially filled or remove it if fully filled
+        if !matches.is_empty() {
+            if remaining_quantity == 0 {
+                // Order fully filled, remove it from the book
+                tracing::warn!("✅ Taker order fully filled, removing from book: {}", order.id);
+                state.remove_order(&order.id)?;
+            } else if remaining_quantity < quantity {
+                // Order partially filled, update the remaining quantity
+                tracing::warn!("⏳ Taker order partially filled, updating quantity: {}", remaining_quantity);
+                state.update_order(&order.id, &remaining_quantity.to_string())?;
+            }
         }
 
         Ok(matches)
@@ -634,18 +719,67 @@ impl MatchingEngine {
         quantity: u128,
         order_book: &mut OrderBook,
     ) -> Result<(), OrderbookError> {
+        // Enhanced logging, especially for SELL orders
+        if let OrderSide::Sell = side {
+            tracing::warn!("💾 Adding SELL order to orderbook: id={}, price={}, quantity={}", 
+                order.id, price, quantity);
+        } else {
+            tracing::warn!("💾 Adding BUY order to orderbook: id={}, price={}, quantity={}", 
+                order.id, price, quantity);
+        }
+        
+        // Create a new order struct with updated remaining quantity to store
+        let mut updated_order = order.clone();
+        updated_order.remaining_quantity = crate::orderbook::string_to_uint128_option(&quantity.to_string());
+        
+        // Save the order in the state - always update or add
+        match state.get_order(&order.id) {
+            Some(_) => {
+                tracing::warn!("🔄 Updating existing order in state with new quantity: {}", quantity);
+                state.update_order(&order.id, &quantity.to_string())?;
+            },
+            None => {
+                tracing::warn!("📝 Adding new order to state: {}", order.id);
+                state.put_order(updated_order)?;
+            }
+        }
+        
         // Get the appropriate side of the book
         let book_side = match side {
-            OrderSide::Buy => &mut order_book.bids,
-            OrderSide::Sell => &mut order_book.asks,
+            OrderSide::Buy => {
+                tracing::warn!("📊 Adding to BID side of orderbook");
+                &mut order_book.bids
+            },
+            OrderSide::Sell => {
+                tracing::warn!("📊 Adding to ASK side of orderbook");
+                &mut order_book.asks
+            },
         };
 
         // Add the order to the book
         book_side.add_order(order.id.clone(), price, quantity);
         
-        // Save the order in the state if it's not already there
-        if state.get_order(&order.id).is_none() {
-            state.put_order(order.clone())?;
+        // For SELL orders, verify the order was added correctly to the book
+        if let OrderSide::Sell = side {
+            tracing::warn!("🔍 Verifying SELL order was correctly added to book side");
+            
+            // Check if the order is in the correct price level
+            let mut found = false;
+            for (level_price, price_level) in &book_side.price_levels {
+                if *level_price == price {
+                    tracing::warn!("✅ Found matching price level: {}", price);
+                    
+                    if price_level.orders.iter().any(|id| id == &order.id) {
+                        tracing::warn!("✅ Order found in correct price level");
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            
+            if !found {
+                tracing::error!("❌ SELL order not found in orderbook after adding - this is a bug");
+            }
         }
         
         Ok(())

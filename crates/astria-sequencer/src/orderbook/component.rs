@@ -19,6 +19,51 @@ use crate::{
 #[derive(Debug, Default)]
 pub struct OrderbookComponent;
 
+/// Function to clean up orders with zero remaining quantity
+fn clean_zero_quantity_orders<S: StateRead + cnidarium::StateWrite>(state: &mut S) -> Result<usize, OrderbookError> {
+    use crate::orderbook::state_ext::{StateReadExt, StateWriteExt};
+    
+    tracing::warn!("🧹 Starting cleanup of orders with zero remaining quantity");
+    
+    // Get all markets
+    let markets = state.get_markets();
+    tracing::warn!("📊 Found {} markets to check", markets.len());
+    
+    let mut removed_count = 0;
+    
+    // Iterate through each market
+    for market in markets {
+        tracing::warn!("🔍 Checking market: {}", market);
+        
+        // Get all orders for the market
+        let market_orders = state.get_all_market_orders_raw(&market);
+        tracing::warn!("📋 Found {} potential orders to check in market {}", market_orders.len(), market);
+        
+        // Check each order and remove if it has zero remaining quantity
+        for order_id in market_orders {
+            // Get the order
+            if let Some(order) = state.get_order(&order_id) {
+                // Check remaining quantity
+                let remaining_qty = crate::orderbook::uint128_option_to_string(&order.remaining_quantity);
+                let remaining_qty_u128 = crate::orderbook::parse_string_to_u128(&remaining_qty);
+                
+                if remaining_qty_u128 == 0 {
+                    tracing::warn!("🗑️ Removing order with zero remaining quantity: {}", order_id);
+                    // Remove the order
+                    if let Err(err) = state.remove_order(&order_id) {
+                        tracing::error!("❌ Failed to remove order {}: {:?}", order_id, err);
+                    } else {
+                        removed_count += 1;
+                    }
+                }
+            }
+        }
+    }
+    
+    tracing::warn!("✅ Cleanup completed - removed {} orders with zero remaining quantity", removed_count);
+    Ok(removed_count)
+}
+
 /// A trait for executing checked actions in the orderbook component.
 pub trait ExecuteOrderbookAction {
     fn execute<S: StateRead + cnidarium::StateWrite>(&self, component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError>;
@@ -74,7 +119,7 @@ impl Component for OrderbookComponent {
     /// have been processed. It can be used to finalize any pending operations,
     /// update statistics, or handle global order matching.
     async fn end_block<S: StateWrite + 'static>(
-        _state: &mut Arc<S>,
+        state: &mut Arc<S>,
         end_block: &abci::request::EndBlock,
     ) -> astria_eyre::eyre::Result<()> {
         info!(
@@ -82,8 +127,14 @@ impl Component for OrderbookComponent {
             "OrderbookComponent: end_block"
         );
         
-        // Create a matching engine - commented out because currently unused
-        // let _matching_engine = crate::orderbook::matching_engine::MatchingEngine::default();
+        // Perform periodic cleanup of completed orders with zero remaining quantity
+        if end_block.height % 10 == 0 {  // Run cleanup every 10 blocks
+            tracing::warn!("🧹 Running periodic orderbook cleanup at height {}", end_block.height);
+            let mut state_mut = std::sync::Arc::get_mut(state).expect("Failed to get mutable reference to state");
+            if let Err(e) = clean_zero_quantity_orders(&mut state_mut) {
+                tracing::error!("❌ Error during orderbook cleanup: {:?}", e);
+            }
+        }
         
         // In a production implementation, we would:
         // 1. Process any buffered orders that haven't been matched yet
