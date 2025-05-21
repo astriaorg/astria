@@ -27,8 +27,9 @@ chains:
         filename: astria-wallet.json
         key: token
     eventSource:
-      mode: pull
-      interval: 1s
+      mode: push
+      batchDelay: 1s
+      url: ws://full-node-sequencer-rpc-service.astria-sequencer-full-node.svc.cluster.local:26657/websocket
     gasPrice: 1
     gasDenom: nria
     trustThreshold: 2/3
