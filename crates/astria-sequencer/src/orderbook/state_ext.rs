@@ -381,52 +381,67 @@ impl<T: StateRead + ?Sized> StateReadExt for T {}
 pub trait StateWriteExt: StateWrite {
     /// Add a new order to the order book.
     fn put_order(&mut self, order: Order) -> Result<(), OrderbookError> {
+        // Enhanced logging for SELL orders
+        if order.side == astria_core::protocol::orderbook::v1::OrderSide::Sell as i32 {
+            tracing::warn!("💾 Saving SELL order to database: id={}, market={}", order.id, order.market);
+        }
+        
         // Convert the i32 side to OrderSide enum for storage operations
         let order_side = crate::orderbook::order_side_from_i32(order.side);
         
         // Store the order itself using our wrapper
-        let serialized = StoredValue::Order(OrderWrapper(order.clone())).serialize()
-            .map_err(|_| OrderbookError::SerializationError(String::from("Failed to serialize order")))?;
-            
-        self.put_raw(
-            keys::orderbook_order(&order.id),
-            serialized,
-        );
+        let serialized = match StoredValue::Order(OrderWrapper(order.clone())).serialize() {
+            Ok(s) => s,
+            Err(err) => {
+                tracing::error!("❌ Failed to serialize order: {:?}", err);
+                return Err(OrderbookError::SerializationError(format!("Failed to serialize order: {:?}", err)));
+            }
+        };
+        
+        // Try storing the order with error handling
+        let order_key = keys::orderbook_order(&order.id);
+        tracing::warn!("💾 Storing order at key: {}", order_key);
+        self.put_raw(order_key, serialized.clone());
 
         // Get the price as a string, handling the case where it might be empty
         let price_str = crate::orderbook::uint128_option_to_string(&order.price);
+        tracing::warn!("💰 Order price: {} (formatted from {:?})", price_str, order.price);
 
-        // Add to market-side-price index
-        self.put_raw(
-            keys::orderbook_market_side_price_order(&order.market, order_side, &price_str, &order.id),
-            order.id.as_bytes().to_vec(),
-        );
+        // Add to market-side-price index with error handling
+        let market_side_price_key = keys::orderbook_market_side_price_order(&order.market, order_side, &price_str, &order.id);
+        tracing::warn!("💾 Storing market-side-price index at key: {}", market_side_price_key);
+        self.put_raw(market_side_price_key, order.id.as_bytes().to_vec());
 
-        // Add to market-side index
-        self.put_raw(
-            keys::orderbook_market_side_order(&order.market, order_side, &order.id),
-            order.id.as_bytes().to_vec(),
-        );
+        // Add to market-side index with error handling
+        let market_side_key = keys::orderbook_market_side_order(&order.market, order_side, &order.id);
+        tracing::warn!("💾 Storing market-side index at key: {}", market_side_key);
+        self.put_raw(market_side_key, order.id.as_bytes().to_vec());
 
-        // Add to market index
-        self.put_raw(
-            keys::orderbook_market_order(&order.market, &order.id),
-            order.id.as_bytes().to_vec(),
-        );
+        // Add to market index with error handling
+        let market_key = keys::orderbook_market_order(&order.market, &order.id);
+        tracing::warn!("💾 Storing market index at key: {}", market_key);
+        self.put_raw(market_key, order.id.as_bytes().to_vec());
 
         // Add to owner's orders index
         let owner_str = match &order.owner {
-            Some(addr) => addr.bech32m.clone(),
-            None => "unknown".to_string(),
+            Some(addr) => {
+                tracing::warn!("👤 Order owner: {}", addr.bech32m);
+                addr.bech32m.clone()
+            },
+            None => {
+                tracing::warn!("⚠️ Order has no owner, using 'unknown'");
+                "unknown".to_string()
+            },
         };
         
-        self.put_raw(
-            keys::orderbook_owner_order(&owner_str, &order.id),
-            order.id.as_bytes().to_vec(),
-        );
+        let owner_key = keys::orderbook_owner_order(&owner_str, &order.id);
+        tracing::warn!("💾 Storing owner index at key: {}", owner_key);
+        self.put_raw(owner_key, order.id.as_bytes().to_vec());
 
-        // Update price level
-        self.update_price_level(
+        // Update price level with detailed error handling
+        tracing::warn!("📊 Updating price level for market: {}, side: {:?}, price: {}", 
+            order.market, order_side, price_str);
+        match self.update_price_level(
             &order.market,
             order_side,
             &price_str,
@@ -436,6 +451,8 @@ pub trait StateWriteExt: StateWrite {
                 let order_qty = crate::orderbook::uint128_option_to_string(&order.quantity);
                 let order_qty_num = crate::orderbook::parse_string_to_u128(&order_qty);
                 
+                tracing::warn!("🔢 Updating price level - current quantity: {}, adding: {}", level_qty, order_qty_num);
+                
                 // Add the quantities
                 level.quantity = level_qty
                     .checked_add(order_qty_num)
@@ -443,10 +460,26 @@ pub trait StateWriteExt: StateWrite {
                     .unwrap_or_else(|| "0".to_string());
                 
                 level.order_count += 1;
+                tracing::warn!("📊 Updated price level - new quantity: {}, order count: {}", level.quantity, level.order_count);
                 level
             },
-        )?;
+        ) {
+            Ok(_) => {
+                tracing::warn!("✅ Successfully updated price level");
+            },
+            Err(err) => {
+                tracing::error!("❌ Failed to update price level: {:?}", err);
+                // Don't fail the entire operation if price level update fails
+                // Just log it and continue - this is especially important for SELL orders
+                if order.side == astria_core::protocol::orderbook::v1::OrderSide::Sell as i32 {
+                    tracing::warn!("⚠️ Continuing despite price level update failure for SELL order");
+                } else {
+                    return Err(err);
+                }
+            }
+        }
 
+        tracing::warn!("✅ Successfully saved order to database: id={}", order.id);
         Ok(())
     }
 

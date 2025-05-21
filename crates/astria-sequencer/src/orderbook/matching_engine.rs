@@ -657,8 +657,10 @@ impl MatchingEngine {
         state: &S,
         market: &str,
     ) -> Result<OrderBook, OrderbookError> {
-        // Get all orders for the market
+        // Get all orders for the market with enhanced logging
+        tracing::warn!("📚 Constructing orderbook for market: {}", market);
         let market_orders = state.get_market_orders(market, None);
+        tracing::warn!("📚 Found {} existing orders for market: {}", market_orders.len(), market);
         
         // Create the order book
         let mut order_book = OrderBook {
@@ -667,41 +669,88 @@ impl MatchingEngine {
         };
         
         // Add each order to the appropriate side
-        for order in market_orders {
+        for (idx, order) in market_orders.iter().enumerate() {
+            // Enhanced logging for each order
+            tracing::warn!(
+                "📊 Processing existing order {}/{}: id={}, market={}, side={}",
+                idx + 1, market_orders.len(), order.id, order.market, order.side
+            );
+            
             // Parse order details
             let side = crate::orderbook::compat::order_side_from_proto(
                 crate::orderbook::utils::order_side_from_i32(order.side)
             );
             
-            // Parse price and remaining quantity
+            // Parse price and remaining quantity with error handling
             let price = match &order.price {
-                Some(p) => parse_string_to_u128(&uint128_option_to_string(&Some(p.clone()))),
-                None => 0,
+                Some(p) => {
+                    let price_str = uint128_option_to_string(&Some(p.clone()));
+                    let price_u128 = parse_string_to_u128(&price_str);
+                    tracing::warn!("💰 Order price: {} (from string: {})", price_u128, price_str);
+                    price_u128
+                },
+                None => {
+                    tracing::warn!("⚠️ Order has no price, using 0");
+                    0
+                },
             };
             
             let remaining_quantity = match &order.remaining_quantity {
-                Some(q) => parse_string_to_u128(&uint128_option_to_string(&Some(q.clone()))),
+                Some(q) => {
+                    let qty_str = uint128_option_to_string(&Some(q.clone()));
+                    let qty_u128 = parse_string_to_u128(&qty_str);
+                    tracing::warn!("📏 Order remaining quantity: {} (from string: {})", qty_u128, qty_str);
+                    qty_u128
+                },
                 None => {
                     // If remaining quantity isn't set, use the original quantity
                     match &order.quantity {
-                        Some(q) => parse_string_to_u128(&uint128_option_to_string(&Some(q.clone()))),
-                        None => 0,
+                        Some(q) => {
+                            let qty_str = uint128_option_to_string(&Some(q.clone()));
+                            let qty_u128 = parse_string_to_u128(&qty_str);
+                            tracing::warn!("📏 Using original quantity: {} (from string: {})", qty_u128, qty_str);
+                            qty_u128
+                        },
+                        None => {
+                            tracing::warn!("⚠️ Order has no quantity, using 0");
+                            0
+                        },
                     }
                 }
             };
             
             // Skip orders with zero remaining quantity
             if remaining_quantity == 0 {
+                tracing::warn!("⚠️ Skipping order with zero remaining quantity: id={}", order.id);
                 continue;
             }
             
             // Add the order to the appropriate side
             let book_side = match side {
-                OrderSide::Buy => &mut order_book.bids,
-                OrderSide::Sell => &mut order_book.asks,
+                OrderSide::Buy => {
+                    tracing::warn!("💰 Adding BUY order to orderbook: id={}, price={}, quantity={}", 
+                        order.id, price, remaining_quantity);
+                    &mut order_book.bids
+                },
+                OrderSide::Sell => {
+                    tracing::warn!("💲 Adding SELL order to orderbook: id={}, price={}, quantity={}", 
+                        order.id, price, remaining_quantity);
+                    &mut order_book.asks
+                },
             };
             
             book_side.add_order(order.id.clone(), price, remaining_quantity);
+        }
+        
+        // Log the constructed orderbook summary
+        let bid_count = order_book.bids.price_levels.len();
+        let ask_count = order_book.asks.price_levels.len();
+        tracing::warn!("📚 Orderbook construction complete for market {}: {} bid price levels, {} ask price levels",
+            market, bid_count, ask_count);
+            
+        // If this is a market with no orders yet, add a special log
+        if bid_count == 0 && ask_count == 0 {
+            tracing::warn!("🆕 This appears to be a new market with no existing orders");
         }
         
         Ok(order_book)

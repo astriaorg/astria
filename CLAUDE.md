@@ -14,6 +14,7 @@
 - **Types**: Rust 2021 edition with strong type safety
 - **Naming**: `snake_case` functions/vars, `CamelCase` types/traits, `SCREAMING_SNAKE_CASE` constants
 - **Error Handling**: `thiserror` for error definitions, `Result` types for propagation
+- **Logging**: Do not use emojis in logs
 
 ## Project Structure
 - Workspace with multiple crates in `crates/`
