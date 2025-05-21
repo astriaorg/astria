@@ -165,9 +165,8 @@ Usage:
 ")]
 hermes name=defaultHermes:
   @echo "Deploying Hermes..."
-  @helm install hermes-local-chart charts/hermes \
+  @helm install hermes-{{name}}-chart charts/hermes \
     -n hermes-{{name}} \
-    -f dev/values/hermes/local.yaml \
     -f dev/values/hermes/{{name}}.yaml \
     --create-namespace \
 
@@ -458,6 +457,19 @@ ibc-test-timeout-refund tag=defaultTag:
   @just wait-for sequencer
   @just wait-for rollup {{defaultRollupName}} "false"
   @just wait-for hermes-local
+
+multiple-relayer-stack:
+  just deploy ingress-controller
+  just wait-for ingress-controller
+  just deploy celestia-local
+  just deploy sequencer single
+  just deploy sequencer full-node
+  just wait-for celestia-local
+  just wait-for sequencer
+  just deploy hermes local
+  just wait-for hermes local
+  just deploy hermes local1
+  just wait-for hermes local1
 
 
 # Generate System-Test Protos
