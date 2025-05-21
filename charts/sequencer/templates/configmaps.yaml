@@ -91,9 +91,7 @@ data:
   # but will be removed in future releases. At next major release, these values will be removed,
   # and those in the else statement should be moved into the main body above.
   {{- if eq (include "sequencer.imageTag" .) .Chart.AppVersion }}
-  # These are variables which are added in newer releases and are not present in the current release.
-  ASTRIA_SEQUENCER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
+  # These are variables which are deprecated and will be removed in future releases.
   {{- else }}
   # These are new env variables which are added in development releases and images.
-
   {{- end }}
