@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add tx result to `Executed` transaction status [#2159](https://github.com/astriaorg/astria/pull/2159).
 
+### Fixed
+
+- Fix issue where proposer includes unexecuted rollup data bytes [#2190](https://github.com/astriaorg/astria/pull/2190).
+
 ## [3.0.0-rc.2]
 
 ### Added
