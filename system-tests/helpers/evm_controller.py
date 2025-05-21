@@ -14,13 +14,20 @@ class EvmController:
     # Methods managing and querying the rollup's k8s container
     # ========================================================
 
-    def deploy_rollup(self, image_controller, evm_restart=False):
+    def deploy_rollup(self, image_controller, evm_restart=False, bridge_withdrawer_enabled=True):
         """
         Deploys a new EVM rollup on the cluster using the specified image tags.
 
         The EVM node, composer, conductor and bridge-withdrawer are installed via `helm install`.
         """
-        run_subprocess(self._helm_args("install", image_controller, evm_restart=evm_restart), msg="deploying rollup")
+        run_subprocess(
+            self._helm_args(
+                "install",
+                image_controller,
+                evm_restart=evm_restart,
+                bridge_withdrawer_enabled=bridge_withdrawer_enabled
+            ), msg="deploying rollup"
+        )
         wait_for_statefulset_rollout("rollup", "astria-geth", "astria-dev-cluster", 600)
 
     # ========================================
@@ -103,7 +110,7 @@ class EvmController:
 
     def send_raw_tx(self, tx_data):
         """
-        Send the raw tx bytes to the rollup's JSON-RPC server.  The bytes should be in the form of a
+        Send the raw tx bytes to the rollup's JSON-RPC server. The bytes should be in the form of a
         hex-encoded string with a prefix of `0x`.
 
         Exits the process on error.
@@ -126,11 +133,24 @@ class EvmController:
         except Exception as error:
             raise SystemExit(f"rollup: failed to get tx receipt: {error}")
 
+    def get_current_block_number(self):
+        """
+        Queries the rollup's JSON-RPC server for the latest block number.
+
+        Returns the integer block number.
+        Exits the process on error.
+        """
+        try:
+            block = self._try_send_json_rpc_request("eth_getBlockByNumber", "latest", False)
+            return int(block["number"], 16)
+        except Exception as error:
+            raise SystemExit(f"rollup: failed to get current block number: {error}")
+
     # ===============
     # Private methods
     # ===============
 
-    def _helm_args(self, subcommand, image_controller, evm_restart):
+    def _helm_args(self, subcommand, image_controller, evm_restart, bridge_withdrawer_enabled):
         values = "evm-restart-test" if evm_restart else "dev"
         args = [
             "helm",
@@ -150,6 +170,8 @@ class EvmController:
         if composer_image_tag is not None:
             args.append(f"--set=composer.images.composer.devTag={composer_image_tag}")
         bridge_withdrawer_image_tag = image_controller.bridge_withdrawer_image_tag()
+        if not bridge_withdrawer_enabled:
+            args.append(f"--set=evm-bridge-withdrawer.enabled=false")
         if bridge_withdrawer_image_tag is not None:
             args.append(f"--set=evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag={bridge_withdrawer_image_tag}")
         geth_image_tag = image_controller.geth_image_tag()

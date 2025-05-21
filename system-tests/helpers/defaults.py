@@ -13,6 +13,7 @@ TRANSFER_AMOUNT = 10
 #####################
 # corresponds to destination address in bridge_tx_bytes
 SEQUENCER_WITHDRAWER_ADDRESS = "astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504"
+SEQUENCER_BRIDGE_ADDRESS = "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
 
 # EVM Defaults
 ###############
