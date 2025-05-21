@@ -83,7 +83,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [#2135](https://github.com/astriaorg/astria/pull/2135).
 - Fix issue where proposer includes unexecuted rollup data bytes [#2190](https://github.com/astriaorg/astria/pull/2190).
 
-
 ## [3.0.0-rc.2]
 
 ### Added
@@ -672,7 +671,7 @@ address [#721](https://github.com/astriaorg/astria/pull/721).
 - Initial release.
 
 [unreleased]: https://github.com/astriaorg/astria/compare/sequencer-v3.0.0...HEAD
-[3.0.0-rc.2]: https://github.com/astriaorg/astria/compare/sequencer-v2.0.1...sequencer-v3.0.0
+[3.0.0]: https://github.com/astriaorg/astria/compare/sequencer-v2.0.1...sequencer-v3.0.0
 [3.0.0-rc.2]: https://github.com/astriaorg/astria/compare/sequencer-v3.0.0-rc.1...sequencer-v3.0.0-rc.2
 [3.0.0-rc.1]: https://github.com/astriaorg/astria/compare/sequencer-v2.0.1...sequencer-v3.0.0-rc.1
 [2.0.1]: https://github.com/astriaorg/astria/compare/sequencer-v2.0.0...sequencer-v2.0.1
