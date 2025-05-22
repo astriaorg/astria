@@ -58,11 +58,14 @@ To use the orderbook component in your Astria implementation:
 - `UpdateMarket`: Update market parameters
 
 ### Queries
-- Get market information
-- Get orderbook state
-- Get user orders
-- Get order details
-- Get trade history
+- `orderbook/markets`: List all available markets
+- `orderbook/{market}`: Get full orderbook state for a market
+- `orderbook/depth/{market}`: Get aggregated orderbook depth by price level
+- `orderbook/orders/owner/{owner}`: Get all orders for a specific owner
+- `orderbook/orders/market/{market}/{side}`: Get orders for a market with optional side filter
+- `orderbook/order/{order_id}`: Get details of a specific order
+- `orderbook/trades/{market}/{limit}`: Get trade history for a market
+- `orderbook/market_params/{market}`: Get parameters for a specific market
 
 ## License
 

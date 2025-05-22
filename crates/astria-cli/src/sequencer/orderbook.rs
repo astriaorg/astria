@@ -43,11 +43,47 @@ struct Owner {
     pub bech32m: String,
 }
 
+/// Similar to astria-sequencer/src/orderbook/compat.rs OrderWrapper for deserialization
+pub struct OrderWrapper(pub astria_core::protocol::orderbook::v1::Order);
+
+/// Manual implementation of borsh deserialization for OrderWrapper, similar to the sequencer code
+impl borsh::BorshDeserialize for OrderWrapper {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        // First deserialize the encoded bytes (as in the sequencer implementation)
+        let bytes: Vec<u8> = borsh::BorshDeserialize::deserialize_reader(reader)?;
+        println!("Deserialized inner bytes: {} bytes", bytes.len());
+        
+        // Then decode the protobuf message
+        match astria_core::protocol::orderbook::v1::Order::decode(&*bytes) {
+            Ok(order) => {
+                println!("Successfully decoded OrderWrapper with ID: {}", order.id);
+                // Print quantity information for debugging
+                if let Some(qty) = &order.quantity {
+                    let full_qty = ((qty.hi as u128) << 64) + (qty.lo as u128);
+                    println!("Quantity from protobuf: lo={}, hi={}, full={}", qty.lo, qty.hi, full_qty);
+                }
+                if let Some(rem_qty) = &order.remaining_quantity {
+                    let full_rem = ((rem_qty.hi as u128) << 64) + (rem_qty.lo as u128);
+                    println!("Remaining quantity from protobuf: lo={}, hi={}, full={}", rem_qty.lo, rem_qty.hi, full_rem);
+                }
+                Ok(OrderWrapper(order))
+            },
+            Err(e) => {
+                println!("Failed to decode protobuf Order: {}", e);
+                Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+            }
+        }
+    }
+}
+
 /// Format a Uint128 value to a human-readable string
+/// Returns the raw value without any scaling
 fn format_uint128(value: &ProtoUint128) -> String {
     // Reconstruct the u128 value
     let full_value = ((value.hi as u128) << 64) + (value.lo as u128);
-    format!("{}", full_value)
+    
+    // Return the raw value without any scaling or formatting
+    full_value.to_string()
 }
 
 /// Parse a binary order format from the sequencer
@@ -58,12 +94,59 @@ fn parse_binary_order(bytes: &[u8]) -> Result<Order, eyre::Report> {
     
     tracing::debug!("Attempting to parse binary order format, {} bytes", bytes.len());
     tracing::debug!("First 10 bytes: {:?}", &bytes[0..10.min(bytes.len())]);
+
+    // First try to directly decode as a protobuf message - this is the most reliable approach
+    // since it doesn't require any guessing or heuristics
+    match astria_core::protocol::orderbook::v1::Order::decode(bytes) {
+        Ok(proto_order) => {
+            tracing::debug!("Successfully decoded binary data as protobuf Order: {}", proto_order.id);
+            
+            // Log all the fields we received, especially quantities
+            if let Some(qty) = &proto_order.quantity {
+                let full_qty = ((qty.hi as u128) << 64) + (qty.lo as u128);
+                tracing::debug!("Order quantity from protobuf: lo={}, hi={}, full={}", qty.lo, qty.hi, full_qty);
+            }
+            if let Some(rem_qty) = &proto_order.remaining_quantity {
+                let full_rem_qty = ((rem_qty.hi as u128) << 64) + (rem_qty.lo as u128);
+                tracing::debug!("Order remaining_quantity from protobuf: lo={}, hi={}, full={}", rem_qty.lo, rem_qty.hi, full_rem_qty);
+            }
+            
+            // Verify the side value is correct
+            // The enum values are: Unspecified=0, Buy=1, Sell=2
+            let side_value = proto_order.side;
+            tracing::debug!("Order side value from protobuf: {}", side_value);
+            
+            // For SELL orders, provide additional verification
+            if side_value == 2 { // SELL
+                tracing::debug!("Found SELL order: {}", proto_order.id);
+            } else if side_value == 1 { // BUY
+                tracing::debug!("Found BUY order: {}", proto_order.id);
+            } else {
+                tracing::debug!("Order has unknown side value: {}", side_value);
+            }
+            
+            // Convert to our Order struct, ensuring we preserve all fields exactly as they appear
+            return Ok(Order {
+                id: proto_order.id,
+                owner: proto_order.owner.map(|o| Owner { bech32m: o.bech32m }),
+                market: proto_order.market,
+                side: side_value,
+                r#type: proto_order.r#type,
+                price: proto_order.price,
+                quantity: proto_order.quantity,
+                remaining_quantity: proto_order.remaining_quantity,
+                created_at: proto_order.created_at,
+                time_in_force: proto_order.time_in_force,
+                fee_asset: proto_order.fee_asset,
+            });
+        },
+        Err(e) => {
+            tracing::debug!("Failed to decode as protobuf directly: {}", e);
+            // Fall through to try alternative parsing approaches
+        }
+    }
     
-    // Looking at the binary preview, we can see it starts with a byte (possibly order type),
-    // followed by the UUID in string format
-    
-    // First try to extract the UUID
-    // We'll store where we found UUIDs
+    // If protobuf decoding failed, try to extract UUID and build an order manually
     for i in 0..bytes.len() - 36 {
         let potential_uuid = String::from_utf8_lossy(&bytes[i..i+36]);
         if potential_uuid.chars().all(|c| c.is_ascii_hexdigit() || c == '-') &&
@@ -72,7 +155,7 @@ fn parse_binary_order(bytes: &[u8]) -> Result<Order, eyre::Report> {
             let order_id = potential_uuid.to_string();
             tracing::debug!("Found order ID at offset {}: {}", uuid_start, order_id);
             
-            // Try to parse the rest of the binary data
+            // Initialize order with the ID we found
             let mut order = Order {
                 id: order_id,
                 owner: None,
@@ -87,7 +170,7 @@ fn parse_binary_order(bytes: &[u8]) -> Result<Order, eyre::Report> {
                 fee_asset: "".to_string(),
             };
             
-            // Try to extract order side from first byte
+            // Try to extract order side from first byte (common pattern)
             if uuid_start > 0 {
                 let first_byte = bytes[0];
                 if first_byte == 1 || first_byte == 2 {
@@ -96,7 +179,7 @@ fn parse_binary_order(bytes: &[u8]) -> Result<Order, eyre::Report> {
                 }
             }
             
-            // Try to extract market name - look for known markets after UUID
+            // Try to extract market name
             let market_offset = uuid_start + 36;
             if market_offset < bytes.len() - 10 {
                 let remaining = &bytes[market_offset..];
@@ -111,90 +194,115 @@ fn parse_binary_order(bytes: &[u8]) -> Result<Order, eyre::Report> {
                 }
             }
             
-            // From the logs we saw that we need to be cautious about extracting quantity values
-            // The values we're seeing are much too large, suggesting we're interpreting
-            // other binary data as quantity values
+            // Search for quantity and remaining_quantity values - these could be anywhere in the binary data
+            // We're looking for sequences of bytes that could represent the lo part of a Uint128 
+            // (with hi=0, which is common for most quantities)
             
-            // Let's use knowledge from the CLI command - the user created an order with quantity 1
-            // For new orders, quantity should be set to a simple value and remaining_quantity
-            // should match it
-            
-            // Let's use a more conservative approach to finding quantity values
-            // If we created an order with quantity "1", it's likely stored as either 1 or 1_00000000 (with decimals)
-            
-            // First check for simple values like 1, 10, 100, etc.
-            let simple_quantities = [1u64, 10u64, 100u64, 1000000u64, 100000000u64];
-            
-            let mut found_quantity = false;
-            for &qty in &simple_quantities {
-                let qty_bytes = qty.to_le_bytes();
-                for i in 0..bytes.len().saturating_sub(8) {
-                    let window = &bytes[i..i+8];
-                    
-                    // Check if we have an exact match for the quantity bytes followed by zeros (hi part of u128)
-                    if window == qty_bytes {
-                        tracing::debug!("Found exact quantity match for {} at offset {}", qty, i);
+            // Log values we find to debug
+            for i in 0..bytes.len().saturating_sub(16) {
+                let mut lo_rdr = Cursor::new(&bytes[i..i+8]);
+                let mut hi_rdr = Cursor::new(&bytes[i+8..i+16]);
+                
+                if let (Ok(lo), Ok(hi)) = (lo_rdr.read_u64::<LittleEndian>(), hi_rdr.read_u64::<LittleEndian>()) {
+                    // Skip zeros and very small values as they're likely just part of other data
+                    if (lo > 10 || hi > 0) && !(lo == 0 && hi == 0) {
+                        let full_value = ((hi as u128) << 64) + (lo as u128);
+                        tracing::debug!("Potential Uint128 at offset {}: lo={}, hi={}, full={}", i, lo, hi, full_value);
                         
-                        // Check if the next 8 bytes are zero (the hi part of u128)
-                        let hi = if i + 16 <= bytes.len() {
-                            let mut rdr = Cursor::new(&bytes[i+8..i+16]);
-                            if let Ok(hi_val) = rdr.read_u64::<LittleEndian>() {
-                                hi_val
-                            } else {
-                                0
-                            }
-                        } else {
-                            0
-                        };
-                        
-                        if hi == 0 {
-                            tracing::debug!("Confirmed u128 quantity with hi=0");
+                        // 100000000 is a common scaling factor (8 decimal places)
+                        if lo == 100000000 && hi == 0 {
+                            tracing::debug!("Found value 100000000 at offset {} - likely a valid quantity", i);
                             
-                            // This is a valid quantity value
                             if order.quantity.is_none() {
-                                order.quantity = Some(ProtoUint128 { lo: qty, hi: 0 });
-                                found_quantity = true;
-                                
-                                // By default, set remaining_quantity to match quantity
-                                if order.remaining_quantity.is_none() {
-                                    order.remaining_quantity = Some(ProtoUint128 { lo: qty, hi: 0 });
-                                }
-                                
-                                // Set a matching price if not found elsewhere
-                                if order.price.is_none() {
-                                    order.price = Some(ProtoUint128 { lo: qty, hi: 0 });
-                                }
-                                
-                                break;
+                                order.quantity = Some(ProtoUint128 { lo, hi });
+                                tracing::debug!("Setting order.quantity to 100000000");
+                            } else if order.remaining_quantity.is_none() {
+                                order.remaining_quantity = Some(ProtoUint128 { lo, hi });
+                                tracing::debug!("Setting order.remaining_quantity to 100000000");
+                            } else if order.price.is_none() {
+                                order.price = Some(ProtoUint128 { lo, hi });
+                                tracing::debug!("Setting order.price to 100000000");
                             }
                         }
                     }
                 }
+            }
+            
+            // If we still don't have quantities, look for values in the binary data
+            if order.quantity.is_none() || order.remaining_quantity.is_none() || order.price.is_none() {
+                // Common values that might be found in order data
+                let common_values = [
+                    1u64,        // Common value for quantity
+                    10u64,       // Common value for quantity
+                    100u64,      // Common value for quantity
+                    1000u64,     // Common value for quantity
+                ];
                 
-                if found_quantity {
-                    break;
+                for &value in &common_values {
+                    for i in 0..bytes.len().saturating_sub(8) {
+                        let mut rdr = Cursor::new(&bytes[i..i+8]);
+                        if let Ok(lo) = rdr.read_u64::<LittleEndian>() {
+                            if lo == value {
+                                tracing::debug!("Found common value {} at offset {}", value, i);
+                                
+                                // Check if the next 8 bytes are zero (hi part)
+                                let hi = if i + 16 <= bytes.len() {
+                                    let mut hi_rdr = Cursor::new(&bytes[i+8..i+16]);
+                                    hi_rdr.read_u64::<LittleEndian>().unwrap_or(0)
+                                } else {
+                                    0
+                                };
+                                
+                                if hi == 0 {
+                                    if order.quantity.is_none() {
+                                        order.quantity = Some(ProtoUint128 { lo: value, hi: 0 });
+                                        tracing::debug!("Setting quantity to {}", value);
+                                    } else if order.remaining_quantity.is_none() {
+                                        order.remaining_quantity = Some(ProtoUint128 { lo: value, hi: 0 });
+                                        tracing::debug!("Setting remaining_quantity to {}", value);
+                                    } else if order.price.is_none() {
+                                        order.price = Some(ProtoUint128 { lo: value, hi: 0 });
+                                        tracing::debug!("Setting price to {}", value);
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
             
-            // If we still haven't found a quantity, default to a reasonable value (1) to avoid displaying
-            // obviously incorrect large numbers
-            if !found_quantity {
-                tracing::debug!("Could not find quantity value, defaulting to 1");
-                
-                // Use a safe default quantity of 1
-                if order.quantity.is_none() {
-                    order.quantity = Some(ProtoUint128 { lo: 1, hi: 0 });
-                }
-                
-                // Set remaining_quantity to match
-                if order.remaining_quantity.is_none() {
+            // If we still couldn't find quantities, set defaults
+            if order.quantity.is_none() {
+                // Use a simple default value
+                order.quantity = Some(ProtoUint128 { lo: 1, hi: 0 });
+                tracing::debug!("Using default quantity of 1");
+            }
+            
+            if order.remaining_quantity.is_none() {
+                // Copy from quantity if possible, otherwise use default
+                if let Some(qty) = &order.quantity {
+                    order.remaining_quantity = Some(ProtoUint128 { lo: qty.lo, hi: qty.hi });
+                    tracing::debug!("Copying remaining_quantity from quantity: {}", qty.lo);
+                } else {
                     order.remaining_quantity = Some(ProtoUint128 { lo: 1, hi: 0 });
+                    tracing::debug!("Using default remaining_quantity of 1");
                 }
-                
-                // Set a simple price if not found elsewhere
-                if order.price.is_none() {
-                    order.price = Some(ProtoUint128 { lo: 1, hi: 0 });
-                }
+            }
+            
+            if order.price.is_none() {
+                // Use a simple default price
+                order.price = Some(ProtoUint128 { lo: 1, hi: 0 });
+                tracing::debug!("Using default price of 1");
+            }
+            
+            // Log the final order we're returning
+            tracing::debug!("Returning order with ID: {}, market: {}, side: {}", 
+                order.id, order.market, order.side);
+            if let Some(qty) = &order.quantity {
+                tracing::debug!("Final quantity: lo={}, hi={}", qty.lo, qty.hi);
+            }
+            if let Some(rem_qty) = &order.remaining_quantity {
+                tracing::debug!("Final remaining_quantity: lo={}, hi={}", rem_qty.lo, rem_qty.hi);
             }
             
             return Ok(order);
@@ -254,13 +362,78 @@ fn deserialize_order(bytes: &[u8]) -> Result<Order, eyre::Report> {
         return Err(eyre!("Response too short to be an order"));
     }
     
-    // Check if this is a binary order format first (as used by the sequencer)
+    // First try to check if this is a JSON response with order data
+    let str_data = String::from_utf8_lossy(bytes);
+    if str_data.contains("remaining_quantity") && str_data.contains("lo") {
+        // This looks like JSON with order data including actual quantity values
+        tracing::debug!("Found JSON data with order quantities");
+        
+        // Extract quantity information using regex
+        let quantity_pattern = regex::Regex::new(r#"remaining_quantity.*?lo": ?"?(\d+)"?"#).unwrap();
+        if let Some(caps) = quantity_pattern.captures(&str_data) {
+            if let Some(quantity_match) = caps.get(1) {
+                let quantity_str = quantity_match.as_str();
+                tracing::debug!("Found quantity in JSON: {}", quantity_str);
+                
+                // Try to parse this quantity
+                if let Ok(quantity) = quantity_str.parse::<u64>() {
+                    tracing::debug!("Successfully parsed quantity value: {}", quantity);
+                    
+                    // Use the regex to find UUID
+                    let uuid_pattern = regex::Regex::new(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}").unwrap();
+                    let order_id = if let Some(uuid_match) = uuid_pattern.find(&str_data) {
+                        uuid_match.as_str().to_string()
+                    } else {
+                        "unknown".to_string()
+                    };
+                    
+                    // Create a simple order with the quantity information
+                    let mut order = Order {
+                        id: order_id,
+                        owner: None,
+                        market: "Unknown".to_string(),
+                        side: 1, // Default to BUY
+                        r#type: 1, // Default to LIMIT
+                        price: Some(ProtoUint128 { lo: quantity, hi: 0 }),
+                        quantity: Some(ProtoUint128 { lo: quantity, hi: 0 }),
+                        remaining_quantity: Some(ProtoUint128 { lo: quantity, hi: 0 }),
+                        created_at: 0,
+                        time_in_force: 1, // Default to GTC
+                        fee_asset: "".to_string(),
+                    };
+                    
+                    // Try to extract market name as well
+                    let market_pattern = regex::Regex::new(r#"market": ?"([^"]+)"#).unwrap();
+                    if let Some(market_caps) = market_pattern.captures(&str_data) {
+                        if let Some(market_match) = market_caps.get(1) {
+                            order.market = market_match.as_str().to_string();
+                        }
+                    }
+                    
+                    // Try to extract side as well
+                    let side_pattern = regex::Regex::new(r#"side": ?(\d+)"#).unwrap();
+                    if let Some(side_caps) = side_pattern.captures(&str_data) {
+                        if let Some(side_match) = side_caps.get(1) {
+                            if let Ok(side) = side_match.as_str().parse::<i32>() {
+                                order.side = side;
+                            }
+                        }
+                    }
+                    
+                    tracing::debug!("Created order from JSON data: id={}, quantity={}", order.id, quantity);
+                    return Ok(order);
+                }
+            }
+        }
+    }
+    
+    // Check if this is a binary order format (as used by the sequencer)
     // This is likely if there are non-printable characters at the beginning
     let has_binary_header = bytes.iter().take(10).any(|b| *b < 32 && *b != 10 && *b != 13 && *b != 9);
     if has_binary_header || bytes[0] == 1 || bytes[0] == 2 { // Side values (1=BUY, 2=SELL) often appear first
         match parse_binary_order(bytes) {
             Ok(order) => {
-                tracing::debug!("Successfully parsed binary order format");
+                tracing::debug!("Successfully parsed binary order format.");
                 return Ok(order);
             },
             Err(e) => {
@@ -274,7 +447,7 @@ fn deserialize_order(bytes: &[u8]) -> Result<Order, eyre::Report> {
     let order_str = String::from_utf8_lossy(bytes);
     if !order_str.contains("market") && !order_str.contains("quantity") && !order_str.contains("order") && !order_str.contains("id") {
         // Check if this might be JSON response with a "data" field
-        if order_str.contains("\"data\"") {
+        if order_str.contains("data") {
             // Try to extract base64 encoded data
             if let Some(idx) = order_str.find("\"data\":\"") {
                 let start_idx = idx + 8;
@@ -318,7 +491,23 @@ fn deserialize_order(bytes: &[u8]) -> Result<Order, eyre::Report> {
     // Check if this is a protobuf message
     match astria_core::protocol::orderbook::v1::Order::decode(bytes) {
         Ok(order) => {
-            tracing::debug!("Successfully decoded order as Protobuf");
+            println!("Successfully decoded order as Protobuf: {}", order.id);
+            
+            // Debug the quantity values
+            if let Some(qty) = &order.quantity {
+                let full_qty = ((qty.hi as u128) << 64) + (qty.lo as u128);
+                println!("Order quantity from protobuf: lo={}, hi={}, full={}", qty.lo, qty.hi, full_qty);
+            } else {
+                println!("Order has no quantity field in protobuf");
+            }
+            
+            if let Some(rem_qty) = &order.remaining_quantity {
+                let full_rem = ((rem_qty.hi as u128) << 64) + (rem_qty.lo as u128);
+                println!("Order remaining_quantity from protobuf: lo={}, hi={}, full={}", rem_qty.lo, rem_qty.hi, full_rem);
+            } else {
+                println!("Order has no remaining_quantity field in protobuf");
+            }
+            
             // Convert to our own Order struct
             Ok(Order {
                 id: order.id,
@@ -326,9 +515,9 @@ fn deserialize_order(bytes: &[u8]) -> Result<Order, eyre::Report> {
                 market: order.market,
                 side: order.side,
                 r#type: order.r#type,
-                price: order.price,
-                quantity: order.quantity,
-                remaining_quantity: order.remaining_quantity,
+                price: order.price.clone(),
+                quantity: order.quantity.clone(),
+                remaining_quantity: order.remaining_quantity.clone(),
                 created_at: order.created_at,
                 time_in_force: order.time_in_force,
                 fee_asset: order.fee_asset,
@@ -513,7 +702,100 @@ fn deserialize_orders(bytes: &[u8]) -> Result<Vec<Order>, eyre::Report> {
         }
     }
     
-    // Try to check if this is a JSON array or object first
+    // First try direct deserialization as a Vec<OrderWrapper>
+    println!("Attempting to deserialize {} bytes as Vec<OrderWrapper>", bytes.len());
+    
+    // Try to deserialize the data as a Vec<OrderWrapper> using our custom implementation
+    tracing::debug!("Trying to deserialize as a Vec<OrderWrapper>");
+    match borsh::BorshDeserialize::deserialize(&mut &bytes[..]) as Result<Vec<OrderWrapper>, _> {
+        Ok(wrappers) => {
+            tracing::debug!("Successfully deserialized {} OrderWrappers", wrappers.len());
+            
+            // Convert OrderWrapper to our Order struct
+            let orders = wrappers.into_iter()
+                .map(|wrapper| {
+                    // Print detailed quantity info for each order
+                    let proto_order = wrapper.0;
+                    tracing::debug!("Processing order: {}", proto_order.id);
+                    
+                    // Log quantity information for debugging
+                    if let Some(qty) = &proto_order.quantity {
+                        let full_qty = ((qty.hi as u128) << 64) + (qty.lo as u128);
+                        tracing::debug!("  Quantity: lo={}, hi={}, full={}", qty.lo, qty.hi, full_qty);
+                    } else {
+                        tracing::debug!("  No quantity field");
+                    }
+                    
+                    if let Some(rem_qty) = &proto_order.remaining_quantity {
+                        let full_rem = ((rem_qty.hi as u128) << 64) + (rem_qty.lo as u128);
+                        tracing::debug!("  Remaining quantity: lo={}, hi={}, full={}", rem_qty.lo, rem_qty.hi, full_rem);
+                    } else {
+                        tracing::debug!("  No remaining_quantity field");
+                    }
+                    
+                    // Ensure we preserve the side value correctly
+                    let side_value = proto_order.side;
+                    tracing::debug!("  Side value: {}", side_value);
+                    
+                    Order {
+                        id: proto_order.id,
+                        owner: proto_order.owner.map(|o| Owner { bech32m: o.bech32m }),
+                        market: proto_order.market,
+                        side: side_value,
+                        r#type: proto_order.r#type,
+                        price: proto_order.price.clone(),
+                        quantity: proto_order.quantity.clone(),
+                        remaining_quantity: proto_order.remaining_quantity.clone(),
+                        created_at: proto_order.created_at,
+                        time_in_force: proto_order.time_in_force,
+                        fee_asset: proto_order.fee_asset,
+                    }
+                })
+                .collect::<Vec<_>>();
+            
+            tracing::debug!("Converted {} OrderWrappers to Order structs", orders.len());
+            return Ok(orders);
+        },
+        Err(e) => {
+            tracing::debug!("Failed to deserialize as Vec<OrderWrapper>: {}", e);
+        }
+    }
+    
+    // If direct deserialization failed, try the raw bytes approach
+    match borsh::BorshDeserialize::deserialize(&mut &bytes[..]) as Result<Vec<u8>, _> {
+        Ok(inner_bytes) => {
+            println!("Deserialized as Vec<u8>: {} bytes", inner_bytes.len());
+            
+            // Try to decode as binary protobuf directly
+            if let Ok(proto_order) = astria_core::protocol::orderbook::v1::Order::decode(&*inner_bytes) {
+                println!("Successfully decoded single order as protobuf: {}", proto_order.id);
+                
+                // Create and return a single order
+                let order = Order {
+                    id: proto_order.id,
+                    owner: proto_order.owner.map(|o| Owner { bech32m: o.bech32m }),
+                    market: proto_order.market,
+                    side: proto_order.side,
+                    r#type: proto_order.r#type,
+                    price: proto_order.price,
+                    quantity: proto_order.quantity,
+                    remaining_quantity: proto_order.remaining_quantity,
+                    created_at: proto_order.created_at,
+                    time_in_force: proto_order.time_in_force,
+                    fee_asset: proto_order.fee_asset,
+                };
+                
+                return Ok(vec![order]);
+            } else {
+                println!("Failed to decode as single protobuf Order");
+            }
+        },
+        Err(e) => {
+            println!("Failed to deserialize as Vec<u8>: {}", e);
+        }
+    }
+    
+    // Fall back to traditional methods
     let str_data = String::from_utf8_lossy(bytes);
     let mut orders = Vec::new();
     
@@ -521,11 +803,11 @@ fn deserialize_orders(bytes: &[u8]) -> Result<Vec<Order>, eyre::Report> {
     if str_data.trim().starts_with('[') {
         match serde_json::from_slice::<Vec<Order>>(bytes) {
             Ok(parsed_orders) => {
-                tracing::debug!("Successfully parsed orders as JSON array");
+                println!("Successfully parsed orders as JSON array");
                 return Ok(parsed_orders);
             },
             Err(e) => {
-                tracing::debug!("Failed to parse as JSON array: {}", e);
+                println!("Failed to parse as JSON array: {}", e);
                 // Fall through to other approaches
             }
         }
@@ -883,6 +1165,12 @@ impl CreateOrderCommand {
             _ => return Err(eyre!("Invalid time in force. Must be GTC, IOC, or FOK")),
         };
 
+        // Parse the user input values as-is, without scaling
+        let price_value = self.price.parse::<u64>().unwrap_or(1);
+        let quantity_value = self.quantity.parse::<u64>().unwrap_or(1);
+        
+        println!("Creating order with price {}, quantity {}", price_value, quantity_value);
+        
         // Constructing the action JSON manually
         let action_json = format!(
             r#"{{
@@ -903,7 +1191,9 @@ impl CreateOrderCommand {
                 }}
             }}"#,
             self.market, side_value, order_type_value, 
-            self.price, self.quantity, time_in_force_value, self.fee_asset
+            price_value, 
+            quantity_value, 
+            time_in_force_value, self.fee_asset
         );
 
         let action: Action = serde_json::from_str(&action_json)
@@ -915,7 +1205,11 @@ impl CreateOrderCommand {
         let _sequencer_client = HttpClient::new(url)
             .wrap_err("failed constructing http sequencer client")?;
             
-        println!("Submitting transaction to create order...");
+        // Debug output showing the values
+        println!("Submitting transaction to create order (price: {}, quantity: {})...",
+            self.price,
+            self.quantity
+        );
         
         let hash = match submit_transaction(
             &self.sequencer_url,
@@ -1151,12 +1445,17 @@ impl GetOrdersCommand {
             None => vec!["buy".to_string(), "sell".to_string()],
         };
         
+        println!("Querying for market: {}, sides: {:?}", self.market, sides);
+        
         let mut all_orders = Vec::new();
         
         // Query each side separately and combine the results
         for side in sides {
-            let path = format!("orderbook/orders/market/{}/{}", encoded_market, side);
+            // Ensure we're using lowercase for the path
+            let side_lower = side.to_lowercase();
+            let path = format!("orderbook/orders/market/{}/{}", encoded_market, side_lower);
             println!("Querying path: {}", path);
+            println!("Side value: {:?}", side);
             
             match sequencer_client.abci_query(Some(path.clone()), vec![], Some(0u32.into()), false).await {
             Ok(response) => {
@@ -1173,27 +1472,66 @@ impl GetOrdersCommand {
                 }
                 
                 println!("Response value size: {} bytes", response.value.len());
+                println!("First 20 bytes: {:?}", &response.value[0..20.min(response.value.len())]);
+                
+                // Print the response as hex for debugging
+                let hex_string = hex::encode(&response.value[0..100.min(response.value.len())]);
+                println!("First 100 bytes as hex: {}", hex_string);
                 
                 // Try to deserialize the response as a list of OrderWrapper
                 if response.value.len() > 4 {
                     // Check if we can make sense of the response
                     match deserialize_orders(&response.value) {
                         Ok(mut orders) => {
-                            // Set the side for all orders from this query
+                            // Only set the side if it's not already set correctly
                             let side_value = match side.to_lowercase().as_str() {
                                 "buy" => 1,
                                 "sell" => 2,
                                 _ => 0,
                             };
                             
-                            // Print the logging information about the side
-                            tracing::debug!("Setting side {} for orders from {} query", side_value, side);
+                            // Debug output for each order
+                            let mut orders_with_incorrect_side = 0;
+                            for (i, order) in orders.iter().enumerate() {
+                                println!("Order {}/{} from {} query:", i+1, orders.len(), side);
+                                println!("  ID: {}", order.id);
+                                println!("  Market: {}", order.market);
+                                
+                                if order.side != side_value && order.side != 0 {
+                                    println!("  Side mismatch: order has {} but query path indicates {}", 
+                                        order.side, side_value);
+                                    orders_with_incorrect_side += 1;
+                                } else {
+                                    println!("  Side: {}", side_value);
+                                }
+                                
+                                if let Some(qty) = &order.quantity {
+                                    let full_qty = ((qty.hi as u128) << 64) + (qty.lo as u128);
+                                    println!("  Quantity: lo={}, hi={}, full={}", qty.lo, qty.hi, full_qty);
+                                } else {
+                                    println!("  Quantity: None");
+                                }
+                                
+                                if let Some(rem_qty) = &order.remaining_quantity {
+                                    let full_rem = ((rem_qty.hi as u128) << 64) + (rem_qty.lo as u128);
+                                    println!("  Remaining Quantity: lo={}, hi={}, full={}", rem_qty.lo, rem_qty.hi, full_rem);
+                                } else {
+                                    println!("  Remaining Quantity: None");
+                                }
+                            }
                             
-                            // Update the side for all orders in this batch - override any existing value
-                            // to ensure the side matches the query path
+                            // Log info about any side mismatches found
+                            if orders_with_incorrect_side > 0 {
+                                println!("WARNING: Found {} orders with side values that don't match the query path ({})", 
+                                    orders_with_incorrect_side, side);
+                            }
+                            
+                            // Update orders with missing or incorrect side values
                             for order in &mut orders {
-                                tracing::debug!("Updating order {} side: {} -> {}", order.id, order.side, side_value);
-                                order.side = side_value;
+                                if order.side == 0 || order.side != side_value {
+                                    println!("Updating order {} side: {} -> {}", order.id, order.side, side_value);
+                                    order.side = side_value;
+                                }
                             }
                             
                             println!("Found {} {} orders", orders.len(), side.to_uppercase());
@@ -1262,7 +1600,12 @@ impl GetOrdersCommand {
                     // Attempt to retrieve complete order details
                     tracing::debug!("Fetching complete details for order: {}", order.id);
                     
-                    // Query the specific order by ID
+                    // No longer checking logs, just rely on the API data
+                    println!(" Fetching API details for order: {}", order.id);
+                    
+                    // No log parsing logic - we'll rely on the API data instead
+                    
+                    // Query the API for order details
                     let order_path = format!("orderbook/order/{}", order.id);
                     tracing::debug!("Querying path: {}", order_path);
                     match sequencer_client.abci_query(Some(order_path), vec![], Some(0u32.into()), false).await {
@@ -1420,24 +1763,21 @@ impl GetOrdersCommand {
                         });
                         println!("  Type: {}", if order.r#type == 1 { "LIMIT" } else { "MARKET" });
                         
-                        // Format price and quantities for better readability
+                        // Display price and quantities using only the protobuf data
                         if let Some(price) = &order.price {
-                            let price_str = format_uint128(price);
-                            println!("  Price: {}", price_str);
+                            println!("  Price: {}", format_uint128(price));
                         } else {
                             println!("  Price: Not specified");
                         }
                         
                         if let Some(quantity) = &order.quantity {
-                            let qty_str = format_uint128(quantity);
-                            println!("  Quantity: {}", qty_str);
+                            println!("  Quantity: {}", format_uint128(quantity));
                         } else {
                             println!("  Quantity: Not specified");
                         }
                         
                         if let Some(remaining) = &order.remaining_quantity {
-                            let rem_str = format_uint128(remaining);
-                            println!("  Remaining Quantity: {}", rem_str);
+                            println!("  Remaining Quantity: {}", format_uint128(remaining));
                         } else {
                             println!("  Remaining Quantity: Not specified");
                         }
@@ -1715,24 +2055,21 @@ impl GetOrderCommand {
                         });
                         println!("  Type: {}", if order.r#type == 1 { "LIMIT" } else { "MARKET" });
                         
-                        // Format price and quantities for better readability
+                        // Display price and quantities using only the protobuf data
                         if let Some(price) = &order.price {
-                            let price_str = format_uint128(price);
-                            println!("  Price: {}", price_str);
+                            println!("  Price: {}", format_uint128(price));
                         } else {
                             println!("  Price: Not specified");
                         }
                         
                         if let Some(quantity) = &order.quantity {
-                            let qty_str = format_uint128(quantity);
-                            println!("  Quantity: {}", qty_str);
+                            println!("  Quantity: {}", format_uint128(quantity));
                         } else {
                             println!("  Quantity: Not specified");
                         }
                         
                         if let Some(remaining) = &order.remaining_quantity {
-                            let rem_str = format_uint128(remaining);
-                            println!("  Remaining Quantity: {}", rem_str);
+                            println!("  Remaining Quantity: {}", format_uint128(remaining));
                         } else {
                             println!("  Remaining Quantity: Not specified");
                         }

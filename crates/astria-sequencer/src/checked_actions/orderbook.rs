@@ -4,17 +4,22 @@ use astria_core::protocol::transaction::v1::action::{
 use std::sync::Arc;
 use thiserror::Error;
 use cnidarium::StateRead;
+use futures::executor::block_on;
 
-use crate::orderbook::{
-    component::{CheckedCreateMarket, CheckedCreateOrder, CheckedCancelOrder, ExecuteOrderbookAction},
-    OrderbookComponent, StateReadExt, utils,
+use crate::{
+    accounts::StateReadExt as AccountsStateReadExt,
+    orderbook::{
+        component::{CheckedCreateMarket, CheckedCreateOrder, CheckedCancelOrder, ExecuteOrderbookAction},
+        OrderbookComponent, StateReadExt, utils,
+    },
 };
+
 // Use our own simplified ExecutionState instead of app's private one
-struct ExecutionState<'a, S: StateRead> {
+struct ExecutionState<'a, S: StateRead + AccountsStateReadExt> {
     state: &'a S
 }
 
-impl<'a, S: StateRead> ExecutionState<'a, S> {
+impl<'a, S: StateRead + AccountsStateReadExt> ExecutionState<'a, S> {
     fn new(state: &'a S) -> Self {
         Self { state }
     }
@@ -31,6 +36,30 @@ impl<'a, S: StateRead> ExecutionState<'a, S> {
             Some(crate::orderbook::compat::order_from_proto(&proto_order))
         } else {
             None
+        }
+    }
+    
+    // Check if an account has sufficient balance of a specific asset
+    fn check_balance(&self, address: &impl crate::accounts::AddressBytes, asset: &str, amount: u128) -> bool {
+        // Parse the asset string to a Denom
+        match asset.parse::<astria_core::primitive::v1::asset::Denom>() {
+            Ok(denom) => {
+                // Get the account's balance
+                match block_on(self.state.get_account_balance(address, &denom)) {
+                    Ok(balance) => {
+                        tracing::warn!(" Checking balance for asset {}: has {} >= {}", asset, balance, amount);
+                        balance >= amount
+                    },
+                    Err(err) => {
+                        tracing::error!(" Failed to get account balance: {}", err);
+                        false
+                    }
+                }
+            },
+            Err(err) => {
+                tracing::error!(" Failed to parse asset denom '{}': {}", asset, err);
+                false
+            }
         }
     }
 }
@@ -63,6 +92,9 @@ pub enum OrderbookError {
 
     #[error("Order not found: {0}")]
     OrderNotFound(String),
+    
+    #[error("Insufficient balance: {0}")]
+    InsufficientBalance(String),
 
     #[error("Order book operation failed: {0}")]
     OperationFailed(String),
@@ -70,7 +102,7 @@ pub enum OrderbookError {
 
 /// Extension trait for OrderbookComponent to check CreateOrder actions
 pub trait CheckCreateOrder {
-    fn check_create_order<S: StateRead>(
+    fn check_create_order<S: StateRead + AccountsStateReadExt>(
         &self,
         state: &S,
         action: &CreateOrder,
@@ -79,7 +111,7 @@ pub trait CheckCreateOrder {
 }
 
 impl CheckCreateOrder for OrderbookComponent {
-    fn check_create_order<S: StateRead>(
+    fn check_create_order<S: StateRead + AccountsStateReadExt>(
         &self,
         state: &S,
         action: &CreateOrder,
@@ -121,9 +153,47 @@ impl CheckCreateOrder for OrderbookComponent {
         let order_type = utils::order_type_from_proto(proto_type);
         let time_in_force = utils::time_in_force_from_proto(proto_tif);
         
-        // NOTE: In a production system, we would check the sender's balance here
-        // for SELL orders. However, this functionality is not yet implemented.
-        // TODO: Implement balance checking for SELL orders
+        // For SELL orders, check that the sender has sufficient balance of the base asset
+        if let crate::orderbook::component::OrderSide::Sell = side {
+            tracing::warn!(" Processing SELL order - checking sender balance");
+            
+            // Extract the quantity from the action
+            let quantity_val = match action.quantity {
+                Some(qty) => qty,
+                None => {
+                    return Err(CheckedActionError::from(OrderbookError::InvalidOrderParameters(
+                        "SELL order must specify a quantity".to_string(),
+                    )));
+                }
+            };
+            
+            // Get the market parameters to determine the base asset
+            let market_params = match state.get_market_params(&action.market) {
+                Some(params) => params,
+                None => {
+                    return Err(CheckedActionError::from(OrderbookError::MarketNotFound(
+                        format!("Market parameters not found for {}", action.market),
+                    )));
+                }
+            };
+            
+            // Log the market parameters for debugging
+            tracing::warn!(" Market parameters - base_asset: {}, quote_asset: {}", 
+                market_params.base_asset, market_params.quote_asset);
+            
+            // Check the sender's balance of the base asset
+            let has_sufficient_balance = execution_state.check_balance(&address, &market_params.base_asset, quantity_val);
+            
+            if !has_sufficient_balance {
+                tracing::error!(" Sender does not have sufficient balance of {} for SELL order", 
+                    market_params.base_asset);
+                return Err(CheckedActionError::from(OrderbookError::InsufficientBalance(
+                    format!("Insufficient balance of {} for SELL order", market_params.base_asset),
+                )));
+            }
+            
+            tracing::warn!(" Sender has sufficient balance for SELL order");
+        }
 
         Ok(CheckedCreateOrder {
             sender: address,
@@ -146,7 +216,7 @@ impl CheckCreateOrder for OrderbookComponent {
 
 /// Extension trait for OrderbookComponent to check CancelOrder actions
 pub trait CheckCancelOrder {
-    fn check_cancel_order<S: StateRead>(
+    fn check_cancel_order<S: StateRead + AccountsStateReadExt>(
         &self,
         state: &S,
         action: &CancelOrder,
@@ -155,7 +225,7 @@ pub trait CheckCancelOrder {
 }
 
 impl CheckCancelOrder for OrderbookComponent {
-    fn check_cancel_order<S: StateRead>(
+    fn check_cancel_order<S: StateRead + AccountsStateReadExt>(
         &self,
         state: &S,
         action: &CancelOrder,
@@ -199,7 +269,7 @@ impl CheckCancelOrder for OrderbookComponent {
 
 /// Extension trait for OrderbookComponent to check CreateMarket actions
 pub trait CheckCreateMarket {
-    fn check_create_market<S: StateRead>(
+    fn check_create_market<S: StateRead + AccountsStateReadExt>(
         &self,
         state: &S,
         action: &CreateMarket,
@@ -208,7 +278,7 @@ pub trait CheckCreateMarket {
 }
 
 impl CheckCreateMarket for OrderbookComponent {
-    fn check_create_market<S: StateRead>(
+    fn check_create_market<S: StateRead + AccountsStateReadExt>(
         &self,
         state: &S,
         action: &CreateMarket,
@@ -266,7 +336,7 @@ impl CheckCreateMarket for OrderbookComponent {
 
 /// Extension trait for OrderbookComponent to check UpdateMarket actions
 pub trait CheckUpdateMarket {
-    fn check_update_market<S: StateRead>(
+    fn check_update_market<S: StateRead + AccountsStateReadExt>(
         &self,
         state: &S,
         action: &UpdateMarket,
@@ -275,7 +345,7 @@ pub trait CheckUpdateMarket {
 }
 
 impl CheckUpdateMarket for OrderbookComponent {
-    fn check_update_market<S: StateRead>(
+    fn check_update_market<S: StateRead + AccountsStateReadExt>(
         &self,
         state: &S,
         action: &UpdateMarket,
@@ -330,12 +400,36 @@ impl<'a> ExecuteOrderbookAction for &'a CheckedCreateOrder {
         // Just forward to the implementation on CheckedCreateOrder
         (*self).execute(component, state)
     }
+    
+    fn name(&self) -> &'static str {
+        "create_order"
+    }
+    
+    fn variable_component(&self) -> u128 {
+        0
+    }
+    
+    fn fee_asset(&self) -> Option<&astria_core::primitive::v1::asset::Denom> {
+        None
+    }
 }
 
 impl<'a> ExecuteOrderbookAction for &'a CheckedCancelOrder {
     fn execute<S: StateRead + cnidarium::StateWrite>(&self, component: Arc<OrderbookComponent>, state: &mut S) -> Result<(), CheckedActionExecutionError> {
         // Just forward to the implementation on CheckedCancelOrder
         (*self).execute(component, state)
+    }
+    
+    fn name(&self) -> &'static str {
+        "cancel_order"
+    }
+    
+    fn variable_component(&self) -> u128 {
+        0
+    }
+    
+    fn fee_asset(&self) -> Option<&astria_core::primitive::v1::asset::Denom> {
+        None
     }
 }
 
@@ -344,6 +438,18 @@ impl<'a> ExecuteOrderbookAction for &'a CheckedCreateMarket {
         // Just forward to the implementation on CheckedCreateMarket
         (*self).execute(component, state)
     }
+    
+    fn name(&self) -> &'static str {
+        "create_market"
+    }
+    
+    fn variable_component(&self) -> u128 {
+        0
+    }
+    
+    fn fee_asset(&self) -> Option<&astria_core::primitive::v1::asset::Denom> {
+        None
+    }
 }
 
 impl<'a> ExecuteOrderbookAction for &'a crate::orderbook::component::CheckedUpdateMarket {
@@ -351,11 +457,23 @@ impl<'a> ExecuteOrderbookAction for &'a crate::orderbook::component::CheckedUpda
         // Just forward to the implementation on CheckedUpdateMarket
         (*self).execute(component, state)
     }
+    
+    fn name(&self) -> &'static str {
+        "update_market"
+    }
+    
+    fn variable_component(&self) -> u128 {
+        0
+    }
+    
+    fn fee_asset(&self) -> Option<&astria_core::primitive::v1::asset::Denom> {
+        None
+    }
 }
 
 // Add the orderbook-specific action references to ActionRef
 impl<'a> ActionRef<'a> {
-    pub fn apply_orderbook<S: StateRead + cnidarium::StateWrite>(
+    pub fn apply_orderbook<S: StateRead + cnidarium::StateWrite + AccountsStateReadExt>(
         &self,
         _component: &OrderbookComponent,
         state: &mut S,

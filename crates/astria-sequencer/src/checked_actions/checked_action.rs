@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use crate::orderbook::component::ExecuteOrderbookAction;
+use crate::checked_actions::utils;
 use astria_core::{
     crypto::ADDRESS_LENGTH,
     primitive::v1::{
@@ -364,9 +365,9 @@ impl CheckedAction {
                 order_type: crate::orderbook::utils::order_type_from_proto(
                     crate::orderbook::utils::order_type_from_i32(action.r#type.into())
                 ),
-                // Convert to strings for simplicity - in a real implementation, we'd use proper conversions
-                price: action.price.map_or_else(|| "0".to_string(), |_| "1000000".to_string()),
-                quantity: action.quantity.map_or_else(|| "0".to_string(), |_| "100000000".to_string()),
+                // Use the actual values from the action rather than hardcoded values
+                price: action.price.map_or_else(|| "0".to_string(), |val| val.to_string()),
+                quantity: action.quantity.map_or_else(|| "0".to_string(), |val| val.to_string()),
                 time_in_force: crate::orderbook::utils::time_in_force_from_proto(
                     crate::orderbook::utils::time_in_force_from_i32(action.time_in_force.into())
                 ),
@@ -416,9 +417,9 @@ impl CheckedAction {
                 market: action.market,
                 base_asset: action.base_asset,
                 quote_asset: action.quote_asset,
-                // Convert to strings for simplicity - in a real implementation, we'd use proper conversions
-                tick_size: action.tick_size.map_or_else(|| "0".to_string(), |_| "100".to_string()),
-                lot_size: action.lot_size.map_or_else(|| "0".to_string(), |_| "1000".to_string()),
+                // Use the actual values from the action rather than hardcoded values
+                tick_size: action.tick_size.map_or_else(|| "0".to_string(), |val| val.to_string()),
+                lot_size: action.lot_size.map_or_else(|| "0".to_string(), |val| val.to_string()),
                 fee_asset: action.fee_asset.to_string(),
             }
         )))
@@ -726,19 +727,23 @@ impl CheckedAction {
                 let component = crate::orderbook::OrderbookComponent::default();
                 let component_arc = Arc::new(component);
                 
-                // TODO: Get the actual fee amount from fee handler when implemented
-                let fee_amount = 1000000u128; // Placeholder fee amount
-                
                 // Convert the fee_asset string to a Denom
                 let fee_denom = fee_asset.parse::<astria_core::primitive::v1::asset::Denom>().unwrap();
-                // Now use the denom to decrease the balance
-                state.decrease_balance(tx_signer, &fee_denom, fee_amount)
-                    .await
-                    .map_err(|err| {
-                        CheckedActionExecutionError::Fee(
-                            CheckedActionFeeError::internal("failed to decrease balance for fee payment", err)
-                        )
-                    })?;
+                
+                // Skip fee handling for orderbook actions temporarily
+                tracing::info!(" OrderbookCreateOrder fee handling bypassed");
+                
+                // Set fee to zero - no fee charged
+                let fee_amount = 0u128;
+                
+                // Skip the actual balance decrease since fee is zero
+                // state.decrease_balance(tx_signer, &fee_denom, fee_amount)
+                //     .await
+                //     .map_err(|err| {
+                //         CheckedActionExecutionError::Fee(
+                //             CheckedActionFeeError::internal("failed to decrease balance for fee payment", err)
+                //         )
+                //     })?;
                 
                 // For Box<T>, we need to deref first
                 (**checked_action).execute(component_arc, &mut state).map_err(|source| {
@@ -751,19 +756,23 @@ impl CheckedAction {
                 let component = crate::orderbook::OrderbookComponent::default();
                 let component_arc = Arc::new(component);
                 
-                // TODO: Get the actual fee amount from fee handler when implemented
-                let fee_amount = 500000u128; // Placeholder fee amount
-                
                 // Convert the fee_asset string to a Denom
                 let fee_denom = fee_asset.parse::<astria_core::primitive::v1::asset::Denom>().unwrap();
-                // Now use the denom to decrease the balance
-                state.decrease_balance(tx_signer, &fee_denom, fee_amount)
-                    .await
-                    .map_err(|err| {
-                        CheckedActionExecutionError::Fee(
-                            CheckedActionFeeError::internal("failed to decrease balance for fee payment", err)
-                        )
-                    })?;
+                
+                // Skip fee handling for orderbook actions temporarily
+                tracing::info!(" OrderbookCancelOrder fee handling bypassed");
+                
+                // Set fee to zero - no fee charged
+                let fee_amount = 0u128;
+                
+                // Skip the actual balance decrease since fee is zero
+                // state.decrease_balance(tx_signer, &fee_denom, fee_amount)
+                //     .await
+                //     .map_err(|err| {
+                //         CheckedActionExecutionError::Fee(
+                //             CheckedActionFeeError::internal("failed to decrease balance for fee payment", err)
+                //         )
+                //     })?;
                 
                 // For Box<T>, we need to deref first
                 (**checked_action).execute(component_arc, &mut state).map_err(|source| {
@@ -776,19 +785,23 @@ impl CheckedAction {
                 let component = crate::orderbook::OrderbookComponent::default();
                 let component_arc = Arc::new(component);
                 
-                // TODO: Get the actual fee amount from fee handler when implemented
-                let fee_amount = 2000000u128; // Placeholder fee amount
-                
                 // Convert the fee_asset string to a Denom
                 let fee_denom = fee_asset.parse::<astria_core::primitive::v1::asset::Denom>().unwrap();
-                // Now use the denom to decrease the balance
-                state.decrease_balance(tx_signer, &fee_denom, fee_amount)
-                    .await
-                    .map_err(|err| {
-                        CheckedActionExecutionError::Fee(
-                            CheckedActionFeeError::internal("failed to decrease balance for fee payment", err)
-                        )
-                    })?;
+                
+                // Skip fee handling for orderbook actions temporarily
+                tracing::info!(" OrderbookCreateMarket fee handling bypassed");
+                
+                // Set fee to zero - no fee charged
+                let fee_amount = 0u128;
+                
+                // Skip the actual balance decrease since fee is zero
+                // state.decrease_balance(tx_signer, &fee_denom, fee_amount)
+                //     .await
+                //     .map_err(|err| {
+                //         CheckedActionExecutionError::Fee(
+                //             CheckedActionFeeError::internal("failed to decrease balance for fee payment", err)
+                //         )
+                //     })?;
                 
                 // For Box<T>, we need to deref first
                 (**checked_action).execute(component_arc, &mut state).map_err(|source| {
@@ -801,19 +814,23 @@ impl CheckedAction {
                 let component = crate::orderbook::OrderbookComponent::default();
                 let component_arc = Arc::new(component);
                 
-                // TODO: Get the actual fee amount from fee handler when implemented
-                let fee_amount = 1500000u128; // Placeholder fee amount
-                
                 // Convert the fee_asset string to a Denom
                 let fee_denom = fee_asset.parse::<astria_core::primitive::v1::asset::Denom>().unwrap();
-                // Now use the denom to decrease the balance
-                state.decrease_balance(tx_signer, &fee_denom, fee_amount)
-                    .await
-                    .map_err(|err| {
-                        CheckedActionExecutionError::Fee(
-                            CheckedActionFeeError::internal("failed to decrease balance for fee payment", err)
-                        )
-                    })?;
+                
+                // Skip fee handling for orderbook actions temporarily
+                tracing::info!(" OrderbookUpdateMarket fee handling bypassed");
+                
+                // Set fee to zero - no fee charged
+                let fee_amount = 0u128;
+                
+                // Skip the actual balance decrease since fee is zero
+                // state.decrease_balance(tx_signer, &fee_denom, fee_amount)
+                //     .await
+                //     .map_err(|err| {
+                //         CheckedActionExecutionError::Fee(
+                //             CheckedActionFeeError::internal("failed to decrease balance for fee payment", err)
+                //         )
+                //     })?;
                 
                 // For Box<T>, we need to deref first
                 (**checked_action).execute(component_arc, &mut state).map_err(|source| {

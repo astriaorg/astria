@@ -4,7 +4,8 @@ use prost::Message;
 
 use crate::orderbook::types::{
     Order, OrderSide, OrderTimeInForce, OrderType, Market as LocalMarket, 
-    OrderMatch as LocalOrderMatch, Trade as LocalTrade
+    OrderMatch as LocalOrderMatch, Trade as LocalTrade,
+    OrderbookDepth as LocalOrderbookDepth, OrderbookDepthLevel as LocalOrderbookDepthLevel
 };
 use crate::orderbook::state_ext::MarketParams;
 
@@ -26,6 +27,10 @@ pub struct OrderbookEntryWrapper(pub proto::OrderbookEntry);
 /// Wrapper for proto::Orderbook
 #[derive(Debug, Clone)]
 pub struct OrderbookWrapper(pub proto::Orderbook);
+
+/// Wrapper for local OrderbookDepth
+#[derive(Debug, Clone)]
+pub struct OrderbookDepthWrapper(pub LocalOrderbookDepth);
 
 // Implement From traits for easy conversion
 impl From<proto::Order> for OrderWrapper {
@@ -72,6 +77,18 @@ impl From<proto::Orderbook> for OrderbookWrapper {
 
 impl From<OrderbookWrapper> for proto::Orderbook {
     fn from(wrapper: OrderbookWrapper) -> Self {
+        wrapper.0
+    }
+}
+
+impl From<LocalOrderbookDepth> for OrderbookDepthWrapper {
+    fn from(depth: LocalOrderbookDepth) -> Self {
+        OrderbookDepthWrapper(depth)
+    }
+}
+
+impl From<OrderbookDepthWrapper> for LocalOrderbookDepth {
+    fn from(wrapper: OrderbookDepthWrapper) -> Self {
         wrapper.0
     }
 }
@@ -145,6 +162,21 @@ impl BorshDeserialize for OrderbookWrapper {
         proto::Orderbook::decode(&*bytes)
             .map(OrderbookWrapper)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+    }
+}
+
+// Implement Borsh serialization for OrderbookDepthWrapper
+impl BorshSerialize for OrderbookDepthWrapper {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        BorshSerialize::serialize(&self.0, writer)
+    }
+}
+
+// Implement Borsh deserialization for OrderbookDepthWrapper
+impl BorshDeserialize for OrderbookDepthWrapper {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let depth = LocalOrderbookDepth::deserialize_reader(reader)?;
+        Ok(OrderbookDepthWrapper(depth))
     }
 }
 

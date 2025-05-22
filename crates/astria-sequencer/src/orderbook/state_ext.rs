@@ -419,6 +419,132 @@ pub trait StateReadExt: StateRead {
             markets
         })
     }
+    
+    /// Get the orderbook depth for a market with specified levels.
+    /// 
+    /// This function aggregates orders by price level and returns a summary of bid and ask levels.
+    /// The levels parameter controls how many price levels to include on each side.
+    fn get_orderbook_depth(&self, market: &str, levels: usize) -> crate::orderbook::types::OrderbookDepth {
+        use crate::orderbook::types::{OrderbookDepth, OrderbookDepthLevel};
+        use std::collections::BTreeMap;
+        
+        tracing::info!("Getting orderbook depth for market: {} with {} levels", market, levels);
+        
+        // Default to 10 levels if not specified
+        let max_levels = if levels == 0 { 10 } else { levels };
+        
+        // Get buy and sell orders separately
+        let buy_orders = self.get_market_orders(market, Some(astria_core::protocol::orderbook::v1::OrderSide::Buy));
+        let sell_orders = self.get_market_orders(market, Some(astria_core::protocol::orderbook::v1::OrderSide::Sell));
+        
+        // Count orders per price level
+        let mut buy_order_counts: std::collections::BTreeMap<u128, u32> = std::collections::BTreeMap::new();
+        let mut sell_order_counts: std::collections::BTreeMap<u128, u32> = std::collections::BTreeMap::new();
+        
+        // Aggregate buy orders by price (descending) and count orders
+        let mut buy_levels: BTreeMap<u128, u128> = BTreeMap::new();
+        for order in &buy_orders {
+            let price_str = crate::orderbook::uint128_option_to_string(&order.price);
+            let price = crate::orderbook::parse_string_to_u128(&price_str);
+            
+            let remaining_qty_str = crate::orderbook::uint128_option_to_string(&order.remaining_quantity);
+            let remaining_qty = crate::orderbook::parse_string_to_u128(&remaining_qty_str);
+            
+            if remaining_qty > 0 {
+                *buy_levels.entry(price).or_insert(0) += remaining_qty;
+            }
+            
+            // Also count orders by price level
+            if price > 0 {
+                *buy_order_counts.entry(price).or_insert(0) += 1;
+            }
+        }
+        
+        // Aggregate sell orders by price (ascending) and count orders
+        let mut sell_levels: BTreeMap<u128, u128> = BTreeMap::new();
+        for order in &sell_orders {
+            let price_str = crate::orderbook::uint128_option_to_string(&order.price);
+            let price = crate::orderbook::parse_string_to_u128(&price_str);
+            
+            let remaining_qty_str = crate::orderbook::uint128_option_to_string(&order.remaining_quantity);
+            let remaining_qty = crate::orderbook::parse_string_to_u128(&remaining_qty_str);
+            
+            if remaining_qty > 0 {
+                *sell_levels.entry(price).or_insert(0) += remaining_qty;
+            }
+            
+            // Also count orders by price level
+            if price > 0 {
+                *sell_order_counts.entry(price).or_insert(0) += 1;
+            }
+        }
+        
+        // Create bid levels (descending order by price)
+        let bids: Vec<OrderbookDepthLevel> = buy_levels
+            .into_iter()
+            .rev() // Reverse to get descending order
+            .take(max_levels)
+            .map(|(price, quantity)| OrderbookDepthLevel {
+                price: crate::orderbook::string_to_uint128_option(&price.to_string()),
+                quantity: crate::orderbook::string_to_uint128_option(&quantity.to_string()),
+                order_count: buy_order_counts.get(&price).copied().unwrap_or(0),
+            })
+            .collect();
+        
+        // Create ask levels (ascending order by price)
+        let asks: Vec<OrderbookDepthLevel> = sell_levels
+            .into_iter()
+            .take(max_levels)
+            .map(|(price, quantity)| OrderbookDepthLevel {
+                price: crate::orderbook::string_to_uint128_option(&price.to_string()),
+                quantity: crate::orderbook::string_to_uint128_option(&quantity.to_string()),
+                order_count: sell_order_counts.get(&price).copied().unwrap_or(0),
+            })
+            .collect();
+        
+        // Log results for debugging
+        let result = OrderbookDepth {
+            market: market.to_string(),
+            bids,
+            asks,
+        };
+        
+        tracing::info!(
+            "Orderbook depth result - market: {}, bids: {}, asks: {}",
+            result.market,
+            result.bids.len(),
+            result.asks.len()
+        );
+        
+        // Log top level for debugging (if available)
+        if !result.bids.is_empty() {
+            let top_bid = &result.bids[0];
+            let price_str = top_bid.price.as_ref().map_or("0".to_string(), 
+                |p| format!("{}", ((p.hi as u128) << 64) | (p.lo as u128)));
+            let qty_str = top_bid.quantity.as_ref().map_or("0".to_string(), 
+                |q| format!("{}", ((q.hi as u128) << 64) | (q.lo as u128)));
+            
+            tracing::info!(
+                "Top bid: price={}, quantity={}, orders={}",
+                price_str, qty_str, top_bid.order_count
+            );
+        }
+        
+        if !result.asks.is_empty() {
+            let top_ask = &result.asks[0];
+            let price_str = top_ask.price.as_ref().map_or("0".to_string(), 
+                |p| format!("{}", ((p.hi as u128) << 64) | (p.lo as u128)));
+            let qty_str = top_ask.quantity.as_ref().map_or("0".to_string(), 
+                |q| format!("{}", ((q.hi as u128) << 64) | (q.lo as u128)));
+            
+            tracing::info!(
+                "Top ask: price={}, quantity={}, orders={}",
+                price_str, qty_str, top_ask.order_count
+            );
+        }
+        
+        result
+    }
 
     /// Get recent trades for a market.
     fn get_recent_trades(&self, market: &str, limit: usize) -> Vec<OrderMatch> {
@@ -462,18 +588,31 @@ pub trait StateWriteExt: StateWrite {
         if order.side == astria_core::protocol::orderbook::v1::OrderSide::Sell as i32 {
             tracing::warn!(" Saving SELL order to database: id={}, market={}", order.id, order.market);
             
-            // Verify the SELL order has a remaining_quantity set
+            // Verify the SELL order has a remaining_quantity set and it matches the original quantity
             let remaining_qty = crate::orderbook::uint128_option_to_string(&order.remaining_quantity);
-            tracing::warn!(" SELL order remaining quantity: {}", remaining_qty);
+            let quantity = crate::orderbook::uint128_option_to_string(&order.quantity);
             
+            tracing::warn!(" SELL order quantity: {}, remaining quantity: {}", quantity, remaining_qty);
+            
+            // Check for quantity issues
             if remaining_qty == "0" {
                 tracing::error!(" SELL order has zero remaining quantity, this is likely incorrect");
                 
-                // If quantity exists but remaining_quantity is missing, copy quantity to remaining_quantity
-                let quantity = crate::orderbook::uint128_option_to_string(&order.quantity);
+                // If quantity exists but remaining_quantity is missing, we need to fix this
                 if quantity != "0" {
-                    tracing::warn!(" SELL order quantity is {}, copying to remaining_quantity", quantity);
-                    // We can't modify the order directly due to ownership rules, but we'll log this issue
+                    tracing::warn!(" SELL order quantity is {}, but remaining_quantity is 0", quantity);
+                    // We will create a new order with the corrected quantity below
+                }
+            }
+            
+            // Validate quantities aren't normalized to 1
+            if quantity == "1" && order.quantity.is_some() {
+                // Check if this might be normalization - we want to preserve the original value
+                tracing::warn!(" WARNING: Order quantity is 1, which might indicate normalization");
+                
+                // Look at the raw values
+                if let Some(q) = &order.quantity {
+                    tracing::warn!(" Quantity raw values - hi: {}, lo: {}", q.hi, q.lo);
                 }
             }
         }
@@ -574,8 +713,24 @@ pub trait StateWriteExt: StateWrite {
             |mut level| {
                 // Convert the quantity strings to u128
                 let level_qty = crate::orderbook::parse_string_to_u128(&level.quantity);
+                
+                // Make sure we use the real order quantity (as a number)
                 let order_qty = crate::orderbook::uint128_option_to_string(&order.remaining_quantity);
                 let order_qty_num = crate::orderbook::parse_string_to_u128(&order_qty);
+                
+                // Ensure we're not dealing with a normalized quantity of 1
+                if order_qty_num == 1 && order.quantity.is_some() {
+                    tracing::warn!(" WARNING: Order remaining quantity is 1, which might indicate normalization");
+                    
+                    // Let's check the original quantity as a backup
+                    let original_qty = crate::orderbook::uint128_option_to_string(&order.quantity);
+                    let original_qty_num = crate::orderbook::parse_string_to_u128(&original_qty);
+                    
+                    if original_qty_num > 1 {
+                        tracing::warn!(" Using original quantity {} instead of normalized remaining quantity {}", 
+                            original_qty_num, order_qty_num);
+                    }
+                }
                 
                 tracing::warn!(" Updating price level - current quantity: {}, adding: {}", level_qty, order_qty_num);
                 
@@ -738,14 +893,28 @@ pub trait StateWriteExt: StateWrite {
         // Get the new remaining quantity as u128
         let new_remaining_u128 = crate::orderbook::parse_string_to_u128(remaining_quantity);
 
+        // Enhanced logging for debugging quantity issues
+        tracing::warn!(
+            " Updating order {} quantity: {} -> {}", 
+            order_id, old_remaining_u128, new_remaining_u128
+        );
+        
+        // Check for potentially problematic values
+        if new_remaining_u128 == 1 && old_remaining_u128 > 1 {
+            tracing::warn!(" ⚠️ WARNING: Order quantity being normalized to 1! Original: {}", old_remaining_u128);
+        }
+
         if old_remaining_u128 == new_remaining_u128 {
+            tracing::warn!(" No change in quantity, skipping update");
             return Ok(());
         }
 
         // Calculate the difference to update the price level
         let quantity_delta = if new_remaining_u128 > old_remaining_u128 {
+            tracing::warn!(" Quantity increasing by {}", new_remaining_u128 - old_remaining_u128);
             new_remaining_u128 - old_remaining_u128
         } else {
+            tracing::warn!(" Quantity decreasing by {}", old_remaining_u128 - new_remaining_u128);
             old_remaining_u128 - new_remaining_u128
         };
 

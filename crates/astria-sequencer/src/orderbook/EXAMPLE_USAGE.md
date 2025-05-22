@@ -87,7 +87,11 @@ client.submit_transaction(tx).await?;
 
 ## Querying the Orderbook
 
-To query the current state of a market's orderbook:
+There are two ways to query the orderbook: full orderbook or orderbook depth.
+
+### Full Orderbook
+
+To query the complete state of a market's orderbook:
 
 ```rust
 use astria_core::protocol::orderbook::v1::Orderbook;
@@ -109,6 +113,36 @@ println!("Top 5 Asks:");
 for (i, ask) in orderbook.asks.iter().take(5).enumerate() {
     println!("  {}. {} @ {} ({} orders)", 
         i+1, ask.quantity, ask.price, ask.order_count);
+}
+```
+
+### Orderbook Depth
+
+For a more efficient aggregated view of the orderbook by price level:
+
+```rust
+use astria_core::protocol::orderbook::v1::OrderbookDepth;
+
+// Query the orderbook depth with default levels (10)
+let depth: OrderbookDepth = client
+    .query("orderbook/depth/BTC/USD")
+    .await?;
+
+// Query with a specific number of levels
+let depth_20: OrderbookDepth = client
+    .query("orderbook/depth/BTC/USD?levels=20")
+    .await?;
+
+// Display the price levels
+println!("Market: {}", depth.market);
+println!("Bids:");
+for (i, bid) in depth.bids.iter().enumerate() {
+    println!("  {}. {} @ {}", i+1, bid.quantity, bid.price);
+}
+
+println!("Asks:");
+for (i, ask) in depth.asks.iter().enumerate() {
+    println!("  {}. {} @ {}", i+1, ask.quantity, ask.price);
 }
 ```
 

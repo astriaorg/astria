@@ -158,12 +158,18 @@ impl MatchingEngine {
         state: &mut S,
         order: Order,
     ) -> Result<Vec<OrderMatch>, OrderbookError> {
+        // Extract numeric values for better logging
+        let price_str = crate::orderbook::uint128_option_to_string(&order.price);
+        let quantity_str = crate::orderbook::uint128_option_to_string(&order.quantity);
+        let remaining_str = crate::orderbook::uint128_option_to_string(&order.remaining_quantity);
+        
         info!(
             order_id = order.id,
             market = order.market,
             side = ?order.side,
-            price = ?order.price,
-            quantity = ?order.quantity,
+            price = price_str,
+            quantity = quantity_str,
+            remaining = remaining_str,
             "Processing order"
         );
         
@@ -292,22 +298,78 @@ impl MatchingEngine {
             crate::orderbook::utils::time_in_force_from_i32(order.time_in_force)
         );
         
-        // Parse numeric quantities
+        // Parse numeric quantities with additional validation
         let price = match &order.price {
-            Some(p) => parse_string_to_u128(&uint128_option_to_string(&Some(p.clone()))),
+            Some(p) => {
+                let price_str = uint128_option_to_string(&Some(p.clone()));
+                let price_u128 = parse_string_to_u128(&price_str);
+                
+                // Warn about potentially problematic values
+                if price_u128 == 1 {
+                    tracing::warn!("⚠️ Order price is exactly 1, which may indicate normalization issues");
+                } else if price_u128 == 0 {
+                    tracing::warn!("⚠️ Order price is zero, which may cause issues");
+                }
+                
+                price_u128
+            },
             None => 0,
         };
         
         let quantity = match &order.quantity {
-            Some(q) => parse_string_to_u128(&uint128_option_to_string(&Some(q.clone()))),
+            Some(q) => {
+                let qty_str = uint128_option_to_string(&Some(q.clone()));
+                let qty_u128 = parse_string_to_u128(&qty_str);
+                
+                // Warn about potentially problematic values
+                if qty_u128 == 1 {
+                    tracing::warn!("⚠️ Order quantity is exactly 1, which may indicate normalization issues");
+                } else if qty_u128 == 0 {
+                    tracing::error!("❌ Order quantity is zero, this is invalid");
+                    return Err(OrderbookError::InvalidOrderParameters("Order quantity must be greater than zero".to_string()));
+                }
+                
+                qty_u128
+            },
             None => return Err(OrderbookError::InvalidOrderParameters("Order quantity must be specified".to_string())),
         };
         
         let remaining_quantity = match &order.remaining_quantity {
-            Some(q) => parse_string_to_u128(&uint128_option_to_string(&Some(q.clone()))),
-            None => quantity, // If not specified, remaining = total
+            Some(q) => {
+                let rem_str = uint128_option_to_string(&Some(q.clone()));
+                let rem_u128 = parse_string_to_u128(&rem_str);
+                
+                // Warn about potentially problematic values
+                if rem_u128 == 1 {
+                    tracing::warn!("⚠️ Order remaining quantity is exactly 1, which may indicate normalization issues");
+                } else if rem_u128 == 0 {
+                    tracing::warn!("⚠️ Order remaining quantity is zero, order may be fully filled already");
+                }
+                
+                // Check if remaining exceeds total and cap if needed
+                if rem_u128 > quantity {
+                    tracing::error!("❌ Remaining quantity {} exceeds total quantity {}", rem_u128, quantity);
+                    // Cap the remaining quantity to the total quantity
+                    tracing::warn!("Capping remaining quantity to total quantity: {}", quantity);
+                    quantity
+                } else {
+                    rem_u128
+                }
+            },
+            None => {
+                tracing::debug!("No remaining quantity specified, using total quantity: {}", quantity);
+                quantity // If not specified, remaining = total
+            },
         };
 
+        // Log original order quantity to verify it's preserved
+        let original_quantity = crate::orderbook::uint128_option_to_string(&order.quantity);
+        let original_remaining = crate::orderbook::uint128_option_to_string(&order.remaining_quantity);
+        tracing::warn!(
+            "🔢 Original order quantities - quantity: {}, remaining: {}", 
+            original_quantity, original_remaining
+        );
+        
         // Construct the order book from the state
         let mut order_book = self.construct_order_book(state, &order.market)?;
         
@@ -432,7 +494,27 @@ impl MatchingEngine {
                     remaining_quantity, maker_remaining, match_quantity
                 );
                 
+                // Log the actual values in standard units (divided by 10^6)
+                tracing::info!(
+                    "Order matching in standard units - taker: {:.6}, maker: {:.6}, match: {:.6}",
+                    remaining_quantity as f64 / 1_000_000.0,
+                    maker_remaining as f64 / 1_000_000.0,
+                    match_quantity as f64 / 1_000_000.0
+                );
+                
+                // Verify match quantity is not zero and respects both order quantities
+                if match_quantity == 0 {
+                    tracing::error!("❌ Match quantity is zero - this shouldn't happen with positive quantities");
+                } else if match_quantity > remaining_quantity || match_quantity > maker_remaining {
+                    tracing::error!(
+                        "❌ Match quantity {} exceeds available quantities (taker: {}, maker: {})",
+                        match_quantity, remaining_quantity, maker_remaining
+                    );
+                }
+                
                 // For SELL orders, double check the quantity is correct
+                let mut corrected_match_quantity = match_quantity;
+                
                 if let OrderSide::Sell = side {
                     tracing::warn!(" SELL order matching - checking quantities carefully");
                     
@@ -443,8 +525,8 @@ impl MatchingEngine {
                             match_quantity, maker_remaining
                         );
                         // Correct the match quantity
-                        let corrected_match = maker_remaining;
-                        tracing::warn!(" Correcting match quantity to: {}", corrected_match);
+                        corrected_match_quantity = maker_remaining;
+                        tracing::warn!(" Correcting match quantity to: {}", corrected_match_quantity);
                     }
                     
                     if match_quantity > remaining_quantity {
@@ -452,20 +534,61 @@ impl MatchingEngine {
                             "❌ Match quantity {} exceeds taker remaining {}", 
                             match_quantity, remaining_quantity
                         );
-                        // Correct the match quantity in a separate variable
-                        let corrected_match = remaining_quantity;
-                        tracing::warn!(" Correcting match quantity to: {}", corrected_match);
+                        // Use the smallest value to ensure we don't exceed available quantities
+                        if remaining_quantity < corrected_match_quantity {
+                            corrected_match_quantity = remaining_quantity;
+                            tracing::warn!(" Further correcting match quantity to: {}", corrected_match_quantity);
+                        }
                     }
                 }
                 
+                // Use the corrected match quantity instead of the original
+                let match_quantity = corrected_match_quantity;
+                
                 // Only create a match if the quantity is positive
                 if match_quantity > 0 {
+                    // Verify the match quantity one more time
+                    let final_match_quantity = if match_quantity > 0 {
+                        match_quantity
+                    } else {
+                        // This should never happen, but just in case
+                        tracing::error!(" Match quantity is zero or negative: {}", match_quantity);
+                        // Don't use 1 as a fallback as it causes normalization issues
+                        // Instead, use the minimum valid quantity based on the side
+                        match side {
+                            OrderSide::Buy => {
+                                let min_quantity = std::cmp::min(remaining_quantity, maker_remaining);
+                                if min_quantity > 0 {
+                                    tracing::warn!(" Using minimum available quantity: {}", min_quantity);
+                                    min_quantity
+                                } else {
+                                    tracing::error!(" No valid quantity available, using original maker quantity");
+                                    maker_remaining
+                                }
+                            },
+                            OrderSide::Sell => {
+                                // For sell orders, being extra cautious
+                                let min_quantity = std::cmp::min(remaining_quantity, maker_remaining);
+                                if min_quantity > 0 {
+                                    tracing::warn!(" Using minimum available quantity for SELL: {}", min_quantity);
+                                    min_quantity
+                                } else {
+                                    tracing::error!(" No valid quantity available for SELL, using original maker quantity");
+                                    maker_remaining
+                                }
+                            }
+                        }
+                    };
+                    
+                    // Ensure we're preserving the actual quantity values, not normalizing them
+                    tracing::warn!(" Creating match with quantity: {}", final_match_quantity);
+                    
                     // Create the match
                     let order_match = OrderMatch {
                         id: Uuid::new_v4().to_string(),
                         market: order.market.clone(),
                         price: order.price.clone(), // Use the original price format
-                        quantity: crate::orderbook::string_to_uint128_option(&match_quantity.to_string()),
+                        quantity: crate::orderbook::string_to_uint128_option(&final_match_quantity.to_string()),
                         maker_order_id: maker_order_id.clone(),
                         taker_order_id: order.id.clone(),
                         taker_side: order.side,
@@ -480,13 +603,24 @@ impl MatchingEngine {
                     // Add the match to the list
                     matches.push(order_match);
                     
-                    // Update remaining quantities
-                    remaining_quantity -= match_quantity;
-                    tracing::warn!(" Taker remaining after match: {}", remaining_quantity);
+                    // Update remaining quantities - ensure proper quantity handling
+                    let old_remaining = remaining_quantity;
+                    remaining_quantity = remaining_quantity.saturating_sub(match_quantity);
+                    tracing::warn!(" Taker remaining after match: {} (was {})", remaining_quantity, old_remaining);
                     
-                    // Update maker order
-                    let new_maker_remaining = maker_remaining - match_quantity;
-                    tracing::warn!(" Maker remaining after match: {}", new_maker_remaining);
+                    // Update maker order - ensure proper quantity handling
+                    let old_maker_remaining = maker_remaining;
+                    let new_maker_remaining = maker_remaining.saturating_sub(match_quantity);
+                    tracing::warn!(" Maker remaining after match: {} (was {})", new_maker_remaining, old_maker_remaining);
+                    
+                    // Verify the quantities were properly updated
+                    if old_remaining == remaining_quantity && match_quantity > 0 {
+                        tracing::error!(" ❌ Taker quantity was not decreased despite a match! This indicates a bug");
+                    }
+                    
+                    if old_maker_remaining == new_maker_remaining && match_quantity > 0 {
+                        tracing::error!(" ❌ Maker quantity was not decreased despite a match! This indicates a bug");
+                    }
                     
                     if new_maker_remaining == 0 {
                         // Maker order is fully filled

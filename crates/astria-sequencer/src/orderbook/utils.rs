@@ -67,6 +67,10 @@ pub fn time_in_force_from_i32(time_in_force: i32) -> proto::OrderTimeInForce {
 }
 
 /// Convert an Option<Uint128> to a string representation
+/// 
+/// Note: The value returned is the raw value as stored in the chain,
+/// which is typically scaled by 10^6 or another factor depending on the asset.
+/// For display purposes, divide by the appropriate scaling factor.
 pub fn uint128_option_to_string(value: &Option<Uint128>) -> String {
     match value {
         Some(uint128) => {

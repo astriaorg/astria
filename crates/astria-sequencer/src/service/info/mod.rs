@@ -66,6 +66,7 @@ const ORDERBOOK_OWNER_ORDERS: &str = "orderbook/orders/owner/:owner";
 const ORDERBOOK_MARKETS: &str = "orderbook/markets";
 const ORDERBOOK_MARKET_PARAMS: &str = "orderbook/market_params/:market";
 const ORDERBOOK_TRADES: &str = "orderbook/trades/:market/:limit";
+const ORDERBOOK_DEPTH: &str = "orderbook/depth/:market/:levels?";
 
 impl Info {
     pub(crate) fn new(storage: Storage) -> Result<Self> {
@@ -98,6 +99,7 @@ impl Info {
         query_router.insert(ORDERBOOK_MARKETS, crate::orderbook::query::markets_request)?;
         query_router.insert(ORDERBOOK_MARKET_PARAMS, crate::orderbook::query::market_params_request)?;
         query_router.insert(ORDERBOOK_TRADES, crate::orderbook::query::trades_request)?;
+        query_router.insert(ORDERBOOK_DEPTH, crate::orderbook::query::orderbook_depth_request)?;
         
         Ok(Self {
             storage,

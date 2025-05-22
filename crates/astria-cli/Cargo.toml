@@ -47,6 +47,7 @@ regex = "1.9"
 chrono = "0.4"
 base64 = "0.13.0"
 byteorder = "1.5.0"
+borsh = "0.10.3"
 
 [dependencies.astria-sequencer-client]
 package = "astria-sequencer-client"

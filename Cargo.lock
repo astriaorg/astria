@@ -625,6 +625,7 @@ dependencies = [
  "astria-core",
  "astria-sequencer-client",
  "base64 0.13.1",
+ "borsh 0.10.4",
  "byteorder",
  "chrono",
  "clap",
@@ -767,7 +768,7 @@ dependencies = [
  "astria-merkle",
  "base64 0.21.7",
  "base64-serde",
- "borsh",
+ "borsh 1.5.7",
  "brotli",
  "bytes",
  "celestia-types",
@@ -892,7 +893,7 @@ dependencies = [
  "astria-telemetry",
  "async-trait",
  "base64 0.21.7",
- "borsh",
+ "borsh 1.5.7",
  "bytes",
  "chrono",
  "cnidarium",
@@ -1520,13 +1521,36 @@ dependencies = [
 
 [[package]]
 name = "borsh"
+version = "0.10.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "115e54d64eb62cdebad391c19efc9dce4981c690c85a33a12199d99bb9546fee"
+dependencies = [
+ "borsh-derive 0.10.4",
+ "hashbrown 0.13.2",
+]
+
+[[package]]
+name = "borsh"
 version = "1.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ad8646f98db542e39fc66e68a20b2144f6a732636df7c2354e74645faaa433ce"
 dependencies = [
- "borsh-derive",
+ "borsh-derive 1.5.7",
  "bytes",
  "cfg_aliases",
+]
+
+[[package]]
+name = "borsh-derive"
+version = "0.10.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "831213f80d9423998dd696e2c5345aba6be7a0bd8cd19e31c5243e13df1cef89"
+dependencies = [
+ "borsh-derive-internal",
+ "borsh-schema-derive-internal",
+ "proc-macro-crate 0.1.5",
+ "proc-macro2 1.0.95",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -1536,10 +1560,32 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fdd1d3c0c2f5833f22386f252fe8ed005c7f59fdcddeef025c01b4c3b9fd9ac3"
 dependencies = [
  "once_cell",
- "proc-macro-crate",
+ "proc-macro-crate 3.3.0",
  "proc-macro2 1.0.95",
  "quote",
  "syn 2.0.100",
+]
+
+[[package]]
+name = "borsh-derive-internal"
+version = "0.10.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65d6ba50644c98714aa2a70d13d7df3cd75cd2b523a2b452bf010443800976b3"
+dependencies = [
+ "proc-macro2 1.0.95",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "borsh-schema-derive-internal"
+version = "0.10.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "276691d96f063427be83e6692b86148e488ebba9f48f77788724ca027ba3b6d4"
+dependencies = [
+ "proc-macro2 1.0.95",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -1936,7 +1982,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "base64 0.21.7",
- "borsh",
+ "borsh 1.5.7",
  "futures",
  "hex",
  "ibc-proto",
@@ -4932,7 +4978,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf2a10370b45cd850e64993ccd81d25ea2d4b5b0d0312546e7489fed82064f2e"
 dependencies = [
  "anyhow",
- "borsh",
+ "borsh 1.5.7",
  "digest 0.10.7",
  "hashbrown 0.13.2",
  "hex",
@@ -5086,7 +5132,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e65763c942dfc9358146571911b0cd1c361c2d63e2d2305622d40d36376ca80"
 dependencies = [
  "heck",
- "proc-macro-crate",
+ "proc-macro-crate 3.3.0",
  "proc-macro2 1.0.95",
  "quote",
  "syn 2.0.100",
@@ -5645,7 +5691,7 @@ version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e408e823bdc9b4bb525a61b44e846239833a8f9bd86c03a43e4ca314a5497582"
 dependencies = [
- "borsh",
+ "borsh 1.5.7",
  "bytes",
  "serde",
  "sha2 0.10.8",
@@ -5748,7 +5794,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af1844ef2428cc3e1cb900be36181049ef3d3193c63e43026cfe202983b27a56"
 dependencies = [
- "proc-macro-crate",
+ "proc-macro-crate 3.3.0",
  "proc-macro2 1.0.95",
  "quote",
  "syn 2.0.100",
@@ -5960,7 +6006,7 @@ version = "3.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "581c837bb6b9541ce7faa9377c20616e4fb7650f6b0f68bc93c827ee504fb7b3"
 dependencies = [
- "proc-macro-crate",
+ "proc-macro-crate 3.3.0",
  "proc-macro2 1.0.95",
  "quote",
  "syn 2.0.100",
@@ -6660,6 +6706,15 @@ dependencies = [
  "impl-serde",
  "scale-info",
  "uint",
+]
+
+[[package]]
+name = "proc-macro-crate"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d6ea3c4595b96363c13943497db34af4460fb474a95c43f4446ad341b8c9785"
+dependencies = [
+ "toml 0.5.11",
 ]
 
 [[package]]
@@ -7734,7 +7789,7 @@ version = "2.11.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c6630024bf739e2179b91fb424b28898baf819414262c5d376677dbff1fe7ebf"
 dependencies = [
- "proc-macro-crate",
+ "proc-macro-crate 3.3.0",
  "proc-macro2 1.0.95",
  "quote",
  "syn 2.0.100",
@@ -8778,6 +8833,15 @@ dependencies = [
  "hashbrown 0.15.2",
  "pin-project-lite",
  "tokio",
+]
+
+[[package]]
+name = "toml"
+version = "0.5.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4f7f0dd8d50a853a531c426359045b1998f04219d88799810762cd4ad314234"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

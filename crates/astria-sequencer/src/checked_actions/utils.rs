@@ -51,9 +51,10 @@ pub(crate) async fn total_fees<'a, I: Iterator<Item = ActionRef<'a>>, S: StateRe
             ActionRef::RecoverIbcClient(action) => fee(action, state).await,
             ActionRef::CurrencyPairsChange(action) => fee(action, state).await,
             ActionRef::MarketsChange(action) => fee(action, state).await,
+            // Skip fee handling for orderbook actions temporarily
             ActionRef::OrderbookCreateOrder(_) => Ok(None),
             ActionRef::OrderbookCancelOrder(_) => Ok(None),
-            ActionRef::OrderbookCreateMarket(_) => Ok(None),
+            ActionRef::OrderbookCreateMarket(_) => Ok(None), 
             ActionRef::OrderbookUpdateMarket(_) => Ok(None),
         }?;
         let Some((fee_asset, fee_amount)) = maybe_fee else {

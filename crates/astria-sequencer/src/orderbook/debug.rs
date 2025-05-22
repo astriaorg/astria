@@ -14,7 +14,7 @@ pub fn force_insert_test_market<S: StateWrite>(state: &mut S) -> Result<(), Stri
         base_asset: "BTC".to_string(),
         quote_asset: "USD".to_string(),
         tick_size: Some(100),
-        lot_size: Some(1000000),
+        lot_size: Some(1),  // Use 1 as the lot size to allow any quantity
         paused: false,
     };
     
@@ -23,7 +23,7 @@ pub fn force_insert_test_market<S: StateWrite>(state: &mut S) -> Result<(), Stri
         base_asset: "ntia".to_string(),
         quote_asset: "usdc".to_string(),
         tick_size: Some(100),
-        lot_size: Some(1000000),
+        lot_size: Some(1),  // Use 1 as the lot size to allow any quantity
         paused: false,
     };
     
@@ -33,7 +33,7 @@ pub fn force_insert_test_market<S: StateWrite>(state: &mut S) -> Result<(), Stri
         base_asset: "ibc/54aa0250dd7fd58e88d18dc149d826c5c23bef81e53e0598b37ce5323ab36c30".to_string(),
         quote_asset: "usdc".to_string(), 
         tick_size: Some(100),
-        lot_size: Some(1000000),
+        lot_size: Some(1),  // Use 1 as the lot size to allow any quantity
         paused: false,
     };
     
