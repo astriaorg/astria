@@ -9,8 +9,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2025-05-21
+
+### Added
+
+- Provide support for upgrading the sequencer network [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Implement first sequencer upgrade, named `Aspen` [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Add endpoint to sequencer gRPC service at `/v1/sequencer/upgrades` which
+  responds with a summary of applied and scheduled upgrades [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Include price feed data in blocks provided by Connect oracle sidecar once
+  `Aspen` upgrade has activated [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Include names in `ValidatorUpdate` actions once `Aspen` upgrade has been activated
+  [#2089](https://github.com/astriaorg/astria/pull/2089).
+- Add `ASTRIA_SEQUENCER_UPGRADES_FILEPATH` config variable to specify the path
+  to the now required `upgrades.json` file [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Add `ASTRIA_SEQUENCER_COMETBFT_RPC_ADDR` config variable to specify the
+  address of the CometBFT RPC endpoint for this sequencer [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Add `ASTRIA_SEQUENCER_NO_PRICE_FEED` config variable to disable providing
+  price feed data in the consensus vote extensions, avoiding the need to run
+  the price feed oracle sidecar [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Add `ASTRIA_SEQUENCER_PRICE_FEED_GRPC_ADDR` config variable to specify the
+  gRPC endpoint for the price feed oracle sidecar [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Add `ASTRIA_SEQUENCER_PRICE_FEED_CLIENT_TIMEOUT_MILLISECONDS` config variable
+  to specify the timeout for responses from the price feed oracle sidecar [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Add the following metrics relating to price feed data:
+  `astria_sequencer_extended_commit_info_bytes`,
+  `astria_sequencer_extend_vote_duration_seconds`,
+  `astria_sequencer_extend_vote_failure_count` and
+  `astria_sequencer_verify_vote_extension_failure_count` [#2085](https://github.com/astriaorg/astria/pull/2085).
+- Add mempool gRPC service [#2133](https://github.com/astriaorg/astria/pull/2133).
+- Add metrics:
+  - `ASTRIA_SEQUENCER_CHECK_TX_FAILED_ACTION_CHECKS`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_CHECK_ACTIONS`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_RECHECK`
+    [#2142](https://github.com/astriaorg/astria/pull/2142)
+- Add transaction fee gRPC query [#2160](https://github.com/astriaorg/astria/pull/2160).
+
+### Changed
+
+- Changed to use `CheckedTransaction`, `CheckedAction` and `Checked...` wrappers
+  for all action types [#2142](https://github.com/astriaorg/astria/pull/2142).
+- Rename metric `ASTRIA_SEQUENCER_CHECK_TX_REMOVED_TOO_LARGE` to
+  `ASTRIA_SEQUENCER_CHECK_TX_FAILED_TX_TOO_LARGE` [#2142](https://github.com/astriaorg/astria/pull/2142)
+- Changed `CurrencyPairsChange::Addition` action to fail if any currency pair to
+  be added is already stored [#2171](https://github.com/astriaorg/astria/pull/2171).
+- Changed `CurrencyPairsChange::Removal` action to fail if any currency pair to
+  be removed is not currently stored [#2171](https://github.com/astriaorg/astria/pull/2171).
+- Changed `FeeAssetChange::Addition` action to fail if the fee asset to be added
+  is already stored [#2171](https://github.com/astriaorg/astria/pull/2171).
+- Changed `FeeAssetChange::Removal` action to fail if the fee asset to be
+  removed is not currently stored [#2171](https://github.com/astriaorg/astria/pull/2171).
+- Changed `IbcRelayerChange::Addition` action to fail if the address to be added
+  is already stored [#2171](https://github.com/astriaorg/astria/pull/2171).
+- Changed `IbcRelayerChange::Removal` action to fail if the address to be
+  removed is not currently stored [#2171](https://github.com/astriaorg/astria/pull/2171).
+- Changed `MarketsChange::Removal` action to fail if any market to be removed is
+  not currently stored [#2171](https://github.com/astriaorg/astria/pull/2171).
+
+### Removed
+
+- Delete metrics:
+  - `ASTRIA_SEQUENCER_CHECK_TX_REMOVED_FAILED_STATELESS`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_PARSE_TX`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_CHECK_STATELESS`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_CHECK_TRACKED`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_CHECK_CHAIN_ID`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_CHECK_REMOVED`
+  - `ASTRIA_SEQUENCER_CHECK_TX_DURATION_SECONDS_CONVERT_ADDRESS`
+    [#2142](https://github.com/astriaorg/astria/pull/2142)
+
 ### Fixed
 
+- Remove failed promotable instead of inserted transaction during mempool insertion
+  [#2135](https://github.com/astriaorg/astria/pull/2135).
 - Fix issue where proposer includes unexecuted rollup data bytes [#2190](https://github.com/astriaorg/astria/pull/2190).
 
 ## [3.0.0-rc.2]
@@ -90,7 +161,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `astria_sequencer_extend_vote_failure_count` and
   `astria_sequencer_verify_vote_extension_failure_count` [#2085](https://github.com/astriaorg/astria/pull/2085).
 - Add mempool gRPC service [#2133](https://github.com/astriaorg/astria/pull/2133).
-- Add transaction fee gRPC query [#2160](https://github.com/astriaorg/astria/pull/2160).
 
 ## [2.0.1]
 
@@ -600,7 +670,8 @@ address [#721](https://github.com/astriaorg/astria/pull/721).
 
 - Initial release.
 
-[unreleased]: https://github.com/astriaorg/astria/compare/sequencer-v3.0.0-rc.2...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/sequencer-v3.0.0...HEAD
+[3.0.0]: https://github.com/astriaorg/astria/compare/sequencer-v2.0.1...sequencer-v3.0.0
 [3.0.0-rc.2]: https://github.com/astriaorg/astria/compare/sequencer-v3.0.0-rc.1...sequencer-v3.0.0-rc.2
 [3.0.0-rc.1]: https://github.com/astriaorg/astria/compare/sequencer-v2.0.1...sequencer-v3.0.0-rc.1
 [2.0.1]: https://github.com/astriaorg/astria/compare/sequencer-v2.0.0...sequencer-v2.0.1

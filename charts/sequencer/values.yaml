@@ -46,7 +46,6 @@ images:
     repo: ghcr.io/skip-mev/connect-sidecar
     pullPolicy: IfNotPresent
     tag: v2
-    devTag: v2
 
 # Moniker is used for the cometbft node name, and various chart names.
 # This must be set.
