@@ -16,19 +16,21 @@ import aspen_upgrade_checks
 import time
 from concurrent.futures import FIRST_EXCEPTION
 from helpers.astria_cli import Cli
+from helpers.defaults import (
+    EVM_DESTINATION_ADDRESS,
+    SEQUENCER_WITHDRAWER_ADDRESS,
+    BRIDGE_TX_HASH,
+)
 from helpers.evm_controller import EvmController
+from helpers.image_controller import ImageController
 from helpers.sequencer_controller import SequencerController
 from helpers.utils import update_chart_dependencies, check_change_infos
 
 # The number of sequencer validator nodes to use in the test.
 NUM_NODES = 5
-# A map of upgrade name to sequencer, relayer image to use for running BEFORE the given upgrade is executed.
-PRE_UPGRADE_IMAGE_TAGS = {
-    "aspen": ("2.0.1", "1.0.1"),
-}
-EVM_DESTINATION_ADDRESS = "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
-ACCOUNT = "astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504"
-BRIDGE_TX_HASH = "0x326c3910da4c96c5a40ba1505fc338164b659729f2f975ccb07e8794c96b66f6"
+# A map of upgrade name to image tag to use for running BEFORE the given upgrade is executed.
+PRE_UPGRADE_IMAGE_TAGS = ["sequencer=2.0.1", "sequencer-relayer=1.0.1"]
+pre_upgrade_image_controller = ImageController(PRE_UPGRADE_IMAGE_TAGS)
 
 parser = argparse.ArgumentParser(prog="upgrade_test", description="Runs the sequencer upgrade test.")
 parser.add_argument(
@@ -53,7 +55,7 @@ upgrade_name = args["upgrade_name"].lower()
 print("################################################################################")
 print("Running sequencer upgrade test")
 print(f"  * upgraded container image tag: {upgrade_image_tag}")
-print(f"  * pre-upgrade container image tags: {PRE_UPGRADE_IMAGE_TAGS[upgrade_name]}")
+print(f"  * pre-upgrade container image tags: {PRE_UPGRADE_IMAGE_TAGS}")
 print(f"  * upgrade name: {upgrade_name}")
 print("################################################################################")
 
@@ -73,14 +75,13 @@ print(f"starting {len(nodes)} sequencers and the evm rollup")
 executor = concurrent.futures.ThreadPoolExecutor(NUM_NODES + 1)
 
 deploy_sequencer_fn = lambda seq_node: seq_node.deploy_sequencer(
-    PRE_UPGRADE_IMAGE_TAGS[upgrade_name][0],
-    PRE_UPGRADE_IMAGE_TAGS[upgrade_name][1],
+    pre_upgrade_image_controller,
     # Enabled for all but sequencer 2.
     enable_price_feed=(seq_node.name != "node2"),
     upgrade_name=upgrade_name,
 )
 futures = [executor.submit(deploy_sequencer_fn, node) for node in nodes]
-futures.append(executor.submit(lambda: evm.deploy_rollup(upgrade_image_tag)))
+futures.append(executor.submit(lambda: evm.deploy_rollup(pre_upgrade_image_controller)))
 done, _ = concurrent.futures.wait(futures, return_when=FIRST_EXCEPTION)
 for completed_future in done:
     completed_future.result()
@@ -156,8 +157,7 @@ missed_upgrade_node = nodes.pop()
 print(f"not upgrading {missed_upgrade_node.name} until the rest have executed the upgrade")
 for node in nodes:
     node.stage_upgrade(
-        upgrade_image_tag,
-        upgrade_image_tag,
+        ImageController([f"sequencer={upgrade_image_tag}", f"sequencer-relayer={upgrade_image_tag}"]),
         enable_price_feed=(node.name != "node2"),
         upgrade_name=upgrade_name,
         activation_height=upgrade_activation_height,
@@ -183,8 +183,7 @@ print(f"{missed_upgrade_node.name} lagging as expected; now upgrading")
 
 # Now stage the upgrade on this lagging node and ensure it catches up.
 missed_upgrade_node.stage_upgrade(
-    upgrade_image_tag,
-    upgrade_image_tag,
+    ImageController([f"sequencer={upgrade_image_tag}", f"sequencer-relayer={upgrade_image_tag}"]),
     enable_price_feed=True,
     upgrade_name=upgrade_name,
     activation_height=upgrade_activation_height
@@ -201,8 +200,7 @@ nodes.append(missed_upgrade_node)
 new_node = SequencerController(f"node{NUM_NODES - 1}")
 print(f"starting a new sequencer")
 new_node.deploy_sequencer(
-    upgrade_image_tag,
-    upgrade_image_tag,
+    ImageController([f"sequencer={upgrade_image_tag}", f"sequencer-relayer={upgrade_image_tag}"]),
     upgrade_name=upgrade_name,
     upgrade_activation_height=upgrade_activation_height
 )
@@ -291,7 +289,7 @@ expected_evm_balance = 9000000000000000000
 evm.wait_until_balance(EVM_DESTINATION_ADDRESS, expected_evm_balance, timeout_secs=60)
 print("bridge out evm success")
 expected_balance = 1000000000
-cli.wait_until_balance(ACCOUNT, expected_balance, timeout_secs=60, sequencer_name="node3")
+cli.wait_until_balance(SEQUENCER_WITHDRAWER_ADDRESS, expected_balance, timeout_secs=60, sequencer_name="node3")
 print("bridge out sequencer success")
 print("testing tx finalization")
 tx_block_number = evm.get_tx_block_number(BRIDGE_TX_HASH)

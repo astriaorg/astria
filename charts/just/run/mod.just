@@ -43,102 +43,41 @@ bridge_tx_hash := "0x326c3910da4c96c5a40ba1505fc338164b659729f2f975ccb07e8794c96
 [doc("
 Runs end-to-end test of Astria stack and EVM rollup, including bridge in/out and
 TX finalization.
-Usage:
-  just run smoke-test <TAG> (default: '')
+NOTE: Image tags can be specified for the different components by passing the flag
+`-i <component=tag>` to the command line. Pass `--help` for more info.
+Examples:
+  just run smoke-test (uses image tags specified in `values.yaml` files)
+  just run smoke-test -i sequencer=local (specifies image tag for the sequencer)
 ")]
-smoke-test tag=defaultTag:
+smoke-test *FLAGS:
   #!/usr/bin/env bash
-  set -e
-  ASTRIA_CLI_IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
-  MAX_CHECKS=30
-
-  # Checking starting balance
-  BALANCE=$(just evm get-balance {{evm_destination_address}})
-  if [ $BALANCE -ne 0 ]; then
-    echo "Starting balance is not correct"
-    exit 1
+  if [ -d "system-tests/.venv" ]; then
+    echo "Found Python virtual environment, activating it..."
+    source system-tests/.venv/bin/activate
+    uv pip install -r system-tests/requirements.txt
   fi
+  python3 system-tests/smoke_test.py {{FLAGS}}
 
-  echo "Testing Bridge In..."
-  just init rollup-bridge {{tag}}
-  CHECKS=0
-  EXPECTED_BALANCE=$(echo "{{sequencer_transfer_amount}} * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
-  while (( $CHECKS < $MAX_CHECKS )); do
-    CHECKS=$((CHECKS+1))
-    BALANCE=$(just evm get-balance {{evm_destination_address}})
-    echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
-    if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
-      echo "Bridge In success"
-      break
-    else
-      sleep 1
-    fi
-  done
-  if (( $CHECKS >= $MAX_CHECKS )); then
-    echo "Bridge In failure"
-    exit 1
-  fi
 
-  echo "Testing Bridge Out..."
-  just evm send-raw-transaction {{bridge_tx_bytes}}
-  TRANSFERED_BALANCE=$(echo "1 * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
-  EXPECTED_BALANCE=$(echo "$EXPECTED_BALANCE - $TRANSFERED_BALANCE" | bc)
-  CHECKS=0
-  while (( $CHECKS < $MAX_CHECKS )); do
-    CHECKS=$((CHECKS+1))
-    BALANCE=$(just evm get-balance {{evm_destination_address}})
-    echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
-    if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
-      echo "Bridge Out EVM success"
-      break
-    else
-      sleep 1
-    fi
-  done
-  if (( $CHECKS >= $MAX_CHECKS )); then
-    echo "Bridge Out EVM failure"
-    exit 1
+# Run EVM Restart Test
+#######################
+[doc("
+Runs end-to-end test of Astria stack and EVM rollup, including bridge in/out and
+TX finalization, with a fork defined on the EVM at height 5.
+NOTE: Image tags can be specified for the different components by passing the flag
+`-i <component=tag>` to the command line. Pass `--help` for more info.
+Examples:
+  just run evm-restart-test (uses image tags specified in `values.yaml` files)
+  just run evm-restart-test -i sequencer=local (specifies image tag for the sequencer)
+")]
+evm-restart-test *FLAGS:
+  #!/usr/bin/env bash
+  if [ -d "system-tests/.venv" ]; then
+    echo "Found Python virtual environment, activating it..."
+    source system-tests/.venv/bin/activate
+    uv pip install -r system-tests/requirements.txt
   fi
-  CHECKS=0
-  EXPECTED_BALANCE=$(echo "1 * {{sequencer_base_amount}}" | bc)
-  while (( $CHECKS < $MAX_CHECKS )); do
-    CHECKS=$((CHECKS+1))
-    BALANCE=$(docker run --rm --network host $ASTRIA_CLI_IMAGE sequencer account balance astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504 --sequencer-url {{sequencer_rpc_url}}  | awk '/nria/{print $(NF-1)}')
-    echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
-    if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
-      echo "Bridge Out Sequencer success"
-      break
-    else
-      sleep 1
-    fi
-  done
-  if (( $CHECKS >= $MAX_CHECKS )); then
-    echo "Bridge Out Sequencer failure"
-    exit 1
-  fi
-
-  echo "Testing TX Finalization"
-  CHECKS=0
-  BLOCK_NUM_HEX=$(just evm get-transaction-receipt {{bridge_tx_hash}} | jq -r '.blockNumber')
-  BLOCK_NUM=$(just evm::hex-to-dec $BLOCK_NUM_HEX)
-  while (( $CHECKS < $MAX_CHECKS )); do
-    CHECKS=$((CHECKS+1))
-    FINALIZED_BLOCK=$(just evm get-block-by-number finalized | jq -r '.number')
-    FINALIZED_BLOCK=$(just evm::hex-to-dec $FINALIZED_BLOCK)
-    echo "Check $CHECKS, Finalized block: $FINALIZED_BLOCK, Expected: $BLOCK_NUM"
-    if [ $FINALIZED_BLOCK -ge $BLOCK_NUM ]; then
-      echo "Finalization success"
-      break
-    else
-      sleep 1
-    fi
-  done
-  if (( $CHECKS >= $MAX_CHECKS )); then
-    echo "Finalization failure"
-    exit 1
-  fi
-  exit 0
-
+  python3 system-tests/smoke_test.py {{FLAGS}} --evm-restart
 
 # Run Smoke Test CLI
 #####################
