@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package astria.mempool.v1;
 
+import "astria/mempool/v1/get_transaction_fees_request.proto";
+import "astria/mempool/v1/get_transaction_fees_response.proto";
 import "astria/mempool/v1/get_transaction_status_request.proto";
 import "astria/mempool/v1/submit_transaction_request.proto";
 import "astria/mempool/v1/submit_transaction_response.proto";
@@ -26,4 +28,7 @@ service TransactionService {
   // `SubmitTransaction` submits a transaction to the mempool and returns the
   // status of the transaction in the mempool.
   rpc SubmitTransaction(SubmitTransactionRequest) returns (SubmitTransactionResponse);
+
+  // `GetTransactionFees` returns the fees for the given transaction on the Astria sequencer.
+  rpc GetTransactionFees(GetTransactionFeesRequest) returns (GetTransactionFeesResponse);
 }
