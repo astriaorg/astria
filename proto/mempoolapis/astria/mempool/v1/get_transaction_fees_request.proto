@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package astria.mempool.v1;
+
+import "astria/protocol/transaction/v1/transaction.proto";
+
+// A request to get the fees for the given transaction on the Astria Sequencer.
+message GetTransactionFeesRequest {
+  astria.protocol.transaction.v1.TransactionBody transaction_body = 1;
+}
