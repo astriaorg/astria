@@ -1,6 +1,9 @@
 #[cfg(any(feature = "http", feature = "websocket"))]
 pub mod extension_trait;
 
+#[cfg(any(feature = "http", feature = "websocket"))]
+pub mod orderbook;
+
 #[cfg(not(any(feature = "http", feature = "websocket")))]
 compile_error!("at least one of the `http` or `websocket` features must be enabled");
 
@@ -20,9 +23,15 @@ pub use astria_core::{
             NonceResponse,
         },
         transaction::v1::Transaction,
+        orderbook::v1::{
+            Order, OrderMatch, Orderbook, OrderSide, OrderType, OrderTimeInForce,
+        },
     },
     sequencerblock::v1::SequencerBlock,
 };
+
+#[cfg(any(feature = "http", feature = "websocket"))]
+pub use crate::orderbook::{OrderbookClientExt, MarketParams, OrderbookDepth, OrderbookDepthLevel, OrderbookError};
 use futures_util::{
     FutureExt,
     Stream,
