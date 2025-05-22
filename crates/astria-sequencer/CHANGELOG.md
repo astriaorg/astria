@@ -90,6 +90,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `astria_sequencer_extend_vote_failure_count` and
   `astria_sequencer_verify_vote_extension_failure_count` [#2085](https://github.com/astriaorg/astria/pull/2085).
 - Add mempool gRPC service [#2133](https://github.com/astriaorg/astria/pull/2133).
+- Add transaction fee gRPC query [#2160](https://github.com/astriaorg/astria/pull/2160).
 
 ## [2.0.1]
 
