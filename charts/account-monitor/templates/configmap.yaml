@@ -8,7 +8,7 @@ data:
   ASTRIA_ACCOUNT_MONITOR_SEQUENCER_CHAIN_ID: "{{ tpl .Values.config.sequencerChainId . }}"
   ASTRIA_ACCOUNT_MONITOR_SEQUENCER_ABCI_ENDPOINT: "{{ tpl .Values.config.sequencerRpc . }}"
   ASTRIA_ACCOUNT_MONITOR_QUERY_INTERVAL_MS: "{{ .Values.config.queryIntervalMs }}"
-  ASTRIA_ACCOUNT_MONITOR_SEQUENCER_ASSET: "{{ .Values.config.sequencerFeeAsset }}"
+  ASTRIA_ACCOUNT_MONITOR_SEQUENCER_ASSETS: "{{ join "," .Values.config.sequencerAssets }}"
   ASTRIA_ACCOUNT_MONITOR_SEQUENCER_ACCOUNTS: "{{ join "," .Values.config.sequencerAccounts }}"
   ASTRIA_ACCOUNT_MONITOR_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.metrics }}"
   ASTRIA_ACCOUNT_MONITOR_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
