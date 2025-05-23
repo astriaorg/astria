@@ -383,8 +383,8 @@ Usage:
 ")]
 get-celestia-height namespace=defaultNamespace home=defaultCelestiaHome:
   #!/usr/bin/env bash
-  height=$(kubectl exec -n {{namespace}} pods/celestia-local-0 celestia-app --home {{home}} -- /bin/bash -c \
-  'celestia-appd query block' | jq '.block.header.height')
+  height=$(kubectl exec -n {{namespace}} pods/celestia-local-0 celestia-app -- /bin/bash -c \
+  'celestia-appd query block --home {{home}}' | tail -n +2 | jq '.header.height')
   # remove quotes
   height=${height//\"/}
   echo $height
