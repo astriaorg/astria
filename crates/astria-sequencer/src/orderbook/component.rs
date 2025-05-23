@@ -86,18 +86,6 @@ impl Component for OrderbookComponent {
     async fn init_chain<S: StateWrite>(mut state: S, _app_state: &Self::AppState) -> astria_eyre::eyre::Result<()> {
         info!("Initializing OrderbookComponent");
         
-        // Insert a test market for development purposes
-        match crate::orderbook::debug::force_insert_test_market(&mut state) {
-            Ok(_) => {
-                info!("Successfully inserted test market during initialization");
-                // Verify storage
-                crate::orderbook::debug::debug_check_market_data(&state);
-            },
-            Err(e) => {
-                info!(error = e, "Failed to insert test market during initialization");
-            }
-        }
-        
         Ok(())
     }
 
@@ -721,7 +709,7 @@ impl ExecuteOrderbookAction for CheckedCreateMarket {
                 );
                 
                 // Verify storage immediately
-                crate::orderbook::debug::debug_check_market_data(state);
+                crate::orderbook::debug::check_market_data(state, self.market.as_str());
                 
                 // Verify the market was added to the list of all markets
                 let all_markets = state.get_markets();
