@@ -368,7 +368,7 @@ Usage:
 get-celestia-balance address=celestia_dev_account_address namespace=defaultNamespace:
   #!/usr/bin/env bash
   balance=$(kubectl exec -n {{namespace}} pods/celestia-local-0 celestia-app -- /bin/bash -c \
-  'celestia-appd query bank balances --denom utia --output json {{address}}' | jq '.amount')
+  'celestia-appd query bank balance --home /home/celestia --output json {{address}} utia' | jq '.balance.amount')
   # remove quotes
   balance=${balance//\"/}
   echo $balance
