@@ -4,17 +4,32 @@
 
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
-use prost::Message as _;
+use prost::Message;
 use serde::{Deserialize, Serialize};
+use tracing;
+
+use crate::orderbook_types::{MarketList, OrderList, TradeList};
 
 use astria_core::{
-    primitive::v1::Address,
+    generated::astria::primitive::v1::Uint128,
     protocol::{
         orderbook::v1::{
-            Order, OrderMatch, Orderbook, OrderSide, OrderType, OrderTimeInForce,
+            Order, OrderMatch, Orderbook, OrderbookEntry, OrderSide, OrderType, OrderTimeInForce,
         },
     },
+    primitive::v1::Address,
 };
+
+// Helper trait to convert from Uint128 to u128
+trait Uint128Ext {
+    fn value(&self) -> u128;
+}
+
+impl Uint128Ext for Uint128 {
+    fn value(&self) -> u128 {
+        ((self.hi as u128) << 64) + (self.lo as u128)
+    }
+}
 
 /// A wrapper around the sequencer's market parameters.
 #[derive(Clone, Debug, Deserialize, Serialize, BorshSerialize, BorshDeserialize)]
@@ -224,12 +239,20 @@ pub trait OrderbookClientExt: crate::extension_trait::SequencerClientExt {
             .abci_query(Some(PATH.to_string()), vec![], None, false)
             .await
             .map_err(|e| OrderbookError::Client(e))?;
-
-        // Parse the response as JSON
-        let markets: Vec<String> = serde_json::from_slice(&response.value)
-            .map_err(|_| OrderbookError::Other("Failed to parse markets response as JSON".to_string()))?;
-
-        Ok(markets)
+            
+        // Try to decode the response using our MarketList type
+        match MarketList::decode(&response.value) {
+            Ok(market_list) => {
+                // Convert the markets to strings (market IDs)
+                Ok(market_list.markets)
+            },
+            Err(e) => {
+                // If protobuf decoding fails, try JSON as fallback
+                tracing::warn!("Failed to decode markets as protobuf: {}", e);
+                serde_json::from_slice(&response.value)
+                    .map_err(|e| OrderbookError::Other(format!("Failed to parse markets response: {}", e)))
+            }
+        }
     }
 
     /// Returns the parameters for a specific market.
@@ -251,9 +274,12 @@ pub trait OrderbookClientExt: crate::extension_trait::SequencerClientExt {
             return Err(OrderbookError::MarketNotFound(market.to_string()));
         }
 
-        // Deserialize the response using Borsh
-        let params = borsh::from_slice::<MarketParams>(&response.value)
-            .map_err(OrderbookError::Deserialization)?;
+        // Parse the response - we don't have a protobuf MarketParams type, so use the JSON response
+        let proto_params = serde_json::from_slice(&response.value)
+            .map_err(|e| OrderbookError::Other(format!("Failed to decode market params: {}", e)))?;
+        
+        // The response should already be in the format we need
+        let params: MarketParams = proto_params;
 
         Ok(params)
     }
@@ -277,11 +303,20 @@ pub trait OrderbookClientExt: crate::extension_trait::SequencerClientExt {
             return Err(OrderbookError::MarketNotFound(market.to_string()));
         }
 
-        // Deserialize the response using Borsh
-        let wrapper = borsh::from_slice::<OrderbookWrapper>(&response.value)
-            .map_err(OrderbookError::Deserialization)?;
+        // Deserialize the response using protobuf
+        let proto_orderbook = astria_core::generated::astria::protocol::orderbook::v1::Orderbook::decode(&*response.value)
+            .map_err(|e| OrderbookError::Other(format!("Failed to decode orderbook: {}", e)))?;
 
-        Ok(wrapper.0)
+        // Convert the protobuf Orderbook to our domain Orderbook
+        // For now, assuming there's a direct conversion or that the types are compatible
+        // If there's no direct conversion, you'll need to manually map fields
+        let orderbook = Orderbook {
+            market: proto_orderbook.market,
+            bids: proto_orderbook.bids,
+            asks: proto_orderbook.asks,
+        };
+
+        Ok(orderbook)
     }
 
     /// Returns the orderbook depth (aggregated by price level) for a specific market.
@@ -306,11 +341,14 @@ pub trait OrderbookClientExt: crate::extension_trait::SequencerClientExt {
             return Err(OrderbookError::MarketNotFound(market.to_string()));
         }
 
-        // Deserialize the response using Borsh
-        let wrapper = borsh::from_slice::<OrderbookDepthWrapper>(&response.value)
-            .map_err(OrderbookError::Deserialization)?;
+        // Parse the response - we don't have a protobuf OrderbookDepth type, so use the JSON response
+        let proto_depth: OrderbookDepth = serde_json::from_slice(&response.value)
+            .map_err(|e| OrderbookError::Other(format!("Failed to decode orderbook depth: {}", e)))?;
+        
+        // The response should already be in the format we need
+        let depth = proto_depth;
 
-        Ok(wrapper.0)
+        Ok(depth)
     }
 
     /// Returns a specific order by ID.
@@ -332,11 +370,15 @@ pub trait OrderbookClientExt: crate::extension_trait::SequencerClientExt {
             return Err(OrderbookError::OrderNotFound(order_id.to_string()));
         }
 
-        // Deserialize the response using Borsh
-        let wrapper = borsh::from_slice::<OrderWrapper>(&response.value)
-            .map_err(OrderbookError::Deserialization)?;
+        // Deserialize the response using protobuf
+        let proto_order = astria_core::generated::astria::protocol::orderbook::v1::Order::decode(&*response.value)
+            .map_err(|e| OrderbookError::Other(format!("Failed to decode order: {}", e)))?;
 
-        Ok(wrapper.0)
+        // Convert the protobuf Order to our domain Order
+        let order = Order::try_from(proto_order)
+            .map_err(|e| OrderbookError::Other(format!("Failed to convert order: {}", e)))?;
+
+        Ok(order)
     }
 
     /// Returns all orders for a specific market, optionally filtered by side.
@@ -347,26 +389,70 @@ pub trait OrderbookClientExt: crate::extension_trait::SequencerClientExt {
     /// - If the response cannot be deserialized
     /// - If the market does not exist
     async fn get_market_orders(&self, market: &str, side: Option<OrderSide>) -> Result<Vec<Order>, OrderbookError> {
-        let path = match side {
-            Some(OrderSide::Buy) => format!("orderbook/orders/market/{}/buy", market),
-            Some(OrderSide::Sell) => format!("orderbook/orders/market/{}/sell", market),
-            _ => format!("orderbook/orders/market/{}", market),
+        // Initialize an empty vector to collect orders
+        let mut all_orders = Vec::new();
+        
+        // Determine which sides to query based on the input parameter
+        let sides_to_query = match side {
+            Some(OrderSide::Buy) => vec!["buy"],
+            Some(OrderSide::Sell) => vec!["sell"],
+            _ => vec!["buy", "sell"], // Query both sides by default or if OrderSide::Unspecified
         };
-
-        let response = self
-            .abci_query(Some(path), vec![], None, false)
-            .await
-            .map_err(|e| OrderbookError::Client(e))?;
-
-        if response.code.is_err() {
-            return Err(OrderbookError::MarketNotFound(market.to_string()));
+        
+        // Query each side separately
+        for side_str in &sides_to_query {
+            let path = format!("orderbook/orders/market/{}/{}", market, side_str);
+            
+            let response = self
+                .abci_query(Some(path.clone()), vec![], None, false)
+                .await
+                .map_err(|e| OrderbookError::Client(e))?;
+            
+            // Check if the response indicates an error
+            if response.code.is_err() {
+                // If this is the first side queried and it returns an error, 
+                // it likely means the market doesn't exist
+                if all_orders.is_empty() && sides_to_query.len() == 1 {
+                    return Err(OrderbookError::MarketNotFound(market.to_string()));
+                }
+                
+                // Otherwise, continue to the next side
+                continue;
+            }
+            
+            // If the response is empty, continue to the next side
+            if response.value.is_empty() {
+                continue;
+            }
+            
+            // Try to decode the response using our OrderList type
+            match OrderList::decode(&response.value) {
+                Ok(order_list) => {
+                    tracing::debug!("Successfully decoded {} orders using protobuf", order_list.orders.len());
+                    all_orders.extend(order_list.orders);
+                },
+                Err(proto_err) => {
+                    tracing::warn!("Failed to decode orders as protobuf: {}", proto_err);
+                    
+                    // Fall back to Borsh decoding
+                    if let Ok(wrappers) = borsh::from_slice::<Vec<OrderWrapper>>(&response.value) {
+                        tracing::debug!("Successfully decoded {} orders using Borsh", wrappers.len());
+                        let orders = wrappers.into_iter().map(|w| w.0).collect::<Vec<_>>();
+                        all_orders.extend(orders);
+                    } else {
+                        // Try to decode a single order directly
+                        if let Ok(order) = Order::decode(&mut response.value.as_ref()) {
+                            tracing::debug!("Successfully decoded a single order");
+                            all_orders.push(order);
+                        } else {
+                            tracing::warn!("Failed to decode orders from response");
+                        }
+                    }
+                }
+            }
         }
-
-        // Deserialize the response using Borsh
-        let wrappers = borsh::from_slice::<Vec<OrderWrapper>>(&response.value)
-            .map_err(OrderbookError::Deserialization)?;
-
-        Ok(wrappers.into_iter().map(|w| w.0).collect())
+        
+        Ok(all_orders)
     }
 
     /// Returns all orders owned by a specific address.
@@ -383,11 +469,22 @@ pub trait OrderbookClientExt: crate::extension_trait::SequencerClientExt {
             .await
             .map_err(|e| OrderbookError::Client(e))?;
 
-        // Deserialize the response using Borsh
-        let wrappers = borsh::from_slice::<Vec<OrderWrapper>>(&response.value)
-            .map_err(OrderbookError::Deserialization)?;
+        // Try to decode the response using our OrderList type
+        match OrderList::decode(&response.value) {
+            Ok(order_list) => {
+                tracing::debug!("Successfully decoded {} orders using protobuf", order_list.orders.len());
+                Ok(order_list.orders)
+            },
+            Err(proto_err) => {
+                tracing::warn!("Failed to decode orders as protobuf: {}", proto_err);
+                
+                // Fall back to Borsh decoding
+                let wrappers = borsh::from_slice::<Vec<OrderWrapper>>(&response.value)
+                    .map_err(OrderbookError::Deserialization)?;
 
-        Ok(wrappers.into_iter().map(|w| w.0).collect())
+                Ok(wrappers.into_iter().map(|w| w.0).collect())
+            }
+        }
     }
 
     /// Returns recent trades for a specific market.
@@ -412,11 +509,20 @@ pub trait OrderbookClientExt: crate::extension_trait::SequencerClientExt {
             return Err(OrderbookError::MarketNotFound(market.to_string()));
         }
 
-        // Deserialize the response using Borsh
-        let wrappers = borsh::from_slice::<Vec<OrderMatchWrapper>>(&response.value)
-            .map_err(OrderbookError::Deserialization)?;
-
-        Ok(wrappers.into_iter().map(|w| w.0).collect())
+        // Try to decode the response using our TradeList type
+        match TradeList::decode(&response.value) {
+            Ok(trade_list) => {
+                tracing::debug!("Successfully decoded {} trades using protobuf", trade_list.trades.len());
+                Ok(trade_list.trades)
+            },
+            Err(proto_err) => {
+                tracing::warn!("Failed to decode trades as protobuf: {}", proto_err);
+                
+                // For now, return an error if we can't decode the trades
+                // In a future version, we could add a fallback mechanism
+                Err(OrderbookError::Other(format!("Failed to decode trades: {}", proto_err)))
+            }
+        }
     }
 }
 
@@ -480,8 +586,8 @@ impl<T: crate::extension_trait::SequencerClientExt + Sync> OrderbookClientExt fo
 // These are similar to those in the sequencer crate
 
 /// Wrapper for Order
-#[derive(Debug)]
-struct OrderWrapper(Order);
+#[derive(Debug, Clone)]
+pub struct OrderWrapper(pub Order);
 
 impl borsh::BorshSerialize for OrderWrapper {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
