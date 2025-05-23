@@ -348,7 +348,9 @@ impl From<RemovalReason> for response::CheckTx {
             RemovalReason::NonceStale => AbciErrorCode::INVALID_NONCE,
             RemovalReason::LowerNonceInvalidated => AbciErrorCode::LOWER_NONCE_INVALIDATED,
             RemovalReason::FailedPrepareProposal(_) => AbciErrorCode::TRANSACTION_FAILED_EXECUTION,
-            RemovalReason::IncludedInBlock(_) => AbciErrorCode::TRANSACTION_INCLUDED_IN_BLOCK,
+            RemovalReason::IncludedInBlock {
+                ..
+            } => AbciErrorCode::TRANSACTION_INCLUDED_IN_BLOCK,
             RemovalReason::InternalError => AbciErrorCode::INTERNAL_ERROR,
         };
         error_response(code, log)
