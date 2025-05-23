@@ -89,6 +89,7 @@ alerting:
 secretProvider:
   enabled: false
   provider: gcp
+  useDefaultServiceAccount: true
   parametersTemplate: |-
     secrets: |
       - resourceName: {{ .key.resourceName }}
