@@ -80,16 +80,40 @@ impl TimemarkedTransaction {
         &self,
         available_balances: &mut HashMap<IbcPrefixed, u128>,
     ) -> Result<()> {
+        tracing::warn!(
+            "💼 Checking transaction costs - Transaction ID: {}, Costs: {:?}, Available Balances: {:?}",
+            self.id(), self.costs, available_balances
+        );
+        
         self.costs.iter().try_for_each(|(denom, cost)| {
             if *cost == 0 {
+                tracing::debug!(" Zero cost for asset {}, skipping", denom);
                 return Ok(());
             }
+            
             let Some(current_balance) = available_balances.get_mut(denom) else {
+                tracing::error!(" Account missing balance for asset: {}", denom);
                 return Err(eyre!("account missing balance for {denom}"));
             };
+            
+            tracing::warn!(
+                "💰 Balance check: Asset={}, Required={}, Available={}",
+                denom, cost, current_balance
+            );
+            
             let Some(new_balance) = current_balance.checked_sub(*cost) else {
+                tracing::error!(
+                    "❌ INSUFFICIENT BALANCE: Asset={}, Required={}, Available={}",
+                    denom, cost, current_balance
+                );
                 return Err(eyre!("cost greater than account's balance for {denom}"));
             };
+            
+            tracing::debug!(
+                "✓ Balance sufficient: Asset={}, Cost={}, Old balance={}, New balance={}",
+                denom, cost, current_balance, new_balance
+            );
+            
             *current_balance = new_balance;
             Ok(())
         })
@@ -326,12 +350,43 @@ impl TransactionsForAccount for PendingTransactionsForAccount {
         ttx: &TimemarkedTransaction,
         current_account_balances: &HashMap<IbcPrefixed, u128>,
     ) -> bool {
+        tracing::warn!(
+            "🔎 Checking balance for tx: {}, initial balances: {:?}",
+            ttx.id(), current_account_balances
+        );
+        
         let mut current_account_balances = current_account_balances.clone();
-        self.txs
-            .values()
-            .chain(std::iter::once(ttx))
-            .try_for_each(|ttx| ttx.deduct_costs(&mut current_account_balances))
-            .is_ok()
+        
+        // First check the existing transactions
+        if let Err(err) = self.txs.values().try_for_each(|tx| {
+            tracing::warn!(" Checking existing transaction: {}", tx.id());
+            tx.deduct_costs(&mut current_account_balances)
+        }) {
+            tracing::error!(" Existing transactions already exceed balance: {}", err);
+            return false;
+        }
+        
+        tracing::warn!(
+            "👉 Remaining balances after existing transactions: {:?}",
+            current_account_balances
+        );
+        
+        // Then check the new transaction
+        let result = ttx.deduct_costs(&mut current_account_balances).is_ok();
+        
+        if result {
+            tracing::warn!(
+                "✅ Transaction {} has sufficient balance", 
+                ttx.id()
+            );
+        } else {
+            tracing::error!(
+                "❌ Transaction {} lacks sufficient balance", 
+                ttx.id()
+            );
+        }
+        
+        result
     }
 }
 

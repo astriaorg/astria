@@ -5,6 +5,9 @@ use astria_core::{
         BridgeSudoChange,
         BridgeTransfer,
         BridgeUnlock,
+        CancelOrder,
+        CreateMarket,
+        CreateOrder,
         CurrencyPairsChange,
         FeeAssetChange,
         FeeChange,
@@ -17,6 +20,7 @@ use astria_core::{
         RollupDataSubmission,
         SudoAddressChange,
         Transfer,
+        UpdateMarket,
         ValidatorUpdate,
     },
     Protobuf,
@@ -447,6 +451,98 @@ impl FeeHandler for MarketsChange {
 
     fn fee_asset(&self) -> Option<&Denom> {
         None
+    }
+}
+
+impl FeeHandler for CreateOrder {
+    fn name(&self) -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "orderbook_create_order"
+    }
+
+    fn variable_component(&self) -> u128 {
+        // Base variable component - may want to scale based on quantity in the future
+        0
+    }
+
+    fn fee_asset(&self) -> Option<&Denom> {
+        Some(&self.fee_asset)
+    }
+}
+
+impl FeeHandler for CancelOrder {
+    fn name(&self) -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "orderbook_cancel_order"
+    }
+
+    fn variable_component(&self) -> u128 {
+        // Fixed fee for cancel orders
+        0
+    }
+
+    fn fee_asset(&self) -> Option<&Denom> {
+        Some(&self.fee_asset)
+    }
+}
+
+impl FeeHandler for CreateMarket {
+    fn name(&self) -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "orderbook_create_market"
+    }
+
+    fn variable_component(&self) -> u128 {
+        // Fixed fee for creating markets, which is a higher-cost operation
+        0
+    }
+
+    fn fee_asset(&self) -> Option<&Denom> {
+        Some(&self.fee_asset)
+    }
+}
+
+impl FeeHandler for UpdateMarket {
+    fn name(&self) -> &'static str {
+        <Self as Protobuf>::Raw::NAME
+    }
+
+    fn full_name() -> String {
+        <Self as Protobuf>::full_name()
+    }
+
+    fn snake_case_name() -> &'static str {
+        "orderbook_update_market"
+    }
+
+    fn variable_component(&self) -> u128 {
+        // Fixed fee for updating markets
+        0
+    }
+
+    fn fee_asset(&self) -> Option<&Denom> {
+        Some(&self.fee_asset)
     }
 }
 

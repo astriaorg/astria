@@ -71,6 +71,8 @@ tokio-util = { workspace = true, features = ["rt"] }
 tonic = { workspace = true }
 tracing = { workspace = true }
 tryhard = { workspace = true }
+uuid = { version = "1.7.0", features = ["v4"] }
+chrono = "0.4.35"
 
 [dev-dependencies]
 astria-core = { path = "../astria-core", features = [

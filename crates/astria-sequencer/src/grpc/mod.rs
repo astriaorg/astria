@@ -25,10 +25,7 @@ use tokio::{
     sync::oneshot,
     task::JoinError,
 };
-use tokio_util::{
-    sync::CancellationToken,
-    task::JoinMap,
-};
+use tokio_util::sync::CancellationToken;
 use tracing::{
     error,
     error_span,
@@ -58,20 +55,22 @@ const SHUTDOWN_TIMEOUT: Duration = Duration::from_millis(1500);
 const SHUTDOWN_SPAN: &str = "grpc_server_shutdown";
 
 struct BackgroundTasks {
-    tasks: JoinMap<&'static str, ()>,
+    tasks: std::collections::HashMap<&'static str, tokio::task::JoinHandle<()>>,
     cancellation_token: CancellationToken,
 }
 
 impl BackgroundTasks {
     fn new() -> Self {
         Self {
-            tasks: JoinMap::new(),
+            tasks: std::collections::HashMap::new(),
             cancellation_token: CancellationToken::new(),
         }
     }
 
     fn abort_all(&mut self) {
-        self.tasks.abort_all();
+        for (_, handle) in self.tasks.drain() {
+            handle.abort();
+        }
     }
 
     fn cancel_all(&self) {
@@ -92,11 +91,32 @@ impl BackgroundTasks {
         F: Future<Output = ()>,
         F: Send + 'static,
     {
-        self.tasks.spawn(key, task);
+        let handle = tokio::spawn(task);
+        self.tasks.insert(key, handle);
     }
 
     async fn join_next(&mut self) -> Option<(&'static str, Result<(), JoinError>)> {
-        self.tasks.join_next().await
+        // This is a simplified version that just returns the first task that completes
+        if self.tasks.is_empty() {
+            return None;
+        }
+        
+        let mut completed_key = None;
+        for (key, handle) in &self.tasks {
+            if handle.is_finished() {
+                completed_key = Some(*key);
+                break;
+            }
+        }
+        
+        if let Some(key) = completed_key {
+            if let Some(handle) = self.tasks.remove(&key) {
+                let result = handle.await;
+                return Some((key, result));
+            }
+        }
+        
+        None
     }
 }
 

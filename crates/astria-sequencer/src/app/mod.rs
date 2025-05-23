@@ -1,7 +1,7 @@
 #[cfg(feature = "benchmark")]
 mod benchmarks;
 pub(crate) mod event_bus;
-mod execution_state;
+pub mod execution_state;
 mod state_ext;
 pub(crate) mod storage;
 #[cfg(test)]
@@ -121,6 +121,7 @@ use crate::{
         StateWriteExt as _,
     },
     checked_actions::CheckedAction,
+    orderbook::component::OrderbookComponent,
     checked_transaction::{
         CheckedTransaction,
         CheckedTransactionExecutionError,
@@ -321,6 +322,9 @@ impl App {
         IbcComponent::init_chain(&mut state_tx, &genesis_state)
             .await
             .wrap_err("init_chain failed on IbcComponent")?;
+        OrderbookComponent::init_chain(&mut state_tx, &())
+            .await
+            .wrap_err("init_chain failed on OrderbookComponent")?;
 
         state_tx.apply();
 
@@ -1428,6 +1432,9 @@ impl App {
         FeesComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .wrap_err("begin_block failed on FeesComponent")?;
+        OrderbookComponent::begin_block(&mut arc_state_tx, begin_block)
+            .await
+            .wrap_err("begin_block failed on OrderbookComponent")?;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -1496,6 +1503,9 @@ impl App {
         IbcComponent::end_block(&mut arc_state_tx, &end_block)
             .await
             .wrap_err("end_block failed on IbcComponent")?;
+        OrderbookComponent::end_block(&mut arc_state_tx, &end_block)
+            .await
+            .wrap_err("end_block failed on OrderbookComponent")?;
 
         let mut state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");

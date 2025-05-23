@@ -1,3 +1,4 @@
+use astria_core::protocol::orderbook::v1::{Order, OrderMatch};
 use astria_eyre::{
     eyre::WrapErr as _,
     Result,
@@ -6,6 +7,10 @@ use borsh::{
     BorshDeserialize,
     BorshSerialize,
 };
+
+use crate::orderbook::compat::{OrderWrapper, OrderMatchWrapper};
+
+use crate::orderbook::state_ext::MarketParams;
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
 pub(crate) enum StoredValue<'a> {
@@ -22,6 +27,13 @@ pub(crate) enum StoredValue<'a> {
     Upgrades(crate::upgrades::storage::Value<'a>),
     PriceFeedMarketMap(crate::oracles::price_feed::market_map::storage::Value<'a>),
     PriceFeedOracle(crate::oracles::price_feed::oracle::storage::Value<'a>),
+    Order(OrderWrapper),
+    MarketParams(MarketParams),
+    // New variants for our order book types
+    Market(crate::orderbook::Market),
+    Trade(crate::orderbook::Trade),
+    OrderMatch(OrderMatchWrapper),
+    Bytes(Vec<u8>),
 }
 
 impl StoredValue<'_> {
