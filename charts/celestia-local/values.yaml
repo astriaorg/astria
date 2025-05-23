@@ -15,7 +15,7 @@ storage:
       persistentVolumeName: "celestia-shared-storage"
       path: "/data/celestia-data"
 
-celestiaAppImage: "ghcr.io/celestiaorg/celestia-app:e558b89"
+celestiaAppImage: "ghcr.io/celestiaorg/celestia-app:v4.0.1-mocha"
 celestiaNodeImage: "ghcr.io/celestiaorg/celestia-node:v0.23.0-mocha"
 
 podSecurityContext:
