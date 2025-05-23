@@ -25,6 +25,7 @@ use penumbra_ibc::{
     IbcRelayWithHandlers,
 };
 use tracing::{
+    debug,
     instrument,
     Level,
 };
@@ -86,11 +87,10 @@ impl CheckedIbcRelay {
     #[instrument(skip_all, err(level = Level::DEBUG))]
     pub(super) async fn execute<S: StateWrite>(&self, state: S) -> Result<()> {
         self.run_mutable_checks(&state).await?;
-        self.action_with_handlers
-            .check_and_execute(state)
-            .await
-            .map_err(anyhow_to_eyre)
-            .wrap_err("failed executing ibc action")
+        if let Err(e) = self.action_with_handlers.check_and_execute(state).await {
+            debug!(err = %e, "failed to execute IBC Relay action, still including in block");
+        }
+        Ok(())
     }
 
     pub(super) fn action(&self) -> &IbcRelay {
@@ -120,9 +120,18 @@ mod tests {
         protocol::transaction::v1::action::IbcRelayerChange,
     };
     use ibc_proto::google::protobuf::Any;
-    use ibc_types::core::client::{
-        msgs::MsgCreateClient,
-        ClientId,
+    use ibc_types::core::{
+        channel::{
+            msgs::MsgTimeout,
+            packet::Sequence,
+            Packet,
+        },
+        client::{
+            msgs::MsgCreateClient,
+            ClientId,
+            Height,
+        },
+        commitment::MerkleProof,
     };
     use penumbra_ibc::{
         component::ClientStateReadExt as _,
@@ -239,5 +248,37 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(client_state, dummy_ibc_client_state(1));
+    }
+
+    #[tokio::test]
+    async fn failed_internal_execution_should_still_succeed() {
+        let mut fixture = Fixture::default_initialized().await;
+        fixture.state_mut().put_block_height(1).unwrap();
+        fixture.state_mut().put_revision_number(1).unwrap();
+        let timestamp = tendermint::Time::from_unix_timestamp(1, 0).unwrap();
+        fixture.state_mut().put_block_timestamp(timestamp).unwrap();
+
+        // Timeout has no stateless checks, so construction will succeed.
+        let action = IbcRelay::Timeout(MsgTimeout {
+            packet: Packet::default(),
+            next_seq_recv_on_b: Sequence::default(),
+            proof_unreceived_on_b: MerkleProof {
+                proofs: vec![],
+            },
+            proof_height_on_b: Height::new(1, 1).unwrap(),
+            signer: String::new(),
+        });
+        let checked_action: CheckedIbcRelay = fixture
+            .new_checked_action(action, *IBC_SUDO_ADDRESS_BYTES)
+            .await
+            .unwrap()
+            .into();
+
+        assert!(checked_action
+            .action_with_handlers
+            .check_and_execute(fixture.state_mut())
+            .await
+            .is_err());
+        assert!(checked_action.execute(fixture.state_mut()).await.is_ok());
     }
 }
