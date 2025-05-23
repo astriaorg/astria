@@ -27,7 +27,6 @@ members = [
   "crates/astria-telemetry",
   "crates/astria-test-utils",
   "lint/*",
-  "tools/orderbook-tester",
 ]
 # Specify default members so that cargo invocations in github actions will
 # not act on lints

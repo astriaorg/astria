@@ -12,7 +12,6 @@ mod fee_assets;
 mod ics20_withdrawal;
 mod init_bridge_account;
 mod orderbook;
-mod updated_orderbook;
 mod sign;
 mod submit;
 mod sudo;
@@ -44,7 +43,6 @@ impl Command {
             SubCommand::BridgeAccount(bridge_account) => bridge_account.run().await,
             SubCommand::FeeAssets(fee_assets) => fee_assets.run().await,
             SubCommand::Orderbook(orderbook) => orderbook.run().await,
-            SubCommand::OrderbookV2(orderbook_v2) => orderbook_v2.run().await,
         }
     }
 }
@@ -90,6 +88,4 @@ enum SubCommand {
     FeeAssets(fee_assets::Command),
     /// Commands for interacting with the orderbook
     Orderbook(orderbook::Command),
-    /// Commands for interacting with the orderbook (using new client)
-    OrderbookV2(updated_orderbook::Command),
 }
