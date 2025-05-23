@@ -219,7 +219,7 @@ struct WriteBatch {
     write_batch: StagedWriteBatch,
     /// The hashes and results of all transactions executed in the block for which this write batch
     /// is made.
-    execution_results: HashMap<TransactionId, ExecTxResult>,
+    execution_results: HashMap<TransactionId, Arc<ExecTxResult>>,
 }
 
 impl App {
@@ -1406,7 +1406,7 @@ impl App {
             .into_iter()
             .filter_map(|(tx_hash, tx_result)| {
                 if tx_result.code.is_ok() {
-                    Some((tx_hash, tx_result))
+                    Some((tx_hash, Arc::new(tx_result)))
                 } else {
                     None
                 }
@@ -1772,11 +1772,11 @@ async fn update_mempool_after_finalization<S: StateRead>(
     mempool: &mut Mempool,
     state: &S,
     recost: bool,
-    txs_included_in_block: HashMap<TransactionId, ExecTxResult>,
+    block_execution_results: HashMap<TransactionId, Arc<ExecTxResult>>,
     block_height: u64,
 ) {
     mempool
-        .run_maintenance(state, recost, txs_included_in_block, block_height)
+        .run_maintenance(state, recost, block_execution_results, block_height)
         .await;
 }
 

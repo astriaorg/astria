@@ -1,6 +1,7 @@
 #[cfg(feature = "benchmark")]
 mod benchmarks;
 mod mempool_state;
+mod recent_execution_results;
 mod transactions_container;
 
 use std::{
@@ -22,6 +23,7 @@ use astria_core::{
 };
 use astria_eyre::eyre::Result;
 pub(crate) use mempool_state::get_account_balances;
+use recent_execution_results::RecentExecutionResults;
 use tendermint::abci::types::ExecTxResult;
 use tokio::{
     sync::RwLock,
@@ -55,7 +57,10 @@ pub(crate) enum RemovalReason {
     LowerNonceInvalidated,
     FailedPrepareProposal(String),
     InternalError,
-    IncludedInBlock { height: u64, result: ExecTxResult },
+    IncludedInBlock {
+        height: u64,
+        result: Arc<ExecTxResult>,
+    },
 }
 
 impl std::fmt::Display for RemovalReason {
@@ -182,9 +187,17 @@ pub(crate) struct Mempool {
 
 impl Mempool {
     #[must_use]
-    pub(crate) fn new(metrics: &'static Metrics, parked_max_tx_count: usize) -> Self {
+    pub(crate) fn new(
+        metrics: &'static Metrics,
+        parked_max_tx_count: usize,
+        execution_results_cache_size: usize,
+    ) -> Self {
         Self {
-            inner: Arc::new(RwLock::new(MempoolInner::new(metrics, parked_max_tx_count))),
+            inner: Arc::new(RwLock::new(MempoolInner::new(
+                metrics,
+                parked_max_tx_count,
+                execution_results_cache_size,
+            ))),
         }
     }
 
@@ -259,13 +272,13 @@ impl Mempool {
         &self,
         state: &S,
         recost: bool,
-        txs_included_in_block: HashMap<TransactionId, ExecTxResult>,
+        block_execution_results: HashMap<TransactionId, Arc<ExecTxResult>>,
         block_height: u64,
     ) {
         self.inner
             .write()
             .await
-            .run_maintenance(state, recost, txs_included_in_block, block_height)
+            .run_maintenance(state, recost, block_execution_results, block_height)
             .await;
     }
 
@@ -315,13 +328,18 @@ struct MempoolInner {
     pending: PendingTransactions,
     parked: ParkedTransactions<MAX_PARKED_TXS_PER_ACCOUNT>,
     comet_bft_removal_cache: RemovalCache,
+    recent_execution_results: RecentExecutionResults,
     contained_txs: HashSet<TransactionId>,
     metrics: &'static Metrics,
 }
 
 impl MempoolInner {
     #[must_use]
-    fn new(metrics: &'static Metrics, parked_max_tx_count: usize) -> Self {
+    fn new(
+        metrics: &'static Metrics,
+        parked_max_tx_count: usize,
+        execution_results_cache_size: usize,
+    ) -> Self {
         Self {
             pending: PendingTransactions::new(TX_TTL),
             parked: ParkedTransactions::new(TX_TTL, parked_max_tx_count),
@@ -329,6 +347,7 @@ impl MempoolInner {
                 NonZeroUsize::try_from(REMOVAL_CACHE_SIZE)
                     .expect("Removal cache cannot be zero sized"),
             ),
+            recent_execution_results: RecentExecutionResults::new(execution_results_cache_size),
             contained_txs: HashSet::new(),
             metrics,
         }
@@ -454,11 +473,12 @@ impl MempoolInner {
         self.comet_bft_removal_cache.remove(tx_id);
     }
 
+    #[expect(clippy::too_many_lines, reason = "should be refactored")]
     async fn run_maintenance<S: accounts::StateReadExt>(
         &mut self,
         state: &S,
         recost: bool,
-        txs_included_in_block: HashMap<TransactionId, ExecTxResult>,
+        block_execution_results: HashMap<TransactionId, Arc<ExecTxResult>>,
         block_height: u64,
     ) {
         let mut removed_txs = Vec::<(TransactionId, RemovalReason)>::new();
@@ -506,7 +526,7 @@ impl MempoolInner {
             removed_txs.extend(self.pending.clean_account_stale_expired(
                 address_bytes,
                 current_nonce,
-                &txs_included_in_block,
+                &block_execution_results,
                 block_height,
             ));
             if recost {
@@ -516,7 +536,7 @@ impl MempoolInner {
             removed_txs.extend(self.parked.clean_account_stale_expired(
                 address_bytes,
                 current_nonce,
-                &txs_included_in_block,
+                &block_execution_results,
                 block_height,
             ));
             if recost {
@@ -582,6 +602,10 @@ impl MempoolInner {
             self.contained_txs.remove(&tx_id);
             self.comet_bft_removal_cache.add(tx_id, reason);
         }
+        self.recent_execution_results
+            .add(block_execution_results, block_height);
+        self.metrics
+            .set_results_in_recently_executed_cache(self.recent_execution_results.len());
     }
 
     fn pending_nonce(&self, address_bytes: &[u8; ADDRESS_LENGTH]) -> Option<u32> {
@@ -596,10 +620,20 @@ impl MempoolInner {
                 Some(TransactionStatus::Parked)
             }
         } else {
-            self.comet_bft_removal_cache
-                .cache
+            self.recent_execution_results
                 .get(tx_id)
-                .map(|reason| TransactionStatus::Removed(reason.clone()))
+                .map(|tx_data| {
+                    TransactionStatus::Removed(RemovalReason::IncludedInBlock {
+                        height: tx_data.block_height(),
+                        result: tx_data.result(),
+                    })
+                })
+                .or_else(|| {
+                    self.comet_bft_removal_cache
+                        .cache
+                        .get(tx_id)
+                        .map(|reason| TransactionStatus::Removed(reason.clone()))
+                })
         }
     }
 
@@ -1322,6 +1356,187 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn transaction_still_exists_in_recently_included_after_being_removed() {
+        const INCLUDED_TX_BLOCK_NUMBER: u64 = 42;
+        let mut fixture = Fixture::default_initialized().await;
+        let mempool = fixture.mempool();
+        let account_balances = dummy_balances(100, 100);
+        let tx_cost = dummy_tx_costs(10, 10, 0);
+
+        // Create and insert transactions
+        let tx_1 = new_alice_tx(&fixture, 1).await;
+        let tx_2 = new_alice_tx(&fixture, 2).await;
+
+        mempool
+            .insert(tx_1.clone(), 1, &account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+        mempool
+            .insert(tx_2.clone(), 1, &account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        // Check that transactions are in pending state
+        assert!(matches!(
+            mempool.transaction_status(tx_1.id()).await.unwrap(),
+            TransactionStatus::Pending
+        ));
+        assert!(matches!(
+            mempool.transaction_status(tx_2.id()).await.unwrap(),
+            TransactionStatus::Pending
+        ));
+
+        // Setup state for maintenance
+        fixture
+            .state_mut()
+            .put_account_nonce(&*ALICE_ADDRESS_BYTES, 3)
+            .unwrap();
+        put_ibc_assets(&mut fixture);
+
+        // Create the transaction result to be used in the execution result
+        let exec_result_1 = ExecTxResult {
+            log: "tx_1 executed".to_string(),
+            ..ExecTxResult::default()
+        };
+        let exec_result_2 = ExecTxResult {
+            log: "tx_2 executed".to_string(),
+            ..ExecTxResult::default()
+        };
+
+        // Remove transactions as included in a block
+        let mut execution_results = HashMap::new();
+        execution_results.insert(*tx_1.id(), Arc::new(exec_result_1.clone()));
+        execution_results.insert(*tx_2.id(), Arc::new(exec_result_2.clone()));
+        mempool
+            .run_maintenance(
+                fixture.state(),
+                false,
+                execution_results,
+                INCLUDED_TX_BLOCK_NUMBER,
+            )
+            .await;
+
+        let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
+            height: tx1_height,
+            result: tx1_result,
+        }) = mempool.transaction_status(tx_1.id()).await.unwrap()
+        else {
+            panic!("tx_1 not marked as included in block");
+        };
+        assert_eq!(tx1_height, INCLUDED_TX_BLOCK_NUMBER);
+        assert_eq!(*tx1_result, exec_result_1);
+
+        let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
+            height: tx2_height,
+            result: tx2_result,
+        }) = mempool.transaction_status(tx_2.id()).await.unwrap()
+        else {
+            panic!("tx_2 not marked as included in block");
+        };
+        assert_eq!(tx2_height, INCLUDED_TX_BLOCK_NUMBER);
+        assert_eq!(*tx2_result, exec_result_2);
+
+        // Remove actions from removal cache to simulate recheck
+        mempool.remove_from_removal_cache(tx_1.id()).await;
+        mempool.remove_from_removal_cache(tx_2.id()).await;
+        let removal_cache = mempool.removal_cache().await;
+        assert!(removal_cache.is_empty(), "removal cache should be empty");
+
+        // Check that transaction status is still removed with "included" reason
+        let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
+            height,
+            result,
+        }) = mempool.transaction_status(tx_1.id()).await.unwrap()
+        else {
+            panic!("tx_1 not marked as included in block");
+        };
+        assert_eq!(height, INCLUDED_TX_BLOCK_NUMBER);
+        assert_eq!(*result, exec_result_1);
+
+        let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
+            height,
+            result,
+        }) = mempool.transaction_status(tx_2.id()).await.unwrap()
+        else {
+            panic!("tx_2 not marked as included in block");
+        };
+        assert_eq!(height, INCLUDED_TX_BLOCK_NUMBER);
+        assert_eq!(*result, exec_result_2);
+    }
+
+    #[tokio::test]
+    async fn transaction_status_none_after_recently_included_expiration() {
+        use tokio::time;
+
+        const INCLUDED_TX_BLOCK_NUMBER: u64 = 42;
+        let mut fixture = Fixture::default_initialized().await;
+        let mempool = fixture.mempool();
+        let account_balances = dummy_balances(100, 100);
+        let tx_cost = dummy_tx_costs(10, 10, 0);
+
+        // Create and insert a transaction
+        let tx = new_alice_tx(&fixture, 1).await;
+        mempool
+            .insert(tx.clone(), 1, &account_balances.clone(), tx_cost.clone())
+            .await
+            .unwrap();
+
+        // Setup state for maintenance
+        fixture
+            .state_mut()
+            .put_account_nonce(&*ALICE_ADDRESS_BYTES, 2)
+            .unwrap();
+        put_ibc_assets(&mut fixture);
+
+        // Mark transaction as included in a block
+        let exec_result = ExecTxResult {
+            log: "tx executed".to_string(),
+            ..ExecTxResult::default()
+        };
+        let mut execution_results = HashMap::new();
+        execution_results.insert(*tx.id(), Arc::new(exec_result.clone()));
+        mempool
+            .run_maintenance(
+                fixture.state(),
+                false,
+                execution_results,
+                INCLUDED_TX_BLOCK_NUMBER,
+            )
+            .await;
+
+        let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
+            height,
+            result,
+        }) = mempool.transaction_status(tx.id()).await.unwrap()
+        else {
+            panic!("transaction not marked as included in block");
+        };
+        assert_eq!(height, INCLUDED_TX_BLOCK_NUMBER);
+        assert_eq!(*result, exec_result);
+
+        // Advance time to expire the transaction in the `recently_included_transactions` cache
+        time::pause();
+        time::advance(time::Duration::from_secs(61)).await;
+
+        // Remove from CometBFT removal cache
+        mempool.remove_from_removal_cache(tx.id()).await;
+        // Maintenance should remove from recently included transactions
+        mempool
+            .run_maintenance(
+                fixture.state(),
+                false,
+                HashMap::new(),
+                INCLUDED_TX_BLOCK_NUMBER + 1,
+            )
+            .await;
+
+        assert!(
+            mempool.transaction_status(tx.id()).await.is_none(),
+            "Transaction status should be None after expiration from recently included cache"
+        );
+    }
+
+    #[tokio::test]
     async fn parked_limit_enforced() {
         let fixture = Fixture::default_initialized().await;
         let mempool = fixture.mempool();
@@ -1399,15 +1614,15 @@ mod tests {
 
         put_alice_balances(&mut fixture, dummy_balances(0, 0));
 
-        let mut included_txs = HashMap::new();
-        included_txs.insert(*tx1.id(), ExecTxResult::default());
-        included_txs.insert(*tx2.id(), ExecTxResult::default());
+        let mut execution_results = HashMap::new();
+        execution_results.insert(*tx1.id(), Arc::new(ExecTxResult::default()));
+        execution_results.insert(*tx2.id(), Arc::new(ExecTxResult::default()));
 
         mempool
             .run_maintenance(
                 fixture.state(),
                 false,
-                included_txs,
+                execution_results,
                 INCLUDED_TX_BLOCK_NUMBER,
             )
             .await;
@@ -1430,7 +1645,7 @@ mod tests {
             *removal_cache.get(tx1.id()).unwrap(),
             RemovalReason::IncludedInBlock {
                 height: INCLUDED_TX_BLOCK_NUMBER,
-                result: ExecTxResult::default()
+                result: Arc::new(ExecTxResult::default())
             },
             "removal reason should be included"
         );
@@ -1438,7 +1653,7 @@ mod tests {
             *removal_cache.get(tx2.id()).unwrap(),
             RemovalReason::IncludedInBlock {
                 height: INCLUDED_TX_BLOCK_NUMBER,
-                result: ExecTxResult::default()
+                result: Arc::new(ExecTxResult::default())
             },
             "removal reason should be included"
         );

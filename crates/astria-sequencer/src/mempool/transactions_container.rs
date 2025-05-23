@@ -685,7 +685,7 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
         &mut self,
         address_bytes: &[u8; ADDRESS_LENGTH],
         current_account_nonce: u32,
-        txs_included_in_block: &HashMap<TransactionId, ExecTxResult>,
+        txs_included_in_block: &HashMap<TransactionId, Arc<ExecTxResult>>,
         block_height: u64,
     ) -> Vec<(TransactionId, RemovalReason)> {
         // Take the collection for this account out of `self` temporarily if it exists.
@@ -1935,8 +1935,8 @@ mod tests {
             // should remove transactions 0 and 1 with `RemovalReason::Indluded(9)`
             &{
                 let mut included_txs = HashMap::new();
-                included_txs.insert(*ttx_s2_0.id(), ExecTxResult::default());
-                included_txs.insert(*ttx_s2_1.id(), ExecTxResult::default());
+                included_txs.insert(*ttx_s2_0.id(), Arc::new(ExecTxResult::default()));
+                included_txs.insert(*ttx_s2_1.id(), Arc::new(ExecTxResult::default()));
                 included_txs
             },
             INCLUDED_TX_BLOCK_NUMBER,
