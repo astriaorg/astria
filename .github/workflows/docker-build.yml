@@ -234,7 +234,6 @@ jobs:
       - name: Setup Smoke Test Environment
         timeout-minutes: 10
         run: |
-          TAG=sha-$(git rev-parse --short HEAD)
           just deploy cluster
           kubectl create secret generic regcred --from-file=.dockerconfigjson=$HOME/.docker/config.json --type=kubernetes.io/dockerconfigjson
           just deploy smoke-test
@@ -274,10 +273,8 @@ jobs:
       - name: Setup EVM Restart Test Environment
         timeout-minutes: 10
         run: |
-          TAG=sha-$(git rev-parse --short HEAD)
           just deploy cluster
           kubectl create secret generic regcred --from-file=.dockerconfigjson=$HOME/.docker/config.json --type=kubernetes.io/dockerconfigjson
-          echo -e "\n\nDeploying with astria images tagged $TAG"
           just deploy evm-restart-test
           cd system-tests
           uv venv
