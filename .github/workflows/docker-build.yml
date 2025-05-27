@@ -440,7 +440,6 @@ jobs:
       - name: Setup Multi-Relayer Test Environment
         timeout-minutes: 10
         run: |
-          TAG=sha-$(git rev-parse --short HEAD)
           just deploy cluster
           kubectl create secret generic regcred --from-file=.dockerconfigjson=$HOME/.docker/config.json --type=kubernetes.io/dockerconfigjson
           just deploy multiple-relayer-test
@@ -451,7 +450,7 @@ jobs:
         timeout-minutes: 3
         run: |
           TAG=sha-$(git rev-parse --short HEAD)
-          just run multiple-relayer-test -i all=$T
+          just run multiple-relayer-test -i all=$TAG
 
   docker:
     if: ${{ always() && !cancelled() }}
