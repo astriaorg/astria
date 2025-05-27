@@ -38,6 +38,7 @@ use crate::ibc::{
     host_interface::AstriaHost,
     ics20_transfer::Ics20Transfer,
     StateReadExt as _,
+    StateWriteExt as _,
 };
 
 pub(crate) struct CheckedIbcRelay {
@@ -85,9 +86,18 @@ impl CheckedIbcRelay {
     }
 
     #[instrument(skip_all, err(level = Level::DEBUG))]
-    pub(super) async fn execute<S: StateWrite>(&self, state: S) -> Result<()> {
+    pub(super) async fn execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         self.run_mutable_checks(&state).await?;
-        if let Err(e) = self.action_with_handlers.check_and_execute(state).await {
+        if let Err(e) = self
+            .action_with_handlers
+            .check_and_execute(&mut state)
+            .await
+        {
+            let failures = state
+                .ephemeral_get_ibc_failures()
+                .unwrap_or_default()
+                .saturating_add(1);
+            state.ephemeral_put_ibc_failures(failures);
             debug!(err = %e, "failed to execute IBC Relay action, still including in block");
         }
         Ok(())

@@ -131,7 +131,10 @@ use crate::{
         StateReadExt as _,
     },
     grpc::StateWriteExt as _,
-    ibc::component::IbcComponent,
+    ibc::{
+        component::IbcComponent,
+        StateReadExt as _,
+    },
     mempool::{
         Mempool,
         RemovalReason,
@@ -756,6 +759,10 @@ impl App {
         self.metrics
             .set_transactions_in_mempool_total(self.mempool.len().await);
 
+        if let Some(failed_ibc_relays) = self.state.ephemeral_get_ibc_failures() {
+            self.metrics.record_ibc_relay_failures(failed_ibc_relays);
+        }
+
         let included_txs = executed_txs
             .iter()
             .map(|executed_tx| executed_tx.tx.clone())
@@ -804,6 +811,9 @@ impl App {
             {
                 break;
             }
+        }
+        if let Some(failed_ibc_relays) = self.state.ephemeral_get_ibc_failures() {
+            self.metrics.record_ibc_relay_failures(failed_ibc_relays);
         }
         Ok(proposal_info.executed_txs())
     }
@@ -1309,6 +1319,10 @@ impl App {
                         );
                     }
                 }
+            }
+
+            if let Some(failed_ibc_relays) = self.state.ephemeral_get_ibc_failures() {
+                self.metrics.record_ibc_relay_failures(failed_ibc_relays);
             }
 
             self.post_execute_transactions(
