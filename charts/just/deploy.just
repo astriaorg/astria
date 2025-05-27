@@ -425,10 +425,10 @@ multiple-relayer-stack:
   @just deploy sequencer full-node
   @just wait-for celestia-local
   @just wait-for sequencer
-  @just deploy hermes local
-  @just wait-for hermes local
-  @just deploy hermes local-1
-  @just wait-for hermes local-1
+  @just deploy hermes full-node
+  @just wait-for hermes full-node
+  @just deploy hermes full-node-1
+  @just wait-for hermes full-node-1
 
 
 # Generate System-Test Protos
@@ -452,6 +452,15 @@ upgrade-test: generate-system-test-protos
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
   @just wait-for celestia-local
 
+# Deploy Multiple Relayer Test
+###############################
+[doc("
+Deploys all components necessary for running the multiple relayer test in the
+`system-tests` folder.
+")]
+multiple-relayer-test: generate-system-test-protos
+  @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
+  @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
 
 #####################
 ## Private Recipes ##

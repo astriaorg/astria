@@ -66,8 +66,8 @@ print(colored("Celestia and Sequencers successfully deployed", "green"))
 
 # Deploy Hermes relayers, must be done non-concurrently because they will not init at the same time
 print(colored("Deploying Hermes relayers... (this may take a few minutes)", "blue"))
-hermes_relayer_0 = HermesController("local")
-hermes_relayer_1 = HermesController("local-1")
+hermes_relayer_0 = HermesController("full-node")
+hermes_relayer_1 = HermesController("full-node-1")
 hermes_relayer_0.deploy_hermes(image_controller)
 hermes_relayer_1.deploy_hermes(image_controller)
 print(colored("Hermes relayers successfully deployed", "green"))

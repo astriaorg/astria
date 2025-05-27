@@ -446,8 +446,7 @@ jobs:
           TAG=sha-$(git rev-parse --short HEAD)
           just deploy cluster
           kubectl create secret generic regcred --from-file=.dockerconfigjson=$HOME/.docker/config.json --type=kubernetes.io/dockerconfigjson
-          just deploy ingress-controller
-          just wait-for ingress-controller
+          just deploy multiple-relayer-test
           cd system-tests
           uv venv
           uv pip install -r requirements.txt
