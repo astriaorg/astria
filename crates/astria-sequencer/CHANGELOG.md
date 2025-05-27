@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Allow inclusiong of `IbcRelay` actions which fail execution [#2201](https://github.com/astriaorg/astria/pull/2201).
+
 ## [3.0.0] - 2025-05-21
 
 ### Added

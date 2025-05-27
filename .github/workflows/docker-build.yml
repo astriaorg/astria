@@ -438,7 +438,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Setup Multi-Relayer Test Environment
-        timeout-minutes: 10
+        timeout-minutes: 3
         run: |
           just deploy cluster
           kubectl create secret generic regcred --from-file=.dockerconfigjson=$HOME/.docker/config.json --type=kubernetes.io/dockerconfigjson
@@ -447,7 +447,7 @@ jobs:
           uv venv
           uv pip install -r requirements.txt
       - name: Run Multi-Relayer test
-        timeout-minutes: 3
+        timeout-minutes: 10
         run: |
           TAG=sha-$(git rev-parse --short HEAD)
           just run multiple-relayer-test -i all=$TAG
