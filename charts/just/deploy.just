@@ -344,11 +344,11 @@ ibc-test tag=defaultTag:
     --set blockscout-stack.enabled=false \
     --set postgresql.enabled=false \
     --set evm-faucet.enabled=false > /dev/null
-  @echo "Deploying Hermes..." && just deploy hermes-local > /dev/null
+  @echo "Deploying Hermes..." && just deploy hermes local > /dev/null
   @just wait-for celestia-local
   @just wait-for sequencer
   @just wait-for rollup
-  @just wait-for hermes-local
+  @just wait-for hermes local
 
 
 # Deploy IBC Test Without Native Asset
@@ -373,10 +373,10 @@ ibc-test-without-native tag=defaultTag:
     {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
   @echo "Deploying Hermes..."
-  @just deploy hermes-local > /dev/null
+  @just deploy hermes local > /dev/null
   @just wait-for celestia-local
   @just wait-for sequencer
-  @just wait-for hermes-local
+  @just wait-for hermes local
 
 
 # Deploy IBC Test Timeout Refund
@@ -410,11 +410,11 @@ ibc-test-timeout-refund tag=defaultTag:
     --set postgresql.enabled=false \
     --set evm-faucet.enabled=false > /dev/null
   @echo "Deploying Hermes..."
-  @just deploy hermes-local > /dev/null
+  @just deploy hermes local > /dev/null
   @just wait-for celestia-local
   @just wait-for sequencer
   @just wait-for rollup {{defaultRollupName}} "false"
-  @just wait-for hermes-local
+  @just wait-for hermes local
 
 
 multiple-relayer-stack:
