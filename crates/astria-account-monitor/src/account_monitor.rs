@@ -94,7 +94,7 @@ impl Future for AccountMonitor {
 struct Inner {
     shutdown_token: CancellationToken,
     sequencer_abci_client: sequencer_client::HttpClient,
-    sequencer_accounts: SequencerAccountsToMonitor,
+    accounts: SequencerAccountsToMonitor,
     metrics: &'static Metrics,
     interval: Duration,
 }
@@ -110,7 +110,7 @@ impl Inner {
     fn new(cfg: Config, metrics: &'static Metrics) -> eyre::Result<Self> {
         let Config {
             sequencer_abci_endpoint,
-            sequencer_accounts,
+            accounts,
             ..
         } = cfg;
 
@@ -124,7 +124,7 @@ impl Inner {
         Ok(Self {
             shutdown_token,
             sequencer_abci_client: sequencer_cometbft_client,
-            sequencer_accounts,
+            accounts,
             metrics,
             interval,
         })
@@ -148,7 +148,7 @@ impl Inner {
                     fetch_all_info(
                         self.metrics,
                         &self.sequencer_abci_client,
-                        &self.sequencer_accounts,
+                        &self.accounts,
                     );
                 }
             }
@@ -169,7 +169,7 @@ fn fetch_all_info(
     client: &sequencer_client::HttpClient,
     accounts: &SequencerAccountsToMonitor,
 ) {
-    for account in accounts {
+    for account in accounts.iter() {
         let client = client.clone();
         let address = account.address;
         tokio::spawn(fetch_account_info(metrics, client, address));
@@ -192,7 +192,7 @@ async fn fetch_account_info(
         ),
         timeout(
             Duration::from_millis(1000),
-            get_latest_balance(&client, address)
+            get_latest_balances(&client, address)
         )
     );
 
@@ -215,10 +215,10 @@ async fn fetch_account_info(
 
     let account_balance = match balance {
         Ok(Ok(balance)) => {
-            for asset_balance in balance.clone() {
+            for asset_balance in &balance {
                 metrics.set_account_balance(
                     &address.into(),
-                    &asset_balance.denom.into(),
+                    &asset_balance.denom,
                     asset_balance.balance,
                 );
             }
@@ -238,7 +238,7 @@ async fn fetch_account_info(
 
     AccountInfo {
         nonce: account_nonce,
-        balance: account_balance,
+        balances: account_balance,
     }
 }
 
@@ -262,16 +262,28 @@ impl<T: Display> Display for QueryResponse<T> {
 #[derive(Debug, Clone)]
 struct AccountInfo {
     nonce: QueryResponse<u32>,
-    balance: QueryResponse<Vec<AssetBalance>>,
+    balances: QueryResponse<Vec<AssetBalance>>,
 }
 
 impl Display for AccountInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "nonce = {}, balance = {:?}", self.nonce, self.balance)
+        let balances_str = match &self.balances {
+            QueryResponse::Value(balances) => {
+                let balance_strs: Vec<String> = balances
+                    .iter()
+                    .map(|b| format!("{}:{}", b.denom, b.balance))
+                    .collect();
+                format!("[{}]", balance_strs.join(", "))
+            }
+            QueryResponse::Error => "<error>".to_string(),
+            QueryResponse::Timeout => "<timed out>".to_string(),
+        };
+
+        write!(f, "nonce = {}, balance = {}", self.nonce, balances_str)
     }
 }
 
-async fn get_latest_balance(
+async fn get_latest_balances(
     client: &sequencer_client::HttpClient,
     account: Address,
 ) -> eyre::Result<Vec<AssetBalance>> {

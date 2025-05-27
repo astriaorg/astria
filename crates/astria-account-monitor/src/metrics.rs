@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use astria_core::primitive::v1::asset::Denom;
 use telemetry::{
     metric_names,
     metrics::{
@@ -14,10 +15,7 @@ use tracing::{
     warn,
 };
 
-use crate::config::{
-    Account,
-    Asset,
-};
+use crate::config::Account;
 
 pub struct Metrics {
     nonce_fetch_count: Counter,
@@ -25,7 +23,7 @@ pub struct Metrics {
     balance_fetch_count: Counter,
     balance_fetch_failure_count: Counter,
     account_nonce: HashMap<Account, Gauge>,
-    account_balance: HashMap<Account, HashMap<Asset, Gauge>>,
+    account_balance: HashMap<Account, HashMap<Denom, Gauge>>,
 }
 
 impl Metrics {
@@ -47,7 +45,7 @@ impl Metrics {
     }
 
     #[instrument(skip_all, fields(%account))]
-    pub fn set_account_balance(&self, account: &Account, asset: &Asset, balance: u128) {
+    pub fn set_account_balance(&self, account: &Account, asset: &Denom, balance: u128) {
         if let Some(asset_map) = self.account_balance.get(account) {
             if let Some(gauge) = asset_map.get(asset) {
                 gauge.set(balance);
@@ -108,7 +106,7 @@ impl telemetry::Metrics for Metrics {
         let mut nonce_factory =
             builder.new_gauge_factory(ACCOUNT_NONCE, "The current nonce for a specific account")?;
 
-        for account in &config.sequencer_accounts {
+        for account in config.accounts.iter() {
             let nonce_gauge =
                 nonce_factory.register_with_labels(&[(ACCOUNT_LABEL, account.to_string())])?;
             account_nonce.insert(account.clone(), nonce_gauge);
@@ -119,9 +117,9 @@ impl telemetry::Metrics for Metrics {
             "The current balance for a specific account",
         )?;
 
-        for account in &config.sequencer_accounts {
+        for account in config.accounts.iter() {
             let mut balance_map = HashMap::new();
-            for asset in &config.sequencer_assets {
+            for asset in config.assets.iter() {
                 let balance_gauge = balance_factory.register_with_labels(&[
                     (ACCOUNT_LABEL, account.to_string()),
                     (ASSET_LABEL, asset.to_string()),

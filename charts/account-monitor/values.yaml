@@ -14,12 +14,11 @@ images:
 
 config:
   logLevel: "debug"
-  sequencerAssets:
+  assets:
   # - "nria"
   queryIntervalMs: "10000"
   sequencerRpc: ""
-  sequencerChainId: ""
-  sequencerAccounts:
+  accounts:
   #  - "astria1f9yperk95zrtv72wvf523cx9hk9m72wuqd2hfc"
 
 otel:

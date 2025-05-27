@@ -5,11 +5,10 @@ metadata:
   namespace: {{ include "account-monitor.namespace" . }}
 data:
   ASTRIA_ACCOUNT_MONITOR_LOG: "astria_account_monitor={{ .Values.config.logLevel }}"
-  ASTRIA_ACCOUNT_MONITOR_SEQUENCER_CHAIN_ID: "{{ tpl .Values.config.sequencerChainId . }}"
   ASTRIA_ACCOUNT_MONITOR_SEQUENCER_ABCI_ENDPOINT: "{{ tpl .Values.config.sequencerRpc . }}"
   ASTRIA_ACCOUNT_MONITOR_QUERY_INTERVAL_MS: "{{ .Values.config.queryIntervalMs }}"
-  ASTRIA_ACCOUNT_MONITOR_SEQUENCER_ASSETS: "{{ join "," .Values.config.sequencerAssets }}"
-  ASTRIA_ACCOUNT_MONITOR_SEQUENCER_ACCOUNTS: "{{ join "," .Values.config.sequencerAccounts }}"
+  ASTRIA_ACCOUNT_MONITOR_ASSETS: "{{ join "," .Values.config.assets }}"
+  ASTRIA_ACCOUNT_MONITOR_ACCOUNTS: "{{ join "," .Values.config.accounts }}"
   ASTRIA_ACCOUNT_MONITOR_METRICS_HTTP_LISTENER_ADDR: "0.0.0.0:{{ .Values.ports.metrics }}"
   ASTRIA_ACCOUNT_MONITOR_FORCE_STDOUT: "{{ .Values.global.useTTY }}"
   NO_COLOR: "{{ .Values.global.useTTY }}"

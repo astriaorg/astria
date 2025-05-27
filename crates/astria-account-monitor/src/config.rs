@@ -22,14 +22,11 @@ pub struct Config {
     /// Address of the ABCI server for the sequencer chain
     pub sequencer_abci_endpoint: String,
 
-    /// The chain ID of the sequencer chain
-    pub sequencer_chain_id: String,
-
     /// The addresses of the sequencer chain to monitor.
-    pub sequencer_accounts: SequencerAccountsToMonitor,
+    pub accounts: SequencerAccountsToMonitor,
 
     /// The asset ID of the sequencer chain to monitor.
-    pub sequencer_assets: SequencerAssetsToMonitor,
+    pub assets: SequencerAssetsToMonitor,
 
     /// Sequencer block time in milliseconds
     pub query_interval_ms: u64,
@@ -44,53 +41,15 @@ pub struct Config {
     pub metrics_http_listener_addr: String,
 }
 
-#[derive(Debug, Clone, Hash, Serialize, PartialEq, Eq)]
-pub struct Asset {
-    /// The asset ID of the sequencer chain to monitor.
-    pub asset: Denom,
-}
-
-impl FromStr for Asset {
-    type Err = <Denom as FromStr>::Err;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let asset = s.parse()?;
-        Ok(Self {
-            asset,
-        })
-    }
-}
-
-impl From<Denom> for Asset {
-    fn from(asset: Denom) -> Self {
-        Self {
-            asset,
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for Asset {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = String::deserialize(deserializer)?;
-        let asset = value.parse().map_err(serde::de::Error::custom)?;
-
-        Ok(Self {
-            asset,
-        })
-    }
-}
-
-impl Display for Asset {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.asset)
-    }
-}
-
 #[derive(Debug, Clone, Serialize)]
-pub struct SequencerAssetsToMonitor(Vec<Asset>);
+pub struct SequencerAssetsToMonitor(Vec<Denom>);
+
+impl SequencerAssetsToMonitor {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &Denom> {
+        self.0.iter()
+    }
+}
+
 impl<'de> Deserialize<'de> for SequencerAssetsToMonitor {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -102,13 +61,12 @@ impl<'de> Deserialize<'de> for SequencerAssetsToMonitor {
             return Err(serde::de::Error::custom("empty asset list"));
         }
 
-        let assets: Result<Vec<Asset>, _> = value
+        let assets = value
             .split(',')
             .map(str::trim)
             .map(str::parse)
-            .collect::<Result<Vec<Asset>, _>>();
-
-        let assets = assets.map_err(serde::de::Error::custom)?;
+            .collect::<Result<Vec<Denom>, _>>()
+            .map_err(serde::de::Error::custom)?;
 
         let mut items = HashSet::new();
         if !assets.iter().all(|item| items.insert(item)) {
@@ -119,18 +77,14 @@ impl<'de> Deserialize<'de> for SequencerAssetsToMonitor {
     }
 }
 
-#[expect(clippy::into_iter_without_iter, reason = "iter() is not needed")]
-impl<'a> IntoIterator for &'a SequencerAssetsToMonitor {
-    type IntoIter = std::slice::Iter<'a, Asset>;
-    type Item = &'a Asset;
+#[derive(Debug, Clone, Serialize)]
+pub struct SequencerAccountsToMonitor(Vec<Account>);
 
-    fn into_iter(self) -> Self::IntoIter {
+impl SequencerAccountsToMonitor {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &Account> {
         self.0.iter()
     }
 }
-
-#[derive(Debug, Clone, Serialize)]
-pub struct SequencerAccountsToMonitor(Vec<Account>);
 
 impl<'de> Deserialize<'de> for SequencerAccountsToMonitor {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -157,16 +111,6 @@ impl<'de> Deserialize<'de> for SequencerAccountsToMonitor {
         }
 
         Ok(Self(accounts))
-    }
-}
-
-#[expect(clippy::into_iter_without_iter, reason = "iter() is not needed")]
-impl<'a> IntoIterator for &'a SequencerAccountsToMonitor {
-    type IntoIter = std::slice::Iter<'a, Account>;
-    type Item = &'a Account;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
     }
 }
 
@@ -226,12 +170,33 @@ impl Serialize for Account {
 
 #[cfg(test)]
 mod tests {
+    use astria_core::primitive::v1::asset::Denom;
+
     use super::Config;
+    use crate::config::SequencerAssetsToMonitor;
 
     const EXAMPLE_ENV: &str = include_str!("../local.env.example");
 
     #[test]
     fn example_env_config_is_up_to_date() {
         config::tests::example_env_config_is_up_to_date::<Config>(EXAMPLE_ENV);
+    }
+
+    #[test]
+    fn test_deserialize_multiple_assets() {
+        let input = r#""nria,transfer/channel-0/utia""#;
+        let result: Result<SequencerAssetsToMonitor, _> = serde_json::from_str(input);
+
+        assert!(result.is_ok());
+        let assets = result.unwrap();
+        let collected: Vec<&Denom> = assets.iter().collect();
+
+        assert_eq!(collected.len(), 2);
+        let asset_strings: Vec<String> = collected
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect();
+        assert!(asset_strings.contains(&"nria".to_string()));
+        assert!(asset_strings.contains(&"transfer/channel-0/utia".to_string()));
     }
 }
