@@ -81,111 +81,23 @@ evm-restart-test *FLAGS:
 
 # Run Smoke Test CLI
 #####################
-evm_contract_address := "0xA58639fB5458e65E4fA917FF951C390292C24A15"
 [doc("
 Runs end-to-end smoke test of Astria stack (minus Bridge-Withdrawer) and EVM rollup,
 including bridge in/out and TX finalization.
-Usage:
-  just run smoke-cli <TAG> (default: '')
+NOTE: Image tags can be specified for the different components by passing the flag
+`-i <component=tag>` to the command line. Pass `--help` for more info.
+Examples:
+  just run smoke-cli-test (uses image tags specified in `values.yaml` files)
+  just run smoke-cli-test -i sequencer=local (specifies image tag for the sequencer)
 ")]
-smoke-cli tag=defaultTag:
+smoke-cli-test *FLAGS:
   #!/usr/bin/env bash
-  set -e
-
-  ASTRIA_CLI_IMAGE="{{cli_image}}{{ if tag != '' { replace(':#', '#', tag) } else { '' } }}"
-  MAX_CHECKS=30
-
-  # Checking starting balance
-  BALANCE=$(just evm get-balance {{evm_destination_address}})
-  if [ $BALANCE -ne 0 ]; then
-    echo "Starting balance is not correct"
-    exit 1
+  if [ -d "system-tests/.venv" ]; then
+    echo "Found Python virtual environment, activating it..."
+    source system-tests/.venv/bin/activate
+    uv pip install -r system-tests/requirements.txt
   fi
-
-  echo "Testing Bridge In..."
-  just init rollup-bridge {{tag}}
-  CHECKS=0
-  EXPECTED_BALANCE=$(echo "{{sequencer_transfer_amount}} * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
-  while (( $CHECKS < $MAX_CHECKS )); do
-    CHECKS=$((CHECKS+1))
-    BALANCE=$(just evm get-balance {{evm_destination_address}})
-    echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
-    if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
-      echo "Bridge In success"
-      break
-    else
-      sleep 1
-    fi
-  done
-  if (( $CHECKS >= $MAX_CHECKS )); then
-    echo "Bridge In failure"
-    exit 1
-  fi
-
-  echo "Testing Bridge Out..."
-  just evm send-raw-transaction {{bridge_tx_bytes}}
-  TRANSFERED_BALANCE=$(echo "1 * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
-  EXPECTED_BALANCE=$(echo "$EXPECTED_BALANCE - $TRANSFERED_BALANCE" | bc)
-  CHECKS=0
-  while (( $CHECKS < $MAX_CHECKS )); do
-    CHECKS=$((CHECKS+1))
-    BALANCE=$(just evm get-balance {{evm_destination_address}})
-    echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
-    if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
-      echo "Bridge Out EVM success"
-      break
-    else
-      sleep 1
-    fi
-  done
-  if (( $CHECKS >= $MAX_CHECKS )); then
-    echo "Bridge Out EVM failure"
-    exit 1
-  fi
-
-  CURRENT_BLOCK_HEX=$(just evm get-block-by-number latest | jq -r '.number')
-  CURRENT_BLOCK=$(just evm::hex-to-dec $CURRENT_BLOCK_HEX)
-
-  # Using a docker volume to handle both passing in a private key & the output file
-  docker volume create cli-test-withdrawals
-  docker run --rm -v cli-test-withdrawals:/data alpine sh -c "echo '{{sequencer_bridge_pkey}}' > /data/key"
-  docker run --rm -v cli-test-withdrawals:/astria --network host $ASTRIA_CLI_IMAGE bridge collect-withdrawals \
-    --rollup-endpoint {{eth_ws_url}} \
-    --contract-address {{evm_contract_address}} \
-    --from-rollup-height 1 \
-    --to-rollup-height $CURRENT_BLOCK \
-    --sequencer-asset-to-withdraw nria \
-    --bridge-address {{sequencer_bridge_address}} \
-    --output "/astria/tempfile" \
-    --force
-   docker run --rm -v cli-test-withdrawals:/astria --network host $ASTRIA_CLI_IMAGE bridge submit-withdrawals \
-    --signing-key "/astria/key"  \
-    --sequencer-chain-id {{sequencer_chain_id}} \
-    --sequencer-url {{sequencer_rpc_url}} \
-    --input "/astria/tempfile"
-
-  # Can inspect the file by removing and looking in volume
-  docker volume remove cli-test-withdrawals
-
-  CHECKS=0
-  EXPECTED_BALANCE=$(echo "1 * {{sequencer_base_amount}}" | bc)
-  while (( $CHECKS < $MAX_CHECKS )); do
-    CHECKS=$((CHECKS+1))
-    BALANCE=$(docker run --rm --network host $ASTRIA_CLI_IMAGE sequencer account balance astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504 --sequencer-url {{sequencer_rpc_url}}  | awk '/nria/{print $(NF-1)}')
-    echo "Check $CHECKS, Balance: $BALANCE, Expected: $EXPECTED_BALANCE"
-    if [ "$BALANCE" == "$EXPECTED_BALANCE" ]; then
-      echo "Bridge Out Sequencer success"
-      break
-    else
-      sleep 1
-    fi
-  done
-  if (( $CHECKS >= $MAX_CHECKS )); then
-    echo "Bridge Out Sequencer failure"
-    exit 1
-  fi
-
-  exit 0
+  python3 system-tests/smoke_cli.py {{FLAGS}}
 
 
 # Run Upgrade Test
