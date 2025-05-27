@@ -39,8 +39,8 @@ storage:
 
 ingress:
   rpc:
-    hostname: full-node.sequencer.127.0.0.1.nip.io
+    hostname: sequencer-full-node.127.0.0.1.nip.io
     enabled: true
   grpc:
-    hostname: full-node.sequencer.127.0.0.1.nip.io
+    hostname: sequencer-full-node.127.0.0.1.nip.io
     enabled: true

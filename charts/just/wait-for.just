@@ -39,7 +39,7 @@ Usage:
 ")]
 hermes name=defaultHermes:
   @echo "Waiting for Hermes to be ready..."
-  @kubectl wait -n hermes-{{name}} deployment hermes-local-chart --for=condition=Available=True --timeout=600s
+  @kubectl wait -n hermes-{{name}} deployment hermes-{{name}}-chart --for=condition=Available=True --timeout=600s
 
 
 # Waits for ingress controller

@@ -100,7 +100,7 @@ Usage:
   just delete sequencer <NAME> (default: 'single')
 ")]
 sequencer name=validatorName:
-  @just delete::delete-chart {{name}}-sequencer astria-validator-{{name}}
+  @just delete::delete-chart {{name}}-sequencer astria-sequencer-{{name}}
 
 
 # Delete Sequencers

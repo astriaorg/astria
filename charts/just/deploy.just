@@ -298,7 +298,7 @@ smoke-cli tag=defaultTag:
   @helm dependency update charts/sequencer > /dev/null
   @helm dependency update charts/evm-stack > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
-    -n astria-validator-single single-sequencer-chart charts/sequencer \
+    -n astria-sequencer-single single-sequencer-chart charts/sequencer \
     -f dev/values/validators/all.yml \
     -f dev/values/validators/single.yml \
     -f dev/values/validators/aspen.upgrade.yml \
@@ -331,7 +331,7 @@ ibc-test tag=defaultTag:
   @helm dependency update charts/sequencer > /dev/null
   @helm dependency update charts/evm-stack > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
-    -n astria-validator-single single-sequencer-chart charts/sequencer \
+    -n astria-sequencer-single single-sequencer-chart charts/sequencer \
     -f dev/values/validators/all.yml \
     -f dev/values/validators/single.yml \
     -f dev/values/validators/aspen.upgrade.yml \
@@ -366,7 +366,7 @@ ibc-test-without-native tag=defaultTag:
   @helm install celestia-local-chart charts/celestia-local --namespace {{defaultNamespace}} --set fast=true --create-namespace  > /dev/null
   @helm dependency update charts/sequencer > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
-    -n astria-validator-single single-sequencer-chart charts/sequencer \
+    -n astria-sequencer-single single-sequencer-chart charts/sequencer \
     -f dev/values/validators/all-without-native.yml \
     -f dev/values/validators/single.yml \
     -f dev/values/validators/aspen.upgrade.yml \
@@ -395,7 +395,7 @@ ibc-test-timeout-refund tag=defaultTag:
   @helm dependency update charts/sequencer > /dev/null
   @helm dependency update charts/evm-stack > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
-    -n astria-validator-single single-sequencer-chart charts/sequencer \
+    -n astria-sequencer-single single-sequencer-chart charts/sequencer \
     -f dev/values/validators/all.yml \
     -f dev/values/validators/single.yml \
     -f dev/values/validators/aspen.upgrade.yml \
@@ -416,18 +416,19 @@ ibc-test-timeout-refund tag=defaultTag:
   @just wait-for rollup {{defaultRollupName}} "false"
   @just wait-for hermes-local
 
+
 multiple-relayer-stack:
-  just deploy ingress-controller
-  just wait-for ingress-controller
-  just deploy celestia-local
-  just deploy sequencer single
-  just deploy sequencer full-node
-  just wait-for celestia-local
-  just wait-for sequencer
-  just deploy hermes local
-  just wait-for hermes local
-  just deploy hermes local1
-  just wait-for hermes local1
+  @just deploy ingress-controller
+  @just wait-for ingress-controller
+  @just deploy celestia-local
+  @just deploy sequencer single
+  @just deploy sequencer full-node
+  @just wait-for celestia-local
+  @just wait-for sequencer
+  @just deploy hermes local
+  @just wait-for hermes local
+  @just deploy hermes local-1
+  @just wait-for hermes local-1
 
 
 # Generate System-Test Protos

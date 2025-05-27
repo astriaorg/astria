@@ -28,7 +28,7 @@ class SequencerController:
             self.rpc_url = "http://rpc.sequencer.127.0.0.1.nip.io"
             self.grpc_url = "grpc.sequencer.127.0.0.1.nip.io:80"
         else:
-            self.namespace = f"astria-validator-{node_name}"
+            self.namespace = f"astria-sequencer-{node_name}"
             self.rpc_url = f"http://rpc.sequencer-{node_name}.127.0.0.1.nip.io"
             self.grpc_url = f"grpc.sequencer-{node_name}.127.0.0.1.nip.io:80"
         self.last_block_height_before_restart = None
