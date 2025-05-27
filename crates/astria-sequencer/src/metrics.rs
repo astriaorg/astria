@@ -380,7 +380,7 @@ impl telemetry::Metrics for Metrics {
         let ibc_relay_failures = builder
             .new_histogram_factory(
                 IBC_RELAY_FAILURES,
-                "The number of failures in the IBC relay",
+                "The number of IBC relay failures included in the block",
             )?
             .register()?;
 
