@@ -7,9 +7,9 @@ Namepsace to deploy elements into.
 
 {{- define "sequencer.imageTag" -}}
 {{- if or (eq .Values.global.network "custom") (eq .Values.global.dev true) }}{{ .Values.images.sequencer.tag }}
-{{- else if eq .Values.global.network "mainnet" }}3.0.0-rc.2
-{{- else if eq .Values.global.network "dawn-1" }}3.0.0-rc.2
-{{- else if eq .Values.global.network "dusk-11" }}3.0.0-rc.2
+{{- else if eq .Values.global.network "mainnet" }}{{ .Chart.AppVersion }}
+{{- else if eq .Values.global.network "dawn-1" }}{{ .Chart.AppVersion }}
+{{- else if eq .Values.global.network "dusk-11" }}{{ .Chart.AppVersion }}
 {{- end }}
 {{- end }}
 
@@ -28,7 +28,7 @@ Namepsace to deploy elements into.
 {{ .Values.images.cometBFT.repo }}:{{ include "cometBFT.imageTag" . }}
 {{- end }}
 {{- define "priceFeed.image" -}}
-{{ .Values.images.priceFeed.repo }}:{{ if .Values.global.dev }}{{ .Values.images.priceFeed.devTag }}{{ else }}{{ .Values.images.priceFeed.tag }}{{ end }}
+{{ .Values.images.priceFeed.repo }}:{{ .Values.images.priceFeed.tag }}
 {{- end }}
 
 {{- define "cometBFT.timeouts.propose" -}}

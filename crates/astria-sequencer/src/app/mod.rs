@@ -20,12 +20,8 @@ use std::{
 };
 
 use astria_core::{
-    primitive::v1::{
-        RollupId,
-        TransactionId,
-    },
+    primitive::v1::TransactionId,
     protocol::{
-        abci::AbciErrorCode,
         genesis::v1::GenesisAppState,
         price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
         transaction::v1::action::{
@@ -49,7 +45,6 @@ use astria_eyre::{
     eyre::{
         bail,
         ensure,
-        Report,
         Result,
         WrapErr as _,
     },
@@ -74,7 +69,6 @@ use tendermint::{
     abci::{
         self,
         types::ExecTxResult,
-        Code,
         Event,
     },
     account,
@@ -152,7 +146,7 @@ use crate::{
 
 // ephemeral store key for the cache of results of executing of transactions in `prepare_proposal`.
 // cleared in `process_proposal` if we're the proposer.
-const EXECUTION_RESULTS_KEY: &str = "execution_results";
+const EXECUTED_TXS_KEY: &str = "app_executed_txs";
 
 // ephemeral store key for the cache of results of executing of transactions in `process_proposal`.
 // cleared at the end of the block.
@@ -570,19 +564,17 @@ impl App {
         .wrap_err("failed to parse data items")?;
 
         // If we can skip execution just fetch the cache, otherwise need to run the execution.
-        let (rollup_data_bytes, tx_results, tx_ids) = if skip_execution {
+        let executed_txs = if skip_execution {
             // if we're the proposer, we should have the execution results from
             // `prepare_proposal`. run the post-tx-execution hook to generate the
             // `SequencerBlock` and to set `self.finalize_block`.
             //
             // we can't run this in `prepare_proposal` as we don't know the block hash there.
-            let Some((rollup_data_bytes, tx_results, tx_ids)) =
-                self.state.object_get(EXECUTION_RESULTS_KEY)
-            else {
-                bail!("execution results must be present after executing transactions")
+            let Some(executed_txs) = self.state.object_get(EXECUTED_TXS_KEY) else {
+                bail!("executed txs must be present in ephemeral store after execution")
             };
 
-            (rollup_data_bytes, tx_results, tx_ids)
+            executed_txs
         } else {
             self.update_state_for_new_round(&storage);
 
@@ -633,7 +625,7 @@ impl App {
             )
             .await
             .wrap_err("failed to construct checked transactions in process proposal")?;
-            let (tx_results, tx_ids) = self
+            let executed_txs = self
                 .process_proposal_tx_execution(&user_submitted_transactions, block_size_constraints)
                 .await
                 .wrap_err("failed to execute transactions in process proposal")?;
@@ -666,15 +658,7 @@ impl App {
                 "rollup IDs commitment does not match expected",
             );
 
-            let rollup_data_bytes = user_submitted_transactions
-                .iter()
-                .flat_map(|checked_tx| {
-                    checked_tx
-                        .rollup_data_bytes()
-                        .map(|(rollup_id, data)| (*rollup_id, data.clone()))
-                })
-                .collect();
-            (rollup_data_bytes, tx_results, tx_ids)
+            executed_txs
         };
 
         let sequencer_block = self
@@ -684,9 +668,7 @@ impl App {
                 process_proposal.time,
                 process_proposal.proposer_address,
                 expanded_block_data,
-                rollup_data_bytes,
-                tx_results,
-                tx_ids,
+                executed_txs,
             )
             .await
             .wrap_err("failed to run post execute transactions handler")?;
@@ -726,10 +708,8 @@ impl App {
 
         let mut proposal_info = Proposal::Prepare {
             block_size_constraints,
-            included_txs: Vec::new(),
+            executed_txs: Vec::new(),
             failed_tx_count: 0,
-            execution_results: Vec::new(),
-            executed_tx_ids: HashSet::new(),
             excluded_tx_count: 0,
             current_tx_group: Group::BundleableGeneral,
             mempool: self.mempool.clone(),
@@ -740,14 +720,7 @@ impl App {
         let pending_txs = self.mempool.builder_queue().await;
 
         let mut unused_count = pending_txs.len();
-        let mut rollup_data_bytes = vec![];
         for tx in pending_txs {
-            unused_count = unused_count.saturating_sub(1);
-            rollup_data_bytes.extend(
-                tx.rollup_data_bytes()
-                    .map(|(rollup_id, data)| (*rollup_id, data.clone())),
-            );
-
             if self
                 .proposal_checks_and_tx_execution(tx, &mut proposal_info)
                 .await?
@@ -755,13 +728,12 @@ impl App {
             {
                 break;
             }
+            unused_count = unused_count.saturating_sub(1);
         }
 
         let Proposal::Prepare {
-            included_txs,
+            executed_txs,
             failed_tx_count,
-            execution_results,
-            executed_tx_ids,
             excluded_tx_count,
             ..
         } = proposal_info
@@ -772,7 +744,7 @@ impl App {
         if failed_tx_count > 0 {
             info!(
                 failed_tx_count = failed_tx_count,
-                included_tx_count = included_txs.len(),
+                included_tx_count = executed_txs.len(),
                 "excluded transactions from block due to execution failure"
             );
         }
@@ -784,16 +756,17 @@ impl App {
         self.metrics
             .set_transactions_in_mempool_total(self.mempool.len().await);
 
+        let included_txs = executed_txs
+            .iter()
+            .map(|executed_tx| executed_tx.tx.clone())
+            .collect();
         // XXX: we need to unwrap the app's state arc to write
         // to the ephemeral store.
         // this is okay as we should have the only reference to the state
         // at this point.
         let mut state_tx = Arc::try_begin_transaction(&mut self.state)
             .expect("state Arc should not be referenced elsewhere");
-        state_tx.object_put(
-            EXECUTION_RESULTS_KEY,
-            (rollup_data_bytes, execution_results, executed_tx_ids),
-        );
+        state_tx.object_put(EXECUTED_TXS_KEY, executed_txs);
         let _ = state_tx.apply();
 
         Ok(included_txs)
@@ -816,12 +789,11 @@ impl App {
         &mut self,
         txs: &[Arc<CheckedTransaction>],
         block_size_constraints: BlockSizeConstraints,
-    ) -> Result<(Vec<ExecTxResult>, HashSet<TransactionId>)> {
+    ) -> Result<Vec<ExecutedTransaction>> {
         let mut proposal_info = Proposal::Process {
             block_size_constraints,
-            execution_results: vec![],
+            executed_txs: vec![],
             current_tx_group: Group::BundleableGeneral,
-            executed_tx_ids: HashSet::new(),
         };
 
         for tx in txs {
@@ -833,7 +805,7 @@ impl App {
                 break;
             }
         }
-        Ok(proposal_info.execution_results_and_tx_ids())
+        Ok(proposal_info.executed_txs())
     }
 
     #[instrument(skip_all)]
@@ -932,14 +904,18 @@ impl App {
             };
         }
 
-        let (execution_results, executed_tx_ids) = proposal_info.execution_results_and_tx_ids_mut();
+        let executed_txs = proposal_info.executed_txs_mut();
         match self.execute_transaction(tx.clone()).await {
             Ok(events) => {
-                execution_results.push(ExecTxResult {
+                let exec_result = ExecTxResult {
                     events,
                     ..Default::default()
-                });
-                executed_tx_ids.insert(*tx.id());
+                };
+                let executed_tx = ExecutedTransaction {
+                    tx,
+                    exec_result,
+                };
+                executed_txs.push(executed_tx);
                 proposal_info
                     .block_size_constraints_mut()
                     .sequencer_checked_add(tx_sequence_data_length)
@@ -948,12 +924,6 @@ impl App {
                     .block_size_constraints_mut()
                     .cometbft_checked_add(tx_len)
                     .wrap_err("error growing cometBFT block size")?;
-                if let Proposal::Prepare {
-                    included_txs, ..
-                } = proposal_info
-                {
-                    included_txs.push(tx.clone());
-                }
             }
             Err(error) => {
                 debug!(
@@ -1116,7 +1086,6 @@ impl App {
     ///
     /// this must be called after a block's transactions are executed.
     /// FIXME: don't return sequencer block but grab the block from state delta https://github.com/astriaorg/astria/issues/1436
-    #[expect(clippy::too_many_arguments, reason = "should be refactored")]
     #[instrument(name = "App::post_execute_transactions", skip_all, err(level = Level::WARN))]
     async fn post_execute_transactions(
         &mut self,
@@ -1125,9 +1094,7 @@ impl App {
         time: tendermint::Time,
         proposer_address: account::Id,
         expanded_block_data: ExpandedBlockData,
-        rollup_data_bytes: Vec<(RollupId, Bytes)>,
-        tx_results: Vec<ExecTxResult>,
-        executed_tx_ids: HashSet<TransactionId>,
+        executed_txs: Vec<ExecutedTransaction>,
     ) -> Result<SequencerBlock> {
         let Hash::Sha256(block_hash) = block_hash else {
             bail!("block hash is empty; this should not occur")
@@ -1171,7 +1138,21 @@ impl App {
             Vec::with_capacity(expanded_block_data.user_submitted_transactions.len());
         finalize_block_tx_results
             .extend(std::iter::repeat(ExecTxResult::default()).take(injected_tx_count));
-        finalize_block_tx_results.extend(tx_results);
+        finalize_block_tx_results.extend(
+            executed_txs
+                .iter()
+                .map(|executed_tx| executed_tx.exec_result.clone()),
+        );
+
+        let rollup_data_bytes = executed_txs
+            .iter()
+            .flat_map(|executed_tx| {
+                executed_tx
+                    .tx
+                    .rollup_data_bytes()
+                    .map(|(rollup_id, data)| (*rollup_id, data.clone()))
+            })
+            .collect();
 
         let sequencer_block = SequencerBlockBuilder {
             block_hash: block::Hash::new(block_hash),
@@ -1207,7 +1188,10 @@ impl App {
             validator_updates: end_block.validator_updates,
             tx_results: finalize_block_tx_results,
             consensus_param_updates,
-            executed_tx_ids,
+            executed_tx_ids: executed_txs
+                .iter()
+                .map(|executed_tx| *executed_tx.tx.id())
+                .collect(),
         };
 
         state_tx.object_put(POST_TRANSACTION_EXECUTION_RESULT_KEY, result);
@@ -1303,16 +1287,19 @@ impl App {
             )
             .await
             .wrap_err("failed to execute transactions in finalize block")?;
-            let mut tx_results = Vec::with_capacity(user_submitted_transactions.len());
-            let mut executed_tx_ids = HashSet::new();
-            for tx in &user_submitted_transactions {
+            let mut executed_txs = Vec::with_capacity(user_submitted_transactions.len());
+            for tx in user_submitted_transactions {
                 match self.execute_transaction(tx.clone()).await {
                     Ok(events) => {
-                        tx_results.push(ExecTxResult {
+                        let exec_result = ExecTxResult {
                             events,
                             ..Default::default()
-                        });
-                        executed_tx_ids.insert(*tx.id());
+                        };
+                        let executed_tx = ExecutedTransaction {
+                            tx,
+                            exec_result,
+                        };
+                        executed_txs.push(executed_tx);
                     }
                     Err(error) => {
                         // this is actually a protocol error, as only valid txs should be finalized
@@ -1320,31 +1307,9 @@ impl App {
                             %error,
                             "failed to finalize transaction; ignoring it",
                         );
-                        let code = if matches!(
-                            error,
-                            CheckedTransactionExecutionError::InvalidNonce { .. }
-                        ) {
-                            AbciErrorCode::INVALID_NONCE
-                        } else {
-                            AbciErrorCode::INTERNAL_ERROR
-                        };
-                        tx_results.push(ExecTxResult {
-                            code: Code::Err(code.value()),
-                            info: code.info(),
-                            log: format!("{:#}", Report::new(error)),
-                            ..Default::default()
-                        });
                     }
                 }
             }
-            let rollup_data_bytes = user_submitted_transactions
-                .iter()
-                .flat_map(|checked_tx| {
-                    checked_tx
-                        .rollup_data_bytes()
-                        .map(|(rollup_id, data)| (*rollup_id, data.clone()))
-                })
-                .collect();
 
             self.post_execute_transactions(
                 finalize_block.hash,
@@ -1352,9 +1317,7 @@ impl App {
                 finalize_block.time,
                 finalize_block.proposer_address,
                 expanded_block_data,
-                rollup_data_bytes,
-                tx_results,
-                executed_tx_ids,
+                executed_txs,
             )
             .await
             .wrap_err("failed to run post execute transactions handler")?;
@@ -1798,6 +1761,12 @@ async fn update_mempool_after_finalization<S: StateRead>(
         .await;
 }
 
+#[derive(Clone)]
+struct ExecutedTransaction {
+    tx: Arc<CheckedTransaction>,
+    exec_result: ExecTxResult,
+}
+
 /// relevant data of a block being executed.
 ///
 /// used to setup the state before execution of transactions.
@@ -1837,10 +1806,8 @@ impl BreakOrContinue {
 enum Proposal {
     Prepare {
         block_size_constraints: BlockSizeConstraints,
-        included_txs: Vec<Arc<CheckedTransaction>>,
+        executed_txs: Vec<ExecutedTransaction>,
         failed_tx_count: usize,
-        execution_results: Vec<ExecTxResult>,
-        executed_tx_ids: HashSet<TransactionId>,
         excluded_tx_count: usize,
         current_tx_group: Group,
         mempool: Mempool,
@@ -1848,8 +1815,7 @@ enum Proposal {
     },
     Process {
         block_size_constraints: BlockSizeConstraints,
-        execution_results: Vec<ExecTxResult>,
-        executed_tx_ids: HashSet<TransactionId>,
+        executed_txs: Vec<ExecutedTransaction>,
         current_tx_group: Group,
     },
 }
@@ -1903,35 +1869,25 @@ impl Proposal {
         }
     }
 
-    fn execution_results_and_tx_ids(self) -> (Vec<ExecTxResult>, HashSet<TransactionId>) {
+    fn executed_txs(self) -> Vec<ExecutedTransaction> {
         match self {
             Proposal::Prepare {
-                execution_results,
-                executed_tx_ids,
-                ..
+                executed_txs, ..
             }
             | Proposal::Process {
-                execution_results,
-                executed_tx_ids,
-                ..
-            } => (execution_results, executed_tx_ids),
+                executed_txs, ..
+            } => executed_txs,
         }
     }
 
-    fn execution_results_and_tx_ids_mut(
-        &mut self,
-    ) -> (&mut Vec<ExecTxResult>, &mut HashSet<TransactionId>) {
+    fn executed_txs_mut(&mut self) -> &mut Vec<ExecutedTransaction> {
         match self {
             Proposal::Prepare {
-                execution_results,
-                executed_tx_ids,
-                ..
+                executed_txs, ..
             }
             | Proposal::Process {
-                execution_results,
-                executed_tx_ids,
-                ..
-            } => (execution_results, executed_tx_ids),
+                executed_txs, ..
+            } => executed_txs,
         }
     }
 }
