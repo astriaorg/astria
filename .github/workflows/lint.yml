@@ -117,8 +117,7 @@ jobs:
     if: needs.run_checker.outputs.run_lint_python == 'true'
     steps:
       - uses: actions/checkout@v4
-      - name: Python lint
-        uses: astral-sh/ruff-action@v3
+      - uses: astral-sh/ruff-action@v3
         with:
           args: "--version"
       - name: Python format
