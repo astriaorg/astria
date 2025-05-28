@@ -117,14 +117,14 @@ jobs:
     if: needs.run_checker.outputs.run_lint_python == 'true'
     steps:
       - uses: actions/checkout@v4
-      - name: Install just
-        uses: taiki-e/install-action@just
       - name: Python lint
         uses: astral-sh/ruff-action@v3
-        args: check --ignore E731
+        with:
+          args: "--version"
       - name: Python format
-        uses: astral-sh/ruff-action@v3
-        args: format --check
+        run: ruff format --check
+      - name: Python lint
+        run: ruff check --ignore E731
 
   charts:
     runs-on: ubuntu-latest
