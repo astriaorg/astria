@@ -119,9 +119,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install just
         uses: taiki-e/install-action@just
-      - uses: astral-sh/ruff-action@v3
-      - name: run ruff check
-        run: just lint python
+      - name: Python lint
+        uses: astral-sh/ruff-action@v3
+        args: check --ignore E731
+      - name: Python format
+        uses: astral-sh/ruff-action@v3
+        args: format --check
 
   charts:
     runs-on: ubuntu-latest
