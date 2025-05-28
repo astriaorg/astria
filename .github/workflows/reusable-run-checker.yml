@@ -27,6 +27,9 @@ on:
       run_lint_charts:
         description: If lint for charts needs to be run, will be 'true'
         value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.lint_workflow == 'true' || jobs.changes.outputs.charts == 'true' }}
+      run_lint_python:
+        description: If lint for python needs to be run, will be 'true'
+        value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.lint_workflow == 'true' || jobs.changes.outputs.python == 'true' }}
       run_release_proto:
         description: If release for protos needs to be run, will be 'true'
         value: ${{ github.event_name != 'pull_request' || jobs.changes.outputs.release_workflow == 'true' || jobs.changes.outputs.proto == 'true' }}
@@ -105,3 +108,5 @@ jobs:
               - 'rustfmt.toml'
             lockfile:
               - 'Cargo.lock'
+            python:
+              - '**/*.py'
