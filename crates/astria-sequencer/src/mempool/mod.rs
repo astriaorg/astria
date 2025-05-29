@@ -22,6 +22,7 @@ use astria_core::{
 };
 use astria_eyre::eyre::Result;
 pub(crate) use mempool_state::get_account_balances;
+use tendermint::abci::types::ExecTxResult;
 use tokio::{
     sync::RwLock,
     time::Duration,
@@ -54,7 +55,7 @@ pub(crate) enum RemovalReason {
     LowerNonceInvalidated,
     FailedPrepareProposal(String),
     InternalError,
-    IncludedInBlock(u64),
+    IncludedInBlock { height: u64, result: ExecTxResult },
 }
 
 impl std::fmt::Display for RemovalReason {
@@ -69,8 +70,16 @@ impl std::fmt::Display for RemovalReason {
             RemovalReason::InternalError => {
                 write!(f, "internal mempool error")
             }
-            RemovalReason::IncludedInBlock(block_height) => {
-                write!(f, "included in sequencer block {block_height}")
+            RemovalReason::IncludedInBlock {
+                height,
+                result,
+            } => {
+                let json_result = serde_json::to_string(result)
+                    .unwrap_or_else(|_| "failed to serialize result".to_string());
+                write!(
+                    f,
+                    "included in sequencer block {height} with result: {json_result}"
+                )
             }
         }
     }
@@ -250,7 +259,7 @@ impl Mempool {
         &self,
         state: &S,
         recost: bool,
-        txs_included_in_block: &HashSet<TransactionId>,
+        txs_included_in_block: HashMap<TransactionId, ExecTxResult>,
         block_height: u64,
     ) {
         self.inner
@@ -449,7 +458,7 @@ impl MempoolInner {
         &mut self,
         state: &S,
         recost: bool,
-        txs_included_in_block: &HashSet<TransactionId>,
+        txs_included_in_block: HashMap<TransactionId, ExecTxResult>,
         block_height: u64,
     ) {
         let mut removed_txs = Vec::<(TransactionId, RemovalReason)>::new();
@@ -497,7 +506,7 @@ impl MempoolInner {
             removed_txs.extend(self.pending.clean_account_stale_expired(
                 address_bytes,
                 current_nonce,
-                txs_included_in_block,
+                &txs_included_in_block,
                 block_height,
             ));
             if recost {
@@ -507,7 +516,7 @@ impl MempoolInner {
             removed_txs.extend(self.parked.clean_account_stale_expired(
                 address_bytes,
                 current_nonce,
-                txs_included_in_block,
+                &txs_included_in_block,
                 block_height,
             ));
             if recost {
@@ -820,7 +829,7 @@ mod tests {
         put_alice_balances(&mut fixture, dummy_balances(100, 100));
 
         mempool
-            .run_maintenance(fixture.state(), false, &HashSet::new(), 0)
+            .run_maintenance(fixture.state(), false, HashMap::new(), 0)
             .await;
 
         // assert mempool at 1
@@ -884,7 +893,7 @@ mod tests {
         put_alice_balances(&mut fixture, dummy_balances(3, 0));
 
         mempool
-            .run_maintenance(fixture.state(), false, &HashSet::new(), 0)
+            .run_maintenance(fixture.state(), false, HashMap::new(), 0)
             .await;
 
         // see builder queue now contains them
@@ -947,7 +956,7 @@ mod tests {
         put_alice_balances(&mut fixture, dummy_balances(1, 0));
 
         mempool
-            .run_maintenance(fixture.state(), false, &HashSet::new(), 0)
+            .run_maintenance(fixture.state(), false, HashMap::new(), 0)
             .await;
 
         // see builder queue now contains single transactions
@@ -961,7 +970,7 @@ mod tests {
         put_alice_balances(&mut fixture, dummy_balances(3, 0));
 
         mempool
-            .run_maintenance(fixture.state(), false, &HashSet::new(), 0)
+            .run_maintenance(fixture.state(), false, HashMap::new(), 0)
             .await;
 
         let builder_queue = mempool.builder_queue().await;
@@ -1261,7 +1270,7 @@ mod tests {
             .put_account_nonce(&*ALICE_ADDRESS_BYTES, 2)
             .unwrap();
         mempool
-            .run_maintenance(fixture.state(), false, &HashSet::new(), 0)
+            .run_maintenance(fixture.state(), false, HashMap::new(), 0)
             .await;
 
         // check that the transactions are not in the tracked set
@@ -1390,15 +1399,15 @@ mod tests {
 
         put_alice_balances(&mut fixture, dummy_balances(0, 0));
 
-        let mut included_txs = HashSet::new();
-        included_txs.insert(*tx1.id());
-        included_txs.insert(*tx2.id());
+        let mut included_txs = HashMap::new();
+        included_txs.insert(*tx1.id(), ExecTxResult::default());
+        included_txs.insert(*tx2.id(), ExecTxResult::default());
 
         mempool
             .run_maintenance(
                 fixture.state(),
                 false,
-                &included_txs,
+                included_txs,
                 INCLUDED_TX_BLOCK_NUMBER,
             )
             .await;
@@ -1419,12 +1428,18 @@ mod tests {
         );
         assert_eq!(
             *removal_cache.get(tx1.id()).unwrap(),
-            RemovalReason::IncludedInBlock(INCLUDED_TX_BLOCK_NUMBER),
+            RemovalReason::IncludedInBlock {
+                height: INCLUDED_TX_BLOCK_NUMBER,
+                result: ExecTxResult::default()
+            },
             "removal reason should be included"
         );
         assert_eq!(
             *removal_cache.get(tx2.id()).unwrap(),
-            RemovalReason::IncludedInBlock(INCLUDED_TX_BLOCK_NUMBER),
+            RemovalReason::IncludedInBlock {
+                height: INCLUDED_TX_BLOCK_NUMBER,
+                result: ExecTxResult::default()
+            },
             "removal reason should be included"
         );
     }

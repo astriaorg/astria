@@ -14,7 +14,7 @@ mod tests_breaking_changes;
 pub(crate) mod vote_extension;
 
 use std::{
-    collections::HashSet,
+    collections::HashMap,
     sync::Arc,
     time::Instant,
 };
@@ -217,8 +217,9 @@ struct WriteBatch {
     /// of the current block being executed, created from the state delta,
     /// and set after `finalize_block`.
     write_batch: StagedWriteBatch,
-    /// The IDs of all transactions executed in the block for which this write batch is made.
-    executed_tx_ids: HashSet<TransactionId>,
+    /// The hashes and results of all transactions executed in the block for which this write batch
+    /// is made.
+    execution_results: HashMap<TransactionId, ExecTxResult>,
 }
 
 impl App {
@@ -325,7 +326,7 @@ impl App {
         state_tx.apply();
 
         let app_hash = self
-            .prepare_commit(storage, HashSet::new())
+            .prepare_commit(storage, Vec::new())
             .await
             .wrap_err("failed to prepare commit")?;
         debug!(app_hash = %telemetry::display::base64(&app_hash), "init_chain completed");
@@ -1127,12 +1128,6 @@ impl App {
             .put_deposits(&block_hash, deposits_in_this_block.clone())
             .wrap_err("failed to put deposits to state")?;
 
-        // cometbft expects a result for every tx in the block, so we need to return a
-        // tx result for the commitments and other injected data items, even though they're not
-        // actually user txs.
-        //
-        // the tx_results passed to this function only contain results for every user-submitted
-        // transaction, not the injected ones.
         let injected_tx_count = expanded_block_data.injected_transaction_count();
         let mut finalize_block_tx_results: Vec<ExecTxResult> =
             Vec::with_capacity(expanded_block_data.user_submitted_transactions.len());
@@ -1183,15 +1178,17 @@ impl App {
             );
         }
 
+        let tx_results = executed_txs
+            .iter()
+            .map(|executed_tx| (*executed_tx.tx.id(), executed_tx.exec_result.clone()))
+            .collect();
+
         let result = PostTransactionExecutionResult {
             events: end_block.events,
             validator_updates: end_block.validator_updates,
-            tx_results: finalize_block_tx_results,
+            tx_results,
+            injected_tx_count,
             consensus_param_updates,
-            executed_tx_ids: executed_txs
-                .iter()
-                .map(|executed_tx| *executed_tx.tx.id())
-                .collect(),
         };
 
         state_tx.object_put(POST_TRANSACTION_EXECUTION_RESULT_KEY, result);
@@ -1328,7 +1325,7 @@ impl App {
             tx_results,
             validator_updates,
             consensus_param_updates,
-            executed_tx_ids,
+            injected_tx_count,
         } = self
             .state
             .object_get(POST_TRANSACTION_EXECUTION_RESULT_KEY)
@@ -1337,15 +1334,27 @@ impl App {
                  just now or during the proposal phase",
             );
 
+        // cometbft expects a result for every tx in the block, so we need to return a
+        // tx result for the commitments and other injected data items, even though they're not
+        // actually user txs.
+        //
+        // the tx_results passed to this function only contain results for every user-submitted
+        // transaction, not the injected ones.
+        let mut finalize_block_tx_results: Vec<ExecTxResult> =
+            Vec::with_capacity(tx_results.len().saturating_add(injected_tx_count));
+        finalize_block_tx_results
+            .extend(std::iter::repeat(ExecTxResult::default()).take(injected_tx_count));
+        finalize_block_tx_results.extend(tx_results.iter().map(|(_, tx_result)| tx_result.clone()));
+
         // prepare the `WriteBatch` for a later commit.
         let app_hash = self
-            .prepare_commit(storage, executed_tx_ids)
+            .prepare_commit(storage, tx_results)
             .await
             .wrap_err("failed to prepare commit")?;
         all_events.extend(events);
         let finalize_block_response = abci::response::FinalizeBlock {
             events: all_events,
-            tx_results,
+            tx_results: finalize_block_tx_results,
             validator_updates,
             consensus_param_updates,
             app_hash,
@@ -1360,7 +1369,7 @@ impl App {
     async fn prepare_commit(
         &mut self,
         storage: Storage,
-        executed_tx_ids: HashSet<TransactionId>,
+        executed_txs: Vec<(TransactionId, ExecTxResult)>,
     ) -> Result<AppHash> {
         // extract the state we've built up to so we can prepare it as a `StagedWriteBatch`.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
@@ -1393,9 +1402,19 @@ impl App {
             .to_vec()
             .try_into()
             .wrap_err("failed to convert app hash")?;
+        let execution_results = executed_txs
+            .into_iter()
+            .filter_map(|(tx_hash, tx_result)| {
+                if tx_result.code.is_ok() {
+                    Some((tx_hash, tx_result))
+                } else {
+                    None
+                }
+            })
+            .collect();
         self.write_batch = Some(WriteBatch {
             write_batch,
-            executed_tx_ids,
+            execution_results,
         });
         Ok(app_hash)
     }
@@ -1534,7 +1553,7 @@ impl App {
     pub(crate) async fn commit(&mut self, storage: Storage) -> Result<ShouldShutDown> {
         let WriteBatch {
             write_batch,
-            executed_tx_ids,
+            execution_results,
         } = self.write_batch.take().expect(
             "write batch must be set, as `finalize_block` is always called before `commit`",
         );
@@ -1572,7 +1591,7 @@ impl App {
             &mut self.mempool,
             &self.state,
             self.recost_mempool,
-            &executed_tx_ids,
+            execution_results,
             block_height,
         )
         .await;
@@ -1709,7 +1728,7 @@ impl App {
         storage: Storage,
     ) {
         let _events = self.apply(state_delta);
-        self.prepare_commit(storage.clone(), HashSet::new())
+        self.prepare_commit(storage.clone(), Vec::new())
             .await
             .unwrap();
         self.commit(storage).await.unwrap();
@@ -1753,7 +1772,7 @@ async fn update_mempool_after_finalization<S: StateRead>(
     mempool: &mut Mempool,
     state: &S,
     recost: bool,
-    txs_included_in_block: &HashSet<TransactionId>,
+    txs_included_in_block: HashMap<TransactionId, ExecTxResult>,
     block_height: u64,
 ) {
     mempool
@@ -1782,10 +1801,10 @@ struct BlockData {
 #[derive(Clone, Debug)]
 struct PostTransactionExecutionResult {
     events: Vec<Event>,
-    tx_results: Vec<ExecTxResult>,
+    tx_results: Vec<(TransactionId, ExecTxResult)>,
     validator_updates: Vec<tendermint::validator::Update>,
     consensus_param_updates: Option<tendermint::consensus::Params>,
-    executed_tx_ids: HashSet<TransactionId>,
+    injected_tx_count: usize,
 }
 
 #[derive(PartialEq)]

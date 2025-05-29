@@ -266,7 +266,7 @@ async fn app_commit() {
     // Commit should write the changes to the underlying storage.
     fixture
         .app
-        .prepare_commit(fixture.storage(), HashSet::new())
+        .prepare_commit(fixture.storage(), Vec::new())
         .await
         .unwrap();
     fixture.app.commit(fixture.storage()).await.unwrap();
@@ -378,7 +378,7 @@ async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
         .unwrap();
     fixture
         .app
-        .prepare_commit(fixture.storage(), HashSet::new())
+        .prepare_commit(fixture.storage(), Vec::new())
         .await
         .unwrap();
     fixture.app.commit(fixture.storage()).await.unwrap();
@@ -476,7 +476,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         .unwrap();
     fixture
         .app
-        .prepare_commit(fixture.storage(), HashSet::new())
+        .prepare_commit(fixture.storage(), Vec::new())
         .await
         .unwrap();
     fixture.app.commit(fixture.storage()).await.unwrap();
@@ -574,7 +574,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     assert_eq!(prepare_proposal_result.txs, finalize_block.txs);
 
     mempool
-        .run_maintenance(fixture.state(), false, &HashSet::new(), 0)
+        .run_maintenance(fixture.state(), false, HashMap::new(), 0)
         .await;
 
     assert_eq!(mempool.len().await, 0);
@@ -697,7 +697,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
 
     // run maintenance to clear out transactions
     mempool
-        .run_maintenance(fixture.state(), false, &HashSet::new(), 0)
+        .run_maintenance(fixture.state(), false, HashMap::new(), 0)
         .await;
 
     // see only first tx made it in
@@ -780,7 +780,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
 
     // run maintenance to clear out transactions
     mempool
-        .run_maintenance(fixture.state(), false, &HashSet::new(), 0)
+        .run_maintenance(fixture.state(), false, HashMap::new(), 0)
         .await;
 
     // see only first tx made it in
@@ -1199,7 +1199,7 @@ async fn app_oracle_price_update_events_in_finalize_block() {
         .unwrap();
     fixture
         .app
-        .prepare_commit(fixture.storage(), HashSet::new())
+        .prepare_commit(fixture.storage(), Vec::new())
         .await
         .unwrap();
     fixture.app.commit(fixture.storage()).await.unwrap();

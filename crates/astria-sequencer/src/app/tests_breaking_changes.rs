@@ -9,10 +9,7 @@
 //! These are due to the extensive setup needed to test them.
 //! If changes are made to the execution results of these actions, manual testing is required.
 
-use std::collections::{
-    HashMap,
-    HashSet,
-};
+use std::collections::HashMap;
 
 use astria_core::{
     crypto::SigningKey,
@@ -96,7 +93,7 @@ async fn app_finalize_block_snapshot() {
     // changes on the latest snapshot, not the app's `StateDelta`.
     fixture
         .app
-        .prepare_commit(fixture.storage(), HashSet::new())
+        .prepare_commit(fixture.storage(), Vec::new())
         .await
         .unwrap();
     fixture.app.commit(fixture.storage()).await.unwrap();
@@ -356,7 +353,7 @@ async fn app_legacy_execute_transactions_with_every_action_snapshot() {
 
     fixture
         .app
-        .prepare_commit(fixture.storage(), HashSet::new())
+        .prepare_commit(fixture.storage(), Vec::new())
         .await
         .unwrap();
     fixture.app.commit(fixture.storage()).await.unwrap();

@@ -139,11 +139,16 @@ pub mod transaction_status {
     }
     /// Status representing a transaction which has been executed and is no longer
     /// in the Astria Sequencer's mempool.
-    #[derive(Clone, Copy, PartialEq, ::prost::Message)]
+    #[derive(Clone, PartialEq, ::prost::Message)]
     pub struct Executed {
         /// The height of the block in which the transaction was included.
         #[prost(uint64, tag = "1")]
         pub height: u64,
+        /// The transaction result.
+        #[prost(message, optional, tag = "2")]
+        pub result: ::core::option::Option<
+            super::super::super::super::tendermint::abci::ExecTxResult,
+        >,
     }
     impl ::prost::Name for Executed {
         const NAME: &'static str = "Executed";
