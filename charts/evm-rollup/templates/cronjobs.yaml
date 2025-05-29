@@ -30,7 +30,7 @@ spec:
             - name: {{ include "rollup.name" . }}-executor-scripts-volume
               configMap:
                 name: {{ include "rollup.name" . }}-executor-scripts
-                defaultMode: 0500
+                defaultMode: 0755
 ---
 kind: CronJob
 apiVersion: batch/v1
@@ -82,7 +82,7 @@ spec:
             - name: {{ include "rollup.name" . }}-executor-scripts-volume
               configMap:
                 name: {{ include "rollup.name" . }}-executor-scripts
-                defaultMode: 0500
+                defaultMode: 0755
             - name: {{ include "rollup.name" $ }}-rollup-shared-storage-vol
               {{- if .Values.storage.enabled }}
               persistentVolumeClaim:
