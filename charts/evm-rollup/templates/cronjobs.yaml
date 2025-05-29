@@ -35,6 +35,46 @@ spec:
 kind: CronJob
 apiVersion: batch/v1
 metadata:
+  name: {{ include "rollup.name" . }}-geth-rclone-config-test
+  labels:
+    app: {{ include "rollup.appName" . }}
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  schedule: "0 0 31 2 *"
+  suspend: true
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: rclone-config-test
+            image: {{ .Values.images.snapshot.repo }}:{{ .Values.images.snapshot.tag }}
+            imagePullPolicy: {{ .Values.images.snapshot.pullPolicy }}
+            command: [ "rclone", "config", "show" ]
+            volumeMounts:
+              {{- if .Values.geth.snapshot.create.storage.upload.enabled }}
+              - mountPath: /config/rclone/
+                name: {{ include "rollup.name" . }}-rclone-config-volume
+              {{- end }}
+          restartPolicy: OnFailure
+          volumes:
+            {{- if .Values.geth.snapshot.create.storage.upload.enabled }}
+            - name: {{ include "rollup.name" . }}-rclone-config-volume
+              {{- if .Values.secretProvider.enabled }}
+              csi:
+                driver: secrets-store.csi.k8s.io
+                readOnly: true
+                volumeAttributes:
+                  secretProviderClass: {{ include "rollup.name" . }}-secrets-rclone
+              {{- else }}
+              configMap:
+                name: {{ include "rollup.name" . }}-rclone-config
+              {{- end }}
+            {{- end }}
+---
+kind: CronJob
+apiVersion: batch/v1
+metadata:
   name: {{ include "rollup.name" . }}-geth-snapshot-template
   labels:
     app: {{ include "rollup.appName" . }}
@@ -56,7 +96,7 @@ spec:
                   name: {{ include "rollup.name" . }}-geth-env
             volumeMounts:
               {{- if .Values.geth.snapshot.create.storage.upload.enabled }}
-              - mountPath: /root/.config/rclone/
+              - mountPath: /config/rclone/
                 name: {{ include "rollup.name" . }}-rclone-config-volume
               {{- end }}
               - mountPath: /scripts/
