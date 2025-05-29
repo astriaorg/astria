@@ -42,7 +42,8 @@ tar -zcvf $SNAPSHOT_PATH/$SNAPSHOT_FILE \
   --exclude='chaindata/ancient/chain/FLOCK' \
   chaindata
 
-echo "📦 Snapshot created successfully"
+SNAPSHOT_SIZE=$(du -sh $SNAPSHOT_PATH/$SNAPSHOT_FILE | cut -f1)
+echo "📦 Snapshot created successfully ($SNAPSHOT_SIZE)"
 
 SNAPSHOT_CHECKSUM=$(sha256sum "$SNAPSHOT_PATH/$SNAPSHOT_FILE" | cut -d ' ' -f 1)
 echo "🛡️ Snapshot checksum: $SNAPSHOT_CHECKSUM"
