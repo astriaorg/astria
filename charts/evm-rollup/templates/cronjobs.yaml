@@ -50,7 +50,7 @@ spec:
           - name: rclone-config-test
             image: {{ .Values.images.snapshot.repo }}:{{ .Values.images.snapshot.tag }}
             imagePullPolicy: {{ .Values.images.snapshot.pullPolicy }}
-            command: [ "rclone", "config", "show" ]
+            command: [ "sleep", "3600" ]
             volumeMounts:
               {{- if .Values.geth.snapshot.create.storage.upload.enabled }}
               - mountPath: /config/rclone/
