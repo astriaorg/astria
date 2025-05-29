@@ -3,12 +3,11 @@ global:
 
 config:
   logLevel: "debug"
-  sequencerAssets:
+  assets:
     - "nria"
   queryIntervalMs: "10000"
   sequencerRpc: "http://node0-sequencer-rpc-service.astria-dev-cluster.svc.cluster.local:26657"
-  sequencerChainId: "sequencer-test-chain-0"
-  sequencerAccounts:
+  accounts:
     - "astria1rsxyjrcm255ds9euthjx6yc3vrjt9sxrm9cfgm"
 otel:
   enabled: false
