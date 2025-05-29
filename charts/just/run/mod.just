@@ -81,8 +81,8 @@ smoke-test tag=defaultTag:
 
   echo "Testing Bridge Out..."
   just evm send-raw-transaction {{bridge_tx_bytes}}
-  TRANSFERED_BALANCE=$(echo "1 * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
-  EXPECTED_BALANCE=$(echo "$EXPECTED_BALANCE - $TRANSFERED_BALANCE" | bc)
+  TRANSFERRED_BALANCE=$(echo "1 * {{sequencer_base_amount}} * {{rollup_multiplier}}" | bc)
+  EXPECTED_BALANCE=$(echo "$EXPECTED_BALANCE - $TRANSFERRED_BALANCE" | bc)
   CHECKS=0
   while (( $CHECKS < $MAX_CHECKS )); do
     CHECKS=$((CHECKS+1))
