@@ -27,10 +27,6 @@ developers for ease, and some shared configuration.
 
 ## Astria Standard
 
-> Note that this standard is not implemented across repo, there are tagged
-> issues to update services to use the standard
-> [here](https://github.com/astriaorg/astria/issues/240).
-
 - Configuration in Rust managed via
   [Figment](https://docs.rs/figment/latest/figment/)
 - Service Configuration
