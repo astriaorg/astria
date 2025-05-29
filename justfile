@@ -199,6 +199,16 @@ _lint-md:
   markdownlint-cli2
 
 [no-exit-message]
+_fmt-python:
+  ruff check --select I --fix
+  ruff format
+
+[no-exit-message]
+_lint-python:
+  ruff format --check
+  ruff check --ignore E731
+
+[no-exit-message]
 _fmt-proto:
   buf format -w
 

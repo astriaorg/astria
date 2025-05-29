@@ -12,13 +12,14 @@ For details on running the test, see the README.md file in `/system-tests`.
 
 import argparse
 import concurrent
-import aspen_upgrade_checks
 import time
 from concurrent.futures import FIRST_EXCEPTION
+
+import aspen_upgrade_checks
 from helpers.astria_cli import Cli
 from helpers.evm_controller import EvmController
 from helpers.sequencer_controller import SequencerController
-from helpers.utils import update_chart_dependencies, check_change_infos
+from helpers.utils import check_change_infos, update_chart_dependencies
 
 # The number of sequencer validator nodes to use in the test.
 NUM_NODES = 5
@@ -30,32 +31,39 @@ EVM_DESTINATION_ADDRESS = "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30"
 ACCOUNT = "astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504"
 BRIDGE_TX_HASH = "0x326c3910da4c96c5a40ba1505fc338164b659729f2f975ccb07e8794c96b66f6"
 
-parser = argparse.ArgumentParser(prog="upgrade_test", description="Runs the sequencer upgrade test.")
+parser = argparse.ArgumentParser(
+    prog="upgrade_test", description="Runs the sequencer upgrade test."
+)
 parser.add_argument(
-    "-t", "--image-tag",
-    help=
-        "The tag specifying the sequencer image to run to execute the upgrade, e.g. 'latest', \
+    "-t",
+    "--image-tag",
+    help="The tag specifying the sequencer image to run to execute the upgrade, e.g. 'latest', \
         'local', 'pr-2000'. NOTE: this is not the image used to run sequencers before the upgrade \
         is staged; that image is chosen based upon the provided --upgrade-name value.",
     metavar="TAG",
-    required=True
+    required=True,
 )
 parser.add_argument(
-    "-n", "--upgrade-name",
+    "-n",
+    "--upgrade-name",
     help="The name of the upgrade to apply.",
     choices=("aspen",),
-    required=True
+    required=True,
 )
 args = vars(parser.parse_args())
 upgrade_image_tag = args["image_tag"]
 upgrade_name = args["upgrade_name"].lower()
 
-print("################################################################################")
+print(
+    "################################################################################"
+)
 print("Running sequencer upgrade test")
 print(f"  * upgraded container image tag: {upgrade_image_tag}")
 print(f"  * pre-upgrade container image tags: {PRE_UPGRADE_IMAGE_TAGS[upgrade_name]}")
 print(f"  * upgrade name: {upgrade_name}")
-print("################################################################################")
+print(
+    "################################################################################"
+)
 
 # Update chart dependencies.
 for chart in ("sequencer", "evm-stack"):
@@ -113,9 +121,13 @@ for node in nodes[1:]:
     if block_1_before != node.get_sequencer_block(1):
         raise SystemExit(f"node0 and {node.name} report different values for block 1")
     if app_version_before != node.get_current_app_version():
-        raise SystemExit(f"node0 and {node.name} report different values for current app version")
+        raise SystemExit(
+            f"node0 and {node.name} report different values for current app version"
+        )
     if genesis_app_version != node.get_app_version_at_genesis():
-        raise SystemExit(f"node0 and {node.name} report different values for genesis app version")
+        raise SystemExit(
+            f"node0 and {node.name} report different values for genesis app version"
+        )
 
 # Run pre-upgrade validator updates to check that the new action still executes correctly.
 print("running pre-upgrade validator updates")
@@ -153,7 +165,9 @@ print("setting upgrade activation height to", upgrade_activation_height)
 # Leave the last sequencer running the old binary through the upgrade to ensure it can catch up
 # later. Pop it from the `nodes` list and re-add it later once it's caught up.
 missed_upgrade_node = nodes.pop()
-print(f"not upgrading {missed_upgrade_node.name} until the rest have executed the upgrade")
+print(
+    f"not upgrading {missed_upgrade_node.name} until the rest have executed the upgrade"
+)
 for node in nodes:
     node.stage_upgrade(
         upgrade_image_tag,
@@ -165,7 +179,9 @@ for node in nodes:
 
 # Wait for the rollout to complete.
 print("waiting for pods to become ready")
-wait_for_upgrade_fn = lambda seq_node: seq_node.wait_for_upgrade(upgrade_activation_height)
+wait_for_upgrade_fn = lambda seq_node: seq_node.wait_for_upgrade(
+    upgrade_activation_height
+)
 futures = [executor.submit(wait_for_upgrade_fn, node) for node in nodes]
 done, _ = concurrent.futures.wait(futures, return_when=FIRST_EXCEPTION)
 for completed_future in done:
@@ -175,7 +191,7 @@ for completed_future in done:
 try:
     if missed_upgrade_node.try_get_last_block_height() >= upgrade_activation_height:
         raise SystemExit(f"{missed_upgrade_node.name} should be stalled but isn't")
-except Exception as error:
+except Exception:
     # This is the expected branch - the node should have crashed when it disagreed about the outcome
     # of executing the block at the upgrade activation height.
     pass
@@ -187,7 +203,7 @@ missed_upgrade_node.stage_upgrade(
     upgrade_image_tag,
     enable_price_feed=True,
     upgrade_name=upgrade_name,
-    activation_height=upgrade_activation_height
+    activation_height=upgrade_activation_height,
 )
 missed_upgrade_node.wait_for_upgrade(upgrade_activation_height)
 latest_block_height = nodes[0].get_last_block_height()
@@ -199,12 +215,12 @@ nodes.append(missed_upgrade_node)
 
 # Start a fifth sequencer validator now that the upgrade has happened.
 new_node = SequencerController(f"node{NUM_NODES - 1}")
-print(f"starting a new sequencer")
+print("starting a new sequencer")
 new_node.deploy_sequencer(
     upgrade_image_tag,
     upgrade_image_tag,
     upgrade_name=upgrade_name,
-    upgrade_activation_height=upgrade_activation_height
+    upgrade_activation_height=upgrade_activation_height,
 )
 new_node.bech32m_address = cli.address(new_node.name, new_node.address)
 
@@ -220,7 +236,9 @@ for node in nodes[1:]:
     if node.get_current_app_version() <= app_version_before:
         raise SystemExit(f"{node.name} failed to upgrade: app version unchanged")
     if node.get_current_app_version() != app_version_after:
-        raise SystemExit(f"node0 and {node.name} report different values for app version")
+        raise SystemExit(
+            f"node0 and {node.name} report different values for app version"
+        )
 print("app version changed after upgrade to:", app_version_after)
 
 # Check that fetching block 1 yields the same result as before the upgrade (ensures test network
@@ -239,7 +257,9 @@ print("fetching block 1 after the upgrade yields the same result as before the u
 # Fetch and check the upgrade change infos. There should be none scheduled and at least one applied.
 applied, scheduled = nodes[0].get_upgrades_info()
 if len(list(scheduled)) != 0:
-    raise SystemExit("node0 upgrade error: should have no scheduled upgrade change infos")
+    raise SystemExit(
+        "node0 upgrade error: should have no scheduled upgrade change infos"
+    )
 check_change_infos(applied, upgrade_activation_height, app_version_after)
 for node in nodes[1:]:
     this_applied, this_scheduled = node.get_upgrades_info()
@@ -261,7 +281,9 @@ for node in nodes:
 # Run post-upgrade checks specific to this upgrade.
 print(f"running post-upgrade checks specific to {upgrade_name}")
 if upgrade_name == "aspen":
-    aspen_upgrade_checks.assert_post_upgrade_conditions(nodes, upgrade_activation_height)
+    aspen_upgrade_checks.assert_post_upgrade_conditions(
+        nodes, upgrade_activation_height
+    )
 print(f"passed {upgrade_name}-specific post-upgrade checks")
 
 # Perform a bridge out.
@@ -291,7 +313,9 @@ expected_evm_balance = 9000000000000000000
 evm.wait_until_balance(EVM_DESTINATION_ADDRESS, expected_evm_balance, timeout_secs=60)
 print("bridge out evm success")
 expected_balance = 1000000000
-cli.wait_until_balance(ACCOUNT, expected_balance, timeout_secs=60, sequencer_name="node3")
+cli.wait_until_balance(
+    ACCOUNT, expected_balance, timeout_secs=60, sequencer_name="node3"
+)
 print("bridge out sequencer success")
 print("testing tx finalization")
 tx_block_number = evm.get_tx_block_number(BRIDGE_TX_HASH)

@@ -1,6 +1,7 @@
 import subprocess
 import time
 
+
 def run_subprocess(args, msg):
     """
     Runs the provided args as a subprocess.
@@ -15,6 +16,7 @@ def run_subprocess(args, msg):
     except RuntimeError as error:
         raise SystemExit(error)
 
+
 def try_run_subprocess(args, msg):
     """
     Tries to run the provided args as a subprocess.
@@ -27,15 +29,24 @@ def try_run_subprocess(args, msg):
     prefix = f"{msg}: " if msg else ""
     print(f"{prefix}running `{' '.join(map(str, args))}`")
     try:
-        subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=True)
+        subprocess.run(
+            args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=True
+        )
     except subprocess.CalledProcessError as error:
         prefix = f" {msg}: " if msg else ": "
         raise RuntimeError(f"failed{prefix}{error.stdout.decode('utf-8').strip()}")
 
-def wait_for_statefulset_rollout(deploy_name, statefulset_name, namespace, timeout_secs):
+
+def wait_for_statefulset_rollout(
+    deploy_name, statefulset_name, namespace, timeout_secs
+):
     args = [
-        "kubectl", "rollout", "status", f"statefulset/{statefulset_name}", f"-n={namespace}",
-        f"--timeout={timeout_secs}s"
+        "kubectl",
+        "rollout",
+        "status",
+        f"statefulset/{statefulset_name}",
+        f"-n={namespace}",
+        f"--timeout={timeout_secs}s",
     ]
     try:
         try_run_subprocess(args, f"waiting for {deploy_name} to deploy")
@@ -49,11 +60,15 @@ def wait_for_statefulset_rollout(deploy_name, statefulset_name, namespace, timeo
     print()
     raise SystemExit(f"failed to deploy {deploy_name} within {timeout_secs} seconds")
 
+
 def update_chart_dependencies(chart):
     args = ["helm", "dependency", "update", f"charts/{chart}"]
     run_subprocess(args, msg=f"updating chart dependencies for {chart}")
 
-def check_change_infos(change_infos, expected_activation_height, expected_app_version=None):
+
+def check_change_infos(
+    change_infos, expected_activation_height, expected_app_version=None
+):
     """
     Assert that the provided change info collection is not empty, and that each entry has the
     expected activation height and app version.
@@ -74,10 +89,12 @@ def check_change_infos(change_infos, expected_activation_height, expected_app_ve
                 f"of {expected_app_version}: reported change info:\n{change_info}"
             )
 
+
 class Retryer:
     """
     A helper to support repeatedly sleeping in a loop to allow for a delay between re-attempts.
     """
+
     def __init__(self, timeout_secs, initial_delay_secs=0.4, exponential_backoff=True):
         """
         :param timeout_secs: The maximum amount of time to allow for all re-attempts. The timer

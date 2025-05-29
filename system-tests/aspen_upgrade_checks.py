@@ -1,29 +1,28 @@
-import base64
-
 """
 This module contains checks specific to `Aspen`.
 """
 
+
 def assert_pre_upgrade_conditions(nodes):
     _check_vote_extensions_enable_height(nodes, 0)
-    _check_extended_commit_info_in_sequencer_block(nodes, height=2, should_be_present=False)
+    _check_extended_commit_info_in_sequencer_block(
+        nodes, height=2, should_be_present=False
+    )
     _check_validator_names(nodes, should_be_present=False)
     _check_validator_powers(nodes)
+
 
 def assert_post_upgrade_conditions(nodes, upgrade_activation_height):
     _check_vote_extensions_enable_height(nodes, upgrade_activation_height + 1)
     _check_extended_commit_info_in_sequencer_block(
-        nodes,
-        height=upgrade_activation_height + 1,
-        should_be_present=False
+        nodes, height=upgrade_activation_height + 1, should_be_present=False
     )
     _check_extended_commit_info_in_sequencer_block(
-        nodes,
-        height=upgrade_activation_height + 2,
-        should_be_present=True
+        nodes, height=upgrade_activation_height + 2, should_be_present=True
     )
     _check_validator_names(nodes, should_be_present=True)
     _check_validator_powers(nodes)
+
 
 def _check_vote_extensions_enable_height(nodes, expected):
     for node in nodes:
@@ -32,6 +31,7 @@ def _check_vote_extensions_enable_height(nodes, expected):
             raise SystemExit(
                 f"{node.name}: `vote_extensions_enable_height` of {actual}, expected {expected}"
             )
+
 
 def _check_extended_commit_info_in_sequencer_block(nodes, height, should_be_present):
     for node in nodes:
@@ -47,6 +47,7 @@ def _check_extended_commit_info_in_sequencer_block(nodes, height, should_be_pres
                 f"{node.name}: block {height} did not contain extended commit info"
             )
 
+
 def _check_validator_names(nodes, should_be_present):
     for node in nodes:
         try:
@@ -61,9 +62,8 @@ def _check_validator_names(nodes, should_be_present):
                 )
         except Exception as error:
             if should_be_present:
-                raise SystemExit(
-                    f"{node.name}: validator name error: {error}"
-                )
+                raise SystemExit(f"{node.name}: validator name error: {error}")
+
 
 def _check_validator_powers(nodes):
     for node in nodes:
@@ -72,12 +72,10 @@ def _check_validator_powers(nodes):
             validator = _find_validator_in_set(validators, node.address)
             if int(validator["voting_power"]) != node.power:
                 raise SystemExit(
-                    f"{node.name}: validator power {validator["voting_power"]}, expected {node.power}"
+                    f"{node.name}: validator power {validator['voting_power']}, expected {node.power}"
                 )
         except Exception as error:
-            raise SystemExit(
-                f"{node.name}: validator power error: {error}"
-            )
+            raise SystemExit(f"{node.name}: validator power error: {error}")
 
 
 def _find_validator_in_set(validators, address):
@@ -86,10 +84,6 @@ def _find_validator_in_set(validators, address):
         for validator in validators:
             if validator["address"] == base64_address:
                 return validator
-        raise Exception(
-            f"Validator with address {base64_address} not found in the set"
-        )
+        raise Exception(f"Validator with address {base64_address} not found in the set")
     except Exception as error:
-        raise Exception(
-            f"Error finding validator in set: {error}"
-        )
+        raise Exception(f"Error finding validator in set: {error}")

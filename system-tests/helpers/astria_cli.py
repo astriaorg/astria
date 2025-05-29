@@ -1,8 +1,10 @@
 from python_on_whales import docker
 from python_on_whales.exceptions import DockerException
+
 from .utils import Retryer
 
 SEQUENCER_RPC_POD_PORT = 26657
+
 
 class Cli:
     """
@@ -15,7 +17,9 @@ class Cli:
     def set_image_tag(self, image_tag):
         self.image_tag = image_tag
 
-    def wait_until_balance(self, account, expected_balance, timeout_secs, sequencer_name):
+    def wait_until_balance(
+        self, account, expected_balance, timeout_secs, sequencer_name
+    ):
         """
         Polls for the balance of the given account until the expected balance is reached.
 
@@ -53,7 +57,7 @@ class Cli:
                 "--sequencer.chain-id=sequencer-test-chain-0",
                 "--fee-asset=nria",
                 "--asset=nria",
-                sequencer_name=sequencer_name
+                sequencer_name=sequencer_name,
             )
         except Exception as error:
             raise SystemExit(error)
@@ -69,7 +73,7 @@ class Cli:
                 "--sequencer.chain-id=sequencer-test-chain-0",
                 "--fee-asset=nria",
                 "--asset=nria",
-                sequencer_name=sequencer_name
+                sequencer_name=sequencer_name,
             )
         except Exception as error:
             raise SystemExit(error)
@@ -116,7 +120,9 @@ class Cli:
                 f"stdout: `{stdout}`"
             )
 
-    def _try_exec_sequencer_command_with_retry(self, *args, sequencer_name, timeout_secs=10):
+    def _try_exec_sequencer_command_with_retry(
+        self, *args, sequencer_name, timeout_secs=10
+    ):
         """
         Tries to execute the CLI `sequencer` subcommand via `docker run`.
 
@@ -128,7 +134,9 @@ class Cli:
         retryer = Retryer(timeout_secs)
         while True:
             try:
-                return self._try_exec_sequencer_command(*args, sequencer_name=sequencer_name)
+                return self._try_exec_sequencer_command(
+                    *args, sequencer_name=sequencer_name
+                )
             except Exception as error:
                 last_error = error
                 print(f"cli: rpc failed, retrying in {retryer.sleep_secs:.3f} seconds")
@@ -139,7 +147,9 @@ class Cli:
                     f"{last_error}\nrpc failed {retryer.successful_wait_count + 1} times, giving up"
                 )
 
-    def _try_exec_sequencer_command(self, *args, sequencer_name, use_sequencer_url=True):
+    def _try_exec_sequencer_command(
+        self, *args, sequencer_name, use_sequencer_url=True
+    ):
         """
         Tries once (i.e. no retries) to execute the CLI `sequencer` subcommand via `docker run`.
 

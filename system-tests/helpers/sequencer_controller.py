@@ -1,15 +1,22 @@
 import base64
+
 import grpc
 import requests
+
+from .generated.astria.primitive.v1.types_pb2 import Address
+from .generated.astria.sequencerblock.v1.service_pb2 import (
+    GetSequencerBlockRequest,
+    GetUpgradesInfoRequest,
+    GetValidatorNameRequest,
+)
+from .generated.astria.sequencerblock.v1.service_pb2_grpc import SequencerServiceStub
 from .utils import (
+    Retryer,
     check_change_infos,
     run_subprocess,
     wait_for_statefulset_rollout,
-    Retryer,
 )
-from .generated.astria.primitive.v1.types_pb2 import Address
-from .generated.astria.sequencerblock.v1.service_pb2 import GetSequencerBlockRequest, GetUpgradesInfoRequest, GetValidatorNameRequest
-from .generated.astria.sequencerblock.v1.service_pb2_grpc import SequencerServiceStub
+
 
 class SequencerController:
     """
@@ -38,12 +45,12 @@ class SequencerController:
     # ===========================================================
 
     def deploy_sequencer(
-            self,
-            sequencer_image_tag,
-            relayer_image_tag,
-            enable_price_feed=True,
-            upgrade_name=None,
-            upgrade_activation_height=None,
+        self,
+        sequencer_image_tag,
+        relayer_image_tag,
+        enable_price_feed=True,
+        upgrade_name=None,
+        upgrade_activation_height=None,
     ):
         """
         Deploys a new sequencer on the cluster using the specified image tag.
@@ -64,14 +71,23 @@ class SequencerController:
             relayer_image_tag,
             enable_price_feed,
             upgrade_name,
-            upgrade_activation_height
+            upgrade_activation_height,
         )
         run_subprocess(args, msg=f"deploying {self.name}")
         self._wait_for_deploy(timeout_secs=600)
-        (self.address, self.pub_key, self.power) = self._check_reported_name_and_get_node_info()
+        (self.address, self.pub_key, self.power) = (
+            self._check_reported_name_and_get_node_info()
+        )
         print(f"{self.name}: running")
 
-    def stage_upgrade(self, sequencer_image_tag, relayer_image_tag, enable_price_feed, upgrade_name, activation_height):
+    def stage_upgrade(
+        self,
+        sequencer_image_tag,
+        relayer_image_tag,
+        enable_price_feed,
+        upgrade_name,
+        activation_height,
+    ):
         """
         Updates the sequencer and sequencer-relayer in the cluster.
 
@@ -81,7 +97,7 @@ class SequencerController:
             # If we can fetch the latest block height, this is likely due to the sequencer having
             # crashed after missing the upgrade activation.
             self.last_block_height_before_restart = self.try_get_last_block_height()
-        except:
+        except Exception:
             self.last_block_height_before_restart = None
 
         # Update the upgrades.json file with the specified activation height and upgrade the images
@@ -92,7 +108,7 @@ class SequencerController:
             relayer_image_tag,
             enable_price_feed=enable_price_feed,
             upgrade_name=upgrade_name,
-            upgrade_activation_height=activation_height
+            upgrade_activation_height=activation_height,
         )
 
         run_subprocess(args, msg=f"upgrading {self.name}")
@@ -100,7 +116,7 @@ class SequencerController:
             # In this case, the sequencer process has stopped. Try restarting the pod.
             run_subprocess(
                 ["kubectl", "delete", "pod", f"-n={self.namespace}", "sequencer-0"],
-                msg=f"restarting pod for {self.name}"
+                msg=f"restarting pod for {self.name}",
             )
 
     def wait_for_upgrade(self, upgrade_activation_height):
@@ -123,8 +139,7 @@ class SequencerController:
         #       for scheduled upgrade change infos.
         if self.last_block_height_before_restart:
             self.wait_until_chain_at_height(
-                self.last_block_height_before_restart + 2,
-                timeout_secs=60
+                self.last_block_height_before_restart + 2, timeout_secs=60
             )
             # Fetch and check the upgrade change infos. Ensure we're at least a few blocks before
             # the upgrade activation point, so we can safely expect there should be some changes
@@ -142,9 +157,11 @@ class SequencerController:
                         f"{self.name}: scheduled change info: [{change_info.change_name}, "
                         f"activation_height: {change_info.activation_height}, app_version: "
                         f"{change_info.app_version}, change_hash: {change_info.base64_hash}]",
-                        flush=True
+                        flush=True,
                     )
-            timeout_secs = max((upgrade_activation_height - latest_block_height) * 10, 30)
+            timeout_secs = max(
+                (upgrade_activation_height - latest_block_height) * 10, 30
+            )
         else:
             timeout_secs = upgrade_activation_height * 10
         # Wait for the sequencer to reach the activation point, meaning it should have executed
@@ -191,7 +208,9 @@ class SequencerController:
         response = self._try_send_json_rpc_request_with_retry(
             "consensus_params", ("height", str(height))
         )
-        return int(response["consensus_params"]["abci"]["vote_extensions_enable_height"])
+        return int(
+            response["consensus_params"]["abci"]["vote_extensions_enable_height"]
+        )
 
     def wait_until_chain_at_height(self, height, timeout_secs):
         """
@@ -208,7 +227,10 @@ class SequencerController:
                 if latest_block_height >= height:
                     break
             except Exception as error:
-                print(f"{self.name}: failed to get latest block height: {error}", flush=True)
+                print(
+                    f"{self.name}: failed to get latest block height: {error}",
+                    flush=True,
+                )
                 pass
             try:
                 retryer.wait()
@@ -220,9 +242,11 @@ class SequencerController:
             print(
                 f"{self.name}: latest block height: {latest_block_height}, awaiting block {height}"
                 f", {retryer.seconds_remaining():.3f} seconds remaining",
-                flush=True
+                flush=True,
             )
-        print(f"{self.name}: latest block height: {latest_block_height}, finished awaiting block {height}")
+        print(
+            f"{self.name}: latest block height: {latest_block_height}, finished awaiting block {height}"
+        )
 
     def get_app_version_at_genesis(self):
         """
@@ -273,9 +297,13 @@ class SequencerController:
         Exits the process on error or timeout.
         """
         try:
-            return self._try_send_grpc_request_with_retry(GetSequencerBlockRequest(height=height))
+            return self._try_send_grpc_request_with_retry(
+                GetSequencerBlockRequest(height=height)
+            )
         except Exception as error:
-            raise SystemExit(f"{self.name}: failed to get sequencer block {height}:\n{error}\n")
+            raise SystemExit(
+                f"{self.name}: failed to get sequencer block {height}:\n{error}\n"
+            )
 
     def get_upgrades_info(self):
         """
@@ -296,7 +324,9 @@ class SequencerController:
         Propagates error as exception.
         """
         try:
-            response = self._try_send_grpc_request(GetValidatorNameRequest(address=Address(bech32m=self.bech32m_address)))
+            response = self._try_send_grpc_request(
+                GetValidatorNameRequest(address=Address(bech32m=self.bech32m_address))
+            )
             return response.name
         except Exception as error:
             raise Exception(f"{self.name}: failed to get validator name: {error}")
@@ -306,13 +336,13 @@ class SequencerController:
     # ===============
 
     def _helm_args(
-            self,
-            subcommand,
-            sequencer_image_tag,
-            relayer_image_tag,
-            enable_price_feed,
-            upgrade_name,
-            upgrade_activation_height,
+        self,
+        subcommand,
+        sequencer_image_tag,
+        relayer_image_tag,
+        enable_price_feed,
+        upgrade_name,
+        upgrade_activation_height,
     ):
         args = [
             "helm",
@@ -352,7 +382,9 @@ class SequencerController:
         return args
 
     def _wait_for_deploy(self, timeout_secs):
-        wait_for_statefulset_rollout(self.name, "sequencer", self.namespace, timeout_secs)
+        wait_for_statefulset_rollout(
+            self.name, "sequencer", self.namespace, timeout_secs
+        )
 
     def _try_send_json_rpc_request_with_retry(self, method, *params, timeout_secs=30):
         """
@@ -371,11 +403,15 @@ class SequencerController:
             try:
                 return self._try_send_json_rpc_request(method, *params)
             except Exception as error:
-                print(f"{self.name}: rpc failed: {error}, retrying in {retryer.sleep_secs:.3f} seconds")
+                print(
+                    f"{self.name}: rpc failed: {error}, retrying in {retryer.sleep_secs:.3f} seconds"
+                )
             try:
                 retryer.wait()
             except RuntimeError:
-                raise RuntimeError(f"rpc failed {retryer.successful_wait_count + 1} times, giving up")
+                raise RuntimeError(
+                    f"rpc failed {retryer.successful_wait_count + 1} times, giving up"
+                )
 
     def _try_send_json_rpc_request(self, method, *params):
         """
@@ -395,10 +431,14 @@ class SequencerController:
         }
         response = requests.post(self.rpc_url, json=payload)
         if response.status_code != 200:
-            raise RuntimeError(f"json-rpc response for `{payload}`: code {response.status_code}")
+            raise RuntimeError(
+                f"json-rpc response for `{payload}`: code {response.status_code}"
+            )
         json_response = response.json()
-        if not "result" in json_response:
-            raise RuntimeError(f"json-rpc error response for `{payload}`: {json_response['error']}")
+        if "result" not in json_response:
+            raise RuntimeError(
+                f"json-rpc error response for `{payload}`: {json_response['error']}"
+            )
         return json_response["result"]
 
     def _try_send_grpc_request_with_retry(self, request, timeout_secs=10):
@@ -414,11 +454,15 @@ class SequencerController:
             try:
                 return self._try_send_grpc_request(request)
             except Exception as error:
-                print(f"{self.name}: grpc failed: {error}, retrying in {retryer.sleep_secs:.3f} seconds")
+                print(
+                    f"{self.name}: grpc failed: {error}, retrying in {retryer.sleep_secs:.3f} seconds"
+                )
             try:
                 retryer.wait()
             except RuntimeError:
-                raise RuntimeError(f"grpc failed {retryer.successful_wait_count + 1} times, giving up")
+                raise RuntimeError(
+                    f"grpc failed {retryer.successful_wait_count + 1} times, giving up"
+                )
 
     def _try_send_grpc_request(self, request):
         """
@@ -447,19 +491,23 @@ class SequencerController:
         Returns tuple with the node's hex-encoded address, public key, and voting power.
         """
         try:
-            response = self._try_send_json_rpc_request_with_retry("status", timeout_secs=600)
+            response = self._try_send_json_rpc_request_with_retry(
+                "status", timeout_secs=600
+            )
             reported_name = response["node_info"]["moniker"]
             if reported_name == self.name:
                 base64_pubkey = response["validator_info"]["pub_key"]["value"]
                 address = response["validator_info"]["address"]
                 hex_pubkey = base64.b64decode(base64_pubkey).hex()
-                return (address, hex_pubkey, int(response["validator_info"]["voting_power"]))
+                return (
+                    address,
+                    hex_pubkey,
+                    int(response["validator_info"]["voting_power"]),
+                )
             else:
                 raise SystemExit(
                     f"provided name `{self.name}` does not match moniker `{reported_name}` as "
                     "reported in `status` json-rpc response"
                 )
         except Exception as error:
-            raise SystemExit(
-                f"{self.name}: failed to fetch node name: {error}"
-            )
+            raise SystemExit(f"{self.name}: failed to fetch node name: {error}")

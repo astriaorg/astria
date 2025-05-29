@@ -1,5 +1,7 @@
 import requests
-from .utils import run_subprocess, wait_for_statefulset_rollout, Retryer
+
+from .utils import Retryer, run_subprocess, wait_for_statefulset_rollout
+
 
 class EvmController:
     """
@@ -33,7 +35,9 @@ class EvmController:
         Exits the process on error.
         """
         try:
-            hex_balance = self._try_send_json_rpc_request("eth_getBalance", address, "latest")
+            hex_balance = self._try_send_json_rpc_request(
+                "eth_getBalance", address, "latest"
+            )
             return int(hex_balance, 16)
         except Exception as error:
             raise SystemExit(f"rollup: failed to get balance for {address}: {error}")
@@ -74,7 +78,9 @@ class EvmController:
         latest_block_height = None
         while True:
             try:
-                response = self._try_send_json_rpc_request("eth_getBlockByNumber", "finalized", False)
+                response = self._try_send_json_rpc_request(
+                    "eth_getBlockByNumber", "finalized", False
+                )
                 latest_block_height = int(response["number"], 16)
             except Exception as error:
                 print(
@@ -120,7 +126,9 @@ class EvmController:
         Exits the process on error.
         """
         try:
-            receipt = self._try_send_json_rpc_request("eth_getTransactionReceipt", tx_hash)
+            receipt = self._try_send_json_rpc_request(
+                "eth_getTransactionReceipt", tx_hash
+            )
             return int(receipt["blockNumber"], 16)
         except Exception as error:
             raise SystemExit(f"rollup: failed to get tx receipt: {error}")
@@ -161,7 +169,11 @@ class EvmController:
             "params": list(params),
             "id": 1,
         }
-        response = requests.post(f"http://executor.astria.127.0.0.1.nip.io/", json=payload).json()
-        if not "result" in response:
-            raise RuntimeError(f"json-rpc error response for `{method}`: {response['error']}")
+        response = requests.post(
+            "http://executor.astria.127.0.0.1.nip.io/", json=payload
+        ).json()
+        if "result" not in response:
+            raise RuntimeError(
+                f"json-rpc error response for `{method}`: {response['error']}"
+            )
         return response["result"]
