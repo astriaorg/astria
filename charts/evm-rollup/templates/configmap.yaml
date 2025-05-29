@@ -54,6 +54,8 @@ data:
   {{- if .Values.geth.snapshot.create.enabled }}
   create-snapshot.sh: |
     {{- tpl (.Files.Get "files/scripts/create-snapshot.sh") $ | nindent 4 }}
+  orchestrate-snapshot.sh: |
+    {{- tpl (.Files.Get "files/scripts/orchestrate-snapshot.sh") $ | nindent 4 }}
   {{- end }}
   {{- if .Values.geth.snapshot.restore.enabled }}
   restore-snapshot.sh: |

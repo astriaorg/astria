@@ -14,22 +14,43 @@ spec:
       template:
         spec:
           serviceAccountName: {{ include "rollup.name" . }}-snapshot-sa
-          initContainers:
-          - name: copy-kubectl
+          containers:
+          - name: snapshot-orchestrator
             image: bitnami/kubectl:latest
             imagePullPolicy: IfNotPresent
-            command: ["sh", "-c", "cp /opt/bitnami/kubectl/bin/kubectl /shared/kubectl && chmod +x /shared/kubectl"]
+            command: [ "/scripts/orchestrate-snapshot.sh" ]
+            envFrom:
+              - configMapRef:
+                  name: {{ include "rollup.name" . }}-geth-env
             volumeMounts:
-              - mountPath: /shared
-                name: shared-tools
+              - mountPath: /scripts/
+                name: {{ include "rollup.name" . }}-executor-scripts-volume
+          restartPolicy: OnFailure
+          volumes:
+            - name: {{ include "rollup.name" . }}-executor-scripts-volume
+              configMap:
+                name: {{ include "rollup.name" . }}-executor-scripts
+                defaultMode: 0500
+---
+kind: CronJob
+apiVersion: batch/v1
+metadata:
+  name: {{ include "rollup.name" . }}-geth-snapshot-template
+  labels:
+    app: {{ include "rollup.appName" . }}
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  schedule: "0 0 31 2 *"
+  suspend: true
+  jobTemplate:
+    spec:
+      template:
+        spec:
           containers:
           - name: create-snapshot
             image: {{ .Values.images.snapshot.repo }}:{{ .Values.images.snapshot.tag }}
             imagePullPolicy: {{ .Values.images.snapshot.pullPolicy }}
             command: [ "/scripts/create-snapshot.sh" ]
-            env:
-              - name: PATH
-                value: "/shared:$PATH"
             envFrom:
               - configMapRef:
                   name: {{ include "rollup.name" . }}-geth-env
@@ -43,8 +64,6 @@ spec:
               - mountPath: /home/geth
                 name: {{ include "rollup.name" $ }}-rollup-shared-storage-vol
                 subPath: {{ include "rollup.name" . }}/executor
-              - mountPath: /shared
-                name: shared-tools
           restartPolicy: OnFailure
           volumes:
             {{- if .Values.geth.snapshot.create.storage.upload.enabled }}
@@ -71,6 +90,4 @@ spec:
               {{- else }}
               emptyDir: {}
               {{- end }}
-            - name: shared-tools
-              emptyDir: {}
 {{- end }}
