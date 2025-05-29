@@ -16,7 +16,7 @@ and returns a `TransactionStatus` (see [Resources](#resources)) for details.
 
 #### GetTransactionStatusRequest
 
-```
+```proto
 message GetTransactionStatusRequest {
   bytes transaction_hash = 1;
 }
@@ -35,10 +35,10 @@ will be lost.
 
 #### SubmitTransactionRequest
 
-See [here](https://buf.build/astria/protocol-apis/docs/main:astria.protocol.transaction.v1#astria.protocol.transaction.v1.Transaction)
-for more details on `astria.protocol.transaction.v1.Transaction`.
+See here for more details on `astria.protocol.transaction.v1.Transaction`:
+[BUF docs](https://buf.build/astria/protocol-apis/docs/main:astria.protocol.transaction.v1#astria.protocol.transaction.v1.Transaction).
 
-```
+```proto
 message SubmitTransactionRequest {
     astria.protocol.transaction.v1.Transaction transaction = 1;
 }
@@ -46,7 +46,7 @@ message SubmitTransactionRequest {
 
 #### SubmitTransactionResponse
 
-```
+```proto
 message SubmitTransactionResponse {
     astria.mempool.v1.TransactionStatus status = 1;
     bool duplicate = 2;
@@ -62,10 +62,10 @@ upon construction or execution.
 
 #### GetTransactionFeesRequest
 
-See [here](https://buf.build/astria/protocol-apis/docs/main:astria.protocol.transaction.v1#astria.protocol.transaction.v1.TransactionBody)
-for more details on `astria.protocol.transaction.v1.TransactionBody`.
+See here for more details on `astria.protocol.transaction.v1.TransactionBody`
+[BUF docs](https://buf.build/astria/protocol-apis/docs/main:astria.protocol.transaction.v1#astria.protocol.transaction.v1.TransactionBody).
 
-```
+```proto
 message GetTransactionFeesRequest {
     astria.protocol.transaction.v1.TransactionBody transaction_body = 1;
 }
@@ -73,10 +73,10 @@ message GetTransactionFeesRequest {
 
 #### GetTransactionFeesResponse
 
-See [here](https://buf.build/astria/protocol-apis/docs/main:astria.protocol.fees.v1#astria.protocol.fees.v1.TransactionFee)
-for more details on `astria.protocol.fees.v1.TransactionFee`.
+See here for more details on `astria.protocol.fees.v1.TransactionFee`:
+[BUF docs](https://buf.build/astria/protocol-apis/docs/main:astria.protocol.fees.v1#astria.protocol.fees.v1.TransactionFee).
 
-```
+```proto
 message GetTransactionFeesResponse {
   uint64 block_height = 1;
   repeated astria.protocol.fees.v1.TransactionFee fees = 2;
@@ -92,7 +92,7 @@ contains one resource:
 
 Represents the status of a transaction in the app-side mempool.
 
-```
+```proto
 message TransactionStatus {
   bytes transaction_hash = 1;
 
