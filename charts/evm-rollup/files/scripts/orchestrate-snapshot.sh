@@ -26,17 +26,17 @@ fi
 echo "✅ StatefulSet scaled down, volume released"
 
 echo "📸 Creating snapshot job from template..."
-SNAPSHOT_JOB_NAME="${ROLLUP_NAME}-geth-snapshot-$(date +%s)"
+SNAPSHOT_JOB_NAME="${ROLLUP_NAME}-geth-snapshot-$(date +%Y%m%d%H%M%S)"
 
 kubectl create job --from=cronjob/$TEMPLATE_CRONJOB $SNAPSHOT_JOB_NAME -n $NAMESPACE
 
 echo "⏳ Waiting for snapshot job to complete..."
-kubectl wait --for=condition=complete job/$SNAPSHOT_JOB_NAME -n $NAMESPACE --timeout=1800s
+kubectl wait --for=condition=complete job/$SNAPSHOT_JOB_NAME -n $NAMESPACE --timeout=3600s
 
 if [ $? -eq 0 ]; then
   echo "✅ Snapshot job completed successfully"
   echo "📋 Snapshot job logs:"
-  kubectl logs job/$SNAPSHOT_JOB_NAME -n $NAMESPACE
+  kubectl logs job/$SNAPSHOT_JOB_NAME -n $NAMESPACE | grep -v "^chaindata/"
 else
   echo "❌ Snapshot job failed or timed out"
   kubectl describe job/$SNAPSHOT_JOB_NAME -n $NAMESPACE
