@@ -25,8 +25,8 @@ Cleans the cluster without deleting it, and deletes non-core persisted data.
 Note: there is no persisted data by default.
 ")]
 helm:
-  helm ls -a --all-namespaces -l core!=true | awk 'NR > 1 { print  "-n "$2, $1}' | xargs -L1 helm uninstall
-  just clean persisted-data
+  @helm ls -a --all-namespaces -l core!=true | awk 'NR > 1 { print  "-n "$2, $1}' | xargs -L1 helm uninstall
+  @just clean persisted-data
 
 
 # Clean Persisted Data
