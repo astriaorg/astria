@@ -1,0 +1,35 @@
+{{- if .Values.geth.snapshot.create.enabled }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "rollup.name" . }}-snapshot-sa
+  namespace: {{ include "rollup.namespace" . }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "rollup.name" . }}-snapshot-role
+  namespace: {{ include "rollup.namespace" . }}
+rules:
+- apiGroups: ["apps"]
+  resources: ["statefulsets"]
+  verbs: ["get", "patch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["list", "get", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "rollup.name" . }}-snapshot-rolebinding
+  namespace: {{ include "rollup.namespace" . }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "rollup.name" . }}-snapshot-sa
+  namespace: {{ include "rollup.namespace" . }}
+roleRef:
+  kind: Role
+  name: {{ include "rollup.name" . }}-snapshot-role
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

@@ -13,11 +13,23 @@ spec:
     spec:
       template:
         spec:
+          serviceAccountName: {{ include "rollup.name" . }}-snapshot-sa
+          initContainers:
+          - name: copy-kubectl
+            image: bitnami/kubectl:latest
+            imagePullPolicy: IfNotPresent
+            command: ["sh", "-c", "cp /opt/bitnami/kubectl/bin/kubectl /shared/kubectl && chmod +x /shared/kubectl"]
+            volumeMounts:
+              - mountPath: /shared
+                name: shared-tools
           containers:
           - name: create-snapshot
             image: {{ .Values.images.snapshot.repo }}:{{ .Values.images.snapshot.tag }}
             imagePullPolicy: {{ .Values.images.snapshot.pullPolicy }}
             command: [ "/scripts/create-snapshot.sh" ]
+            env:
+              - name: PATH
+                value: "/shared:$PATH"
             envFrom:
               - configMapRef:
                   name: {{ include "rollup.name" . }}-geth-env
@@ -31,6 +43,8 @@ spec:
               - mountPath: /home/geth
                 name: {{ include "rollup.name" $ }}-rollup-shared-storage-vol
                 subPath: {{ include "rollup.name" . }}/executor
+              - mountPath: /shared
+                name: shared-tools
           restartPolicy: OnFailure
           volumes:
             {{- if .Values.geth.snapshot.create.storage.upload.enabled }}
@@ -57,4 +71,6 @@ spec:
               {{- else }}
               emptyDir: {}
               {{- end }}
+            - name: shared-tools
+              emptyDir: {}
 {{- end }}
