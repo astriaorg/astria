@@ -46,6 +46,7 @@ spec:
     spec:
       template:
         spec:
+          serviceAccountName: {{ include "rollup.namespace" . }}
           containers:
           - name: rclone-config-test
             image: {{ .Values.images.snapshot.repo }}:{{ .Values.images.snapshot.tag }}
