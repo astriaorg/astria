@@ -184,7 +184,7 @@ async fn get_transaction_status(
             result,
         })) => Some(RawTransactionStatus::Executed(RawExecuted {
             height,
-            result: Some(result.into_raw()),
+            result: Some(result.to_raw()),
         })),
         Some(TransactionStatus::Removed(reason)) => {
             Some(RawTransactionStatus::Removed(RawRemoved {
@@ -421,14 +421,14 @@ mod tests {
             .await
             .unwrap();
         let height = 100;
-        let mut included_txs = HashMap::new();
+        let mut execution_results = HashMap::new();
         let exec_tx_result = ExecTxResult {
             log: "ethan_was_here".to_string(),
             ..ExecTxResult::default()
         };
-        included_txs.insert(*tx.id(), exec_tx_result.clone());
+        execution_results.insert(*tx.id(), Arc::new(exec_tx_result.clone()));
         mempool
-            .run_maintenance(&storage.latest_snapshot(), false, included_txs, height)
+            .run_maintenance(&storage.latest_snapshot(), false, execution_results, height)
             .await;
 
         let req = GetTransactionStatusRequest {

@@ -94,4 +94,6 @@ data:
   # These are variables which are deprecated and will be removed in future releases.
   {{- else }}
   # These are new env variables which are added in development releases and images.
+  ASTRIA_SEQUENCER_EXECUTION_RESULTS_CACHE_SIZE: "{{ .Values.sequencer.mempool.executionResultsCacheSize }}"
+
   {{- end }}

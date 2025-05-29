@@ -109,7 +109,7 @@ impl Fixture {
         let storage = TempStorage::new().await.unwrap().clone();
         let snapshot = storage.latest_snapshot();
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
+        let mempool = Mempool::new(metrics, 100, 100);
         let upgrades_handler = upgrades
             .unwrap_or_else(|| UpgradesBuilder::new().set_aspen(Some(1)).build())
             .into();
