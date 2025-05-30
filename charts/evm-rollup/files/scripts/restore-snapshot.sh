@@ -10,7 +10,7 @@ SNAPSHOT_FILE=$(basename "$SNAPSHOT")
 
 echo "💿 Copying snapshot from $SNAPSHOT"
 
-rclone copy -vv \
+rclone copy \
   {{ .Values.geth.snapshot.restore.source }} \
   "$data_dir/snapshot-load/"
 

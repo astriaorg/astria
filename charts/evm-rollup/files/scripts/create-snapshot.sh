@@ -18,13 +18,11 @@ tar -zcvf $SNAPSHOT_PATH/$SNAPSHOT_FILE \
 SNAPSHOT_SIZE=$(du -sh $SNAPSHOT_PATH/$SNAPSHOT_FILE | cut -f1)
 SNAPSHOT_CHECKSUM=$(sha256sum "$SNAPSHOT_PATH/$SNAPSHOT_FILE" | cut -d ' ' -f 1)
 
-echo "📦 Snapshot created successfully"
-echo "    → size: $SNAPSHOT_SIZE"
-echo "    → checksum: $SNAPSHOT_CHECKSUM"
+echo "📦 Snapshot packaged successfully"
 
 {{- if .Values.geth.snapshot.create.storage.upload.enabled }}
 echo "⬆️ Uploading snapshot to {{ .Values.geth.snapshot.create.storage.upload.destination }}"
-rclone copy -vv \
+rclone copy \
   $SNAPSHOT_PATH/$SNAPSHOT_FILE \
   {{ .Values.geth.snapshot.create.storage.upload.destination }}
 {{- end }}
@@ -34,3 +32,5 @@ cd "$SNAPSHOT_PATH"
 ls -t snapshot-*.tar.gz 2>/dev/null | tail -n +$((RETENTION_COUNT + 1)) | xargs -r rm --
 
 echo "Snapshot created successfully 🎉"
+echo "    → size: $SNAPSHOT_SIZE"
+echo "    → checksum: $SNAPSHOT_CHECKSUM"

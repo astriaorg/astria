@@ -25,6 +25,9 @@ fi
 
 echo "✅ StatefulSet scaled down, volume released"
 
+echo "⏳ Waiting for volume detachment to complete..."
+sleep 15
+
 echo "📸 Creating snapshot job from template..."
 SNAPSHOT_JOB_NAME="${ROLLUP_NAME}-geth-snapshot-$(date +%Y%m%d%H%M%S)"
 
