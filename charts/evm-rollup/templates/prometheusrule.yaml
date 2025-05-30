@@ -2,19 +2,49 @@
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: {{ template "rollup.appName" . }}
-{{- if .Values.alerting.prometheusRule.namespace }}
-  namespace: {{ .Values.alerting.prometheusRule.namespace | quote }}
-{{- end }}
+  name: {{ .Release.Name }}-alerting
+  namespace: {{ include "rollup.namespace" . }}
   labels:
     {{- include "rollup.labels" . | nindent 4 }}
   {{- if .Values.alerting.prometheusRule.additionalLabels }}
     {{- toYaml .Values.alerting.prometheusRule.additionalLabels | nindent 4 }}
   {{- end }}
+
 spec:
-{{- if .Values.alerting.prometheusRule.rules }}
+{{- if .Values.alerting.prometheusRule.enabled }}
   groups:
-  - name: {{ template "rollup.name" . }}
-    rules: {{- toYaml .Values.alerting.prometheusRule.rules | nindent 4 }}
+  {{- if len .Values.alerting.prometheusRule.defaultAlerts }}
+  # default alerts from the values file in this chart
+  - name: {{ include "rollup.namespace" . }}-default-alerts
+    rules:
+    {{- range $alert := .Values.alerting.prometheusRule.defaultAlerts }}
+      - alert: {{ $alert.alert }}
+        # Process the expression to replace the placeholder with actual namespace
+        expr: {{ tpl $alert.expr $ }}
+        for: {{ $alert.for }}
+        labels:
+          {{- toYaml $alert.labels | nindent 10 }}
+        annotations:
+          {{- toYaml $alert.annotations | nindent 10 }}
+    {{- end }}
+  {{- end }}
+  # Additional alerts section
+  {{- range $name, $group := .Values.alerting.additionalAlertGroups }}
+  - name: {{ $name }}
+    rules:
+      {{- range $rule := $group.rules }}
+      - alert: {{ $rule.alert }}
+        expr: {{ tpl $rule.expr $ }}
+        for: {{ $rule.for | default "5m" }}
+        labels:
+          {{- with $rule.labels }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+        annotations:
+          {{- with $rule.annotations }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+      {{- end }}
+  {{- end }}
 {{- end }}
 {{- end }}
