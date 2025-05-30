@@ -73,6 +73,7 @@ just deploy [TEST_NAME]
 
 # Current Python tests:
 #   - evm-restart-test
+#   - multiple-relayer-test
 #   - smoke-test
 #   - upgrade-test
 
@@ -80,6 +81,7 @@ just deploy [TEST_NAME]
 just run upgrade-test <IMAGE_TAG> # e.g. 'latest', 'local', 'pr-2000'
 just run smoke-test <FLAGS> # e.g. --image-tag sequencer=latest
 just run evm-restart-test <FLAGS>
+just run multiple-relayer-test <FLAGS>
 ```
 
 To run the upgrade test using local builds:
