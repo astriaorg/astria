@@ -32,3 +32,6 @@ spec:
     - name: app-rest
       port: {{ .Values.ports.celestiaAppRestPort }}
       targetPort: app-rest
+    - name: grpc-laddr-svc
+      port: {{ .Values.ports.celestiaAppBroadcastTxGrpcPort }}
+      targetPort: grpc-laddr-svc
