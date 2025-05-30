@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package astria.protocol.fees.v1;
+
+import "astria/primitive/v1/types.proto";
+
+// Fee configuration for different action types
+message FeeConfig {
+  // ... existing fee configs ...
+
+  // Fee configuration for orderbook actions
+  OrderbookFees orderbook = 100;
+}
+
+// Fee configuration for orderbook-related actions
+message OrderbookFees {
+  // Fee for creating a new order
+  astria.primitive.v1.Uint128 create_order = 1;
+  // Fee for canceling an existing order
+  astria.primitive.v1.Uint128 cancel_order = 2;
+  // Fee for creating a new market
+  astria.primitive.v1.Uint128 create_market = 3;
+  // Fee for updating a market
+  astria.primitive.v1.Uint128 update_market = 4;
+}
