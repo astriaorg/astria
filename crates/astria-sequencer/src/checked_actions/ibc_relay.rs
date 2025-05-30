@@ -93,11 +93,11 @@ impl CheckedIbcRelay {
             .check_and_execute(&mut state)
             .await
         {
-            let failures = state
-                .ephemeral_get_ibc_failures()
+            let failure_count = state
+                .ephemeral_get_ibc_failure_count()
                 .unwrap_or_default()
                 .saturating_add(1);
-            state.ephemeral_put_ibc_failures(failures);
+            state.ephemeral_put_ibc_failure_count(failure_count);
             debug!(err = %e, "failed to execute IBC Relay action, still including in block");
         }
         Ok(())
@@ -290,5 +290,9 @@ mod tests {
             .await
             .is_err());
         assert!(checked_action.execute(fixture.state_mut()).await.is_ok());
+        assert_eq!(
+            fixture.state().ephemeral_get_ibc_failure_count().unwrap(),
+            1
+        );
     }
 }

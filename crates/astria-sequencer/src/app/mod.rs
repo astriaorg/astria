@@ -759,8 +759,8 @@ impl App {
         self.metrics
             .set_transactions_in_mempool_total(self.mempool.len().await);
 
-        if let Some(failed_ibc_relays) = self.state.ephemeral_get_ibc_failures() {
-            self.metrics.record_ibc_relay_failures(failed_ibc_relays);
+        if let Some(relay_failure_count) = self.state.ephemeral_get_ibc_failure_count() {
+            self.metrics.record_ibc_relay_failures(relay_failure_count);
         }
 
         let included_txs = executed_txs
@@ -812,8 +812,8 @@ impl App {
                 break;
             }
         }
-        if let Some(failed_ibc_relays) = self.state.ephemeral_get_ibc_failures() {
-            self.metrics.record_ibc_relay_failures(failed_ibc_relays);
+        if let Some(relay_failure_count) = self.state.ephemeral_get_ibc_failure_count() {
+            self.metrics.record_ibc_relay_failures(relay_failure_count);
         }
         Ok(proposal_info.executed_txs())
     }
@@ -1321,8 +1321,8 @@ impl App {
                 }
             }
 
-            if let Some(failed_ibc_relays) = self.state.ephemeral_get_ibc_failures() {
-                self.metrics.record_ibc_relay_failures(failed_ibc_relays);
+            if let Some(relay_failure_count) = self.state.ephemeral_get_ibc_failure_count() {
+                self.metrics.record_ibc_relay_failures(relay_failure_count);
             }
 
             self.post_execute_transactions(

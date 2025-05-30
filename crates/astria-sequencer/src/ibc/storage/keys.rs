@@ -14,7 +14,7 @@ use crate::{
 pub(in crate::ibc) const IBC_SUDO: &str = "ibc/sudo";
 pub(in crate::ibc) const CONTEXT_EPHEMERAL: &str = "ibc/context";
 const IBC_RELAYER_PREFIX: &str = "ibc/relayer/";
-pub(in crate::ibc) const FAILURES_EPHEMERAL: &str = "ibc/failures";
+pub(in crate::ibc) const FAILURE_COUNT_EPHEMERAL: &str = "ibc/failure_count";
 
 /// Example: `ibc/channel-xxx/balance/ibc/0101....0101`.
 ///                      |int|           |64 hex chars|

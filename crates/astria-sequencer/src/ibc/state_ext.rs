@@ -94,8 +94,8 @@ pub(crate) trait StateReadExt: StateRead {
         self.object_get(keys::CONTEXT_EPHEMERAL)
     }
 
-    fn ephemeral_get_ibc_failures(&mut self) -> Option<usize> {
-        self.object_get(keys::FAILURES_EPHEMERAL)
+    fn ephemeral_get_ibc_failure_count(&mut self) -> Option<usize> {
+        self.object_get(keys::FAILURE_COUNT_EPHEMERAL)
     }
 }
 
@@ -178,8 +178,8 @@ pub(crate) trait StateWriteExt: StateWrite {
         );
     }
 
-    fn ephemeral_put_ibc_failures(&mut self, failures: usize) {
-        self.object_put(keys::FAILURES_EPHEMERAL, failures);
+    fn ephemeral_put_ibc_failure_count(&mut self, failures: usize) {
+        self.object_put(keys::FAILURE_COUNT_EPHEMERAL, failures);
     }
 }
 
