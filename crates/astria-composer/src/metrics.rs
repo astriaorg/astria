@@ -11,6 +11,7 @@ use telemetry::{
         Error,
         Gauge,
         Histogram,
+        Recorder,
         RegisteringBuilder,
     },
 };
@@ -108,7 +109,10 @@ impl Metrics {
 impl telemetry::Metrics for Metrics {
     type Config = crate::Config;
 
-    fn register(builder: &mut RegisteringBuilder, config: &Self::Config) -> Result<Self, Error>
+    fn register<R: Recorder>(
+        builder: &mut RegisteringBuilder<R>,
+        config: &Self::Config,
+    ) -> Result<Self, Error>
     where
         Self: Sized,
     {
@@ -192,8 +196,8 @@ impl telemetry::Metrics for Metrics {
     }
 }
 
-fn register_txs_received<'a>(
-    builder: &mut RegisteringBuilder,
+fn register_txs_received<'a, R: Recorder>(
+    builder: &mut RegisteringBuilder<R>,
     rollup_chain_names: impl Iterator<Item = &'a String>,
 ) -> Result<(GethCounters, GrpcCounters), Error> {
     let mut factory = builder.new_counter_factory(
@@ -225,8 +229,8 @@ fn register_txs_received<'a>(
     Ok((geth_counters, grpc_counters))
 }
 
-fn register_txs_dropped<'a>(
-    builder: &mut RegisteringBuilder,
+fn register_txs_dropped<'a, R: Recorder>(
+    builder: &mut RegisteringBuilder<R>,
     rollup_chain_names: impl Iterator<Item = &'a String>,
 ) -> Result<(GethCounters, GrpcCounters), Error> {
     let mut factory = builder.new_counter_factory(
@@ -258,8 +262,8 @@ fn register_txs_dropped<'a>(
     Ok((geth_counters, grpc_counters))
 }
 
-fn register_txs_dropped_too_large<'a>(
-    builder: &mut RegisteringBuilder,
+fn register_txs_dropped_too_large<'a, R: Recorder>(
+    builder: &mut RegisteringBuilder<R>,
     rollup_chain_names: impl Iterator<Item = &'a String>,
 ) -> Result<HashMap<RollupId, Counter>, Error> {
     let mut factory = builder.new_counter_factory(

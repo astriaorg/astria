@@ -7,6 +7,7 @@ use telemetry::{
         Counter,
         Gauge,
         Histogram,
+        Recorder,
         RegisteringBuilder,
     },
 };
@@ -59,8 +60,8 @@ impl Metrics {
 impl metrics::Metrics for Metrics {
     type Config = ();
 
-    fn register(
-        builder: &mut RegisteringBuilder,
+    fn register<R: Recorder>(
+        builder: &mut RegisteringBuilder<R>,
         _config: &Self::Config,
     ) -> Result<Self, metrics::Error> {
         let current_nonce = builder

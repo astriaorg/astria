@@ -8,12 +8,10 @@ use std::{
     net::SocketAddr,
 };
 
-use metrics::Recorder as _;
 use metrics_exporter_prometheus::{
     ExporterFuture,
     Matcher,
     PrometheusBuilder,
-    PrometheusRecorder,
 };
 
 #[cfg(doc)]
@@ -115,6 +113,16 @@ impl ConfigBuilder {
                 .map_err(|error| Error::StartListening(error.into()))?
         } else {
             let recorder = bucket_builder.builder.build_recorder();
+
+            let recorder_handle = recorder.handle();
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+                loop {
+                    interval.tick().await;
+                    recorder_handle.run_upkeep();
+                }
+            });
+
             let fut: ExporterFuture = Box::pin(async move { Ok(()) });
             (recorder, fut)
         };
@@ -194,14 +202,14 @@ impl BucketBuilder {
 /// A builder used to register individual metrics.
 ///
 /// It is constructed in [`ConfigBuilder::build`] and passed to [`Metrics::register`].
-pub struct RegisteringBuilder {
-    recorder: PrometheusRecorder,
+pub struct RegisteringBuilder<R> {
+    recorder: R,
     counters: HashSet<String>,
     gauges: HashSet<String>,
     histograms: HashSet<String>,
 }
 
-impl RegisteringBuilder {
+impl<R: metrics::Recorder> RegisteringBuilder<R> {
     /// Returns a new `CounterFactory` for registering [`Counter`]s under the given name.
     ///
     /// # Errors
@@ -211,10 +219,10 @@ impl RegisteringBuilder {
         &mut self,
         name: &'static str,
         description: &'static str,
-    ) -> Result<CounterFactory, Error> {
+    ) -> Result<CounterFactory<R>, Error> {
         if !self.counters.insert(name.to_string()) {
             return Err(Error::MetricAlreadyRegistered {
-                metric_type: CounterFactory::metric_type(),
+                metric_type: CounterFactory::<R>::metric_type(),
                 metric_name: name,
             });
         }
@@ -233,10 +241,10 @@ impl RegisteringBuilder {
         &mut self,
         name: &'static str,
         description: &'static str,
-    ) -> Result<GaugeFactory, Error> {
+    ) -> Result<GaugeFactory<R>, Error> {
         if !self.gauges.insert(name.to_string()) {
             return Err(Error::MetricAlreadyRegistered {
-                metric_type: GaugeFactory::metric_type(),
+                metric_type: GaugeFactory::<R>::metric_type(),
                 metric_name: name,
             });
         }
@@ -255,10 +263,10 @@ impl RegisteringBuilder {
         &mut self,
         name: &'static str,
         description: &'static str,
-    ) -> Result<HistogramFactory, Error> {
+    ) -> Result<HistogramFactory<R>, Error> {
         if !self.histograms.insert(name.to_string()) {
             return Err(Error::MetricAlreadyRegistered {
-                metric_type: HistogramFactory::metric_type(),
+                metric_type: HistogramFactory::<R>::metric_type(),
                 metric_name: name,
             });
         }
@@ -268,7 +276,7 @@ impl RegisteringBuilder {
         Ok(HistogramFactory::new(name, &self.recorder))
     }
 
-    pub(super) fn new(recorder: PrometheusRecorder) -> Self {
+    pub(super) fn new(recorder: R) -> Self {
         RegisteringBuilder {
             recorder,
             counters: HashSet::new(),

@@ -9,11 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Initial release.
+
 ### Changed
 
 - Emit events on span construction or deletion in human readable logs
   [#1947](https://github.com/astriaorg/astria/pull/1947).
 
-### Added
+### Fixed
 
-- Initial release.
+- Fix memory leak in metrics [2221](https://github.com/astriaorg/astria/pull/2221).

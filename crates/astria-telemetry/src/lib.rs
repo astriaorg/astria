@@ -5,8 +5,8 @@
 //! # struct Metrics;
 //! # impl astria_telemetry::metrics::Metrics for Metrics {
 //! #     type Config = ();
-//! #     fn register(
-//! #         _: &mut astria_telemetry::metrics::RegisteringBuilder,
+//! #     fn register<R: astria_telemetry::metrics::Recorder>(
+//! #         _: &mut astria_telemetry::metrics::RegisteringBuilder<R>,
 //! #         _: &Self::Config
 //! #     ) -> Result<Self, astria_telemetry::metrics::Error> { Ok(Self) }
 //! # }
