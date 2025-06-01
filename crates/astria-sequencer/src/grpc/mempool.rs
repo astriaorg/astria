@@ -97,7 +97,7 @@ impl TransactionService for Server {
         let submission_outcome: SubmissionOutcome = check_tx(
             tx_bytes,
             self.storage.latest_snapshot(),
-            &self.mempool,
+            self.mempool.clone(),
             self.metrics,
         )
         .await

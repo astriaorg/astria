@@ -4,6 +4,7 @@ use std::{
         hash_map,
         BTreeMap,
         HashMap,
+        HashSet,
     },
     fmt,
     mem,
@@ -192,7 +193,7 @@ impl fmt::Display for InsertionError {
             InsertionError::NonceGap => write!(f, "gap in the pending nonce sequence"),
             InsertionError::AccountSizeLimit => write!(
                 f,
-                "maximum number of pending transactions has been reached for the given account"
+                "maximum number of parked transactions has been reached for the given account"
             ),
             InsertionError::AccountBalanceTooLow => {
                 write!(f, "account does not have enough balance to cover costs")
@@ -228,6 +229,7 @@ impl From<InsertionError> for tonic::Status {
 #[derive(Clone, Default, Debug)]
 pub(super) struct PendingTransactionsForAccount {
     txs: BTreeMap<u32, TimemarkedTransaction>,
+    tx_ids: HashSet<TransactionId>,
 }
 
 impl PendingTransactionsForAccount {
@@ -301,6 +303,18 @@ impl TransactionsForAccount for PendingTransactionsForAccount {
         &mut self.txs
     }
 
+    fn tx_ids(&self) -> &HashSet<TransactionId> {
+        &self.tx_ids
+    }
+
+    fn take_tx_ids(self) -> HashSet<TransactionId> {
+        self.tx_ids
+    }
+
+    fn tx_ids_mut(&mut self) -> &mut HashSet<TransactionId> {
+        &mut self.tx_ids
+    }
+
     fn is_at_tx_limit(&self) -> bool {
         false
     }
@@ -340,6 +354,7 @@ impl TransactionsForAccount for PendingTransactionsForAccount {
 #[derive(Clone, Default, Debug)]
 pub(super) struct ParkedTransactionsForAccount<const MAX_TX_COUNT: usize> {
     txs: BTreeMap<u32, TimemarkedTransaction>,
+    tx_ids: HashSet<TransactionId>,
 }
 
 impl<const MAX_TX_COUNT: usize> ParkedTransactionsForAccount<MAX_TX_COUNT> {
@@ -389,6 +404,18 @@ impl<const MAX_TX_COUNT: usize> TransactionsForAccount
         &mut self.txs
     }
 
+    fn tx_ids(&self) -> &HashSet<TransactionId> {
+        &self.tx_ids
+    }
+
+    fn take_tx_ids(self) -> HashSet<TransactionId> {
+        self.tx_ids
+    }
+
+    fn tx_ids_mut(&mut self) -> &mut HashSet<TransactionId> {
+        &mut self.tx_ids
+    }
+
     fn is_at_tx_limit(&self) -> bool {
         self.txs.len() >= MAX_TX_COUNT
     }
@@ -419,6 +446,12 @@ pub(super) trait TransactionsForAccount: Default {
     fn txs(&self) -> &BTreeMap<u32, TimemarkedTransaction>;
 
     fn txs_mut(&mut self) -> &mut BTreeMap<u32, TimemarkedTransaction>;
+
+    fn tx_ids(&self) -> &HashSet<TransactionId>;
+
+    fn take_tx_ids(self) -> HashSet<TransactionId>;
+
+    fn tx_ids_mut(&mut self) -> &mut HashSet<TransactionId>;
 
     fn is_at_tx_limit(&self) -> bool;
 
@@ -479,6 +512,7 @@ pub(super) trait TransactionsForAccount: Default {
             return Err(InsertionError::AccountBalanceTooLow);
         }
 
+        self.tx_ids_mut().insert(*ttx.id());
         self.txs_mut().insert(ttx.nonce(), ttx);
 
         Ok(())
@@ -496,15 +530,20 @@ pub(super) trait TransactionsForAccount: Default {
             return Vec::new();
         }
 
-        self.txs_mut()
+        let tx_ids = self
+            .txs_mut()
             .split_off(&nonce)
             .values()
             .map(|ttx| *ttx.id())
-            .collect()
+            .collect();
+        for tx_id in &tx_ids {
+            self.tx_ids_mut().remove(tx_id);
+        }
+        tx_ids
     }
 
     fn contains_tx(&self, tx_id: &TransactionId) -> bool {
-        self.txs().values().any(|ttx| ttx.id() == tx_id)
+        self.tx_ids().contains(tx_id)
     }
 }
 
@@ -673,10 +712,10 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
 
     /// Removes all of the transactions for the given account and returns the IDs of the removed
     /// transactions.
-    fn clear_account(&mut self, address_bytes: &[u8; ADDRESS_LENGTH]) -> Vec<TransactionId> {
+    fn clear_account(&mut self, address_bytes: &[u8; ADDRESS_LENGTH]) -> HashSet<TransactionId> {
         self.txs_mut()
             .remove(address_bytes)
-            .map(|account_txs| account_txs.txs().values().map(|ttx| *ttx.id()).collect())
+            .map(T::take_tx_ids)
             .unwrap_or_default()
     }
 
@@ -746,10 +785,10 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
             .sum()
     }
 
-    fn contains_tx(&self, tx_id: &TransactionId) -> bool {
+    fn contains_tx(&self, tx_id: &TransactionId, address: &[u8; ADDRESS_LENGTH]) -> bool {
         self.txs()
-            .values()
-            .any(|account_txs| account_txs.contains_tx(tx_id))
+            .get(address)
+            .is_some_and(|account_txs| account_txs.contains_tx(tx_id))
     }
 }
 
@@ -1720,11 +1759,11 @@ mod tests {
             "should only have two transactions tracked"
         );
         assert!(
-            pending_txs.contains_tx(ttx_s1_0.checked_tx.id()),
+            pending_txs.contains_tx(ttx_s1_0.checked_tx.id(), ttx_s1_0.address_bytes()),
             "other account should be untouched"
         );
         assert!(
-            pending_txs.contains_tx(ttx_s1_1.checked_tx.id()),
+            pending_txs.contains_tx(ttx_s1_1.checked_tx.id(), ttx_s1_1.address_bytes()),
             "other account should be untouched"
         );
     }
@@ -1764,7 +1803,9 @@ mod tests {
         // clear should return all transactions
         assert_eq!(
             pending_txs.clear_account(&ALICE_ADDRESS_BYTES),
-            vec![*ttx_s0_0.checked_tx.id(), *ttx_s0_1.checked_tx.id()],
+            [*ttx_s0_0.checked_tx.id(), *ttx_s0_1.checked_tx.id()]
+                .into_iter()
+                .collect(),
             "all transactions should be returned from clearing account"
         );
 
@@ -1775,7 +1816,7 @@ mod tests {
             "should only have one transaction tracked"
         );
         assert!(
-            pending_txs.contains_tx(ttx_s1_0.checked_tx.id()),
+            pending_txs.contains_tx(ttx_s1_0.checked_tx.id(), ttx_s1_0.address_bytes()),
             "other account should be untouched"
         );
     }
@@ -1953,11 +1994,11 @@ mod tests {
             5,
             "5 transactions should be remaining from original 9"
         );
-        assert!(pending_txs.contains_tx(ttx_s0_0.checked_tx.id()));
-        assert!(pending_txs.contains_tx(ttx_s0_1.checked_tx.id()));
-        assert!(pending_txs.contains_tx(ttx_s0_2.checked_tx.id()));
-        assert!(pending_txs.contains_tx(ttx_s1_1.checked_tx.id()));
-        assert!(pending_txs.contains_tx(ttx_s1_2.checked_tx.id()));
+        assert!(pending_txs.contains_tx(ttx_s0_0.checked_tx.id(), ttx_s0_0.address_bytes()));
+        assert!(pending_txs.contains_tx(ttx_s0_1.checked_tx.id(), ttx_s0_1.address_bytes()));
+        assert!(pending_txs.contains_tx(ttx_s0_2.checked_tx.id(), ttx_s0_2.address_bytes()));
+        assert!(pending_txs.contains_tx(ttx_s1_1.checked_tx.id(), ttx_s1_1.address_bytes()));
+        assert!(pending_txs.contains_tx(ttx_s1_2.checked_tx.id(), ttx_s1_2.address_bytes()));
 
         assert_eq!(
             pending_txs
@@ -2052,7 +2093,7 @@ mod tests {
             "1 transaction should be remaining from original 3"
         );
         assert!(
-            pending_txs.contains_tx(ttx_s1_0.checked_tx.id()),
+            pending_txs.contains_tx(ttx_s1_0.checked_tx.id(), ttx_s1_0.address_bytes()),
             "not expired account should be untouched"
         );
 
