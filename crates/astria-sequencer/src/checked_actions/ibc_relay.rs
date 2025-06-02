@@ -17,6 +17,7 @@ use astria_eyre::{
     },
 };
 use cnidarium::{
+    StateDelta,
     StateRead,
     StateWrite,
 };
@@ -88,9 +89,15 @@ impl CheckedIbcRelay {
     #[instrument(skip_all, err(level = Level::DEBUG))]
     pub(super) async fn execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
         self.run_mutable_checks(&state).await?;
+
+        // Need to create new StateDelta here such that if execution fails, the state changes aren't
+        // made. This is normally handled by propagated the error, but because we allow
+        // failing IbcRelay actions to still be included, we need to handle this case
+        // explicitly.
+        let mut state_delta = StateDelta::new(&mut state);
         if let Err(e) = self
             .action_with_handlers
-            .check_and_execute(&mut state)
+            .check_and_execute(&mut state_delta)
             .await
         {
             let failure_count = state
@@ -99,6 +106,9 @@ impl CheckedIbcRelay {
                 .saturating_add(1);
             state.ephemeral_put_ibc_failure_count(failure_count);
             debug!(err = %e, "failed to execute IBC Relay action, still including in block");
+        } else {
+            let (_, events) = state_delta.apply();
+            events.into_iter().for_each(|event| state.record(event));
         }
         Ok(())
     }
