@@ -91,7 +91,7 @@ impl CheckedIbcRelay {
         self.run_mutable_checks(&state).await?;
 
         // Need to create new StateDelta here such that if execution fails, the state changes aren't
-        // made. This is normally handled by propagated the error, but because we allow
+        // made. This is normally handled by propagating the error, but because we allow
         // failing IbcRelay actions to still be included, we need to handle this case
         // explicitly.
         let mut state_delta = StateDelta::new(&mut state);
