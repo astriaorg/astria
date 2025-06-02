@@ -87,19 +87,20 @@ impl CheckedIbcRelay {
     }
 
     #[instrument(skip_all, err(level = Level::DEBUG))]
-    pub(super) async fn execute<S: StateWrite>(&self, mut state: S) -> Result<()> {
+    pub(super) async fn execute<S: StateWrite>(&self, state: S) -> Result<()> {
         self.run_mutable_checks(&state).await?;
 
         // Need to create new StateDelta here such that if execution fails, the state changes aren't
         // made. This is normally handled by propagating the error, but because we allow
         // failing IbcRelay actions to still be included, we need to handle this case
         // explicitly.
-        let mut state_delta = StateDelta::new(&mut state);
+        let mut ibc_delta = StateDelta::new(state);
         if let Err(e) = self
             .action_with_handlers
-            .check_and_execute(&mut state_delta)
+            .check_and_execute(&mut ibc_delta)
             .await
         {
+            let (mut state, _) = ibc_delta.flatten(); // Release state back to us
             let failure_count = state
                 .ephemeral_get_ibc_failure_count()
                 .unwrap_or_default()
@@ -107,7 +108,7 @@ impl CheckedIbcRelay {
             state.ephemeral_put_ibc_failure_count(failure_count);
             debug!(err = %e, "failed to execute IBC Relay action, still including in block");
         } else {
-            let (_, events) = state_delta.apply();
+            let (mut state, events) = ibc_delta.apply();
             events.into_iter().for_each(|event| state.record(event));
         }
         Ok(())
