@@ -3,7 +3,6 @@ use telemetry::{
     metrics::{
         Counter,
         Histogram,
-        Recorder,
         RegisteringBuilder,
     },
 };
@@ -78,8 +77,8 @@ impl Metrics {
 impl telemetry::Metrics for Metrics {
     type Config = ();
 
-    fn register<R: Recorder>(
-        builder: &mut RegisteringBuilder<R>,
+    fn register(
+        builder: &mut RegisteringBuilder,
         _config: &Self::Config,
     ) -> Result<Self, telemetry::metrics::Error> {
         let metadata = "metadata".to_string();

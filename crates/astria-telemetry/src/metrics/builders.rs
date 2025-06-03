@@ -6,6 +6,7 @@ use std::{
     },
     mem,
     net::SocketAddr,
+    sync::Arc,
 };
 
 use metrics_exporter_prometheus::{
@@ -13,6 +14,7 @@ use metrics_exporter_prometheus::{
     Matcher,
     PrometheusBuilder,
 };
+use tokio::time::MissedTickBehavior;
 
 #[cfg(doc)]
 use super::{
@@ -81,6 +83,9 @@ impl ConfigBuilder {
     /// respectively, starts the http server if enabled, sets the global metrics recorder if
     /// requested and returns a new metrics object of type `T` along with a handle for rendering
     /// current metrics.
+    ///
+    /// This spawns an upkeep task on the tokio runtime which runs until process exit, so this
+    /// method must be called from inside a tokio runtime environment.
     #[expect(
         clippy::missing_errors_doc,
         reason = "no useful error info can be added without writing excessive details"
@@ -117,6 +122,8 @@ impl ConfigBuilder {
             let recorder_handle = recorder.handle();
             tokio::spawn(async move {
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+                interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+
                 loop {
                     interval.tick().await;
                     recorder_handle.run_upkeep();
@@ -129,7 +136,7 @@ impl ConfigBuilder {
         let handle = Handle::new(recorder.handle());
 
         // Register individual metrics.
-        let mut registering_builder = RegisteringBuilder::new(recorder);
+        let mut registering_builder = RegisteringBuilder::new(Arc::new(recorder));
         let metrics = T::register(&mut registering_builder, config)?;
 
         // Ensure no histogram buckets were left unassigned.
@@ -202,14 +209,14 @@ impl BucketBuilder {
 /// A builder used to register individual metrics.
 ///
 /// It is constructed in [`ConfigBuilder::build`] and passed to [`Metrics::register`].
-pub struct RegisteringBuilder<R> {
-    recorder: R,
+pub struct RegisteringBuilder {
+    recorder: Arc<dyn metrics::Recorder + Send + Sync + 'static>,
     counters: HashSet<String>,
     gauges: HashSet<String>,
     histograms: HashSet<String>,
 }
 
-impl<R: metrics::Recorder> RegisteringBuilder<R> {
+impl RegisteringBuilder {
     /// Returns a new `CounterFactory` for registering [`Counter`]s under the given name.
     ///
     /// # Errors
@@ -219,17 +226,17 @@ impl<R: metrics::Recorder> RegisteringBuilder<R> {
         &mut self,
         name: &'static str,
         description: &'static str,
-    ) -> Result<CounterFactory<R>, Error> {
+    ) -> Result<CounterFactory, Error> {
         if !self.counters.insert(name.to_string()) {
             return Err(Error::MetricAlreadyRegistered {
-                metric_type: CounterFactory::<R>::metric_type(),
+                metric_type: CounterFactory::metric_type(),
                 metric_name: name,
             });
         }
 
         self.recorder
             .describe_counter(name.into(), None, description.into());
-        Ok(CounterFactory::new(name, &self.recorder))
+        Ok(CounterFactory::new(name, self.recorder.clone()))
     }
 
     /// Returns a new `GaugeFactory` for registering [`Gauge`]s under the given name.
@@ -241,17 +248,17 @@ impl<R: metrics::Recorder> RegisteringBuilder<R> {
         &mut self,
         name: &'static str,
         description: &'static str,
-    ) -> Result<GaugeFactory<R>, Error> {
+    ) -> Result<GaugeFactory, Error> {
         if !self.gauges.insert(name.to_string()) {
             return Err(Error::MetricAlreadyRegistered {
-                metric_type: GaugeFactory::<R>::metric_type(),
+                metric_type: GaugeFactory::metric_type(),
                 metric_name: name,
             });
         }
 
         self.recorder
             .describe_gauge(name.into(), None, description.into());
-        Ok(GaugeFactory::new(name, &self.recorder))
+        Ok(GaugeFactory::new(name, self.recorder.clone()))
     }
 
     /// Returns a new `HistogramFactory` for registering [`Histogram`]s under the given name.
@@ -263,20 +270,20 @@ impl<R: metrics::Recorder> RegisteringBuilder<R> {
         &mut self,
         name: &'static str,
         description: &'static str,
-    ) -> Result<HistogramFactory<R>, Error> {
+    ) -> Result<HistogramFactory, Error> {
         if !self.histograms.insert(name.to_string()) {
             return Err(Error::MetricAlreadyRegistered {
-                metric_type: HistogramFactory::<R>::metric_type(),
+                metric_type: HistogramFactory::metric_type(),
                 metric_name: name,
             });
         }
 
         self.recorder
             .describe_histogram(name.into(), None, description.into());
-        Ok(HistogramFactory::new(name, &self.recorder))
+        Ok(HistogramFactory::new(name, self.recorder.clone()))
     }
 
-    pub(super) fn new(recorder: R) -> Self {
+    pub(super) fn new(recorder: Arc<dyn metrics::Recorder + Send + Sync + 'static>) -> Self {
         RegisteringBuilder {
             recorder,
             counters: HashSet::new(),

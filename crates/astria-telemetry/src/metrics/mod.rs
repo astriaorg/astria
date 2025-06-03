@@ -8,7 +8,7 @@ mod histogram;
 mod into_f64;
 mod noop_recorder;
 
-pub use metrics::Recorder;
+use std::sync::Arc;
 
 pub use self::{
     builders::{
@@ -49,10 +49,7 @@ pub trait Metrics {
     /// # Errors
     ///
     /// Implementations should return an error if registering metrics fails.
-    fn register<R: Recorder>(
-        builder: &mut RegisteringBuilder<R>,
-        config: &Self::Config,
-    ) -> Result<Self, Error>
+    fn register(builder: &mut RegisteringBuilder, config: &Self::Config) -> Result<Self, Error>
     where
         Self: Sized;
 
@@ -66,7 +63,7 @@ pub trait Metrics {
     where
         Self: Sized,
     {
-        let mut builder = RegisteringBuilder::new(noop_recorder::NoopRecorder);
+        let mut builder = RegisteringBuilder::new(Arc::new(noop_recorder::NoopRecorder));
         Self::register(&mut builder, config)
     }
 }

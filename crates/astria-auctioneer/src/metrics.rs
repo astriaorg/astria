@@ -5,7 +5,6 @@ use astria_telemetry::{
         Counter,
         Histogram,
         IntoF64,
-        Recorder,
         RegisteringBuilder,
     },
 };
@@ -86,8 +85,8 @@ impl Metrics {
 impl astria_telemetry::metrics::Metrics for Metrics {
     type Config = ();
 
-    fn register<R: Recorder>(
-        builder: &mut RegisteringBuilder<R>,
+    fn register(
+        builder: &mut RegisteringBuilder,
         _config: &Self::Config,
     ) -> Result<Self, metrics::Error> {
         let block_commitments_received_count = builder

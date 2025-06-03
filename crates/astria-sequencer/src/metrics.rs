@@ -6,7 +6,6 @@ use telemetry::{
         Counter,
         Gauge,
         Histogram,
-        Recorder,
         RegisteringBuilder,
     },
 };
@@ -182,8 +181,8 @@ impl telemetry::Metrics for Metrics {
         reason = "this is reasonable as we have a lot of metrics to register; the function is not \
                   complex, just long"
     )]
-    fn register<R: Recorder>(
-        builder: &mut RegisteringBuilder<R>,
+    fn register(
+        builder: &mut RegisteringBuilder,
         _config: &Self::Config,
     ) -> Result<Self, telemetry::metrics::Error> {
         let prepare_proposal_excluded_transactions_cometbft_space = builder
