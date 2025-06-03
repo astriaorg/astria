@@ -17,6 +17,7 @@ data:
   bridge_rpc_port: "{{ .Values.ports.bridgeRPC }}"
   celestia_app_host_port: "{{ .Values.ports.celestiaAppHostPort }}"
   celestia_app_grpc_port: "{{ .Values.ports.celestiaAppGrpcPort }}"
+  celestia_app_broadcast_grpc_port: "{{ .Values.ports.celestiaAppBroadcastTxGrpcPort }}"
   ibc_account_mnemonic: "{{ .Values.ibcAccountMnemonic }}"
   ibc_account_key_name: "{{ .Values.ibcAccountKeyName }}"
   dev_account_mnemonic: "{{ .Values.devAccountMnemonic }}"
