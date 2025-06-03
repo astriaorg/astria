@@ -41,6 +41,7 @@ pub struct Metrics {
     extend_vote_duration_seconds: Histogram,
     extend_vote_failure_count: Counter,
     verify_vote_extension_failure_count: Counter,
+    results_in_recently_executed_cache: Gauge,
 }
 
 impl Metrics {
@@ -165,6 +166,10 @@ impl Metrics {
 
     pub(crate) fn increment_verify_vote_extension_failure_count(&self) {
         self.verify_vote_extension_failure_count.increment(1);
+    }
+
+    pub(crate) fn set_results_in_recently_executed_cache(&self, count: usize) {
+        self.results_in_recently_executed_cache.set(count);
     }
 }
 
@@ -372,6 +377,13 @@ impl telemetry::Metrics for Metrics {
             )?
             .register()?;
 
+        let results_in_recently_executed_cache = builder
+            .new_gauge_factory(
+                RESULTS_IN_RECENTLY_EXECUTED_CACHE,
+                "The number of results in the recently executed results cache",
+            )?
+            .register()?;
+
         Ok(Self {
             prepare_proposal_excluded_transactions_cometbft_space,
             prepare_proposal_excluded_transactions_sequencer_space,
@@ -401,6 +413,7 @@ impl telemetry::Metrics for Metrics {
             extend_vote_duration_seconds,
             extend_vote_failure_count,
             verify_vote_extension_failure_count,
+            results_in_recently_executed_cache,
         })
     }
 }
@@ -432,6 +445,7 @@ metric_names!(const METRICS_NAMES:
     EXTEND_VOTE_DURATION_SECONDS,
     EXTEND_VOTE_FAILURE_COUNT,
     VERIFY_VOTE_EXTENSION_FAILURE_COUNT,
+    RESULTS_IN_RECENTLY_EXECUTED_CACHE,
 );
 
 #[cfg(test)]
@@ -505,6 +519,10 @@ mod tests {
         assert_const(
             VERIFY_VOTE_EXTENSION_FAILURE_COUNT,
             "verify_vote_extension_failure_count",
+        );
+        assert_const(
+            RESULTS_IN_RECENTLY_EXECUTED_CACHE,
+            "results_in_recently_executed_cache",
         );
     }
 }

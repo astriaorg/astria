@@ -15,6 +15,7 @@ compile_error!(
 )]
 pub mod generated;
 pub mod execution;
+pub mod mempool;
 pub mod oracles;
 pub mod primitive;
 pub mod protocol;

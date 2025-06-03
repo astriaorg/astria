@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package astria.mempool.v1;
 
+import "tendermint/abci/types.proto";
+
 // `TransactionStatus` is a resource which represents the status of a transaction
 // in the Astria Sequencer's mempool.
 message TransactionStatus {
@@ -41,5 +43,8 @@ message TransactionStatus {
   message Executed {
     // The height of the block in which the transaction was included.
     uint64 height = 1;
+
+    // The transaction result.
+    tendermint.abci.ExecTxResult result = 2;
   }
 }

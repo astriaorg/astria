@@ -5,7 +5,7 @@
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Event {
     #[prost(string, tag = "1")]
-    pub r#type: ::prost::alloc::string::String,
+    pub kind: ::prost::alloc::string::String,
     #[prost(message, repeated, tag = "2")]
     pub attributes: ::prost::alloc::vec::Vec<EventAttribute>,
 }
@@ -22,10 +22,10 @@ impl ::prost::Name for Event {
 /// EventAttribute is a single key-value pair, associated with an event.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct EventAttribute {
-    #[prost(bytes = "bytes", tag = "1")]
-    pub key: ::prost::bytes::Bytes,
-    #[prost(bytes = "bytes", tag = "2")]
-    pub value: ::prost::bytes::Bytes,
+    #[prost(string, tag = "1")]
+    pub key: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub value: ::prost::alloc::string::String,
     /// nondeterministic
     #[prost(bool, tag = "3")]
     pub index: bool,
@@ -38,5 +38,35 @@ impl ::prost::Name for EventAttribute {
     }
     fn type_url() -> ::prost::alloc::string::String {
         "/tendermint.abci.EventAttribute".into()
+    }
+}
+/// The result of transaction execution.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ExecTxResult {
+    #[prost(uint32, tag = "1")]
+    pub code: u32,
+    #[prost(bytes = "bytes", tag = "2")]
+    pub data: ::prost::bytes::Bytes,
+    #[prost(string, tag = "3")]
+    pub log: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub info: ::prost::alloc::string::String,
+    #[prost(int64, tag = "5")]
+    pub gas_wanted: i64,
+    #[prost(int64, tag = "6")]
+    pub gas_used: i64,
+    #[prost(message, repeated, tag = "7")]
+    pub events: ::prost::alloc::vec::Vec<Event>,
+    #[prost(string, tag = "8")]
+    pub codespace: ::prost::alloc::string::String,
+}
+impl ::prost::Name for ExecTxResult {
+    const NAME: &'static str = "ExecTxResult";
+    const PACKAGE: &'static str = "tendermint.abci";
+    fn full_name() -> ::prost::alloc::string::String {
+        "tendermint.abci.ExecTxResult".into()
+    }
+    fn type_url() -> ::prost::alloc::string::String {
+        "/tendermint.abci.ExecTxResult".into()
     }
 }
