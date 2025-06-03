@@ -74,8 +74,8 @@ impl Recover {
         // TODO: don't print private keys to CLI, prefer writing to file:
         // https://github.com/astriaorg/astria/issues/594
         println!(
-            "Recover Sequencer Account\n\nPrivate Key: {pretty_signing_key}\nPublic Key:  \
-             {pretty_verifying_key}\nAddress:     {pretty_address}"
+            "Recover Sequencer Account\n\nPrivate Key: {pretty_signing_key}\nPublic Key: \
+             {pretty_verifying_key}\nAddress: {pretty_address}"
         );
 
         Ok(())
@@ -113,9 +113,8 @@ impl Create {
         // TODO: don't print private keys to CLI, prefer writing to file:
         // https://github.com/astriaorg/astria/issues/594
         println!(
-            "Create Sequencer Account\n\nMnemonic:    {bip39_mnemonic}\nPrivate Key: \
-             {pretty_signing_key}\nPublic Key:  {pretty_verifying_key}\nAddress:     \
-             {pretty_address}"
+            "Create Sequencer Account\n\nMnemonic: {bip39_mnemonic}\nPrivate Key: \
+             {pretty_signing_key}\nPublic Key: {pretty_verifying_key}\nAddress: {pretty_address}"
         );
 
         Ok(())

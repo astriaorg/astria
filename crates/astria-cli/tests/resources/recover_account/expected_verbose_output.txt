@@ -1,5 +1,5 @@
 Recover Sequencer Account
 
 Private Key: c1c96123520f28dd35ad27e01512e43d0dd43e11801a5149a90c751555e35bf7
-Public Key:  1da2f31d670490e1d36a4199ced72d8829e3558a511b4d84a9c0ee112df9f575
-Address:     astria1gu3vkte3m88k2c7r7mst878rfytaaxnr4myept
+Public Key: 1da2f31d670490e1d36a4199ced72d8829e3558a511b4d84a9c0ee112df9f575
+Address: astria1gu3vkte3m88k2c7r7mst878rfytaaxnr4myept

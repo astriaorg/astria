@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add mnemonic to `account create` subcommand [#2139](https://github.com/astriaorg/astria/pull/2139).
+- Add menomic ouput and `account recover` subcommand [#2139](https://github.com/astriaorg/astria/pull/2139).
 
 ## [0.6.0] - 2025-03-06
 

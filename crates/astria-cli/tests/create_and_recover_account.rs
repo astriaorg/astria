@@ -5,7 +5,7 @@ use std::{
 
 use assert_cmd::Command;
 use astria_eyre::{
-    eyre::WrapErr,
+    eyre::WrapErr as _,
     Result,
 };
 use predicates::prelude::predicate;
