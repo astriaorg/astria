@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Add cache of recent execution results to mempool [#2163](https://github.com/astriaorg/astria/pull/2163).
+- Add tx result to `Executed` transaction status [#2159](https://github.com/astriaorg/astria/pull/2159).
 - Allow inclusion of `IbcRelay` actions which fail execution [#2201](https://github.com/astriaorg/astria/pull/2201).
 
 ## [3.0.0] - 2025-05-21

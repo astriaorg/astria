@@ -666,11 +666,17 @@ impl serde::Serialize for transaction_status::Executed {
         if self.height != 0 {
             len += 1;
         }
+        if self.result.is_some() {
+            len += 1;
+        }
         let mut struct_ser = serializer.serialize_struct("astria.mempool.v1.TransactionStatus.Executed", len)?;
         if self.height != 0 {
             #[allow(clippy::needless_borrow)]
             #[allow(clippy::needless_borrows_for_generic_args)]
             struct_ser.serialize_field("height", ToString::to_string(&self.height).as_str())?;
+        }
+        if let Some(v) = self.result.as_ref() {
+            struct_ser.serialize_field("result", v)?;
         }
         struct_ser.end()
     }
@@ -683,11 +689,13 @@ impl<'de> serde::Deserialize<'de> for transaction_status::Executed {
     {
         const FIELDS: &[&str] = &[
             "height",
+            "result",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             Height,
+            Result,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -710,6 +718,7 @@ impl<'de> serde::Deserialize<'de> for transaction_status::Executed {
                     {
                         match value {
                             "height" => Ok(GeneratedField::Height),
+                            "result" => Ok(GeneratedField::Result),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -730,6 +739,7 @@ impl<'de> serde::Deserialize<'de> for transaction_status::Executed {
                     V: serde::de::MapAccess<'de>,
             {
                 let mut height__ = None;
+                let mut result__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::Height => {
@@ -740,10 +750,17 @@ impl<'de> serde::Deserialize<'de> for transaction_status::Executed {
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
+                        GeneratedField::Result => {
+                            if result__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("result"));
+                            }
+                            result__ = map_.next_value()?;
+                        }
                     }
                 }
                 Ok(transaction_status::Executed {
                     height: height__.unwrap_or_default(),
+                    result: result__,
                 })
             }
         }

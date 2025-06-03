@@ -48,6 +48,8 @@ pub struct Config {
     pub mempool_parked_max_tx_count: usize,
     /// Disables streaming optimistic blocks over grpc.
     pub no_optimistic_blocks: bool,
+    /// Defines the upper size limit of recent execution results to be stored in the mempool.
+    pub execution_results_cache_size: usize,
 }
 
 impl config::Config for Config {
