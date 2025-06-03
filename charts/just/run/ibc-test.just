@@ -166,7 +166,7 @@ evm_contract_address := "0xA58639fB5458e65E4fA917FF951C390292C24A15"
 [doc("
 Test IBC transfers between the Rollup and Celestia with a refund timeout.
 Usage:
-  just run ibc-test refund-timeout <TAG> (default: '')
+  just run ibc-test timeout-refund <TAG> (default: '')
 ")]
 timeout-refund tag=defaultTag:
   #!/usr/bin/env bash
@@ -384,7 +384,7 @@ Usage:
 get-celestia-height namespace=defaultNamespace home=defaultCelestiaHome:
   #!/usr/bin/env bash
   height=$(kubectl exec -n {{namespace}} pods/celestia-local-0 celestia-app -- /bin/bash -c \
-  'celestia-appd query block --home {{home}}' | tail -n +2 | jq '.header.height')
+  'celestia-appd query block --home {{home}} -o json' | tail -n +2 | jq '.header.height')
   # remove quotes
   height=${height//\"/}
   echo $height
