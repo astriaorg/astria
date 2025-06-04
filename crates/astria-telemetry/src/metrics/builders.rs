@@ -6,15 +6,15 @@ use std::{
     },
     mem,
     net::SocketAddr,
+    sync::Arc,
 };
 
-use metrics::Recorder as _;
 use metrics_exporter_prometheus::{
     ExporterFuture,
     Matcher,
     PrometheusBuilder,
-    PrometheusRecorder,
 };
+use tokio::time::MissedTickBehavior;
 
 #[cfg(doc)]
 use super::{
@@ -83,6 +83,9 @@ impl ConfigBuilder {
     /// respectively, starts the http server if enabled, sets the global metrics recorder if
     /// requested and returns a new metrics object of type `T` along with a handle for rendering
     /// current metrics.
+    ///
+    /// This spawns an upkeep task on the tokio runtime which runs until process exit, so this
+    /// method must be called from inside a tokio runtime environment.
     #[expect(
         clippy::missing_errors_doc,
         reason = "no useful error info can be added without writing excessive details"
@@ -115,13 +118,25 @@ impl ConfigBuilder {
                 .map_err(|error| Error::StartListening(error.into()))?
         } else {
             let recorder = bucket_builder.builder.build_recorder();
+
+            let recorder_handle = recorder.handle();
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+                interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+
+                loop {
+                    interval.tick().await;
+                    recorder_handle.run_upkeep();
+                }
+            });
+
             let fut: ExporterFuture = Box::pin(async move { Ok(()) });
             (recorder, fut)
         };
         let handle = Handle::new(recorder.handle());
 
         // Register individual metrics.
-        let mut registering_builder = RegisteringBuilder::new(recorder);
+        let mut registering_builder = RegisteringBuilder::new(Arc::new(recorder));
         let metrics = T::register(&mut registering_builder, config)?;
 
         // Ensure no histogram buckets were left unassigned.
@@ -195,7 +210,7 @@ impl BucketBuilder {
 ///
 /// It is constructed in [`ConfigBuilder::build`] and passed to [`Metrics::register`].
 pub struct RegisteringBuilder {
-    recorder: PrometheusRecorder,
+    recorder: Arc<dyn metrics::Recorder + Send + Sync + 'static>,
     counters: HashSet<String>,
     gauges: HashSet<String>,
     histograms: HashSet<String>,
@@ -221,7 +236,7 @@ impl RegisteringBuilder {
 
         self.recorder
             .describe_counter(name.into(), None, description.into());
-        Ok(CounterFactory::new(name, &self.recorder))
+        Ok(CounterFactory::new(name, self.recorder.clone()))
     }
 
     /// Returns a new `GaugeFactory` for registering [`Gauge`]s under the given name.
@@ -243,7 +258,7 @@ impl RegisteringBuilder {
 
         self.recorder
             .describe_gauge(name.into(), None, description.into());
-        Ok(GaugeFactory::new(name, &self.recorder))
+        Ok(GaugeFactory::new(name, self.recorder.clone()))
     }
 
     /// Returns a new `HistogramFactory` for registering [`Histogram`]s under the given name.
@@ -265,10 +280,10 @@ impl RegisteringBuilder {
 
         self.recorder
             .describe_histogram(name.into(), None, description.into());
-        Ok(HistogramFactory::new(name, &self.recorder))
+        Ok(HistogramFactory::new(name, self.recorder.clone()))
     }
 
-    pub(super) fn new(recorder: PrometheusRecorder) -> Self {
+    pub(super) fn new(recorder: Arc<dyn metrics::Recorder + Send + Sync + 'static>) -> Self {
         RegisteringBuilder {
             recorder,
             counters: HashSet::new(),
