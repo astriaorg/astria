@@ -60,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `TRANSACTION_FAILED_EXECUTION` [#2142](https://github.com/astriaorg/astria/pull/2142).
 - Change `CurrencyPairsChange` action to hold an `IndexSet` rather than a `Vec`
   of currency pairs [#2171](https://github.com/astriaorg/astria/pull/2171).
+- Bump Penumbra dependency to 1.51 [#2224](https://github.com/astriaorg/astria/pull/2224).
 
 ### Removed
 

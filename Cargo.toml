@@ -87,8 +87,8 @@ jsonrpsee = "0.24.8"
 pbjson-types = "0.7.0"
 
 # Note that when updating the penumbra versions, vendored types in `proto/sequencerapis/astria_vendored` may need to be updated as well.
-penumbra-ibc = { package = "penumbra-sdk-ibc", version = "1.4.0", default-features = false }
-penumbra-proto = { package = "penumbra-sdk-proto", version = "1.4.0" }
+penumbra-ibc = { package = "penumbra-sdk-ibc", version = "1.5.1", default-features = false }
+penumbra-proto = { package = "penumbra-sdk-proto", version = "1.5.1" }
 
 pin-project-lite = "0.2.13"
 prost = "0.13.4"

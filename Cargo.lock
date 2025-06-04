@@ -1957,9 +1957,9 @@ dependencies = [
 
 [[package]]
 name = "cnidarium-component"
-version = "1.4.0"
+version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2ac28071ab0685e67a3bc530d678ac9bd1ea1cf3a7873f0962d588f6265f135"
+checksum = "c839fc2e8138143955d482e058d67d76ccb6389d8754f4d45a81fa3e8d52c53c"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2506,9 +2506,9 @@ dependencies = [
 
 [[package]]
 name = "decaf377-fmd"
-version = "1.4.0"
+version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b2ce8acf5eae0289e94f1e57be2d831eec63b32a6f5862c1b23c9e737f09a70"
+checksum = "b769bc966ff431974f25c3505590ad953fe3f884a77c632e1675f7039e60a06b"
 dependencies = [
  "ark-ff 0.4.2",
  "ark-serialize 0.4.2",
@@ -2521,9 +2521,9 @@ dependencies = [
 
 [[package]]
 name = "decaf377-ka"
-version = "1.4.0"
+version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de42d6d8472201809d873ccd06e0a28ddcddd3fa2154463636a0d0f814ae6ec0"
+checksum = "160638f00d27a3cd45d73d5f5048b7f0ed77282c5b3922c5b432123fae3a2e9c"
 dependencies = [
  "ark-ff 0.4.2",
  "decaf377",
@@ -6112,9 +6112,9 @@ dependencies = [
 
 [[package]]
 name = "penumbra-sdk-asset"
-version = "1.4.0"
+version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b60b830c66aabb6f8044f937a875e109e1a384e7d5be3f73490e715b092679e"
+checksum = "0b15fba90bd4670394c8adc799c16b3ac14469d27838180ac4cca150deaa9f60"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -6134,6 +6134,7 @@ dependencies = [
  "getrandom 0.2.16",
  "hex",
  "ibig",
+ "lazy_static",
  "num-bigint",
  "once_cell",
  "pbjson-types",
@@ -6152,9 +6153,9 @@ dependencies = [
 
 [[package]]
 name = "penumbra-sdk-ibc"
-version = "1.4.0"
+version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60aded2acb1c1eaa829af09505c4f51cb504019462d316fbcf63b6d960624fce"
+checksum = "8fcf74824ebcbf7c832e574d417cbbab34f45c81bebeb58baac5ab589e7cb944"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -6190,9 +6191,9 @@ dependencies = [
 
 [[package]]
 name = "penumbra-sdk-keys"
-version = "1.4.0"
+version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf0edd598f5309f831246d37534434c34ca908fa0cb1322e8a1e07bddd1ec1f7"
+checksum = "e8ecbb1847d9e805b2acee859c73f7a8ffc1cfb4f8bd60b6e2b7405e5b8ab12b"
 dependencies = [
  "aes",
  "anyhow",
@@ -6235,9 +6236,9 @@ dependencies = [
 
 [[package]]
 name = "penumbra-sdk-num"
-version = "1.4.0"
+version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2601a1cadab5b166418dfaf9df3b7acb57ec4cd2417fc49a48b252e6bc2daff6"
+checksum = "836d615e799eb7b4dfe505c1d91afdb09ea4b964d230f622a5246426b7310e6b"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -6272,9 +6273,9 @@ dependencies = [
 
 [[package]]
 name = "penumbra-sdk-proto"
-version = "1.4.0"
+version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b67dcd74aef4a76b98de43af9303dbe954b83af9651d2142b3c37f47d3ff94e"
+checksum = "16f914d68ac56227d51576157bb4957f449c52b2f271cfc73eb5aa890c778a0f"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6302,9 +6303,9 @@ dependencies = [
 
 [[package]]
 name = "penumbra-sdk-sct"
-version = "1.4.0"
+version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc15d66f813ac8359931be3e06df3eed51fe08133a8e49fcc67a78d7b4794569"
+checksum = "514f93ef7b3b2748611f3e4b099ededb466df0710d6e5ee7b415bf9749b0be57"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -6339,9 +6340,9 @@ dependencies = [
 
 [[package]]
 name = "penumbra-sdk-tct"
-version = "1.4.0"
+version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69aa442e703953fded3003858da7e893fdd22445857ae92392212da3bfe8c59a"
+checksum = "ca112e02aff8793d0470aca45cf7893e6c18efd1824d72b297b0088d0a48d359"
 dependencies = [
  "ark-ed-on-bls12-377",
  "ark-ff 0.4.2",
@@ -6369,9 +6370,9 @@ dependencies = [
 
 [[package]]
 name = "penumbra-sdk-tower-trace"
-version = "1.4.0"
+version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a5dfea2c1b26c63a4351c7a9eb7a0cee0e64aecc8c262eef396f83450012979"
+checksum = "eb8e978bde414a91e27575a3746323afb2cc73290c0906595f7dadf36433d94c"
 dependencies = [
  "futures",
  "hex",
@@ -6392,9 +6393,9 @@ dependencies = [
 
 [[package]]
 name = "penumbra-sdk-txhash"
-version = "1.4.0"
+version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef69f62fb25a65bec2b7ff914bf5d34031f04f7c54398f1352f478a84092da95"
+checksum = "c0a2146be9347087d390b9442eaf60e2d641077451ca363aff8a213196567b87"
 dependencies = [
  "anyhow",
  "blake2b_simd 1.0.3",
