@@ -1,6 +1,6 @@
 {
+  {{- if .Values.upgrades.aspen.enabled }}
   {{- with .Values.upgrades.aspen }}
-  {{- if .enabled }}
   "aspen": {
     "baseInfo": {
       "activationHeight": "{{ .baseInfo.activationHeight }}",
@@ -67,6 +67,18 @@
     "validatorUpdateActionChange": {},
     "ibcAcknowledgementFailureChange": {}
   }
+  {{- end }}
+  {{- if .Values.upgrades.blackburn.enabled }}
+  ,
+  {{- end }}
+  {{- end }}
+  {{- with .Values.upgrades.blackburn }}
+  {{- if .enabled }}
+  "blackburn": {
+    "baseInfo": {
+      "activationHeight": "{{ .baseInfo.activationHeight }}",
+      "appVersion": "{{ .baseInfo.appVersion }}"
+    }
   {{- end }}
   {{- end }}
 }

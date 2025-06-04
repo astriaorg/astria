@@ -198,7 +198,7 @@ not the image to run before the upgrade executes.
 Usage:
   just run upgrade-test <TAG> (default: 'local')
 ")]
-upgrade-test tag=defaultDockerTag:
+upgrade-test tag=defaultDockerTag name=defaultUpgradeName:
   #!/usr/bin/env bash
   if [ -d "system-tests/.venv" ]; then
     echo "Found Python virtual environment, activating it..."
@@ -207,4 +207,4 @@ upgrade-test tag=defaultDockerTag:
   fi
   python3 system-tests/sequencer_upgrade_test.py \
     --image-tag {{ if tag != '' { tag } else { 'latest' } }} \
-    --upgrade-name "aspen"
+    --upgrade-name {{name}}
