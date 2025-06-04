@@ -425,8 +425,8 @@ impl telemetry::Metrics for Metrics {
             extend_vote_duration_seconds,
             extend_vote_failure_count,
             verify_vote_extension_failure_count,
-            results_in_recently_executed_cache,
             ibc_relay_failures,
+            results_in_recently_executed_cache,
         })
     }
 }
