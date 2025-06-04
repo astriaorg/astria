@@ -21,6 +21,12 @@ pod_count=$(kubectl get pods -l app.kubernetes.io/name=$STATEFULSET_NAME -n $NAM
 if [ "$pod_count" -ne 0 ]; then
   echo "Warning: $pod_count pod(s) still running, waiting additional 30s..."
   sleep 30
+  # Re-check pod count after waiting
+  pod_count=$(kubectl get pods -l app.kubernetes.io/name=$STATEFULSET_NAME -n $NAMESPACE --no-headers 2>/dev/null | wc -l)
+  if [ "$pod_count" -ne 0 ]; then
+    echo "Error: $pod_count pod(s) still running after wait. Aborting to prevent data corruption."
+    exit 1
+  fi
 fi
 
 echo "StatefulSet scaled down, volume released"

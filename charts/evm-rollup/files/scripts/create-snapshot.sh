@@ -29,7 +29,7 @@ rclone copy \
 
 echo "Cleaning up old snapshots (keeping last $RETENTION_COUNT)"
 cd "$SNAPSHOT_PATH"
-ls -t snapshot-*.tar.gz 2>/dev/null | tail -n +$((RETENTION_COUNT + 1)) | xargs -r rm --
+ls -t {{ include "rollup.name" . }}-snapshot-*.tar.gz 2>/dev/null | tail -n +$((RETENTION_COUNT + 1)) | xargs -r rm --
 
 echo "Snapshot created successfully"
 echo "  size: $SNAPSHOT_SIZE"
