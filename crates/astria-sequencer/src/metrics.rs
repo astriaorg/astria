@@ -41,6 +41,7 @@ pub struct Metrics {
     extend_vote_duration_seconds: Histogram,
     extend_vote_failure_count: Counter,
     verify_vote_extension_failure_count: Counter,
+    ibc_relay_failures: Histogram,
     results_in_recently_executed_cache: Gauge,
 }
 
@@ -170,6 +171,10 @@ impl Metrics {
 
     pub(crate) fn set_results_in_recently_executed_cache(&self, count: usize) {
         self.results_in_recently_executed_cache.set(count);
+    }
+
+    pub(crate) fn record_ibc_relay_failures(&self, count: usize) {
+        self.ibc_relay_failures.record(count);
     }
 }
 
@@ -384,6 +389,13 @@ impl telemetry::Metrics for Metrics {
             )?
             .register()?;
 
+        let ibc_relay_failures = builder
+            .new_histogram_factory(
+                IBC_RELAY_FAILURES,
+                "The number of IBC relay failures included in the block",
+            )?
+            .register()?;
+
         Ok(Self {
             prepare_proposal_excluded_transactions_cometbft_space,
             prepare_proposal_excluded_transactions_sequencer_space,
@@ -413,6 +425,7 @@ impl telemetry::Metrics for Metrics {
             extend_vote_duration_seconds,
             extend_vote_failure_count,
             verify_vote_extension_failure_count,
+            ibc_relay_failures,
             results_in_recently_executed_cache,
         })
     }
@@ -446,6 +459,7 @@ metric_names!(const METRICS_NAMES:
     EXTEND_VOTE_FAILURE_COUNT,
     VERIFY_VOTE_EXTENSION_FAILURE_COUNT,
     RESULTS_IN_RECENTLY_EXECUTED_CACHE,
+    IBC_RELAY_FAILURES,
 );
 
 #[cfg(test)]
@@ -524,5 +538,6 @@ mod tests {
             RESULTS_IN_RECENTLY_EXECUTED_CACHE,
             "results_in_recently_executed_cache",
         );
+        assert_const(IBC_RELAY_FAILURES, "ibc_relay_failures");
     }
 }

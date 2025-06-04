@@ -11,7 +11,7 @@ def run_subprocess(args, msg):
     On error, exits the top-level process.
     """
     try:
-        try_run_subprocess(args, msg)
+        return try_run_subprocess(args, msg)
     except RuntimeError as error:
         raise SystemExit(error)
 
@@ -27,7 +27,7 @@ def try_run_subprocess(args, msg):
     prefix = f"{msg}: " if msg else ""
     print(f"{prefix}running `{' '.join(map(str, args))}`")
     try:
-        subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=True)
+        return subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=True)
     except subprocess.CalledProcessError as error:
         prefix = f" {msg}: " if msg else ": "
         raise RuntimeError(f"failed{prefix}{error.stdout.decode('utf-8').strip()}")
@@ -48,6 +48,23 @@ def wait_for_statefulset_rollout(deploy_name, statefulset_name, namespace, timeo
     subprocess.run(["kubectl", "events", f"-n={namespace}", "--types=Warning"])
     print()
     raise SystemExit(f"failed to deploy {deploy_name} within {timeout_secs} seconds")
+
+def wait_for_deployment(deployment_name, namespace, timeout_secs):
+    args = [
+        "kubectl", "wait", "deployment", f"{deployment_name}", f"-n={namespace}",
+        "--for=condition=Available=True", f"--timeout={timeout_secs}s"
+    ]
+    try:
+        try_run_subprocess(args, f"waiting for {deployment_name} to deploy")
+        return
+    except RuntimeError as error:
+        print(error)
+    # Waiting failed.  Print potentially useful info.
+    subprocess.run(["kubectl", "get", "pods", f"-n={namespace}"])
+    print()
+    subprocess.run(["kubectl", "events", f"-n={namespace}", "--types=Warning"])
+    print()
+    raise SystemExit(f"failed to deploy {deployment_name} within {timeout_secs} seconds")
 
 def update_chart_dependencies(chart):
     args = ["helm", "dependency", "update", f"charts/{chart}"]

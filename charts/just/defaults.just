@@ -9,6 +9,8 @@ defaultNetworkId  := ""
 defaultTag        := ""
 defaultDockerTag  := "local"
 
+defaultHermes := "local"
+
 defaultSequencerStartBlock := ""
 
 defaultHypAgentConfig         := ""
