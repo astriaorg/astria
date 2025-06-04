@@ -4,13 +4,13 @@ dependencies:
   version: 0.5.2
 - name: evm-rollup
   repository: file://../evm-rollup
-  version: 2.1.1
+  version: 2.1.2
 - name: flame-rollup
   repository: file://../flame-rollup
   version: 0.1.3
 - name: composer
   repository: file://../composer
-  version: 1.0.4
+  version: 1.0.5
 - name: auctioneer
   repository: file://../auctioneer
   version: 0.0.2
@@ -19,12 +19,12 @@ dependencies:
   version: 0.1.5
 - name: evm-bridge-withdrawer
   repository: file://../evm-bridge-withdrawer
-  version: 1.0.5
+  version: 1.0.6
 - name: postgresql
   repository: oci://registry-1.docker.io/bitnamicharts
   version: 15.2.4
 - name: blockscout-stack
   repository: https://blockscout.github.io/helm-charts
   version: 1.6.8
-digest: sha256:885e1e66f2e68e25a057b6c0944868cc6a5c373a10b776015c77b623dca0f198
-generated: "2025-05-13T12:47:53.651113-04:00"
+digest: sha256:3e53454ce7419e3524ab10153596cbacd1249897178e3890ac60ceb77842ee63
+generated: "2025-05-23T11:45:24.357424-07:00"
