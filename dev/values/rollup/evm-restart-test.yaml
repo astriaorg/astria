@@ -48,7 +48,7 @@ evm-rollup:
             assetDenom: "nria"
             assetPrecision: 9
       restart:
-        height: 19
+        height: 5
 
     ## These are general configuration values with some recommended defaults
 

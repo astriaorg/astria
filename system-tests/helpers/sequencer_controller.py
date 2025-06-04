@@ -23,7 +23,7 @@ class SequencerController:
 
     def __init__(self, node_name):
         self.name = node_name
-        if node_name == "node0":
+        if node_name == "node0" or node_name == "single":
             self.namespace = "astria-dev-cluster"
             self.rpc_url = "http://rpc.sequencer.127.0.0.1.nip.io"
             self.grpc_url = "grpc.sequencer.127.0.0.1.nip.io:80"
@@ -39,14 +39,13 @@ class SequencerController:
 
     def deploy_sequencer(
             self,
-            sequencer_image_tag,
-            relayer_image_tag,
+            image_controller,
             enable_price_feed=True,
             upgrade_name=None,
             upgrade_activation_height=None,
     ):
         """
-        Deploys a new sequencer on the cluster using the specified image tag.
+        Deploys a new sequencer on the cluster using the specified image tags.
 
         The sequencer (and associated sequencer-relayer) are installed via `helm install`, then
         when the rollout has completed.
@@ -60,18 +59,20 @@ class SequencerController:
         """
         args = self._helm_args(
             "install",
-            sequencer_image_tag,
-            relayer_image_tag,
+            image_controller,
             enable_price_feed,
             upgrade_name,
             upgrade_activation_height
         )
         run_subprocess(args, msg=f"deploying {self.name}")
+        if self.name == "single":
+            # Adjust name to match moniker
+            self.name = "node0"
         self._wait_for_deploy(timeout_secs=600)
         (self.address, self.pub_key, self.power) = self._check_reported_name_and_get_node_info()
         print(f"{self.name}: running")
 
-    def stage_upgrade(self, sequencer_image_tag, relayer_image_tag, enable_price_feed, upgrade_name, activation_height):
+    def stage_upgrade(self, image_controller, enable_price_feed, upgrade_name, activation_height):
         """
         Updates the sequencer and sequencer-relayer in the cluster.
 
@@ -88,8 +89,7 @@ class SequencerController:
         # for sequencer and sequencer-relayer.
         args = self._helm_args(
             "upgrade",
-            sequencer_image_tag,
-            relayer_image_tag,
+            image_controller,
             enable_price_feed=enable_price_feed,
             upgrade_name=upgrade_name,
             upgrade_activation_height=activation_height
@@ -308,8 +308,7 @@ class SequencerController:
     def _helm_args(
             self,
             subcommand,
-            sequencer_image_tag,
-            relayer_image_tag,
+            image_controller,
             enable_price_feed,
             upgrade_name,
             upgrade_activation_height,
@@ -322,11 +321,15 @@ class SequencerController:
             "charts/sequencer",
             "--values=dev/values/validators/all.yml",
             f"--values=dev/values/validators/{self.name}.yml",
-            f"--set=images.sequencer.tag={sequencer_image_tag}",
-            f"--set=sequencer-relayer.images.sequencerRelayer.tag={relayer_image_tag}",
             f"--set=sequencer.priceFeed.enabled={enable_price_feed}",
             "--set=sequencer.abciUDS=false",
         ]
+        sequencer_image_tag = image_controller.sequencer_image_tag()
+        if sequencer_image_tag is not None:
+            args.append(f"--set=images.sequencer.tag={sequencer_image_tag}")
+        relayer_image_tag = image_controller.sequencer_relayer_image_tag()
+        if relayer_image_tag is not None:
+            args.append(f"--set=sequencer-relayer.images.sequencerRelayer.tag={relayer_image_tag}")
         if subcommand == "install":
             args.append("--create-namespace")
         if upgrade_name:

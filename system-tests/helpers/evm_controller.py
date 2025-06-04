@@ -1,4 +1,5 @@
 import requests
+from .defaults import EVM_DESTINATION_ADDRESS
 from .utils import run_subprocess, wait_for_statefulset_rollout, Retryer
 
 class EvmController:
@@ -13,20 +14,20 @@ class EvmController:
     # Methods managing and querying the rollup's k8s container
     # ========================================================
 
-    def deploy_rollup(self, image_tag):
+    def deploy_rollup(self, image_controller, evm_restart=False):
         """
-        Deploys a new EVM rollup on the cluster using the specified image tag.
+        Deploys a new EVM rollup on the cluster using the specified image tags.
 
         The EVM node, composer, conductor and bridge-withdrawer are installed via `helm install`.
         """
-        run_subprocess(self._helm_args("install", image_tag), msg="deploying rollup")
+        run_subprocess(self._helm_args("install", image_controller, evm_restart=evm_restart), msg="deploying rollup")
         wait_for_statefulset_rollout("rollup", "astria-geth", "astria-dev-cluster", 600)
 
     # ========================================
     # Methods calling rollup's JSON-RPC server
     # ========================================
 
-    def get_balance(self, address):
+    def get_balance(self, address=EVM_DESTINATION_ADDRESS):
         """
         Queries the rollup's JSON-RPC server for the balance of the given account.
 
@@ -129,21 +130,32 @@ class EvmController:
     # Private methods
     # ===============
 
-    def _helm_args(self, subcommand, image_tag):
-        return [
+    def _helm_args(self, subcommand, image_controller, evm_restart):
+        values = "evm-restart-test" if evm_restart else "dev"
+        args = [
             "helm",
             subcommand,
             "-n=astria-dev-cluster",
             "astria-chain-chart",
             "charts/evm-stack",
-            "--values=dev/values/rollup/dev.yaml",
-            f"--set=evm-rollup.images.conductor.devTag={image_tag}",
-            f"--set=composer.images.composer.devTag={image_tag}",
-            f"--set=evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag={image_tag}",
+            f"--values=dev/values/rollup/{values}.yaml",
             "--set=blockscout-stack.enabled=false",
             "--set=postgresql.enabled=false",
             "--set=evm-faucet.enabled=false",
         ]
+        conductor_image_tag = image_controller.conductor_image_tag()
+        if conductor_image_tag is not None:
+            args.append(f"--set=evm-rollup.images.conductor.tag={conductor_image_tag}")
+        composer_image_tag = image_controller.composer_image_tag()
+        if composer_image_tag is not None:
+            args.append(f"--set=composer.images.composer.devTag={composer_image_tag}")
+        bridge_withdrawer_image_tag = image_controller.bridge_withdrawer_image_tag()
+        if bridge_withdrawer_image_tag is not None:
+            args.append(f"--set=evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag={bridge_withdrawer_image_tag}")
+        geth_image_tag = image_controller.geth_image_tag()
+        if geth_image_tag is not None:
+            args.append(f"--set=evm-rollup.images.geth.tag={geth_image_tag}")
+        return args
 
     def _try_send_json_rpc_request(self, method, *params):
         """
