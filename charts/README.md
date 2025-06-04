@@ -51,7 +51,7 @@ just deploy rollup
 just deploy rollup <rollup_name> <network_id>
 
 # Send funds into the rollup chain, by default transfers 10 RIA to the rollup
-# using prefunded default test sequencer accounts. 
+# using prefunded default test sequencer accounts.
 just init rollup-bridge
 # Update the amounts to init
 just init rollup-bridge <rollup_name> <evm_address> <ria_amount>
@@ -119,7 +119,7 @@ If you deploy a custom rollup, then the endpoints will be
 ### Using a local image
 
 Deployment files can be updated to use a locally built docker image, for testing
-of local changes. [here](https://github.com/astriaorg/astria/#docker-build).
+of local changes: [Astria docs](https://github.com/astriaorg/astria/#docker-build).
 
 Once you have a locally built image, update the image in the relevant deployment
 to point to your local image, and upload load it into into the cluster. If you
@@ -168,7 +168,7 @@ To deploy and run this:
 
 ```sh
 # only if cluster not already created
-> just deploy cluster 
+> just deploy cluster
 # deploys all the components needed to run the test.
 > just deploy smoke-test
 # deploys all components needed to run the smoke test
