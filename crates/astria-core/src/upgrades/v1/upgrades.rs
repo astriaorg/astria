@@ -14,6 +14,10 @@ use super::{
 };
 use crate::{
     generated::upgrades::v1::Upgrades as RawUpgrades,
+    upgrades::v1::blackburn::{
+        self,
+        Blackburn,
+    },
     Protobuf,
 };
 
@@ -66,6 +70,25 @@ impl Upgrades {
             }
         }
 
+        if let Some(upgrade) = raw
+            .blackburn
+            .map(|raw_blackburn| {
+                Blackburn::try_from_raw(raw_blackburn)
+                    .map(Upgrade::Blackburn)
+                    .map_err(|source| Error::convert_blackburn(source, path.to_path_buf()))
+            })
+            .transpose()?
+        {
+            let upgrade_name = upgrade.name();
+            if let Some(existing_upgrade) = upgrades.insert(upgrade.activation_height(), upgrade) {
+                return Err(Error::duplicate_upgrade(
+                    existing_upgrade.activation_height(),
+                    existing_upgrade.name(),
+                    upgrade_name,
+                ));
+            }
+        }
+
         Ok(Self(upgrades.into_values().collect()))
     }
 
@@ -77,18 +100,24 @@ impl Upgrades {
     pub fn to_json_pretty(&self) -> Result<String, Error> {
         let raw_upgrades = RawUpgrades {
             aspen: self.aspen().map(Aspen::to_raw),
+            blackburn: self.blackburn().map(Blackburn::to_raw),
         };
         serde_json::to_string_pretty(&raw_upgrades).map_err(Error::json_encode)
     }
 
     #[must_use]
     pub fn aspen(&self) -> Option<&Aspen> {
-        #[expect(
-            clippy::unnecessary_find_map,
-            reason = "we'll want `find_map` once we have more than one `Upgrade` variant"
-        )]
         self.0.iter().find_map(|upgrade| match upgrade {
             Upgrade::Aspen(aspen) => Some(aspen),
+            Upgrade::Blackburn(_) => None,
+        })
+    }
+
+    #[must_use]
+    pub fn blackburn(&self) -> Option<&crate::upgrades::v1::blackburn::Blackburn> {
+        self.0.iter().find_map(|upgrade| match upgrade {
+            Upgrade::Blackburn(blackburn) => Some(blackburn),
+            Upgrade::Aspen(_) => None,
         })
     }
 
@@ -157,6 +186,13 @@ impl Error {
             path,
         })
     }
+
+    fn convert_blackburn(source: blackburn::Error, path: PathBuf) -> Self {
+        Self(ErrorKind::ConvertBlackburn {
+            source,
+            path,
+        })
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -188,4 +224,10 @@ enum ErrorKind {
 
     #[error("error converting `aspen` in `{}`", .path.display())]
     ConvertAspen { source: aspen::Error, path: PathBuf },
+
+    #[error("error converting `blackburn` in `{}`", .path.display())]
+    ConvertBlackburn {
+        source: blackburn::Error,
+        path: PathBuf,
+    },
 }

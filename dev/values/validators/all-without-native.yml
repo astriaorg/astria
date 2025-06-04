@@ -24,6 +24,9 @@ sequencer:
     aspen:
       activationHeight: 60
       appVersion: 2
+    blackburn:
+      activationHeight: 60
+      appVersion: 3
   priceFeed:
     enabled: true
     markets:

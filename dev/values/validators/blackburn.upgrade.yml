@@ -1,0 +1,6 @@
+upgrades:
+  blackburn:
+    enabled: true
+    baseInfo:
+      activationHeight: 1
+      appVersion: 3

@@ -1,5 +1,8 @@
 use std::{
-    cmp::Ordering,
+    cmp::{
+        max,
+        Ordering,
+    },
     collections::HashMap,
     time::Duration,
 };
@@ -21,11 +24,14 @@ use astria_core::{
     upgrades::{
         test_utils::UpgradesBuilder,
         v1::{
+            blackburn::Blackburn,
+            Aspen,
             Change,
             Upgrades,
         },
     },
 };
+use bytes::Bytes;
 use cnidarium::{
     Snapshot,
     StateDelta,
@@ -83,7 +89,10 @@ use crate::{
     ibc::host_interface::AstriaHost,
     mempool::Mempool,
     proposal::commitment::generate_rollup_datas_commitment,
-    test_utils::nria,
+    test_utils::{
+        dummy_extended_commit_info,
+        nria,
+    },
     Metrics,
 };
 
@@ -111,7 +120,12 @@ impl Fixture {
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
         let mempool = Mempool::new(metrics, 100, 100);
         let upgrades_handler = upgrades
-            .unwrap_or_else(|| UpgradesBuilder::new().set_aspen(Some(1)).build())
+            .unwrap_or_else(|| {
+                UpgradesBuilder::new()
+                    .set_aspen(Some(1))
+                    .set_blackburn(Some(3))
+                    .build()
+            })
             .into();
         let ve_handler = VeHandler::new(None);
         let app = App::new(snapshot, mempool, upgrades_handler, ve_handler, metrics)
@@ -125,16 +139,16 @@ impl Fixture {
     }
 
     /// Returns a `Fixture` where default values have been used in a call to `init_chain`, and then
-    /// `Self::run_until_aspen_applied` has been executed.
+    /// `Self::run_until_aspen_applied` and `Self::run_until_blackburn_applied` have been executed.
     ///
-    /// The Aspen upgrade will have been applied at block height 1, and block 2 will also have been
-    /// executed (both as empty blocks).
+    /// The Aspen and Blackburn upgrades will have been applied at block heights 1 and 4,
+    /// respectively, and blocks 2, 3, and 5 will also have been executed (both as empty blocks).
     ///
     /// For a list of the default values used at genesis, see the docs for [`ChainInitializer`].
     pub(crate) async fn default_initialized() -> Self {
         let mut fixture = Self::uninitialized(None).await;
         fixture.chain_initializer().init().await;
-        let _ = fixture.run_until_aspen_applied().await;
+        let _ = fixture.run_until_aspen_and_blackburn_applied().await;
         fixture
     }
 
@@ -200,6 +214,71 @@ impl Fixture {
                         .collect()
                 }
             };
+            let finalize_block = abci::request::FinalizeBlock {
+                hash: tendermint::Hash::Sha256(sha2::Sha256::digest(height.to_le_bytes()).into()),
+                height: Height::try_from(height).unwrap(),
+                time: time.checked_add(Duration::from_secs(height)).unwrap(),
+                next_validators_hash: tendermint::Hash::default(),
+                proposer_address,
+                txs,
+                decided_last_commit: CommitInfo {
+                    votes: vec![],
+                    round: Round::default(),
+                },
+                misbehavior: vec![],
+            };
+            self.app
+                .finalize_block(finalize_block, self.storage.clone())
+                .await
+                .unwrap();
+            self.app.commit(self.storage.clone()).await.unwrap();
+        }
+        Height::try_from(
+            final_block_height
+                .checked_add(1)
+                .expect("should increment final block height"),
+        )
+        .expect("should convert to height")
+    }
+
+    /// Repeatedly executes `App::finalize_block` and `App::commit` until one block after the
+    /// Blackburn upgrade has been applied.
+    ///
+    /// Returns the height of the next block to execute.
+    ///
+    /// Panics if the Aspen or Blackburn upgrades are not included in the app's upgrade handler (set
+    /// by default to activate at blocks 1 and 3), or if either activation height is greater
+    /// than 10.
+    pub(crate) async fn run_until_aspen_and_blackburn_applied(&mut self) -> Height {
+        let aspen = self
+            .app
+            .upgrades_handler()
+            .upgrades()
+            .aspen()
+            .expect("upgrades should contain aspen upgrade")
+            .clone();
+        let blackburn = self
+            .app
+            .upgrades_handler()
+            .upgrades()
+            .blackburn()
+            .expect("upgrades should contain blackburn upgrade")
+            .clone();
+        assert!(
+            blackburn.activation_height() <= 10 && aspen.activation_height() <= 10,
+            "activation heights must be <= 10; don't want to execute too many blocks for unit test"
+        );
+
+        let proposer_address: tendermint::account::Id =
+            ALICE_ADDRESS_BYTES.to_vec().try_into().unwrap();
+        let time = Time::from_unix_timestamp(1_744_036_762, 123_456_789).unwrap();
+
+        let final_block_height = max(
+            blackburn.activation_height().checked_add(1).unwrap(),
+            aspen.activation_height().checked_add(1).unwrap(),
+        );
+        for height in 1..=final_block_height {
+            let txs = aspen_and_blackburn_rollup_data_commitments(height, &aspen, &blackburn);
             let finalize_block = abci::request::FinalizeBlock {
                 hash: tendermint::Hash::Sha256(sha2::Sha256::digest(height.to_le_bytes()).into()),
                 height: Height::try_from(height).unwrap(),
@@ -478,5 +557,75 @@ impl Fixture {
             .put_verified_consensus_state::<AstriaHost>(height, client_id.clone(), consensus_state)
             .await
             .unwrap();
+    }
+}
+
+fn aspen_and_blackburn_rollup_data_commitments(
+    current_block_height: u64,
+    aspen: &Aspen,
+    blackburn: &Blackburn,
+) -> Vec<Bytes> {
+    let extended_commit_info =
+        if current_block_height > aspen.activation_height().checked_add(1).unwrap() {
+            Some(dummy_extended_commit_info().encode())
+        } else {
+            None
+        };
+    match (
+        current_block_height.cmp(&aspen.activation_height()),
+        current_block_height.cmp(&blackburn.activation_height()),
+    ) {
+        // Prior to Aspen, before or after Blackburn, use legacy rollup data commitments.
+        (Ordering::Less, Ordering::Less | Ordering::Greater) => {
+            generate_rollup_datas_commitment::<false>(&[], HashMap::new())
+                .into_iter()
+                .collect()
+        }
+        // At Aspen upgrade, before or after Blackburn, use new rollup data commitments and append
+        // the Aspen upgrade change hashes.
+        (Ordering::Equal, Ordering::Less | Ordering::Greater) => {
+            let aspen_upgrade_change_hashes = DataItem::UpgradeChangeHashes(
+                aspen.changes().map(Change::calculate_hash).collect(),
+            );
+            generate_rollup_datas_commitment::<true>(&[], HashMap::new())
+                .into_iter()
+                .chain(Some(aspen_upgrade_change_hashes.encode()))
+                .chain(extended_commit_info)
+                .collect()
+        }
+        // Post Aspen upgrade, before or after Blackburn, use new rollup data commitments.
+        (Ordering::Greater, Ordering::Less | Ordering::Greater) => {
+            generate_rollup_datas_commitment::<true>(&[], HashMap::new())
+                .into_iter()
+                .chain(extended_commit_info)
+                .collect()
+        }
+        // Prior to Aspen, at Blackburn, use legacy rollup data commitments and append the Blackburn
+        // upgrade change hashes.
+        (Ordering::Less, Ordering::Equal) => {
+            let blackburn_upgrade_change_hashes = DataItem::UpgradeChangeHashes(
+                blackburn.changes().map(Change::calculate_hash).collect(),
+            );
+            generate_rollup_datas_commitment::<false>(&[], HashMap::new())
+                .into_iter()
+                .chain(Some(blackburn_upgrade_change_hashes.encode()))
+                .collect()
+        }
+        // Post Aspen upgrade, at Blackburn, use new rollup data commitments and append the
+        // Blackburn upgrade change hashes.
+        (Ordering::Greater, Ordering::Equal) => {
+            let blackburn_upgrade_change_hashes = DataItem::UpgradeChangeHashes(
+                blackburn.changes().map(Change::calculate_hash).collect(),
+            );
+            generate_rollup_datas_commitment::<true>(&[], HashMap::new())
+                .into_iter()
+                .chain(Some(blackburn_upgrade_change_hashes.encode()))
+                .chain(extended_commit_info)
+                .collect()
+        }
+        // Case not allowed.
+        (Ordering::Equal, Ordering::Equal) => {
+            panic!("aspen and blackburn cannot activate at the same height");
+        }
     }
 }

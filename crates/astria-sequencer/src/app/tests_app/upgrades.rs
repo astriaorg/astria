@@ -332,7 +332,10 @@ impl Node {
             (SigningKey::from(VALIDATOR_SEED).verification_key(), 10),
         ];
 
-        let upgrades = UpgradesBuilder::new().set_aspen(Some(100)).build();
+        let upgrades = UpgradesBuilder::new()
+            .set_aspen(Some(100))
+            .set_blackburn(Some(103))
+            .build();
         let mut fixture = Fixture::uninitialized(Some(upgrades)).await;
         fixture
             .chain_initializer()
@@ -383,8 +386,8 @@ impl Node {
     }
 }
 
-/// Runs the abci calls for the execution of blocks at heights 99 through 102, where `Aspen` is
-/// scheduled to activate at height 100.
+/// Runs the abci calls for the execution of blocks at heights 99 through 103, where `Aspen` is
+/// scheduled to activate at height 100 and `Blackburn` is scheduled to activate at height 103.
 ///
 /// There are three `App` instances, representing three separate nodes on the network.  The first
 /// will be the proposer throughout.  The second is a validator, not used as a proposer.  The third
@@ -400,6 +403,7 @@ async fn should_upgrade() {
     execute_block_100(proposer, validator, non_validator).await;
     execute_block_101(proposer, validator, non_validator).await;
     execute_block_102(proposer, validator, non_validator).await;
+    execute_block_103(proposer, validator, non_validator).await;
 }
 
 /// Last block before upgrade - nothing special happens here.
@@ -825,4 +829,81 @@ async fn execute_block_102(proposer: &mut Node, validator: &mut Node, non_valida
     assert_eq!(NEW_CURRENCY_PAIR_1_PRICE, currency_pair_1_price.price.get());
     assert_eq!(102, currency_pair_0_price.block_height);
     assert_eq!(102, currency_pair_1_price.block_height);
+}
+
+/// Blackburn activates at this height, but no state changes should be observable.
+async fn execute_block_103(proposer: &mut Node, validator: &mut Node, non_validator: &mut Node) {
+    // Execute `PrepareProposal` for block 103 on the proposer.
+    let checked_transfer_tx = checked_transfer_tx(4, &proposer.storage.latest_snapshot()).await;
+    proposer
+        .app
+        .mempool
+        .insert(
+            checked_transfer_tx,
+            4,
+            &dummy_balances(0, 0),
+            dummy_tx_costs(0, 0, 0),
+        )
+        .await
+        .unwrap();
+    let prepare_proposal = PrepareProposalBuilder::new()
+        .with_height(103_u8)
+        .with_extended_commit_info(new_extended_commit_info(102))
+        .build();
+    let prepare_proposal_response = proposer.prepare_proposal(&prepare_proposal).await.unwrap();
+    // Check the response's `txs` are in the new form, i.e. encoded `DataItem`s, that extended
+    // commit info is provided, and that the tx inserted to the mempool is also included.
+    let expanded_block_data =
+        ExpandedBlockData::new_from_typed_data(&prepare_proposal_response.txs, true).unwrap();
+    assert!(!expanded_block_data.upgrade_change_hashes.is_empty());
+    assert!(expanded_block_data
+        .extended_commit_info_with_proof
+        .is_some());
+    assert_eq!(1, expanded_block_data.user_submitted_transactions.len());
+
+    // Execute `ProcessProposal` for block 103 on the proposer and on the non-proposing validator.
+    let process_proposal = new_process_proposal(&prepare_proposal, &prepare_proposal_response);
+    proposer.process_proposal(&process_proposal).await.unwrap();
+    validator.process_proposal(&process_proposal).await.unwrap();
+
+    // `ExtendVote` and `VerifyVoteExtension` for block 103 would be called at this stage on the
+    // proposer and on the non-proposing validator, but there's no need to do that here as this is
+    // the last block of the test.
+    //
+    // Execute `FinalizeBlock` for block 103 on all three nodes.
+    let finalize_block = new_finalize_block(&prepare_proposal, &prepare_proposal_response);
+    let finalize_block_response = proposer.finalize_block(&finalize_block).await.unwrap();
+    assert_eq!(
+        finalize_block_response,
+        validator.finalize_block(&finalize_block).await.unwrap()
+    );
+    assert_eq!(
+        finalize_block_response,
+        non_validator.finalize_block(&finalize_block).await.unwrap()
+    );
+    // There should be five tx results: the two commitments, the upgrade change hashes, the extended
+    // commit info, and the rollup tx.
+    assert_eq!(5, finalize_block_response.tx_results.len());
+    // The consensus params should be `None`.
+    println!(
+        "finalize_block_response: {:?}",
+        finalize_block_response.consensus_param_updates
+    );
+    // Blackburn updates to version 2
+    assert_eq!(
+        finalize_block_response
+            .consensus_param_updates
+            .unwrap()
+            .version,
+        Some(tendermint::consensus::params::VersionParams {
+            app: 2
+        })
+    );
+
+    // Execute `Commit` for block 103 on all three nodes.
+    let _ = proposer.commit().await.unwrap();
+    let _ = validator.commit().await.unwrap();
+    let _ = non_validator.commit().await.unwrap();
+    assert_eq!(proposer.app.app_hash, validator.app.app_hash);
+    assert_eq!(proposer.app.app_hash, non_validator.app.app_hash);
 }
