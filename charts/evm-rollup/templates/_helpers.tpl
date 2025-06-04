@@ -50,8 +50,8 @@ files/genesis/{{ include "rollup.type" . }}.genesis.json
 {{- else if eq $rollupType "flame-mainnet" -}}1.1.0
 {{- else if eq $rollupType "flame-testnet" -}}1.1.0
 {{- else if eq $rollupType "flame-devnet" -}}2.0.0-rc.1
-{{- else if eq $rollupType "forma-mainnet" -}}sha-3640bf9ba17e521cff1ccf8709cc59cadbef5454
-{{- else if eq $rollupType "forma-testnet" -}}sha-08fe3e6
+{{- else if eq $rollupType "forma-mainnet" -}}2.0.0-rc.2
+{{- else if eq $rollupType "forma-testnet" -}}2.0.0-rc.2
 {{- end -}}
 {{- end }}
 

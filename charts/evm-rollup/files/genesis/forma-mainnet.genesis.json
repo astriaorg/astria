@@ -12,6 +12,7 @@
     "berlinBlock": 0,
     "londonBlock": 0,
     "shanghaiTime": 0,
+    "cancunTime": 1749049335,
     "terminalTotalDifficulty": 0,
     "terminalTotalDifficultyPassed": true,
     "ethash": {},
@@ -66,12 +67,16 @@
       },
       "palette": {
         "height": 13820500,
-        "halt": true,
-        "snapshotChecksum": "",
+        "snapshotChecksum": "e7575c38d9c563a1904bb41c838c5da0bdf3e214ee8eab9c20b1b0564662b2a9",
         "sequencer": {
           "chainId": "astria",
           "addressPrefix": "astria",
-          "startHeight": 100000000
+          "startHeight": 8419377
+        },
+        "celestia": {
+          "chainId": "celestia",
+          "startHeight": 5771650,
+          "searchHeightMaxLookAhead": 15000
         }
       }
     },
