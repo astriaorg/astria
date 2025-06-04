@@ -164,17 +164,6 @@ hyperlane-agents rollupName=defaultRollupName:
   @just delete::delete-chart {{rollupName}}-hyperlane-agents
 
 
-# Delete Smoke Test
-####################
-[doc("
-Deletes associated components for running smoke tests (Celestia, Sequencer, and
-EVM rollup).
-")]
-smoke-test: delete-celestia-local
-  @just delete sequencer
-  @just delete rollup
-
-
 # Delete IBC Test
 ##################
 [doc("

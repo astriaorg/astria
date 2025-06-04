@@ -219,6 +219,12 @@ jobs:
         uses: helm/kind-action@v1
         with:
           install_only: true
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v5
+      - name: Install buf
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.50.1"
       - name: Log in to GHCR
         uses: docker/login-action@v2
         with:
@@ -231,14 +237,16 @@ jobs:
           TAG=sha-$(git rev-parse --short HEAD)
           just deploy cluster
           kubectl create secret generic regcred --from-file=.dockerconfigjson=$HOME/.docker/config.json --type=kubernetes.io/dockerconfigjson
-          echo -e "\n\nDeploying with astria images tagged $TAG"
-          just deploy smoke-test $TAG
+          just deploy smoke-test
+          cd system-tests
+          uv venv
+          uv pip install -r requirements.txt
       - name: Run Smoke test
         timeout-minutes: 3
         run: |
           TAG=sha-$(git rev-parse --short HEAD)
-          just run smoke-test $TAG
-  smoke-test-evm-rollup-restart:
+          just run smoke-test -i all=$TAG
+  smoke-test-evm-restart:
     needs: [run_checker, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli]
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
     runs-on: buildjet-8vcpu-ubuntu-2204
@@ -250,25 +258,34 @@ jobs:
         uses: helm/kind-action@v1
         with:
           install_only: true
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v5
+      - name: Install buf
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.50.1"
       - name: Log in to GHCR
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Setup Smoke Test Environment
+      - name: Setup EVM Restart Test Environment
         timeout-minutes: 10
         run: |
           TAG=sha-$(git rev-parse --short HEAD)
           just deploy cluster
           kubectl create secret generic regcred --from-file=.dockerconfigjson=$HOME/.docker/config.json --type=kubernetes.io/dockerconfigjson
           echo -e "\n\nDeploying with astria images tagged $TAG"
-          just deploy evm-rollup-restart-test $TAG
-      - name: Run Smoke test
+          just deploy evm-restart-test
+          cd system-tests
+          uv venv
+          uv pip install -r requirements.txt
+      - name: Run EVM Restart Test
         timeout-minutes: 3
         run: |
           TAG=sha-$(git rev-parse --short HEAD)
-          just run smoke-test $TAG
+          just run evm-restart-test -i all=$TAG
 
   smoke-cli:
     needs: [run_checker, composer, conductor, sequencer, sequencer-relayer, evm-bridge-withdrawer, cli]
