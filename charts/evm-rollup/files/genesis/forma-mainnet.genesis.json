@@ -63,6 +63,16 @@
             "address": "0x00000000000000000000000000000F043A000007"
           }
         ]
+      },
+      "palette": {
+        "height": 13821000,
+        "halt": true,
+        "snapshotChecksum": "",
+        "sequencer": {
+          "chainId": "astria",
+          "addressPrefix": "astria",
+          "startHeight": 100000000
+        }
       }
     },
     "forma": {
