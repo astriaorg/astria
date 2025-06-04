@@ -263,7 +263,11 @@ pub(crate) fn dummy_bridge_unlock() -> BridgeUnlock {
 
 /// Returns a `CurrencyPairsChange::Addition` action with a dummy value of "TIA/USD" and "ETH/USD".
 pub(crate) fn dummy_currency_pairs_change() -> CurrencyPairsChange {
-    CurrencyPairsChange::Addition(vec!["TIA/USD".parse().unwrap(), "ETH/USD".parse().unwrap()])
+    CurrencyPairsChange::Addition(
+        ["TIA/USD".parse().unwrap(), "ETH/USD".parse().unwrap()]
+            .into_iter()
+            .collect(),
+    )
 }
 
 /// Returns an `IbcRelay::CreateClient` action with dummy values.

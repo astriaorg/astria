@@ -23,8 +23,8 @@ use cnidarium::{
     StateWrite,
 };
 use tracing::{
-    debug,
     instrument,
+    trace,
     Level,
 };
 
@@ -57,7 +57,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw account rollup ID from state")?
         else {
-            debug!("account rollup ID not found, returning None");
+            trace!("account rollup ID not found, returning None");
             return Ok(None);
         };
         StoredValue::deserialize(&bytes)
@@ -97,7 +97,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw bridge account sudo address from state")?
         else {
-            debug!("bridge account sudo address not found, returning None");
+            trace!("bridge account sudo address not found, returning None");
             return Ok(None);
         };
         StoredValue::deserialize(&bytes)
@@ -120,7 +120,7 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
             .map_err(anyhow_to_eyre)
             .wrap_err("failed reading raw bridge account withdrawer address from state")?
         else {
-            debug!("bridge account withdrawer address not found, returning None");
+            trace!("bridge account withdrawer address not found, returning None");
             return Ok(None);
         };
         StoredValue::deserialize(&bytes)

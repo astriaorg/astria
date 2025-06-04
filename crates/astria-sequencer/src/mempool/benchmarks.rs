@@ -6,13 +6,16 @@
 
 use std::{
     collections::HashSet,
-    sync::Arc,
+    sync::{
+        Arc,
+        OnceLock,
+    },
     time::Duration,
 };
 
 use astria_core::{
     crypto::SigningKey,
-    protocol::transaction::v1::Transaction,
+    primitive::v1::TransactionId,
 };
 use sha2::{
     Digest as _,
@@ -21,17 +24,19 @@ use sha2::{
 use telemetry::Metrics;
 
 use crate::{
-    app::benchmark_and_test_utils::{
-        mock_balances,
-        mock_state_getter,
-        mock_state_put_account_balances,
-        mock_state_put_account_nonce,
-        mock_tx_cost,
+    accounts::StateWriteExt as _,
+    benchmark_utils::{
+        new_fixture,
+        SIGNER_COUNT,
     },
-    benchmark_utils::SIGNER_COUNT,
+    checked_transaction::CheckedTransaction,
     mempool::{
         Mempool,
         RemovalReason,
+    },
+    test_utils::{
+        dummy_balances,
+        dummy_tx_costs,
     },
 };
 
@@ -94,50 +99,84 @@ impl MempoolSize for mempool_with_100000_txs {
     }
 }
 
-fn transactions() -> &'static Vec<Arc<Transaction>> {
-    crate::benchmark_utils::transactions(crate::benchmark_utils::TxTypes::AllSequenceActions)
+fn transactions() -> &'static Vec<Arc<CheckedTransaction>> {
+    crate::benchmark_utils::transactions(crate::benchmark_utils::TxTypes::AllRollupDataSubmissions)
 }
 
 /// Returns a new `Mempool` initialized with the number of transactions specified by `T::size()`
 /// taken from the static `transactions()`, and with a full `comet_bft_removal_cache`.
 fn init_mempool<T: MempoolSize>() -> Mempool {
+    static CELL_100: OnceLock<Mempool> = OnceLock::new();
+    static CELL_1_000: OnceLock<Mempool> = OnceLock::new();
+    static CELL_10_000: OnceLock<Mempool> = OnceLock::new();
+    static CELL_100_000: OnceLock<Mempool> = OnceLock::new();
+
     let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
         .build()
         .unwrap();
-    let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-    let mempool = Mempool::new(metrics, T::size());
-    let account_mock_balance = mock_balances(0, 0);
-    let tx_mock_cost = mock_tx_cost(0, 0, 0);
-    runtime.block_on(async {
-        for tx in transactions().iter().take(T::checked_size()) {
-            mempool
-                .insert(
-                    tx.clone(),
-                    0,
-                    &account_mock_balance.clone(),
-                    tx_mock_cost.clone(),
-                )
-                .await
-                .unwrap();
-        }
-        for i in 0..super::REMOVAL_CACHE_SIZE {
-            let hash = Sha256::digest(i.to_le_bytes()).into();
-            mempool
-                .inner
-                .write()
-                .await
-                .comet_bft_removal_cache
-                .add(hash, RemovalReason::Expired);
-        }
-    });
-    mempool
+
+    let init = || {
+        let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
+        let mempool = Mempool::new(metrics, T::size());
+        let account_balances = dummy_balances(0, 0);
+        let tx_costs = dummy_tx_costs(0, 0, 0);
+        runtime.block_on(async {
+            for tx in transactions().iter().take(T::checked_size()) {
+                mempool
+                    .insert(tx.clone(), 0, &account_balances.clone(), tx_costs.clone())
+                    .await
+                    .unwrap();
+            }
+            for i in 0..super::REMOVAL_CACHE_SIZE {
+                let tx_id = TransactionId::new(Sha256::digest(i.to_le_bytes()).into());
+                mempool
+                    .inner
+                    .write()
+                    .await
+                    .comet_bft_removal_cache
+                    .add(tx_id, RemovalReason::Expired);
+            }
+        });
+        mempool
+    };
+
+    let mempool = match T::checked_size() {
+        100 => CELL_100.get_or_init(init),
+        1_000 => CELL_1_000.get_or_init(init),
+        10_000 => CELL_10_000.get_or_init(init),
+        100_000 => CELL_100_000.get_or_init(init),
+        _ => unreachable!(),
+    };
+    runtime.block_on(async { mempool.deep_clone().await })
 }
 
 /// Returns the first transaction from the static `transactions()` not included in the initialized
 /// mempool, i.e. the one at index `T::size()`.
-fn get_unused_tx<T: MempoolSize>() -> Arc<Transaction> {
+fn get_unused_tx<T: MempoolSize>() -> Arc<CheckedTransaction> {
     transactions().get(T::checked_size()).unwrap().clone()
+}
+
+/// This is not really a benchmark test, rather a means to memoize the data used in the "real"
+/// benchmark tests below.
+///
+/// It should always be named so that it is alphabetically first in the suite of tests, since the
+/// tests are run in that order.
+///
+/// This means that all the real tests are able to have a meaningful number of iterations, making
+/// the results more accurate, rather than one test only having a single iteration due to the time
+/// taken to memoize the data.
+#[divan::bench(
+    max_time = MAX_TIME,
+    types = [
+        mempool_with_100_txs,
+        mempool_with_1000_txs,
+        mempool_with_10000_txs,
+        mempool_with_100000_txs
+    ]
+)]
+fn a_warmup<T: MempoolSize>(bencher: divan::Bencher) {
+    init_mempool::<T>();
+    bencher.bench(|| ());
 }
 
 /// Benchmarks `Mempool::insert` for a single new transaction on a mempool with the given number of
@@ -153,18 +192,17 @@ fn get_unused_tx<T: MempoolSize>() -> Arc<Transaction> {
 )]
 fn insert<T: MempoolSize>(bencher: divan::Bencher) {
     let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
         .build()
         .unwrap();
-    let mock_balances = mock_balances(0, 0);
-    let mock_tx_cost = mock_tx_cost(0, 0, 0);
+    let balances = dummy_balances(0, 0);
+    let tx_costs = dummy_tx_costs(0, 0, 0);
     bencher
         .with_inputs(|| {
             (
                 init_mempool::<T>(),
                 get_unused_tx::<T>(),
-                mock_balances.clone(),
-                mock_tx_cost.clone(),
+                balances.clone(),
+                tx_costs.clone(),
             )
         })
         .bench_values(move |(mempool, tx, mock_balances, mock_tx_cost)| {
@@ -191,7 +229,6 @@ fn insert<T: MempoolSize>(bencher: divan::Bencher) {
 )]
 fn builder_queue<T: MempoolSize>(bencher: divan::Bencher) {
     let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
         .build()
         .unwrap();
 
@@ -221,7 +258,6 @@ fn builder_queue<T: MempoolSize>(bencher: divan::Bencher) {
 )]
 fn remove_tx_invalid<T: MempoolSize>(bencher: divan::Bencher) {
     let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
         .build()
         .unwrap();
     bencher
@@ -248,17 +284,16 @@ fn remove_tx_invalid<T: MempoolSize>(bencher: divan::Bencher) {
 #[divan::bench(max_time = MAX_TIME)]
 fn check_removed_comet_bft(bencher: divan::Bencher) {
     let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
         .build()
         .unwrap();
     bencher
         .with_inputs(|| {
-            let tx_hash = Sha256::digest(0_usize.to_le_bytes()).into();
-            (init_mempool::<mempool_with_100_txs>(), tx_hash)
+            let tx_id = TransactionId::new(Sha256::digest(0_usize.to_le_bytes()).into());
+            (init_mempool::<mempool_with_100_txs>(), tx_id)
         })
-        .bench_values(move |(mempool, tx_hash)| {
+        .bench_values(move |(mempool, tx_id)| {
             runtime.block_on(async {
-                mempool.remove_from_removal_cache(tx_hash).await;
+                mempool.remove_from_removal_cache(&tx_id).await;
             });
         });
 }
@@ -275,7 +310,6 @@ fn check_removed_comet_bft(bencher: divan::Bencher) {
 )]
 fn run_maintenance<T: MempoolSize>(bencher: divan::Bencher) {
     let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
         .build()
         .unwrap();
     // Set the new nonce so that the entire `REMOVAL_CACHE_SIZE` entries in the
@@ -285,23 +319,25 @@ fn run_maintenance<T: MempoolSize>(bencher: divan::Bencher) {
         .checked_div(u32::from(SIGNER_COUNT))
         .and_then(|res| res.checked_add(1))
         .unwrap();
-    let mock_balances = mock_balances(0, 0);
-    let mut mock_state = runtime.block_on(mock_state_getter());
 
-    // iterate over all signers and put their balances and nonces into the mock state
+    // iterate over all signers and put their nonces into the mock state
+    let mut fixture = new_fixture();
     for i in 0..SIGNER_COUNT {
         let signing_key = SigningKey::from([i; 32]);
         let signing_address = signing_key.address_bytes();
-        mock_state_put_account_balances(&mut mock_state, &signing_address, mock_balances.clone());
-        mock_state_put_account_nonce(&mut mock_state, &signing_address, new_nonce);
+        fixture
+            .state_mut()
+            .put_account_nonce(&signing_address, new_nonce)
+            .unwrap();
     }
+    let state = fixture.state();
 
     bencher
         .with_inputs(|| init_mempool::<T>())
         .bench_values(move |mempool| {
             runtime.block_on(async {
                 mempool
-                    .run_maintenance(&mock_state, false, HashSet::new(), 1)
+                    .run_maintenance(state, false, &HashSet::new(), 1)
                     .await;
             });
         });
@@ -319,7 +355,6 @@ fn run_maintenance<T: MempoolSize>(bencher: divan::Bencher) {
 )]
 fn run_maintenance_tx_recosting<T: MempoolSize>(bencher: divan::Bencher) {
     let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
         .build()
         .unwrap();
     // Set the new nonce so that the entire `REMOVAL_CACHE_SIZE` entries in the
@@ -329,23 +364,25 @@ fn run_maintenance_tx_recosting<T: MempoolSize>(bencher: divan::Bencher) {
         .checked_div(u32::from(SIGNER_COUNT))
         .and_then(|res| res.checked_add(1))
         .unwrap();
-    let mock_balances = mock_balances(0, 0);
-    let mut mock_state = runtime.block_on(mock_state_getter());
 
-    // iterate over all signers and put their balances and nonces into the mock state
+    // iterate over all signers and put their nonces into the mock state
+    let mut fixture = new_fixture();
     for i in 0..SIGNER_COUNT {
         let signing_key = SigningKey::from([i; 32]);
         let signing_address = signing_key.address_bytes();
-        mock_state_put_account_balances(&mut mock_state, &signing_address, mock_balances.clone());
-        mock_state_put_account_nonce(&mut mock_state, &signing_address, new_nonce);
+        fixture
+            .state_mut()
+            .put_account_nonce(&signing_address, new_nonce)
+            .unwrap();
     }
+    let state = fixture.state();
 
     bencher
         .with_inputs(|| init_mempool::<T>())
         .bench_values(move |mempool| {
             runtime.block_on(async {
                 mempool
-                    .run_maintenance(&mock_state, true, HashSet::new(), 1)
+                    .run_maintenance(state, true, &HashSet::new(), 1)
                     .await;
             });
         });
@@ -363,7 +400,6 @@ fn run_maintenance_tx_recosting<T: MempoolSize>(bencher: divan::Bencher) {
 )]
 fn pending_nonce<T: MempoolSize>(bencher: divan::Bencher) {
     let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
         .build()
         .unwrap();
     bencher

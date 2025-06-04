@@ -653,7 +653,11 @@ where
         return Ok(());
     };
 
-    state.add_fee_to_block_fees::<_, F>(fee_asset, total_fee, position_in_transaction);
+    state
+        .add_fee_to_block_fees::<_, F>(fee_asset, total_fee, position_in_transaction)
+        .map_err(|source| {
+            CheckedActionFeeError::internal("failed adding fee to block fees", source)
+        })?;
     state
         .decrease_balance(tx_signer, fee_asset, total_fee)
         .await
@@ -865,7 +869,6 @@ mod tests {
 
     #[tokio::test]
     async fn should_report_insufficient_funds() {
-        astria_eyre::install().unwrap();
         let mut fixture = Fixture::default_initialized().await;
         let tx_signer = [20; ADDRESS_LENGTH];
         let action = dummy_rollup_data_submission();

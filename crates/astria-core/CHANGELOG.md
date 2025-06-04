@@ -58,6 +58,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `CheckedTransaction` from this [#2142](https://github.com/astriaorg/astria/pull/2142).
 - Rename ABCI error code 10 from `TRANSACTION_FAILED` to
   `TRANSACTION_FAILED_EXECUTION` [#2142](https://github.com/astriaorg/astria/pull/2142).
+- Change `CurrencyPairsChange` action to hold an `IndexSet` rather than a `Vec`
+  of currency pairs [#2171](https://github.com/astriaorg/astria/pull/2171).
 
 ### Removed
 

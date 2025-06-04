@@ -1,5 +1,6 @@
 use std::{
     borrow::Cow,
+    collections::HashMap,
     pin::Pin,
     task::{
         ready,
@@ -9,12 +10,16 @@ use std::{
 };
 
 use astria_core::{
-    primitive::v1::asset,
+    primitive::v1::{
+        asset,
+        asset::IbcPrefixed,
+    },
     protocol::fees::v1::FeeComponents,
 };
 use astria_eyre::{
     anyhow_to_eyre,
     eyre::{
+        eyre,
         Report,
         Result,
         WrapErr as _,
@@ -38,7 +43,6 @@ use super::{
         self,
         extract_asset_from_allowed_asset_key,
     },
-    Fee,
     FeeHandler,
 };
 use crate::storage::StoredValue;
@@ -77,7 +81,7 @@ where
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip_all)]
-    fn get_block_fees(&self) -> Vec<Fee> {
+    fn get_block_fees(&self) -> HashMap<IbcPrefixed, u128> {
         self.object_get(keys::BLOCK).unwrap_or_default()
     }
 
@@ -139,31 +143,33 @@ pub(crate) trait StateWriteExt: StateWrite {
         asset: &'a TAsset,
         amount: u128,
         position_in_transaction: u64,
-    ) where
+    ) -> Result<()>
+    where
         TAsset: Sync + std::fmt::Display,
-        asset::IbcPrefixed: From<&'a TAsset>,
+        IbcPrefixed: From<&'a TAsset>,
     {
-        let current_fees: Option<Vec<Fee>> = self.object_get(keys::BLOCK);
-
-        let fee = Fee {
-            action_name: F::full_name(),
-            asset: asset::IbcPrefixed::from(asset).into(),
-            amount,
-            position_in_transaction,
-        };
+        let asset = IbcPrefixed::from(asset);
 
         // Fee ABCI event recorded for reporting
-        let fee_event = construct_tx_fee_event(&fee);
+        let fee_event = Event::new(
+            "tx.fees",
+            [
+                ("actionName", F::full_name().to_string()),
+                ("asset", asset.to_string()),
+                ("feeAmount", amount.to_string()),
+                ("positionInTransaction", position_in_transaction.to_string()),
+            ],
+        );
         self.record(fee_event);
 
-        let new_fees = if let Some(mut fees) = current_fees {
-            fees.push(fee);
-            fees
-        } else {
-            vec![fee]
-        };
-
-        self.object_put(keys::BLOCK, new_fees);
+        let mut block_fees: HashMap<IbcPrefixed, u128> =
+            self.object_get(keys::BLOCK).unwrap_or_default();
+        let current = block_fees.entry(asset).or_default();
+        *current = current
+            .checked_add(amount)
+            .ok_or_else(|| eyre!("overflowed adding fees for {}", F::snake_case_name()))?;
+        self.object_put(keys::BLOCK, block_fees);
+        Ok(())
     }
 
     #[instrument(skip_all, err(level = Level::WARN))]
@@ -201,22 +207,6 @@ pub(crate) trait StateWriteExt: StateWrite {
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
-
-/// Creates `abci::Event` of kind `tx.fees` for sequencer fee reporting
-fn construct_tx_fee_event(fee: &Fee) -> Event {
-    Event::new(
-        "tx.fees",
-        [
-            ("actionName", fee.action_name.to_string()),
-            ("asset", fee.asset.to_string()),
-            ("feeAmount", fee.amount.to_string()),
-            (
-                "positionInTransaction",
-                fee.position_in_transaction.to_string(),
-            ),
-        ],
-    )
-}
 
 #[cfg(test)]
 mod tests {
@@ -259,58 +249,29 @@ mod tests {
         assert!(fee_balances_orig.is_empty());
 
         // can write
-        let asset = asset_0();
-        let amount = 100u128;
-        state.add_fee_to_block_fees::<_, Transfer>(&asset, amount, 0);
-
-        // holds expected
-        let fee_balances_updated = state.get_block_fees();
-        assert_eq!(
-            fee_balances_updated[0],
-            Fee {
-                action_name: "astria.protocol.transaction.v1.Transfer".to_string(),
-                asset: asset.to_ibc_prefixed().into(),
-                amount,
-                position_in_transaction: 0
-            },
-            "fee balances are not what they were expected to be"
-        );
-    }
-
-    #[tokio::test]
-    async fn block_fee_read_and_increase_can_delete() {
-        let storage = cnidarium::TempStorage::new().await.unwrap();
-        let snapshot = storage.latest_snapshot();
-        let mut state = StateDelta::new(snapshot);
-
-        // can write
-        let asset_first = asset_0();
-        let asset_second = asset_1();
+        let asset_first = asset_0().to_ibc_prefixed();
+        let asset_second = asset_1().to_ibc_prefixed();
         let amount_first = 100u128;
         let amount_second = 200u128;
+        let amount_third = 300u128;
 
-        state.add_fee_to_block_fees::<_, Transfer>(&asset_first, amount_first, 0);
-        state.add_fee_to_block_fees::<_, Transfer>(&asset_second, amount_second, 1);
+        state
+            .add_fee_to_block_fees::<_, Transfer>(&asset_first, amount_first, 0)
+            .unwrap();
+        state
+            .add_fee_to_block_fees::<_, Transfer>(&asset_second, amount_second, 1)
+            .unwrap();
+        state
+            .add_fee_to_block_fees::<_, Transfer>(&asset_second, amount_third, 2)
+            .unwrap();
+
         // holds expected
-        let fee_balances = HashSet::<_>::from_iter(state.get_block_fees());
-        assert_eq!(
-            fee_balances,
-            HashSet::from_iter(vec![
-                Fee {
-                    action_name: "astria.protocol.transaction.v1.Transfer".to_string(),
-                    asset: asset_first.to_ibc_prefixed().into(),
-                    amount: amount_first,
-                    position_in_transaction: 0
-                },
-                Fee {
-                    action_name: "astria.protocol.transaction.v1.Transfer".to_string(),
-                    asset: asset_second.to_ibc_prefixed().into(),
-                    amount: amount_second,
-                    position_in_transaction: 1
-                },
-            ]),
-            "returned fee balance vector not what was expected"
-        );
+        let expected = HashMap::from_iter([
+            (asset_first, amount_first),
+            (asset_second, amount_second.saturating_add(amount_third)),
+        ]);
+        let fee_balances = state.get_block_fees();
+        assert_eq!(fee_balances, expected);
     }
 
     async fn fees_round_trip<'a, F>()

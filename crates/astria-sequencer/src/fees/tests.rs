@@ -28,7 +28,6 @@ use prost::Name as _;
 
 use super::{
     fee_handler::base_deposit_fee,
-    Fee,
     FeeHandler,
     StateWriteExt as _,
 };
@@ -55,12 +54,7 @@ fn test_asset() -> asset::Denom {
 }
 
 fn total_block_fees(fixture: &Fixture) -> u128 {
-    fixture
-        .state()
-        .get_block_fees()
-        .iter()
-        .map(Fee::amount)
-        .sum()
+    fixture.state().get_block_fees().values().sum()
 }
 
 #[tokio::test]

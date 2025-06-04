@@ -7,9 +7,9 @@ Namepsace to deploy elements into.
 
 {{- define "sequencer-relayer.imageTag" -}}
 {{- if or (eq .Values.global.network "custom") (eq .Values.global.dev true) }}{{ .Values.images.sequencerRelayer.tag }}
-{{- else if eq .Values.global.network "mainnet" }}1.0.1
-{{- else if eq .Values.global.network "dawn-1" }}1.0.1
-{{- else if eq .Values.global.network "dusk-11" }}1.0.1
+{{- else if eq .Values.global.network "mainnet" }}{{ .Chart.AppVersion }}
+{{- else if eq .Values.global.network "dawn-1" }}{{ .Chart.AppVersion }}
+{{- else if eq .Values.global.network "dusk-11" }}{{ .Chart.AppVersion }}
 {{- end }}
 {{- end }}
 

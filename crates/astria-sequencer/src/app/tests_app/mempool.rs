@@ -21,8 +21,11 @@ use tendermint::{
 use super::*;
 use crate::{
     accounts::StateReadExt as _,
+    mempool::TransactionStatus,
     test_utils::{
         dummy_balances,
+        dummy_rollup_data_submission,
+        dummy_transfer,
         dummy_tx_costs,
         nria,
         Fixture,
@@ -547,5 +550,481 @@ async fn maintenance_funds_added_promotes() {
             .unwrap(),
         10,
         "transfer should've worked"
+    );
+}
+
+async fn assert_tx_in_pending(fixture: &Fixture, tx_id: &TransactionId, tx_name: &str) {
+    assert!(
+        matches!(
+            fixture.mempool().transaction_status(tx_id).await.unwrap(),
+            TransactionStatus::Pending,
+        ),
+        "{tx_name} should be in pending"
+    );
+}
+
+#[expect(clippy::too_many_lines, reason = "it's a test")]
+#[tokio::test]
+async fn proposer_flow_included_transactions_sent_to_mempool() {
+    // The flow of this test simulates a proposer gathering transactions from the builder queue in
+    // mempool and executing a full round of the consensus protocol. This includes:
+    // 1. prepare_proposal - transactions are executed here.
+    // 2. process_proposal - transactions not executed, and IDs should still be in pending.
+    // 3. finalize_block - transactions not executed, and IDs should still be in pending.
+    // 4. commit - transaction IDs should still be in mempool. After execution of this method, they
+    //    should be removed from mempool and added to the removal cache.
+    let mut fixture = Fixture::default_initialized().await;
+    let height = fixture.block_height().await.increment();
+
+    let tx_1 = fixture
+        .checked_tx_builder()
+        .with_signer(ALICE.clone())
+        .with_action(dummy_rollup_data_submission())
+        .build()
+        .await;
+    let tx_2 = fixture
+        .checked_tx_builder()
+        .with_signer(ALICE.clone())
+        .with_action(dummy_transfer())
+        .with_nonce(1)
+        .build()
+        .await;
+
+    let tx_1_id = tx_1.id();
+    let tx_2_id = tx_2.id();
+
+    // Insert transactions into mempool
+    fixture
+        .mempool()
+        .insert(
+            tx_1.clone(),
+            0,
+            &dummy_balances(0, 0),
+            dummy_tx_costs(0, 0, 0),
+        )
+        .await
+        .unwrap();
+    fixture
+        .mempool()
+        .insert(
+            tx_2.clone(),
+            0,
+            &dummy_balances(0, 0),
+            dummy_tx_costs(0, 0, 0),
+        )
+        .await
+        .unwrap();
+
+    // Ensure transactions are in pending
+    assert_eq!(fixture.mempool().len().await, 2, "two txs in mempool");
+    assert_tx_in_pending(&fixture, tx_1_id, "tx_1").await;
+    assert_tx_in_pending(&fixture, tx_2_id, "tx_2").await;
+
+    // Submit prepare_proposal
+    fixture
+        .app
+        .prepare_proposal(
+            PrepareProposal {
+                max_tx_bytes: 200_000,
+                txs: vec![],
+                local_last_commit: Some(ExtendedCommitInfo {
+                    votes: vec![],
+                    round: 0u16.into(),
+                }),
+                misbehavior: vec![],
+                height,
+                time: Time::now(),
+                next_validators_hash: Hash::default(),
+                proposer_address: account::Id::new([1u8; 20]),
+            },
+            fixture.storage(),
+        )
+        .await
+        .unwrap();
+
+    // Ensure transactions are still in pending after prepare_proposal
+    assert_eq!(
+        fixture.mempool().len().await,
+        2,
+        "two txs in mempool after prepare_proposal"
+    );
+    assert_tx_in_pending(&fixture, tx_1_id, "tx_1").await;
+    assert_tx_in_pending(&fixture, tx_2_id, "tx_2").await;
+
+    // Submit process_proposal
+    let txs = transactions_with_extended_commit_info_and_commitments(
+        height,
+        &[tx_1.clone(), tx_2.clone()],
+        None,
+    );
+    fixture
+        .app
+        .process_proposal(
+            ProcessProposal {
+                hash: Hash::try_from([99u8; 32].to_vec()).unwrap(),
+                height,
+                time: Time::now(),
+                next_validators_hash: Hash::default(),
+                proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
+                txs: txs.clone(),
+                proposed_last_commit: Some(CommitInfo {
+                    votes: vec![],
+                    round: Round::default(),
+                }),
+                misbehavior: vec![],
+            },
+            fixture.storage(),
+        )
+        .await
+        .unwrap();
+
+    // Ensure transactions are still in pending after process_proposal
+    assert_eq!(
+        fixture.mempool().len().await,
+        2,
+        "two txs in mempool after process_proposal"
+    );
+    assert_tx_in_pending(&fixture, tx_1_id, "tx_1").await;
+    assert_tx_in_pending(&fixture, tx_2_id, "tx_2").await;
+
+    // Submit finalize_block
+    fixture
+        .app
+        .finalize_block(
+            FinalizeBlock {
+                hash: Hash::try_from([97u8; 32].to_vec()).unwrap(),
+                height,
+                time: Time::now(),
+                next_validators_hash: Hash::default(),
+                proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
+                txs,
+                decided_last_commit: CommitInfo {
+                    votes: vec![],
+                    round: Round::default(),
+                },
+                misbehavior: vec![],
+            },
+            fixture.storage(),
+        )
+        .await
+        .unwrap();
+
+    // Ensure transactions are still in pending after finalize_block
+    assert_eq!(
+        fixture.mempool().len().await,
+        2,
+        "two txs in mempool after finalize_block"
+    );
+    assert_tx_in_pending(&fixture, tx_1_id, "tx_1").await;
+    assert_tx_in_pending(&fixture, tx_2_id, "tx_2").await;
+
+    // Commit the block, should remove transactions from mempool
+    fixture.app.commit(fixture.storage()).await.unwrap();
+
+    // Ensure transactions are removed from mempool
+    assert_eq!(fixture.mempool().len().await, 0, "mempool should be empty");
+    assert_eq!(
+        fixture.mempool().removal_cache().await.len(),
+        2,
+        "removal cache should have 2 txs"
+    );
+    let TransactionStatus::Removed(RemovalReason::IncludedInBlock(height_1)) =
+        fixture.mempool().transaction_status(tx_1_id).await.unwrap()
+    else {
+        panic!("tx_1 should be removed");
+    };
+    assert_eq!(
+        height_1,
+        height.value(),
+        "tx_1 should be removed from mempool with height {height}"
+    );
+    let TransactionStatus::Removed(RemovalReason::IncludedInBlock(height_2)) =
+        fixture.mempool().transaction_status(tx_2_id).await.unwrap()
+    else {
+        panic!("tx_2 should be removed");
+    };
+    assert_eq!(
+        height_2,
+        height.value(),
+        "tx_2 should be removed from mempool with height {height}"
+    );
+}
+
+#[expect(clippy::too_many_lines, reason = "it's a test")]
+#[tokio::test]
+async fn non_proposer_validator_flow_included_transactions_sent_to_mempool() {
+    // The flow of this test simulates a validator receiving a block from the current proposer and
+    // executing a full round of the consensus protocol. This includes:
+    // 1. process_proposal - transactions are executed here.
+    // 2. finalize_block - transactions not executed, and IDs should still be in pending.
+    // 3. commit - transaction IDs should still be in mempool. After execution of this method, they
+    //    should be removed from mempool and added to the removal cache.
+    let mut fixture = Fixture::default_initialized().await;
+    let height = fixture.block_height().await.increment();
+
+    let tx_1 = fixture
+        .checked_tx_builder()
+        .with_signer(ALICE.clone())
+        .with_action(dummy_rollup_data_submission())
+        .build()
+        .await;
+    let tx_2 = fixture
+        .checked_tx_builder()
+        .with_signer(ALICE.clone())
+        .with_action(dummy_transfer())
+        .with_nonce(1)
+        .build()
+        .await;
+
+    let tx_1_id = tx_1.id();
+    let tx_2_id = tx_2.id();
+
+    // Insert transactions into mempool
+    fixture
+        .mempool()
+        .insert(
+            tx_1.clone(),
+            0,
+            &dummy_balances(0, 0),
+            dummy_tx_costs(0, 0, 0),
+        )
+        .await
+        .unwrap();
+    fixture
+        .mempool()
+        .insert(
+            tx_2.clone(),
+            0,
+            &dummy_balances(0, 0),
+            dummy_tx_costs(0, 0, 0),
+        )
+        .await
+        .unwrap();
+
+    // Ensure transactions are in pending
+    assert_eq!(fixture.mempool().len().await, 2, "two txs in mempool");
+    assert_tx_in_pending(&fixture, tx_1_id, "tx_1").await;
+    assert_tx_in_pending(&fixture, tx_2_id, "tx_2").await;
+
+    // Submit process_proposal
+    let txs = transactions_with_extended_commit_info_and_commitments(
+        height,
+        &[tx_1.clone(), tx_2.clone()],
+        None,
+    );
+    fixture
+        .app
+        .process_proposal(
+            ProcessProposal {
+                hash: Hash::try_from([99u8; 32].to_vec()).unwrap(),
+                height,
+                time: Time::now(),
+                next_validators_hash: Hash::default(),
+                proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
+                txs: txs.clone(),
+                proposed_last_commit: Some(CommitInfo {
+                    votes: vec![],
+                    round: Round::default(),
+                }),
+                misbehavior: vec![],
+            },
+            fixture.storage(),
+        )
+        .await
+        .unwrap();
+
+    // Ensure transactions are still in pending after process_proposal
+    assert_eq!(
+        fixture.mempool().len().await,
+        2,
+        "two txs in mempool after process_proposal"
+    );
+    assert_tx_in_pending(&fixture, tx_1_id, "tx_1").await;
+    assert_tx_in_pending(&fixture, tx_2_id, "tx_2").await;
+
+    // Submit finalize_block
+    fixture
+        .app
+        .finalize_block(
+            FinalizeBlock {
+                hash: Hash::try_from([97u8; 32].to_vec()).unwrap(),
+                height,
+                time: Time::now(),
+                next_validators_hash: Hash::default(),
+                proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
+                txs,
+                decided_last_commit: CommitInfo {
+                    votes: vec![],
+                    round: Round::default(),
+                },
+                misbehavior: vec![],
+            },
+            fixture.storage(),
+        )
+        .await
+        .unwrap();
+
+    // Ensure transactions are still in pending after finalize_block
+    assert_eq!(
+        fixture.mempool().len().await,
+        2,
+        "two txs in mempool after finalize_block"
+    );
+    assert_tx_in_pending(&fixture, tx_1_id, "tx_1").await;
+    assert_tx_in_pending(&fixture, tx_2_id, "tx_2").await;
+
+    // Commit the block, should remove transactions from mempool
+    fixture.app.commit(fixture.storage()).await.unwrap();
+
+    // Ensure transactions are removed from mempool
+    assert_eq!(fixture.mempool().len().await, 0, "mempool should be empty");
+    assert_eq!(
+        fixture.mempool().removal_cache().await.len(),
+        2,
+        "removal cache should have 2 txs"
+    );
+    let TransactionStatus::Removed(RemovalReason::IncludedInBlock(height_1)) =
+        fixture.mempool().transaction_status(tx_1_id).await.unwrap()
+    else {
+        panic!("tx_1 should be removed");
+    };
+    assert_eq!(
+        height_1,
+        height.value(),
+        "tx_1 should be removed from mempool with height {height}"
+    );
+    let TransactionStatus::Removed(RemovalReason::IncludedInBlock(height_2)) =
+        fixture.mempool().transaction_status(tx_2_id).await.unwrap()
+    else {
+        panic!("tx_2 should be removed");
+    };
+    assert_eq!(
+        height_2,
+        height.value(),
+        "tx_2 should be removed from mempool with height {height}"
+    );
+}
+
+#[tokio::test]
+async fn non_validator_flow_included_transactions_sent_to_mempool() {
+    // The flow of this test simulates a full node (running a mempool) that is not a validator
+    // receiving a `FinalizeBlock` from CometBFT and committing it. This includes:
+    // 1. finalize_block - transactions are executed for the first time since the node is not a
+    //    validator, then added to the write batch.
+    // 2. commit - transaction IDs should still be in mempool. After execution of this method, they
+    //    should be removed from mempool and added to the removal cache.
+    let mut fixture = Fixture::default_initialized().await;
+    let height = fixture.block_height().await.increment();
+
+    let tx_1 = fixture
+        .checked_tx_builder()
+        .with_signer(ALICE.clone())
+        .with_action(dummy_rollup_data_submission())
+        .build()
+        .await;
+    let tx_2 = fixture
+        .checked_tx_builder()
+        .with_signer(ALICE.clone())
+        .with_action(dummy_transfer())
+        .with_nonce(1)
+        .build()
+        .await;
+
+    let tx_1_id = tx_1.id();
+    let tx_2_id = tx_2.id();
+
+    // Insert transactions into mempool
+    fixture
+        .mempool()
+        .insert(
+            tx_1.clone(),
+            0,
+            &dummy_balances(0, 0),
+            dummy_tx_costs(0, 0, 0),
+        )
+        .await
+        .unwrap();
+    fixture
+        .mempool()
+        .insert(
+            tx_2.clone(),
+            0,
+            &dummy_balances(0, 0),
+            dummy_tx_costs(0, 0, 0),
+        )
+        .await
+        .unwrap();
+
+    // Ensure transactions are in pending
+    assert_eq!(fixture.mempool().len().await, 2, "two txs in mempool");
+    assert_tx_in_pending(&fixture, tx_1_id, "tx_1").await;
+    assert_tx_in_pending(&fixture, tx_2_id, "tx_2").await;
+
+    let txs = transactions_with_extended_commit_info_and_commitments(
+        height,
+        &[tx_1.clone(), tx_2.clone()],
+        None,
+    );
+
+    // Submit finalize_block
+    fixture
+        .app
+        .finalize_block(
+            FinalizeBlock {
+                hash: Hash::try_from([97u8; 32].to_vec()).unwrap(),
+                height,
+                time: Time::now(),
+                next_validators_hash: Hash::default(),
+                proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
+                txs,
+                decided_last_commit: CommitInfo {
+                    votes: vec![],
+                    round: Round::default(),
+                },
+                misbehavior: vec![],
+            },
+            fixture.storage(),
+        )
+        .await
+        .unwrap();
+
+    // Ensure transactions are still in pending after finalize_block
+    assert_eq!(
+        fixture.mempool().len().await,
+        2,
+        "two txs in mempool after finalize_block"
+    );
+    assert_tx_in_pending(&fixture, tx_1_id, "tx_1").await;
+    assert_tx_in_pending(&fixture, tx_2_id, "tx_2").await;
+
+    // Commit the block, should remove transactions from mempool
+    fixture.app.commit(fixture.storage()).await.unwrap();
+
+    // Ensure transactions are removed from mempool
+    assert_eq!(fixture.mempool().len().await, 0, "mempool should be empty");
+    assert_eq!(
+        fixture.mempool().removal_cache().await.len(),
+        2,
+        "removal cache should have 2 txs"
+    );
+    let TransactionStatus::Removed(RemovalReason::IncludedInBlock(height_1)) =
+        fixture.mempool().transaction_status(tx_1_id).await.unwrap()
+    else {
+        panic!("tx_1 should be removed");
+    };
+    assert_eq!(
+        height_1,
+        height.value(),
+        "tx_1 should be removed from mempool with height {height}"
+    );
+    let TransactionStatus::Removed(RemovalReason::IncludedInBlock(height_2)) =
+        fixture.mempool().transaction_status(tx_2_id).await.unwrap()
+    else {
+        panic!("tx_2 should be removed");
+    };
+    assert_eq!(
+        height_2,
+        height.value(),
+        "tx_2 should be removed from mempool with height {height}"
     );
 }
