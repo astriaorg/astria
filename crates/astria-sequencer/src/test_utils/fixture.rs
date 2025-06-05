@@ -139,10 +139,10 @@ impl Fixture {
     }
 
     /// Returns a `Fixture` where default values have been used in a call to `init_chain`, and then
-    /// `Self::run_until_aspen_applied` and `Self::run_until_blackburn_applied` have been executed.
+    /// `Self::run_until_aspen_and_blackburn_applied` has been executed.
     ///
     /// The Aspen and Blackburn upgrades will have been applied at block heights 1 and 4,
-    /// respectively, and blocks 2, 3, and 5 will also have been executed (both as empty blocks).
+    /// respectively. Blocks 2, 3, and 5 will also have been executed (both as empty blocks).
     ///
     /// For a list of the default values used at genesis, see the docs for [`ChainInitializer`].
     pub(crate) async fn default_initialized() -> Self {
@@ -241,8 +241,8 @@ impl Fixture {
         .expect("should convert to height")
     }
 
-    /// Repeatedly executes `App::finalize_block` and `App::commit` until one block after the
-    /// Blackburn upgrade has been applied.
+    /// Repeatedly executes `App::finalize_block` and `App::commit` until one block after either the
+    /// Aspen or Blackburn upgrades have been applied, whichever comes last.
     ///
     /// Returns the height of the next block to execute.
     ///

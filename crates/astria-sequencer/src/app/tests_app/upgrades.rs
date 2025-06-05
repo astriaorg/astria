@@ -52,8 +52,10 @@ use tendermint::{
         },
     },
     account,
-    block,
-    block::BlockIdFlag,
+    block::{
+        self,
+        BlockIdFlag,
+    },
     Hash,
     Signature,
     Time,
@@ -688,7 +690,7 @@ async fn execute_block_101(proposer: &mut Node, validator: &mut Node, non_valida
     validator.process_proposal(&process_proposal).await.unwrap();
 
     // `ExtendVote` for block 101 would be called at this stage on the proposer and on the
-    // non-proposing validator.  We just use a fake vote extension since we don't have an oracle
+    // non-proposing validator. We just use a fake vote extension since we don't have an oracle
     // client in the test.
     //
     // Execute `VerifyVoteExtension` for block 101 on the proposer using the non-proposing
@@ -794,10 +796,33 @@ async fn execute_block_102(proposer: &mut Node, validator: &mut Node, non_valida
     proposer.process_proposal(&process_proposal).await.unwrap();
     validator.process_proposal(&process_proposal).await.unwrap();
 
-    // `ExtendVote` and `VerifyVoteExtension` for block 102 would be called at this stage on the
-    // proposer and on the non-proposing validator, but there's no need to do that here as this is
-    // the last block of the test.
+    // `ExtendVote` for block 102 would be called at this stage on the proposer and on the
+    // non-proposing validator. We just use a fake vote extension since we don't have an oracle
+    // client in the test.
     //
+    // Execute `VerifyVoteExtension` for block 102 on the proposer using the non-proposing
+    // validator's address and vice-versa.
+    let verify_request = new_verify_vote_extension(
+        &prepare_proposal,
+        &prepare_proposal_response,
+        validator.signing_key.address_bytes(),
+    );
+    let verify_response = proposer
+        .verify_vote_extension(verify_request)
+        .await
+        .unwrap();
+    assert_eq!(response::VerifyVoteExtension::Accept, verify_response);
+    let verify_request = new_verify_vote_extension(
+        &prepare_proposal,
+        &prepare_proposal_response,
+        proposer.signing_key.address_bytes(),
+    );
+    let verify_response = validator
+        .verify_vote_extension(verify_request)
+        .await
+        .unwrap();
+    assert_eq!(response::VerifyVoteExtension::Accept, verify_response);
+
     // Execute `FinalizeBlock` for block 102 on all three nodes.
     let finalize_block = new_finalize_block(&prepare_proposal, &prepare_proposal_response);
     let finalize_block_response = proposer.finalize_block(&finalize_block).await.unwrap();
@@ -851,8 +876,7 @@ async fn execute_block_103(proposer: &mut Node, validator: &mut Node, non_valida
         .with_extended_commit_info(new_extended_commit_info(102))
         .build();
     let prepare_proposal_response = proposer.prepare_proposal(&prepare_proposal).await.unwrap();
-    // Check the response's `txs` are in the new form, i.e. encoded `DataItem`s, that extended
-    // commit info is provided, and that the tx inserted to the mempool is also included.
+
     let expanded_block_data =
         ExpandedBlockData::new_from_typed_data(&prepare_proposal_response.txs, true).unwrap();
     assert!(!expanded_block_data.upgrade_change_hashes.is_empty());

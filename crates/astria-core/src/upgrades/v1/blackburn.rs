@@ -82,8 +82,8 @@ impl Protobuf for Blackburn {
     }
 }
 
-/// This change alters the `Ics20Withdrawal` action to only allow withdrawals using allowed fee
-/// assets.
+/// This change alters the `IbcRelay` action to only allow denoms that are allowed fee assets in
+/// ICS20 transfers.
 #[derive(Clone, Debug, BorshSerialize)]
 pub struct Ics20TransferActionChange {
     activation_height: u64,
