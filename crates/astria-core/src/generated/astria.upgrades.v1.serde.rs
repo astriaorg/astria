@@ -491,7 +491,7 @@ impl<'de> serde::Deserialize<'de> for BaseUpgradeInfo {
                             if activation_height__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("activationHeight"));
                             }
-                            activation_height__ =
+                            activation_height__ = 
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
@@ -499,7 +499,7 @@ impl<'de> serde::Deserialize<'de> for BaseUpgradeInfo {
                             if app_version__.is_some() {
                                 return Err(serde::de::Error::duplicate_field("appVersion"));
                             }
-                            app_version__ =
+                            app_version__ = 
                                 Some(map_.next_value::<::pbjson::private::NumberDeserialize<_>>()?.0)
                             ;
                         }
@@ -533,7 +533,7 @@ impl serde::Serialize for Blackburn {
             struct_ser.serialize_field("baseInfo", v)?;
         }
         if let Some(v) = self.ics20_transfer_action_change.as_ref() {
-            struct_ser.serialize_field("ics20WithdrawalActionChange", v)?;
+            struct_ser.serialize_field("ics20TransferActionChange", v)?;
         }
         struct_ser.end()
     }
@@ -548,7 +548,7 @@ impl<'de> serde::Deserialize<'de> for Blackburn {
             "base_info",
             "baseInfo",
             "ics20_transfer_action_change",
-            "ics20WithdrawalActionChange",
+            "ics20TransferActionChange",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -577,7 +577,7 @@ impl<'de> serde::Deserialize<'de> for Blackburn {
                     {
                         match value {
                             "baseInfo" | "base_info" => Ok(GeneratedField::BaseInfo),
-                            "ics20WithdrawalActionChange" | "ics20_transfer_action_change" => Ok(GeneratedField::Ics20TransferActionChange),
+                            "ics20TransferActionChange" | "ics20_transfer_action_change" => Ok(GeneratedField::Ics20TransferActionChange),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -609,7 +609,7 @@ impl<'de> serde::Deserialize<'de> for Blackburn {
                         }
                         GeneratedField::Ics20TransferActionChange => {
                             if ics20_transfer_action_change__.is_some() {
-                                return Err(serde::de::Error::duplicate_field("ics20WithdrawalActionChange"));
+                                return Err(serde::de::Error::duplicate_field("ics20TransferActionChange"));
                             }
                             ics20_transfer_action_change__ = map_.next_value()?;
                         }
