@@ -29,6 +29,7 @@ from helpers.hermes_controller import HermesController
 from helpers.image_controller import ImageController
 from helpers.sequencer_controller import SequencerController
 from helpers.utils import update_chart_dependencies, check_change_infos
+from termcolor import colored
 
 # The number of sequencer validator nodes to use in the test.
 NUM_NODES = 5
@@ -56,12 +57,12 @@ args = vars(parser.parse_args())
 upgrade_image_tag = args["image_tag"]
 upgrade_name = args["upgrade_name"].lower()
 
-print("################################################################################")
-print("Running sequencer upgrade test")
-print(f"  * upgraded container image tag: {upgrade_image_tag}")
-print(f"  * pre-upgrade container image tags: {PRE_UPGRADE_IMAGE_TAGS}")
-print(f"  * upgrade name: {upgrade_name}")
-print("################################################################################")
+print(colored("################################################################################", "light_blue"))
+print(colored("Running sequencer upgrade test", "light_blue"))
+print(colored(f"  * upgraded container image tag: {upgrade_image_tag}", "light_blue"))
+print(colored(f"  * pre-upgrade container image tags: {PRE_UPGRADE_IMAGE_TAGS}", "light_blue"))
+print(colored(f"  * upgrade name: {upgrade_name}", "light_blue"))
+print(colored("################################################################################", "light_blue"))
 
 # Update chart dependencies.
 for chart in ("sequencer", "evm-stack"):
@@ -76,7 +77,7 @@ for chart in ("sequencer", "evm-stack"):
 nodes = [SequencerController(f"node{i}") for i in range(NUM_NODES - 1)]
 evm = EvmController()
 celestia = CelestiaController()
-print(f"starting {len(nodes)} sequencers and the evm rollup")
+print(colored(f"starting {len(nodes)} sequencers, evm rollup, and celestia local", "blue"))
 executor = concurrent.futures.ThreadPoolExecutor(NUM_NODES + 1)
 
 deploy_sequencer_fn = lambda seq_node: seq_node.deploy_sequencer(
@@ -93,6 +94,7 @@ for completed_future in done:
     completed_future.result()
 
 # Hermes doesn't play well with parallel deployment, so deploy it last.
+print(colored("deploying hermes...", "blue"))
 hermes = HermesController("local")
 hermes.deploy_hermes(pre_upgrade_image_controller)
 
@@ -129,29 +131,29 @@ for node in nodes[1:]:
         raise SystemExit(f"node0 and {node.name} report different values for genesis app version")
 
 # Run pre-upgrade validator updates to check that the new action still executes correctly.
-print("running pre-upgrade validator updates")
+print(colored("running pre-upgrade validator updates", "blue"))
 for node in nodes:
     node.power += 1
     cli.validator_update(node.name, node.pub_key, node.power)
 
 # Submit pre-upgrade ICS20 transfer
-print("submitting pre-upgrade ICS20 transfer to Celestia")
+print(colored("submitting pre-upgrade ICS20 transfer to Celestia", "blue"))
 celestia.do_ibc_transfer(SEQUENCER_IBC_TRANSFER_DESTINATION_ADDRESS)
 
 # Give time for validator updates and ICS20 transfer to land
 time.sleep(10)
 
 # Run pre-upgrade checks specific to this upgrade.
-print(f"running pre-upgrade checks specific to {upgrade_name}")
+print(colored(f"running pre-upgrade checks specific to {upgrade_name}", "blue"))
 if upgrade_name == "aspen":
     aspen_upgrade_checks.assert_pre_upgrade_conditions(nodes)
 if upgrade_name == "blackburn":
     blackburn_upgrade_checks.assert_pre_upgrade_conditions(cli, nodes)
-print(f"passed {upgrade_name}-specific pre-upgrade checks")
+print(colored(f"passed {upgrade_name}-specific pre-upgrade checks", "green"))
 
 
 # Perform a bridge in.
-print("testing bridge in")
+print(colored("testing bridge in", "blue"))
 evm_balance = evm.get_balance(EVM_DESTINATION_ADDRESS)
 if evm_balance != 0:
     raise SystemExit(f"starting evm balance not 0: balance {evm_balance}")
@@ -159,19 +161,19 @@ cli.init_bridge_account(sequencer_name="node1")
 cli.bridge_lock(sequencer_name="node2")
 expected_evm_balance = 10000000000000000000
 evm.wait_until_balance(EVM_DESTINATION_ADDRESS, expected_evm_balance, 30)
-print("bridge in succeeded")
+print(colored("bridge in succeeded", "green"))
 
-print("app version before upgrade:", app_version_before)
+print(colored("app version before upgrade:", "blue"), colored(f"{app_version_before}", "yellow"))
 
 # Get the current block height from the sequencer and set the upgrade to activate soon.
 block_height_difference = 10
 latest_block_height = nodes[0].get_last_block_height()
 upgrade_activation_height = latest_block_height + block_height_difference
-print("setting upgrade activation height to", upgrade_activation_height)
+print(colored("setting upgrade activation height to", "blue"), colored(f"{upgrade_activation_height}", "yellow"))
 # Leave the last sequencer running the old binary through the upgrade to ensure it can catch up
 # later. Pop it from the `nodes` list and re-add it later once it's caught up.
 missed_upgrade_node = nodes.pop()
-print(f"not upgrading {missed_upgrade_node.name} until the rest have executed the upgrade")
+print(colored(f"not upgrading {missed_upgrade_node.name} until the rest have executed the upgrade", "blue"))
 for node in nodes:
     node.stage_upgrade(
         ImageController([f"sequencer={upgrade_image_tag}", f"sequencer-relayer={upgrade_image_tag}"]),
@@ -181,7 +183,7 @@ for node in nodes:
     )
 
 # Wait for the rollout to complete.
-print("waiting for pods to become ready")
+print(colored("waiting for pods to become ready", "blue"))
 wait_for_upgrade_fn = lambda seq_node: seq_node.wait_for_upgrade(upgrade_activation_height)
 futures = [executor.submit(wait_for_upgrade_fn, node) for node in nodes]
 done, _ = concurrent.futures.wait(futures, return_when=FIRST_EXCEPTION)
@@ -196,7 +198,7 @@ except Exception:
     # This is the expected branch - the node should have crashed when it disagreed about the outcome
     # of executing the block at the upgrade activation height.
     pass
-print(f"{missed_upgrade_node.name} lagging as expected; now upgrading")
+print(colored(f"{missed_upgrade_node.name} lagging as expected; now upgrading", "blue"))
 
 # Now stage the upgrade on this lagging node and ensure it catches up.
 missed_upgrade_node.stage_upgrade(
@@ -209,13 +211,13 @@ missed_upgrade_node.wait_for_upgrade(upgrade_activation_height)
 latest_block_height = nodes[0].get_last_block_height()
 timeout_secs = max((latest_block_height - upgrade_activation_height) * 10, 30)
 missed_upgrade_node.wait_until_chain_at_height(latest_block_height, timeout_secs)
-print(f"{missed_upgrade_node.name} has caught up")
+print(colored(f"{missed_upgrade_node.name} has caught up", "green"))
 # Re-add the lagging node to the list.
 nodes.append(missed_upgrade_node)
 
 # Start a fifth sequencer validator now that the upgrade has happened.
 new_node = SequencerController(f"node{NUM_NODES - 1}")
-print("starting a new sequencer")
+print(colored("starting a new sequencer", "blue"))
 new_node.deploy_sequencer(
     ImageController([f"sequencer={upgrade_image_tag}", f"sequencer-relayer={upgrade_image_tag}"]),
     upgrade_name=upgrade_name,
@@ -225,7 +227,7 @@ new_node.bech32m_address = cli.address(new_node.name, new_node.address)
 
 # Wait for the new node to catch up and go through the upgrade too.
 new_node.wait_until_chain_at_height(upgrade_activation_height + 2, 60)
-print(f"new sequencer {new_node.name} has caught up")
+print(colored(f"new sequencer {new_node.name} has caught up", "green"))
 # Add the new node to the list.
 nodes.append(new_node)
 
@@ -236,7 +238,7 @@ for node in nodes[1:]:
         raise SystemExit(f"{node.name} failed to upgrade: app version unchanged")
     if node.get_current_app_version() != app_version_after:
         raise SystemExit(f"node0 and {node.name} report different values for app version")
-print("app version changed after upgrade to:", app_version_after)
+print(colored("app version changed after upgrade to:", "blue"), colored(f"{app_version_after}", "yellow"))
 
 # Check that fetching block 1 yields the same result as before the upgrade (ensures test network
 # didn't just restart from genesis using the upgraded binary rather than actually performing a
@@ -249,7 +251,7 @@ if block_1_before != block_1_after:
 for node in nodes[1:]:
     if node.get_sequencer_block(1) != block_1_after:
         raise SystemExit(f"node0 and {node.name} report different values for block 1")
-print("fetching block 1 after the upgrade yields the same result as before the upgrade")
+print(colored("fetching block 1 after the upgrade yields the same result as before the upgrade", "green"))
 
 # Fetch and check the upgrade change infos. There should be none scheduled and at least one applied.
 applied, scheduled = nodes[0].get_upgrades_info()
@@ -266,28 +268,28 @@ for node in nodes[1:]:
         raise SystemExit(
             f"node0 and {node.name} report different values for scheduled upgrade changes"
         )
-print("upgrade change infos reported correctly")
+print(colored("upgrade change infos reported correctly", "green"))
 
 # Submit validator updates with names for all validators
-print("running post-upgrade validator updates")
+print(colored("running post-upgrade validator updates", "blue"))
 for node in nodes:
     cli.validator_update(node.name, node.pub_key, node.power)
 
 # Submit post-upgrade ICS20 transfer
-print("submitting post-upgrade ICS20 transfer to Celestia")
+print(colored("submitting post-upgrade ICS20 transfer to Celestia", "blue"))
 celestia.do_ibc_transfer(SEQUENCER_IBC_TRANSFER_DESTINATION_ADDRESS)
 
 # Give time for validator updates and ICS20 transfer to land
 time.sleep(10)
 
 # Run post-upgrade checks specific to this upgrade.
-print(f"running post-upgrade checks specific to {upgrade_name}")
+print(colored(f"running post-upgrade checks specific to {upgrade_name}", "blue"))
 if upgrade_name == "aspen":
     aspen_upgrade_checks.assert_post_upgrade_conditions(nodes, upgrade_activation_height)
-print(f"passed {upgrade_name}-specific post-upgrade checks")
+print(colored(f"passed {upgrade_name}-specific post-upgrade checks", "green"))
 
 # Perform a bridge out.
-print("testing bridge out")
+print(colored("testing bridge out", "blue"))
 # bridge_tx_bytes is the tx to the withdraw smart contract on the evm.
 # Uses private key for 0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30 to sign tx.
 # was created via:
@@ -311,11 +313,11 @@ evm.send_raw_tx(
 )
 expected_evm_balance = 9000000000000000000
 evm.wait_until_balance(EVM_DESTINATION_ADDRESS, expected_evm_balance, timeout_secs=60)
-print("bridge out evm success")
+print(colored("bridge out evm success", "green"))
 expected_balance = 1000000000
 cli.wait_until_balance(SEQUENCER_WITHDRAWER_ADDRESS, expected_balance, timeout_secs=60, sequencer_name="node3")
-print("bridge out sequencer success")
-print("testing tx finalization")
+print(colored("bridge out sequencer success", "green"))
+print(colored("testing tx finalization", "blue"))
 tx_block_number = evm.get_tx_block_number(BRIDGE_TX_HASH)
 evm.wait_until_chain_at_height(tx_block_number, timeout_secs=60)
-print("sequencer network upgraded successfully")
+print(colored("sequencer network upgraded successfully", "green"))

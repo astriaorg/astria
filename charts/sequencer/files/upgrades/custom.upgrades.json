@@ -78,7 +78,9 @@
     "baseInfo": {
       "activationHeight": "{{ .baseInfo.activationHeight }}",
       "appVersion": "{{ .baseInfo.appVersion }}"
-    }
+    },
+    "ics20TransferActionChange": {}
+  }
   {{- end }}
   {{- end }}
 }
