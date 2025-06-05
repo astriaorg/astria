@@ -117,7 +117,7 @@ is another chain. It consists of the following:
 
 ### Bridge Actions
 
-These actions deal with transfering funds to/from a bridge account to be used on
+These actions deal with transferring funds to/from a bridge account to be used on
 a rollup.
 
 * `InitBridgeAccount`: initializes a bridge account for the given rollup on the
