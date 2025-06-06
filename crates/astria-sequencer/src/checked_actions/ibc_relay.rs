@@ -174,14 +174,13 @@ impl Debug for CheckedIbcRelay {
 }
 
 pub(crate) async fn use_pre_blackburn_ics20_transfer<S: StateRead>(state: &S) -> Result<bool> {
-    let pre_blackburn_upgrade = state
+    Ok(state
         .get_upgrade_change_info(&Blackburn::NAME, &Ics20TransferActionChange::NAME)
         .await
         .wrap_err(
             "failed to read upgrade change info for ics20 transfer action change from storage",
         )?
-        .is_none();
-    Ok(pre_blackburn_upgrade)
+        .is_none())
 }
 
 #[cfg(test)]

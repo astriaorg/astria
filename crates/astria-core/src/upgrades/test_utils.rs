@@ -75,7 +75,7 @@ impl UpgradesBuilder {
             .map(|activation_height| raw::Blackburn {
                 base_info: Some(raw::BaseUpgradeInfo {
                     activation_height,
-                    app_version: 2,
+                    app_version: 3,
                 }),
                 ics20_transfer_action_change: Some(raw::blackburn::Ics20TransferActionChange {}),
             });

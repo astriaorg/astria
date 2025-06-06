@@ -89,8 +89,8 @@ def check_change_infos(change_infos, upgrade_heights, expected_app_version=None)
                 break
         if expected_upgrade_name is None:
             raise SystemExit(
-                f"sequencer upgrade error: reported change info has unexpected change name "
-                f"{change_info.change_name}: expected one of {list(UPGRADE_CHANGES.keys())}"
+                f"sequencer upgrade error: reported change info has unexpected change name \
+                    {change_info.change_name}: expected one of {list(UPGRADE_CHANGES.keys())}"
             )
         expected_activation_height = upgrade_heights[expected_upgrade_name]
 
@@ -103,10 +103,10 @@ def check_change_infos(change_infos, upgrade_heights, expected_app_version=None)
 
     # Only want to check the app version of the most recent change info, since
     # previous upgrades will also be included.
-    if expected_app_version and change_infos[-1].app_version!= expected_app_version:
+    if expected_app_version and change_infos[-1].app_version != expected_app_version:
         raise SystemExit(
             "sequencer upgrade error: reported change info does not have expected app version "
-            f"of {expected_app_version}: reported change info:\n{change_info}"
+            f"of {expected_app_version}: reported change info:\n{change_infos[-1]}"
         )
 
 class Retryer:
