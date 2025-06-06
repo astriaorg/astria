@@ -920,7 +920,7 @@ async fn execute_block_103(proposer: &mut Node, validator: &mut Node, non_valida
             .unwrap()
             .version,
         Some(tendermint::consensus::params::VersionParams {
-            app: 2
+            app: 3
         })
     );
 
