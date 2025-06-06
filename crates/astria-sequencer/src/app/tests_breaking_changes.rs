@@ -74,7 +74,7 @@ async fn app_genesis_snapshot() {
 #[tokio::test]
 async fn app_finalize_block_snapshot() {
     let mut fixture = Fixture::legacy_initialized().await;
-    let height = fixture.run_until_aspen_applied().await;
+    let height = fixture.run_until_blackburn_applied().await;
 
     let bridge_address = astria_address(&[99; 20]);
     let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
@@ -183,7 +183,7 @@ async fn app_legacy_execute_transactions_with_every_action_snapshot() {
         .init()
         .await;
 
-    let height = fixture.run_until_aspen_applied().await;
+    let height = fixture.run_until_blackburn_applied().await;
 
     let bridge = IBC_SUDO.clone();
     let bridge_withdrawer = SUDO.clone();

@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add new ABCI error code 21: `INVALID_TRANSACTION` [#2133](https://github.com/astriaorg/astria/pull/2133).
 - Add `CheckedTransaction`, `CheckedAction` and `Checked...` wrappers for all
   action types [#2142](https://github.com/astriaorg/astria/pull/2142).
+- Add `Blackburn` upgrade [#2228](https://github.com/astriaorg/astria/pull/2228).
 
 ### Changed
 

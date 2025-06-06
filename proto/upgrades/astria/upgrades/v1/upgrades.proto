@@ -8,6 +8,7 @@ import "connect/oracle/v2/genesis.proto";
 // A JSON-encoded form of this message is used as the upgrades file for the Sequencer.
 message Upgrades {
   Aspen aspen = 1;
+  Blackburn blackburn = 2;
 }
 
 // Info specific to a given upgrade.
@@ -37,4 +38,12 @@ message Aspen {
   PriceFeedChange price_feed_change = 2;
   ValidatorUpdateActionChange validator_update_action_change = 3;
   IbcAcknowledgementFailureChange ibc_acknowledgement_failure_change = 4;
+}
+
+// Blackburn upgrade of the Sequencer network.
+message Blackburn {
+  message Ics20TransferActionChange {}
+
+  BaseUpgradeInfo base_info = 1;
+  Ics20TransferActionChange ics20_transfer_action_change = 2;
 }

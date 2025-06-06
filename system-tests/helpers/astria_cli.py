@@ -23,7 +23,7 @@ class Cli:
     def set_image_tag(self, image_tag):
         self.image_tag = image_tag
 
-    def wait_until_balance(self, account, expected_balance, timeout_secs, sequencer_name):
+    def wait_until_balance(self, account, expected_balance, timeout_secs, sequencer_name, asset="nria"):
         """
         Polls for the balance of the given account until the expected balance is reached.
 
@@ -33,7 +33,7 @@ class Cli:
         balance = None
         while True:
             try:
-                balance = self._try_get_balance(account, sequencer_name)
+                balance = self._try_get_balance(account, sequencer_name, asset)
                 if balance == expected_balance:
                     break
             except Exception as error:
@@ -115,7 +115,7 @@ class Cli:
         except Exception as error:
             raise SystemExit(error)
 
-    def _try_get_balance(self, account, sequencer_name):
+    def _try_get_balance(self, account, sequencer_name, asset):
         """
         Tries to get the given account's balance by calling `astria-cli sequencer account balance`.
         """
@@ -123,11 +123,11 @@ class Cli:
             "account", "balance", account, sequencer_name=sequencer_name
         )
         balance_line = stdout.splitlines().pop()
-        if balance_line.endswith("nria"):
-            return int(balance_line[:-4])
+        if balance_line.endswith(asset):
+            return int(balance_line[:-len(asset)])
         else:
             raise RuntimeError(
-                "expected last line of cli `sequencer account balance` output to end with `nria`: "
+                f"expected last line of cli `sequencer account balance` output to end with `{asset}`: "
                 f"stdout: `{stdout}`"
             )
 

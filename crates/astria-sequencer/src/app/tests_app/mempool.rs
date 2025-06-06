@@ -201,7 +201,7 @@ async fn maintenance_recosting_promotes() {
         .init()
         .await;
 
-    let height = fixture.run_until_aspen_applied().await;
+    let height = fixture.run_until_blackburn_applied().await;
 
     // create tx which will not be included in block due to
     // having insufficient funds (transaction will be recosted to enable)
@@ -374,7 +374,7 @@ async fn maintenance_funds_added_promotes() {
         .init()
         .await;
 
-    let height = fixture.run_until_aspen_applied().await;
+    let height = fixture.run_until_blackburn_applied().await;
 
     // create tx that will not be included in block due to
     // having no funds (will be sent transfer to then enable)
@@ -445,7 +445,7 @@ async fn maintenance_funds_added_promotes() {
     assert_eq!(
         res.txs.len(),
         4,
-        "only one transactions should've been valid (besides 3 generated txs)"
+        "only one transaction should've been valid (besides 3 generated txs)"
     );
 
     let hash = Hash::Sha256([97u8; 32]);

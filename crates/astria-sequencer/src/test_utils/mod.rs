@@ -508,6 +508,22 @@ pub(crate) fn dummy_balances(
     balances
 }
 
+pub(crate) fn dummy_extended_commit_info() -> DataItem {
+    use astria_core::generated::protocol::price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping;
+
+    let extended_commit_info: tendermint_proto::abci::ExtendedCommitInfo =
+        tendermint::abci::types::ExtendedCommitInfo {
+            round: 0u16.into(),
+            votes: vec![],
+        }
+        .into();
+    let extended_commit_info_with_mapping = ExtendedCommitInfoWithCurrencyPairMapping {
+        extended_commit_info: Some(extended_commit_info.into()),
+        id_to_currency_pair: Vec::new(),
+    };
+    DataItem::ExtendedCommitInfo(extended_commit_info_with_mapping.encode_to_vec().into())
+}
+
 #[track_caller]
 pub(crate) fn assert_error_contains<T: Debug>(error: &T, expected: &'_ str) {
     let msg = format!("{error:?}");

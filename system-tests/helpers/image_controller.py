@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import List
 
 VALID_COMPONENTS = [
     "all",
@@ -9,6 +9,7 @@ VALID_COMPONENTS = [
     "bridge-withdrawer",
     "geth",
     "cli",
+    "hermes",
     ]
 
 MONOREPO_COMPONENTS = [
@@ -107,3 +108,9 @@ class ImageController:
         Returns the image tag for the cli component.
         """
         return self.image_tags.get("cli", None)
+
+    def hermes_image_tag(self) -> str:
+        """
+        Returns the image tag for the hermes component.
+        """
+        return self.image_tags.get("hermes", None)

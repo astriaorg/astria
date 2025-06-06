@@ -514,6 +514,187 @@ impl<'de> serde::Deserialize<'de> for BaseUpgradeInfo {
         deserializer.deserialize_struct("astria.upgrades.v1.BaseUpgradeInfo", FIELDS, GeneratedVisitor)
     }
 }
+impl serde::Serialize for Blackburn {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.base_info.is_some() {
+            len += 1;
+        }
+        if self.ics20_transfer_action_change.is_some() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.upgrades.v1.Blackburn", len)?;
+        if let Some(v) = self.base_info.as_ref() {
+            struct_ser.serialize_field("baseInfo", v)?;
+        }
+        if let Some(v) = self.ics20_transfer_action_change.as_ref() {
+            struct_ser.serialize_field("ics20TransferActionChange", v)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for Blackburn {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "base_info",
+            "baseInfo",
+            "ics20_transfer_action_change",
+            "ics20TransferActionChange",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            BaseInfo,
+            Ics20TransferActionChange,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "baseInfo" | "base_info" => Ok(GeneratedField::BaseInfo),
+                            "ics20TransferActionChange" | "ics20_transfer_action_change" => Ok(GeneratedField::Ics20TransferActionChange),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = Blackburn;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.upgrades.v1.Blackburn")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<Blackburn, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut base_info__ = None;
+                let mut ics20_transfer_action_change__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::BaseInfo => {
+                            if base_info__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("baseInfo"));
+                            }
+                            base_info__ = map_.next_value()?;
+                        }
+                        GeneratedField::Ics20TransferActionChange => {
+                            if ics20_transfer_action_change__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("ics20TransferActionChange"));
+                            }
+                            ics20_transfer_action_change__ = map_.next_value()?;
+                        }
+                    }
+                }
+                Ok(Blackburn {
+                    base_info: base_info__,
+                    ics20_transfer_action_change: ics20_transfer_action_change__,
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.upgrades.v1.Blackburn", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for blackburn::Ics20TransferActionChange {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let len = 0;
+        let struct_ser = serializer.serialize_struct("astria.upgrades.v1.Blackburn.Ics20TransferActionChange", len)?;
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for blackburn::Ics20TransferActionChange {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                            Err(serde::de::Error::unknown_field(value, FIELDS))
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = blackburn::Ics20TransferActionChange;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.upgrades.v1.Blackburn.Ics20TransferActionChange")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<blackburn::Ics20TransferActionChange, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                while map_.next_key::<GeneratedField>()?.is_some() {
+                    let _ = map_.next_value::<serde::de::IgnoredAny>()?;
+                }
+                Ok(blackburn::Ics20TransferActionChange {
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.upgrades.v1.Blackburn.Ics20TransferActionChange", FIELDS, GeneratedVisitor)
+    }
+}
 impl serde::Serialize for Upgrades {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -525,9 +706,15 @@ impl serde::Serialize for Upgrades {
         if self.aspen.is_some() {
             len += 1;
         }
+        if self.blackburn.is_some() {
+            len += 1;
+        }
         let mut struct_ser = serializer.serialize_struct("astria.upgrades.v1.Upgrades", len)?;
         if let Some(v) = self.aspen.as_ref() {
             struct_ser.serialize_field("aspen", v)?;
+        }
+        if let Some(v) = self.blackburn.as_ref() {
+            struct_ser.serialize_field("blackburn", v)?;
         }
         struct_ser.end()
     }
@@ -540,11 +727,13 @@ impl<'de> serde::Deserialize<'de> for Upgrades {
     {
         const FIELDS: &[&str] = &[
             "aspen",
+            "blackburn",
         ];
 
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             Aspen,
+            Blackburn,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -567,6 +756,7 @@ impl<'de> serde::Deserialize<'de> for Upgrades {
                     {
                         match value {
                             "aspen" => Ok(GeneratedField::Aspen),
+                            "blackburn" => Ok(GeneratedField::Blackburn),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -587,6 +777,7 @@ impl<'de> serde::Deserialize<'de> for Upgrades {
                     V: serde::de::MapAccess<'de>,
             {
                 let mut aspen__ = None;
+                let mut blackburn__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::Aspen => {
@@ -595,10 +786,17 @@ impl<'de> serde::Deserialize<'de> for Upgrades {
                             }
                             aspen__ = map_.next_value()?;
                         }
+                        GeneratedField::Blackburn => {
+                            if blackburn__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("blackburn"));
+                            }
+                            blackburn__ = map_.next_value()?;
+                        }
                     }
                 }
                 Ok(Upgrades {
                     aspen: aspen__,
+                    blackburn: blackburn__,
                 })
             }
         }

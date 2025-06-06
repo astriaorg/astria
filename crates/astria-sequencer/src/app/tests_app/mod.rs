@@ -1184,7 +1184,7 @@ async fn app_oracle_price_update_events_in_finalize_block() {
         .with_genesis_validators(vec![(ALICE.verification_key(), 100)])
         .init()
         .await;
-    let height = fixture.run_until_aspen_applied().await;
+    let height = fixture.run_until_blackburn_applied().await;
 
     let currency_pair: CurrencyPair = "ETH/USD".parse().unwrap();
     let id = CurrencyPairId::new(0);

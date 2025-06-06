@@ -432,8 +432,6 @@ Deploys all components necessary for running the sequencer upgrade test in the
 upgrade-test: generate-system-test-protos
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
   @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
-  @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
-  @just wait-for celestia-local
 
 
 #####################
