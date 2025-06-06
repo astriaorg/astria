@@ -323,6 +323,13 @@ impl AddressBytes for CheckedTransaction {
     }
 }
 
+#[cfg(test)]
+impl PartialEq for CheckedTransaction {
+    fn eq(&self, other: &Self) -> bool {
+        self.tx_id == other.tx_id
+    }
+}
+
 async fn convert_actions<S: StateRead>(
     unchecked_actions: Vec<Action>,
     tx_signer: [u8; ADDRESS_LENGTH],

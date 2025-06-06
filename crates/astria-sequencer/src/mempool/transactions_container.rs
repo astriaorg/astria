@@ -20,10 +20,12 @@ use astria_core::{
 };
 use astria_eyre::eyre::{
     eyre,
+    Report,
     Result,
     WrapErr as _,
 };
 use tendermint::abci::types::ExecTxResult;
+use thiserror::Error;
 use tokio::time::{
     Duration,
     Instant,
@@ -37,6 +39,7 @@ use super::RemovalReason;
 use crate::{
     accounts,
     accounts::AddressBytes as _,
+    checked_actions::CheckedActionFeeError,
     checked_transaction::CheckedTransaction,
 };
 
@@ -168,57 +171,48 @@ impl PartialOrd for TransactionPriority {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Error)]
 pub(crate) enum InsertionError {
+    #[error("transaction already exists in the mempool")]
     AlreadyPresent,
+    #[error("given nonce has already been used previously")]
     NonceTooLow,
+    #[error("given nonce already exists in the mempool")]
     NonceTaken,
+    #[error("gap in the pending nonce sequence")]
     NonceGap,
+    #[error("maximum number of parked transactions has been reached for the given account")]
     AccountSizeLimit,
+    #[error("account does not have enough balance to cover costs")]
     AccountBalanceTooLow,
+    #[error("maximum number of parked transactions has been reached for the mempool")]
     ParkedSizeLimit,
-}
-
-impl fmt::Display for InsertionError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            InsertionError::AlreadyPresent => {
-                write!(f, "transaction already exists in the mempool")
-            }
-            InsertionError::NonceTooLow => {
-                write!(f, "given nonce has already been used previously")
-            }
-            InsertionError::NonceTaken => write!(f, "given nonce already exists in the mempool"),
-            InsertionError::NonceGap => write!(f, "gap in the pending nonce sequence"),
-            InsertionError::AccountSizeLimit => write!(
-                f,
-                "maximum number of pending transactions has been reached for the given account"
-            ),
-            InsertionError::AccountBalanceTooLow => {
-                write!(f, "account does not have enough balance to cover costs")
-            }
-            InsertionError::ParkedSizeLimit => {
-                write!(f, "parked container size limit reached")
-            }
-        }
-    }
+    #[error("failed to calculate costs")]
+    FailedToCalculateCosts(#[source] CheckedActionFeeError),
+    #[error("internal error while inserting to mempool: {0}")]
+    Internal(String),
 }
 
 impl From<InsertionError> for tonic::Status {
     fn from(err: InsertionError) -> Self {
-        match err {
+        let msg = |error: InsertionError| {
+            Report::new(error)
+                .wrap_err("failed to insert transaction into app mempool")
+                .to_string()
+        };
+        match &err {
             InsertionError::AlreadyPresent | InsertionError::NonceTaken => {
-                tonic::Status::already_exists(err.to_string())
+                tonic::Status::already_exists(msg(err))
             }
             InsertionError::NonceTooLow | InsertionError::NonceGap => {
-                tonic::Status::invalid_argument(err.to_string())
+                tonic::Status::invalid_argument(msg(err))
             }
             InsertionError::AccountSizeLimit | InsertionError::ParkedSizeLimit => {
-                tonic::Status::resource_exhausted(err.to_string())
+                tonic::Status::resource_exhausted(msg(err))
             }
-            InsertionError::AccountBalanceTooLow => {
-                tonic::Status::failed_precondition(err.to_string())
-            }
+            InsertionError::AccountBalanceTooLow => tonic::Status::failed_precondition(msg(err)),
+            InsertionError::FailedToCalculateCosts(_) => tonic::Status::out_of_range(msg(err)),
+            InsertionError::Internal(_) => tonic::Status::internal(msg(err)),
         }
     }
 }
@@ -891,7 +885,10 @@ impl<const MAX_PARKED_TXS_PER_ACCOUNT: usize> ParkedTransactions<MAX_PARKED_TXS_
 mod tests {
     use astria_core::{
         crypto::SigningKey,
-        primitive::v1::RollupId,
+        primitive::v1::{
+            asset::Denom,
+            RollupId,
+        },
         protocol::{
             fees::v1::FeeComponents,
             transaction::v1::action::{
@@ -909,11 +906,9 @@ mod tests {
         checked_actions::CheckedAction,
         fees::StateWriteExt as _,
         test_utils::{
-            denom_0,
             denom_1,
-            denom_3,
-            dummy_balances,
-            dummy_tx_costs,
+            denom_2,
+            nria,
             CheckedTxBuilder,
             Fixture,
             ALICE,
@@ -929,6 +924,62 @@ mod tests {
 
     const MAX_PARKED_TXS_PER_ACCOUNT: usize = 15;
     const TX_TTL: Duration = Duration::from_secs(2);
+
+    pub(crate) fn denom_0() -> Denom {
+        nria().into()
+    }
+
+    pub(crate) fn denom_3() -> Denom {
+        "denom_3".parse().unwrap()
+    }
+
+    pub(crate) fn denom_4() -> Denom {
+        "denom_4".parse().unwrap()
+    }
+
+    pub(crate) fn denom_5() -> Denom {
+        "denom_5".parse().unwrap()
+    }
+
+    pub(crate) fn denom_6() -> Denom {
+        "denom_6".parse().unwrap()
+    }
+
+    pub(crate) fn dummy_tx_costs(
+        denom_0_cost: u128,
+        denom_1_cost: u128,
+        denom_2_cost: u128,
+    ) -> HashMap<IbcPrefixed, u128> {
+        let mut costs: HashMap<IbcPrefixed, u128> = HashMap::<IbcPrefixed, u128>::new();
+        costs.insert(denom_0().to_ibc_prefixed(), denom_0_cost);
+        costs.insert(denom_1().to_ibc_prefixed(), denom_1_cost);
+        costs.insert(denom_2().to_ibc_prefixed(), denom_2_cost); // not present in balances
+
+        // we don't sanitize the cost inputs
+        costs.insert(denom_5().to_ibc_prefixed(), 0); // zero in balances also
+        costs.insert(denom_6().to_ibc_prefixed(), 0); // not present in balances
+
+        costs
+    }
+
+    pub(crate) fn dummy_balances(
+        denom_0_balance: u128,
+        denom_1_balance: u128,
+    ) -> HashMap<IbcPrefixed, u128> {
+        let mut balances = HashMap::<IbcPrefixed, u128>::new();
+        if denom_0_balance != 0 {
+            balances.insert(denom_0().to_ibc_prefixed(), denom_0_balance);
+        }
+        if denom_1_balance != 0 {
+            balances.insert(denom_1().to_ibc_prefixed(), denom_1_balance);
+        }
+        // we don't sanitize the balance inputs
+        balances.insert(denom_3().to_ibc_prefixed(), 100); // balance transaction costs won't have entry for
+        balances.insert(denom_4().to_ibc_prefixed(), 0); // zero balance not in transaction
+        balances.insert(denom_5().to_ibc_prefixed(), 0); // zero balance with corresponding zero cost
+
+        balances
+    }
 
     struct MockTTXBuilder<'a> {
         checked_tx_builder: CheckedTxBuilder<'a>,
@@ -1265,12 +1316,12 @@ mod tests {
             .add(ttx_3.clone(), current_account_nonce, &account_balances)
             .unwrap();
         assert!(parked_txs.contains_tx(ttx_3.checked_tx.id()));
-        assert_eq!(
+        assert!(matches!(
             parked_txs
                 .add(ttx_3, current_account_nonce, &account_balances)
                 .unwrap_err(),
             InsertionError::AlreadyPresent
-        );
+        ));
 
         // add gapped transaction
         parked_txs
@@ -1278,12 +1329,12 @@ mod tests {
             .unwrap();
 
         // fail adding too low nonce
-        assert_eq!(
+        assert!(matches!(
             parked_txs
                 .add(ttx_1, current_account_nonce, &account_balances)
                 .unwrap_err(),
             InsertionError::NonceTooLow
-        );
+        ));
     }
 
     #[tokio::test]
@@ -1306,12 +1357,12 @@ mod tests {
             .unwrap();
 
         // fail with size limit hit
-        assert_eq!(
+        assert!(matches!(
             parked_txs
                 .add(ttx_1, current_account_nonce, &account_balances)
                 .unwrap_err(),
             InsertionError::AccountSizeLimit
-        );
+        ));
     }
 
     #[tokio::test]
@@ -1330,41 +1381,41 @@ mod tests {
         let current_account_nonce = 1;
 
         // too low nonces not added
-        assert_eq!(
+        assert!(matches!(
             pending_txs
                 .add(ttx_0, current_account_nonce, &account_balances)
                 .unwrap_err(),
             InsertionError::NonceTooLow
-        );
+        ));
         assert!(pending_txs.txs().is_empty());
 
         // too high nonces with empty container not added
-        assert_eq!(
+        assert!(matches!(
             pending_txs
                 .add(ttx_2.clone(), current_account_nonce, &account_balances)
                 .unwrap_err(),
             InsertionError::NonceGap
-        );
+        ));
         assert!(pending_txs.txs().is_empty());
 
         // add ok
         pending_txs
             .add(ttx_1.clone(), current_account_nonce, &account_balances)
             .unwrap();
-        assert_eq!(
+        assert!(matches!(
             pending_txs
                 .add(ttx_1, current_account_nonce, &account_balances)
                 .unwrap_err(),
             InsertionError::AlreadyPresent
-        );
+        ));
 
         // gapped transaction not allowed
-        assert_eq!(
+        assert!(matches!(
             pending_txs
                 .add(ttx_3, current_account_nonce, &account_balances)
                 .unwrap_err(),
             InsertionError::NonceGap
-        );
+        ));
 
         // can add consecutive
         pending_txs
@@ -1418,7 +1469,7 @@ mod tests {
         let current_account_nonce = 0;
 
         // transaction exceeding account balances (asset present in balances) not allowed
-        assert_eq!(
+        assert!(matches!(
             pending_txs
                 .add(
                     ttx_0_too_expensive_0,
@@ -1427,11 +1478,11 @@ mod tests {
                 )
                 .unwrap_err(),
             InsertionError::AccountBalanceTooLow
-        );
+        ));
         assert!(pending_txs.txs().is_empty());
 
         // transaction exceeding account balances (asset NOT present in balances) not allowed
-        assert_eq!(
+        assert!(matches!(
             pending_txs
                 .add(
                     ttx_0_too_expensive_1,
@@ -1440,7 +1491,7 @@ mod tests {
                 )
                 .unwrap_err(),
             InsertionError::AccountBalanceTooLow
-        );
+        ));
         assert!(pending_txs.txs().is_empty());
 
         // transactions under account cost allowed
@@ -1470,12 +1521,12 @@ mod tests {
         }
 
         // cost exceeding when considering already contained transactions not allowed
-        assert_eq!(
+        assert!(matches!(
             pending_txs
                 .add(ttx_4, current_account_nonce, &account_balances)
                 .unwrap_err(),
             InsertionError::AccountBalanceTooLow
-        );
+        ));
     }
 
     #[tokio::test]
@@ -1590,11 +1641,13 @@ mod tests {
         );
 
         // adding too low nonce shouldn't create account
-        assert_eq!(
-            pending_txs
-                .add(ttx_s0_0_0.clone(), 1, &account_balances)
-                .unwrap_err(),
-            InsertionError::NonceTooLow,
+        assert!(
+            matches!(
+                pending_txs
+                    .add(ttx_s0_0_0.clone(), 1, &account_balances)
+                    .unwrap_err(),
+                InsertionError::NonceTooLow
+            ),
             "shouldn't be able to add nonce too low transaction"
         );
         assert!(
@@ -1609,29 +1662,35 @@ mod tests {
         assert_eq!(pending_txs.txs.len(), 1, "one account should exist");
 
         // re-adding transaction should fail
-        assert_eq!(
-            pending_txs
-                .add(ttx_s0_0_0, 0, &account_balances)
-                .unwrap_err(),
-            InsertionError::AlreadyPresent,
+        assert!(
+            matches!(
+                pending_txs
+                    .add(ttx_s0_0_0, 0, &account_balances)
+                    .unwrap_err(),
+                InsertionError::AlreadyPresent
+            ),
             "re-adding same transaction should fail"
         );
 
         // nonce replacement fails
-        assert_eq!(
-            pending_txs
-                .add(ttx_s0_0_1, 0, &account_balances)
-                .unwrap_err(),
-            InsertionError::NonceTaken,
+        assert!(
+            matches!(
+                pending_txs
+                    .add(ttx_s0_0_1, 0, &account_balances)
+                    .unwrap_err(),
+                InsertionError::NonceTaken
+            ),
             "nonce replacement not supported"
         );
 
         // nonce gaps not supported
-        assert_eq!(
-            pending_txs
-                .add(ttx_s0_2_0, 0, &account_balances)
-                .unwrap_err(),
-            InsertionError::NonceGap,
+        assert!(
+            matches!(
+                pending_txs
+                    .add(ttx_s0_2_0, 0, &account_balances)
+                    .unwrap_err(),
+                InsertionError::NonceGap
+            ),
             "gapped nonces in pending transactions not allowed"
         );
 
@@ -2469,11 +2528,13 @@ mod tests {
             .unwrap();
 
         // growing past limit causes error
-        assert_eq!(
-            parked_txs
-                .add(ttx_2.clone(), 0, &account_balances_full)
-                .unwrap_err(),
-            InsertionError::ParkedSizeLimit,
+        assert!(
+            matches!(
+                parked_txs
+                    .add(ttx_2.clone(), 0, &account_balances_full)
+                    .unwrap_err(),
+                InsertionError::ParkedSizeLimit
+            ),
             "size limit should be enforced"
         );
 

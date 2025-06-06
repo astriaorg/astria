@@ -14,6 +14,7 @@ use astria_core::{
     },
 };
 use bytes::Bytes;
+use cnidarium::StateDelta;
 use tendermint::{
     abci::{
         request::{
@@ -30,14 +31,14 @@ use tendermint::{
 };
 
 use crate::{
+    accounts::StateWriteExt as _,
     checked_transaction::CheckedTransaction,
     test_utils::{
-        dummy_balances,
-        dummy_tx_costs,
         nria,
         transactions_with_extended_commit_info_and_commitments,
         Fixture,
         ALICE,
+        ALICE_ADDRESS_BYTES,
         BOB,
         CAROL_ADDRESS,
         SUDO,
@@ -205,25 +206,9 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
     let tx_1 = new_bundleable_general_tx(&fixture, ALICE.clone(), 1).await;
 
     let (mut app, storage) = fixture.destructure();
-    app.mempool
-        .insert(
-            tx_0.clone(),
-            0,
-            &dummy_balances(0, 0),
-            dummy_tx_costs(0, 0, 0),
-        )
-        .await
-        .unwrap();
+    app.mempool.insert(tx_0.clone()).await.unwrap();
 
-    app.mempool
-        .insert(
-            tx_1.clone(),
-            0,
-            &dummy_balances(0, 0),
-            dummy_tx_costs(0, 0, 0),
-        )
-        .await
-        .unwrap();
+    app.mempool.insert(tx_1.clone()).await.unwrap();
 
     let prepare_args = PrepareProposal {
         max_tx_bytes: 600_000,
@@ -250,20 +235,16 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
         "expected to contain first transaction"
     );
 
-    app.mempool
-        .run_maintenance(&app.state, false, HashMap::new(), 0)
-        .await;
-    assert_eq!(
-        app.mempool.len().await,
-        1,
-        "mempool should contain 2nd transaction still"
-    );
-
     // commit state for next prepare proposal
     app.prepare_commit(storage.clone(), Vec::new())
         .await
         .unwrap();
     app.commit(storage.clone()).await.unwrap();
+    assert_eq!(
+        app.mempool.len().await,
+        1,
+        "mempool should contain 2nd transaction still"
+    );
 
     let prepare_args = PrepareProposal {
         max_tx_bytes: 600_000,
@@ -289,8 +270,13 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
         "expected to contain second transaction"
     );
 
+    let mut state_delta = StateDelta::new(storage.latest_snapshot());
+    state_delta
+        .put_account_nonce(&*ALICE_ADDRESS_BYTES, 2)
+        .unwrap();
+    let _ = storage.commit(state_delta).await.unwrap();
     app.mempool
-        .run_maintenance(&app.state, false, HashMap::new(), 0)
+        .run_maintenance(storage.latest_snapshot(), false, HashMap::new())
         .await;
     assert_eq!(app.mempool.len().await, 0, "mempool should be empty");
 }

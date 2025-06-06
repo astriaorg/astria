@@ -91,8 +91,6 @@ use crate::{
     test_utils::{
         assert_error_contains,
         astria_address,
-        dummy_balances,
-        dummy_tx_costs,
         nria,
         transactions_with_extended_commit_info_and_commitments,
         Fixture,
@@ -546,10 +544,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
     // this will reset the app state.
     // this simulates executing the same block as a validator (specifically the proposer).
     let mempool = fixture.mempool();
-    mempool
-        .insert(tx, 0, &dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
-        .await
-        .unwrap();
+    mempool.insert(tx).await.unwrap();
 
     let proposer_address = [88u8; 20].to_vec().try_into().unwrap();
     let prepare_proposal = PrepareProposal {
@@ -572,12 +567,6 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         .await
         .unwrap();
     assert_eq!(prepare_proposal_result.txs, finalize_block.txs);
-
-    mempool
-        .run_maintenance(fixture.state(), false, HashMap::new(), 0)
-        .await;
-
-    assert_eq!(mempool.len().await, 0);
 
     // call process_proposal - should not re-execute anything.
     let process_proposal = abci::request::ProcessProposal {
@@ -660,19 +649,8 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         .await;
 
     let mempool = fixture.mempool();
-    mempool
-        .insert(tx_pass, 0, &dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
-        .await
-        .unwrap();
-    mempool
-        .insert(
-            tx_overflow,
-            0,
-            &dummy_balances(0, 0),
-            dummy_tx_costs(0, 0, 0),
-        )
-        .await
-        .unwrap();
+    mempool.insert(tx_pass).await.unwrap();
+    mempool.insert(tx_overflow).await.unwrap();
 
     // send to prepare_proposal
     let prepare_args = PrepareProposal {
@@ -696,8 +674,14 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
         .expect("too large transactions should not cause prepare proposal to fail");
 
     // run maintenance to clear out transactions
+    let storage = fixture.storage();
+    let mut state_delta = StateDelta::new(storage.latest_snapshot());
+    state_delta
+        .put_account_nonce(&*ALICE_ADDRESS_BYTES, 1)
+        .unwrap();
+    let _ = storage.commit(state_delta).await.unwrap();
     mempool
-        .run_maintenance(fixture.state(), false, HashMap::new(), 0)
+        .run_maintenance(storage.latest_snapshot(), false, HashMap::new())
         .await;
 
     // see only first tx made it in
@@ -743,19 +727,8 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         .await;
 
     let mempool = fixture.mempool();
-    mempool
-        .insert(tx_pass, 0, &dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
-        .await
-        .unwrap();
-    mempool
-        .insert(
-            tx_overflow,
-            0,
-            &dummy_balances(0, 0),
-            dummy_tx_costs(0, 0, 0),
-        )
-        .await
-        .unwrap();
+    mempool.insert(tx_pass).await.unwrap();
+    mempool.insert(tx_overflow).await.unwrap();
 
     // send to prepare_proposal
     let prepare_args = PrepareProposal {
@@ -779,8 +752,14 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
         .expect("too large transactions should not cause prepare proposal to fail");
 
     // run maintenance to clear out transactions
+    let storage = fixture.storage();
+    let mut state_delta = StateDelta::new(storage.latest_snapshot());
+    state_delta
+        .put_account_nonce(&*ALICE_ADDRESS_BYTES, 1)
+        .unwrap();
+    let _ = storage.commit(state_delta).await.unwrap();
     mempool
-        .run_maintenance(fixture.state(), false, HashMap::new(), 0)
+        .run_maintenance(fixture.storage().latest_snapshot(), false, HashMap::new())
         .await;
 
     // see only first tx made it in
@@ -1098,11 +1077,7 @@ async fn app_proposal_fingerprint_triggers_update() {
     // - after process_proposal, fingerprint should be updated to include the block hash indicating
     //   that the proposal execution data was utilized.
     // - the finalize block fingerprint should match
-    fixture
-        .mempool()
-        .insert(tx, 0, &dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
-        .await
-        .unwrap();
+    fixture.mempool().insert(tx).await.unwrap();
     fixture
         .app
         .prepare_proposal(prepare_proposal.clone(), fixture.storage())

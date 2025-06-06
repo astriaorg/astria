@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use astria_core::protocol::{
     fees::v1::FeeComponents,
     transaction::v1::action::{
@@ -23,10 +21,8 @@ use crate::{
     accounts::StateReadExt as _,
     mempool::TransactionStatus,
     test_utils::{
-        dummy_balances,
         dummy_rollup_data_submission,
         dummy_transfer,
-        dummy_tx_costs,
         nria,
         Fixture,
         ALICE,
@@ -52,16 +48,7 @@ async fn trigger_cleaning() {
         .build()
         .await;
 
-    fixture
-        .mempool()
-        .insert(
-            tx_trigger.clone(),
-            0,
-            &dummy_balances(0, 0),
-            dummy_tx_costs(0, 0, 0),
-        )
-        .await
-        .unwrap();
+    fixture.mempool().insert(tx_trigger.clone()).await.unwrap();
 
     assert!(!fixture.app.recost_mempool, "flag should start out false");
 
@@ -157,11 +144,7 @@ async fn do_not_trigger_cleaning() {
         .build()
         .await;
 
-    fixture
-        .mempool()
-        .insert(tx_fail, 0, &dummy_balances(0, 0), dummy_tx_costs(0, 0, 0))
-        .await
-        .unwrap();
+    fixture.mempool().insert(tx_fail).await.unwrap();
 
     // trigger with prepare_proposal
     let prepare_args = PrepareProposal {
@@ -217,15 +200,8 @@ async fn maintenance_recosting_promotes() {
         .build()
         .await;
 
-    let mut bob_funds = HashMap::new();
-    bob_funds.insert(nria().into(), 2);
-    let mut tx_cost = HashMap::new();
-    tx_cost.insert(nria().into(), 3);
     let mempool = fixture.mempool();
-    mempool
-        .insert(tx_fail_recost_funds, 0, &bob_funds, tx_cost)
-        .await
-        .unwrap();
+    mempool.insert(tx_fail_recost_funds).await.unwrap();
 
     // create tx which will enable recost tx to pass
     let tx_recost = fixture
@@ -234,14 +210,7 @@ async fn maintenance_recosting_promotes() {
         .build()
         .await;
 
-    let mut sudo_funds = HashMap::new();
-    sudo_funds.insert(nria().into(), 0);
-    let mut tx_cost = HashMap::new();
-    tx_cost.insert(nria().into(), 0);
-    mempool
-        .insert(tx_recost, 0, &sudo_funds, tx_cost)
-        .await
-        .unwrap();
+    mempool.insert(tx_recost).await.unwrap();
     assert_eq!(mempool.len().await, 2, "two txs in mempool");
 
     // create block with prepare_proposal
@@ -390,15 +359,8 @@ async fn maintenance_funds_added_promotes() {
         .build()
         .await;
 
-    let mut carol_funds = HashMap::new();
-    carol_funds.insert(nria().into(), 0);
-    let mut tx_cost = HashMap::new();
-    tx_cost.insert(nria().into(), 22);
     let mempool = fixture.mempool();
-    mempool
-        .insert(tx_fail_transfer_funds, 0, &carol_funds, tx_cost)
-        .await
-        .unwrap();
+    mempool.insert(tx_fail_transfer_funds).await.unwrap();
 
     // create tx which will enable no funds to pass
     let tx_fund = fixture
@@ -413,14 +375,7 @@ async fn maintenance_funds_added_promotes() {
         .build()
         .await;
 
-    let mut alice_funds = HashMap::new();
-    alice_funds.insert(nria().into(), 100);
-    let mut tx_cost = HashMap::new();
-    tx_cost.insert(nria().into(), 13);
-    mempool
-        .insert(tx_fund, 0, &alice_funds, tx_cost)
-        .await
-        .unwrap();
+    mempool.insert(tx_fund).await.unwrap();
 
     // create block with prepare_proposal
     let prepare_args = PrepareProposal {
@@ -594,26 +549,8 @@ async fn proposer_flow_included_transactions_sent_to_mempool() {
     let tx_2_id = tx_2.id();
 
     // Insert transactions into mempool
-    fixture
-        .mempool()
-        .insert(
-            tx_1.clone(),
-            0,
-            &dummy_balances(0, 0),
-            dummy_tx_costs(0, 0, 0),
-        )
-        .await
-        .unwrap();
-    fixture
-        .mempool()
-        .insert(
-            tx_2.clone(),
-            0,
-            &dummy_balances(0, 0),
-            dummy_tx_costs(0, 0, 0),
-        )
-        .await
-        .unwrap();
+    fixture.mempool().insert(tx_1.clone()).await.unwrap();
+    fixture.mempool().insert(tx_2.clone()).await.unwrap();
 
     // Ensure transactions are in pending
     assert_eq!(fixture.mempool().len().await, 2, "two txs in mempool");
@@ -782,26 +719,8 @@ async fn non_proposer_validator_flow_included_transactions_sent_to_mempool() {
     let tx_2_id = tx_2.id();
 
     // Insert transactions into mempool
-    fixture
-        .mempool()
-        .insert(
-            tx_1.clone(),
-            0,
-            &dummy_balances(0, 0),
-            dummy_tx_costs(0, 0, 0),
-        )
-        .await
-        .unwrap();
-    fixture
-        .mempool()
-        .insert(
-            tx_2.clone(),
-            0,
-            &dummy_balances(0, 0),
-            dummy_tx_costs(0, 0, 0),
-        )
-        .await
-        .unwrap();
+    fixture.mempool().insert(tx_1.clone()).await.unwrap();
+    fixture.mempool().insert(tx_2.clone()).await.unwrap();
 
     // Ensure transactions are in pending
     assert_eq!(fixture.mempool().len().await, 2, "two txs in mempool");
@@ -909,7 +828,6 @@ async fn non_proposer_validator_flow_included_transactions_sent_to_mempool() {
     );
 }
 
-#[expect(clippy::too_many_lines, reason = "it's a test")]
 #[tokio::test]
 async fn non_validator_flow_included_transactions_sent_to_mempool() {
     // The flow of this test simulates a full node (running a mempool) that is not a validator
@@ -939,26 +857,8 @@ async fn non_validator_flow_included_transactions_sent_to_mempool() {
     let tx_2_id = tx_2.id();
 
     // Insert transactions into mempool
-    fixture
-        .mempool()
-        .insert(
-            tx_1.clone(),
-            0,
-            &dummy_balances(0, 0),
-            dummy_tx_costs(0, 0, 0),
-        )
-        .await
-        .unwrap();
-    fixture
-        .mempool()
-        .insert(
-            tx_2.clone(),
-            0,
-            &dummy_balances(0, 0),
-            dummy_tx_costs(0, 0, 0),
-        )
-        .await
-        .unwrap();
+    fixture.mempool().insert(tx_1.clone()).await.unwrap();
+    fixture.mempool().insert(tx_2.clone()).await.unwrap();
 
     // Ensure transactions are in pending
     assert_eq!(fixture.mempool().len().await, 2, "two txs in mempool");

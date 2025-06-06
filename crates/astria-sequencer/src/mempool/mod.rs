@@ -1,5 +1,6 @@
 #[cfg(feature = "benchmark")]
 mod benchmarks;
+use futures::TryStreamExt;
 mod mempool_state;
 mod recent_execution_results;
 mod transactions_container;
@@ -22,12 +23,15 @@ use astria_core::{
     },
 };
 use astria_eyre::eyre::Result;
+use cnidarium::Snapshot;
+use futures::TryFutureExt as _;
 pub(crate) use mempool_state::get_account_balances;
 use recent_execution_results::RecentExecutionResults;
 use tendermint::abci::types::ExecTxResult;
 use tokio::{
     sync::RwLock,
     time::Duration,
+    try_join,
 };
 use tracing::{
     error,
@@ -44,8 +48,12 @@ use transactions_container::{
 };
 
 use crate::{
-    accounts,
-    accounts::AddressBytes as _,
+    accounts::{
+        AddressBytes as _,
+        AssetBalance,
+        StateReadExt as _,
+    },
+    app::StateReadExt,
     checked_transaction::CheckedTransaction,
     Metrics,
 };
@@ -188,12 +196,14 @@ pub(crate) struct Mempool {
 impl Mempool {
     #[must_use]
     pub(crate) fn new(
+        latest_snapshot: Snapshot,
         metrics: &'static Metrics,
         parked_max_tx_count: usize,
         execution_results_cache_size: usize,
     ) -> Self {
         Self {
             inner: Arc::new(RwLock::new(MempoolInner::new(
+                latest_snapshot,
                 metrics,
                 parked_max_tx_count,
                 execution_results_cache_size,
@@ -210,24 +220,12 @@ impl Mempool {
 
     /// Inserts a transaction into the mempool and does not allow for transaction replacement.
     /// Will return the reason for insertion failure if failure occurs.
-    #[instrument(
-        skip_all,
-        fields(tx_id = %checked_tx.id(), current_account_nonce),
-        err(level = Level::DEBUG)
-    )]
+    #[instrument(skip_all, fields(tx_id = %checked_tx.id()), err(level = Level::DEBUG))]
     pub(crate) async fn insert(
         &self,
         checked_tx: Arc<CheckedTransaction>,
-        current_account_nonce: u32,
-        current_account_balances: &HashMap<IbcPrefixed, u128>,
-        transaction_cost: HashMap<IbcPrefixed, u128>,
     ) -> Result<InsertionStatus, InsertionError> {
-        self.inner.write().await.insert(
-            checked_tx,
-            current_account_nonce,
-            current_account_balances,
-            transaction_cost,
-        )
+        self.inner.write().await.insert(checked_tx).await
     }
 
     /// Returns a copy of all transactions ready for execution, sorted first by the difference
@@ -268,17 +266,16 @@ impl Mempool {
     /// All removed transactions are added to the CometBFT removal cache to aid with CometBFT
     /// mempool maintenance.
     #[instrument(skip_all)]
-    pub(crate) async fn run_maintenance<S: accounts::StateReadExt>(
+    pub(crate) async fn run_maintenance(
         &self,
-        state: &S,
+        latest_snapshot: Snapshot,
         recost: bool,
         block_execution_results: HashMap<TransactionId, Arc<ExecTxResult>>,
-        block_height: u64,
     ) {
         self.inner
             .write()
             .await
-            .run_maintenance(state, recost, block_execution_results, block_height)
+            .run_maintenance(latest_snapshot, recost, block_execution_results)
             .await;
     }
 
@@ -330,12 +327,14 @@ struct MempoolInner {
     comet_bft_removal_cache: RemovalCache,
     recent_execution_results: RecentExecutionResults,
     contained_txs: HashSet<TransactionId>,
+    latest_snapshot: Snapshot,
     metrics: &'static Metrics,
 }
 
 impl MempoolInner {
     #[must_use]
     fn new(
+        latest_snapshot: Snapshot,
         metrics: &'static Metrics,
         parked_max_tx_count: usize,
         execution_results_cache_size: usize,
@@ -349,6 +348,7 @@ impl MempoolInner {
             ),
             recent_execution_results: RecentExecutionResults::new(execution_results_cache_size),
             contained_txs: HashSet::new(),
+            latest_snapshot,
             metrics,
         }
     }
@@ -358,28 +358,52 @@ impl MempoolInner {
         self.contained_txs.len()
     }
 
-    fn insert(
+    async fn insert(
         &mut self,
         checked_tx: Arc<CheckedTransaction>,
-        current_account_nonce: u32,
-        current_account_balances: &HashMap<IbcPrefixed, u128>,
-        transaction_costs: HashMap<IbcPrefixed, u128>,
     ) -> Result<InsertionStatus, InsertionError> {
-        let ttx_to_insert = TimemarkedTransaction::new(checked_tx, transaction_costs);
+        let address_bytes = *checked_tx.address_bytes();
+        let current_account_nonce_fut = self
+            .latest_snapshot
+            .get_account_nonce(&address_bytes)
+            .map_err(|error| InsertionError::Internal(error.to_string()));
+        let current_account_balances_fut = self
+            .latest_snapshot
+            .account_asset_balances(&address_bytes)
+            .map_ok(
+                |AssetBalance {
+                     asset,
+                     balance,
+                 }| (asset, balance),
+            )
+            // note: this relies on the IBC prefixed assets coming out of the stream to be unique
+            .try_collect::<HashMap<IbcPrefixed, u128>>()
+            .map_err(|error| InsertionError::Internal(error.to_string()));
+        let tx_costs_fut = checked_tx
+            .total_costs(&self.latest_snapshot)
+            .map_err(InsertionError::FailedToCalculateCosts);
+
+        let (current_account_nonce, current_account_balances, tx_costs) = try_join!(
+            current_account_nonce_fut,
+            current_account_balances_fut,
+            tx_costs_fut
+        )?;
+
+        let ttx_to_insert = TimemarkedTransaction::new(checked_tx, tx_costs);
         let tx_id_to_insert = *ttx_to_insert.id();
 
         // try insert into pending
         match self.pending.add(
             ttx_to_insert.clone(),
             current_account_nonce,
-            current_account_balances,
+            &current_account_balances,
         ) {
             Err(InsertionError::NonceGap | InsertionError::AccountBalanceTooLow) => {
                 // try to add to parked queue
                 match self.parked.add(
                     ttx_to_insert,
                     current_account_nonce,
-                    current_account_balances,
+                    &current_account_balances,
                 ) {
                     Ok(()) => {
                         // log current size of parked
@@ -413,7 +437,7 @@ impl MempoolInner {
                     if let Err(error) = self.pending.add(
                         ttx_to_promote,
                         current_account_nonce,
-                        current_account_balances,
+                        &current_account_balances,
                     ) {
                         self.contained_txs.remove(&tx_id_to_promote);
                         self.comet_bft_removal_cache
@@ -474,13 +498,21 @@ impl MempoolInner {
     }
 
     #[expect(clippy::too_many_lines, reason = "should be refactored")]
-    async fn run_maintenance<S: accounts::StateReadExt>(
+    async fn run_maintenance(
         &mut self,
-        state: &S,
+        latest_snapshot: Snapshot,
         recost: bool,
         block_execution_results: HashMap<TransactionId, Arc<ExecTxResult>>,
-        block_height: u64,
     ) {
+        self.latest_snapshot = latest_snapshot;
+        let block_height = self
+            .latest_snapshot
+            .get_block_height()
+            .await
+            .unwrap_or_else(|error| {
+                error!("failed to fetch block height while running mempool maintenance: {error:#}");
+                0
+            });
         let mut removed_txs = Vec::<(TransactionId, RemovalReason)>::new();
 
         // To clean we need to:
@@ -501,22 +533,24 @@ impl MempoolInner {
         // TODO: Make this concurrent, all account state is separate with IO bound disk reads.
         for address_bytes in &addresses {
             // get current account state
-            let current_nonce = match state.get_account_nonce(address_bytes).await {
+            let current_nonce = match self.latest_snapshot.get_account_nonce(address_bytes).await {
                 Ok(res) => res,
                 Err(error) => {
                     error!(
                         address = %telemetry::display::base64(&address_bytes),
-                        "failed to fetch account nonce when cleaning accounts: {error:#}"
+                        "failed to fetch account nonce while running mempool maintenance: {error:#}"
                     );
                     continue;
                 }
             };
-            let current_balances = match get_account_balances(state, address_bytes).await {
+            let current_balances = match get_account_balances(&self.latest_snapshot, address_bytes)
+                .await
+            {
                 Ok(res) => res,
                 Err(error) => {
                     error!(
                         address = %telemetry::display::base64(address_bytes),
-                        "failed to fetch account balances when cleaning accounts: {error:#}"
+                        "failed to fetch account balances while running mempool maintenance: {error:#}"
                     );
                     continue;
                 }
@@ -530,7 +564,9 @@ impl MempoolInner {
                 block_height,
             ));
             if recost {
-                self.pending.recost_transactions(address_bytes, state).await;
+                self.pending
+                    .recost_transactions(address_bytes, &self.latest_snapshot)
+                    .await;
             }
 
             removed_txs.extend(self.parked.clean_account_stale_expired(
@@ -540,7 +576,9 @@ impl MempoolInner {
                 block_height,
             ));
             if recost {
-                self.parked.recost_transactions(address_bytes, state).await;
+                self.parked
+                    .recost_transactions(address_bytes, &self.latest_snapshot)
+                    .await;
             }
 
             // get transactions to demote from pending
@@ -648,6 +686,7 @@ impl MempoolInner {
     }
 }
 
+#[derive(Debug, Eq, PartialEq)]
 pub(crate) enum TransactionStatus {
     Pending,
     Parked,
@@ -656,20 +695,13 @@ pub(crate) enum TransactionStatus {
 
 #[cfg(test)]
 mod tests {
+    use cnidarium::StateDelta;
+
     use super::*;
     use crate::{
         accounts::StateWriteExt as _,
-        assets::StateWriteExt as _,
+        app::StateWriteExt as _,
         test_utils::{
-            denom_0,
-            denom_1,
-            denom_2,
-            denom_3,
-            denom_4,
-            denom_5,
-            denom_6,
-            dummy_balances,
-            dummy_tx_costs,
             Fixture,
             ALICE,
             ALICE_ADDRESS_BYTES,
@@ -679,44 +711,22 @@ mod tests {
         },
     };
 
-    fn put_ibc_assets(fixture: &mut Fixture) {
-        fixture
-            .state_mut()
-            .put_ibc_asset(denom_0().unwrap_trace_prefixed())
+    async fn put_alice_nonce(fixture: &Fixture, nonce: u32) {
+        let storage = fixture.storage();
+        let mut state_delta = StateDelta::new(storage.latest_snapshot());
+        state_delta
+            .put_account_nonce(&*ALICE_ADDRESS_BYTES, nonce)
             .unwrap();
-        fixture
-            .state_mut()
-            .put_ibc_asset(denom_1().unwrap_trace_prefixed())
-            .unwrap();
-        fixture
-            .state_mut()
-            .put_ibc_asset(denom_2().unwrap_trace_prefixed())
-            .unwrap();
-        fixture
-            .state_mut()
-            .put_ibc_asset(denom_3().unwrap_trace_prefixed())
-            .unwrap();
-        fixture
-            .state_mut()
-            .put_ibc_asset(denom_4().unwrap_trace_prefixed())
-            .unwrap();
-        fixture
-            .state_mut()
-            .put_ibc_asset(denom_5().unwrap_trace_prefixed())
-            .unwrap();
-        fixture
-            .state_mut()
-            .put_ibc_asset(denom_6().unwrap_trace_prefixed())
-            .unwrap();
+        let _ = storage.commit(state_delta).await.unwrap();
+        fixture.mempool().inner.write().await.latest_snapshot = storage.latest_snapshot();
     }
 
-    fn put_alice_balances(fixture: &mut Fixture, account_balances: HashMap<IbcPrefixed, u128>) {
-        for (denom, balance) in account_balances {
-            fixture
-                .state_mut()
-                .put_account_balance(&*ALICE_ADDRESS_BYTES, &denom, balance)
-                .unwrap();
-        }
+    async fn put_block_height(fixture: &Fixture, height: u64) {
+        let storage = fixture.storage();
+        let mut state_delta = StateDelta::new(storage.latest_snapshot());
+        state_delta.put_block_height(height).unwrap();
+        let _ = storage.commit(state_delta).await.unwrap();
+        fixture.mempool().inner.write().await.latest_snapshot = storage.latest_snapshot();
     }
 
     async fn new_alice_tx(fixture: &Fixture, nonce: u32) -> Arc<CheckedTransaction> {
@@ -728,31 +738,92 @@ mod tests {
             .await
     }
 
+    /// Sets Alice's balances to exactly match the total costs of the given tx.
+    async fn set_alice_balances_to_cover_costs(fixture: &Fixture, tx: &Arc<CheckedTransaction>) {
+        let costs = tx.total_costs(fixture.state()).await.unwrap();
+
+        let storage = fixture.storage();
+        let mut state_delta = StateDelta::new(storage.latest_snapshot());
+
+        for (denom, cost) in costs {
+            state_delta
+                .put_account_balance(&*ALICE_ADDRESS_BYTES, &denom, cost)
+                .unwrap();
+        }
+
+        let _ = storage.commit(state_delta).await.unwrap();
+        fixture.mempool().inner.write().await.latest_snapshot = storage.latest_snapshot();
+    }
+
+    /// Increases Alice's balances by the total costs of the given tx.
+    async fn increase_alice_balances_to_cover_costs(
+        fixture: &Fixture,
+        tx: &Arc<CheckedTransaction>,
+    ) {
+        let costs = tx.total_costs(fixture.state()).await.unwrap();
+
+        let storage = fixture.storage();
+        let mut state_delta = StateDelta::new(storage.latest_snapshot());
+
+        for (denom, cost) in costs {
+            let current_balance = state_delta
+                .get_account_balance(&*ALICE_ADDRESS_BYTES, &denom)
+                .await
+                .unwrap();
+            let new_balance = current_balance.checked_add(cost).unwrap();
+            state_delta
+                .put_account_balance(&*ALICE_ADDRESS_BYTES, &denom, new_balance)
+                .unwrap();
+        }
+
+        let _ = storage.commit(state_delta).await.unwrap();
+        fixture.mempool().inner.write().await.latest_snapshot = storage.latest_snapshot();
+    }
+
+    async fn assert_tx_in_pending(mempool: &Mempool, tx_id: &TransactionId) {
+        assert_eq!(
+            mempool.transaction_status(tx_id).await.unwrap(),
+            TransactionStatus::Pending
+        );
+    }
+
+    async fn assert_tx_in_parked(mempool: &Mempool, tx_id: &TransactionId) {
+        assert_eq!(
+            mempool.transaction_status(tx_id).await.unwrap(),
+            TransactionStatus::Parked
+        );
+    }
+
+    async fn assert_tx_removed(
+        mempool: &Mempool,
+        tx_id: &TransactionId,
+        expected_reason: &RemovalReason,
+    ) {
+        assert_eq!(
+            mempool.transaction_status(tx_id).await.unwrap(),
+            TransactionStatus::Removed(expected_reason.clone())
+        );
+    }
+
     #[tokio::test]
     async fn insert() {
         let fixture = Fixture::default_initialized().await;
         let mempool = fixture.mempool();
-        let account_balances = dummy_balances(100, 100);
-        let tx_costs = dummy_tx_costs(10, 10, 0);
 
         // sign and insert nonce 1
         let tx1 = new_alice_tx(&fixture, 1).await;
         assert!(
-            mempool
-                .insert(tx1.clone(), 0, &account_balances, tx_costs.clone())
-                .await
-                .is_ok(),
+            mempool.insert(tx1.clone()).await.is_ok(),
             "should be able to insert nonce 1 transaction into mempool"
         );
         assert_eq!(mempool.len().await, 1);
 
         // try to insert again
-        assert_eq!(
-            mempool
-                .insert(tx1, 0, &account_balances, tx_costs.clone())
-                .await
-                .unwrap_err(),
-            InsertionError::AlreadyPresent,
+        assert!(
+            matches!(
+                mempool.insert(tx1).await.unwrap_err(),
+                InsertionError::AlreadyPresent
+            ),
             "already present"
         );
 
@@ -764,23 +835,22 @@ mod tests {
             .with_signer(ALICE.clone())
             .build()
             .await;
-        assert_eq!(
-            mempool
-                .insert(tx1_replacement, 0, &account_balances, tx_costs.clone(),)
-                .await
-                .unwrap_err(),
-            InsertionError::NonceTaken,
+        assert!(
+            matches!(
+                mempool.insert(tx1_replacement).await.unwrap_err(),
+                InsertionError::NonceTaken
+            ),
             "nonce replace not allowed"
         );
 
         // add too low nonce
+        put_alice_nonce(&fixture, 1).await;
         let tx0 = new_alice_tx(&fixture, 0).await;
-        assert_eq!(
-            mempool
-                .insert(tx0, 1, &account_balances, tx_costs)
-                .await
-                .unwrap_err(),
-            InsertionError::NonceTooLow,
+        assert!(
+            matches!(
+                mempool.insert(tx0).await.unwrap_err(),
+                InsertionError::NonceTooLow
+            ),
             "nonce too low"
         );
     }
@@ -791,51 +861,18 @@ mod tests {
         // The test adds the nonces [1,2,0,4], creates a builder queue, and then cleans the pool to
         // nonce 4. This tests some of the odder edge cases that can be hit if a node goes offline
         // or fails to see some transactions that other nodes include into their proposed blocks.
-        let mut fixture = Fixture::default_initialized().await;
+        let fixture = Fixture::default_initialized().await;
         let mempool = fixture.mempool();
-        let account_balances = dummy_balances(100, 100);
-        let tx_costs = dummy_tx_costs(10, 10, 0);
 
         // add nonces in odd order to trigger insertion promotion logic
-        // sign and insert nonce 1
         let tx1 = new_alice_tx(&fixture, 1).await;
-        assert!(
-            mempool
-                .insert(tx1, 0, &account_balances, tx_costs.clone())
-                .await
-                .is_ok(),
-            "should be able to insert nonce 1 transaction into mempool"
-        );
-
-        // sign and insert nonce 2
         let tx2 = new_alice_tx(&fixture, 2).await;
-        assert!(
-            mempool
-                .insert(tx2, 0, &account_balances, tx_costs.clone())
-                .await
-                .is_ok(),
-            "should be able to insert nonce 2 transaction into mempool"
-        );
-
-        // sign and insert nonce 0
         let tx0 = new_alice_tx(&fixture, 0).await;
-        assert!(
-            mempool
-                .insert(tx0, 0, &account_balances, tx_costs.clone())
-                .await
-                .is_ok(),
-            "should be able to insert nonce 0 transaction into mempool"
-        );
-
-        // sign and insert nonce 4
         let tx4 = new_alice_tx(&fixture, 4).await;
-        assert!(
-            mempool
-                .insert(tx4, 0, &account_balances, tx_costs.clone())
-                .await
-                .is_ok(),
-            "should be able to insert nonce 4 transaction into mempool"
-        );
+        mempool.insert(tx1.clone()).await.unwrap();
+        mempool.insert(tx2.clone()).await.unwrap();
+        mempool.insert(tx0.clone()).await.unwrap();
+        mempool.insert(tx4.clone()).await.unwrap();
 
         // assert size
         assert_eq!(mempool.len().await, 4);
@@ -843,227 +880,134 @@ mod tests {
         // grab building queue, should return transactions [0,1,2] since [4] is gapped
         let builder_queue = mempool.builder_queue().await;
 
-        // see contains first two transactions that should be pending
-        assert_eq!(builder_queue[0].nonce(), 0, "nonce should be zero");
-        assert_eq!(builder_queue[1].nonce(), 1, "nonce should be one");
-        assert_eq!(builder_queue[2].nonce(), 2, "nonce should be two");
+        // see contains first three transactions that should be pending
+        assert_eq!(builder_queue, vec![tx0, tx1, tx2]);
 
         // see mempool's transactions just cloned, not consumed
         assert_eq!(mempool.len().await, 4);
 
         // run maintenance with simulated nonce to remove the nonces 0,1,2 and promote 4 from parked
         // to pending
-
-        // setup state
-        fixture
-            .state_mut()
-            .put_account_nonce(&*ALICE_ADDRESS_BYTES, 4)
-            .unwrap();
-        put_ibc_assets(&mut fixture);
-        put_alice_balances(&mut fixture, dummy_balances(100, 100));
+        put_alice_nonce(&fixture, 4).await;
 
         mempool
-            .run_maintenance(fixture.state(), false, HashMap::new(), 0)
+            .run_maintenance(fixture.storage().latest_snapshot(), false, HashMap::new())
             .await;
 
         // assert mempool at 1
         assert_eq!(mempool.len().await, 1);
 
         // see transaction [4] properly promoted
-        let mut builder_queue = mempool.builder_queue().await;
-        let returned_tx = builder_queue.pop().expect("should return last transaction");
-        assert_eq!(returned_tx.nonce(), 4, "nonce should be four");
+        let builder_queue = mempool.builder_queue().await;
+        assert_eq!(builder_queue, vec![tx4]);
     }
 
     #[tokio::test]
     async fn run_maintenance_promotion() {
-        let mut fixture = Fixture::default_initialized().await;
+        let fixture = Fixture::default_initialized().await;
         let mempool = fixture.mempool();
 
         // create transaction setup to trigger promotions
         //
         // initially pending has single transaction
-        let initial_balances = dummy_balances(1, 0);
-        let tx_costs = dummy_tx_costs(1, 0, 0);
+        put_alice_nonce(&fixture, 1).await;
         let tx1 = new_alice_tx(&fixture, 1).await;
+        set_alice_balances_to_cover_costs(&fixture, &tx1).await;
         let tx2 = new_alice_tx(&fixture, 2).await;
         let tx3 = new_alice_tx(&fixture, 3).await;
         let tx4 = new_alice_tx(&fixture, 4).await;
 
-        mempool
-            .insert(tx1, 1, &initial_balances, tx_costs.clone())
-            .await
-            .unwrap();
-        mempool
-            .insert(tx2, 1, &initial_balances, tx_costs.clone())
-            .await
-            .unwrap();
-        mempool
-            .insert(tx3, 1, &initial_balances, tx_costs.clone())
-            .await
-            .unwrap();
-        mempool
-            .insert(tx4, 1, &initial_balances, tx_costs.clone())
-            .await
-            .unwrap();
+        mempool.insert(tx1.clone()).await.unwrap();
+        mempool.insert(tx2.clone()).await.unwrap();
+        mempool.insert(tx3.clone()).await.unwrap();
+        mempool.insert(tx4.clone()).await.unwrap();
 
         // see pending only has one transaction
-        fixture
-            .state_mut()
-            .put_account_nonce(&*ALICE_ADDRESS_BYTES, 1)
-            .unwrap();
-        put_ibc_assets(&mut fixture);
-
         let builder_queue = mempool.builder_queue().await;
-        assert_eq!(
-            builder_queue.len(),
-            1,
-            "builder queue should only contain single transaction"
-        );
+        assert_eq!(builder_queue, vec![tx1.clone()]);
 
         // run maintenance with account containing balance for two more transactions
-
-        // setup state
-        put_alice_balances(&mut fixture, dummy_balances(3, 0));
+        increase_alice_balances_to_cover_costs(&fixture, &tx2).await;
+        increase_alice_balances_to_cover_costs(&fixture, &tx3).await;
 
         mempool
-            .run_maintenance(fixture.state(), false, HashMap::new(), 0)
+            .run_maintenance(fixture.storage().latest_snapshot(), false, HashMap::new())
             .await;
 
         // see builder queue now contains them
         let builder_queue = mempool.builder_queue().await;
-        assert_eq!(
-            builder_queue.len(),
-            3,
-            "builder queue should now have 3 transactions"
-        );
+        assert_eq!(builder_queue, vec![tx1, tx2, tx3]);
     }
 
     #[tokio::test]
     async fn run_maintenance_demotion() {
-        let mut fixture = Fixture::default_initialized().await;
+        let fixture = Fixture::default_initialized().await;
         let mempool = fixture.mempool();
 
         // create transaction setup to trigger demotions
         //
         // initially pending has four transactions
-        let initial_balances = dummy_balances(4, 0);
-        let tx_costs = dummy_tx_costs(1, 0, 0);
+        put_alice_nonce(&fixture, 1).await;
         let tx1 = new_alice_tx(&fixture, 1).await;
         let tx2 = new_alice_tx(&fixture, 2).await;
         let tx3 = new_alice_tx(&fixture, 3).await;
         let tx4 = new_alice_tx(&fixture, 4).await;
 
-        mempool
-            .insert(tx1, 1, &initial_balances, tx_costs.clone())
-            .await
-            .unwrap();
-        mempool
-            .insert(tx2, 1, &initial_balances, tx_costs.clone())
-            .await
-            .unwrap();
-        mempool
-            .insert(tx3, 1, &initial_balances, tx_costs.clone())
-            .await
-            .unwrap();
-        mempool
-            .insert(tx4, 1, &initial_balances, tx_costs.clone())
-            .await
-            .unwrap();
+        mempool.insert(tx1.clone()).await.unwrap();
+        mempool.insert(tx2.clone()).await.unwrap();
+        mempool.insert(tx3.clone()).await.unwrap();
+        mempool.insert(tx4.clone()).await.unwrap();
 
         // see pending only has all transactions
-
-        fixture
-            .state_mut()
-            .put_account_nonce(&*ALICE_ADDRESS_BYTES, 1)
-            .unwrap();
-        put_ibc_assets(&mut fixture);
-
         let builder_queue = mempool.builder_queue().await;
         assert_eq!(
-            builder_queue.len(),
-            4,
-            "builder queue should only contain four transactions"
+            builder_queue,
+            vec![tx1.clone(), tx2.clone(), tx3.clone(), tx4.clone()]
         );
 
-        // setup state
-        put_alice_balances(&mut fixture, dummy_balances(1, 0));
-
+        // setup state so Alice can only pay for first tx
+        set_alice_balances_to_cover_costs(&fixture, &tx1).await;
         mempool
-            .run_maintenance(fixture.state(), false, HashMap::new(), 0)
+            .run_maintenance(fixture.storage().latest_snapshot(), false, HashMap::new())
             .await;
 
         // see builder queue now contains single transactions
         let builder_queue = mempool.builder_queue().await;
-        assert_eq!(
-            builder_queue.len(),
-            1,
-            "builder queue should contain single transaction"
-        );
+        assert_eq!(builder_queue, vec![tx1.clone()]);
 
-        put_alice_balances(&mut fixture, dummy_balances(3, 0));
+        // setup state so Alice can now pay for first three txs
+        increase_alice_balances_to_cover_costs(&fixture, &tx2).await;
+        increase_alice_balances_to_cover_costs(&fixture, &tx3).await;
 
         mempool
-            .run_maintenance(fixture.state(), false, HashMap::new(), 0)
+            .run_maintenance(fixture.storage().latest_snapshot(), false, HashMap::new())
             .await;
 
         let builder_queue = mempool.builder_queue().await;
-        assert_eq!(
-            builder_queue.len(),
-            3,
-            "builder queue should contain three transactions"
-        );
+        assert_eq!(builder_queue, vec![tx1, tx2, tx3]);
     }
 
     #[tokio::test]
     async fn remove_invalid() {
         let fixture = Fixture::default_initialized().await;
         let mempool = fixture.mempool();
-        let account_balances = dummy_balances(100, 100);
-        let tx_costs = dummy_tx_costs(10, 10, 10);
 
         // sign and insert nonces 0,1 and 3,4,5
         let tx0 = new_alice_tx(&fixture, 0).await;
-        assert!(
-            mempool
-                .insert(tx0.clone(), 0, &account_balances, tx_costs.clone())
-                .await
-                .is_ok(),
-            "should be able to insert nonce 0 transaction into mempool"
-        );
         let tx1 = new_alice_tx(&fixture, 1).await;
-        assert!(
-            mempool
-                .insert(tx1.clone(), 0, &account_balances, tx_costs.clone())
-                .await
-                .is_ok(),
-            "should be able to insert nonce 1 transaction into mempool"
-        );
         let tx3 = new_alice_tx(&fixture, 3).await;
-        assert!(
-            mempool
-                .insert(tx3.clone(), 0, &account_balances, tx_costs.clone())
-                .await
-                .is_ok(),
-            "should be able to insert nonce 3 transaction into mempool"
-        );
         let tx4 = new_alice_tx(&fixture, 4).await;
-        assert!(
-            mempool
-                .insert(tx4.clone(), 0, &account_balances, tx_costs.clone())
-                .await
-                .is_ok(),
-            "should be able to insert nonce 4 transaction into mempool"
-        );
         let tx5 = new_alice_tx(&fixture, 5).await;
-        assert!(
-            mempool
-                .insert(tx5.clone(), 0, &account_balances, tx_costs.clone())
-                .await
-                .is_ok(),
-            "should be able to insert nonce 5 transaction into mempool"
-        );
-        assert_eq!(mempool.len().await, 5);
+        mempool.insert(tx0.clone()).await.unwrap();
+        mempool.insert(tx1.clone()).await.unwrap();
+        mempool.insert(tx3.clone()).await.unwrap();
+        mempool.insert(tx4.clone()).await.unwrap();
+        mempool.insert(tx5.clone()).await.unwrap();
+        assert_tx_in_pending(&mempool, tx0.id()).await;
+        assert_tx_in_pending(&mempool, tx1.id()).await;
+        assert_tx_in_parked(&mempool, tx3.id()).await;
+        assert_tx_in_parked(&mempool, tx4.id()).await;
+        assert_tx_in_parked(&mempool, tx5.id()).await;
 
         let removal_reason = RemovalReason::FailedPrepareProposal("reason".to_string());
 
@@ -1072,6 +1016,11 @@ mod tests {
             .remove_tx_invalid(tx4.clone(), removal_reason.clone())
             .await;
         assert_eq!(mempool.len().await, 3);
+        assert_tx_in_pending(&mempool, tx0.id()).await;
+        assert_tx_in_pending(&mempool, tx1.id()).await;
+        assert_tx_in_parked(&mempool, tx3.id()).await;
+        assert_tx_removed(&mempool, tx4.id(), &removal_reason).await;
+        assert_tx_removed(&mempool, tx5.id(), &RemovalReason::LowerNonceInvalidated).await;
 
         // remove 4 again is also ok
         mempool
@@ -1081,12 +1030,22 @@ mod tests {
             )
             .await;
         assert_eq!(mempool.len().await, 3);
+        assert_tx_in_pending(&mempool, tx0.id()).await;
+        assert_tx_in_pending(&mempool, tx1.id()).await;
+        assert_tx_in_parked(&mempool, tx3.id()).await;
+        assert_tx_removed(&mempool, tx4.id(), &removal_reason).await;
+        assert_tx_removed(&mempool, tx5.id(), &RemovalReason::LowerNonceInvalidated).await;
 
         // remove 1, should remove 1 and 3
         mempool
             .remove_tx_invalid(tx1.clone(), removal_reason.clone())
             .await;
         assert_eq!(mempool.len().await, 1);
+        assert_tx_in_pending(&mempool, tx0.id()).await;
+        assert_tx_removed(&mempool, tx1.id(), &removal_reason).await;
+        assert_tx_removed(&mempool, tx3.id(), &RemovalReason::LowerNonceInvalidated).await;
+        assert_tx_removed(&mempool, tx4.id(), &removal_reason).await;
+        assert_tx_removed(&mempool, tx5.id(), &RemovalReason::LowerNonceInvalidated).await;
 
         // remove 0
         mempool
@@ -1096,27 +1055,11 @@ mod tests {
 
         // assert that all were added to the cometbft removal cache
         // and the expected reasons were tracked
-        let mut removal_cache = mempool.removal_cache().await;
-        assert!(matches!(
-            removal_cache.remove(tx0.id()),
-            Some(RemovalReason::FailedPrepareProposal(_))
-        ));
-        assert!(matches!(
-            removal_cache.remove(tx1.id()),
-            Some(RemovalReason::FailedPrepareProposal(_))
-        ));
-        assert!(matches!(
-            removal_cache.remove(tx3.id()),
-            Some(RemovalReason::LowerNonceInvalidated)
-        ));
-        assert!(matches!(
-            removal_cache.remove(tx4.id()),
-            Some(RemovalReason::FailedPrepareProposal(_))
-        ));
-        assert!(matches!(
-            removal_cache.remove(tx5.id()),
-            Some(RemovalReason::LowerNonceInvalidated)
-        ));
+        assert_tx_removed(&mempool, tx0.id(), &removal_reason).await;
+        assert_tx_removed(&mempool, tx1.id(), &removal_reason).await;
+        assert_tx_removed(&mempool, tx3.id(), &RemovalReason::LowerNonceInvalidated).await;
+        assert_tx_removed(&mempool, tx4.id(), &removal_reason).await;
+        assert_tx_removed(&mempool, tx5.id(), &RemovalReason::LowerNonceInvalidated).await;
     }
 
     #[tokio::test]
@@ -1124,54 +1067,34 @@ mod tests {
         let fixture = Fixture::default_initialized().await;
         let mempool = fixture.mempool();
 
-        let account_balances = dummy_balances(100, 100);
-        let tx_costs = dummy_tx_costs(10, 10, 0);
-
-        // sign and insert nonces 0,1
+        // sign and insert Alice txs with nonces 0,1
         let tx0 = new_alice_tx(&fixture, 0).await;
-        assert!(
-            mempool
-                .insert(tx0, 0, &account_balances, tx_costs.clone())
-                .await
-                .is_ok(),
-            "should be able to insert nonce 0 transaction into mempool"
-        );
         let tx1 = new_alice_tx(&fixture, 1).await;
-        assert!(
-            mempool
-                .insert(tx1, 0, &account_balances, tx_costs.clone())
-                .await
-                .is_ok(),
-            "should be able to insert nonce 1 transaction into mempool"
-        );
+        mempool.insert(tx0.clone()).await.unwrap();
+        mempool.insert(tx1.clone()).await.unwrap();
 
-        // sign and insert nonces 100, 101
+        // sign and insert Bob txs with nonces 100, 101
+        let storage = fixture.storage();
+        let mut state_delta = StateDelta::new(storage.latest_snapshot());
+        state_delta
+            .put_account_nonce(&*BOB_ADDRESS_BYTES, 100)
+            .unwrap();
+        let _ = storage.commit(state_delta).await.unwrap();
+        fixture.mempool().inner.write().await.latest_snapshot = storage.latest_snapshot();
         let tx100 = fixture
             .checked_tx_builder()
             .with_nonce(100)
             .with_signer(BOB.clone())
             .build()
             .await;
-        assert!(
-            mempool
-                .insert(tx100, 100, &account_balances, tx_costs.clone())
-                .await
-                .is_ok(),
-            "should be able to insert nonce 100 transaction into mempool"
-        );
         let tx101 = fixture
             .checked_tx_builder()
             .with_nonce(101)
             .with_signer(BOB.clone())
             .build()
             .await;
-        assert!(
-            mempool
-                .insert(tx101, 100, &account_balances, tx_costs.clone())
-                .await
-                .is_ok(),
-            "should be able to insert nonce 101 transaction into mempool"
-        );
+        mempool.insert(tx100.clone()).await.unwrap();
+        mempool.insert(tx101.clone()).await.unwrap();
 
         assert_eq!(mempool.len().await, 4);
 
@@ -1241,7 +1164,7 @@ mod tests {
 
         assert!(
             matches!(tx_cache.remove(&tx_0), Some(RemovalReason::Expired)),
-            "first removal reason should be presenved"
+            "first removal reason should be preserved"
         );
     }
 
@@ -1249,24 +1172,16 @@ mod tests {
     async fn tx_tracked_invalid_removal_removes_all() {
         let fixture = Fixture::default_initialized().await;
         let mempool = fixture.mempool();
-        let account_balances = dummy_balances(100, 100);
-        let tx_costs = dummy_tx_costs(10, 10, 0);
 
         let tx0 = new_alice_tx(&fixture, 0).await;
         let tx1 = new_alice_tx(&fixture, 1).await;
 
         // check that the parked transaction is in the tracked set
-        mempool
-            .insert(tx1.clone(), 0, &account_balances, tx_costs.clone())
-            .await
-            .unwrap();
+        mempool.insert(tx1.clone()).await.unwrap();
         assert!(mempool.is_tracked(tx1.id()).await);
 
         // check that the pending transaction is in the tracked set
-        mempool
-            .insert(tx0.clone(), 0, &account_balances, tx_costs.clone())
-            .await
-            .unwrap();
+        mempool.insert(tx0.clone()).await.unwrap();
         assert!(mempool.is_tracked(tx0.id()).await);
 
         // remove the transactions from the mempool, should remove both
@@ -1281,30 +1196,19 @@ mod tests {
 
     #[tokio::test]
     async fn tx_tracked_maintenance_removes_all() {
-        let mut fixture = Fixture::default_initialized().await;
+        let fixture = Fixture::default_initialized().await;
         let mempool = fixture.mempool();
-        let account_balances = dummy_balances(100, 100);
-        let tx_costs = dummy_tx_costs(10, 10, 0);
 
         let tx0 = new_alice_tx(&fixture, 0).await;
         let tx1 = new_alice_tx(&fixture, 1).await;
 
-        mempool
-            .insert(tx1.clone(), 0, &account_balances, tx_costs.clone())
-            .await
-            .unwrap();
-        mempool
-            .insert(tx0.clone(), 0, &account_balances, tx_costs.clone())
-            .await
-            .unwrap();
+        mempool.insert(tx1.clone()).await.unwrap();
+        mempool.insert(tx0.clone()).await.unwrap();
 
         // remove the transactions from the mempool via maintenance
-        fixture
-            .state_mut()
-            .put_account_nonce(&*ALICE_ADDRESS_BYTES, 2)
-            .unwrap();
+        put_alice_nonce(&fixture, 2).await;
         mempool
-            .run_maintenance(fixture.state(), false, HashMap::new(), 0)
+            .run_maintenance(fixture.storage().latest_snapshot(), false, HashMap::new())
             .await;
 
         // check that the transactions are not in the tracked set
@@ -1316,21 +1220,11 @@ mod tests {
     async fn tx_tracked_reinsertion_ok() {
         let fixture = Fixture::default_initialized().await;
         let mempool = fixture.mempool();
-        let account_balances = dummy_balances(100, 100);
-        let tx_costs = dummy_tx_costs(10, 10, 0);
 
         let tx0 = new_alice_tx(&fixture, 0).await;
         let tx1 = new_alice_tx(&fixture, 1).await;
-
-        mempool
-            .insert(tx1.clone(), 0, &account_balances, tx_costs.clone())
-            .await
-            .unwrap();
-
-        mempool
-            .insert(tx0.clone(), 0, &account_balances, tx_costs.clone())
-            .await
-            .unwrap();
+        mempool.insert(tx1.clone()).await.unwrap();
+        mempool.insert(tx0.clone()).await.unwrap();
 
         // remove the transactions from the mempool, should remove both
         mempool
@@ -1341,14 +1235,8 @@ mod tests {
         assert!(!mempool.is_tracked(tx1.id()).await);
 
         // re-insert the transactions into the mempool
-        mempool
-            .insert(tx0.clone(), 0, &account_balances, tx_costs.clone())
-            .await
-            .unwrap();
-        mempool
-            .insert(tx1.clone(), 0, &account_balances, tx_costs.clone())
-            .await
-            .unwrap();
+        mempool.insert(tx0.clone()).await.unwrap();
+        mempool.insert(tx1.clone()).await.unwrap();
 
         // check that the transactions are in the tracked set on re-insertion
         assert!(mempool.is_tracked(tx0.id()).await);
@@ -1358,83 +1246,58 @@ mod tests {
     #[tokio::test]
     async fn transaction_still_exists_in_recently_included_after_being_removed() {
         const INCLUDED_TX_BLOCK_NUMBER: u64 = 42;
-        let mut fixture = Fixture::default_initialized().await;
+        let fixture = Fixture::default_initialized().await;
         let mempool = fixture.mempool();
-        let account_balances = dummy_balances(100, 100);
-        let tx_cost = dummy_tx_costs(10, 10, 0);
 
         // Create and insert transactions
+        put_alice_nonce(&fixture, 1).await;
         let tx_1 = new_alice_tx(&fixture, 1).await;
         let tx_2 = new_alice_tx(&fixture, 2).await;
-
-        mempool
-            .insert(tx_1.clone(), 1, &account_balances.clone(), tx_cost.clone())
-            .await
-            .unwrap();
-        mempool
-            .insert(tx_2.clone(), 1, &account_balances.clone(), tx_cost.clone())
-            .await
-            .unwrap();
+        mempool.insert(tx_1.clone()).await.unwrap();
+        mempool.insert(tx_2.clone()).await.unwrap();
 
         // Check that transactions are in pending state
-        assert!(matches!(
-            mempool.transaction_status(tx_1.id()).await.unwrap(),
-            TransactionStatus::Pending
-        ));
-        assert!(matches!(
-            mempool.transaction_status(tx_2.id()).await.unwrap(),
-            TransactionStatus::Pending
-        ));
+        assert_tx_in_pending(&mempool, tx_1.id()).await;
+        assert_tx_in_pending(&mempool, tx_2.id()).await;
 
         // Setup state for maintenance
-        fixture
-            .state_mut()
-            .put_account_nonce(&*ALICE_ADDRESS_BYTES, 3)
-            .unwrap();
-        put_ibc_assets(&mut fixture);
+        put_alice_nonce(&fixture, 3).await;
+        put_block_height(&fixture, INCLUDED_TX_BLOCK_NUMBER).await;
 
         // Create the transaction result to be used in the execution result
-        let exec_result_1 = ExecTxResult {
+        let exec_result_1 = Arc::new(ExecTxResult {
             log: "tx_1 executed".to_string(),
             ..ExecTxResult::default()
-        };
-        let exec_result_2 = ExecTxResult {
+        });
+        let exec_result_2 = Arc::new(ExecTxResult {
             log: "tx_2 executed".to_string(),
             ..ExecTxResult::default()
-        };
+        });
 
         // Remove transactions as included in a block
         let mut execution_results = HashMap::new();
-        execution_results.insert(*tx_1.id(), Arc::new(exec_result_1.clone()));
-        execution_results.insert(*tx_2.id(), Arc::new(exec_result_2.clone()));
+        execution_results.insert(*tx_1.id(), exec_result_1.clone());
+        execution_results.insert(*tx_2.id(), exec_result_2.clone());
         mempool
             .run_maintenance(
-                fixture.state(),
+                fixture.storage().latest_snapshot(),
                 false,
                 execution_results,
-                INCLUDED_TX_BLOCK_NUMBER,
             )
             .await;
+        let removal_cache = mempool.removal_cache().await;
+        assert_eq!(removal_cache.len(), 2, "removal cache should have 2 txs");
 
-        let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
-            height: tx1_height,
-            result: tx1_result,
-        }) = mempool.transaction_status(tx_1.id()).await.unwrap()
-        else {
-            panic!("tx_1 not marked as included in block");
+        let expected_removal_reason_1 = RemovalReason::IncludedInBlock {
+            height: INCLUDED_TX_BLOCK_NUMBER,
+            result: exec_result_1,
         };
-        assert_eq!(tx1_height, INCLUDED_TX_BLOCK_NUMBER);
-        assert_eq!(*tx1_result, exec_result_1);
-
-        let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
-            height: tx2_height,
-            result: tx2_result,
-        }) = mempool.transaction_status(tx_2.id()).await.unwrap()
-        else {
-            panic!("tx_2 not marked as included in block");
+        let expected_removal_reason_2 = RemovalReason::IncludedInBlock {
+            height: INCLUDED_TX_BLOCK_NUMBER,
+            result: exec_result_2,
         };
-        assert_eq!(tx2_height, INCLUDED_TX_BLOCK_NUMBER);
-        assert_eq!(*tx2_result, exec_result_2);
+        assert_tx_removed(&mempool, tx_1.id(), &expected_removal_reason_1).await;
+        assert_tx_removed(&mempool, tx_2.id(), &expected_removal_reason_2).await;
 
         // Remove actions from removal cache to simulate recheck
         mempool.remove_from_removal_cache(tx_1.id()).await;
@@ -1443,25 +1306,8 @@ mod tests {
         assert!(removal_cache.is_empty(), "removal cache should be empty");
 
         // Check that transaction status is still removed with "included" reason
-        let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
-            height,
-            result,
-        }) = mempool.transaction_status(tx_1.id()).await.unwrap()
-        else {
-            panic!("tx_1 not marked as included in block");
-        };
-        assert_eq!(height, INCLUDED_TX_BLOCK_NUMBER);
-        assert_eq!(*result, exec_result_1);
-
-        let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
-            height,
-            result,
-        }) = mempool.transaction_status(tx_2.id()).await.unwrap()
-        else {
-            panic!("tx_2 not marked as included in block");
-        };
-        assert_eq!(height, INCLUDED_TX_BLOCK_NUMBER);
-        assert_eq!(*result, exec_result_2);
+        assert_tx_removed(&mempool, tx_1.id(), &expected_removal_reason_1).await;
+        assert_tx_removed(&mempool, tx_2.id(), &expected_removal_reason_2).await;
     }
 
     #[tokio::test]
@@ -1469,65 +1315,47 @@ mod tests {
         use tokio::time;
 
         const INCLUDED_TX_BLOCK_NUMBER: u64 = 42;
-        let mut fixture = Fixture::default_initialized().await;
+        let fixture = Fixture::default_initialized().await;
         let mempool = fixture.mempool();
-        let account_balances = dummy_balances(100, 100);
-        let tx_cost = dummy_tx_costs(10, 10, 0);
 
         // Create and insert a transaction
         let tx = new_alice_tx(&fixture, 1).await;
-        mempool
-            .insert(tx.clone(), 1, &account_balances.clone(), tx_cost.clone())
-            .await
-            .unwrap();
+        mempool.insert(tx.clone()).await.unwrap();
 
         // Setup state for maintenance
-        fixture
-            .state_mut()
-            .put_account_nonce(&*ALICE_ADDRESS_BYTES, 2)
-            .unwrap();
-        put_ibc_assets(&mut fixture);
+        put_alice_nonce(&fixture, 2).await;
+        put_block_height(&fixture, INCLUDED_TX_BLOCK_NUMBER).await;
 
         // Mark transaction as included in a block
-        let exec_result = ExecTxResult {
+        let exec_result = Arc::new(ExecTxResult {
             log: "tx executed".to_string(),
             ..ExecTxResult::default()
-        };
+        });
         let mut execution_results = HashMap::new();
-        execution_results.insert(*tx.id(), Arc::new(exec_result.clone()));
+        execution_results.insert(*tx.id(), exec_result.clone());
         mempool
             .run_maintenance(
-                fixture.state(),
+                fixture.storage().latest_snapshot(),
                 false,
                 execution_results,
-                INCLUDED_TX_BLOCK_NUMBER,
             )
             .await;
 
-        let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
-            height,
-            result,
-        }) = mempool.transaction_status(tx.id()).await.unwrap()
-        else {
-            panic!("transaction not marked as included in block");
+        let expected_removal_reason = RemovalReason::IncludedInBlock {
+            height: INCLUDED_TX_BLOCK_NUMBER,
+            result: exec_result,
         };
-        assert_eq!(height, INCLUDED_TX_BLOCK_NUMBER);
-        assert_eq!(*result, exec_result);
+        assert_tx_removed(&mempool, tx.id(), &expected_removal_reason).await;
 
         // Advance time to expire the transaction in the `recently_included_transactions` cache
         time::pause();
-        time::advance(time::Duration::from_secs(61)).await;
+        time::advance(Duration::from_secs(61)).await;
 
         // Remove from CometBFT removal cache
         mempool.remove_from_removal_cache(tx.id()).await;
         // Maintenance should remove from recently included transactions
         mempool
-            .run_maintenance(
-                fixture.state(),
-                false,
-                HashMap::new(),
-                INCLUDED_TX_BLOCK_NUMBER + 1,
-            )
+            .run_maintenance(fixture.storage().latest_snapshot(), false, HashMap::new())
             .await;
 
         assert!(
@@ -1540,15 +1368,10 @@ mod tests {
     async fn parked_limit_enforced() {
         let fixture = Fixture::default_initialized().await;
         let mempool = fixture.mempool();
-        let account_balances = dummy_balances(100, 100);
-        let tx_costs = dummy_tx_costs(10, 10, 0);
 
         for nonce in 1..=u32::try_from(MAX_PARKED_TXS_PER_ACCOUNT).unwrap() {
             let tx = new_alice_tx(&fixture, nonce).await;
-            mempool
-                .insert(tx, 0, &account_balances, tx_costs.clone())
-                .await
-                .unwrap();
+            mempool.insert(tx).await.unwrap();
         }
 
         // size limit fails as expected
@@ -1559,12 +1382,11 @@ mod tests {
                 .saturating_add(1),
         )
         .await;
-        assert_eq!(
-            mempool
-                .insert(tx, 0, &account_balances, tx_costs.clone())
-                .await
-                .unwrap_err(),
-            InsertionError::AccountSizeLimit,
+        assert!(
+            matches!(
+                mempool.insert(tx).await.unwrap_err(),
+                InsertionError::AccountSizeLimit
+            ),
             "size limit should be enforced"
         );
     }
@@ -1573,90 +1395,50 @@ mod tests {
     async fn run_maintenance_included() {
         const INCLUDED_TX_BLOCK_NUMBER: u64 = 12;
 
-        let mut fixture = Fixture::default_initialized().await;
+        let fixture = Fixture::default_initialized().await;
         let mempool = fixture.mempool();
 
-        let initial_balances = dummy_balances(4, 0);
-        let tx_costs = dummy_tx_costs(0, 0, 0);
+        put_alice_nonce(&fixture, 1).await;
         let tx1 = new_alice_tx(&fixture, 1).await;
         let tx2 = new_alice_tx(&fixture, 2).await;
         let tx3 = new_alice_tx(&fixture, 3).await;
         let tx4 = new_alice_tx(&fixture, 4).await;
-
-        mempool
-            .insert(tx1.clone(), 1, &initial_balances.clone(), tx_costs.clone())
-            .await
-            .unwrap();
-        mempool
-            .insert(tx2.clone(), 1, &initial_balances.clone(), tx_costs.clone())
-            .await
-            .unwrap();
-        mempool
-            .insert(tx3, 1, &initial_balances.clone(), tx_costs.clone())
-            .await
-            .unwrap();
-        mempool
-            .insert(tx4, 1, &initial_balances.clone(), tx_costs.clone())
-            .await
-            .unwrap();
-
-        fixture
-            .state_mut()
-            .put_account_nonce(&*ALICE_ADDRESS_BYTES, 3)
-            .unwrap();
+        mempool.insert(tx1.clone()).await.unwrap();
+        mempool.insert(tx2.clone()).await.unwrap();
+        mempool.insert(tx3.clone()).await.unwrap();
+        mempool.insert(tx4.clone()).await.unwrap();
 
         let builder_queue = mempool.builder_queue().await;
         assert_eq!(
-            builder_queue.len(),
-            4,
-            "builder queue should only contain four transactions"
+            builder_queue,
+            vec![tx1.clone(), tx2.clone(), tx3.clone(), tx4.clone()]
         );
 
-        put_alice_balances(&mut fixture, dummy_balances(0, 0));
-
+        // setup state as if tx1 and tx2 have been executed
+        put_alice_nonce(&fixture, 3).await;
+        put_block_height(&fixture, INCLUDED_TX_BLOCK_NUMBER).await;
         let mut execution_results = HashMap::new();
         execution_results.insert(*tx1.id(), Arc::new(ExecTxResult::default()));
         execution_results.insert(*tx2.id(), Arc::new(ExecTxResult::default()));
 
         mempool
             .run_maintenance(
-                fixture.state(),
+                fixture.storage().latest_snapshot(),
                 false,
                 execution_results,
-                INCLUDED_TX_BLOCK_NUMBER,
             )
             .await;
 
-        // see builder queue now contains single transactions
+        // builder queue should now contain only unexecuted txs
         let builder_queue = mempool.builder_queue().await;
-        assert_eq!(
-            builder_queue.len(),
-            2,
-            "builder queue should contain two transactions"
-        );
+        assert_eq!(builder_queue, vec![tx3.clone(), tx4.clone()]);
 
-        let removal_cache = mempool.removal_cache().await;
-        assert_eq!(
-            removal_cache.len(),
-            2,
-            "removal cache should contain two transactions"
-        );
-        assert_eq!(
-            *removal_cache.get(tx1.id()).unwrap(),
-            RemovalReason::IncludedInBlock {
-                height: INCLUDED_TX_BLOCK_NUMBER,
-                result: Arc::new(ExecTxResult::default())
-            },
-            "removal reason should be included"
-        );
-        assert_eq!(
-            *removal_cache.get(tx2.id()).unwrap(),
-            RemovalReason::IncludedInBlock {
-                height: INCLUDED_TX_BLOCK_NUMBER,
-                result: Arc::new(ExecTxResult::default())
-            },
-            "removal reason should be included"
-        );
+        let expected_reason = RemovalReason::IncludedInBlock {
+            height: INCLUDED_TX_BLOCK_NUMBER,
+            result: Arc::new(ExecTxResult::default()),
+        };
+        assert_tx_removed(&mempool, tx1.id(), &expected_reason).await;
+        assert_tx_removed(&mempool, tx2.id(), &expected_reason).await;
     }
 
     #[tokio::test]
@@ -1664,11 +1446,8 @@ mod tests {
         let fixture = Fixture::default_initialized().await;
         let mempool = fixture.mempool();
 
-        let account_balances = dummy_balances(100, 100);
-        let tx_costs = dummy_tx_costs(10, 10, 0);
-
         let pending_tx_1 =
-            TimemarkedTransaction::new(new_alice_tx(&fixture, 1).await, tx_costs.clone());
+            TimemarkedTransaction::new(new_alice_tx(&fixture, 1).await, HashMap::new());
         let pending_tx_2 = new_alice_tx(&fixture, 2).await;
         // different rollup data so that this transaction's hash is different than the failing tx
         let pending_tx_3 = TimemarkedTransaction::new(
@@ -1679,28 +1458,28 @@ mod tests {
                 .with_signer(ALICE.clone())
                 .build()
                 .await,
-            tx_costs.clone(),
+            HashMap::new(),
         );
         let failure_tx =
-            TimemarkedTransaction::new(new_alice_tx(&fixture, 3).await, tx_costs.clone());
+            TimemarkedTransaction::new(new_alice_tx(&fixture, 3).await, HashMap::new());
 
         let mut inner = mempool.inner.write().await;
 
         // Add tx nonce 1 into pending
         inner
             .pending
-            .add(pending_tx_1.clone(), 1, &account_balances)
+            .add(pending_tx_1.clone(), 1, &HashMap::new())
             .unwrap();
 
         // Force transactions with nonce 3 into both pending and parked, such that the parked one
         // will fail on promotion
         inner
             .parked
-            .add(failure_tx.clone(), 1, &account_balances)
+            .add(failure_tx.clone(), 1, &HashMap::new())
             .unwrap();
         inner
             .pending
-            .add(pending_tx_3.clone(), 3, &account_balances)
+            .add(pending_tx_3.clone(), 3, &HashMap::new())
             .unwrap();
 
         inner.contained_txs.insert(*pending_tx_1.id());
@@ -1714,10 +1493,7 @@ mod tests {
 
         // Insert tx nonce 2 to mempool, prompting promotion of tx nonce 3 from parked to pending,
         // which should fail
-        mempool
-            .insert(pending_tx_2, 2, &account_balances, tx_costs)
-            .await
-            .unwrap();
+        mempool.insert(pending_tx_2).await.unwrap();
 
         let inner = mempool.inner.read().await;
 

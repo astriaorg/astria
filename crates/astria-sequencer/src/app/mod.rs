@@ -944,7 +944,7 @@ impl App {
                             // we don't remove the tx from mempool if it failed to execute
                             // due to an invalid nonce, as it may be valid in the future.
                             // if it's invalid due to the nonce being too low, it'll be
-                            // removed from the mempool in `update_mempool_after_finalization`.
+                            // removed from the mempool in `mempool.run_maintenance`.
                             //
                             // this is important for possible out-of-order transaction
                             // groups fed into prepare_proposal. a transaction with a higher
@@ -1581,20 +1581,16 @@ impl App {
             self.metrics.increment_mempool_recosted();
         }
 
-        let block_height = self
-            .state
-            .get_block_height()
-            .await
-            .expect("block height must exist in state");
-
-        update_mempool_after_finalization(
-            &mut self.mempool,
-            &self.state,
-            self.recost_mempool,
-            execution_results,
-            block_height,
-        )
-        .await;
+        // NOTE: this call locks the mempool until all accounts have been cleaned.
+        // this could potentially stall consensus from moving to the next round if
+        // the mempool is large, especially if recosting transactions.
+        self.mempool
+            .run_maintenance(
+                storage.latest_snapshot(),
+                self.recost_mempool,
+                execution_results,
+            )
+            .await;
 
         self.upgrades_handler
             .should_shut_down(&storage.latest_snapshot())
@@ -1761,23 +1757,6 @@ pub(crate) enum ShouldShutDown {
         hex_encoded_app_hash: String,
     },
     ContinueRunning,
-}
-
-// updates the mempool to reflect current state
-//
-// NOTE: this function locks the mempool until all accounts have been cleaned.
-// this could potentially stall consensus from moving to the next round if
-// the mempool is large, especially if recosting transactions.
-async fn update_mempool_after_finalization<S: StateRead>(
-    mempool: &mut Mempool,
-    state: &S,
-    recost: bool,
-    block_execution_results: HashMap<TransactionId, Arc<ExecTxResult>>,
-    block_height: u64,
-) {
-    mempool
-        .run_maintenance(state, recost, block_execution_results, block_height)
-        .await;
 }
 
 #[derive(Clone)]

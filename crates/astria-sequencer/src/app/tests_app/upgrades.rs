@@ -70,8 +70,6 @@ use crate::{
     checked_transaction::CheckedTransaction,
     oracles::price_feed::oracle::state_ext::StateReadExt as _,
     test_utils::{
-        dummy_balances,
-        dummy_tx_costs,
         nria,
         Fixture,
         ALICE,
@@ -409,12 +407,7 @@ async fn execute_block_99(proposer: &mut Node, validator: &mut Node, non_validat
     proposer
         .app
         .mempool
-        .insert(
-            checked_transfer_tx,
-            0,
-            &dummy_balances(0, 0),
-            dummy_tx_costs(0, 0, 0),
-        )
+        .insert(checked_transfer_tx)
         .await
         .unwrap();
     // Add validator update action
@@ -432,12 +425,7 @@ async fn execute_block_99(proposer: &mut Node, validator: &mut Node, non_validat
     proposer
         .app
         .mempool
-        .insert(
-            checked_validator_update_tx,
-            0,
-            &dummy_balances(0, 0),
-            dummy_tx_costs(0, 0, 0),
-        )
+        .insert(checked_validator_update_tx)
         .await
         .unwrap();
 
@@ -519,12 +507,7 @@ async fn execute_block_100(proposer: &mut Node, validator: &mut Node, non_valida
     proposer
         .app
         .mempool
-        .insert(
-            checked_transfer_tx,
-            1,
-            &dummy_balances(0, 0),
-            dummy_tx_costs(0, 0, 0),
-        )
+        .insert(checked_transfer_tx)
         .await
         .unwrap();
     // Add validator update action
@@ -542,12 +525,7 @@ async fn execute_block_100(proposer: &mut Node, validator: &mut Node, non_valida
     proposer
         .app
         .mempool
-        .insert(
-            checked_validator_update_tx,
-            1,
-            &dummy_balances(0, 0),
-            dummy_tx_costs(0, 0, 0),
-        )
+        .insert(checked_validator_update_tx)
         .await
         .unwrap();
 
@@ -636,12 +614,7 @@ async fn execute_block_101(proposer: &mut Node, validator: &mut Node, non_valida
     proposer
         .app
         .mempool
-        .insert(
-            checked_transfer_tx,
-            2,
-            &dummy_balances(0, 0),
-            dummy_tx_costs(0, 0, 0),
-        )
+        .insert(checked_transfer_tx)
         .await
         .unwrap();
     // Add validator update action
@@ -659,12 +632,7 @@ async fn execute_block_101(proposer: &mut Node, validator: &mut Node, non_valida
     proposer
         .app
         .mempool
-        .insert(
-            checked_validator_update_tx,
-            2,
-            &dummy_balances(0, 0),
-            dummy_tx_costs(0, 0, 0),
-        )
+        .insert(checked_validator_update_tx)
         .await
         .unwrap();
 
@@ -762,12 +730,7 @@ async fn execute_block_102(proposer: &mut Node, validator: &mut Node, non_valida
     proposer
         .app
         .mempool
-        .insert(
-            checked_transfer_tx,
-            3,
-            &dummy_balances(0, 0),
-            dummy_tx_costs(0, 0, 0),
-        )
+        .insert(checked_transfer_tx)
         .await
         .unwrap();
     let prepare_proposal = PrepareProposalBuilder::new()

@@ -14,6 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add cache of recent execution results to mempool [#2163](https://github.com/astriaorg/astria/pull/2163).
 - Add tx result to `Executed` transaction status [#2159](https://github.com/astriaorg/astria/pull/2159).
 
+### Removed
+
+- Remove metrics:
+  - `astria_sequencer_check_tx_duration_seconds_fetch_nonce`
+  - `astria_sequencer_check_tx_duration_seconds_fetch_balances`
+  - `astria_sequencer_check_tx_duration_seconds_fetch_tx_cost` [#2225](https://github.com/astriaorg/astria/pull/2225).
+
+### Fixed
+
+- Fix race condition in mempool [#2225](https://github.com/astriaorg/astria/pull/2225).
+
 ## [3.0.0] - 2025-05-21
 
 ### Added

@@ -13,10 +13,6 @@ use astria_core::{
     protocol::abci::AbciErrorCode,
 };
 use astria_eyre::eyre::Report;
-use base64::{
-    prelude::BASE64_STANDARD,
-    Engine as _,
-};
 use bytes::Bytes;
 use cnidarium::{
     StateRead,
@@ -47,16 +43,12 @@ use tracing::{
 };
 
 use crate::{
-    accounts::{
-        AddressBytes as _,
-        StateReadExt as _,
-    },
+    checked_actions::CheckedActionFeeError,
     checked_transaction::{
         CheckedTransaction,
         CheckedTransactionInitialCheckError,
     },
     mempool::{
-        get_account_balances,
         InsertionError,
         InsertionStatus,
         Mempool as AppMempool,
@@ -234,7 +226,7 @@ pub(crate) async fn check_tx<S: StateRead>(
     metrics.record_check_tx_duration_seconds_check_actions(tx_status_end.elapsed());
 
     // attempt to insert the transaction into the mempool
-    let insertion_status = match insert_into_mempool(mempool, &state, checked_tx, metrics).await {
+    let insertion_status = match insert_into_mempool(mempool, checked_tx, metrics).await {
         Ok(status) => status,
         Err(outcome) => {
             return outcome;
@@ -251,74 +243,21 @@ pub(crate) async fn check_tx<S: StateRead>(
 
 /// Attempts to insert the transaction into the mempool.
 #[instrument(skip_all)]
-async fn insert_into_mempool<S: StateRead>(
+async fn insert_into_mempool(
     mempool: &AppMempool,
-    state: &S,
     tx: CheckedTransaction,
     metrics: &'static Metrics,
 ) -> Result<InsertionStatus, CheckTxOutcome> {
-    let address_bytes = *tx.address_bytes();
-
-    // fetch current account nonce
-    let start_fetch_nonce = Instant::now();
-    let current_account_nonce = state
-        .get_account_nonce(&address_bytes)
-        .await
-        .map_err(|error| {
-            CheckTxOutcome::InternalError(error.wrap_err(format!(
-                "failed to get nonce for account `{}` from storage",
-                BASE64_STANDARD.encode(address_bytes)
-            )))
-        })?;
-
-    let finished_fetch_nonce = Instant::now();
-    metrics.record_check_tx_duration_seconds_fetch_nonce(
-        finished_fetch_nonce.saturating_duration_since(start_fetch_nonce),
-    );
-
-    // grab cost of transaction
-    let transaction_costs = tx.total_costs(state).await.map_err(|error| {
-        CheckTxOutcome::InternalError(
-            Report::new(error).wrap_err("failed to calculate cost of the transaction"),
-        )
-    })?;
-
-    let finished_fetch_tx_cost = Instant::now();
-    metrics.record_check_tx_duration_seconds_fetch_tx_cost(
-        finished_fetch_tx_cost.saturating_duration_since(finished_fetch_nonce),
-    );
-
-    // grab current account's balances
-    let current_account_balances =
-        get_account_balances(&state, &address_bytes)
-            .await
-            .map_err(|error| {
-                CheckTxOutcome::InternalError(error.wrap_err(format!(
-                    "failed to get balances for account `{}` from storage",
-                    BASE64_STANDARD.encode(address_bytes)
-                )))
-            })?;
-
-    let finished_fetch_balances = Instant::now();
-    metrics.record_check_tx_duration_seconds_fetch_balances(
-        finished_fetch_balances.saturating_duration_since(finished_fetch_tx_cost),
-    );
-
     let actions_count = tx.checked_actions().len();
     let tx_length = tx.encoded_bytes().len();
 
+    let start = Instant::now();
     let insertion_status = mempool
-        .insert(
-            Arc::new(tx),
-            current_account_nonce,
-            &current_account_balances,
-            transaction_costs,
-        )
+        .insert(Arc::new(tx))
         .await
         .map_err(CheckTxOutcome::FailedInsertion)?;
 
-    metrics
-        .record_check_tx_duration_seconds_insert_to_app_mempool(finished_fetch_balances.elapsed());
+    metrics.record_check_tx_duration_seconds_insert_to_app_mempool(start.elapsed());
     metrics.record_actions_per_transaction_in_mempool(actions_count);
     metrics.record_transaction_in_mempool_size_bytes(tx_length);
 
@@ -337,7 +276,6 @@ pub(crate) enum CheckTxOutcome {
         tx_id: TransactionId,
         reason: RemovalReason,
     },
-    InternalError(Report),
 }
 
 impl From<RemovalReason> for response::CheckTx {
@@ -397,27 +335,41 @@ impl From<CheckTxOutcome> for response::CheckTx {
             CheckTxOutcome::RemovedFromMempool {
                 reason, ..
             } => reason.into(),
-            CheckTxOutcome::InternalError(report) => error_response(
-                AbciErrorCode::INTERNAL_ERROR,
-                format!("internal error: {report}"),
-            ),
         }
     }
 }
 
 impl From<InsertionError> for response::CheckTx {
     fn from(insertion_error: InsertionError) -> Self {
-        let log = format!("failed to insert transaction into app mempool: {insertion_error}");
-        let code = match insertion_error {
+        let code = match &insertion_error {
             InsertionError::AlreadyPresent => AbciErrorCode::ALREADY_PRESENT,
             InsertionError::NonceTooLow => AbciErrorCode::INVALID_NONCE,
             InsertionError::NonceTaken => AbciErrorCode::NONCE_TAKEN,
-            InsertionError::NonceGap | InsertionError::AccountBalanceTooLow => {
-                AbciErrorCode::INTERNAL_ERROR
-            }
+            InsertionError::NonceGap
+            | InsertionError::AccountBalanceTooLow
+            | InsertionError::FailedToCalculateCosts(CheckedActionFeeError::InternalError {
+                ..
+            })
+            | InsertionError::Internal(_) => AbciErrorCode::INTERNAL_ERROR,
             InsertionError::AccountSizeLimit => AbciErrorCode::ACCOUNT_SIZE_LIMIT,
             InsertionError::ParkedSizeLimit => AbciErrorCode::PARKED_FULL,
+            InsertionError::FailedToCalculateCosts(
+                CheckedActionFeeError::ActionDisabled {
+                    ..
+                }
+                | CheckedActionFeeError::FeeAssetIsNotAllowed {
+                    ..
+                },
+            ) => AbciErrorCode::INVALID_TRANSACTION,
+            InsertionError::FailedToCalculateCosts(
+                CheckedActionFeeError::InsufficientBalanceToPayFee {
+                    ..
+                },
+            ) => AbciErrorCode::INSUFFICIENT_FUNDS,
         };
+        let log = Report::new(insertion_error)
+            .wrap_err("failed to insert transaction into app mempool")
+            .to_string();
         error_response(code, log)
     }
 }

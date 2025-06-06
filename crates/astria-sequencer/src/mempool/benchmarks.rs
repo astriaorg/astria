@@ -34,10 +34,6 @@ use crate::{
         Mempool,
         RemovalReason,
     },
-    test_utils::{
-        dummy_balances,
-        dummy_tx_costs,
-    },
 };
 
 /// The max time for any benchmark.
@@ -116,16 +112,17 @@ fn init_mempool<T: MempoolSize>() -> Mempool {
         .unwrap();
 
     let init = || {
+        let fixture = new_fixture();
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, T::size(), T::size());
-        let account_balances = dummy_balances(0, 0);
-        let tx_costs = dummy_tx_costs(0, 0, 0);
+        let mempool = Mempool::new(
+            fixture.storage().latest_snapshot(),
+            metrics,
+            T::size(),
+            T::size(),
+        );
         runtime.block_on(async {
             for tx in transactions().iter().take(T::checked_size()) {
-                mempool
-                    .insert(tx.clone(), 0, &account_balances.clone(), tx_costs.clone())
-                    .await
-                    .unwrap();
+                mempool.insert(tx.clone()).await.unwrap();
             }
             for i in 0..super::REMOVAL_CACHE_SIZE {
                 let tx_id = TransactionId::new(Sha256::digest(i.to_le_bytes()).into());
@@ -194,23 +191,11 @@ fn insert<T: MempoolSize>(bencher: divan::Bencher) {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .build()
         .unwrap();
-    let balances = dummy_balances(0, 0);
-    let tx_costs = dummy_tx_costs(0, 0, 0);
     bencher
-        .with_inputs(|| {
-            (
-                init_mempool::<T>(),
-                get_unused_tx::<T>(),
-                balances.clone(),
-                tx_costs.clone(),
-            )
-        })
-        .bench_values(move |(mempool, tx, mock_balances, mock_tx_cost)| {
+        .with_inputs(|| (init_mempool::<T>(), get_unused_tx::<T>()))
+        .bench_values(move |(mempool, tx)| {
             runtime.block_on(async {
-                mempool
-                    .insert(tx, 0, &mock_balances, mock_tx_cost)
-                    .await
-                    .unwrap();
+                mempool.insert(tx).await.unwrap();
             });
         });
 }
@@ -330,14 +315,14 @@ fn run_maintenance<T: MempoolSize>(bencher: divan::Bencher) {
             .put_account_nonce(&signing_address, new_nonce)
             .unwrap();
     }
-    let state = fixture.state();
+    let snapshot = fixture.storage().latest_snapshot();
 
     bencher
         .with_inputs(|| init_mempool::<T>())
         .bench_values(move |mempool| {
             runtime.block_on(async {
                 mempool
-                    .run_maintenance(&state, false, HashMap::new(), 1)
+                    .run_maintenance(snapshot.clone(), false, HashMap::new())
                     .await;
             });
         });
@@ -375,14 +360,14 @@ fn run_maintenance_tx_recosting<T: MempoolSize>(bencher: divan::Bencher) {
             .put_account_nonce(&signing_address, new_nonce)
             .unwrap();
     }
-    let state = fixture.state();
+    let snapshot = fixture.storage().latest_snapshot();
 
     bencher
         .with_inputs(|| init_mempool::<T>())
         .bench_values(move |mempool| {
             runtime.block_on(async {
                 mempool
-                    .run_maintenance(&state, true, HashMap::new(), 1)
+                    .run_maintenance(snapshot.clone(), true, HashMap::new())
                     .await;
             });
         });

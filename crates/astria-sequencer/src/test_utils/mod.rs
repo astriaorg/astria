@@ -21,7 +21,6 @@ use astria_core::{
     primitive::v1::{
         asset::{
             Denom,
-            IbcPrefixed,
             TracePrefixed,
         },
         Address,
@@ -444,68 +443,12 @@ pub(crate) fn nria() -> TracePrefixed {
     "nria".parse().unwrap()
 }
 
-pub(crate) fn denom_0() -> Denom {
-    nria().into()
-}
-
 pub(crate) fn denom_1() -> Denom {
     "denom_1".parse().unwrap()
 }
 
 pub(crate) fn denom_2() -> Denom {
     "denom_2".parse().unwrap()
-}
-
-pub(crate) fn denom_3() -> Denom {
-    "denom_3".parse().unwrap()
-}
-
-pub(crate) fn denom_4() -> Denom {
-    "denom_4".parse().unwrap()
-}
-
-pub(crate) fn denom_5() -> Denom {
-    "denom_5".parse().unwrap()
-}
-
-pub(crate) fn denom_6() -> Denom {
-    "denom_6".parse().unwrap()
-}
-
-pub(crate) fn dummy_tx_costs(
-    denom_0_cost: u128,
-    denom_1_cost: u128,
-    denom_2_cost: u128,
-) -> HashMap<IbcPrefixed, u128> {
-    let mut costs: HashMap<IbcPrefixed, u128> = HashMap::<IbcPrefixed, u128>::new();
-    costs.insert(denom_0().to_ibc_prefixed(), denom_0_cost);
-    costs.insert(denom_1().to_ibc_prefixed(), denom_1_cost);
-    costs.insert(denom_2().to_ibc_prefixed(), denom_2_cost); // not present in balances
-
-    // we don't sanitize the cost inputs
-    costs.insert(denom_5().to_ibc_prefixed(), 0); // zero in balances also
-    costs.insert(denom_6().to_ibc_prefixed(), 0); // not present in balances
-
-    costs
-}
-
-pub(crate) fn dummy_balances(
-    denom_0_balance: u128,
-    denom_1_balance: u128,
-) -> HashMap<IbcPrefixed, u128> {
-    let mut balances = HashMap::<IbcPrefixed, u128>::new();
-    if denom_0_balance != 0 {
-        balances.insert(denom_0().to_ibc_prefixed(), denom_0_balance);
-    }
-    if denom_1_balance != 0 {
-        balances.insert(denom_1().to_ibc_prefixed(), denom_1_balance);
-    }
-    // we don't sanitize the balance inputs
-    balances.insert(denom_3().to_ibc_prefixed(), 100); // balance transaction costs won't have entry for
-    balances.insert(denom_4().to_ibc_prefixed(), 0); // zero balance not in transaction
-    balances.insert(denom_5().to_ibc_prefixed(), 0); // zero balance with corresponding zero cost
-
-    balances
 }
 
 #[track_caller]
