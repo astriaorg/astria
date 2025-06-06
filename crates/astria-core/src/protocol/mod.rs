@@ -14,6 +14,7 @@ pub mod bridge;
 pub mod fees;
 pub mod genesis;
 pub mod memos;
+pub mod orderbook;
 pub mod price_feed;
 pub mod transaction;
 

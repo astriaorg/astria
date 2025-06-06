@@ -66,6 +66,18 @@ impl serde::Serialize for Action {
                 action::Value::MarketsChange(v) => {
                     struct_ser.serialize_field("marketsChange", v)?;
                 }
+                action::Value::CreateOrder(v) => {
+                    struct_ser.serialize_field("createOrder", v)?;
+                }
+                action::Value::CancelOrder(v) => {
+                    struct_ser.serialize_field("cancelOrder", v)?;
+                }
+                action::Value::CreateMarket(v) => {
+                    struct_ser.serialize_field("createMarket", v)?;
+                }
+                action::Value::UpdateMarket(v) => {
+                    struct_ser.serialize_field("updateMarket", v)?;
+                }
             }
         }
         struct_ser.end()
@@ -112,6 +124,14 @@ impl<'de> serde::Deserialize<'de> for Action {
             "currencyPairsChange",
             "markets_change",
             "marketsChange",
+            "create_order",
+            "createOrder",
+            "cancel_order",
+            "cancelOrder",
+            "create_market",
+            "createMarket",
+            "update_market",
+            "updateMarket",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -134,6 +154,10 @@ impl<'de> serde::Deserialize<'de> for Action {
             RecoverIbcClient,
             CurrencyPairsChange,
             MarketsChange,
+            CreateOrder,
+            CancelOrder,
+            CreateMarket,
+            UpdateMarket,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -173,6 +197,10 @@ impl<'de> serde::Deserialize<'de> for Action {
                             "recoverIbcClient" | "recover_ibc_client" => Ok(GeneratedField::RecoverIbcClient),
                             "currencyPairsChange" | "currency_pairs_change" => Ok(GeneratedField::CurrencyPairsChange),
                             "marketsChange" | "markets_change" => Ok(GeneratedField::MarketsChange),
+                            "createOrder" | "create_order" => Ok(GeneratedField::CreateOrder),
+                            "cancelOrder" | "cancel_order" => Ok(GeneratedField::CancelOrder),
+                            "createMarket" | "create_market" => Ok(GeneratedField::CreateMarket),
+                            "updateMarket" | "update_market" => Ok(GeneratedField::UpdateMarket),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -319,6 +347,34 @@ impl<'de> serde::Deserialize<'de> for Action {
                                 return Err(serde::de::Error::duplicate_field("marketsChange"));
                             }
                             value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::MarketsChange)
+;
+                        }
+                        GeneratedField::CreateOrder => {
+                            if value__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("createOrder"));
+                            }
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::CreateOrder)
+;
+                        }
+                        GeneratedField::CancelOrder => {
+                            if value__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("cancelOrder"));
+                            }
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::CancelOrder)
+;
+                        }
+                        GeneratedField::CreateMarket => {
+                            if value__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("createMarket"));
+                            }
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::CreateMarket)
+;
+                        }
+                        GeneratedField::UpdateMarket => {
+                            if value__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("updateMarket"));
+                            }
+                            value__ = map_.next_value::<::std::option::Option<_>>()?.map(action::Value::UpdateMarket)
 ;
                         }
                     }
@@ -1041,6 +1097,498 @@ impl<'de> serde::Deserialize<'de> for BridgeUnlock {
         deserializer.deserialize_struct("astria.protocol.transaction.v1.BridgeUnlock", FIELDS, GeneratedVisitor)
     }
 }
+impl serde::Serialize for CancelOrder {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.order_id.is_empty() {
+            len += 1;
+        }
+        if !self.fee_asset.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.CancelOrder", len)?;
+        if !self.order_id.is_empty() {
+            struct_ser.serialize_field("orderId", &self.order_id)?;
+        }
+        if !self.fee_asset.is_empty() {
+            struct_ser.serialize_field("feeAsset", &self.fee_asset)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for CancelOrder {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "order_id",
+            "orderId",
+            "fee_asset",
+            "feeAsset",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            OrderId,
+            FeeAsset,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "orderId" | "order_id" => Ok(GeneratedField::OrderId),
+                            "feeAsset" | "fee_asset" => Ok(GeneratedField::FeeAsset),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = CancelOrder;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transaction.v1.CancelOrder")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<CancelOrder, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut order_id__ = None;
+                let mut fee_asset__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::OrderId => {
+                            if order_id__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("orderId"));
+                            }
+                            order_id__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::FeeAsset => {
+                            if fee_asset__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("feeAsset"));
+                            }
+                            fee_asset__ = Some(map_.next_value()?);
+                        }
+                    }
+                }
+                Ok(CancelOrder {
+                    order_id: order_id__.unwrap_or_default(),
+                    fee_asset: fee_asset__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transaction.v1.CancelOrder", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for CreateMarket {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.market.is_empty() {
+            len += 1;
+        }
+        if !self.base_asset.is_empty() {
+            len += 1;
+        }
+        if !self.quote_asset.is_empty() {
+            len += 1;
+        }
+        if self.tick_size.is_some() {
+            len += 1;
+        }
+        if self.lot_size.is_some() {
+            len += 1;
+        }
+        if !self.fee_asset.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.CreateMarket", len)?;
+        if !self.market.is_empty() {
+            struct_ser.serialize_field("market", &self.market)?;
+        }
+        if !self.base_asset.is_empty() {
+            struct_ser.serialize_field("baseAsset", &self.base_asset)?;
+        }
+        if !self.quote_asset.is_empty() {
+            struct_ser.serialize_field("quoteAsset", &self.quote_asset)?;
+        }
+        if let Some(v) = self.tick_size.as_ref() {
+            struct_ser.serialize_field("tickSize", v)?;
+        }
+        if let Some(v) = self.lot_size.as_ref() {
+            struct_ser.serialize_field("lotSize", v)?;
+        }
+        if !self.fee_asset.is_empty() {
+            struct_ser.serialize_field("feeAsset", &self.fee_asset)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for CreateMarket {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "market",
+            "base_asset",
+            "baseAsset",
+            "quote_asset",
+            "quoteAsset",
+            "tick_size",
+            "tickSize",
+            "lot_size",
+            "lotSize",
+            "fee_asset",
+            "feeAsset",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Market,
+            BaseAsset,
+            QuoteAsset,
+            TickSize,
+            LotSize,
+            FeeAsset,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "market" => Ok(GeneratedField::Market),
+                            "baseAsset" | "base_asset" => Ok(GeneratedField::BaseAsset),
+                            "quoteAsset" | "quote_asset" => Ok(GeneratedField::QuoteAsset),
+                            "tickSize" | "tick_size" => Ok(GeneratedField::TickSize),
+                            "lotSize" | "lot_size" => Ok(GeneratedField::LotSize),
+                            "feeAsset" | "fee_asset" => Ok(GeneratedField::FeeAsset),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = CreateMarket;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transaction.v1.CreateMarket")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<CreateMarket, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut market__ = None;
+                let mut base_asset__ = None;
+                let mut quote_asset__ = None;
+                let mut tick_size__ = None;
+                let mut lot_size__ = None;
+                let mut fee_asset__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Market => {
+                            if market__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("market"));
+                            }
+                            market__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::BaseAsset => {
+                            if base_asset__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("baseAsset"));
+                            }
+                            base_asset__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::QuoteAsset => {
+                            if quote_asset__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("quoteAsset"));
+                            }
+                            quote_asset__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::TickSize => {
+                            if tick_size__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("tickSize"));
+                            }
+                            tick_size__ = map_.next_value()?;
+                        }
+                        GeneratedField::LotSize => {
+                            if lot_size__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("lotSize"));
+                            }
+                            lot_size__ = map_.next_value()?;
+                        }
+                        GeneratedField::FeeAsset => {
+                            if fee_asset__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("feeAsset"));
+                            }
+                            fee_asset__ = Some(map_.next_value()?);
+                        }
+                    }
+                }
+                Ok(CreateMarket {
+                    market: market__.unwrap_or_default(),
+                    base_asset: base_asset__.unwrap_or_default(),
+                    quote_asset: quote_asset__.unwrap_or_default(),
+                    tick_size: tick_size__,
+                    lot_size: lot_size__,
+                    fee_asset: fee_asset__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transaction.v1.CreateMarket", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for CreateOrder {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.market.is_empty() {
+            len += 1;
+        }
+        if self.side != 0 {
+            len += 1;
+        }
+        if self.r#type != 0 {
+            len += 1;
+        }
+        if self.price.is_some() {
+            len += 1;
+        }
+        if self.quantity.is_some() {
+            len += 1;
+        }
+        if self.time_in_force != 0 {
+            len += 1;
+        }
+        if !self.fee_asset.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.CreateOrder", len)?;
+        if !self.market.is_empty() {
+            struct_ser.serialize_field("market", &self.market)?;
+        }
+        if self.side != 0 {
+            let v = super::super::orderbook::v1::OrderSide::try_from(self.side)
+                .map_err(|_| serde::ser::Error::custom(format!("Invalid variant {}", self.side)))?;
+            struct_ser.serialize_field("side", &v)?;
+        }
+        if self.r#type != 0 {
+            let v = super::super::orderbook::v1::OrderType::try_from(self.r#type)
+                .map_err(|_| serde::ser::Error::custom(format!("Invalid variant {}", self.r#type)))?;
+            struct_ser.serialize_field("type", &v)?;
+        }
+        if let Some(v) = self.price.as_ref() {
+            struct_ser.serialize_field("price", v)?;
+        }
+        if let Some(v) = self.quantity.as_ref() {
+            struct_ser.serialize_field("quantity", v)?;
+        }
+        if self.time_in_force != 0 {
+            let v = super::super::orderbook::v1::OrderTimeInForce::try_from(self.time_in_force)
+                .map_err(|_| serde::ser::Error::custom(format!("Invalid variant {}", self.time_in_force)))?;
+            struct_ser.serialize_field("timeInForce", &v)?;
+        }
+        if !self.fee_asset.is_empty() {
+            struct_ser.serialize_field("feeAsset", &self.fee_asset)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for CreateOrder {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "market",
+            "side",
+            "type",
+            "price",
+            "quantity",
+            "time_in_force",
+            "timeInForce",
+            "fee_asset",
+            "feeAsset",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Market,
+            Side,
+            Type,
+            Price,
+            Quantity,
+            TimeInForce,
+            FeeAsset,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "market" => Ok(GeneratedField::Market),
+                            "side" => Ok(GeneratedField::Side),
+                            "type" => Ok(GeneratedField::Type),
+                            "price" => Ok(GeneratedField::Price),
+                            "quantity" => Ok(GeneratedField::Quantity),
+                            "timeInForce" | "time_in_force" => Ok(GeneratedField::TimeInForce),
+                            "feeAsset" | "fee_asset" => Ok(GeneratedField::FeeAsset),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = CreateOrder;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transaction.v1.CreateOrder")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<CreateOrder, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut market__ = None;
+                let mut side__ = None;
+                let mut r#type__ = None;
+                let mut price__ = None;
+                let mut quantity__ = None;
+                let mut time_in_force__ = None;
+                let mut fee_asset__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Market => {
+                            if market__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("market"));
+                            }
+                            market__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::Side => {
+                            if side__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("side"));
+                            }
+                            side__ = Some(map_.next_value::<super::super::orderbook::v1::OrderSide>()? as i32);
+                        }
+                        GeneratedField::Type => {
+                            if r#type__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("type"));
+                            }
+                            r#type__ = Some(map_.next_value::<super::super::orderbook::v1::OrderType>()? as i32);
+                        }
+                        GeneratedField::Price => {
+                            if price__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("price"));
+                            }
+                            price__ = map_.next_value()?;
+                        }
+                        GeneratedField::Quantity => {
+                            if quantity__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("quantity"));
+                            }
+                            quantity__ = map_.next_value()?;
+                        }
+                        GeneratedField::TimeInForce => {
+                            if time_in_force__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("timeInForce"));
+                            }
+                            time_in_force__ = Some(map_.next_value::<super::super::orderbook::v1::OrderTimeInForce>()? as i32);
+                        }
+                        GeneratedField::FeeAsset => {
+                            if fee_asset__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("feeAsset"));
+                            }
+                            fee_asset__ = Some(map_.next_value()?);
+                        }
+                    }
+                }
+                Ok(CreateOrder {
+                    market: market__.unwrap_or_default(),
+                    side: side__.unwrap_or_default(),
+                    r#type: r#type__.unwrap_or_default(),
+                    price: price__,
+                    quantity: quantity__,
+                    time_in_force: time_in_force__.unwrap_or_default(),
+                    fee_asset: fee_asset__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transaction.v1.CreateOrder", FIELDS, GeneratedVisitor)
+    }
+}
 impl serde::Serialize for CurrencyPairs {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -1416,6 +1964,18 @@ impl serde::Serialize for FeeChange {
                 fee_change::FeeComponents::MarketsChange(v) => {
                     struct_ser.serialize_field("marketsChange", v)?;
                 }
+                fee_change::FeeComponents::CreateOrder(v) => {
+                    struct_ser.serialize_field("createOrder", v)?;
+                }
+                fee_change::FeeComponents::CancelOrder(v) => {
+                    struct_ser.serialize_field("cancelOrder", v)?;
+                }
+                fee_change::FeeComponents::CreateMarket(v) => {
+                    struct_ser.serialize_field("createMarket", v)?;
+                }
+                fee_change::FeeComponents::UpdateMarket(v) => {
+                    struct_ser.serialize_field("updateMarket", v)?;
+                }
             }
         }
         struct_ser.end()
@@ -1463,6 +2023,14 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
             "currencyPairsChange",
             "markets_change",
             "marketsChange",
+            "create_order",
+            "createOrder",
+            "cancel_order",
+            "cancelOrder",
+            "create_market",
+            "createMarket",
+            "update_market",
+            "updateMarket",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -1485,6 +2053,10 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
             RecoverIbcClient,
             CurrencyPairsChange,
             MarketsChange,
+            CreateOrder,
+            CancelOrder,
+            CreateMarket,
+            UpdateMarket,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -1524,6 +2096,10 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
                             "recoverIbcClient" | "recover_ibc_client" => Ok(GeneratedField::RecoverIbcClient),
                             "currencyPairsChange" | "currency_pairs_change" => Ok(GeneratedField::CurrencyPairsChange),
                             "marketsChange" | "markets_change" => Ok(GeneratedField::MarketsChange),
+                            "createOrder" | "create_order" => Ok(GeneratedField::CreateOrder),
+                            "cancelOrder" | "cancel_order" => Ok(GeneratedField::CancelOrder),
+                            "createMarket" | "create_market" => Ok(GeneratedField::CreateMarket),
+                            "updateMarket" | "update_market" => Ok(GeneratedField::UpdateMarket),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -1670,6 +2246,34 @@ impl<'de> serde::Deserialize<'de> for FeeChange {
                                 return Err(serde::de::Error::duplicate_field("marketsChange"));
                             }
                             fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::MarketsChange)
+;
+                        }
+                        GeneratedField::CreateOrder => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("createOrder"));
+                            }
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::CreateOrder)
+;
+                        }
+                        GeneratedField::CancelOrder => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("cancelOrder"));
+                            }
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::CancelOrder)
+;
+                        }
+                        GeneratedField::CreateMarket => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("createMarket"));
+                            }
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::CreateMarket)
+;
+                        }
+                        GeneratedField::UpdateMarket => {
+                            if fee_components__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("updateMarket"));
+                            }
+                            fee_components__ = map_.next_value::<::std::option::Option<_>>()?.map(fee_change::FeeComponents::UpdateMarket)
 ;
                         }
                     }
@@ -3477,6 +4081,168 @@ impl<'de> serde::Deserialize<'de> for Transfer {
             }
         }
         deserializer.deserialize_struct("astria.protocol.transaction.v1.Transfer", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for UpdateMarket {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.market.is_empty() {
+            len += 1;
+        }
+        if self.tick_size.is_some() {
+            len += 1;
+        }
+        if self.lot_size.is_some() {
+            len += 1;
+        }
+        if self.paused {
+            len += 1;
+        }
+        if !self.fee_asset.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.UpdateMarket", len)?;
+        if !self.market.is_empty() {
+            struct_ser.serialize_field("market", &self.market)?;
+        }
+        if let Some(v) = self.tick_size.as_ref() {
+            struct_ser.serialize_field("tickSize", v)?;
+        }
+        if let Some(v) = self.lot_size.as_ref() {
+            struct_ser.serialize_field("lotSize", v)?;
+        }
+        if self.paused {
+            struct_ser.serialize_field("paused", &self.paused)?;
+        }
+        if !self.fee_asset.is_empty() {
+            struct_ser.serialize_field("feeAsset", &self.fee_asset)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for UpdateMarket {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "market",
+            "tick_size",
+            "tickSize",
+            "lot_size",
+            "lotSize",
+            "paused",
+            "fee_asset",
+            "feeAsset",
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Market,
+            TickSize,
+            LotSize,
+            Paused,
+            FeeAsset,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "market" => Ok(GeneratedField::Market),
+                            "tickSize" | "tick_size" => Ok(GeneratedField::TickSize),
+                            "lotSize" | "lot_size" => Ok(GeneratedField::LotSize),
+                            "paused" => Ok(GeneratedField::Paused),
+                            "feeAsset" | "fee_asset" => Ok(GeneratedField::FeeAsset),
+                            _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = UpdateMarket;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.protocol.transaction.v1.UpdateMarket")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<UpdateMarket, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                let mut market__ = None;
+                let mut tick_size__ = None;
+                let mut lot_size__ = None;
+                let mut paused__ = None;
+                let mut fee_asset__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Market => {
+                            if market__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("market"));
+                            }
+                            market__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::TickSize => {
+                            if tick_size__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("tickSize"));
+                            }
+                            tick_size__ = map_.next_value()?;
+                        }
+                        GeneratedField::LotSize => {
+                            if lot_size__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("lotSize"));
+                            }
+                            lot_size__ = map_.next_value()?;
+                        }
+                        GeneratedField::Paused => {
+                            if paused__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("paused"));
+                            }
+                            paused__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::FeeAsset => {
+                            if fee_asset__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("feeAsset"));
+                            }
+                            fee_asset__ = Some(map_.next_value()?);
+                        }
+                    }
+                }
+                Ok(UpdateMarket {
+                    market: market__.unwrap_or_default(),
+                    tick_size: tick_size__,
+                    lot_size: lot_size__,
+                    paused: paused__.unwrap_or_default(),
+                    fee_asset: fee_asset__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.protocol.transaction.v1.UpdateMarket", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for ValidatorUpdate {

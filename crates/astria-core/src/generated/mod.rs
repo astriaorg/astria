@@ -151,6 +151,18 @@ pub mod astria {
             }
         }
         #[path = ""]
+        pub mod orderbook {
+          pub mod v1 {
+            include!("astria.protocol.orderbook.v1.rs");
+
+            #[cfg(feature = "serde")]
+            mod _serde_impls {
+              use super::*;
+              include!("astria.protocol.orderbook.v1.serde.rs");
+            }
+          }
+        }
+        #[path = ""]
         pub mod genesis {
             pub mod v1 {
                 include!("astria.protocol.genesis.v1.rs");
@@ -177,6 +189,9 @@ pub mod astria {
 
         #[path = ""]
         pub mod transaction {
+            #[cfg(feature = "serde")]
+            use super::orderbook;
+
             pub mod v1 {
                 include!("astria.protocol.transaction.v1.rs");
 

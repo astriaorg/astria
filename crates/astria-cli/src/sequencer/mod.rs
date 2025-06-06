@@ -11,6 +11,7 @@ mod bridge_sudo_change;
 mod fee_assets;
 mod ics20_withdrawal;
 mod init_bridge_account;
+mod orderbook;
 mod sign;
 mod submit;
 mod sudo;
@@ -41,6 +42,7 @@ impl Command {
             SubCommand::BridgeSudoChange(bridge_sudo_change) => bridge_sudo_change.run().await,
             SubCommand::BridgeAccount(bridge_account) => bridge_account.run().await,
             SubCommand::FeeAssets(fee_assets) => fee_assets.run().await,
+            SubCommand::Orderbook(orderbook) => orderbook.run().await,
         }
     }
 }
@@ -84,4 +86,6 @@ enum SubCommand {
     BridgeAccount(bridge_account::Command),
     /// Command for interacting with allowed fee assets
     FeeAssets(fee_assets::Command),
+    /// Commands for interacting with the orderbook
+    Orderbook(orderbook::Command),
 }

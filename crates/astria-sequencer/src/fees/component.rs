@@ -56,6 +56,8 @@ impl Component for FeesComponent {
             recover_ibc_client,
             currency_pairs_change,
             markets_change,
+            // Orderbook actions are not yet in the protocol
+            ..
         } = app_state.fees().clone();
 
         if let Some(transfer_fees) = transfer {
@@ -163,6 +165,34 @@ impl Component for FeesComponent {
                 .put_fees(markets_change_fees)
                 .wrap_err("failed to store markets change fee components")?;
         }
+
+        // Orderbook action fees are not yet supported in the genesis app state
+        // Fallback to default values will be used in checked_action.rs
+        /*
+        if let Some(orderbook_create_order_fees) = _orderbook_create_order {
+            state
+                .put_fees(orderbook_create_order_fees)
+                .wrap_err("failed to store orderbook create order fee components")?;
+        }
+
+        if let Some(orderbook_cancel_order_fees) = _orderbook_cancel_order {
+            state
+                .put_fees(orderbook_cancel_order_fees)
+                .wrap_err("failed to store orderbook cancel order fee components")?;
+        }
+
+        if let Some(orderbook_create_market_fees) = _orderbook_create_market {
+            state
+                .put_fees(orderbook_create_market_fees)
+                .wrap_err("failed to store orderbook create market fee components")?;
+        }
+
+        if let Some(orderbook_update_market_fees) = _orderbook_update_market {
+            state
+                .put_fees(orderbook_update_market_fees)
+                .wrap_err("failed to store orderbook update market fee components")?;
+        }
+        */
 
         Ok(())
     }
