@@ -266,8 +266,8 @@ async fn maintenance_recosting_promotes() {
 
     assert_eq!(
         res.txs.len(),
-        5,
-        "only one transaction should've been valid (besides 4 generated txs)"
+        4,
+        "only one transaction should've been valid (besides 3 generated txs)"
     );
     assert_eq!(
         mempool.len().await,
@@ -444,8 +444,8 @@ async fn maintenance_funds_added_promotes() {
 
     assert_eq!(
         res.txs.len(),
-        5,
-        "only one transaction should've been valid (besides 4 generated txs)"
+        4,
+        "only one transaction should've been valid (besides 3 generated txs)"
     );
 
     let hash = Hash::Sha256([97u8; 32]);
