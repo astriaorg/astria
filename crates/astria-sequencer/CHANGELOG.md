@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add cache of recent execution results to mempool [#2163](https://github.com/astriaorg/astria/pull/2163).
 - Add tx result to `Executed` transaction status [#2159](https://github.com/astriaorg/astria/pull/2159).
 
+### Changed
+
+- Improve performance of mempool and mempool (CheckTx) service [#2222](https://github.com/astriaorg/astria/pull/2222).
+
 ## [3.0.0] - 2025-05-21
 
 ### Added

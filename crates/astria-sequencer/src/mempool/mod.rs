@@ -329,7 +329,7 @@ struct MempoolInner {
     parked: ParkedTransactions<MAX_PARKED_TXS_PER_ACCOUNT>,
     comet_bft_removal_cache: RemovalCache,
     recent_execution_results: RecentExecutionResults,
-    contained_txs: HashSet<TransactionId>,
+    contained_txs: HashMap<TransactionId, [u8; ADDRESS_LENGTH]>,
     metrics: &'static Metrics,
 }
 
@@ -348,7 +348,7 @@ impl MempoolInner {
                     .expect("Removal cache cannot be zero sized"),
             ),
             recent_execution_results: RecentExecutionResults::new(execution_results_cache_size),
-            contained_txs: HashSet::new(),
+            contained_txs: HashMap::new(),
             metrics,
         }
     }
@@ -366,6 +366,7 @@ impl MempoolInner {
         transaction_costs: HashMap<IbcPrefixed, u128>,
     ) -> Result<InsertionStatus, InsertionError> {
         let ttx_to_insert = TimemarkedTransaction::new(checked_tx, transaction_costs);
+        let ttx_to_insert_address_bytes = *ttx_to_insert.address_bytes();
         let tx_id_to_insert = *ttx_to_insert.id();
 
         // try insert into pending
@@ -387,7 +388,8 @@ impl MempoolInner {
                             .set_transactions_in_mempool_parked(self.parked.len());
 
                         // track in contained txs
-                        self.contained_txs.insert(tx_id_to_insert);
+                        self.contained_txs
+                            .insert(tx_id_to_insert, ttx_to_insert_address_bytes);
                         Ok(InsertionStatus::AddedToParked)
                     }
                     Err(err) => Err(err),
@@ -428,7 +430,8 @@ impl MempoolInner {
                 }
 
                 // track in contained txs
-                self.contained_txs.insert(tx_id_to_insert);
+                self.contained_txs
+                    .insert(tx_id_to_insert, ttx_to_insert_address_bytes);
 
                 Ok(InsertionStatus::AddedToPending)
             }
@@ -447,7 +450,7 @@ impl MempoolInner {
         let removed_tx_ids = match self.pending.remove(checked_tx) {
             Ok(mut removed_tx_ids) => {
                 // Remove all of parked.
-                removed_tx_ids.append(&mut self.parked.clear_account(&address_bytes));
+                removed_tx_ids.extend(self.parked.clear_account(&address_bytes));
                 removed_tx_ids
             }
             Err(checked_tx) => {
@@ -613,8 +616,8 @@ impl MempoolInner {
     }
 
     fn transaction_status(&self, tx_id: &TransactionId) -> Option<TransactionStatus> {
-        if self.contained_txs.contains(tx_id) {
-            if self.pending.contains_tx(tx_id) {
+        if let Some(address) = self.contained_txs.get(tx_id) {
+            if self.pending.contains_tx(tx_id, address) {
                 Some(TransactionStatus::Pending)
             } else {
                 Some(TransactionStatus::Parked)
@@ -644,7 +647,7 @@ impl MempoolInner {
 
     #[cfg(test)]
     fn is_tracked(&self, tx_id: &TransactionId) -> bool {
-        self.contained_txs.contains(tx_id)
+        self.contained_txs.contains_key(tx_id)
     }
 }
 
@@ -1703,9 +1706,15 @@ mod tests {
             .add(pending_tx_3.clone(), 3, &account_balances)
             .unwrap();
 
-        inner.contained_txs.insert(*pending_tx_1.id());
-        inner.contained_txs.insert(*failure_tx.id());
-        inner.contained_txs.insert(*pending_tx_3.id());
+        inner
+            .contained_txs
+            .insert(*pending_tx_1.id(), *pending_tx_1.address_bytes());
+        inner
+            .contained_txs
+            .insert(*failure_tx.id(), *failure_tx.address_bytes());
+        inner
+            .contained_txs
+            .insert(*pending_tx_3.id(), *pending_tx_3.address_bytes());
 
         assert_eq!(inner.comet_bft_removal_cache.cache.len(), 0);
         assert_eq!(inner.contained_txs.len(), 3);
@@ -1731,7 +1740,7 @@ mod tests {
         );
         assert_eq!(inner.contained_txs.len(), 3);
         assert!(
-            !inner.contained_txs.contains(failure_tx.id()),
+            !inner.contained_txs.contains_key(failure_tx.id()),
             "contained txs should not contain the failed tx id"
         );
     }

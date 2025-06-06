@@ -108,8 +108,19 @@ impl Service<MempoolRequest> for Mempool {
         async move {
             let rsp = match req {
                 MempoolRequest::CheckTx(req) => MempoolResponse::CheckTx(
-                    handle_check_tx_request(req, storage.latest_snapshot(), &mempool, metrics)
-                        .await,
+                    tokio::spawn(handle_check_tx_request(
+                        req,
+                        storage.latest_snapshot(),
+                        mempool,
+                        metrics,
+                    ))
+                    .await
+                    .unwrap_or_else(|error| {
+                        error_response(
+                            AbciErrorCode::INTERNAL_ERROR,
+                            format!("failed to finish handling request: {error}"),
+                        )
+                    }),
                 ),
             };
             Ok(rsp)
@@ -133,7 +144,7 @@ impl Service<MempoolRequest> for Mempool {
 async fn handle_check_tx_request<S: StateRead>(
     req: request::CheckTx,
     state: S,
-    mempool: &AppMempool,
+    mempool: AppMempool,
     metrics: &'static Metrics,
 ) -> response::CheckTx {
     let request::CheckTx {
@@ -143,7 +154,7 @@ async fn handle_check_tx_request<S: StateRead>(
 
     let start = Instant::now();
 
-    let outcome = check_tx(tx_bytes, state, mempool, metrics).await;
+    let outcome = check_tx(tx_bytes, state, mempool.clone(), metrics).await;
     let response = if let CheckTxOutcome::RemovedFromMempool {
         tx_id,
         reason,
@@ -180,7 +191,7 @@ async fn handle_check_tx_request<S: StateRead>(
 pub(crate) async fn check_tx<S: StateRead>(
     tx_bytes: Bytes,
     state: S,
-    mempool: &AppMempool,
+    mempool: AppMempool,
     metrics: &'static Metrics,
 ) -> CheckTxOutcome {
     let tx_status_start = Instant::now();
@@ -234,7 +245,7 @@ pub(crate) async fn check_tx<S: StateRead>(
     metrics.record_check_tx_duration_seconds_check_actions(tx_status_end.elapsed());
 
     // attempt to insert the transaction into the mempool
-    let insertion_status = match insert_into_mempool(mempool, &state, checked_tx, metrics).await {
+    let insertion_status = match insert_into_mempool(&mempool, &state, checked_tx, metrics).await {
         Ok(status) => status,
         Err(outcome) => {
             return outcome;
