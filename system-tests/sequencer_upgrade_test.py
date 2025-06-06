@@ -23,6 +23,7 @@ from helpers.defaults import (
     SEQUENCER_IBC_TRANSFER_DESTINATION_ADDRESS,
     SEQUENCER_WITHDRAWER_ADDRESS,
     BRIDGE_TX_HASH,
+    UPGRADE_CHANGES,
 )
 from helpers.evm_controller import EvmController
 from helpers.hermes_controller import HermesController
@@ -34,7 +35,7 @@ from termcolor import colored
 # The number of sequencer validator nodes to use in the test.
 NUM_NODES = 5
 # A map of upgrade name to image tag to use for running BEFORE the given upgrade is executed.
-PRE_UPGRADE_IMAGE_TAGS = ["sequencer=2.0.1", "sequencer-relayer=1.0.1"]
+PRE_UPGRADE_IMAGE_TAGS = ["sequencer=3.0.0", "sequencer-relayer=1.0.1"]
 pre_upgrade_image_controller = ImageController(PRE_UPGRADE_IMAGE_TAGS)
 
 parser = argparse.ArgumentParser(prog="upgrade_test", description="Runs the sequencer upgrade test.")
@@ -64,6 +65,12 @@ print(colored(f"  * pre-upgrade container image tags: {PRE_UPGRADE_IMAGE_TAGS}",
 print(colored(f"  * upgrade name: {upgrade_name}", "light_blue"))
 print(colored("################################################################################", "light_blue"))
 
+if upgrade_name not in UPGRADE_CHANGES.keys():
+    raise SystemExit(
+        f"upgrade name {upgrade_name} not supported. Supported upgrades are: {', '.join(UPGRADE_CHANGES.keys())}. \
+            If you want to run a test for a new upgrade, please add it to the list of supported upgrades."
+    )
+
 # Update chart dependencies.
 for chart in ("sequencer", "evm-stack"):
     update_chart_dependencies(chart)
@@ -77,7 +84,7 @@ for chart in ("sequencer", "evm-stack"):
 nodes = [SequencerController(f"node{i}") for i in range(NUM_NODES - 1)]
 evm = EvmController()
 celestia = CelestiaController()
-print(colored(f"starting {len(nodes)} sequencers, evm rollup, and celestia local", "blue"))
+print(colored(f"starting {len(nodes)} sequencers, evm rollup, and local celestia network", "blue"))
 executor = concurrent.futures.ThreadPoolExecutor(NUM_NODES + 1)
 
 deploy_sequencer_fn = lambda seq_node: seq_node.deploy_sequencer(
@@ -94,7 +101,7 @@ for completed_future in done:
     completed_future.result()
 
 # Hermes doesn't play well with parallel deployment, so deploy it last.
-print(colored("deploying hermes...", "blue"))
+print(colored("deploying hermes", "blue"))
 hermes = HermesController("local")
 hermes.deploy_hermes(pre_upgrade_image_controller)
 
@@ -111,10 +118,13 @@ for node in nodes:
     node.wait_until_chain_at_height(1, 60)
 block_1_before = nodes[0].get_sequencer_block(1)
 app_version_before = nodes[0].get_current_app_version()
-genesis_app_version = nodes[0].get_app_version_at_genesis()
-if app_version_before != genesis_app_version:
+# Expect app version to be one less than the upgrade we are testing, ensuring all
+# previous upgrades have been applied by this point. Aspen (index 0) starts at
+# version 2, so version before is defined as (index + 1).
+expected_app_version = list(UPGRADE_CHANGES.keys()).index(upgrade_name) + 1
+if app_version_before != expected_app_version:
     raise SystemExit(
-        f"expected genesis app version {genesis_app_version} to be the same as the current app "
+        f"expected genesis app version {expected_app_version} to be the same as the current app "
         f"version {app_version_before}.\nPossibly this test has already run on this network, or "
         "persistent volume data has not been deleted between attempts?\nTry running `just clean "
         "&& rm -r /tmp/astria` (sudo may be required for `rm -r /tmp/astria`) before re-running "
@@ -127,8 +137,6 @@ for node in nodes[1:]:
         raise SystemExit(f"node0 and {node.name} report different values for block 1")
     if app_version_before != node.get_current_app_version():
         raise SystemExit(f"node0 and {node.name} report different values for current app version")
-    if genesis_app_version != node.get_app_version_at_genesis():
-        raise SystemExit(f"node0 and {node.name} report different values for genesis app version")
 
 # Run pre-upgrade validator updates to check that the new action still executes correctly.
 print(colored("running pre-upgrade validator updates", "blue"))
@@ -257,7 +265,7 @@ print(colored("fetching block 1 after the upgrade yields the same result as befo
 applied, scheduled = nodes[0].get_upgrades_info()
 if len(list(scheduled)) != 0:
     raise SystemExit("node0 upgrade error: should have no scheduled upgrade change infos")
-check_change_infos(applied, upgrade_activation_height, app_version_after)
+check_change_infos(applied, nodes[0].upgrade_heights, app_version_after)
 for node in nodes[1:]:
     this_applied, this_scheduled = node.get_upgrades_info()
     if this_applied != applied:

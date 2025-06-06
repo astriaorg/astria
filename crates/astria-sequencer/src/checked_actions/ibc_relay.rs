@@ -348,7 +348,6 @@ mod tests {
         // Only apply aspen upgrade
         let mut fixture = Fixture::uninitialized(None).await;
         fixture.chain_initializer().init().await;
-        let _ = fixture.run_until_aspen_applied().await;
 
         let denom = "utia".to_string();
 

@@ -24,3 +24,16 @@ BRIDGE_TX_HASH = "0x326c3910da4c96c5a40ba1505fc338164b659729f2f975ccb07e8794c96b
 # Celestia Defaults
 ####################
 IBC_TRANSFER_AMOUNT = 53000
+
+# Upgrade Changes
+##################
+UPGRADE_CHANGES = {
+    "aspen": [
+        "price_feed_change",
+        "validator_update_action_change",
+        "ibc_acknowledgement_failure_change"
+    ],
+    "blackburn": [
+        "ics20_transfer_action_change"
+    ]
+}

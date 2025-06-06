@@ -148,7 +148,7 @@ impl Fixture {
     pub(crate) async fn default_initialized() -> Self {
         let mut fixture = Self::uninitialized(None).await;
         fixture.chain_initializer().init().await;
-        let _ = fixture.run_until_aspen_and_blackburn_applied().await;
+        let _ = fixture.run_until_blackburn_applied().await;
         fixture
     }
 
@@ -161,95 +161,15 @@ impl Fixture {
         fixture
     }
 
-    /// Repeatedly executes `App::finalize_block` and `App::commit` until one block after the Aspen
-    /// upgrade has been applied.
-    ///
-    /// Returns the height of the next block to execute.
-    ///
-    /// Panics if the Aspen upgrade is not included in the app's upgrade handler (is set by default
-    /// to activate at block 1), or if its activation height is greater than 10.
-    pub(crate) async fn run_until_aspen_applied(&mut self) -> Height {
-        let aspen = self
-            .app
-            .upgrades_handler()
-            .upgrades()
-            .aspen()
-            .expect("upgrades should contain aspen upgrade")
-            .clone();
-        assert!(
-            aspen.activation_height() <= 10,
-            "activation height must be <= 10; don't want to execute too many blocks for unit test"
-        );
-
-        let proposer_address: tendermint::account::Id =
-            ALICE_ADDRESS_BYTES.to_vec().try_into().unwrap();
-        let time = Time::from_unix_timestamp(1_744_036_762, 123_456_789).unwrap();
-
-        let final_block_height = aspen.activation_height().checked_add(1).unwrap();
-        for height in 1..=final_block_height {
-            let txs = match height.cmp(&aspen.activation_height()) {
-                Ordering::Less => {
-                    // Use the legacy form of rollup data commitments.
-                    generate_rollup_datas_commitment::<false>(&[], HashMap::new())
-                        .into_iter()
-                        .collect()
-                }
-                Ordering::Equal => {
-                    // Use the new (`DataItem`) form of rollup data commitments, and append the
-                    // upgrade change hashes.
-                    let upgrade_change_hashes = DataItem::UpgradeChangeHashes(
-                        aspen.changes().map(Change::calculate_hash).collect(),
-                    );
-                    generate_rollup_datas_commitment::<true>(&[], HashMap::new())
-                        .into_iter()
-                        .chain(Some(upgrade_change_hashes.encode()))
-                        .collect()
-                }
-                Ordering::Greater => {
-                    // Use the new (`DataItem`) form of rollup data commitments. Note the first
-                    // block after Aspen doesn't have extended commit info. All
-                    // blocks after that should have it.
-                    generate_rollup_datas_commitment::<true>(&[], HashMap::new())
-                        .into_iter()
-                        .collect()
-                }
-            };
-            let finalize_block = abci::request::FinalizeBlock {
-                hash: tendermint::Hash::Sha256(sha2::Sha256::digest(height.to_le_bytes()).into()),
-                height: Height::try_from(height).unwrap(),
-                time: time.checked_add(Duration::from_secs(height)).unwrap(),
-                next_validators_hash: tendermint::Hash::default(),
-                proposer_address,
-                txs,
-                decided_last_commit: CommitInfo {
-                    votes: vec![],
-                    round: Round::default(),
-                },
-                misbehavior: vec![],
-            };
-            self.app
-                .finalize_block(finalize_block, self.storage.clone())
-                .await
-                .unwrap();
-            self.app.commit(self.storage.clone()).await.unwrap();
-        }
-        Height::try_from(
-            final_block_height
-                .checked_add(1)
-                .expect("should increment final block height"),
-        )
-        .expect("should convert to height")
-    }
-
     /// Repeatedly executes `App::finalize_block` and `App::commit` until one block after either the
-    /// Aspen or Blackburn upgrades have been applied, whichever comes last.
+    /// Blackburn upgrade has been applied (including Aspen upgrade as well).
     ///
     /// Returns the height of the next block to execute.
     ///
     /// Panics if the Aspen or Blackburn upgrades are not included in the app's upgrade handler (set
     /// by default to activate at blocks 1 and 3), or if either activation height is greater
     /// than 10.
-    pub(crate) async fn run_until_aspen_and_blackburn_applied(&mut self) -> Height {
+    pub(crate) async fn run_until_blackburn_applied(&mut self) -> Height {
         let aspen = self
             .app
             .upgrades_handler()
