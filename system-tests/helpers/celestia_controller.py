@@ -52,17 +52,17 @@ class CelestiaController:
             "--",
             "/bin/bash",
             "-c",
-            f'celestia-appd tx ibc-transfer transfer \
-                transfer \
-                channel-0 \
-                {to_address} \
-                "{IBC_TRANSFER_AMOUNT}utia" \
-                {memo_arg} \
-                --chain-id="{CELESTIA_CHAIN_ID}" \
-                --from="{CELESTIA_DEV_ACCOUNT_ADDRESS}" \
-                --fees="{IBC_TRANSFER_FEES}utia" \
-                --yes \
-                --log_level=debug \
-                --home /home/celestia \
-                --keyring-backend="{KEYRING_BACKEND}"'
+            "celestia-appd tx ibc-transfer transfer "
+                "transfer "
+                "channel-0 "
+                f"{to_address} "
+                f'"{IBC_TRANSFER_AMOUNT}utia" '
+                f"{memo_arg} "
+                f'--chain-id="{CELESTIA_CHAIN_ID}" '
+                f'--from="{CELESTIA_DEV_ACCOUNT_ADDRESS}" '
+                f'--fees="{IBC_TRANSFER_FEES}utia" '
+                "--yes "
+                "--log_level=debug "
+                "--home /home/celestia "
+                f'--keyring-backend="{KEYRING_BACKEND}"'
         ]

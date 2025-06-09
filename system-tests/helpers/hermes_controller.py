@@ -25,6 +25,8 @@ class HermesController:
             f"deployment/hermes-{self.name}-chart",
         ]
         result = run_subprocess(args, msg="getting hermes logs")
+        print("Got hermes logs")
+        print(f"`{to_check}` in logs: {to_check in result.stdout.decode("utf-8")}")
         return to_check in result.stdout.decode("utf-8")
 
 
