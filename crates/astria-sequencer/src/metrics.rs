@@ -41,8 +41,8 @@ pub struct Metrics {
     extend_vote_duration_seconds: Histogram,
     extend_vote_failure_count: Counter,
     verify_vote_extension_failure_count: Counter,
-    ibc_relay_failures: Histogram,
     results_in_recently_executed_cache: Gauge,
+    included_transactions_failed_execution: Counter,
 }
 
 impl Metrics {
@@ -173,8 +173,8 @@ impl Metrics {
         self.results_in_recently_executed_cache.set(count);
     }
 
-    pub(crate) fn record_ibc_relay_failures(&self, count: usize) {
-        self.ibc_relay_failures.record(count);
+    pub(crate) fn increment_included_transactions_failed_execution(&self) {
+        self.included_transactions_failed_execution.increment(1);
     }
 }
 
@@ -389,10 +389,11 @@ impl telemetry::Metrics for Metrics {
             )?
             .register()?;
 
-        let ibc_relay_failures = builder
-            .new_histogram_factory(
-                IBC_RELAY_FAILURES,
-                "The number of IBC relay failures included in the block",
+        let included_transactions_failed_execution = builder
+            .new_counter_factory(
+                INCLUDED_TRANSACTIONS_FAILED_EXECUTION,
+                "The number of actions which have failed execution but are still included in a \
+                 block",
             )?
             .register()?;
 
@@ -425,8 +426,8 @@ impl telemetry::Metrics for Metrics {
             extend_vote_duration_seconds,
             extend_vote_failure_count,
             verify_vote_extension_failure_count,
-            ibc_relay_failures,
             results_in_recently_executed_cache,
+            included_transactions_failed_execution,
         })
     }
 }
@@ -459,7 +460,7 @@ metric_names!(const METRICS_NAMES:
     EXTEND_VOTE_FAILURE_COUNT,
     VERIFY_VOTE_EXTENSION_FAILURE_COUNT,
     RESULTS_IN_RECENTLY_EXECUTED_CACHE,
-    IBC_RELAY_FAILURES,
+    INCLUDED_TRANSACTIONS_FAILED_EXECUTION,
 );
 
 #[cfg(test)]
@@ -538,6 +539,9 @@ mod tests {
             RESULTS_IN_RECENTLY_EXECUTED_CACHE,
             "results_in_recently_executed_cache",
         );
-        assert_const(IBC_RELAY_FAILURES, "ibc_relay_failures");
+        assert_const(
+            INCLUDED_TRANSACTIONS_FAILED_EXECUTION,
+            "included_transactions_failed_execution",
+        );
     }
 }

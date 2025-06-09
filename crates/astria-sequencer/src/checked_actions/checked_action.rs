@@ -427,7 +427,10 @@ impl CheckedAction {
                 )
                 .await?;
                 checked_action.execute(&mut state).await.map_err(|source| {
-                    CheckedActionExecutionError::execution(checked_action.action().name(), source)
+                    CheckedActionExecutionError::non_fatal_execution(
+                        checked_action.action().name(),
+                        source,
+                    )
                 })
             }
             Self::IbcSudoChange(checked_action) => {

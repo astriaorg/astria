@@ -93,10 +93,6 @@ pub(crate) trait StateReadExt: StateRead {
     fn ephemeral_get_ibc_context(&mut self) -> Option<Context> {
         self.object_get(keys::CONTEXT_EPHEMERAL)
     }
-
-    fn ephemeral_get_ibc_failure_count(&mut self) -> Option<usize> {
-        self.object_get(keys::FAILURE_COUNT_EPHEMERAL)
-    }
 }
 
 impl<T: StateRead + ?Sized> StateReadExt for T {}
@@ -176,10 +172,6 @@ pub(crate) trait StateWriteExt: StateWrite {
                 source_action_index: position_in_tx,
             },
         );
-    }
-
-    fn ephemeral_put_ibc_failure_count(&mut self, failures: usize) {
-        self.object_put(keys::FAILURE_COUNT_EPHEMERAL, failures);
     }
 }
 

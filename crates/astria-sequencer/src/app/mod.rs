@@ -22,6 +22,7 @@ use std::{
 use astria_core::{
     primitive::v1::TransactionId,
     protocol::{
+        abci::AbciErrorCode,
         genesis::v1::GenesisAppState,
         price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
         transaction::v1::action::{
@@ -42,6 +43,7 @@ use astria_core::{
 };
 use astria_eyre::{
     anyhow_to_eyre,
+    eyre,
     eyre::{
         bail,
         ensure,
@@ -69,6 +71,7 @@ use tendermint::{
     abci::{
         self,
         types::ExecTxResult,
+        Code,
         Event,
     },
     account,
@@ -120,7 +123,10 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    checked_actions::CheckedAction,
+    checked_actions::{
+        CheckedAction,
+        CheckedActionExecutionError,
+    },
     checked_transaction::{
         CheckedTransaction,
         CheckedTransactionExecutionError,
@@ -131,10 +137,7 @@ use crate::{
         StateReadExt as _,
     },
     grpc::StateWriteExt as _,
-    ibc::{
-        component::IbcComponent,
-        StateReadExt as _,
-    },
+    ibc::component::IbcComponent,
     mempool::{
         Mempool,
         RemovalReason,
@@ -760,10 +763,6 @@ impl App {
         self.metrics
             .set_transactions_in_mempool_total(self.mempool.len().await);
 
-        if let Some(relay_failure_count) = self.state.ephemeral_get_ibc_failure_count() {
-            self.metrics.record_ibc_relay_failures(relay_failure_count);
-        }
-
         let included_txs = executed_txs
             .iter()
             .map(|executed_tx| executed_tx.tx.clone())
@@ -802,6 +801,7 @@ impl App {
             block_size_constraints,
             executed_txs: vec![],
             current_tx_group: Group::BundleableGeneral,
+            mempool: self.mempool.clone(),
         };
 
         for tx in txs {
@@ -812,9 +812,6 @@ impl App {
             {
                 break;
             }
-        }
-        if let Some(relay_failure_count) = self.state.ephemeral_get_ibc_failure_count() {
-            self.metrics.record_ibc_relay_failures(relay_failure_count);
         }
         Ok(proposal_info.executed_txs())
     }
@@ -915,26 +912,36 @@ impl App {
             };
         }
 
-        let executed_txs = proposal_info.executed_txs_mut();
-        match self.execute_transaction(tx.clone()).await {
-            Ok(events) => {
-                let exec_result = ExecTxResult {
-                    events,
-                    ..Default::default()
-                };
-                let executed_tx = ExecutedTransaction {
-                    tx,
-                    exec_result,
-                };
-                executed_txs.push(executed_tx);
+        let exec_result = match self.execute_transaction(tx.clone()).await {
+            Ok(events) => ExecTxResult {
+                events,
+                ..Default::default()
+            },
+            Err(CheckedTransactionExecutionError::CheckedAction(
+                error @ CheckedActionExecutionError::NonFatalExecution {
+                    ..
+                },
+            )) => {
+                let log = eyre::Report::new(error)
+                    .wrap_err("transaction failed execution")
+                    .to_string();
+                let reason = RemovalReason::FailedPrepareProposal(log.clone());
                 proposal_info
-                    .block_size_constraints_mut()
-                    .sequencer_checked_add(tx_sequence_data_length)
-                    .wrap_err("error growing sequencer block size")?;
-                proposal_info
-                    .block_size_constraints_mut()
-                    .cometbft_checked_add(tx_len)
-                    .wrap_err("error growing cometBFT block size")?;
+                    .mempool()
+                    .remove_tx_invalid(tx.clone(), reason)
+                    .await;
+                if let Proposal::Prepare {
+                    failed_tx_count, ..
+                } = proposal_info
+                {
+                    *failed_tx_count = failed_tx_count.saturating_add(1);
+                }
+                ExecTxResult {
+                    code: Code::Err(AbciErrorCode::TRANSACTION_FAILED_EXECUTION.value()),
+                    log,
+                    info: "transaction failed execution".to_string(),
+                    ..ExecTxResult::default()
+                }
             }
             Err(error) => {
                 debug!(
@@ -961,21 +968,21 @@ impl App {
                             // nonce might be in a higher priority group than a transaction
                             // from the same account wiht a lower nonce. this higher nonce
                             // could execute in the next block fine.
-                        } else {
-                            *failed_tx_count = failed_tx_count.saturating_add(1);
-
-                            // remove the failing transaction from the mempool
-                            //
-                            // this will remove any transactions from the same sender
-                            // as well, as the dependent nonces will not be able
-                            // to execute
-                            mempool
-                                .remove_tx_invalid(
-                                    tx,
-                                    RemovalReason::FailedPrepareProposal(error.to_string()),
-                                )
-                                .await;
+                            return Ok(BreakOrContinue::Continue);
                         }
+                        *failed_tx_count = failed_tx_count.saturating_add(1);
+
+                        // remove the failing transaction from the mempool
+                        //
+                        // this will remove any transactions from the same sender
+                        // as well, as the dependent nonces will not be able
+                        // to execute
+                        let log = eyre::Report::new(error)
+                            .wrap_err("transaction failed execution")
+                            .to_string();
+                        let reason = RemovalReason::FailedPrepareProposal(log);
+                        mempool.remove_tx_invalid(tx, reason).await;
+                        return Ok(BreakOrContinue::Continue);
                     }
                     Proposal::Process {
                         ..
@@ -983,6 +990,21 @@ impl App {
                 }
             }
         };
+
+        let executed_tx = ExecutedTransaction {
+            tx,
+            exec_result,
+        };
+        proposal_info.executed_txs_mut().push(executed_tx);
+        proposal_info
+            .block_size_constraints_mut()
+            .sequencer_checked_add(tx_sequence_data_length)
+            .wrap_err("error growing sequencer block size")?;
+        proposal_info
+            .block_size_constraints_mut()
+            .cometbft_checked_add(tx_len)
+            .wrap_err("error growing cometBFT block size")?;
+
         proposal_info.set_current_tx_group(tx_group);
         Ok(BreakOrContinue::Continue)
     }
@@ -1190,7 +1212,13 @@ impl App {
 
         let tx_results = executed_txs
             .iter()
-            .map(|executed_tx| (*executed_tx.tx.id(), executed_tx.exec_result.clone()))
+            .map(|executed_tx| {
+                if executed_tx.exec_result.code.is_err() {
+                    self.metrics
+                        .increment_included_transactions_failed_execution();
+                }
+                (*executed_tx.tx.id(), executed_tx.exec_result.clone())
+            })
             .collect();
 
         let result = PostTransactionExecutionResult {
@@ -1296,17 +1324,25 @@ impl App {
             .wrap_err("failed to execute transactions in finalize block")?;
             let mut executed_txs = Vec::with_capacity(user_submitted_transactions.len());
             for tx in user_submitted_transactions {
-                match self.execute_transaction(tx.clone()).await {
-                    Ok(events) => {
-                        let exec_result = ExecTxResult {
-                            events,
-                            ..Default::default()
-                        };
-                        let executed_tx = ExecutedTransaction {
-                            tx,
-                            exec_result,
-                        };
-                        executed_txs.push(executed_tx);
+                let exec_result = match self.execute_transaction(tx.clone()).await {
+                    Ok(events) => ExecTxResult {
+                        events,
+                        ..Default::default()
+                    },
+                    Err(CheckedTransactionExecutionError::CheckedAction(
+                        error @ CheckedActionExecutionError::NonFatalExecution {
+                            ..
+                        },
+                    )) => {
+                        let log = eyre::Report::new(error)
+                            .wrap_err("transaction failed execution")
+                            .to_string();
+                        ExecTxResult {
+                            code: Code::Err(AbciErrorCode::TRANSACTION_FAILED_EXECUTION.value()),
+                            log,
+                            info: "transaction failed execution".to_string(),
+                            ..ExecTxResult::default()
+                        }
                     }
                     Err(error) => {
                         // this is actually a protocol error, as only valid txs should be finalized
@@ -1314,12 +1350,14 @@ impl App {
                             %error,
                             "failed to finalize transaction; ignoring it",
                         );
+                        continue;
                     }
-                }
-            }
-
-            if let Some(relay_failure_count) = self.state.ephemeral_get_ibc_failure_count() {
-                self.metrics.record_ibc_relay_failures(relay_failure_count);
+                };
+                let executed_tx = ExecutedTransaction {
+                    tx,
+                    exec_result,
+                };
+                executed_txs.push(executed_tx);
             }
 
             self.post_execute_transactions(
@@ -1850,6 +1888,7 @@ enum Proposal {
         block_size_constraints: BlockSizeConstraints,
         executed_txs: Vec<ExecutedTransaction>,
         current_tx_group: Group,
+        mempool: Mempool,
     },
 }
 
@@ -1921,6 +1960,17 @@ impl Proposal {
             | Proposal::Process {
                 executed_txs, ..
             } => executed_txs,
+        }
+    }
+
+    fn mempool(&self) -> &Mempool {
+        match self {
+            Proposal::Prepare {
+                mempool, ..
+            }
+            | Proposal::Process {
+                mempool, ..
+            } => mempool,
         }
     }
 }
