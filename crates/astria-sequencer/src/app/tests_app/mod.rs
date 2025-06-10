@@ -1009,7 +1009,7 @@ async fn app_prepare_proposal_failed_ibc_relay_included_in_block() {
     let state = fixture.mempool().transaction_status(&tx_id).await.unwrap();
     assert!(matches!(
         state,
-        TransactionStatus::Removed(RemovalReason::FailedPrepareProposal(_))
+        TransactionStatus::Removed(RemovalReason::FailedExecution(_))
     ));
 
     let mut executed_txs: Vec<ExecutedTransaction> =

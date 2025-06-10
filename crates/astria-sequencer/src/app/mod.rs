@@ -925,7 +925,7 @@ impl App {
                 let log = eyre::Report::new(error)
                     .wrap_err("transaction failed execution")
                     .to_string();
-                let reason = RemovalReason::FailedPrepareProposal(log.clone());
+                let reason = RemovalReason::FailedExecution(log.clone());
                 proposal_info
                     .mempool()
                     .remove_tx_invalid(tx.clone(), reason)
@@ -980,7 +980,7 @@ impl App {
                         let log = eyre::Report::new(error)
                             .wrap_err("transaction failed execution")
                             .to_string();
-                        let reason = RemovalReason::FailedPrepareProposal(log);
+                        let reason = RemovalReason::FailedExecution(log);
                         mempool.remove_tx_invalid(tx, reason).await;
                         return Ok(BreakOrContinue::Continue);
                     }
@@ -1337,6 +1337,11 @@ impl App {
                         let log = eyre::Report::new(error)
                             .wrap_err("transaction failed execution")
                             .to_string();
+                        let reason = RemovalReason::FailedExecution(log.clone());
+                        // We need to explicitly remove from the mempool as the stored account nonce
+                        // is not updated for failed txs, hence this tx would not be cleared out of
+                        // the mempool during `run_maintenance`.
+                        self.mempool.remove_tx_invalid(tx.clone(), reason).await;
                         ExecTxResult {
                             code: Code::Err(AbciErrorCode::TRANSACTION_FAILED_EXECUTION.value()),
                             log,

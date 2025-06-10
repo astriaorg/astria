@@ -82,7 +82,7 @@ cli = Cli(cli_image)
 print(colored("Checking starting balance on sequencer...", "blue"))
 try:
     cli._try_get_balance(SEQUENCER_DESTINATION_ADDRESS, "full-node")
-    raise SystemExit(colored("Balance check should have returned none", "red"))
+    raise SystemExit("Balance check should have returned none")
 except Exception:
     print(colored("Balance check returned none as expected", "green"))
 
@@ -101,9 +101,9 @@ for i in range(NUM_IBC_TRANSFERS):
         asset="transfer/channel-0/utia"
     )
     if hermes_relayer_0.check_logs(ERROR_MSG):
-        raise SystemExit(colored("Hermes relayer 0 stalled", "red"))
+        raise SystemExit("Hermes relayer 0 stalled")
     if hermes_relayer_1.check_logs(ERROR_MSG):
-        raise SystemExit(colored("Hermes relayer 1 stalled", "red"))
+        raise SystemExit("Hermes relayer 1 stalled")
     print(colored(f"IBC transfer {i + 1} of {NUM_IBC_TRANSFERS} completed successfully", "green"))
 
 print(colored("All IBC transfers completed successfully", "green"))
