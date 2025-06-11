@@ -134,8 +134,8 @@ impl CheckedIbcRelay {
                         .is_allowed_fee_asset(&asset)
                         .await
                         .wrap_err("failed to check if asset is allowed fee asset")?,
-                    "denom `{}` is not an allowed asset for ics20 withdrawal post blackburn \
-                     upgrade; only allowed fee assets can be transferred using ics20 withdrawals",
+                    "denom `{}` is not an allowed asset for ics20 transfer post blackburn \
+                     upgrade; only allowed fee assets can be transferred using ics20 transfers",
                     asset
                 );
             }
@@ -173,7 +173,7 @@ impl Debug for CheckedIbcRelay {
     }
 }
 
-pub(crate) async fn use_pre_blackburn_ics20_transfer<S: StateRead>(state: &S) -> Result<bool> {
+async fn use_pre_blackburn_ics20_transfer<S: StateRead>(state: &S) -> Result<bool> {
     Ok(state
         .get_upgrade_change_info(&Blackburn::NAME, &Ics20TransferActionChange::NAME)
         .await
@@ -392,8 +392,8 @@ mod tests {
         assert_error_contains(
             &err,
             &format!(
-                "denom `{denom}` is not an allowed asset for ics20 withdrawal post blackburn \
-                 upgrade; only allowed fee assets can be transferred using ics20 withdrawals",
+                "denom `{denom}` is not an allowed asset for ics20 transfer post blackburn \
+                 upgrade; only allowed fee assets can be transferred using ics20 transfers",
             ),
         );
     }
@@ -451,8 +451,8 @@ mod tests {
         assert_error_contains(
             &err,
             &format!(
-                "denom `{denom}` is not an allowed asset for ics20 withdrawal post blackburn \
-                 upgrade; only allowed fee assets can be transferred using ics20 withdrawals",
+                "denom `{denom}` is not an allowed asset for ics20 transfer post blackburn \
+                 upgrade; only allowed fee assets can be transferred using ics20 transfers",
             ),
         );
     }

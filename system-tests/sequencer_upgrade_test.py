@@ -67,8 +67,9 @@ print(colored("#################################################################
 
 if upgrade_name not in UPGRADE_CHANGES.keys():
     raise SystemExit(
-        f"upgrade name {upgrade_name} not supported. Supported upgrades are: {', '.join(UPGRADE_CHANGES.keys())}. \
-            If you want to run a test for a new upgrade, please add it to the list of supported upgrades."
+        f"upgrade name {upgrade_name} not supported. Supported upgrades are: "
+        f"{', '.join(UPGRADE_CHANGES.keys())}. If you want to run a test for a new upgrade, please "
+        "add it to the list of supported upgrades."
     )
 
 # Update chart dependencies.
@@ -85,7 +86,7 @@ nodes = [SequencerController(f"node{i}") for i in range(NUM_NODES - 1)]
 evm = EvmController()
 celestia = CelestiaController()
 print(colored(f"starting {len(nodes)} sequencers, evm rollup, and local celestia network", "blue"))
-executor = concurrent.futures.ThreadPoolExecutor(NUM_NODES + 1)
+executor = concurrent.futures.ThreadPoolExecutor(NUM_NODES + 2)
 
 deploy_sequencer_fn = lambda seq_node: seq_node.deploy_sequencer(
     pre_upgrade_image_controller,

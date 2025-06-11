@@ -83,6 +83,7 @@ def check_change_infos(change_infos, upgrade_heights, expected_app_version=None)
     for change_info in change_infos:
         # Ascertain the upgrade name from the change name so we can get its expected
         # activation height.
+        expected_upgrade_name = None
         for upgrade_name, upgrade_changes in UPGRADE_CHANGES.items():
             if change_info.change_name in upgrade_changes:
                 expected_upgrade_name = upgrade_name

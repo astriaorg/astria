@@ -189,23 +189,25 @@ impl UpgradesHandler {
         // NOTE: any further state changes specific to individual upgrades should be
         //       executed here after matching on the upgrade variant.
 
-        if let Upgrade::Aspen(aspen) = upgrade {
-            let market_map_genesis = aspen.price_feed_change().market_map_genesis();
-            price_feed::market_map::handle_genesis(&mut state, market_map_genesis.as_ref())
-                .wrap_err("failed to handle market map genesis")?;
-            info!("handled market map genesis");
-            let oracle_genesis = aspen.price_feed_change().oracle_genesis();
-            price_feed::oracle::handle_genesis(&mut state, oracle_genesis.as_ref())
-                .wrap_err("failed to handle oracle genesis")?;
-            info!("handled oracle genesis");
-            AuthorityComponent::handle_aspen_upgrade(&mut state)
-                .await
-                .wrap_err("failed to handle authority component aspen upgrade")?;
-            info!("handled authority component aspen upgrade");
-        }
-        if let Upgrade::Blackburn(_blackburn) = upgrade {
-            // Currently, no state changes required for Blackburn.
-            info!("handled blackburn upgrade");
+        match upgrade {
+            Upgrade::Aspen(aspen) => {
+                let market_map_genesis = aspen.price_feed_change().market_map_genesis();
+                price_feed::market_map::handle_genesis(&mut state, market_map_genesis.as_ref())
+                    .wrap_err("failed to handle market map genesis")?;
+                info!("handled market map genesis");
+                let oracle_genesis = aspen.price_feed_change().oracle_genesis();
+                price_feed::oracle::handle_genesis(&mut state, oracle_genesis.as_ref())
+                    .wrap_err("failed to handle oracle genesis")?;
+                info!("handled oracle genesis");
+                AuthorityComponent::handle_aspen_upgrade(&mut state)
+                    .await
+                    .wrap_err("failed to handle authority component aspen upgrade")?;
+                info!("handled authority component aspen upgrade");
+            }
+            Upgrade::Blackburn(_blackburn) => {
+                // Currently, no state changes required for Blackburn.
+                info!("handled blackburn upgrade");
+            }
         }
 
         Ok(change_hashes)

@@ -65,9 +65,10 @@ class SequencerController:
         try:
             self.upgrade_heights[upgrade_name] = upgrade_activation_height
         except Exception:
-            raise SystemExit(f"{self.name}: upgrade name `{upgrade_name}` does \
-                             exist in configured upgrade changes (see `UPGRADE_CHANGES` \
-                             in `defaults.py`)")
+            raise SystemExit(
+                f"{self.name}: upgrade name `{upgrade_name}` does not exist in configured upgrade "
+                "changes (see `UPGRADE_CHANGES` in `defaults.py`)"
+            )
         args = self._helm_args(
             "install",
             image_controller,
@@ -99,9 +100,10 @@ class SequencerController:
         try:
             self.upgrade_heights[upgrade_name] = activation_height
         except Exception:
-            raise SystemExit(f"{self.name}: upgrade name `{upgrade_name}` does \
-                             exist in configured upgrade changes (see `UPGRADE_CHANGES` \
-                             in `defaults.py`)")
+            raise SystemExit(
+                f"{self.name}: upgrade name `{upgrade_name}` does not exist in configured upgrade "
+                "changes (see `UPGRADE_CHANGES` in `defaults.py`)"
+            )
 
         # Update the upgrades.json file with the specified activation height and upgrade the images
         # for sequencer and sequencer-relayer.

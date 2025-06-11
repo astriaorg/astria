@@ -139,10 +139,10 @@ impl Fixture {
     }
 
     /// Returns a `Fixture` where default values have been used in a call to `init_chain`, and then
-    /// `Self::run_until_aspen_and_blackburn_applied` has been executed.
+    /// `Self::run_until_blackburn_applied` has been executed.
     ///
-    /// The Aspen and Blackburn upgrades will have been applied at block heights 1 and 4,
-    /// respectively. Blocks 2, 3, and 5 will also have been executed (both as empty blocks).
+    /// The Aspen and Blackburn upgrades will have been applied at block heights 1 and 3,
+    /// respectively. Blocks 2, and 4 will also have been executed (both as empty blocks).
     ///
     /// For a list of the default values used at genesis, see the docs for [`ChainInitializer`].
     pub(crate) async fn default_initialized() -> Self {
@@ -161,7 +161,7 @@ impl Fixture {
         fixture
     }
 
-    /// Repeatedly executes `App::finalize_block` and `App::commit` until one block after either the
+    /// Repeatedly executes `App::finalize_block` and `App::commit` until one block after the
     /// Blackburn upgrade has been applied (including Aspen upgrade as well).
     ///
     /// Returns the height of the next block to execute.
@@ -485,67 +485,48 @@ fn aspen_and_blackburn_rollup_data_commitments(
     aspen: &Aspen,
     blackburn: &Blackburn,
 ) -> Vec<Bytes> {
-    let extended_commit_info =
-        if current_block_height > aspen.activation_height().checked_add(1).unwrap() {
-            Some(dummy_extended_commit_info().encode())
-        } else {
-            None
-        };
-    match (
-        current_block_height.cmp(&aspen.activation_height()),
-        current_block_height.cmp(&blackburn.activation_height()),
-    ) {
-        // Prior to Aspen, before or after Blackburn, use legacy rollup data commitments.
-        (Ordering::Less, Ordering::Less | Ordering::Greater) => {
-            generate_rollup_datas_commitment::<false>(&[], HashMap::new())
+    let extended_commit_info = match current_block_height.cmp(&aspen.activation_height()) {
+        Ordering::Less => {
+            // Prior to Aspen, and hence also pre-Blackburn, use legacy rollup data commitments.
+            return generate_rollup_datas_commitment::<false>(&[], HashMap::new())
                 .into_iter()
-                .collect()
+                .collect();
         }
-        // At Aspen upgrade, before or after Blackburn, use new rollup data commitments and append
-        // the Aspen upgrade change hashes.
-        (Ordering::Equal, Ordering::Less | Ordering::Greater) => {
+        Ordering::Equal => {
+            // At Aspen upgrade, and hence also pre-Blackburn, use new form of rollup data
+            // commitments and append the Aspen upgrade change hashes.
             let aspen_upgrade_change_hashes = DataItem::UpgradeChangeHashes(
                 aspen.changes().map(Change::calculate_hash).collect(),
             );
-            generate_rollup_datas_commitment::<true>(&[], HashMap::new())
+            return generate_rollup_datas_commitment::<true>(&[], HashMap::new())
                 .into_iter()
                 .chain(Some(aspen_upgrade_change_hashes.encode()))
-                .chain(extended_commit_info)
-                .collect()
+                .collect();
         }
-        // Post Aspen upgrade, before or after Blackburn, use new rollup data commitments.
-        (Ordering::Greater, Ordering::Less | Ordering::Greater) => {
-            generate_rollup_datas_commitment::<true>(&[], HashMap::new())
-                .into_iter()
-                .chain(extended_commit_info)
-                .collect()
+        Ordering::Greater => {
+            // The first block after Aspen doesn't have extended commit info. All blocks after that
+            // should have it.
+            if current_block_height > aspen.activation_height().checked_add(1).unwrap() {
+                Some(dummy_extended_commit_info().encode())
+            } else {
+                None
+            }
         }
-        // Prior to Aspen, at Blackburn, use legacy rollup data commitments and append the Blackburn
-        // upgrade change hashes.
-        (Ordering::Less, Ordering::Equal) => {
-            let blackburn_upgrade_change_hashes = DataItem::UpgradeChangeHashes(
-                blackburn.changes().map(Change::calculate_hash).collect(),
-            );
-            generate_rollup_datas_commitment::<false>(&[], HashMap::new())
-                .into_iter()
-                .chain(Some(blackburn_upgrade_change_hashes.encode()))
-                .collect()
-        }
-        // Post Aspen upgrade, at Blackburn, use new rollup data commitments and append the
-        // Blackburn upgrade change hashes.
-        (Ordering::Greater, Ordering::Equal) => {
-            let blackburn_upgrade_change_hashes = DataItem::UpgradeChangeHashes(
-                blackburn.changes().map(Change::calculate_hash).collect(),
-            );
-            generate_rollup_datas_commitment::<true>(&[], HashMap::new())
-                .into_iter()
-                .chain(Some(blackburn_upgrade_change_hashes.encode()))
-                .chain(extended_commit_info)
-                .collect()
-        }
-        // Case not allowed.
-        (Ordering::Equal, Ordering::Equal) => {
-            panic!("aspen and blackburn cannot activate at the same height");
-        }
+    };
+
+    if current_block_height == blackburn.activation_height() {
+        let blackburn_upgrade_change_hashes = DataItem::UpgradeChangeHashes(
+            blackburn.changes().map(Change::calculate_hash).collect(),
+        );
+        return generate_rollup_datas_commitment::<true>(&[], HashMap::new())
+            .into_iter()
+            .chain(Some(blackburn_upgrade_change_hashes.encode()))
+            .chain(extended_commit_info)
+            .collect();
     }
+
+    generate_rollup_datas_commitment::<true>(&[], HashMap::new())
+        .into_iter()
+        .chain(extended_commit_info)
+        .collect()
 }
