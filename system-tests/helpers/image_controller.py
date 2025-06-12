@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import List
 
 VALID_COMPONENTS = [
     "all",

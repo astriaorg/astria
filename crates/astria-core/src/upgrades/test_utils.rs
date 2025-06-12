@@ -22,16 +22,19 @@ use crate::generated::{
 
 pub struct UpgradesBuilder {
     aspen_activation_height: Option<u64>,
+    blackburn_activation_height: Option<u64>,
 }
 
 impl UpgradesBuilder {
     /// Returns a new `UpgradesBuilder`.
     ///
-    /// By default, Aspen is included with an activation height of 100.
+    /// By default, Aspen is included with an activation height of 100, and Blackburn with an
+    /// activation height of 103.
     #[must_use]
     pub fn new() -> Self {
         Self {
             aspen_activation_height: Some(100),
+            blackburn_activation_height: Some(103),
         }
     }
 
@@ -39,6 +42,13 @@ impl UpgradesBuilder {
     #[must_use]
     pub fn set_aspen(mut self, activation_height: Option<u64>) -> Self {
         self.aspen_activation_height = activation_height;
+        self
+    }
+
+    /// To exclude Blackburn, provide `activation_height` as `None`.
+    #[must_use]
+    pub fn set_blackburn(mut self, activation_height: Option<u64>) -> Self {
+        self.blackburn_activation_height = activation_height;
         self
     }
 
@@ -60,8 +70,18 @@ impl UpgradesBuilder {
                     raw::aspen::IbcAcknowledgementFailureChange {},
                 ),
             });
+        let blackburn = self
+            .blackburn_activation_height
+            .map(|activation_height| raw::Blackburn {
+                base_info: Some(raw::BaseUpgradeInfo {
+                    activation_height,
+                    app_version: 3,
+                }),
+                ics20_transfer_action_change: Some(raw::blackburn::Ics20TransferActionChange {}),
+            });
         let raw_upgrades = raw::Upgrades {
             aspen,
+            blackburn,
         };
         Upgrades::from_raw(raw_upgrades)
     }

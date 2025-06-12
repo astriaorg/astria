@@ -1,5 +1,6 @@
 import subprocess
 import time
+from .defaults import UPGRADE_CHANGES
 
 def run_subprocess(args, msg):
     """
@@ -70,7 +71,7 @@ def update_chart_dependencies(chart):
     args = ["helm", "dependency", "update", f"charts/{chart}"]
     run_subprocess(args, msg=f"updating chart dependencies for {chart}")
 
-def check_change_infos(change_infos, expected_activation_height, expected_app_version=None):
+def check_change_infos(change_infos, upgrade_heights, expected_app_version=None):
     """
     Assert that the provided change info collection is not empty, and that each entry has the
     expected activation height and app version.
@@ -80,16 +81,34 @@ def check_change_infos(change_infos, expected_activation_height, expected_app_ve
     if len(list(change_infos)) == 0:
         raise SystemExit("sequencer upgrade error: no upgrade change info reported")
     for change_info in change_infos:
+        # Ascertain the upgrade name from the change name so we can get its expected
+        # activation height.
+        expected_upgrade_name = None
+        for upgrade_name, upgrade_changes in UPGRADE_CHANGES.items():
+            if change_info.change_name in upgrade_changes:
+                expected_upgrade_name = upgrade_name
+                break
+        if expected_upgrade_name is None:
+            raise SystemExit(
+                f"sequencer upgrade error: reported change info has unexpected change name \
+                    {change_info.change_name}: expected one of {list(UPGRADE_CHANGES.keys())}"
+            )
+        expected_activation_height = upgrade_heights[expected_upgrade_name]
+
+        # Check activation height
         if change_info.activation_height != expected_activation_height:
             raise SystemExit(
                 "sequencer upgrade error: reported change info does not have expected activation "
                 f"height of {expected_activation_height}: reported change info:\n{change_info}"
             )
-        if expected_app_version and change_info.app_version != expected_app_version:
-            raise SystemExit(
-                "sequencer upgrade error: reported change info does not have expected app version "
-                f"of {expected_app_version}: reported change info:\n{change_info}"
-            )
+
+    # Only want to check the app version of the most recent change info, since
+    # previous upgrades will also be included.
+    if expected_app_version and change_infos[-1].app_version != expected_app_version:
+        raise SystemExit(
+            "sequencer upgrade error: reported change info does not have expected app version "
+            f"of {expected_app_version}: reported change info:\n{change_infos[-1]}"
+        )
 
 class Retryer:
     """
