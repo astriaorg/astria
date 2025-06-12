@@ -27,6 +27,6 @@ def _check_balance_post_ics20_transfer(cli, nodes, expected_balance):
                 else:
                     break
             except Exception as e:
-                print(colored(f"Error checking balance for {node.name}: {e}, retrying in {delay} seconds..."), "yellow")
+                print(colored(f"Error checking balance for {node.name}: {e}, retrying in {delay} seconds...", "yellow"))
                 time.sleep(delay)
                 delay = min(delay * 2, 5)
