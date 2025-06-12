@@ -6,6 +6,10 @@
     "target",
     ".github",
     "**/*/astria-bridge-contracts/lib/**/*.md",
-    "**/.venv/**/*.md"
-  ]
+    "**/.venv/**/*.md",
+    "crates/**/*.md"
+  ],
+  "config": {
+    "MD012": false // Allow multiple blank lines as automated release notes are formatted this way
+  }
 }
