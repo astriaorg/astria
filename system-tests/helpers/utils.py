@@ -1,5 +1,6 @@
 import subprocess
 import time
+from .defaults import UPGRADE_CHANGES
 
 def run_subprocess(args, msg):
     """
@@ -11,7 +12,7 @@ def run_subprocess(args, msg):
     On error, exits the top-level process.
     """
     try:
-        try_run_subprocess(args, msg)
+        return try_run_subprocess(args, msg)
     except RuntimeError as error:
         raise SystemExit(error)
 
@@ -27,7 +28,7 @@ def try_run_subprocess(args, msg):
     prefix = f"{msg}: " if msg else ""
     print(f"{prefix}running `{' '.join(map(str, args))}`")
     try:
-        subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=True)
+        return subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=True)
     except subprocess.CalledProcessError as error:
         prefix = f" {msg}: " if msg else ": "
         raise RuntimeError(f"failed{prefix}{error.stdout.decode('utf-8').strip()}")
@@ -49,11 +50,28 @@ def wait_for_statefulset_rollout(deploy_name, statefulset_name, namespace, timeo
     print()
     raise SystemExit(f"failed to deploy {deploy_name} within {timeout_secs} seconds")
 
+def wait_for_deployment(deployment_name, namespace, timeout_secs):
+    args = [
+        "kubectl", "wait", "deployment", f"{deployment_name}", f"-n={namespace}",
+        "--for=condition=Available=True", f"--timeout={timeout_secs}s"
+    ]
+    try:
+        try_run_subprocess(args, f"waiting for {deployment_name} to deploy")
+        return
+    except RuntimeError as error:
+        print(error)
+    # Waiting failed.  Print potentially useful info.
+    subprocess.run(["kubectl", "get", "pods", f"-n={namespace}"])
+    print()
+    subprocess.run(["kubectl", "events", f"-n={namespace}", "--types=Warning"])
+    print()
+    raise SystemExit(f"failed to deploy {deployment_name} within {timeout_secs} seconds")
+
 def update_chart_dependencies(chart):
     args = ["helm", "dependency", "update", f"charts/{chart}"]
     run_subprocess(args, msg=f"updating chart dependencies for {chart}")
 
-def check_change_infos(change_infos, expected_activation_height, expected_app_version=None):
+def check_change_infos(change_infos, upgrade_heights, expected_app_version=None):
     """
     Assert that the provided change info collection is not empty, and that each entry has the
     expected activation height and app version.
@@ -63,16 +81,34 @@ def check_change_infos(change_infos, expected_activation_height, expected_app_ve
     if len(list(change_infos)) == 0:
         raise SystemExit("sequencer upgrade error: no upgrade change info reported")
     for change_info in change_infos:
+        # Ascertain the upgrade name from the change name so we can get its expected
+        # activation height.
+        expected_upgrade_name = None
+        for upgrade_name, upgrade_changes in UPGRADE_CHANGES.items():
+            if change_info.change_name in upgrade_changes:
+                expected_upgrade_name = upgrade_name
+                break
+        if expected_upgrade_name is None:
+            raise SystemExit(
+                f"sequencer upgrade error: reported change info has unexpected change name \
+                    {change_info.change_name}: expected one of {list(UPGRADE_CHANGES.keys())}"
+            )
+        expected_activation_height = upgrade_heights[expected_upgrade_name]
+
+        # Check activation height
         if change_info.activation_height != expected_activation_height:
             raise SystemExit(
                 "sequencer upgrade error: reported change info does not have expected activation "
                 f"height of {expected_activation_height}: reported change info:\n{change_info}"
             )
-        if expected_app_version and change_info.app_version != expected_app_version:
-            raise SystemExit(
-                "sequencer upgrade error: reported change info does not have expected app version "
-                f"of {expected_app_version}: reported change info:\n{change_info}"
-            )
+
+    # Only want to check the app version of the most recent change info, since
+    # previous upgrades will also be included.
+    if expected_app_version and change_infos[-1].app_version != expected_app_version:
+        raise SystemExit(
+            "sequencer upgrade error: reported change info does not have expected app version "
+            f"of {expected_app_version}: reported change info:\n{change_infos[-1]}"
+        )
 
 class Retryer:
     """

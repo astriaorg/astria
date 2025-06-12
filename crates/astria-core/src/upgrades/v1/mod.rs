@@ -20,6 +20,8 @@ pub use upgrades::Upgrades;
 #[cfg(feature = "serde")]
 pub mod aspen;
 #[cfg(feature = "serde")]
+pub mod blackburn;
+#[cfg(feature = "serde")]
 mod change;
 mod change_hash;
 #[cfg(feature = "serde")]
