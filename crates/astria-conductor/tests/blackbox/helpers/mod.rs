@@ -1,4 +1,5 @@
 use std::{
+    cmp::max,
     sync::LazyLock,
     time::Duration,
 };
@@ -12,18 +13,33 @@ use astria_conductor::{
 };
 use astria_core::{
     brotli::compress_bytes,
-    generated::astria::{
-        execution::v2::{
-            CommitmentState,
-            ExecutedBlockMetadata,
-            ExecutionSession,
+    generated::{
+        astria::{
+            execution::v2::{
+                CommitmentState,
+                ExecutionSession,
+            },
+            sequencerblock::v1::FilteredSequencerBlock,
         },
-        sequencerblock::v1::FilteredSequencerBlock,
+        execution::v2::{
+            executed_block_identifier::Identifier,
+            ExecuteBlockResponse,
+            ExecutedBlockIdentifier,
+            ExecutionSessionParameters,
+            GetExecutedBlockMetadataRequest,
+        },
     },
     primitive::v1::RollupId,
     sequencerblock::v1::block,
 };
-use astria_grpc_mock::response::error_response;
+use astria_grpc_mock::{
+    response::error_response,
+    Times,
+};
+use base64::{
+    prelude::BASE64_STANDARD,
+    Engine as _,
+};
 use bytes::Bytes;
 use celestia_types::{
     nmt::Namespace,
@@ -111,12 +127,25 @@ pub async fn spawn_conductor(execution_commit_level: CommitLevel) -> TestConduct
         conductor.spawn()
     };
 
+    let state = TestRollupState {
+        soft_hash: 1,
+        firm_hash: 1,
+        firm_number: 0,
+    };
+
     TestConductor {
         conductor,
         mock_grpc,
         mock_http,
         metrics_handle,
+        state,
     }
+}
+
+struct TestRollupState {
+    soft_hash: u8,
+    firm_hash: u8,
+    firm_number: u64,
 }
 
 pub struct TestConductor {
@@ -124,6 +153,7 @@ pub struct TestConductor {
     pub mock_grpc: MockGrpc,
     pub mock_http: wiremock::MockServer,
     pub metrics_handle: metrics::Handle,
+    state: TestRollupState,
 }
 
 impl Drop for TestConductor {
@@ -150,6 +180,11 @@ impl Drop for TestConductor {
 }
 
 impl TestConductor {
+    pub fn put_rollup_state_hashes(&mut self, firm: u8, soft: u8) {
+        self.state.firm_hash = firm;
+        self.state.soft_hash = soft;
+    }
+
     pub async fn mount_abci_info(&self, latest_block_height: u32) {
         use wiremock::{
             matchers::body_partial_json,
@@ -176,21 +211,37 @@ impl TestConductor {
         .await;
     }
 
-    pub async fn mount_get_executed_block_metadata<S: serde::Serialize>(
-        &self,
-        expected_pbjson: S,
-        block: ExecutedBlockMetadata,
-    ) {
+    pub async fn mount_get_executed_block_metadata(&self, number: u64) {
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
             response::constant_response,
             Mock,
         };
+
+        let expected_pbjson = GetExecutedBlockMetadataRequest {
+            identifier: Some(ExecutedBlockIdentifier {
+                identifier: Some(Identifier::Number(number)),
+            }),
+        };
+
+        // Calculate difference between firm block number and firm hash, applying to given
+        // number to obtain its hash. This accomodates potential use cases where the
+        // hash does not match the block number.
+        let delta = i64::try_from(self.state.firm_number)
+            .unwrap()
+            .saturating_sub(i64::from(self.state.firm_hash));
+        let hash = u8::try_from(i64::try_from(number).unwrap().saturating_sub(delta))
+            .expect("should be able to derive `u8` hash from `number + (firm_number - firm_hash)`");
+
         Mock::for_rpc_given(
             "get_executed_block_metadata",
             message_partial_pbjson(&expected_pbjson),
         )
-        .respond_with(constant_response(block))
+        .respond_with(constant_response(block_metadata!(
+            number: number,
+            hash: hash,
+            parent: hash.saturating_sub(1),
+        )))
         .expect(1..)
         .mount(&self.mock_grpc.mock_server)
         .await;
@@ -309,12 +360,33 @@ impl TestConductor {
     }
 
     pub async fn mount_create_execution_session(
-        &self,
-        execution_session: ExecutionSession,
+        &mut self,
+        execution_session_parameters: ExecutionSessionParameters,
+        firm_number: u64,
+        soft_number: u64,
+        lowest_celestia_search_height: u64,
         up_to_n_times: u64,
         expected_calls: u64,
     ) {
         use astria_core::generated::astria::execution::v2::CreateExecutionSessionRequest;
+        self.state.firm_number = firm_number;
+        let execution_session = ExecutionSession {
+            session_id: EXECUTION_SESSION_ID.to_string(),
+            execution_session_parameters: Some(execution_session_parameters),
+            commitment_state: Some(CommitmentState {
+                soft_executed_block_metadata: Some(block_metadata!(
+                    number: soft_number,
+                    hash: self.state.soft_hash,
+                    parent: self.state.soft_hash.saturating_sub(1),
+                )),
+                firm_executed_block_metadata: Some(block_metadata!(
+                    number: firm_number,
+                    hash: self.state.firm_hash,
+                    parent: self.state.firm_hash.saturating_sub(1),
+                )),
+                lowest_celestia_search_height,
+            }),
+        };
         astria_grpc_mock::Mock::for_rpc_given(
             "create_execution_session",
             astria_grpc_mock::matcher::message_type::<CreateExecutionSessionRequest>(),
@@ -328,24 +400,36 @@ impl TestConductor {
         .await;
     }
 
-    pub async fn mount_execute_block<S: serde::Serialize>(
+    pub async fn mount_execute_block(
         &self,
         mock_name: Option<&str>,
-        expected_pbjson: S,
-        block_metadata: ExecutedBlockMetadata,
+        number: u64,
         expected_calls: u64,
     ) -> astria_grpc_mock::MockGuard {
-        use astria_core::generated::astria::execution::v2::ExecuteBlockResponse;
         use astria_grpc_mock::{
             matcher::message_partial_pbjson,
             response::constant_response,
             Mock,
         };
-        let mut mock =
-            Mock::for_rpc_given("execute_block", message_partial_pbjson(&expected_pbjson))
-                .respond_with(constant_response(ExecuteBlockResponse {
-                    executed_block_metadata: Some(block_metadata.clone()),
-                }));
+
+        let parent_initializer = max(self.state.soft_hash, self.state.firm_hash);
+        let response = ExecuteBlockResponse {
+            executed_block_metadata: Some(block_metadata!(
+                number: number,
+                hash: parent_initializer.saturating_add(1),
+                parent: parent_initializer,
+            )),
+        };
+
+        let mut mock = Mock::for_rpc_given(
+            "execute_block",
+            message_partial_pbjson(&json!({
+                "sessionId": EXECUTION_SESSION_ID.to_string(),
+                "parentHash": parent_initializer.to_string(),
+                "transactions": [{"priceFeedData": {}}, {"sequencedData": BASE64_STANDARD.encode(data())}],
+            })),
+        )
+        .respond_with(constant_response(response));
         if let Some(name) = mock_name {
             mock = mock.with_name(name);
         }
@@ -376,10 +460,12 @@ impl TestConductor {
     }
 
     pub async fn mount_update_commitment_state(
-        &self,
+        &mut self,
         mock_name: Option<&str>,
-        commitment_state: CommitmentState,
-        expected_calls: impl Into<astria_grpc_mock::Times>,
+        number: u64,
+        is_with_firm: bool,
+        lowest_celestia_search_height: u64,
+        expected_calls: impl Into<Times>,
     ) -> astria_grpc_mock::MockGuard {
         use astria_core::generated::astria::execution::v2::UpdateCommitmentStateRequest;
         use astria_grpc_mock::{
@@ -387,6 +473,32 @@ impl TestConductor {
             response::constant_response,
             Mock,
         };
+
+        // If this is a firm commitment update, we want to match the soft info to firm. If not,
+        // we leave the firm info as is.
+        let (firm_number, soft_hash) = if is_with_firm {
+            self.state.firm_number = number;
+            self.state.firm_hash = self.state.firm_hash.saturating_add(1);
+            (number, self.state.firm_hash) // Set soft initializer to firm initializer
+        } else {
+            self.state.soft_hash = self.state.soft_hash.saturating_add(1);
+            (self.state.firm_number, self.state.soft_hash)
+        };
+
+        let commitment_state = CommitmentState {
+            firm_executed_block_metadata: Some(block_metadata!(
+                number: firm_number,
+                hash: self.state.firm_hash,
+                parent: self.state.firm_hash.saturating_sub(1),
+            )),
+            soft_executed_block_metadata: Some(block_metadata!(
+                number: number,
+                hash: soft_hash,
+                parent: soft_hash.saturating_sub(1),
+            )),
+            lowest_celestia_search_height,
+        };
+
         let mut mock = Mock::for_rpc_given(
             "update_commitment_state",
             message_partial_pbjson(&UpdateCommitmentStateRequest {
