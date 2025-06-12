@@ -57,11 +57,10 @@ class ImageController:
         parser.add_argument(
             "-i", "--image-tag",
             help=
-                "Image tag in the format 'component=tag', e.g. 'sequencer=local'. Can \
-                    be specified multiple times. Available components: sequencer, \
-                    sequencer-relayer, conductor, composer, bridge-withdrawer, \
-                    geth, cli, all. NOTE: 'all' sets all components to the same \
-                    tag EXCEPT for 'geth', which exists in a separate repository.",
+                "Image tag in the format 'component=tag', e.g. 'sequencer=local'. Can be specified "
+                "multiple times. Available components: sequencer, sequencer-relayer, conductor, "
+                "composer, bridge-withdrawer, geth, cli, all. NOTE: 'all' sets all components to "
+                "the same tag EXCEPT for 'geth', which exists in a separate repository.",
             metavar="COMPONENT=TAG",
             action="append",
             default=[]

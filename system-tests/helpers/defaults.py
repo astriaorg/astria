@@ -30,7 +30,8 @@ UPGRADE_CHANGES = {
         "ibc_acknowledgement_failure_change"
     ],
     "blackburn": [
-        "ics20_transfer_action_change"
+        "ics20_transfer_action_change",
+        "allow_ibc_relay_to_fail"
     ]
 }
 
