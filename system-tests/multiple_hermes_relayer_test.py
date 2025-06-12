@@ -101,9 +101,9 @@ for i in range(NUM_IBC_TRANSFERS):
         asset="transfer/channel-0/utia"
     )
     if hermes_relayer_0.check_logs(ERROR_MSG):
-        raise SystemExit("Hermes relayer 0 stalled")
+        raise SystemExit(colored("Hermes relayer 0 stalled", "red"))
     if hermes_relayer_1.check_logs(ERROR_MSG):
-        raise SystemExit("Hermes relayer 1 stalled")
+        raise SystemExit(colored("Hermes relayer 1 stalled", "red"))
     print(colored(f"IBC transfer {i + 1} of {NUM_IBC_TRANSFERS} completed successfully", "green"))
 
 print(colored("All IBC transfers completed successfully", "green"))
