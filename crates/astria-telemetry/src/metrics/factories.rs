@@ -1,15 +1,15 @@
 use std::{
     collections::BTreeSet,
     marker::PhantomData,
+    sync::Arc,
 };
 
 use metrics::{
     Key,
     Label,
     Metadata,
-    Recorder as _,
+    Recorder,
 };
-use metrics_exporter_prometheus::PrometheusRecorder;
 
 use super::{
     Counter,
@@ -18,9 +18,9 @@ use super::{
     Histogram,
 };
 
-pub struct CounterFactory<'a>(Factory<'a, Counter>);
+pub struct CounterFactory(Factory<Counter>);
 
-impl<'a> CounterFactory<'a> {
+impl CounterFactory {
     /// Registers and returns a counter with no labels applied.
     ///
     /// # Errors
@@ -43,18 +43,18 @@ impl<'a> CounterFactory<'a> {
         self.0.register_with_labels(labels)
     }
 
-    pub(super) fn new(name: &'static str, recorder: &'a PrometheusRecorder) -> Self {
+    pub(super) fn new(name: &'static str, recorder: Arc<dyn Recorder>) -> Self {
         Self(Factory::new(name, recorder))
     }
 
     pub(super) fn metric_type() -> &'static str {
-        Factory::<'a, Counter>::metric_type()
+        Factory::<Counter>::metric_type()
     }
 }
 
-pub struct GaugeFactory<'a>(Factory<'a, Gauge>);
+pub struct GaugeFactory(Factory<Gauge>);
 
-impl<'a> GaugeFactory<'a> {
+impl GaugeFactory {
     /// Registers and returns a gauge with no labels applied.
     ///
     /// # Errors
@@ -77,18 +77,18 @@ impl<'a> GaugeFactory<'a> {
         self.0.register_with_labels(labels)
     }
 
-    pub(super) fn new(name: &'static str, recorder: &'a PrometheusRecorder) -> Self {
+    pub(super) fn new(name: &'static str, recorder: Arc<dyn Recorder>) -> Self {
         Self(Factory::new(name, recorder))
     }
 
     pub(super) fn metric_type() -> &'static str {
-        Factory::<'a, Gauge>::metric_type()
+        Factory::<Gauge>::metric_type()
     }
 }
 
-pub struct HistogramFactory<'a>(Factory<'a, Histogram>);
+pub struct HistogramFactory(Factory<Histogram>);
 
-impl<'a> HistogramFactory<'a> {
+impl HistogramFactory {
     /// Registers and returns a histogram with no labels applied.
     ///
     /// # Errors
@@ -111,25 +111,25 @@ impl<'a> HistogramFactory<'a> {
         self.0.register_with_labels(labels)
     }
 
-    pub(super) fn new(name: &'static str, recorder: &'a PrometheusRecorder) -> Self {
+    pub(super) fn new(name: &'static str, recorder: Arc<dyn Recorder>) -> Self {
         Self(Factory::new(name, recorder))
     }
 
     pub(super) fn metric_type() -> &'static str {
-        Factory::<'a, Histogram>::metric_type()
+        Factory::<Histogram>::metric_type()
     }
 }
 
-struct Factory<'a, T> {
+struct Factory<T> {
     name: &'static str,
-    recorder: &'a PrometheusRecorder,
+    recorder: Arc<dyn Recorder>,
     labels: BTreeSet<BTreeSet<Label>>,
     _phantom: PhantomData<T>,
 }
 
-impl<'a, T> Factory<'a, T>
+impl<T> Factory<T>
 where
-    Factory<'a, T>: RegisterMetric<T>,
+    Factory<T>: RegisterMetric<T>,
 {
     fn register(&mut self) -> Result<T, Error> {
         self.register_with_labels(&[])
@@ -160,7 +160,7 @@ where
         Ok(self.register_metric(&key))
     }
 
-    fn new(name: &'static str, recorder: &'a PrometheusRecorder) -> Self {
+    fn new(name: &'static str, recorder: Arc<dyn Recorder>) -> Self {
         Self {
             name,
             recorder,
@@ -176,7 +176,7 @@ trait RegisterMetric<T> {
     fn metric_type() -> &'static str;
 }
 
-impl RegisterMetric<Counter> for Factory<'_, Counter> {
+impl RegisterMetric<Counter> for Factory<Counter> {
     fn register_metric(&self, key: &Key) -> Counter {
         let ignored_metadata = Metadata::new("", metrics::Level::ERROR, None);
         Counter::new(self.recorder.register_counter(key, &ignored_metadata))
@@ -187,7 +187,7 @@ impl RegisterMetric<Counter> for Factory<'_, Counter> {
     }
 }
 
-impl RegisterMetric<Gauge> for Factory<'_, Gauge> {
+impl RegisterMetric<Gauge> for Factory<Gauge> {
     fn register_metric(&self, key: &Key) -> Gauge {
         let ignored_metadata = Metadata::new("", metrics::Level::ERROR, None);
         Gauge::new(self.recorder.register_gauge(key, &ignored_metadata))
@@ -198,7 +198,7 @@ impl RegisterMetric<Gauge> for Factory<'_, Gauge> {
     }
 }
 
-impl RegisterMetric<Histogram> for Factory<'_, Histogram> {
+impl RegisterMetric<Histogram> for Factory<Histogram> {
     fn register_metric(&self, key: &Key) -> Histogram {
         let ignored_metadata = Metadata::new("", metrics::Level::ERROR, None);
         Histogram::new(self.recorder.register_histogram(key, &ignored_metadata))

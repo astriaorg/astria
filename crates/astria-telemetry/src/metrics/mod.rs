@@ -6,8 +6,9 @@ mod gauge;
 mod handle;
 mod histogram;
 mod into_f64;
+mod noop_recorder;
 
-use metrics_exporter_prometheus::PrometheusBuilder;
+use std::sync::Arc;
 
 pub use self::{
     builders::{
@@ -52,8 +53,8 @@ pub trait Metrics {
     where
         Self: Sized;
 
-    /// Returns an instance of `Self` where the metrics are registered to a recorder that is
-    /// dropped immediately, meaning metrics aren't recorded.
+    /// Returns an instance of `Self` where the metrics are registered to a recorder that does
+    /// nothing, meaning metrics aren't recorded.
     ///
     /// # Errors
     ///
@@ -62,7 +63,7 @@ pub trait Metrics {
     where
         Self: Sized,
     {
-        let mut builder = RegisteringBuilder::new(PrometheusBuilder::new().build_recorder());
+        let mut builder = RegisteringBuilder::new(Arc::new(noop_recorder::NoopRecorder));
         Self::register(&mut builder, config)
     }
 }
