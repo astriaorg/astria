@@ -52,10 +52,10 @@ just docker-build <CRATE> <TAG=local>
 # Replace CRATE with what the target binary is ie `astria-sequencer`
 # TAG defaults to `local` but can be changed.
 
-# this command will build a local image tagged as 'astria-sequencer:local' 
+# this command will build a local image tagged as 'astria-sequencer:local'
 just docker-build astria-sequencer
 
-# this command will build a local image tagged as 'astria-sequencer:debug' 
+# this command will build a local image tagged as 'astria-sequencer:debug'
 just docker-build astria-sequencer debug
 ```
 
@@ -134,5 +134,4 @@ NOTE: Be sure to merge the latest from upstream before making a pull request!
 ## Issues
 
 If you encounter any issues while using this project or have any questions,
-please open an issue in this repository
-[here](https://github.com/astriaorg/astria/issues).
+please open an issue in [this repository](https://github.com/astriaorg/astria/issues).

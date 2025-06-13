@@ -109,7 +109,7 @@ jobs:
     if: needs.run_checker.outputs.run_lint_markdown == 'true'
     steps:
       - uses: actions/checkout@v4
-      - uses: DavidAnson/markdownlint-cli2-action@v11
+      - uses: DavidAnson/markdownlint-cli2-action@v20
 
   charts:
     runs-on: ubuntu-latest
