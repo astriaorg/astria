@@ -1,6 +1,7 @@
 import base64
 import grpc
 import requests
+from .defaults import UPGRADE_CHANGES
 from .utils import (
     check_change_infos,
     run_subprocess,
@@ -23,6 +24,10 @@ class SequencerController:
 
     def __init__(self, node_name):
         self.name = node_name
+        self.upgrade_heights = {}
+        for i, upgrade_name in enumerate(UPGRADE_CHANGES.keys()):
+            # Set default upgrade heights
+            self.upgrade_heights[upgrade_name] = i + 1
         if node_name == "node0" or node_name == "single":
             self.namespace = "astria-dev-cluster"
             self.rpc_url = "http://rpc.sequencer.127.0.0.1.nip.io"
@@ -57,6 +62,13 @@ class SequencerController:
         upgrades.json depends upon setting `upgrade_activation_height`. `None` means they are
         omitted (used when starting nodes before the upgrade has activated).
         """
+        try:
+            self.upgrade_heights[upgrade_name] = upgrade_activation_height
+        except Exception:
+            raise SystemExit(
+                f"{self.name}: upgrade name `{upgrade_name}` does not exist in configured upgrade "
+                "changes (see `UPGRADE_CHANGES` in `defaults.py`)"
+            )
         args = self._helm_args(
             "install",
             image_controller,
@@ -84,6 +96,14 @@ class SequencerController:
             self.last_block_height_before_restart = self.try_get_last_block_height()
         except:
             self.last_block_height_before_restart = None
+
+        try:
+            self.upgrade_heights[upgrade_name] = activation_height
+        except Exception:
+            raise SystemExit(
+                f"{self.name}: upgrade name `{upgrade_name}` does not exist in configured upgrade "
+                "changes (see `UPGRADE_CHANGES` in `defaults.py`)"
+            )
 
         # Update the upgrades.json file with the specified activation height and upgrade the images
         # for sequencer and sequencer-relayer.
@@ -131,12 +151,8 @@ class SequencerController:
             # scheduled and none applied.
             latest_block_height = self.get_last_block_height()
             if latest_block_height < upgrade_activation_height - 2:
-                applied, scheduled = self.get_upgrades_info()
-                if len(list(applied)) != 0:
-                    raise SystemExit(
-                        f"{self.name} upgrade error: should have 0 applied upgrade change infos"
-                    )
-                check_change_infos(scheduled, upgrade_activation_height)
+                _applied, scheduled = self.get_upgrades_info()
+                check_change_infos(scheduled, self.upgrade_heights)
                 for change_info in scheduled:
                     print(
                         f"{self.name}: scheduled change info: [{change_info.change_name}, "

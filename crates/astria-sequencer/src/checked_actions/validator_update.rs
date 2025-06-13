@@ -282,7 +282,7 @@ mod tests {
                 .await
                 .unwrap());
         } else {
-            let _ = fixture.run_until_aspen_applied().await;
+            let _ = fixture.run_until_blackburn_applied().await;
             assert!(!use_pre_aspen_validator_updates(fixture.state())
                 .await
                 .unwrap());
@@ -383,7 +383,7 @@ mod tests {
                 .await
                 .unwrap());
         } else {
-            let _ = fixture.run_until_aspen_applied().await;
+            let _ = fixture.run_until_blackburn_applied().await;
             assert!(!use_pre_aspen_validator_updates(fixture.state())
                 .await
                 .unwrap());

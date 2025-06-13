@@ -22,8 +22,13 @@ genesis:
 sequencer:
   upgrades:
     aspen:
-      activationHeight: 60
-      appVersion: 2
+      baseInfo:
+        activationHeight: 60
+        appVersion: 2
+    blackburn:
+      baseInfo:
+        activationHeight: 100
+        appVersion: 3
   priceFeed:
     enabled: true
     markets:
