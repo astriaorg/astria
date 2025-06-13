@@ -78,6 +78,8 @@ if cli_image is None:
     cli_image = "latest"
 cli = Cli(cli_image)
 
+cli.add_utia_asset()
+
 # Check starting sequencer balance
 print(colored("Checking starting balance on sequencer...", "blue"))
 try:
