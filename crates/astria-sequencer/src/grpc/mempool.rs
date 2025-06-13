@@ -378,7 +378,7 @@ mod tests {
             .await
             .unwrap();
 
-        let removal_reason = RemovalReason::FailedPrepareProposal("failure reason".to_string());
+        let removal_reason = RemovalReason::FailedExecution("failure reason".to_string());
         mempool
             .remove_tx_invalid(tx.clone(), removal_reason.clone())
             .await;

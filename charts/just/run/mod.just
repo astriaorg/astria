@@ -208,3 +208,22 @@ upgrade-test tag=defaultDockerTag name=defaultUpgradeName:
   python3 system-tests/sequencer_upgrade_test.py \
     --image-tag {{ if tag != '' { tag } else { 'latest' } }} \
     --upgrade-name {{name}}
+
+# Runs Multiple Relayer Test
+#############################
+[doc("
+Runs end-to-end test of IBC transfers from Celestia to Astria using multiple relayers.
+NOTE: Image tags can be specified for the different components by passing the flag
+`-i <component=tag>` to the command line. Pass `--help` for more info.
+Examples:
+  just run multiple-relayer-test (uses image tags specified in `values.yaml` files)
+  just run multiple-relayer-test -i sequencer=local (specifies image tag for the sequencer)
+")]
+multiple-relayer-test *FLAGS:
+  #!/usr/bin/env bash
+  if [ -d "system-tests/.venv" ]; then
+    echo "Found Python virtual environment, activating it..."
+    source system-tests/.venv/bin/activate
+    uv pip install -r system-tests/requirements.txt
+  fi
+  python3 system-tests/multiple_hermes_relayer_test.py {{FLAGS}}

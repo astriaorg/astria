@@ -83,7 +83,7 @@ cli = Cli(cli_image)
 print(colored("Checking starting balance...", "blue"))
 balance = evm.get_balance()
 if balance != 0:
-    raise SystemExit(colored(f"rollup: expected balance to be 0, but got {balance}", "red"))
+    raise SystemExit(f"rollup: expected balance to be 0, but got {balance}")
 print(colored("Starting balance OK", "green"))
 
 # Initialize the bridge account

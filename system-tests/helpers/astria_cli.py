@@ -103,6 +103,20 @@ class Cli:
         except Exception as error:
             raise SystemExit(error)
 
+    def add_utia_asset(self):
+        try:
+            self._try_exec_sequencer_command_with_retry(
+                "sudo",
+                "fee-asset",
+                "add",
+                "--sequencer.chain-id=sequencer-test-chain-0",
+                "--private-key=2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90",
+                "--asset=transfer/channel-0/utia",
+                sequencer_name="node0"
+            )
+        except Exception as error:
+            raise SystemExit(error)
+
     def address(self, sequencer_name, address_bytes):
         try:
             return self._try_exec_sequencer_command(

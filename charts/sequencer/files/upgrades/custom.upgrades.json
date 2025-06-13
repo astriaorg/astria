@@ -79,7 +79,8 @@
       "activationHeight": "{{ .baseInfo.activationHeight }}",
       "appVersion": "{{ .baseInfo.appVersion }}"
     },
-    "ics20TransferActionChange": {}
+    "ics20TransferActionChange": {},
+    "allowIbcRelayToFail": {}
   }
   {{- end }}
   {{- end }}

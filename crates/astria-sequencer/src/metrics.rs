@@ -42,6 +42,7 @@ pub struct Metrics {
     extend_vote_failure_count: Counter,
     verify_vote_extension_failure_count: Counter,
     results_in_recently_executed_cache: Gauge,
+    included_transactions_failed_execution: Counter,
 }
 
 impl Metrics {
@@ -170,6 +171,10 @@ impl Metrics {
 
     pub(crate) fn set_results_in_recently_executed_cache(&self, count: usize) {
         self.results_in_recently_executed_cache.set(count);
+    }
+
+    pub(crate) fn increment_included_transactions_failed_execution(&self) {
+        self.included_transactions_failed_execution.increment(1);
     }
 }
 
@@ -384,6 +389,14 @@ impl telemetry::Metrics for Metrics {
             )?
             .register()?;
 
+        let included_transactions_failed_execution = builder
+            .new_counter_factory(
+                INCLUDED_TRANSACTIONS_FAILED_EXECUTION,
+                "The number of actions which have failed execution but are still included in a \
+                 block",
+            )?
+            .register()?;
+
         Ok(Self {
             prepare_proposal_excluded_transactions_cometbft_space,
             prepare_proposal_excluded_transactions_sequencer_space,
@@ -414,6 +427,7 @@ impl telemetry::Metrics for Metrics {
             extend_vote_failure_count,
             verify_vote_extension_failure_count,
             results_in_recently_executed_cache,
+            included_transactions_failed_execution,
         })
     }
 }
@@ -446,6 +460,7 @@ metric_names!(const METRICS_NAMES:
     EXTEND_VOTE_FAILURE_COUNT,
     VERIFY_VOTE_EXTENSION_FAILURE_COUNT,
     RESULTS_IN_RECENTLY_EXECUTED_CACHE,
+    INCLUDED_TRANSACTIONS_FAILED_EXECUTION,
 );
 
 #[cfg(test)]
@@ -523,6 +538,10 @@ mod tests {
         assert_const(
             RESULTS_IN_RECENTLY_EXECUTED_CACHE,
             "results_in_recently_executed_cache",
+        );
+        assert_const(
+            INCLUDED_TRANSACTIONS_FAILED_EXECUTION,
+            "included_transactions_failed_execution",
         );
     }
 }

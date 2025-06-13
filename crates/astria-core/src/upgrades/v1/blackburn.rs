@@ -7,7 +7,10 @@ use super::{
 };
 use crate::{
     generated::upgrades::v1::{
-        blackburn::Ics20TransferActionChange as RawIcs20TransferActionChange,
+        blackburn::{
+            AllowIbcRelayToFail as RawAllowIbcRelayToFail,
+            Ics20TransferActionChange as RawIcs20TransferActionChange,
+        },
         BaseUpgradeInfo as RawBaseUpgradeInfo,
         Blackburn as RawBlackburn,
     },
@@ -19,6 +22,7 @@ pub struct Blackburn {
     activation_height: u64,
     app_version: u64,
     ics20_transfer_action_change: Ics20TransferActionChange,
+    allow_ibc_relay_to_fail: AllowIbcRelayToFail,
 }
 
 impl Blackburn {
@@ -39,8 +43,15 @@ impl Blackburn {
         &self.ics20_transfer_action_change
     }
 
+    #[must_use]
+    pub fn allow_ibc_relay_to_fail(&self) -> &AllowIbcRelayToFail {
+        &self.allow_ibc_relay_to_fail
+    }
+
     pub fn changes(&self) -> impl Iterator<Item = &'_ dyn Change> {
-        Some(&self.ics20_transfer_action_change as &dyn Change).into_iter()
+        Some(&self.ics20_transfer_action_change as &dyn Change)
+            .into_iter()
+            .chain(Some(&self.allow_ibc_relay_to_fail as &dyn Change))
     }
 }
 
@@ -58,7 +69,16 @@ impl Protobuf for Blackburn {
             return Err(Error::no_ics20_transfer_action_change());
         }
 
+        if raw.allow_ibc_relay_to_fail.is_none() {
+            return Err(Error::no_allow_ibc_relay_to_fail());
+        }
+
         let ics20_transfer_action_change = Ics20TransferActionChange {
+            activation_height,
+            app_version,
+        };
+
+        let allow_ibc_relay_to_fail = AllowIbcRelayToFail {
             activation_height,
             app_version,
         };
@@ -67,6 +87,7 @@ impl Protobuf for Blackburn {
             activation_height,
             app_version,
             ics20_transfer_action_change,
+            allow_ibc_relay_to_fail,
         })
     }
 
@@ -78,6 +99,7 @@ impl Protobuf for Blackburn {
         RawBlackburn {
             base_info,
             ics20_transfer_action_change: Some(RawIcs20TransferActionChange {}),
+            allow_ibc_relay_to_fail: Some(RawAllowIbcRelayToFail {}),
         }
     }
 }
@@ -108,6 +130,32 @@ impl Change for Ics20TransferActionChange {
     }
 }
 
+/// This change alters the `IbcRelay` action to allow it to fail execution, but still be included
+/// in the CometBFT `txs`.
+#[derive(Clone, Debug, BorshSerialize)]
+pub struct AllowIbcRelayToFail {
+    activation_height: u64,
+    app_version: u64,
+}
+
+impl AllowIbcRelayToFail {
+    pub const NAME: ChangeName = ChangeName::new("allow_ibc_relay_to_fail");
+}
+
+impl Change for AllowIbcRelayToFail {
+    fn name(&self) -> ChangeName {
+        Self::NAME.clone()
+    }
+
+    fn activation_height(&self) -> u64 {
+        self.activation_height
+    }
+
+    fn app_version(&self) -> u64 {
+        self.app_version
+    }
+}
+
 /// An error when transforming a [`RawBlackburn`] into a [`Blackburn`].
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
@@ -120,6 +168,10 @@ impl Error {
 
     fn no_ics20_transfer_action_change() -> Self {
         Self(ErrorKind::FieldNotSet("ics20_transfer_action_change"))
+    }
+
+    fn no_allow_ibc_relay_to_fail() -> Self {
+        Self(ErrorKind::FieldNotSet("allow_ibc_relay_to_fail"))
     }
 }
 
@@ -148,6 +200,21 @@ mod tests {
         insta::assert_snapshot!(
             "ics20_transfer_action_change",
             serialized_ics20_transfer_action_change
+        );
+    }
+
+    #[test]
+    fn serialized_allow_ibc_relay_to_fail_should_not_change() {
+        let allow_ibc_relay_to_fail = UpgradesBuilder::new()
+            .build()
+            .blackburn()
+            .unwrap()
+            .allow_ibc_relay_to_fail()
+            .to_vec();
+        let serialized_allow_ibc_relay_to_fail = hex::encode(allow_ibc_relay_to_fail);
+        insta::assert_snapshot!(
+            "allow_ibc_relay_to_fail",
+            serialized_allow_ibc_relay_to_fail
         );
     }
 }
