@@ -124,6 +124,8 @@ pub struct Blackburn {
     pub ics20_transfer_action_change: ::core::option::Option<
         blackburn::Ics20TransferActionChange,
     >,
+    #[prost(message, optional, tag = "3")]
+    pub allow_ibc_relay_to_fail: ::core::option::Option<blackburn::AllowIbcRelayToFail>,
 }
 /// Nested message and enum types in `Blackburn`.
 pub mod blackburn {
@@ -137,6 +139,18 @@ pub mod blackburn {
         }
         fn type_url() -> ::prost::alloc::string::String {
             "/astria.upgrades.v1.Blackburn.Ics20TransferActionChange".into()
+        }
+    }
+    #[derive(Clone, Copy, PartialEq, ::prost::Message)]
+    pub struct AllowIbcRelayToFail {}
+    impl ::prost::Name for AllowIbcRelayToFail {
+        const NAME: &'static str = "AllowIbcRelayToFail";
+        const PACKAGE: &'static str = "astria.upgrades.v1";
+        fn full_name() -> ::prost::alloc::string::String {
+            "astria.upgrades.v1.Blackburn.AllowIbcRelayToFail".into()
+        }
+        fn type_url() -> ::prost::alloc::string::String {
+            "/astria.upgrades.v1.Blackburn.AllowIbcRelayToFail".into()
         }
     }
 }

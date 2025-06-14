@@ -55,7 +55,7 @@ pub(crate) enum RemovalReason {
     Expired,
     NonceStale,
     LowerNonceInvalidated,
-    FailedPrepareProposal(String),
+    FailedExecution(String),
     InternalError,
     IncludedInBlock {
         height: u64,
@@ -69,7 +69,7 @@ impl std::fmt::Display for RemovalReason {
             RemovalReason::Expired => write!(f, "expired"),
             RemovalReason::NonceStale => write!(f, "stale nonce"),
             RemovalReason::LowerNonceInvalidated => write!(f, "lower nonce invalidated"),
-            RemovalReason::FailedPrepareProposal(reason) => {
+            RemovalReason::FailedExecution(reason) => {
                 write!(f, "failed execution: {reason}")
             }
             RemovalReason::InternalError => {
@@ -1065,7 +1065,7 @@ mod tests {
         );
         assert_eq!(mempool.len().await, 5);
 
-        let removal_reason = RemovalReason::FailedPrepareProposal("reason".to_string());
+        let removal_reason = RemovalReason::FailedExecution("reason".to_string());
 
         // remove 4, should remove 4 and 5
         mempool
@@ -1099,11 +1099,11 @@ mod tests {
         let mut removal_cache = mempool.removal_cache().await;
         assert!(matches!(
             removal_cache.remove(tx0.id()),
-            Some(RemovalReason::FailedPrepareProposal(_))
+            Some(RemovalReason::FailedExecution(_))
         ));
         assert!(matches!(
             removal_cache.remove(tx1.id()),
-            Some(RemovalReason::FailedPrepareProposal(_))
+            Some(RemovalReason::FailedExecution(_))
         ));
         assert!(matches!(
             removal_cache.remove(tx3.id()),
@@ -1111,7 +1111,7 @@ mod tests {
         ));
         assert!(matches!(
             removal_cache.remove(tx4.id()),
-            Some(RemovalReason::FailedPrepareProposal(_))
+            Some(RemovalReason::FailedExecution(_))
         ));
         assert!(matches!(
             removal_cache.remove(tx5.id()),

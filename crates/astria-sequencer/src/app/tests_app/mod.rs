@@ -41,6 +41,7 @@ use astria_core::{
     },
     upgrades::test_utils::UpgradesBuilder,
 };
+use penumbra_ibc::IbcRelay;
 use prost::{
     bytes::Bytes,
     Message as _,
@@ -86,6 +87,7 @@ use crate::{
     bridge::StateWriteExt as _,
     fees::StateReadExt as _,
     grpc::StateReadExt as _,
+    mempool::TransactionStatus,
     oracles::price_feed::oracle::state_ext::StateWriteExt as _,
     proposal::commitment::generate_rollup_datas_commitment,
     test_utils::{
@@ -103,6 +105,7 @@ use crate::{
         BOB_ADDRESS_BYTES,
         CAROL,
         CAROL_ADDRESS_BYTES,
+        IBC_SUDO,
         SUDO,
         SUDO_ADDRESS_BYTES,
     },
@@ -899,6 +902,241 @@ async fn app_process_proposal_transaction_fails_to_execute_fails() {
     assert_error_contains(
         &error,
         "failed to construct checked transactions in process proposal",
+    );
+}
+
+pub(crate) fn bad_ibc_relay() -> IbcRelay {
+    use ibc_proto::{
+        google::protobuf::{
+            Any,
+            Timestamp,
+        },
+        ibc::{
+            core::commitment::v1::{
+                MerkleProof as RawMerkleProof,
+                MerkleRoot as RawMerkleRoot,
+            },
+            lightclients::tendermint::v1::{
+                ClientState as RawTmClientState,
+                ConsensusState as RawConsensusState,
+            },
+        },
+    };
+    use ibc_types::{
+        core::client::{
+            msgs::MsgUpgradeClient,
+            ClientId,
+            ClientType,
+        },
+        lightclients::tendermint::{
+            client_state::TENDERMINT_CLIENT_STATE_TYPE_URL,
+            consensus_state::TENDERMINT_CONSENSUS_STATE_TYPE_URL,
+        },
+    };
+    use penumbra_ibc::IbcRelay;
+    use prost::Message as _;
+
+    use crate::test_utils::dummy_ibc_client_state;
+
+    let raw_client_state = RawTmClientState::from(dummy_ibc_client_state(1));
+    let raw_consensus_state = RawConsensusState {
+        timestamp: Some(Timestamp {
+            seconds: 1,
+            nanos: 0,
+        }),
+        root: Some(RawMerkleRoot::default()),
+        next_validators_hash: vec![],
+    };
+    IbcRelay::UpgradeClient(MsgUpgradeClient {
+        client_id: ClientId::new(ClientType::new("test-id".to_string()), 0).unwrap(),
+        client_state: Any {
+            type_url: TENDERMINT_CLIENT_STATE_TYPE_URL.to_string(),
+            value: raw_client_state.encode_to_vec(),
+        },
+        consensus_state: Any {
+            type_url: TENDERMINT_CONSENSUS_STATE_TYPE_URL.to_string(),
+            value: raw_consensus_state.encode_to_vec(),
+        },
+        proof_upgrade_client: RawMerkleProof::default(),
+        proof_upgrade_consensus_state: RawMerkleProof::default(),
+        signer: String::new(),
+    })
+}
+
+#[tokio::test]
+async fn app_prepare_proposal_failed_ibc_relay_included_in_block() {
+    let _ = astria_eyre::install();
+    let mut fixture = Fixture::default_initialized().await;
+    let height = fixture.block_height().await.increment();
+
+    let tx = fixture
+        .checked_tx_builder()
+        .with_action(bad_ibc_relay())
+        .with_signer(IBC_SUDO.clone())
+        .build()
+        .await;
+    let tx_id = *tx.id();
+    let _ = fixture
+        .mempool()
+        .insert(tx, 0, &HashMap::new(), HashMap::new())
+        .await
+        .unwrap();
+
+    let proposer_address = [88u8; 20].to_vec().try_into().unwrap();
+    let prepare_proposal = PrepareProposal {
+        height,
+        time: Time::now(),
+        next_validators_hash: Hash::default(),
+        proposer_address,
+        txs: vec![],
+        max_tx_bytes: 1_000_000,
+        local_last_commit: Some(ExtendedCommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
+        misbehavior: vec![],
+    };
+
+    let prepare_proposal_result = fixture
+        .app
+        .prepare_proposal(prepare_proposal, fixture.storage())
+        .await
+        .unwrap();
+    // Should be three injected txs and the one we created above.
+    assert_eq!(prepare_proposal_result.txs.len(), 4);
+
+    // Check the tx is marked for removal from the mempool.
+    let state = fixture.mempool().transaction_status(&tx_id).await.unwrap();
+    assert!(matches!(
+        state,
+        TransactionStatus::Removed(RemovalReason::FailedExecution(_))
+    ));
+
+    let mut executed_txs: Vec<ExecutedTransaction> =
+        fixture.state().object_get(EXECUTED_TXS_KEY).unwrap();
+
+    assert_eq!(executed_txs.len(), 1);
+    let ExecutedTransaction {
+        tx: executed_tx,
+        exec_result,
+    } = executed_txs.pop().unwrap();
+    assert_eq!(*executed_tx.id(), tx_id);
+    assert_eq!(
+        exec_result.code.value(),
+        AbciErrorCode::TRANSACTION_FAILED_EXECUTION.value().get()
+    );
+    assert_eq!(exec_result.info, "transaction failed execution");
+    assert_error_contains(
+        &exec_result.log,
+        "`IbcRelay` action failed execution (non-fatal)",
+    );
+}
+
+#[tokio::test]
+async fn app_process_proposal_failed_ibc_relay_included_in_block() {
+    let _ = astria_eyre::install();
+    let mut fixture = Fixture::default_initialized().await;
+    let storage = fixture.storage();
+    let height = fixture.block_height().await.increment();
+
+    let tx = fixture
+        .checked_tx_builder()
+        .with_action(bad_ibc_relay())
+        .with_signer(IBC_SUDO.clone())
+        .build()
+        .await;
+    let tx_id = *tx.id();
+
+    let process_proposal = ProcessProposal {
+        hash: Hash::Sha256([1; 32]),
+        height,
+        time: Time::now(),
+        next_validators_hash: Hash::default(),
+        proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
+        txs: transactions_with_extended_commit_info_and_commitments(height, &[tx], None),
+        proposed_last_commit: Some(CommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        }),
+        misbehavior: vec![],
+    };
+
+    fixture
+        .app
+        .process_proposal(process_proposal, storage)
+        .await
+        .unwrap();
+
+    let PostTransactionExecutionResult {
+        mut tx_results, ..
+    } = fixture
+        .state()
+        .object_get(POST_TRANSACTION_EXECUTION_RESULT_KEY)
+        .unwrap();
+
+    assert_eq!(tx_results.len(), 1);
+    let (cached_tx_id, tx_result) = tx_results.pop().unwrap();
+    assert_eq!(cached_tx_id, tx_id);
+    assert_eq!(
+        tx_result.code.value(),
+        AbciErrorCode::TRANSACTION_FAILED_EXECUTION.value().get()
+    );
+    assert_eq!(tx_result.info, "transaction failed execution");
+    assert_error_contains(
+        &tx_result.log,
+        "`IbcRelay` action failed execution (non-fatal)",
+    );
+}
+
+#[tokio::test]
+async fn app_finalize_block_failed_ibc_relay_included_in_block() {
+    let _ = astria_eyre::install();
+    let mut fixture = Fixture::default_initialized().await;
+    let storage = fixture.storage();
+    let height = fixture.block_height().await.increment();
+
+    let tx = fixture
+        .checked_tx_builder()
+        .with_action(bad_ibc_relay())
+        .with_signer(IBC_SUDO.clone())
+        .build()
+        .await;
+
+    let finalize_block = abci::request::FinalizeBlock {
+        hash: Hash::Sha256([1; 32]),
+        height,
+        time: Time::now(),
+        next_validators_hash: Hash::default(),
+        proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
+        txs: transactions_with_extended_commit_info_and_commitments(height, &[tx], None),
+        decided_last_commit: CommitInfo {
+            votes: vec![],
+            round: 0u16.into(),
+        },
+        misbehavior: vec![],
+    };
+
+    let finalize_block_result = fixture
+        .app
+        .finalize_block(finalize_block.clone(), storage)
+        .await
+        .unwrap();
+
+    let abci::response::FinalizeBlock {
+        mut tx_results, ..
+    } = finalize_block_result;
+
+    // Should be three injected txs and the one we created above.
+    assert_eq!(tx_results.len(), 4);
+    let tx_result = tx_results.pop().unwrap();
+    assert_eq!(
+        tx_result.code.value(),
+        AbciErrorCode::TRANSACTION_FAILED_EXECUTION.value().get()
+    );
+    assert_eq!(tx_result.info, "transaction failed execution");
+    assert_error_contains(
+        &tx_result.log,
+        "`IbcRelay` action failed execution (non-fatal)",
     );
 }
 

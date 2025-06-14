@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Disallow ICS20 transfers using denoms which are not allowed fee assets post-Blackburn
   upgrade [#2228](https://github.com/astriaorg/astria/pull/2228).
+- Allow inclusion of `IbcRelay` actions which fail execution post-Blackburn
+  upgrade [#2201](https://github.com/astriaorg/astria/pull/2201).
 
 ## [3.0.0] - 2025-05-21
 

@@ -153,7 +153,7 @@ async fn handle_check_tx_request<S: StateRead>(
             RemovalReason::Expired => {
                 metrics.increment_check_tx_removed_expired();
             }
-            RemovalReason::FailedPrepareProposal(_) => {
+            RemovalReason::FailedExecution(_) => {
                 metrics.increment_check_tx_removed_failed_execution();
             }
             _ => {}
@@ -347,7 +347,7 @@ impl From<RemovalReason> for response::CheckTx {
             RemovalReason::Expired => AbciErrorCode::TRANSACTION_EXPIRED,
             RemovalReason::NonceStale => AbciErrorCode::INVALID_NONCE,
             RemovalReason::LowerNonceInvalidated => AbciErrorCode::LOWER_NONCE_INVALIDATED,
-            RemovalReason::FailedPrepareProposal(_) => AbciErrorCode::TRANSACTION_FAILED_EXECUTION,
+            RemovalReason::FailedExecution(_) => AbciErrorCode::TRANSACTION_FAILED_EXECUTION,
             RemovalReason::IncludedInBlock {
                 ..
             } => AbciErrorCode::TRANSACTION_INCLUDED_IN_BLOCK,

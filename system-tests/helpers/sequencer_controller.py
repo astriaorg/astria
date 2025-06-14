@@ -33,7 +33,7 @@ class SequencerController:
             self.rpc_url = "http://rpc.sequencer.127.0.0.1.nip.io"
             self.grpc_url = "grpc.sequencer.127.0.0.1.nip.io:80"
         else:
-            self.namespace = f"astria-validator-{node_name}"
+            self.namespace = f"astria-sequencer-{node_name}"
             self.rpc_url = f"http://rpc.sequencer-{node_name}.127.0.0.1.nip.io"
             self.grpc_url = f"grpc.sequencer-{node_name}.127.0.0.1.nip.io:80"
         self.last_block_height_before_restart = None
@@ -55,12 +55,15 @@ class SequencerController:
         The sequencer (and associated sequencer-relayer) are installed via `helm install`, then
         when the rollout has completed.
 
-        If `upgrade_name` is set, then the chart value `upgradeTest` will be set to true to ensure
-        genesis.json and upgrades.json have appropriate values set for pre-upgrade.
+        If `upgrade_name` is set, then this indicates an upgrade test and genesis.json and
+        upgrades.json will have appropriate values set for pre-upgrade.
 
         In this case, whether the actual upgrade details for this upgrade are included in
         upgrades.json depends upon setting `upgrade_activation_height`. `None` means they are
         omitted (used when starting nodes before the upgrade has activated).
+
+        If `upgrade_name` is not set, the standard upgrades are applied (Aspen at height 1,
+        Blackburn at height 2)
         """
         try:
             self.upgrade_heights[upgrade_name] = upgrade_activation_height
@@ -349,8 +352,7 @@ class SequencerController:
         if subcommand == "install":
             args.append("--create-namespace")
         if upgrade_name:
-            # This is an upgrade test: set `upgradeTest` so as to provide an upgrades.json file
-            # and genesis.json without upgraded configs.  Also enable persistent storage.
+            # This is an upgrade test.
             args.append("--set=storage.enabled=true")
             args.append("--set=sequencer-relayer.storage.enabled=true")
             args.append(f"--values=dev/values/validators/{upgrade_name}.upgrade.yml")
@@ -364,10 +366,8 @@ class SequencerController:
                 # Otherwise, if no activation height is provided, we will simply omit the upgrade
                 # details from the upgrades.json file.
                 args.append(f"--set=upgrades.{upgrade_name}.enabled=false")
-        elif enable_price_feed:
-            # If we're not upgrading, and the price feed is enabled, enable it in the
-            # genesis.json file.
-            args.append("--values=dev/values/validators/priceFeed.genesis.yml")
+        else:
+            args.append(f"--values=dev/values/validators/{next(reversed(UPGRADE_CHANGES.keys()))}.upgrade.yml")
         return args
 
     def _wait_for_deploy(self, timeout_secs):

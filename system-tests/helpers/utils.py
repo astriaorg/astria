@@ -90,8 +90,8 @@ def check_change_infos(change_infos, upgrade_heights, expected_app_version=None)
                 break
         if expected_upgrade_name is None:
             raise SystemExit(
-                f"sequencer upgrade error: reported change info has unexpected change name \
-                    {change_info.change_name}: expected one of {list(UPGRADE_CHANGES.keys())}"
+                "sequencer upgrade error: reported change info has unexpected change name "
+                f"{change_info.change_name}"
             )
         expected_activation_height = upgrade_heights[expected_upgrade_name]
 

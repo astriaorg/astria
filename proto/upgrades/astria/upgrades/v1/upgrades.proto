@@ -43,7 +43,9 @@ message Aspen {
 // Blackburn upgrade of the Sequencer network.
 message Blackburn {
   message Ics20TransferActionChange {}
+  message AllowIbcRelayToFail {}
 
   BaseUpgradeInfo base_info = 1;
   Ics20TransferActionChange ics20_transfer_action_change = 2;
+  AllowIbcRelayToFail allow_ibc_relay_to_fail = 3;
 }

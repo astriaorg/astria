@@ -78,6 +78,7 @@ impl UpgradesBuilder {
                     app_version: 3,
                 }),
                 ics20_transfer_action_change: Some(raw::blackburn::Ics20TransferActionChange {}),
+                allow_ibc_relay_to_fail: Some(raw::blackburn::AllowIbcRelayToFail {}),
             });
         let raw_upgrades = raw::Upgrades {
             aspen,
