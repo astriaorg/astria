@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allow inclusion of `IbcRelay` actions which fail execution post-Blackburn
   upgrade [#2201](https://github.com/astriaorg/astria/pull/2201).
 
+### Fixed
+
+- Fix memory leak in metrics [2221](https://github.com/astriaorg/astria/pull/2221).
+
 ## [3.0.0] - 2025-05-21
 
 ### Added
