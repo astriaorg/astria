@@ -1,0 +1,46 @@
+moniker: full-node
+genesis:
+  validators:
+    - name: core
+      power: '1'
+      address: 091E47761C58C474534F4D414AF104A6CAF90C22
+      pubKey: lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU=
+
+cometbft:
+  secrets:
+    nodeKey:
+      filename: nodeKey.json
+      devContent:
+        priv_key:
+          value: swOzMy213zJ4MHkBhb75xE8TwL6hwYR+jlUkUklebz1Vd690qZbO5mqoHh6sUa91sUy9MzhIBdKRIzX8tF/DNg==
+    privValidatorKey:
+      filename: privValidatorKey.json
+      devContent:
+        # Ed25519 address of validator
+        address: ACFBEA6C26CB7CC7B9D7F0E92AFFFC5EA1FC265F
+        # public key for the validator address
+        pub_key:
+          value: HR8L25xAuKHBaV/AkWIe/+GWyMUcx4WtVHcNkXwozNo=
+        # private key for the validator address
+        # This is a secret key, should use a secret manager for production deployments
+        priv_key:
+          value: m7HRs/yebN9wcCZUx0N3sESMlWt7HPB/QLMF5uoZSdUdHwvbnEC4ocFpX8CRYh7/4ZbIxRzHha1Udw2RfCjM2g==
+  config:
+    p2p:
+      # List of nodes to keep persistent connections to
+      persistentPeers:
+        - 2490c1fc41736a357c523fe049c319386d59d759@node0-sequencer-p2p-service.astria-dev-cluster.svc.cluster.local:26656
+
+sequencer-relayer:
+  enabled: false
+
+storage:
+  enabled: false
+
+ingress:
+  rpc:
+    hostname: sequencer-full-node.127.0.0.1.nip.io
+    enabled: true
+  grpc:
+    hostname: sequencer-full-node.127.0.0.1.nip.io
+    enabled: true

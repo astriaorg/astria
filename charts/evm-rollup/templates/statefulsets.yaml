@@ -16,6 +16,9 @@ spec:
       labels:
         app: {{ include "rollup.appName" . }}
     spec:
+      {{- if and .Values.secretProvider.enabled .Values.geth.snapshot.restore.enabled }}
+      serviceAccountName: {{ include "rollup.namespace" . }}
+      {{- end }}
       initContainers:
         {{- if .Values.geth.snapshot.restore.enabled }}
         - name: restore-snapshot

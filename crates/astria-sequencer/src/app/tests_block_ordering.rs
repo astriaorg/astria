@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::HashMap,
     sync::Arc,
 };
 
@@ -251,7 +251,7 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
     );
 
     app.mempool
-        .run_maintenance(&app.state, false, &HashSet::new(), 0)
+        .run_maintenance(&app.state, false, HashMap::new(), 0)
         .await;
     assert_eq!(
         app.mempool.len().await,
@@ -260,7 +260,7 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
     );
 
     // commit state for next prepare proposal
-    app.prepare_commit(storage.clone(), HashSet::new())
+    app.prepare_commit(storage.clone(), Vec::new())
         .await
         .unwrap();
     app.commit(storage.clone()).await.unwrap();
@@ -290,7 +290,7 @@ async fn app_prepare_proposal_account_block_misordering_ok() {
     );
 
     app.mempool
-        .run_maintenance(&app.state, false, &HashSet::new(), 0)
+        .run_maintenance(&app.state, false, HashMap::new(), 0)
         .await;
     assert_eq!(app.mempool.len().await, 0, "mempool should be empty");
 }

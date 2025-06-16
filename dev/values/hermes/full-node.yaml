@@ -1,0 +1,73 @@
+createChannel:
+  enabled: true
+  chainA: sequencer-test-chain-0
+  portA: transfer
+  chainB: celestia-local-0
+  portB: transfer
+
+secretProvider:
+  enabled: false
+
+chains:
+  sequencer-test-chain-0:
+    type: Astria
+    rpcAddr: http://full-node-sequencer-rpc-service.astria-sequencer-full-node.svc.cluster.local:26657
+    grpcAddr: http://full-node-sequencer-grpc-service.astria-sequencer-full-node.svc.cluster.local:8080
+    rpcTimeout: 15s
+    ccvConsumerChain: false
+    accountPrefix: not_used
+    storePrefix: ibc-data
+    key:
+      name: astria-wallet
+      devContent:
+        signing_key: [43, 216, 6, 201, 127, 14, 0, 175, 26, 31, 195, 50, 143, 167, 99, 169, 38, 151, 35, 200, 219, 143, 172, 79, 147, 175, 113, 219, 24, 109, 110, 144]
+        address_type: Astria
+      secret:
+        resourceName: projects/$PROJECT_ID/secrets/astria-ibc-relay-key/versions/latest
+        filename: astria-wallet.json
+        key: token
+    eventSource:
+      mode: push
+      batchDelay: 1s
+      url: ws://full-node-sequencer-rpc-service.astria-sequencer-full-node.svc.cluster.local:26657/websocket
+    gasPrice: 1
+    gasDenom: nria
+    trustThreshold: 2/3
+    trustingPeriod: 14days
+
+  celestia-local-0:
+    type: CosmosSdk
+    compatMode: "0.34"
+    rpcAddr: http://celestia-app-service.astria-dev-cluster.svc.cluster.local:26657
+    grpcAddr: http://celestia-app-service.astria-dev-cluster.svc.cluster.local:9090
+    rpcTimeout: 15s
+    ccvConsumerChain: false
+    accountPrefix: celestia
+    storePrefix: ibc
+    key:
+      name: celestia
+      # ibc account key
+      devContent:
+        private_key: cd8fe707b8e4743e681e0bc91d11583a9fc816ae34ad9cb844174b1e4afbae56
+        public_key: 02b4348667a0b25ccb662c71dc0920d46f1d67a14424665f0162266b5747eb1b07
+        address: [111, 5, 223, 20, 76, 255, 226, 98, 86, 19, 67, 73, 207, 27, 16, 245, 78, 102, 228, 160]
+        address_type: Cosmos
+        account: celestia1duza79zvll3xy4sngdyu7xcs748xde9q2fcae0
+      secret:
+        resourceName: projects/$PROJECT_ID/secrets/celestia-ibc-relay-key/versions/latest
+        filename: celestia.json
+        key: token
+    eventSource:
+      mode: pull
+      interval: 1s
+    gasDenom: "utia"
+    gasPrice: 0.0026
+    gasMultiplier: 1.2
+    defaultGas: "1000000"
+    maxGas: "10000000"
+    maxMsgNum: 30
+    maxTxSize: "2097152"
+    clockDrift: 5s
+    maxBlockTime: 30s
+    trustThreshold: 2/3
+    trustingPeriod: 14days

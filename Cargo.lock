@@ -904,6 +904,7 @@ dependencies = [
  "penumbra-sdk-ibc",
  "penumbra-sdk-proto",
  "penumbra-sdk-tower-trace",
+ "penumbra-sdk-txhash",
  "pin-project-lite",
  "prost",
  "rand 0.8.5",

@@ -100,7 +100,7 @@ Usage:
   just delete sequencer <NAME> (default: 'single')
 ")]
 sequencer name=validatorName:
-  @just delete::delete-chart {{name}}-sequencer astria-validator-{{name}}
+  @just delete::delete-chart {{name}}-sequencer astria-sequencer-{{name}}
 
 
 # Delete Sequencers
@@ -162,17 +162,6 @@ Usage:
 ")]
 hyperlane-agents rollupName=defaultRollupName:
   @just delete::delete-chart {{rollupName}}-hyperlane-agents
-
-
-# Delete Smoke Test
-####################
-[doc("
-Deletes associated components for running smoke tests (Celestia, Sequencer, and
-EVM rollup).
-")]
-smoke-test: delete-celestia-local
-  @just delete sequencer
-  @just delete rollup
 
 
 # Delete IBC Test

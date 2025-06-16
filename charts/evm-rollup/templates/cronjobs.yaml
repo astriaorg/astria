@@ -13,6 +13,42 @@ spec:
     spec:
       template:
         spec:
+          serviceAccountName: {{ include "rollup.name" . }}-snapshot-sa
+          containers:
+          - name: snapshot-orchestrator
+            image: bitnami/kubectl:latest
+            imagePullPolicy: IfNotPresent
+            command: [ "/scripts/orchestrate-snapshot.sh" ]
+            envFrom:
+              - configMapRef:
+                  name: {{ include "rollup.name" . }}-geth-env
+            volumeMounts:
+              - mountPath: /scripts/
+                name: {{ include "rollup.name" . }}-executor-scripts-volume
+          restartPolicy: OnFailure
+          volumes:
+            - name: {{ include "rollup.name" . }}-executor-scripts-volume
+              configMap:
+                name: {{ include "rollup.name" . }}-executor-scripts
+                defaultMode: 0755
+---
+kind: CronJob
+apiVersion: batch/v1
+metadata:
+  name: {{ include "rollup.name" . }}-geth-snapshot-template
+  labels:
+    app: {{ include "rollup.appName" . }}
+  namespace: {{ include "rollup.namespace" . }}
+spec:
+  schedule: "0 0 31 2 *"
+  suspend: true
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          {{- if and .Values.secretProvider.enabled .Values.geth.snapshot.create.storage.upload.enabled }}
+          serviceAccountName: {{ include "rollup.namespace" . }}
+          {{- end }}
           containers:
           - name: create-snapshot
             image: {{ .Values.images.snapshot.repo }}:{{ .Values.images.snapshot.tag }}
@@ -23,7 +59,7 @@ spec:
                   name: {{ include "rollup.name" . }}-geth-env
             volumeMounts:
               {{- if .Values.geth.snapshot.create.storage.upload.enabled }}
-              - mountPath: /root/.config/rclone/
+              - mountPath: /config/rclone/
                 name: {{ include "rollup.name" . }}-rclone-config-volume
               {{- end }}
               - mountPath: /scripts/
@@ -49,7 +85,7 @@ spec:
             - name: {{ include "rollup.name" . }}-executor-scripts-volume
               configMap:
                 name: {{ include "rollup.name" . }}-executor-scripts
-                defaultMode: 0500
+                defaultMode: 0755
             - name: {{ include "rollup.name" $ }}-rollup-shared-storage-vol
               {{- if .Values.storage.enabled }}
               persistentVolumeClaim:

@@ -57,6 +57,23 @@ docker-build-and-load crate tag=default_docker_tag repo_name=default_repo_name: 
   just load-image $short_name {{tag}} {{repo_name}}
 
 
+# Docker Build and Load All
+############################
+[doc("
+Builds and loads docker images for all components.
+Usage:
+  just docker-build-and-load-all <tag> <repo_name> (defaults: 'local', 'ghcr.io/astriaorg')
+")]
+docker-build-and-load-all tag=default_docker_tag repo_name=default_repo_name:
+  just docker-build-and-load astria-sequencer {{tag}} {{repo_name}}
+  just docker-build-and-load astria-sequencer-relayer {{tag}} {{repo_name}}
+  just docker-build-and-load astria-bridge-withdrawer {{tag}} {{repo_name}}
+  just docker-build-and-load astria-auctioneer {{tag}} {{repo_name}}
+  just docker-build-and-load astria-composer {{tag}} {{repo_name}}
+  just docker-build-and-load astria-conductor {{tag}} {{repo_name}}
+  just docker-build-and-load astria-cli {{tag}} {{repo_name}}
+
+
 # Maps a crate name to the shortened name used in the docker tag.
 # If `quiet` is an empty string the shortened name will be echoed. If `quiet` is a non-empty string,
 # the only output will be in the case of an error, where the input `crate` is not a valid one.
