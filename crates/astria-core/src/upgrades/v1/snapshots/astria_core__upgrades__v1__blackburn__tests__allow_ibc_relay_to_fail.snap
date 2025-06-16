@@ -1,0 +1,6 @@
+---
+source: crates/astria-core/src/upgrades/v1/blackburn.rs
+assertion_line: 215
+expression: serialized_allow_ibc_relay_to_fail
+---
+67000000000000000300000000000000

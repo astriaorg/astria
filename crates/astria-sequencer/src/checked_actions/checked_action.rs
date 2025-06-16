@@ -27,6 +27,10 @@ use astria_core::{
             ValidatorUpdate,
         },
     },
+    upgrades::v1::blackburn::{
+        AllowIbcRelayToFail,
+        Blackburn,
+    },
 };
 use astria_eyre::eyre;
 use cnidarium::{
@@ -75,6 +79,7 @@ use crate::{
     },
     ibc::StateWriteExt as _,
     storage::StoredValue,
+    upgrades::StateReadExt as _,
 };
 
 /// An enum of all the various checked action types.
@@ -426,9 +431,27 @@ impl CheckedAction {
                     &mut state,
                 )
                 .await?;
-                checked_action.execute(&mut state).await.map_err(|source| {
-                    CheckedActionExecutionError::execution(checked_action.action().name(), source)
-                })
+                if let Err(source) = checked_action.execute(&mut state).await {
+                    // Determine whether to report this as a fatal error (pre-Blackburn) or not.
+                    let is_fatal = state
+                        .get_upgrade_change_info(&Blackburn::NAME, &AllowIbcRelayToFail::NAME)
+                        .await
+                        .map(|maybe_change_info| maybe_change_info.is_none())
+                        .unwrap_or(true);
+                    let error = if is_fatal {
+                        CheckedActionExecutionError::execution(
+                            checked_action.action().name(),
+                            source,
+                        )
+                    } else {
+                        CheckedActionExecutionError::non_fatal_execution(
+                            checked_action.action().name(),
+                            source,
+                        )
+                    };
+                    return Err(error);
+                }
+                Ok(())
             }
             Self::IbcSudoChange(checked_action) => {
                 pay_fee(
