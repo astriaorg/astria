@@ -1,5 +1,5 @@
 ---
 source: crates/astria-sequencer/src/app/tests_breaking_changes.rs
-expression: "hex::encode(fixture.app.app_hash.as_bytes())"
+expression: "hex::encode(app.app_hash.as_bytes())"
 ---
-"ed301b41d37503b9565de19d2771fa516b6859aa65aee46e28a29097282fefe7"
+"261437c63ee3bdbf38846c838c9d42de3321992f0f6dfd24ca2c0305f2488fe1"

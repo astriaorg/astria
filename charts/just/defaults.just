@@ -8,9 +8,6 @@ defaultPrivateKey := ""
 defaultNetworkId  := ""
 defaultTag        := ""
 defaultDockerTag  := "local"
-defaultUpgradeName := "aspen"
-
-defaultHermes := "local"
 
 defaultSequencerStartBlock := ""
 

@@ -1,16 +1,8 @@
 from python_on_whales import docker
 from python_on_whales.exceptions import DockerException
-from .defaults import (
-    BASE_AMOUNT,
-    TRANSFER_AMOUNT,
-    EVM_DESTINATION_ADDRESS
-)
 from .utils import Retryer
 
 SEQUENCER_RPC_POD_PORT = 26657
-SEQUENCER_BRIDGE_ADDRESS = "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
-SEQUENCER_BRIDGE_SIGNING_KEY = "dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0"
-SEQUENCER_FUNDS_SIGNING_KEY = "934ab488f9e1900f6a08f50605ce1409ca9d95ebdc400dafc2e8a4306419fd52"
 
 class Cli:
     """
@@ -23,7 +15,7 @@ class Cli:
     def set_image_tag(self, image_tag):
         self.image_tag = image_tag
 
-    def wait_until_balance(self, account, expected_balance, timeout_secs, sequencer_name, asset="nria"):
+    def wait_until_balance(self, account, expected_balance, timeout_secs, sequencer_name):
         """
         Polls for the balance of the given account until the expected balance is reached.
 
@@ -33,7 +25,7 @@ class Cli:
         balance = None
         while True:
             try:
-                balance = self._try_get_balance(account, sequencer_name, asset)
+                balance = self._try_get_balance(account, sequencer_name)
                 if balance == expected_balance:
                     break
             except Exception as error:
@@ -52,12 +44,12 @@ class Cli:
             )
         print(f"current balance: {balance}, finished waiting")
 
-    def init_bridge_account(self, sequencer_name, private_key=SEQUENCER_BRIDGE_SIGNING_KEY):
+    def init_bridge_account(self, sequencer_name):
         try:
             self._try_exec_sequencer_command_with_retry(
                 "init-bridge-account",
                 "--rollup-name=astria",
-                f"--private-key={private_key}",
+                "--private-key=dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0",
                 "--sequencer.chain-id=sequencer-test-chain-0",
                 "--fee-asset=nria",
                 "--asset=nria",
@@ -66,21 +58,14 @@ class Cli:
         except Exception as error:
             raise SystemExit(error)
 
-    def bridge_lock(
-        self,
-        sequencer_name,
-        amount=(TRANSFER_AMOUNT*BASE_AMOUNT),
-        bridge_address=SEQUENCER_BRIDGE_ADDRESS,
-        destination_address=EVM_DESTINATION_ADDRESS,
-        private_key=SEQUENCER_FUNDS_SIGNING_KEY
-    ):
+    def bridge_lock(self, sequencer_name):
         try:
             self._try_exec_sequencer_command_with_retry(
                 "bridge-lock",
-                bridge_address,
-                f"--amount={amount}",
-                f"--destination-chain-address={destination_address}",
-                f"--private-key={private_key}",
+                "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u",
+                "--amount=10000000000",
+                "--destination-chain-address=0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30",
+                "--private-key=934ab488f9e1900f6a08f50605ce1409ca9d95ebdc400dafc2e8a4306419fd52",
                 "--sequencer.chain-id=sequencer-test-chain-0",
                 "--fee-asset=nria",
                 "--asset=nria",
@@ -103,20 +88,6 @@ class Cli:
         except Exception as error:
             raise SystemExit(error)
 
-    def add_utia_asset(self):
-        try:
-            self._try_exec_sequencer_command_with_retry(
-                "sudo",
-                "fee-asset",
-                "add",
-                "--sequencer.chain-id=sequencer-test-chain-0",
-                "--private-key=2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90",
-                "--asset=transfer/channel-0/utia",
-                sequencer_name="node0"
-            )
-        except Exception as error:
-            raise SystemExit(error)
-
     def address(self, sequencer_name, address_bytes):
         try:
             return self._try_exec_sequencer_command(
@@ -129,7 +100,7 @@ class Cli:
         except Exception as error:
             raise SystemExit(error)
 
-    def _try_get_balance(self, account, sequencer_name, asset):
+    def _try_get_balance(self, account, sequencer_name):
         """
         Tries to get the given account's balance by calling `astria-cli sequencer account balance`.
         """
@@ -137,11 +108,11 @@ class Cli:
             "account", "balance", account, sequencer_name=sequencer_name
         )
         balance_line = stdout.splitlines().pop()
-        if balance_line.endswith(asset):
-            return int(balance_line[:-len(asset)])
+        if balance_line.endswith("nria"):
+            return int(balance_line[:-4])
         else:
             raise RuntimeError(
-                f"expected last line of cli `sequencer account balance` output to end with `{asset}`: "
+                "expected last line of cli `sequencer account balance` output to end with `nria`: "
                 f"stdout: `{stdout}`"
             )
 
@@ -177,7 +148,7 @@ class Cli:
 
         Returns the stdout output on success, or throws a `DockerException` otherwise.
         """
-        if sequencer_name == "node0" or sequencer_name == "single":
+        if sequencer_name == "node0":
             url = "http://rpc.sequencer.127.0.0.1.nip.io"
         else:
             url = f"http://rpc.sequencer-{sequencer_name}.127.0.0.1.nip.io"

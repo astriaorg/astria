@@ -201,7 +201,7 @@ async fn maintenance_recosting_promotes() {
         .init()
         .await;
 
-    let height = fixture.run_until_blackburn_applied().await;
+    let height = fixture.run_until_aspen_applied().await;
 
     // create tx which will not be included in block due to
     // having insufficient funds (transaction will be recosted to enable)
@@ -374,7 +374,7 @@ async fn maintenance_funds_added_promotes() {
         .init()
         .await;
 
-    let height = fixture.run_until_blackburn_applied().await;
+    let height = fixture.run_until_aspen_applied().await;
 
     // create tx that will not be included in block due to
     // having no funds (will be sent transfer to then enable)
@@ -445,7 +445,7 @@ async fn maintenance_funds_added_promotes() {
     assert_eq!(
         res.txs.len(),
         4,
-        "only one transaction should've been valid (besides 3 generated txs)"
+        "only one transactions should've been valid (besides 3 generated txs)"
     );
 
     let hash = Hash::Sha256([97u8; 32]);
@@ -728,9 +728,8 @@ async fn proposer_flow_included_transactions_sent_to_mempool() {
         2,
         "removal cache should have 2 txs"
     );
-    let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
-        height: height_1, ..
-    }) = fixture.mempool().transaction_status(tx_1_id).await.unwrap()
+    let TransactionStatus::Removed(RemovalReason::IncludedInBlock(height_1)) =
+        fixture.mempool().transaction_status(tx_1_id).await.unwrap()
     else {
         panic!("tx_1 should be removed");
     };
@@ -739,9 +738,8 @@ async fn proposer_flow_included_transactions_sent_to_mempool() {
         height.value(),
         "tx_1 should be removed from mempool with height {height}"
     );
-    let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
-        height: height_2, ..
-    }) = fixture.mempool().transaction_status(tx_2_id).await.unwrap()
+    let TransactionStatus::Removed(RemovalReason::IncludedInBlock(height_2)) =
+        fixture.mempool().transaction_status(tx_2_id).await.unwrap()
     else {
         panic!("tx_2 should be removed");
     };
@@ -885,9 +883,8 @@ async fn non_proposer_validator_flow_included_transactions_sent_to_mempool() {
         2,
         "removal cache should have 2 txs"
     );
-    let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
-        height: height_1, ..
-    }) = fixture.mempool().transaction_status(tx_1_id).await.unwrap()
+    let TransactionStatus::Removed(RemovalReason::IncludedInBlock(height_1)) =
+        fixture.mempool().transaction_status(tx_1_id).await.unwrap()
     else {
         panic!("tx_1 should be removed");
     };
@@ -896,9 +893,8 @@ async fn non_proposer_validator_flow_included_transactions_sent_to_mempool() {
         height.value(),
         "tx_1 should be removed from mempool with height {height}"
     );
-    let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
-        height: height_2, ..
-    }) = fixture.mempool().transaction_status(tx_2_id).await.unwrap()
+    let TransactionStatus::Removed(RemovalReason::IncludedInBlock(height_2)) =
+        fixture.mempool().transaction_status(tx_2_id).await.unwrap()
     else {
         panic!("tx_2 should be removed");
     };
@@ -909,7 +905,6 @@ async fn non_proposer_validator_flow_included_transactions_sent_to_mempool() {
     );
 }
 
-#[expect(clippy::too_many_lines, reason = "it's a test")]
 #[tokio::test]
 async fn non_validator_flow_included_transactions_sent_to_mempool() {
     // The flow of this test simulates a full node (running a mempool) that is not a validator
@@ -1012,9 +1007,8 @@ async fn non_validator_flow_included_transactions_sent_to_mempool() {
         2,
         "removal cache should have 2 txs"
     );
-    let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
-        height: height_1, ..
-    }) = fixture.mempool().transaction_status(tx_1_id).await.unwrap()
+    let TransactionStatus::Removed(RemovalReason::IncludedInBlock(height_1)) =
+        fixture.mempool().transaction_status(tx_1_id).await.unwrap()
     else {
         panic!("tx_1 should be removed");
     };
@@ -1023,9 +1017,8 @@ async fn non_validator_flow_included_transactions_sent_to_mempool() {
         height.value(),
         "tx_1 should be removed from mempool with height {height}"
     );
-    let TransactionStatus::Removed(RemovalReason::IncludedInBlock {
-        height: height_2, ..
-    }) = fixture.mempool().transaction_status(tx_2_id).await.unwrap()
+    let TransactionStatus::Removed(RemovalReason::IncludedInBlock(height_2)) =
+        fixture.mempool().transaction_status(tx_2_id).await.unwrap()
     else {
         panic!("tx_2 should be removed");
     };

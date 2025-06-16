@@ -4,6 +4,7 @@ use std::{
         hash_map,
         BTreeMap,
         HashMap,
+        HashSet,
     },
     fmt,
     mem,
@@ -23,7 +24,6 @@ use astria_eyre::eyre::{
     Result,
     WrapErr as _,
 };
-use tendermint::abci::types::ExecTxResult;
 use tokio::time::{
     Duration,
     Instant,
@@ -685,7 +685,7 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
         &mut self,
         address_bytes: &[u8; ADDRESS_LENGTH],
         current_account_nonce: u32,
-        txs_included_in_block: &HashMap<TransactionId, Arc<ExecTxResult>>,
+        txs_included_in_block: &HashSet<TransactionId>,
         block_height: u64,
     ) -> Vec<(TransactionId, RemovalReason)> {
         // Take the collection for this account out of `self` temporarily if it exists.
@@ -699,16 +699,10 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
         let mut removed_txs: Vec<_> = split_off
             .into_values()
             .map(|ttx| {
-                if let Some(result) = txs_included_in_block.get(ttx.id()) {
+                if txs_included_in_block.contains(ttx.id()) {
                     // We only need to check stale transactions for inclusion, since all executed
                     // transactions will be stale
-                    (
-                        *ttx.id(),
-                        RemovalReason::IncludedInBlock {
-                            height: block_height,
-                            result: result.clone(),
-                        },
-                    )
+                    (*ttx.id(), RemovalReason::IncludedInBlock(block_height))
                 } else {
                     (*ttx.id(), RemovalReason::NonceStale)
                 }
@@ -1922,11 +1916,11 @@ mod tests {
         // should pop none from signing_address_0, one from signing_address_1, and all from
         // signing_address_2
         let mut removed_txs =
-            pending_txs.clean_account_stale_expired(&ALICE_ADDRESS_BYTES, 0, &HashMap::new(), 0);
+            pending_txs.clean_account_stale_expired(&ALICE_ADDRESS_BYTES, 0, &HashSet::new(), 0);
         removed_txs.extend(pending_txs.clean_account_stale_expired(
             &BOB_ADDRESS_BYTES,
             1,
-            &HashMap::new(),
+            &HashSet::new(),
             0,
         ));
         removed_txs.extend(pending_txs.clean_account_stale_expired(
@@ -1934,9 +1928,9 @@ mod tests {
             4,
             // should remove transactions 0 and 1 with `RemovalReason::Indluded(9)`
             &{
-                let mut included_txs = HashMap::new();
-                included_txs.insert(*ttx_s2_0.id(), Arc::new(ExecTxResult::default()));
-                included_txs.insert(*ttx_s2_1.id(), Arc::new(ExecTxResult::default()));
+                let mut included_txs = HashSet::new();
+                included_txs.insert(*ttx_s2_0.id());
+                included_txs.insert(*ttx_s2_1.id());
                 included_txs
             },
             INCLUDED_TX_BLOCK_NUMBER,
@@ -1982,13 +1976,9 @@ mod tests {
                 assert!(
                     matches!(
                         reason,
-                        RemovalReason::IncludedInBlock {
-                            height: INCLUDED_TX_BLOCK_NUMBER,
-                            ..
-                        }
+                        RemovalReason::IncludedInBlock(INCLUDED_TX_BLOCK_NUMBER)
                     ),
-                    "removal reason should be IncludedInBlock{{ height: INCLUDED_TX_BLOCK_NUMBER \
-                     , .. }}"
+                    "removal reason should be included(9)"
                 );
             } else {
                 assert_eq!(
@@ -2032,11 +2022,11 @@ mod tests {
 
         // clean accounts, all nonces should be valid
         let mut removed_txs =
-            pending_txs.clean_account_stale_expired(&ALICE_ADDRESS_BYTES, 0, &HashMap::new(), 1);
+            pending_txs.clean_account_stale_expired(&ALICE_ADDRESS_BYTES, 0, &HashSet::new(), 1);
         removed_txs.extend(pending_txs.clean_account_stale_expired(
             &BOB_ADDRESS_BYTES,
             0,
-            &HashMap::new(),
+            &HashSet::new(),
             1,
         ));
 

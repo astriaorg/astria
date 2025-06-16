@@ -56,12 +56,13 @@ Or install packages directly (not recommended):
 uv pip install argparse requests google google-api-core grpcio python-on-whales
 ```
 
-## Running Tests
+## Running the Upgrade Test
 
 For now, it requires an environment to be set up via `just` commands prior to
 execution.
 
-To run a system test:
+To run the sequencer upgrade test where the binaries used to execute the upgrade
+are as per the `latest` tag:
 
 ```shell
 # If previously run, clean up
@@ -69,20 +70,14 @@ just clean helm
 
 # Set up the test environment
 just deploy cluster # only needs to be run first time
-just deploy [TEST_NAME]
+just deploy upgrade-test
 
-# Current Python tests:
-#   - evm-restart-test
-#   - multiple-relayer-test
-#   - smoke-test
-#   - upgrade-test
-
-# Run the desired test
-just run upgrade-test <IMAGE_TAG> # e.g. 'latest', 'local', 'pr-2000'
-just run smoke-test <FLAGS> # e.g. --image-tag sequencer=latest
-just run evm-restart-test <FLAGS>
-just run multiple-relayer-test <FLAGS>
+# Run the test
+just run upgrade-test
 ```
+
+This invokes the `sequencer_upgrade_test.py` script with the args
+`--image-tag latest` and `--upgrade-name aspen`.
 
 To run the upgrade test using local builds:
 
@@ -93,13 +88,17 @@ just clean helm
 # Set up the test environment
 just deploy cluster # only needs to be run first time
 cargo check
-just docker-build-and-load-all
-just deploy [TEST_NAME]
+just docker-build-and-load astria-sequencer-relayer
+just docker-build-and-load astria-sequencer
+just docker-build-and-load astria-composer
+just docker-build-and-load astria-conductor
+just docker-build-and-load astria-cli
+just docker-build-and-load astria-bridge-withdrawer
+just deploy upgrade-test
 
-# Run the desired test
+# Run the test
 just run upgrade-test local
-just run smoke-test -i sequencer=local -i sequencer-relayer=local -i bridge-withdrawer=local\
-    -i composer=local -i conductor=local -i cli=local
-just run evm-restart-test -i sequencer=local -i sequencer-relayer=local -i bridge-withdrawer=local\
-    -i composer=local -i conductor=local -i cli=local
 ```
+
+This invokes the `sequencer_upgrade_test.py` script with the args
+`--image-tag local` and `--upgrade-name aspen`.

@@ -3,13 +3,11 @@ use super::{
     Change,
     UpgradeName,
 };
-use crate::upgrades::v1::blackburn::Blackburn;
 
 /// An enum of the closed set of all possible upgrades.
 #[derive(Clone, Debug)]
 pub enum Upgrade {
     Aspen(Aspen),
-    Blackburn(Blackburn),
 }
 
 impl Upgrade {
@@ -17,7 +15,6 @@ impl Upgrade {
     pub fn activation_height(&self) -> u64 {
         match self {
             Upgrade::Aspen(aspen) => aspen.activation_height(),
-            Upgrade::Blackburn(blackburn) => blackburn.activation_height(),
         }
     }
 
@@ -25,14 +22,13 @@ impl Upgrade {
     pub fn app_version(&self) -> u64 {
         match self {
             Upgrade::Aspen(aspen) => aspen.app_version(),
-            Upgrade::Blackburn(blackburn) => blackburn.app_version(),
         }
     }
 
     #[must_use]
     pub fn shutdown_required(&self) -> bool {
         match self {
-            Upgrade::Aspen(_) | Upgrade::Blackburn(_) => false,
+            Upgrade::Aspen(_) => false,
         }
     }
 
@@ -40,15 +36,12 @@ impl Upgrade {
     pub fn name(&self) -> UpgradeName {
         match self {
             Upgrade::Aspen(_) => Aspen::NAME.clone(),
-            Upgrade::Blackburn(_) => Blackburn::NAME.clone(),
         }
     }
 
-    #[must_use]
-    pub fn changes(&self) -> Box<dyn Iterator<Item = &'_ dyn Change> + '_> {
+    pub fn changes(&self) -> impl Iterator<Item = &'_ dyn Change> {
         match self {
-            Upgrade::Aspen(aspen) => Box::new(aspen.changes()),
-            Upgrade::Blackburn(blackburn) => Box::new(blackburn.changes()),
+            Upgrade::Aspen(aspen) => aspen.changes(),
         }
     }
 }

@@ -34,12 +34,10 @@ celestia-local:
 ###################
 [doc("
 Waits for Hermes to be ready.
-Usage:
-  just wait-for hermes <NAME> (default: 'local')
 ")]
-hermes name=defaultHermes:
+hermes-local:
   @echo "Waiting for Hermes to be ready..."
-  @kubectl wait -n hermes-{{name}} deployment hermes-{{name}}-chart --for=condition=Available=True --timeout=600s
+  @kubectl wait -n {{defaultNamespace}} deployment hermes-local-chart --for=condition=Available=True --timeout=600s
 
 
 # Waits for ingress controller

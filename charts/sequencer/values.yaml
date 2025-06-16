@@ -177,11 +177,6 @@ upgrades:
     #         blockTimestamp: "2024-07-04T19:46:35+00:00"
     #         price: "3138872234"
     #       id: "1"
-  blackburn:
-    enabled: false
-    # baseInfo:
-    #   activationHeight: 1
-    #   appVersion: 3
 
 sequencer:
   logLevel: "info"
@@ -189,7 +184,6 @@ sequencer:
   mempool:
     parked:
       maxTxCount: 200
-    executionResultsCacheSize: 1000
   priceFeed:
     enabled: false
     clientTimeout: 1000

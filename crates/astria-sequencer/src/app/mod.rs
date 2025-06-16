@@ -14,7 +14,7 @@ mod tests_breaking_changes;
 pub(crate) mod vote_extension;
 
 use std::{
-    collections::HashMap,
+    collections::HashSet,
     sync::Arc,
     time::Instant,
 };
@@ -22,7 +22,6 @@ use std::{
 use astria_core::{
     primitive::v1::TransactionId,
     protocol::{
-        abci::AbciErrorCode,
         genesis::v1::GenesisAppState,
         price_feed::v1::ExtendedCommitInfoWithCurrencyPairMapping,
         transaction::v1::action::{
@@ -43,7 +42,6 @@ use astria_core::{
 };
 use astria_eyre::{
     anyhow_to_eyre,
-    eyre,
     eyre::{
         bail,
         ensure,
@@ -71,7 +69,6 @@ use tendermint::{
     abci::{
         self,
         types::ExecTxResult,
-        Code,
         Event,
     },
     account,
@@ -123,10 +120,7 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    checked_actions::{
-        CheckedAction,
-        CheckedActionExecutionError,
-    },
+    checked_actions::CheckedAction,
     checked_transaction::{
         CheckedTransaction,
         CheckedTransactionExecutionError,
@@ -223,9 +217,8 @@ struct WriteBatch {
     /// of the current block being executed, created from the state delta,
     /// and set after `finalize_block`.
     write_batch: StagedWriteBatch,
-    /// The hashes and results of all transactions executed in the block for which this write batch
-    /// is made.
-    execution_results: HashMap<TransactionId, Arc<ExecTxResult>>,
+    /// The IDs of all transactions executed in the block for which this write batch is made.
+    executed_tx_ids: HashSet<TransactionId>,
 }
 
 impl App {
@@ -332,7 +325,7 @@ impl App {
         state_tx.apply();
 
         let app_hash = self
-            .prepare_commit(storage, Vec::new())
+            .prepare_commit(storage, HashSet::new())
             .await
             .wrap_err("failed to prepare commit")?;
         debug!(app_hash = %telemetry::display::base64(&app_hash), "init_chain completed");
@@ -801,7 +794,6 @@ impl App {
             block_size_constraints,
             executed_txs: vec![],
             current_tx_group: Group::BundleableGeneral,
-            mempool: self.mempool.clone(),
         };
 
         for tx in txs {
@@ -912,36 +904,26 @@ impl App {
             };
         }
 
-        let exec_result = match self.execute_transaction(tx.clone()).await {
-            Ok(events) => ExecTxResult {
-                events,
-                ..Default::default()
-            },
-            Err(CheckedTransactionExecutionError::CheckedAction(
-                error @ CheckedActionExecutionError::NonFatalExecution {
-                    ..
-                },
-            )) => {
-                let log = eyre::Report::new(error)
-                    .wrap_err("transaction failed execution")
-                    .to_string();
-                let reason = RemovalReason::FailedExecution(log.clone());
+        let executed_txs = proposal_info.executed_txs_mut();
+        match self.execute_transaction(tx.clone()).await {
+            Ok(events) => {
+                let exec_result = ExecTxResult {
+                    events,
+                    ..Default::default()
+                };
+                let executed_tx = ExecutedTransaction {
+                    tx,
+                    exec_result,
+                };
+                executed_txs.push(executed_tx);
                 proposal_info
-                    .mempool()
-                    .remove_tx_invalid(tx.clone(), reason)
-                    .await;
-                if let Proposal::Prepare {
-                    failed_tx_count, ..
-                } = proposal_info
-                {
-                    *failed_tx_count = failed_tx_count.saturating_add(1);
-                }
-                ExecTxResult {
-                    code: Code::Err(AbciErrorCode::TRANSACTION_FAILED_EXECUTION.value()),
-                    log,
-                    info: "transaction failed execution".to_string(),
-                    ..ExecTxResult::default()
-                }
+                    .block_size_constraints_mut()
+                    .sequencer_checked_add(tx_sequence_data_length)
+                    .wrap_err("error growing sequencer block size")?;
+                proposal_info
+                    .block_size_constraints_mut()
+                    .cometbft_checked_add(tx_len)
+                    .wrap_err("error growing cometBFT block size")?;
             }
             Err(error) => {
                 debug!(
@@ -968,21 +950,21 @@ impl App {
                             // nonce might be in a higher priority group than a transaction
                             // from the same account wiht a lower nonce. this higher nonce
                             // could execute in the next block fine.
-                            return Ok(BreakOrContinue::Continue);
-                        }
-                        *failed_tx_count = failed_tx_count.saturating_add(1);
+                        } else {
+                            *failed_tx_count = failed_tx_count.saturating_add(1);
 
-                        // remove the failing transaction from the mempool
-                        //
-                        // this will remove any transactions from the same sender
-                        // as well, as the dependent nonces will not be able
-                        // to execute
-                        let log = eyre::Report::new(error)
-                            .wrap_err("transaction failed execution")
-                            .to_string();
-                        let reason = RemovalReason::FailedExecution(log);
-                        mempool.remove_tx_invalid(tx, reason).await;
-                        return Ok(BreakOrContinue::Continue);
+                            // remove the failing transaction from the mempool
+                            //
+                            // this will remove any transactions from the same sender
+                            // as well, as the dependent nonces will not be able
+                            // to execute
+                            mempool
+                                .remove_tx_invalid(
+                                    tx,
+                                    RemovalReason::FailedPrepareProposal(error.to_string()),
+                                )
+                                .await;
+                        }
                     }
                     Proposal::Process {
                         ..
@@ -990,21 +972,6 @@ impl App {
                 }
             }
         };
-
-        let executed_tx = ExecutedTransaction {
-            tx,
-            exec_result,
-        };
-        proposal_info.executed_txs_mut().push(executed_tx);
-        proposal_info
-            .block_size_constraints_mut()
-            .sequencer_checked_add(tx_sequence_data_length)
-            .wrap_err("error growing sequencer block size")?;
-        proposal_info
-            .block_size_constraints_mut()
-            .cometbft_checked_add(tx_len)
-            .wrap_err("error growing cometBFT block size")?;
-
         proposal_info.set_current_tx_group(tx_group);
         Ok(BreakOrContinue::Continue)
     }
@@ -1160,6 +1127,12 @@ impl App {
             .put_deposits(&block_hash, deposits_in_this_block.clone())
             .wrap_err("failed to put deposits to state")?;
 
+        // cometbft expects a result for every tx in the block, so we need to return a
+        // tx result for the commitments and other injected data items, even though they're not
+        // actually user txs.
+        //
+        // the tx_results passed to this function only contain results for every user-submitted
+        // transaction, not the injected ones.
         let injected_tx_count = expanded_block_data.injected_transaction_count();
         let mut finalize_block_tx_results: Vec<ExecTxResult> =
             Vec::with_capacity(expanded_block_data.user_submitted_transactions.len());
@@ -1210,23 +1183,15 @@ impl App {
             );
         }
 
-        let tx_results = executed_txs
-            .iter()
-            .map(|executed_tx| {
-                if executed_tx.exec_result.code.is_err() {
-                    self.metrics
-                        .increment_included_transactions_failed_execution();
-                }
-                (*executed_tx.tx.id(), executed_tx.exec_result.clone())
-            })
-            .collect();
-
         let result = PostTransactionExecutionResult {
             events: end_block.events,
             validator_updates: end_block.validator_updates,
-            tx_results,
-            injected_tx_count,
+            tx_results: finalize_block_tx_results,
             consensus_param_updates,
+            executed_tx_ids: executed_txs
+                .iter()
+                .map(|executed_tx| *executed_tx.tx.id())
+                .collect(),
         };
 
         state_tx.object_put(POST_TRANSACTION_EXECUTION_RESULT_KEY, result);
@@ -1324,30 +1289,17 @@ impl App {
             .wrap_err("failed to execute transactions in finalize block")?;
             let mut executed_txs = Vec::with_capacity(user_submitted_transactions.len());
             for tx in user_submitted_transactions {
-                let exec_result = match self.execute_transaction(tx.clone()).await {
-                    Ok(events) => ExecTxResult {
-                        events,
-                        ..Default::default()
-                    },
-                    Err(CheckedTransactionExecutionError::CheckedAction(
-                        error @ CheckedActionExecutionError::NonFatalExecution {
-                            ..
-                        },
-                    )) => {
-                        let log = eyre::Report::new(error)
-                            .wrap_err("transaction failed execution")
-                            .to_string();
-                        let reason = RemovalReason::FailedExecution(log.clone());
-                        // We need to explicitly remove from the mempool as the stored account nonce
-                        // is not updated for failed txs, hence this tx would not be cleared out of
-                        // the mempool during `run_maintenance`.
-                        self.mempool.remove_tx_invalid(tx.clone(), reason).await;
-                        ExecTxResult {
-                            code: Code::Err(AbciErrorCode::TRANSACTION_FAILED_EXECUTION.value()),
-                            log,
-                            info: "transaction failed execution".to_string(),
-                            ..ExecTxResult::default()
-                        }
+                match self.execute_transaction(tx.clone()).await {
+                    Ok(events) => {
+                        let exec_result = ExecTxResult {
+                            events,
+                            ..Default::default()
+                        };
+                        let executed_tx = ExecutedTransaction {
+                            tx,
+                            exec_result,
+                        };
+                        executed_txs.push(executed_tx);
                     }
                     Err(error) => {
                         // this is actually a protocol error, as only valid txs should be finalized
@@ -1355,14 +1307,8 @@ impl App {
                             %error,
                             "failed to finalize transaction; ignoring it",
                         );
-                        continue;
                     }
-                };
-                let executed_tx = ExecutedTransaction {
-                    tx,
-                    exec_result,
-                };
-                executed_txs.push(executed_tx);
+                }
             }
 
             self.post_execute_transactions(
@@ -1382,7 +1328,7 @@ impl App {
             tx_results,
             validator_updates,
             consensus_param_updates,
-            injected_tx_count,
+            executed_tx_ids,
         } = self
             .state
             .object_get(POST_TRANSACTION_EXECUTION_RESULT_KEY)
@@ -1391,27 +1337,15 @@ impl App {
                  just now or during the proposal phase",
             );
 
-        // cometbft expects a result for every tx in the block, so we need to return a
-        // tx result for the commitments and other injected data items, even though they're not
-        // actually user txs.
-        //
-        // the tx_results passed to this function only contain results for every user-submitted
-        // transaction, not the injected ones.
-        let mut finalize_block_tx_results: Vec<ExecTxResult> =
-            Vec::with_capacity(tx_results.len().saturating_add(injected_tx_count));
-        finalize_block_tx_results
-            .extend(std::iter::repeat(ExecTxResult::default()).take(injected_tx_count));
-        finalize_block_tx_results.extend(tx_results.iter().map(|(_, tx_result)| tx_result.clone()));
-
         // prepare the `WriteBatch` for a later commit.
         let app_hash = self
-            .prepare_commit(storage, tx_results)
+            .prepare_commit(storage, executed_tx_ids)
             .await
             .wrap_err("failed to prepare commit")?;
         all_events.extend(events);
         let finalize_block_response = abci::response::FinalizeBlock {
             events: all_events,
-            tx_results: finalize_block_tx_results,
+            tx_results,
             validator_updates,
             consensus_param_updates,
             app_hash,
@@ -1426,7 +1360,7 @@ impl App {
     async fn prepare_commit(
         &mut self,
         storage: Storage,
-        executed_txs: Vec<(TransactionId, ExecTxResult)>,
+        executed_tx_ids: HashSet<TransactionId>,
     ) -> Result<AppHash> {
         // extract the state we've built up to so we can prepare it as a `StagedWriteBatch`.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
@@ -1459,19 +1393,9 @@ impl App {
             .to_vec()
             .try_into()
             .wrap_err("failed to convert app hash")?;
-        let execution_results = executed_txs
-            .into_iter()
-            .filter_map(|(tx_hash, tx_result)| {
-                if tx_result.code.is_ok() {
-                    Some((tx_hash, Arc::new(tx_result)))
-                } else {
-                    None
-                }
-            })
-            .collect();
         self.write_batch = Some(WriteBatch {
             write_batch,
-            execution_results,
+            executed_tx_ids,
         });
         Ok(app_hash)
     }
@@ -1610,7 +1534,7 @@ impl App {
     pub(crate) async fn commit(&mut self, storage: Storage) -> Result<ShouldShutDown> {
         let WriteBatch {
             write_batch,
-            execution_results,
+            executed_tx_ids,
         } = self.write_batch.take().expect(
             "write batch must be set, as `finalize_block` is always called before `commit`",
         );
@@ -1648,7 +1572,7 @@ impl App {
             &mut self.mempool,
             &self.state,
             self.recost_mempool,
-            execution_results,
+            &executed_tx_ids,
             block_height,
         )
         .await;
@@ -1785,7 +1709,7 @@ impl App {
         storage: Storage,
     ) {
         let _events = self.apply(state_delta);
-        self.prepare_commit(storage.clone(), Vec::new())
+        self.prepare_commit(storage.clone(), HashSet::new())
             .await
             .unwrap();
         self.commit(storage).await.unwrap();
@@ -1829,11 +1753,11 @@ async fn update_mempool_after_finalization<S: StateRead>(
     mempool: &mut Mempool,
     state: &S,
     recost: bool,
-    block_execution_results: HashMap<TransactionId, Arc<ExecTxResult>>,
+    txs_included_in_block: &HashSet<TransactionId>,
     block_height: u64,
 ) {
     mempool
-        .run_maintenance(state, recost, block_execution_results, block_height)
+        .run_maintenance(state, recost, txs_included_in_block, block_height)
         .await;
 }
 
@@ -1858,10 +1782,10 @@ struct BlockData {
 #[derive(Clone, Debug)]
 struct PostTransactionExecutionResult {
     events: Vec<Event>,
-    tx_results: Vec<(TransactionId, ExecTxResult)>,
+    tx_results: Vec<ExecTxResult>,
     validator_updates: Vec<tendermint::validator::Update>,
     consensus_param_updates: Option<tendermint::consensus::Params>,
-    injected_tx_count: usize,
+    executed_tx_ids: HashSet<TransactionId>,
 }
 
 #[derive(PartialEq)]
@@ -1893,7 +1817,6 @@ enum Proposal {
         block_size_constraints: BlockSizeConstraints,
         executed_txs: Vec<ExecutedTransaction>,
         current_tx_group: Group,
-        mempool: Mempool,
     },
 }
 
@@ -1965,17 +1888,6 @@ impl Proposal {
             | Proposal::Process {
                 executed_txs, ..
             } => executed_txs,
-        }
-    }
-
-    fn mempool(&self) -> &Mempool {
-        match self {
-            Proposal::Prepare {
-                mempool, ..
-            }
-            | Proposal::Process {
-                mempool, ..
-            } => mempool,
         }
     }
 }

@@ -4,8 +4,6 @@
 pub struct Upgrades {
     #[prost(message, optional, tag = "1")]
     pub aspen: ::core::option::Option<Aspen>,
-    #[prost(message, optional, tag = "2")]
-    pub blackburn: ::core::option::Option<Blackburn>,
 }
 impl ::prost::Name for Upgrades {
     const NAME: &'static str = "Upgrades";
@@ -113,54 +111,5 @@ impl ::prost::Name for Aspen {
     }
     fn type_url() -> ::prost::alloc::string::String {
         "/astria.upgrades.v1.Aspen".into()
-    }
-}
-/// Blackburn upgrade of the Sequencer network.
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct Blackburn {
-    #[prost(message, optional, tag = "1")]
-    pub base_info: ::core::option::Option<BaseUpgradeInfo>,
-    #[prost(message, optional, tag = "2")]
-    pub ics20_transfer_action_change: ::core::option::Option<
-        blackburn::Ics20TransferActionChange,
-    >,
-    #[prost(message, optional, tag = "3")]
-    pub allow_ibc_relay_to_fail: ::core::option::Option<blackburn::AllowIbcRelayToFail>,
-}
-/// Nested message and enum types in `Blackburn`.
-pub mod blackburn {
-    #[derive(Clone, Copy, PartialEq, ::prost::Message)]
-    pub struct Ics20TransferActionChange {}
-    impl ::prost::Name for Ics20TransferActionChange {
-        const NAME: &'static str = "Ics20TransferActionChange";
-        const PACKAGE: &'static str = "astria.upgrades.v1";
-        fn full_name() -> ::prost::alloc::string::String {
-            "astria.upgrades.v1.Blackburn.Ics20TransferActionChange".into()
-        }
-        fn type_url() -> ::prost::alloc::string::String {
-            "/astria.upgrades.v1.Blackburn.Ics20TransferActionChange".into()
-        }
-    }
-    #[derive(Clone, Copy, PartialEq, ::prost::Message)]
-    pub struct AllowIbcRelayToFail {}
-    impl ::prost::Name for AllowIbcRelayToFail {
-        const NAME: &'static str = "AllowIbcRelayToFail";
-        const PACKAGE: &'static str = "astria.upgrades.v1";
-        fn full_name() -> ::prost::alloc::string::String {
-            "astria.upgrades.v1.Blackburn.AllowIbcRelayToFail".into()
-        }
-        fn type_url() -> ::prost::alloc::string::String {
-            "/astria.upgrades.v1.Blackburn.AllowIbcRelayToFail".into()
-        }
-    }
-}
-impl ::prost::Name for Blackburn {
-    const NAME: &'static str = "Blackburn";
-    const PACKAGE: &'static str = "astria.upgrades.v1";
-    fn full_name() -> ::prost::alloc::string::String {
-        "astria.upgrades.v1.Blackburn".into()
-    }
-    fn type_url() -> ::prost::alloc::string::String {
-        "/astria.upgrades.v1.Blackburn".into()
     }
 }
