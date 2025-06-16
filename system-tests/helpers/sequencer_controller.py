@@ -1,6 +1,7 @@
 import base64
 import grpc
 import requests
+from .defaults import UPGRADE_CHANGES
 from .utils import (
     check_change_infos,
     run_subprocess,
@@ -23,12 +24,16 @@ class SequencerController:
 
     def __init__(self, node_name):
         self.name = node_name
-        if node_name == "node0":
+        self.upgrade_heights = {}
+        for i, upgrade_name in enumerate(UPGRADE_CHANGES.keys()):
+            # Set default upgrade heights
+            self.upgrade_heights[upgrade_name] = i + 1
+        if node_name == "node0" or node_name == "single":
             self.namespace = "astria-dev-cluster"
             self.rpc_url = "http://rpc.sequencer.127.0.0.1.nip.io"
             self.grpc_url = "grpc.sequencer.127.0.0.1.nip.io:80"
         else:
-            self.namespace = f"astria-validator-{node_name}"
+            self.namespace = f"astria-sequencer-{node_name}"
             self.rpc_url = f"http://rpc.sequencer-{node_name}.127.0.0.1.nip.io"
             self.grpc_url = f"grpc.sequencer-{node_name}.127.0.0.1.nip.io:80"
         self.last_block_height_before_restart = None
@@ -39,39 +44,50 @@ class SequencerController:
 
     def deploy_sequencer(
             self,
-            sequencer_image_tag,
-            relayer_image_tag,
+            image_controller,
             enable_price_feed=True,
             upgrade_name=None,
             upgrade_activation_height=None,
     ):
         """
-        Deploys a new sequencer on the cluster using the specified image tag.
+        Deploys a new sequencer on the cluster using the specified image tags.
 
         The sequencer (and associated sequencer-relayer) are installed via `helm install`, then
         when the rollout has completed.
 
-        If `upgrade_name` is set, then the chart value `upgradeTest` will be set to true to ensure
-        genesis.json and upgrades.json have appropriate values set for pre-upgrade.
+        If `upgrade_name` is set, then this indicates an upgrade test and genesis.json and
+        upgrades.json will have appropriate values set for pre-upgrade.
 
         In this case, whether the actual upgrade details for this upgrade are included in
         upgrades.json depends upon setting `upgrade_activation_height`. `None` means they are
         omitted (used when starting nodes before the upgrade has activated).
+
+        If `upgrade_name` is not set, the standard upgrades are applied (Aspen at height 1,
+        Blackburn at height 2)
         """
+        try:
+            self.upgrade_heights[upgrade_name] = upgrade_activation_height
+        except Exception:
+            raise SystemExit(
+                f"{self.name}: upgrade name `{upgrade_name}` does not exist in configured upgrade "
+                "changes (see `UPGRADE_CHANGES` in `defaults.py`)"
+            )
         args = self._helm_args(
             "install",
-            sequencer_image_tag,
-            relayer_image_tag,
+            image_controller,
             enable_price_feed,
             upgrade_name,
             upgrade_activation_height
         )
         run_subprocess(args, msg=f"deploying {self.name}")
+        if self.name == "single":
+            # Adjust name to match moniker
+            self.name = "node0"
         self._wait_for_deploy(timeout_secs=600)
         (self.address, self.pub_key, self.power) = self._check_reported_name_and_get_node_info()
         print(f"{self.name}: running")
 
-    def stage_upgrade(self, sequencer_image_tag, relayer_image_tag, enable_price_feed, upgrade_name, activation_height):
+    def stage_upgrade(self, image_controller, enable_price_feed, upgrade_name, activation_height):
         """
         Updates the sequencer and sequencer-relayer in the cluster.
 
@@ -84,12 +100,19 @@ class SequencerController:
         except:
             self.last_block_height_before_restart = None
 
+        try:
+            self.upgrade_heights[upgrade_name] = activation_height
+        except Exception:
+            raise SystemExit(
+                f"{self.name}: upgrade name `{upgrade_name}` does not exist in configured upgrade "
+                "changes (see `UPGRADE_CHANGES` in `defaults.py`)"
+            )
+
         # Update the upgrades.json file with the specified activation height and upgrade the images
         # for sequencer and sequencer-relayer.
         args = self._helm_args(
             "upgrade",
-            sequencer_image_tag,
-            relayer_image_tag,
+            image_controller,
             enable_price_feed=enable_price_feed,
             upgrade_name=upgrade_name,
             upgrade_activation_height=activation_height
@@ -131,12 +154,8 @@ class SequencerController:
             # scheduled and none applied.
             latest_block_height = self.get_last_block_height()
             if latest_block_height < upgrade_activation_height - 2:
-                applied, scheduled = self.get_upgrades_info()
-                if len(list(applied)) != 0:
-                    raise SystemExit(
-                        f"{self.name} upgrade error: should have 0 applied upgrade change infos"
-                    )
-                check_change_infos(scheduled, upgrade_activation_height)
+                _applied, scheduled = self.get_upgrades_info()
+                check_change_infos(scheduled, self.upgrade_heights)
                 for change_info in scheduled:
                     print(
                         f"{self.name}: scheduled change info: [{change_info.change_name}, "
@@ -308,8 +327,7 @@ class SequencerController:
     def _helm_args(
             self,
             subcommand,
-            sequencer_image_tag,
-            relayer_image_tag,
+            image_controller,
             enable_price_feed,
             upgrade_name,
             upgrade_activation_height,
@@ -322,16 +340,19 @@ class SequencerController:
             "charts/sequencer",
             "--values=dev/values/validators/all.yml",
             f"--values=dev/values/validators/{self.name}.yml",
-            f"--set=images.sequencer.tag={sequencer_image_tag}",
-            f"--set=sequencer-relayer.images.sequencerRelayer.tag={relayer_image_tag}",
             f"--set=sequencer.priceFeed.enabled={enable_price_feed}",
             "--set=sequencer.abciUDS=false",
         ]
+        sequencer_image_tag = image_controller.sequencer_image_tag()
+        if sequencer_image_tag is not None:
+            args.append(f"--set=images.sequencer.tag={sequencer_image_tag}")
+        relayer_image_tag = image_controller.sequencer_relayer_image_tag()
+        if relayer_image_tag is not None:
+            args.append(f"--set=sequencer-relayer.images.sequencerRelayer.tag={relayer_image_tag}")
         if subcommand == "install":
             args.append("--create-namespace")
         if upgrade_name:
-            # This is an upgrade test: set `upgradeTest` so as to provide an upgrades.json file
-            # and genesis.json without upgraded configs.  Also enable persistent storage.
+            # This is an upgrade test.
             args.append("--set=storage.enabled=true")
             args.append("--set=sequencer-relayer.storage.enabled=true")
             args.append(f"--values=dev/values/validators/{upgrade_name}.upgrade.yml")
@@ -345,10 +366,8 @@ class SequencerController:
                 # Otherwise, if no activation height is provided, we will simply omit the upgrade
                 # details from the upgrades.json file.
                 args.append(f"--set=upgrades.{upgrade_name}.enabled=false")
-        elif enable_price_feed:
-            # If we're not upgrading, and the price feed is enabled, enable it in the
-            # genesis.json file.
-            args.append("--values=dev/values/validators/priceFeed.genesis.yml")
+        else:
+            args.append(f"--values=dev/values/validators/{next(reversed(UPGRADE_CHANGES.keys()))}.upgrade.yml")
         return args
 
     def _wait_for_deploy(self, timeout_secs):

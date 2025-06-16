@@ -126,7 +126,7 @@ sequencer name=validatorName:
     -f dev/values/validators/all.yml \
     -f dev/values/validators/{{name}}.yml \
     -f dev/values/validators/aspen.upgrade.yml \
-    -n astria-validator-{{name}} --create-namespace \
+    -n astria-sequencer-{{name}} --create-namespace \
     {{name}}-sequencer-chart charts/sequencer
 
 
@@ -160,12 +160,15 @@ astrotrek:
 ################
 [doc("
 Deploys a local Hermes instance.
+Usage:
+  just deploy hermes <NAME> (default: 'local')
 ")]
-hermes-local:
+hermes name=defaultHermes:
   @echo "Deploying Hermes..."
-  @helm install hermes-local-chart charts/hermes \
-    -n astria-dev-cluster \
-    -f dev/values/hermes/local.yaml
+  @helm install hermes-{{name}}-chart charts/hermes \
+    -n hermes-{{name}} \
+    -f dev/values/hermes/{{name}}.yaml \
+    --create-namespace \
 
 
 # Deploy Rollup
@@ -263,63 +266,21 @@ hyperlane-agents rollupName=defaultRollupName agentConfig=defaultHypAgentConfig 
 # Deploy Smoke Test
 ####################
 [doc("
-Deploys all components necessary for local end-to-end (including rollup and Celestia)
-smoke test and awaits their readiness.
-Usage:
-  just deploy smoke-test <TAG> (default: '')
+Deploys prerequisites for running the smoke test.
 ")]
-smoke-test tag=defaultTag:
+smoke-test: generate-system-test-protos
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
   @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
   @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
-  @helm dependency update charts/sequencer > /dev/null
-  @helm dependency update charts/evm-stack > /dev/null
-  @echo "Setting up single astria sequencer..." && helm install \
-    -n astria-validator-single single-sequencer-chart charts/sequencer \
-    -f dev/values/validators/all.yml \
-    -f dev/values/validators/single.yml \
-    -f dev/values/validators/aspen.upgrade.yml \
-    {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
-    --create-namespace > /dev/null
-  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart charts/evm-stack -f dev/values/rollup/dev.yaml \
-    {{ if tag != '' { replace('--set evm-rollup.images.conductor.tag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
-    --set blockscout-stack.enabled=false \
-    --set postgresql.enabled=false \
-    --set evm-faucet.enabled=false > /dev/null
   @just wait-for celestia-local
-  @just wait-for sequencer
-  @just wait-for rollup
 
 
-# Deploy EVM Rollup Restart Test
-####################
+# Deploy EVM Restart Test
+##########################
 [doc("
-Deploys all components necessary for local end-to-end (including rollup and Celestia)
-EVM restart smoke test and awaits their readiness. The smoke test restarts the
-EVM at block 19.
-Usage:
-  $just deploy evm-rollup-restart-test <TAG> (default: '')
+Deploys prerequisites for running the EVM restart test.
 ")]
-evm-rollup-restart-test tag=defaultTag:
-  @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
-  @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
-  @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
-  @helm dependency update charts/sequencer > /dev/null
-  @helm dependency update charts/evm-stack > /dev/null
-  @echo "Setting up single astria sequencer..." && helm install \
-    -n astria-validator-single single-sequencer-chart charts/sequencer \
-    -f dev/values/validators/all.yml \
-    -f dev/values/validators/single.yml \
-    {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
-    --create-namespace > /dev/null
-  @just wait-for sequencer
-  @echo "Starting EVM rollup..." && helm install -n astria-dev-cluster astria-chain-chart charts/evm-stack -f dev/values/rollup/evm-restart-test.yaml \
-    {{ if tag != '' { replace('--set evm-rollup.images.conductor.tag=# --set composer.images.composer.devTag=# --set evm-bridge-withdrawer.images.evmBridgeWithdrawer.devTag=#', '#', tag) } else { '' } }} \
-    --set blockscout-stack.enabled=false \
-    --set postgresql.enabled=false \
-    --set evm-faucet.enabled=false > /dev/null
-  @just wait-for celestia-local
-  @just wait-for rollup
+evm-restart-test: smoke-test
 
 
 # Deploy Smoke CLI
@@ -337,7 +298,7 @@ smoke-cli tag=defaultTag:
   @helm dependency update charts/sequencer > /dev/null
   @helm dependency update charts/evm-stack > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
-    -n astria-validator-single single-sequencer-chart charts/sequencer \
+    -n astria-sequencer-single single-sequencer-chart charts/sequencer \
     -f dev/values/validators/all.yml \
     -f dev/values/validators/single.yml \
     -f dev/values/validators/aspen.upgrade.yml \
@@ -370,7 +331,7 @@ ibc-test tag=defaultTag:
   @helm dependency update charts/sequencer > /dev/null
   @helm dependency update charts/evm-stack > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
-    -n astria-validator-single single-sequencer-chart charts/sequencer \
+    -n astria-sequencer-single single-sequencer-chart charts/sequencer \
     -f dev/values/validators/all.yml \
     -f dev/values/validators/single.yml \
     -f dev/values/validators/aspen.upgrade.yml \
@@ -383,11 +344,11 @@ ibc-test tag=defaultTag:
     --set blockscout-stack.enabled=false \
     --set postgresql.enabled=false \
     --set evm-faucet.enabled=false > /dev/null
-  @echo "Deploying Hermes..." && just deploy hermes-local > /dev/null
+  @echo "Deploying Hermes..." && just deploy hermes local > /dev/null
   @just wait-for celestia-local
   @just wait-for sequencer
   @just wait-for rollup
-  @just wait-for hermes-local
+  @just wait-for hermes local
 
 
 # Deploy IBC Test Without Native Asset
@@ -405,17 +366,17 @@ ibc-test-without-native tag=defaultTag:
   @helm install celestia-local-chart charts/celestia-local --namespace {{defaultNamespace}} --set fast=true --create-namespace  > /dev/null
   @helm dependency update charts/sequencer > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
-    -n astria-validator-single single-sequencer-chart charts/sequencer \
+    -n astria-sequencer-single single-sequencer-chart charts/sequencer \
     -f dev/values/validators/all-without-native.yml \
     -f dev/values/validators/single.yml \
     -f dev/values/validators/aspen.upgrade.yml \
     {{ if tag != '' { replace('--set images.sequencer.tag=# --set sequencer-relayer.images.sequencerRelayer.tag=#', '#', tag) } else { '' } }} \
     --create-namespace > /dev/null
   @echo "Deploying Hermes..."
-  @just deploy hermes-local > /dev/null
+  @just deploy hermes local > /dev/null
   @just wait-for celestia-local
   @just wait-for sequencer
-  @just wait-for hermes-local
+  @just wait-for hermes local
 
 
 # Deploy IBC Test Timeout Refund
@@ -434,7 +395,7 @@ ibc-test-timeout-refund tag=defaultTag:
   @helm dependency update charts/sequencer > /dev/null
   @helm dependency update charts/evm-stack > /dev/null
   @echo "Setting up single astria sequencer..." && helm install \
-    -n astria-validator-single single-sequencer-chart charts/sequencer \
+    -n astria-sequencer-single single-sequencer-chart charts/sequencer \
     -f dev/values/validators/all.yml \
     -f dev/values/validators/single.yml \
     -f dev/values/validators/aspen.upgrade.yml \
@@ -449,11 +410,25 @@ ibc-test-timeout-refund tag=defaultTag:
     --set postgresql.enabled=false \
     --set evm-faucet.enabled=false > /dev/null
   @echo "Deploying Hermes..."
-  @just deploy hermes-local > /dev/null
+  @just deploy hermes local > /dev/null
   @just wait-for celestia-local
   @just wait-for sequencer
   @just wait-for rollup {{defaultRollupName}} "false"
-  @just wait-for hermes-local
+  @just wait-for hermes local
+
+
+multiple-relayer-stack:
+  @just deploy ingress-controller
+  @just wait-for ingress-controller
+  @just deploy celestia-local
+  @just deploy sequencer single
+  @just deploy sequencer full-node
+  @just wait-for celestia-local
+  @just wait-for sequencer
+  @just deploy hermes full-node
+  @just wait-for hermes full-node
+  @just deploy hermes full-node-1
+  @just wait-for hermes full-node-1
 
 
 # Generate System-Test Protos
@@ -462,7 +437,7 @@ ibc-test-timeout-refund tag=defaultTag:
 Generates Python files from the protobuf sources for the system-tests.
 ")]
 generate-system-test-protos:
-  buf generate --template system-tests/buf.gen.yaml
+  @buf generate --template system-tests/buf.gen.yaml
 
 
 # Deploy Upgrade Test
@@ -474,9 +449,16 @@ Deploys all components necessary for running the sequencer upgrade test in the
 upgrade-test: generate-system-test-protos
   @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
   @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
-  @echo "Deploying local celestia instance..." && just deploy celestia-local > /dev/null
-  @just wait-for celestia-local
 
+# Deploy Multiple Relayer Test
+###############################
+[doc("
+Deploys all components necessary for running the multiple relayer test in the
+`system-tests` folder.
+")]
+multiple-relayer-test: generate-system-test-protos
+  @echo "Deploying ingress controller..." && just deploy ingress-controller > /dev/null
+  @echo "Waiting for ingress controller to be ready..." && just wait-for ingress-controller > /dev/null
 
 #####################
 ## Private Recipes ##

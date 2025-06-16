@@ -273,6 +273,7 @@ rclone:
         noCheckBucket: true
     # The secret resource name for the rclone config
     secret:
+      filename: "rclone.conf"
       resourceName: "projects/$PROJECT_ID/secrets/rclone-config/versions/latest"
 
 metrics:

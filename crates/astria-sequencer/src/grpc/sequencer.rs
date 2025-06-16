@@ -375,7 +375,7 @@ mod tests {
         let block = make_test_sequencer_block(1);
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
+        let mempool = Mempool::new(metrics, 100, 100);
         let mut state_tx = StateDelta::new(storage.latest_snapshot());
         state_tx.put_block_height(1).unwrap();
         state_tx.put_sequencer_block(block).unwrap();
@@ -504,7 +504,7 @@ mod tests {
     #[tokio::test]
     async fn validator_name_request_fails_if_not_a_validator() {
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
+        let mempool = Mempool::new(metrics, 100, 100);
         let storage = cnidarium::TempStorage::new().await.unwrap();
 
         let server = Arc::new(SequencerServer::new(
@@ -528,7 +528,7 @@ mod tests {
     #[tokio::test]
     async fn validator_name_request_fails_if_pre_aspen() {
         let metrics = Box::leak(Box::new(Metrics::noop_metrics(&()).unwrap()));
-        let mempool = Mempool::new(metrics, 100);
+        let mempool = Mempool::new(metrics, 100, 100);
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut state = StateDelta::new(snapshot);

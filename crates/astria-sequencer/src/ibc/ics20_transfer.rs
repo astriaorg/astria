@@ -164,7 +164,7 @@ const MAX_ROLLUP_ADDRESS_BYTE_LENGTH: usize = 256;
 /// If `<asset>` was sent to Sequencer and did not originate on Sequencer, then Sequencer will
 /// have prefixed it `Sp/Sc/<asset>` upon receipt. And so when sending, the payload asset
 /// *will* be prefixed `Sp/Sc/<asset>` with `source_port = Sp` and `source_channel = Sc` set.
-fn is_transfer_source_zone(
+pub(crate) fn is_transfer_source_zone(
     asset: &denom::TracePrefixed,
     port: &PortId,
     channel: &ChannelId,
@@ -625,7 +625,10 @@ async fn refund_tokens_to_sequencer_address<S: StateWrite>(
 }
 
 #[instrument(skip_all, fields(input), err(level = Level::DEBUG))]
-async fn parse_asset<S: StateRead>(state: S, input: &str) -> Result<denom::TracePrefixed> {
+pub(crate) async fn parse_asset<S: StateRead>(
+    state: S,
+    input: &str,
+) -> Result<denom::TracePrefixed> {
     let asset = match input
         .parse::<Denom>()
         .wrap_err("failed parsing input as IBC denomination")?

@@ -75,6 +75,12 @@ pub(crate) enum CheckedActionExecutionError {
         source: eyre::Report,
     },
 
+    #[error("`{action_name}` action failed execution (non-fatal)")]
+    NonFatalExecution {
+        action_name: &'static str,
+        source: eyre::Report,
+    },
+
     #[error(transparent)]
     Fee(#[from] CheckedActionFeeError),
 }
@@ -82,6 +88,13 @@ pub(crate) enum CheckedActionExecutionError {
 impl CheckedActionExecutionError {
     pub(super) fn execution(action_name: &'static str, source: eyre::Report) -> Self {
         Self::Execution {
+            action_name,
+            source,
+        }
+    }
+
+    pub(super) fn non_fatal_execution(action_name: &'static str, source: eyre::Report) -> Self {
+        Self::NonFatalExecution {
             action_name,
             source,
         }

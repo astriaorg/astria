@@ -1,0 +1,107 @@
+{
+  "config": {
+    "chainId": 984122,
+    "homesteadBlock": 0,
+    "eip150Block": 0,
+    "eip155Block": 0,
+    "eip158Block": 0,
+    "byzantiumBlock": 0,
+    "constantinopleBlock": 0,
+    "petersburgBlock": 0,
+    "istanbulBlock": 0,
+    "berlinBlock": 0,
+    "londonBlock": 0,
+    "shanghaiTime": 0,
+    "cancunTime": 1749049335,
+    "terminalTotalDifficulty": 0,
+    "terminalTotalDifficultyPassed": true,
+    "ethash": {},
+    "astriaRollupName": "forma",
+    "astriaOverrideGenesisExtraData": true,
+    "astriaForks": {
+      "canvas": {
+        "height": 1,
+        "extraDataOverride": "0x659cf6172e50002432e07f91df0ef15206a5251145e089067efecb7d182da372",
+        "feeCollector": "0xcc9Dc6b16775c097559a3817C1D4e64d5975C6D4",
+        "eip1559Params": { "minBaseFee": 18000000000, "elasticityMultiplier": 2, "baseFeeChangeDenominator": 8 },
+        "sequencer": {
+          "chainId": "forma-net-1",
+          "addressPrefix": "astria",
+          "startHeight": 530
+        },
+        "celestia": {
+          "chainId": "celestia",
+          "startHeight": 1504062,
+          "searchHeightMaxLookAhead": 15000
+        },
+        "precompiles": [
+          {
+            "precompileType": "nativeminter",
+            "address": "0x00000000000000000000000000000F043A000001"
+          },
+          {
+            "precompileType": "compress",
+            "address": "0x00000000000000000000000000000F043A000002"
+          },
+          {
+            "precompileType": "jsonutil",
+            "address": "0x00000000000000000000000000000F043A000003"
+          },
+          {
+            "precompileType": "base64",
+            "address": "0x00000000000000000000000000000F043A000004"
+          },
+          {
+            "precompileType": "strings",
+            "address": "0x00000000000000000000000000000F043A000005"
+          },
+          {
+            "precompileType": "integers",
+            "address": "0x00000000000000000000000000000F043A000006"
+          },
+          {
+            "precompileType": "jsonstore",
+            "address": "0x00000000000000000000000000000F043A000007"
+          }
+        ]
+      },
+      "palette": {
+        "height": 13820500,
+        "snapshotChecksum": "e7575c38d9c563a1904bb41c838c5da0bdf3e214ee8eab9c20b1b0564662b2a9",
+        "sequencer": {
+          "chainId": "astria",
+          "addressPrefix": "astria",
+          "startHeight": 8419377
+        },
+        "celestia": {
+          "chainId": "celestia",
+          "startHeight": 5771650,
+          "searchHeightMaxLookAhead": 15000
+        }
+      }
+    },
+    "forma": {
+      "hyperlaneMailbox": "0xcb912D357c3f9aB7bdAD50B7D6Cb668896f17FE3"
+    }
+  },
+  "difficulty": "0",
+  "gasLimit": "0x1c9c380",
+  "alloc": {
+    "0x3D1447C4979bE846dc8e6dc9311a3E5b042446Ee": {
+      "balance": "5000000000000000000"
+    },
+    "0xD49eA2803323a1693efCd9a5EDDaF4c556Da15D3": {
+      "balance": "5000000000000000000"
+    },
+    "0x00000000000000000000000000000f043a000001": {
+      "balance": "0",
+      "storage": {
+        "0x00": "0x0000000000000000000000003D1447C4979bE846dc8e6dc9311a3E5b042446Ee"
+      }
+    },
+    "0x4e59b44847b379578588920cA78FbF26c0B4956C": {
+      "balance": "0",
+      "code": "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3"
+    }
+  }
+}

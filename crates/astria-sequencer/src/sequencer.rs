@@ -216,7 +216,11 @@ impl Sequencer {
                 .context("failed to query state for base prefix")?;
         }
 
-        let mempool = Mempool::new(metrics, config.mempool_parked_max_tx_count);
+        let mempool = Mempool::new(
+            metrics,
+            config.mempool_parked_max_tx_count,
+            config.execution_results_cache_size,
+        );
         let price_feed_client = new_price_feed_client(&config)
             .await
             .wrap_err("failed to create connected price feed client")?;
@@ -462,6 +466,7 @@ mod tests {
             price_feed_client_timeout_milliseconds: 1,
             mempool_parked_max_tx_count: 1,
             no_optimistic_blocks: false,
+            execution_results_cache_size: 1,
         };
 
         let start = tokio::time::Instant::now();
