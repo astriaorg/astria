@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Update `crossbeam-channel` dependency to resolve cargo audit warning [#2106](https://github.com/astriaorg/astria/pull/2106).
-- Fix TLS errors when connecting to remote seqeuncer networks [#2140](https://github.com/astriaorg/astria/pull/2140).
+- Fix TLS errors when connecting to remote sequencer networks [#2140](https://github.com/astriaorg/astria/pull/2140).
 
 ## [2.0.0-rc.2] - 2025-05-08
 
@@ -404,7 +404,7 @@ address [#721](https://github.com/astriaorg/astria/pull/721).
 - Initial release.
 
 [unreleased]: https://github.com/astriaorg/astria/compare/conductor-v2.0.0...HEAD
-[2.0.0]: https://github.com/astriaorg/astria/compare/conductor-v.1.0...v2.0.0
+[2.0.0]: https://github.com/astriaorg/astria/compare/conductor-v1.0.0...v2.0.0
 [2.0.0-rc.2]: https://github.com/astriaorg/astria/compare/conductor-v2.0.0-rc.1...conductor-v2.0.0-rc.2
 [2.0.0-rc.1]: https://github.com/astriaorg/astria/compare/conductor-v1.1.0...conductor-v2.0.0-rc.1
 [1.1.0]: https://github.com/astriaorg/astria/compare/conductor-v1.0.0...conductor-v1.1.0
