@@ -50,7 +50,7 @@ tokio = { workspace = true, features = [
 tokio-util = { workspace = true, features = ["rt"] }
 tracing = { workspace = true, features = ["attributes"] }
 tryhard = { workspace = true }
-tonic = { workspace = true }
+tonic = { workspace = true, features = ["tls", "tls-native-roots"] }
 tokio-stream = { workspace = true, features = ["net"] }
 
 [dependencies.sequencer-client]
