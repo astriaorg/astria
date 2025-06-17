@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fix TLS errors when connecting to remote seqeuncer networks.
+- Fix TLS errors when connecting to remote sequencer networks.
 
 ## [1.0.1] - 2025-03-06
 
