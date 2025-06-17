@@ -17,6 +17,11 @@ use astria_eyre::eyre::{
 };
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
+use tonic::transport::{
+    Channel,
+    ClientTlsConfig,
+    Endpoint,
+};
 
 use crate::{
     executor,
@@ -102,13 +107,11 @@ fn read_signing_key_from_file<P: AsRef<Path>>(path: P) -> eyre::Result<SigningKe
     Ok(SigningKey::from(private_key_bytes))
 }
 
-fn connect_sequencer_grpc(
-    grpc_endpoint: &str,
-) -> eyre::Result<SequencerServiceClient<tonic::transport::Channel>> {
-    let uri: tonic::transport::Uri = grpc_endpoint
-        .parse()
-        .wrap_err("failed to parse endpoint as URI")?;
-    Ok(SequencerServiceClient::new(
-        tonic::transport::Endpoint::from(uri).connect_lazy(),
-    ))
+fn connect_sequencer_grpc(grpc_endpoint: &str) -> eyre::Result<SequencerServiceClient<Channel>> {
+    let endpoint = grpc_endpoint
+        .parse::<Endpoint>()
+        .wrap_err("failed to parse endpoint as URI")?
+        .tls_config(ClientTlsConfig::new().with_enabled_roots())
+        .wrap_err("failed to configure TLS for sequencer client")?;
+    Ok(SequencerServiceClient::new(endpoint.connect_lazy()))
 }
