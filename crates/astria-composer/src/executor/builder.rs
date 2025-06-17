@@ -108,9 +108,7 @@ fn read_signing_key_from_file<P: AsRef<Path>>(path: P) -> eyre::Result<SigningKe
     Ok(SigningKey::from(private_key_bytes))
 }
 
-fn connect_sequencer_grpc(
-    grpc_endpoint: &str,
-) -> eyre::Result<SequencerServiceClient<Channel>> {
+fn connect_sequencer_grpc(grpc_endpoint: &str) -> eyre::Result<SequencerServiceClient<Channel>> {
     let uri: Uri = grpc_endpoint
         .parse()
         .wrap_err("failed to parse endpoint as URI")?;
