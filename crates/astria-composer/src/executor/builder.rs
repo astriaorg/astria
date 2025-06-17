@@ -21,7 +21,6 @@ use tonic::transport::{
     Channel,
     ClientTlsConfig,
     Endpoint,
-    Uri,
 };
 
 use crate::{
@@ -109,10 +108,9 @@ fn read_signing_key_from_file<P: AsRef<Path>>(path: P) -> eyre::Result<SigningKe
 }
 
 fn connect_sequencer_grpc(grpc_endpoint: &str) -> eyre::Result<SequencerServiceClient<Channel>> {
-    let uri: Uri = grpc_endpoint
-        .parse()
-        .wrap_err("failed to parse endpoint as URI")?;
-    let endpoint = Endpoint::from(uri.clone())
+    let endpoint = grpc_endpoint
+        .parse::<Endpoint>()
+        .wrap_err("failed to parse endpoint as URI")?
         .tls_config(ClientTlsConfig::new().with_enabled_roots())
         .wrap_err("failed to configure TLS for sequencer client")?;
     Ok(SequencerServiceClient::new(endpoint.connect_lazy()))
