@@ -54,7 +54,7 @@ servers and clients in a range of languages.
 ### Building and pushing after making changes in `proto`
 
 * `$ buf build` - [builds the proto files into a single binary
-  file](https://docs.buf.build/build/explanation#what-are-buf-images)
+  file](https://buf.build/docs/build/explanation#what-are-buf-images)
 * `$ buf push` - pushes a module to the registry
 
 ### Generating clients and servers
