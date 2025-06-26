@@ -40,6 +40,8 @@ on:
 jobs:
   run_checker:
     uses: ./.github/workflows/reusable-run-checker.yml
+    permissions:
+      pull-requests: read
 
   auctioneer:
     needs: run_checker
