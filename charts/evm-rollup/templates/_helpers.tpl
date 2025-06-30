@@ -36,9 +36,9 @@ files/genesis/{{ include "rollup.type" . }}.genesis.json
 {{- define "rollup.tags.geth" -}}
 {{- $rollupType := (include "rollup.type" . ) -}}
 {{- if or (eq $rollupType "custom") .Values.global.dev -}}{{ .Values.images.geth.tag }}
-{{- else if eq $rollupType "flame-mainnet" -}}1.1.0
-{{- else if eq $rollupType "flame-testnet" -}}1.1.0
-{{- else if eq $rollupType "flame-devnet" -}}2.0.0-beta.1
+{{- else if eq $rollupType "flame-mainnet" -}}2.0.1
+{{- else if eq $rollupType "flame-testnet" -}}2.0.1
+{{- else if eq $rollupType "flame-devnet" -}}2.0.1
 {{- else if eq $rollupType "forma-mainnet" -}}2.0.0-beta.1-forma-dev.2
 {{- else if eq $rollupType "forma-testnet" -}}2.0.0-beta.1-forma-dev.2
 {{- end -}}
@@ -47,11 +47,11 @@ files/genesis/{{ include "rollup.type" . }}.genesis.json
 {{- define "rollup.tags.conductor" -}}
 {{- $rollupType := (include "rollup.type" . ) -}}
 {{- if or (eq $rollupType "custom") .Values.global.dev -}}{{ .Values.images.conductor.tag }}
-{{- else if eq $rollupType "flame-mainnet" -}}1.1.0
-{{- else if eq $rollupType "flame-testnet" -}}1.1.0
-{{- else if eq $rollupType "flame-devnet" -}}2.0.0-rc.1
-{{- else if eq $rollupType "forma-mainnet" -}}2.0.0-rc.2
-{{- else if eq $rollupType "forma-testnet" -}}2.0.0-rc.2
+{{- else if eq $rollupType "flame-mainnet" -}}2.0.0
+{{- else if eq $rollupType "flame-testnet" -}}2.0.0
+{{- else if eq $rollupType "flame-devnet" -}}2.0.0
+{{- else if eq $rollupType "forma-mainnet" -}}2.0.0
+{{- else if eq $rollupType "forma-testnet" -}}2.0.0
 {{- end -}}
 {{- end }}
 

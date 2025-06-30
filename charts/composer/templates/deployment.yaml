@@ -15,7 +15,7 @@ spec:
       labels:
         app: composer
     spec:
-      {{- if .Values.secretProvider.enabled }}
+      {{- if and .Values.secretProvider.enabled (not .Values.secretProvider.useDefaultServiceAccount) }}
       serviceAccountName: {{ include "composer.namespace" . }}
       {{- end }}
       containers:
