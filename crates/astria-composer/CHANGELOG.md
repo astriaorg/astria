@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-06-17
+
 ### Changed
 
 - Fetch and submit transactions already in the rollup transaction pool before submitting
@@ -226,7 +228,8 @@ TransferAction` [#719](https://github.com/astriaorg/astria/pull/719).
 
 - Initial release.
 
-[unreleased]: https://github.com/astriaorg/astria/compare/composer-v1.0.0...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/composer-v1.1.0...HEAD
+[1.1.0]: https://github.com/astriaorg/astria/compare/composer-v1.0.1...composer-v1.1.0
 [1.0.1]: https://github.com/astriaorg/astria/compare/composer-v1.0.0...composer-v1.0.1
 [1.0.0]: https://github.com/astriaorg/astria/compare/composer-v1.0.0-rc.2...composer-v1.0.0
 [1.0.0-rc.2]: https://github.com/astriaorg/astria/compare/composer-v1.0.0-rc.1...composer-v1.0.0-rc.2
