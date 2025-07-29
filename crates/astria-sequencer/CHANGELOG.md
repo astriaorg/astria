@@ -686,7 +686,7 @@ address [#721](https://github.com/astriaorg/astria/pull/721).
 - Initial release.
 
 [unreleased]: https://github.com/astriaorg/astria/compare/sequencer-v4.0.0-rc.1...HEAD
-[v4.0.0-rc.1]: https://github.com/astriaorg/astria/compare/sequencer-v3.0.0...sequencer-v4.0.0-rc.1
+[4.0.0-rc.1]: https://github.com/astriaorg/astria/compare/sequencer-v3.0.0...sequencer-v4.0.0-rc.1
 [3.0.0]: https://github.com/astriaorg/astria/compare/sequencer-v2.0.1...sequencer-v3.0.0
 [3.0.0-rc.2]: https://github.com/astriaorg/astria/compare/sequencer-v3.0.0-rc.1...sequencer-v3.0.0-rc.2
 [3.0.0-rc.1]: https://github.com/astriaorg/astria/compare/sequencer-v2.0.1...sequencer-v3.0.0-rc.1
