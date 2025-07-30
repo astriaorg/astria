@@ -88,7 +88,7 @@ Deploys an ingress controller.
 ")]
 ingress-controller:
   @echo "Deploying ingress controller..."
-  @kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml > /dev/null
+  @kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/refs/heads/release-1.12/deploy/static/provider/kind/deploy.yaml > /dev/null
 
 
 # Deploy Graph Node
