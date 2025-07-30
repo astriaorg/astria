@@ -46,10 +46,6 @@ use tonic::{
 
 const GET_PENDING_NONCE_GRPC_NAME: &str = "get_pending_nonce";
 
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "naming is helpful for clarity here"
-)]
 pub struct MockSequencerServer {
     _server: JoinHandle<eyre::Result<()>>,
     pub(crate) mock_server: MockServer,
@@ -128,6 +124,7 @@ impl SequencerService for SequencerServiceImpl {
         self.0
             .handle_request(GET_PENDING_NONCE_GRPC_NAME, request)
             .await
+            .map_err(|e| *e)
     }
 
     async fn get_upgrades_info(

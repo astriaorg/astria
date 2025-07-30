@@ -344,7 +344,7 @@ impl Auctioneer {
         match &reason {
             Ok(reason) => info!(%reason, message),
             Err(reason) => error!(%reason, message),
-        };
+        }
         if let Some(running_auction) = self.running_auction.take() {
             running_auction.abort();
         }

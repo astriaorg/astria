@@ -38,10 +38,6 @@ use tonic::{
     Status,
 };
 
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "naming is helpful for clarity here"
-)]
 pub struct MockBridgeSignerServer {
     _server: JoinHandle<eyre::Result<()>>,
     pub(crate) mock_server: MockServer,
@@ -118,6 +114,7 @@ impl FrostParticipantService for FrostParticipantServiceImpl {
         self.server
             .handle_request("get_verifying_share", request)
             .await
+            .map_err(|e| *e)
     }
 
     async fn execute_round_one(

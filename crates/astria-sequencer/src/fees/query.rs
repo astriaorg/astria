@@ -138,7 +138,7 @@ pub(crate) async fn allowed_fee_assets_request(
 
     let payload = AllowedFeeAssetsResponse {
         height,
-        fee_assets: fee_assets.into_iter().map(Into::into).collect(),
+        fee_assets,
     }
     .into_raw()
     .encode_to_vec()
@@ -201,7 +201,7 @@ pub(crate) async fn transaction_fee_request(
 
     let tx = match preprocess_fees_request(&request) {
         Ok(tx) => tx,
-        Err(err_rsp) => return err_rsp,
+        Err(err_rsp) => return *err_rsp,
     };
 
     // use latest snapshot, as this is a query for a transaction fee
@@ -275,7 +275,9 @@ pub(crate) async fn transaction_fee_request(
     }
 }
 
-fn preprocess_fees_request(request: &request::Query) -> Result<TransactionBody, response::Query> {
+fn preprocess_fees_request(
+    request: &request::Query,
+) -> Result<TransactionBody, Box<response::Query>> {
     let tx = match RawBody::decode(&*request.data) {
         Ok(tx) => tx,
         Err(err) => {
@@ -287,7 +289,8 @@ fn preprocess_fees_request(request: &request::Query) -> Result<TransactionBody, 
                     RawBody::full_name()
                 ),
                 ..response::Query::default()
-            });
+            }
+            .into());
         }
     };
 
@@ -302,7 +305,8 @@ fn preprocess_fees_request(request: &request::Query) -> Result<TransactionBody, 
                      transaction: {err:#}"
                 ),
                 ..response::Query::default()
-            });
+            }
+            .into());
         }
     };
 

@@ -110,7 +110,7 @@ impl MockSequencerServer {
 pub enum SequencerBlockToMount {
     GoodAtHeight(u32),
     BadAtHeight(u32),
-    Block(SequencerBlock),
+    Block(Box<SequencerBlock>),
 }
 
 struct SequencerServiceImpl(MockServer);
@@ -124,6 +124,7 @@ impl SequencerService for SequencerServiceImpl {
         self.0
             .handle_request(GET_SEQUENCER_BLOCK_GRPC_NAME, request)
             .await
+            .map_err(|e| *e)
     }
 
     async fn get_filtered_sequencer_block(
@@ -133,6 +134,7 @@ impl SequencerService for SequencerServiceImpl {
         self.0
             .handle_request(GET_FILTERED_SEQUENCER_BLOCK_GRPC_NAME, request)
             .await
+            .map_err(|e| *e)
     }
 
     async fn get_pending_nonce(
@@ -177,7 +179,7 @@ fn prepare_sequencer_block_response(
             ..Default::default()
         }
         .make(),
-        SequencerBlockToMount::Block(block) => block,
+        SequencerBlockToMount::Block(block) => *block,
     };
 
     let mut block = block.into_raw();

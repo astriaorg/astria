@@ -97,7 +97,7 @@ async fn shutdown(reason: eyre::Result<&'static str>, mut service: Auctioneer) -
             info!(reason, message);
             if let Err(error) = service.shutdown().await {
                 warn!(%error, "encountered errors during shutdown");
-            };
+            }
             ExitCode::SUCCESS
         }
         Err(reason) => {

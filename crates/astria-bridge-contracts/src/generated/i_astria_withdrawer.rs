@@ -157,9 +157,9 @@ pub mod i_astria_withdrawer {
         }
     }
     ///The parsed JSON ABI of the contract.
-    pub static IASTRIAWITHDRAWER_ABI: ::ethers::contract::Lazy<
+    pub static IASTRIAWITHDRAWER_ABI: std::sync::LazyLock<
         ::ethers::core::abi::Abi,
-    > = ::ethers::contract::Lazy::new(__abi);
+    > =  std::sync::LazyLock::new(__abi);
     pub struct IAstriaWithdrawer<M>(::ethers::contract::Contract<M>);
     impl<M> ::core::clone::Clone for IAstriaWithdrawer<M> {
         fn clone(&self) -> Self {

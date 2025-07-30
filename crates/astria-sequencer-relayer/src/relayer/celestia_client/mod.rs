@@ -154,7 +154,7 @@ impl CelestiaClient {
         &mut self,
         blobs: Arc<Vec<Blob>>,
         maybe_last_error: Option<TrySubmitError>,
-    ) -> Result<BlobTxAndFee, TrySubmitError> {
+    ) -> Result<BlobTxAndFee, Box<TrySubmitError>> {
         info!("fetching cost params and account info from celestia app");
         let (blob_params, auth_params, min_gas_price, base_account) = tokio::try_join!(
             self.fetch_blob_params(),
@@ -204,7 +204,7 @@ impl CelestiaClient {
         &mut self,
         blob_tx_hash: BlobTxHash,
         blob_tx: BlobTx,
-    ) -> Result<u64, TrySubmitError> {
+    ) -> Result<u64, Box<TrySubmitError>> {
         info!("broadcasting blob transaction to celestia app");
         let hex_encoded_tx_hash = self.broadcast_tx(blob_tx).await?;
         if hex_encoded_tx_hash != blob_tx_hash.to_hex() {
@@ -239,7 +239,7 @@ impl CelestiaClient {
     }
 
     #[instrument(skip_all, err)]
-    async fn fetch_account(&self) -> Result<BaseAccount, TrySubmitError> {
+    async fn fetch_account(&self) -> Result<BaseAccount, Box<TrySubmitError>> {
         let mut auth_query_client = AuthQueryClient::new(self.grpc_channel.clone());
         let request = QueryAccountRequest {
             address: self.address.0.clone(),
@@ -254,7 +254,7 @@ impl CelestiaClient {
     }
 
     #[instrument(skip_all, err)]
-    async fn fetch_blob_params(&self) -> Result<BlobParams, TrySubmitError> {
+    async fn fetch_blob_params(&self) -> Result<BlobParams, Box<TrySubmitError>> {
         let mut blob_query_client = BlobQueryClient::new(self.grpc_channel.clone());
         let response = blob_query_client.params(QueryBlobParamsRequest {}).await;
         // trace-level logging, so using Debug format is ok.
@@ -268,11 +268,11 @@ impl CelestiaClient {
             })?
             .into_inner()
             .params
-            .ok_or_else(|| TrySubmitError::EmptyBlobParams)
+            .ok_or_else(|| Box::new(TrySubmitError::EmptyBlobParams))
     }
 
     #[instrument(skip_all, err)]
-    async fn fetch_auth_params(&self) -> Result<AuthParams, TrySubmitError> {
+    async fn fetch_auth_params(&self) -> Result<AuthParams, Box<TrySubmitError>> {
         let mut auth_query_client = AuthQueryClient::new(self.grpc_channel.clone());
         let response = auth_query_client.params(QueryAuthParamsRequest {}).await;
         // trace-level logging, so using Debug format is ok.
@@ -286,11 +286,11 @@ impl CelestiaClient {
             })?
             .into_inner()
             .params
-            .ok_or_else(|| TrySubmitError::EmptyAuthParams)
+            .ok_or_else(|| Box::new(TrySubmitError::EmptyAuthParams))
     }
 
     #[instrument(skip_all, err)]
-    async fn fetch_min_gas_price(&self) -> Result<f64, TrySubmitError> {
+    async fn fetch_min_gas_price(&self) -> Result<f64, Box<TrySubmitError>> {
         let mut min_gas_price_client = MinGasPriceClient::new(self.grpc_channel.clone());
         let response = min_gas_price_client.config(MinGasPriceRequest {}).await;
         // trace-level logging, so using Debug format is ok.
@@ -308,7 +308,7 @@ impl CelestiaClient {
     ///
     /// [cometbft]: https://github.com/cometbft/cometbft/blob/b139e139ad9ae6fccb9682aa5c2de4aa952fd055/rpc/openapi/openapi.yaml#L201-L204
     #[instrument(skip_all, err)]
-    async fn broadcast_tx(&mut self, blob_tx: BlobTx) -> Result<String, TrySubmitError> {
+    async fn broadcast_tx(&mut self, blob_tx: BlobTx) -> Result<String, Box<TrySubmitError>> {
         let request = BroadcastTxRequest {
             tx_bytes: Bytes::from(blob_tx.encode_to_vec()),
             mode: i32::from(BroadcastMode::Sync),
@@ -325,7 +325,10 @@ impl CelestiaClient {
     /// Returns `Some(height)` if the tx submission has completed, or `None` if it is still
     /// pending.
     #[instrument(skip_all, err)]
-    async fn get_tx(&mut self, hex_encoded_tx_hash: String) -> Result<Option<u64>, TrySubmitError> {
+    async fn get_tx(
+        &mut self,
+        hex_encoded_tx_hash: String,
+    ) -> Result<Option<u64>, Box<TrySubmitError>> {
         let request = GetTxRequest {
             hash: hex_encoded_tx_hash,
         };
@@ -380,7 +383,7 @@ impl CelestiaClient {
                 Err(error) => {
                     sleep_secs =
                         std::cmp::min(sleep_secs.saturating_mul(2), MAX_POLL_INTERVAL_SECS);
-                    log_if_due(Some(error));
+                    log_if_due(Some(*error));
                 }
             }
         }
@@ -390,7 +393,7 @@ impl CelestiaClient {
 fn new_msg_pay_for_blobs(
     blobs: &[Blob],
     signer: Bech32Address,
-) -> Result<MsgPayForBlobs, TrySubmitError> {
+) -> Result<MsgPayForBlobs, Box<TrySubmitError>> {
     // Gather the required fields of the blobs into separate collections, one collection per
     // field.
     let mut blob_sizes = Vec::with_capacity(blobs.len());
@@ -427,7 +430,7 @@ fn new_msg_pay_for_blobs(
 /// Extracts a `BaseAccount` from the given response.
 fn account_from_response(
     response: Result<Response<QueryAccountResponse>, Status>,
-) -> Result<BaseAccount, TrySubmitError> {
+) -> Result<BaseAccount, Box<TrySubmitError>> {
     let account_info = response.map_err(|status| {
         TrySubmitError::FailedToGetAccountInfo(GrpcResponseError::from(status))
     })?;
@@ -439,20 +442,24 @@ fn account_from_response(
     let expected_type_url = BaseAccount::type_url();
 
     if expected_type_url == account_as_any.type_url {
-        return BaseAccount::decode(&*account_as_any.value)
-            .map_err(|error| TrySubmitError::DecodeAccountInfo(ProtobufDecodeError::from(error)));
+        return BaseAccount::decode(&*account_as_any.value).map_err(|error| {
+            Box::new(TrySubmitError::DecodeAccountInfo(
+                ProtobufDecodeError::from(error),
+            ))
+        });
     }
 
     Err(TrySubmitError::AccountInfoTypeMismatch {
         expected: expected_type_url,
         received: account_as_any.type_url,
-    })
+    }
+    .into())
 }
 
 /// Extracts the minimum gas price from the given response.
 fn min_gas_price_from_response(
     response: Result<Response<MinGasPriceResponse>, Status>,
-) -> Result<f64, TrySubmitError> {
+) -> Result<f64, Box<TrySubmitError>> {
     const UNITS_SUFFIX: &str = "utia";
     let min_gas_price_with_suffix = response
         .map_err(|status| TrySubmitError::FailedToGetMinGasPrice(GrpcResponseError::from(status)))?
@@ -464,18 +471,18 @@ fn min_gas_price_from_response(
             min_gas_price: min_gas_price_with_suffix.clone(),
             expected_suffix: UNITS_SUFFIX,
         })?;
-    min_gas_price_str
-        .parse::<f64>()
-        .map_err(|source| TrySubmitError::FailedToParseMinGasPrice {
+    min_gas_price_str.parse::<f64>().map_err(|source| {
+        Box::new(TrySubmitError::FailedToParseMinGasPrice {
             min_gas_price: min_gas_price_str.to_string(),
             source,
         })
+    })
 }
 
 /// Extracts the tx hash from the given response and converts to lowercase.
 fn lowercase_hex_encoded_tx_hash_from_response(
     response: Result<Response<BroadcastTxResponse>, Status>,
-) -> Result<String, TrySubmitError> {
+) -> Result<String, Box<TrySubmitError>> {
     let mut tx_response = response
         .map_err(|status| TrySubmitError::FailedToBroadcastTx(GrpcResponseError::from(status)))?
         .into_inner()
@@ -488,7 +495,7 @@ fn lowercase_hex_encoded_tx_hash_from_response(
             namespace: tx_response.codespace,
             log: tx_response.raw_log,
         };
-        return Err(error);
+        return Err(Box::new(error));
     }
     tx_response.txhash.make_ascii_lowercase();
     Ok(tx_response.txhash)
@@ -498,7 +505,7 @@ fn lowercase_hex_encoded_tx_hash_from_response(
 /// not available yet.
 fn block_height_from_response(
     response: Result<Response<GetTxResponse>, Status>,
-) -> Result<Option<u64>, TrySubmitError> {
+) -> Result<Option<u64>, Box<TrySubmitError>> {
     let ok_response = match response {
         Ok(resp) => resp,
         Err(status) => {
@@ -511,9 +518,7 @@ fn block_height_from_response(
                 trace!(msg = status.message(), "transaction still pending");
                 return Ok(None);
             }
-            return Err(TrySubmitError::FailedToGetTx(GrpcResponseError::from(
-                status,
-            )));
+            return Err(TrySubmitError::FailedToGetTx(GrpcResponseError::from(status)).into());
         }
     };
     let tx_response = ok_response
@@ -527,7 +532,7 @@ fn block_height_from_response(
             namespace: tx_response.codespace,
             log: tx_response.raw_log,
         };
-        return Err(error);
+        return Err(Box::new(error));
     }
     if tx_response.height == 0 {
         trace!(tx_hash = %tx_response.txhash, "transaction still pending");

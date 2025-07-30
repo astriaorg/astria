@@ -157,7 +157,7 @@ impl Args {
                     opt.write(true).truncate(true);
                 } else {
                     opt.write(true).create_new(true);
-                };
+                }
                 opt.open(p)
                     .map(|f| Box::new(f) as Box<dyn Write>)
                     .wrap_err("failed opening provided file for writing")

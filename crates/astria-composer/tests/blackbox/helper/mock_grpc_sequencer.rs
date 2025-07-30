@@ -127,6 +127,7 @@ impl SequencerService for SequencerServiceImpl {
         self.0
             .handle_request(GET_PENDING_NONCE_GRPC_NAME, request)
             .await
+            .map_err(|e| *e)
     }
 
     async fn get_upgrades_info(

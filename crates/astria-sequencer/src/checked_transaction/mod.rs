@@ -123,7 +123,7 @@ impl CheckedTransaction {
                 current_nonce,
                 tx_nonce,
             });
-        };
+        }
 
         let tx_id = TransactionId::new(sha2::Sha256::digest(&tx_bytes).into());
         let tx_chain_id = tx.chain_id().to_string();
@@ -273,7 +273,7 @@ impl CheckedTransaction {
                 expected: current_nonce,
                 tx_nonce,
             });
-        };
+        }
 
         if state
             .get_bridge_account_rollup_id(self)

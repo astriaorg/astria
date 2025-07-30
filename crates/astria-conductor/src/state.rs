@@ -283,7 +283,7 @@ impl State {
                 rollup_start_block_number: execution_session_parameters.rollup_start_block_number(),
                 rollup_number: rollup_end_block_number.get(),
             })?;
-        };
+        }
         Ok(State {
             execution_session_id: execution_session.session_id().to_string(),
             execution_session_parameters: execution_session_parameters.clone(),

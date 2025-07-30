@@ -294,7 +294,7 @@ impl RunningReader {
     fn has_reached_stop_height(&self) -> bool {
         self.rollup_state
             .sequencer_stop_height()
-            .map_or(false, |height| {
+            .is_some_and(|height| {
                 self.block_cache.next_height_to_pop() > height.get()
                     && self.enqueued_block.is_terminated()
             })

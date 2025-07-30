@@ -79,7 +79,10 @@ impl Health for HealthService {
         self: Arc<Self>,
         request: Request<HealthCheckRequest>,
     ) -> Result<Response<HealthCheckResponse>, Status> {
-        self.mock_server.handle_request("check", request).await
+        match self.mock_server.handle_request("check", request).await {
+            Ok(res) => Ok(res),
+            Err(e) => Err(*e),
+        }
     }
 
     async fn watch(

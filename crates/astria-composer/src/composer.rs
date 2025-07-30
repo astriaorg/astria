@@ -68,7 +68,7 @@ pub struct Composer {
     api_shutdown_token: CancellationToken,
     /// used to announce the current status of the Composer for other
     /// modules in the crate to use.
-    composer_status_sender: watch::Sender<composer::Status>,
+    status_sender: watch::Sender<composer::Status>,
     /// used to forward transactions received from rollups to the Executor.
     /// This is at the Composer level to allow its sharing to various different collectors.
     executor_handle: executor::Handle,
@@ -197,7 +197,7 @@ impl Composer {
         Ok(Self {
             api,
             api_shutdown_token,
-            composer_status_sender,
+            status_sender: composer_status_sender,
             executor_handle,
             executor,
             rollups,
@@ -239,7 +239,7 @@ impl Composer {
         let Self {
             api,
             api_shutdown_token,
-            composer_status_sender,
+            status_sender: composer_status_sender,
             executor,
             executor_handle,
             mut geth_collector_tasks,
@@ -275,7 +275,7 @@ impl Composer {
             (Err(collector_err), Err(executor_err)) => {
                 error!(%collector_err, %executor_err, "geth collectors and executor failed to become ready");
             }
-        };
+        }
 
         // run the grpc server
         let mut grpc_server_handle = tokio::spawn(async move {
@@ -406,7 +406,7 @@ impl ShutdownInfo {
             }
         } else {
             info!("executor task was already dead");
-        };
+        }
 
         // We give the grpc server 5 seconds to shut down.
         if let Some(grpc_server_task_handle) = grpc_server_task_handle {
@@ -420,7 +420,7 @@ impl ShutdownInfo {
             }
         } else {
             info!("grpc server task was already dead");
-        };
+        }
 
         let shutdown_loop = async {
             while let Some((name, res)) = geth_collector_tasks.join_next().await {
@@ -464,7 +464,7 @@ impl ShutdownInfo {
             }
         } else {
             info!("api server task was already dead");
-        };
+        }
 
         Ok(())
     }

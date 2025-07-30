@@ -23,7 +23,7 @@ use crate::{
 
 pub(crate) enum MockResult<U> {
     NoMatch,
-    Success(tonic::Result<tonic::Response<U>>),
+    Success(tonic::Result<tonic::Response<U>, Box<tonic::Status>>),
     BadResponse(tonic::Status),
 }
 

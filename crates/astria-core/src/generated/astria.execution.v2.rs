@@ -43,7 +43,7 @@ impl ::prost::Name for ExecutedBlockMetadata {
 /// - Block numbers are such that soft >= firm.
 /// - No blocks ever decrease in block number.
 /// - The chain defined by soft is the head of the canonical chain the firm block
-///    must belong to.
+///   must belong to.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CommitmentState {
     /// Soft committed block metadata derived directly from an Astria sequencer block.
