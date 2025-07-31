@@ -3,12 +3,15 @@ use std::{
     time::Duration,
 };
 
-use astria_core::generated::cosmos::{
-    base::tendermint::v1beta1::{
-        service_client::ServiceClient as NodeInfoClient,
-        GetNodeInfoRequest,
+use astria_core::generated::{
+    celestia::core::v1::tx::tx_client::TxClient as TxStatusClient,
+    cosmos::{
+        base::tendermint::v1beta1::{
+            service_client::ServiceClient as NodeInfoClient,
+            GetNodeInfoRequest,
+        },
+        tx::v1beta1::service_client::ServiceClient as TxClient,
     },
-    tx::v1beta1::service_client::ServiceClient as TxClient,
 };
 use http::Uri;
 use tendermint::account::Id as AccountId;
@@ -30,6 +33,7 @@ use super::{
     CelestiaKeys,
     GrpcResponseError,
 };
+use crate::Metrics;
 
 /// All gRPCs will time out with the given duration.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
@@ -77,6 +81,7 @@ pub(in crate::relayer) struct Builder {
     address: Bech32Address,
     /// A handle to the mutable state of the relayer.
     state: Arc<State>,
+    metrics: &'static Metrics,
 }
 
 impl Builder {
@@ -86,6 +91,7 @@ impl Builder {
         uri: Uri,
         signing_keys: CelestiaKeys,
         state: Arc<State>,
+        metrics: &'static Metrics,
     ) -> Result<Self, BuilderError> {
         let grpc_channel = Endpoint::from(uri).timeout(REQUEST_TIMEOUT).connect_lazy();
         let address = bech32_encode(&signing_keys.address)?;
@@ -95,6 +101,7 @@ impl Builder {
             signing_keys,
             address,
             state,
+            metrics,
         })
     }
 
@@ -109,6 +116,7 @@ impl Builder {
             signing_keys,
             address,
             state,
+            metrics,
         } = self;
 
         if received_celestia_chain_id != configured_celestia_chain_id {
@@ -122,12 +130,15 @@ impl Builder {
         state.set_celestia_connected(true);
 
         let tx_client = TxClient::new(grpc_channel.clone());
+        let tx_status_client = TxStatusClient::new(grpc_channel.clone());
         Ok(CelestiaClient {
             grpc_channel,
             tx_client,
+            tx_status_client,
             signing_keys,
             address,
             chain_id: received_celestia_chain_id,
+            metrics,
         })
     }
 
