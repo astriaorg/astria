@@ -17,5 +17,13 @@
     },
     "validatorUpdateActionChange": {},
     "ibcAcknowledgementFailureChange": {}
+  },
+  "blackburn": {
+    "baseInfo": {
+      "activationHeight": "10560000",
+      "appVersion": "4"
+    },
+    "ics20TransferActionChange": {},
+    "allowIbcRelayToFail": {}
   }
 }
