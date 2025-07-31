@@ -130,7 +130,7 @@ impl RemovalCache {
     fn add(&mut self, tx_id: TransactionId, reason: RemovalReason) {
         if self.cache.contains_key(&tx_id) {
             return;
-        };
+        }
 
         if self.remove_queue.len() == usize::from(self.max_size) {
             // This should not happen if `REMOVAL_CACHE_SIZE` is >= CometBFT's configured mempool

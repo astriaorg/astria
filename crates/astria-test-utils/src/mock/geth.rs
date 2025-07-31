@@ -161,12 +161,12 @@ mod __rpc_traits {
 #[derive(Clone, Debug)]
 pub enum SubscriptionCommand {
     Abort,
-    Send(Transaction),
+    Send(Box<Transaction>),
 }
 
 impl From<Transaction> for SubscriptionCommand {
     fn from(transaction: Transaction) -> Self {
-        Self::Send(transaction)
+        Self::Send(transaction.into())
     }
 }
 

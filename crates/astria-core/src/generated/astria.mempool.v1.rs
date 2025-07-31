@@ -83,12 +83,12 @@ pub struct TransactionStatus {
     /// The status of the transaction. Can be one of:
     /// - `Pending`: The transaction is pending inclusion in a block.
     /// - `Parked`: The transaction is parked and will not be proposed until both:
-    ///      - The transaction's nonce matches the sender's next nonce.
-    ///      - The sender has sufficient balance to pay for the transaction.
+    ///     - The transaction's nonce matches the sender's next nonce.
+    ///     - The sender has sufficient balance to pay for the transaction.
     /// - `Removed`: The transaction has been removed from the mempool. Includes
-    ///       reason for removal.
+    ///   reason for removal.
     /// - `Executed`: The transaction has been included in a sequencer block. Specifies
-    ///       the block height in which the transaction was included.
+    ///   the block height in which the transaction was included.
     #[prost(oneof = "transaction_status::Status", tags = "2, 3, 4, 5")]
     pub status: ::core::option::Option<transaction_status::Status>,
 }
@@ -166,9 +166,9 @@ pub mod transaction_status {
     ///      - The transaction's nonce matches the sender's next nonce.
     ///      - The sender has sufficient balance to pay for the transaction.
     /// - `Removed`: The transaction has been removed from the mempool. Includes
-    ///       reason for removal.
+    ///   reason for removal.
     /// - `Executed`: The transaction has been included in a sequencer block. Specifies
-    ///       the block height in which the transaction was included.
+    ///   the block height in which the transaction was included.
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Status {
         #[prost(message, tag = "2")]

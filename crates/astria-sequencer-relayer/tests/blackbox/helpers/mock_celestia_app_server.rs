@@ -352,6 +352,7 @@ impl NodeInfoService for CelestiaAppServiceImpl {
         self.0
             .handle_request(GET_NODE_INFO_GRPC_NAME, request)
             .await
+            .map_err(|e| *e)
     }
 }
 
@@ -364,6 +365,7 @@ impl AuthQueryService for CelestiaAppServiceImpl {
         self.0
             .handle_request(QUERY_ACCOUNT_GRPC_NAME, request)
             .await
+            .map_err(|e| *e)
     }
 
     async fn params(
@@ -373,6 +375,7 @@ impl AuthQueryService for CelestiaAppServiceImpl {
         self.0
             .handle_request(QUERY_AUTH_PARAMS_GRPC_NAME, request)
             .await
+            .map_err(|e| *e)
     }
 }
 
@@ -385,6 +388,7 @@ impl BlobQueryService for CelestiaAppServiceImpl {
         self.0
             .handle_request(QUERY_BLOB_PARAMS_GRPC_NAME, request)
             .await
+            .map_err(|e| *e)
     }
 }
 
@@ -397,6 +401,7 @@ impl MinGasPriceService for CelestiaAppServiceImpl {
         self.0
             .handle_request(MIN_GAS_PRICE_GRPC_NAME, request)
             .await
+            .map_err(|e| *e)
     }
 }
 
@@ -406,14 +411,20 @@ impl TxService for CelestiaAppServiceImpl {
         self: Arc<Self>,
         request: Request<GetTxRequest>,
     ) -> Result<Response<GetTxResponse>, Status> {
-        self.0.handle_request(GET_TX_GRPC_NAME, request).await
+        self.0
+            .handle_request(GET_TX_GRPC_NAME, request)
+            .await
+            .map_err(|e| *e)
     }
 
     async fn broadcast_tx(
         self: Arc<Self>,
         request: Request<BroadcastTxRequest>,
     ) -> Result<Response<BroadcastTxResponse>, Status> {
-        self.0.handle_request(BROADCAST_TX_GRPC_NAME, request).await
+        self.0
+            .handle_request(BROADCAST_TX_GRPC_NAME, request)
+            .await
+            .map_err(|e| *e)
     }
 }
 

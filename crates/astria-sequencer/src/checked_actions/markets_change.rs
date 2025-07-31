@@ -141,7 +141,7 @@ impl CheckedMarketsChange {
                     })? = market.clone();
                 }
             }
-        };
+        }
 
         state
             .put_market_map(market_map)

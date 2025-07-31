@@ -109,7 +109,7 @@ impl MockServer {
         &self,
         rpc: &'static str,
         req: tonic::Request<T>,
-    ) -> tonic::Result<tonic::Response<U>> {
+    ) -> tonic::Result<tonic::Response<U>, Box<tonic::Status>> {
         let (response, delay) = self.state.write().await.handle_request(rpc, req);
         if let Some(delay) = delay {
             tokio::time::sleep(delay).await;
@@ -338,7 +338,7 @@ impl MockServerState {
         rpc: &'static str,
         req: tonic::Request<T>,
     ) -> (
-        tonic::Result<tonic::Response<U>>,
+        tonic::Result<tonic::Response<U>, Box<tonic::Status>>,
         Option<std::time::Duration>,
     ) {
         if let Some(received_requests) = &mut self.received_requests {

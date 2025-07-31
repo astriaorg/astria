@@ -52,7 +52,7 @@ pub mod tests;
 /// The error that is returned if reading a config from the environment fails.
 #[derive(Clone, Debug)]
 pub struct Error {
-    inner: figment::Error,
+    inner: Box<figment::Error>,
 }
 
 impl Display for Error {
@@ -70,7 +70,7 @@ impl std::error::Error for Error {
 impl From<figment::Error> for Error {
     fn from(inner: figment::Error) -> Self {
         Self {
-            inner,
+            inner: inner.into(),
         }
     }
 }
@@ -124,6 +124,7 @@ pub trait Config: ::core::fmt::Debug + DeserializeOwned {
     }
 
     #[doc(hidden)]
+    #[expect(clippy::result_large_err, reason = "wrapping figment::Error")]
     fn get_with_prefix(
         prefix: &str,
         _internal: _internal::Internal,

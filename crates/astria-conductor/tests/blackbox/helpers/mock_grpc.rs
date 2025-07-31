@@ -117,6 +117,7 @@ impl SequencerService for SequencerServiceImpl {
         self.mock_server
             .handle_request("get_filtered_sequencer_block", request)
             .await
+            .map_err(|e| *e)
     }
 
     async fn get_pending_nonce(
@@ -157,7 +158,7 @@ macro_rules! define_and_impl_service {
         impl $trait for $target {
             $(
             async fn $rpc(self: Arc<Self>, request: ::tonic::Request<$request>) -> ::tonic::Result<::tonic::Response<$response>> {
-                    self.mock_server.handle_request(stringify!($rpc), request).await
+                    self.mock_server.handle_request(stringify!($rpc), request).await.map_err(|e| *e)
             }
             )+
         }

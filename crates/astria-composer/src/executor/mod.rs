@@ -263,7 +263,7 @@ impl Executor {
                 rsp = &mut submission_fut, if !submission_fut.is_terminated() => {
                     if let Err(err) = process_result_update_nonce(&mut nonce, rsp, &mut block_timer, reset_time) {
                         break Err(err).wrap_err("failed submitting bundle to sequencer");
-                    };
+                    }
                 }
 
                 Some(next_bundle) = future::ready(bundle_factory.next_finished()), if submission_fut.is_terminated() => {

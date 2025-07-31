@@ -225,7 +225,7 @@ struct ErrorResponse {
 
 impl Respond for ErrorResponse {
     fn respond(&self, _req: &tonic::Request<AnyMessage>) -> ResponseResult {
-        Err(self.status.clone())
+        Err(self.status.clone().into())
     }
 }
 
@@ -304,7 +304,7 @@ where
                 "failed downcasting request to concrete type; expected type of request: \
                  `{expected}`, actual type of request: `{actual}`, request: {req_as_json}",
             );
-            return Err(tonic::Status::internal(msg));
+            return Err(tonic::Status::internal(msg).into());
         };
 
         let resp = (self.responder)(req);
@@ -323,7 +323,7 @@ pub struct MockResponse {
 }
 
 /// The return type of [`Respond::respond`].
-pub type ResponseResult = Result<MockResponse, tonic::Status>;
+pub type ResponseResult = Result<MockResponse, Box<tonic::Status>>;
 
 impl Clone for MockResponse {
     fn clone(&self) -> Self {

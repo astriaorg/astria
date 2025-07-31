@@ -96,7 +96,7 @@ async fn shutdown(reason: eyre::Result<&'static str>, service: AccountMonitor) -
                 Err(_) => {
                     warn!("service shutdown timed out");
                 }
-            };
+            }
             ExitCode::SUCCESS
         }
         Err(reason) => {

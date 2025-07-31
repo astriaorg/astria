@@ -67,7 +67,6 @@ pub mod v2 {
             self.clone().into_raw()
         }
 
-        #[must_use]
         fn into_raw(self) -> raw::GenesisState {
             raw::GenesisState {
                 market_map: Some(self.market_map.into_raw()),
@@ -150,7 +149,6 @@ pub mod v2 {
             })
         }
 
-        #[must_use]
         pub fn into_raw(self) -> raw::Market {
             raw::Market {
                 ticker: Some(self.ticker.into_raw()),

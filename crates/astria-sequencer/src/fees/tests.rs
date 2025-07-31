@@ -271,6 +271,7 @@ async fn bridge_lock_fee_calculation_works_as_expected() {
 }
 
 #[test]
+#[expect(clippy::large_stack_arrays, reason = "test case")]
 fn calculated_base_deposit_fee_matches_expected_value() {
     assert_correct_base_deposit_fee(&Deposit {
         amount: u128::MAX,

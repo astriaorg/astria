@@ -634,6 +634,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
 }
 
 #[tokio::test]
+#[expect(clippy::large_stack_arrays, reason = "test case")]
 async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
     let mut fixture = Fixture::default_initialized().await;
     let height = fixture.block_height().await.increment();
@@ -718,6 +719,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
 }
 
 #[tokio::test]
+#[expect(clippy::large_stack_arrays, reason = "test case")]
 async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
     let mut fixture = Fixture::default_initialized().await;
     let height = fixture.block_height().await.increment();
@@ -801,6 +803,7 @@ async fn app_prepare_proposal_sequencer_max_bytes_overflow_ok() {
 }
 
 #[tokio::test]
+#[expect(clippy::large_stack_arrays, reason = "test case")]
 async fn app_process_proposal_sequencer_max_bytes_overflow_fail() {
     let mut fixture = Fixture::default_initialized().await;
     let height = fixture.block_height().await.increment();

@@ -126,7 +126,7 @@ where
         fn io_error(_: fmt::Error) -> io::Error {
             // Error value does not matter because Display impl just maps it
             // back to fmt::Error.
-            io::Error::new(io::ErrorKind::Other, "fmt error")
+            io::Error::other("fmt error")
         }
 
         let mut wr = WriterFormatter {

@@ -1163,8 +1163,10 @@ impl App {
         let injected_tx_count = expanded_block_data.injected_transaction_count();
         let mut finalize_block_tx_results: Vec<ExecTxResult> =
             Vec::with_capacity(expanded_block_data.user_submitted_transactions.len());
-        finalize_block_tx_results
-            .extend(std::iter::repeat(ExecTxResult::default()).take(injected_tx_count));
+        finalize_block_tx_results.extend(std::iter::repeat_n(
+            ExecTxResult::default(),
+            injected_tx_count,
+        ));
         finalize_block_tx_results.extend(
             executed_txs
                 .iter()
@@ -1399,8 +1401,10 @@ impl App {
         // transaction, not the injected ones.
         let mut finalize_block_tx_results: Vec<ExecTxResult> =
             Vec::with_capacity(tx_results.len().saturating_add(injected_tx_count));
-        finalize_block_tx_results
-            .extend(std::iter::repeat(ExecTxResult::default()).take(injected_tx_count));
+        finalize_block_tx_results.extend(std::iter::repeat_n(
+            ExecTxResult::default(),
+            injected_tx_count,
+        ));
         finalize_block_tx_results.extend(tx_results.iter().map(|(_, tx_result)| tx_result.clone()));
 
         // prepare the `WriteBatch` for a later commit.
@@ -1692,9 +1696,7 @@ impl App {
         self.upgrades_handler
             .upgrades()
             .aspen()
-            .map_or(false, |aspen| {
-                block_height.value() >= aspen.activation_height()
-            })
+            .is_some_and(|aspen| block_height.value() >= aspen.activation_height())
     }
 
     /// Returns `true` if vote extensions are enabled for the block at the given height, i.e. if

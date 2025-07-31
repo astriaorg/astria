@@ -56,22 +56,22 @@ impl MockSet {
         rpc: &'static str,
         req: tonic::Request<T>,
     ) -> (
-        tonic::Result<tonic::Response<U>>,
+        tonic::Result<tonic::Response<U>, Box<tonic::Status>>,
         Option<std::time::Duration>,
     ) {
         debug!(rpc, "handling request.");
         // perform erasure here so that it's not done in every single `Mock::matches` call.
         let erased = erase_request(req);
-        let mut mock_response: Option<tonic::Result<tonic::Response<U>>> = None;
+        let mut mock_response: Option<tonic::Result<tonic::Response<U>, Box<tonic::Status>>> = None;
         let mut delay = None;
         for (mock, mock_state) in &mut self.mocks {
             if let MountedMockState::OutOfScope = mock_state {
                 continue;
             }
             match mock.match_and_respond::<U>(rpc, &erased) {
-                (MockResult::NoMatch, _) => continue,
+                (MockResult::NoMatch, _) => {}
                 (MockResult::BadResponse(status), _) => {
-                    mock_response.replace(Err(status));
+                    mock_response.replace(Err(status.into()));
                     break;
                 }
                 (MockResult::Success(response), response_delay) => {
@@ -89,7 +89,7 @@ impl MockSet {
                     &serde_json::to_string(erased.get_ref().as_serialize())
                         .expect("can map protobuf message to json"),
                 );
-                tonic::Status::not_found(msg)
+                Box::new(tonic::Status::not_found(msg))
             })
             .and_then(std::convert::identity);
         (result, delay)

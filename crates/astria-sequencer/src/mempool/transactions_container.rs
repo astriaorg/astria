@@ -608,7 +608,6 @@ pub(super) trait TransactionsContainer<T: TransactionsForAccount> {
                     address = %telemetry::display::base64(address_bytes),
                     "failed to calculate new transaction cost when cleaning accounts: {error:#}"
                 );
-                continue;
             }
         }
     }
@@ -792,7 +791,7 @@ impl PendingTransactions {
     ) -> HashMap<IbcPrefixed, u128> {
         if let Some(account) = self.txs.get(address_bytes) {
             account.subtract_contained_costs(&mut current_balances);
-        };
+        }
         current_balances
     }
 

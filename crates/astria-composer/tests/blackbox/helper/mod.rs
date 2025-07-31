@@ -128,6 +128,7 @@ pub async fn spawn_composer(
     txs_in_pool: Vec<EthersTransaction>,
     loop_until_ready: bool,
 ) -> TestComposer {
+    use std::fmt::Write as _;
     LazyLock::force(&TELEMETRY);
 
     let mut rollup_nodes = HashMap::new();
@@ -142,7 +143,7 @@ pub async fn spawn_composer(
         let geth = Geth::spawn_with_pending_txs(pending_map).await;
         let execution_url = format!("ws://{}", geth.local_addr());
         rollup_nodes.insert((*id).to_string(), geth);
-        rollups.push_str(&format!("{id}::{execution_url},"));
+        let _ = write!(rollups, "{id}::{execution_url},");
     }
     let sequencer = mock_abci_sequencer::start(sequencer_chain_id).await;
     let grpc_server = MockGrpcSequencer::spawn().await;

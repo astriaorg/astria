@@ -63,33 +63,25 @@ impl StateSnapshot {
     }
 
     fn set_latest_confirmed_celestia_height(&mut self, height: u64) -> bool {
-        let changed = self
-            .latest_confirmed_celestia_height
-            .map_or(true, |h| h != height);
+        let changed = self.latest_confirmed_celestia_height != Some(height);
         self.latest_confirmed_celestia_height.replace(height);
         changed
     }
 
     fn set_latest_fetched_sequencer_height(&mut self, height: u64) -> bool {
-        let changed = self
-            .latest_fetched_sequencer_height
-            .map_or(true, |h| h != height);
+        let changed = self.latest_fetched_sequencer_height != Some(height);
         self.latest_fetched_sequencer_height.replace(height);
         changed
     }
 
     fn set_latest_observed_sequencer_height(&mut self, height: u64) -> bool {
-        let changed = self
-            .latest_observed_sequencer_height
-            .map_or(true, |h| h != height);
+        let changed = self.latest_observed_sequencer_height != Some(height);
         self.latest_observed_sequencer_height.replace(height);
         changed
     }
 
     fn set_latest_requested_sequencer_height(&mut self, height: u64) -> bool {
-        let changed = self
-            .latest_requested_sequencer_height
-            .map_or(true, |h| h != height);
+        let changed = self.latest_requested_sequencer_height != Some(height);
         self.latest_requested_sequencer_height.replace(height);
         changed
     }

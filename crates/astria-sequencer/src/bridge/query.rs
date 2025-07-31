@@ -174,7 +174,7 @@ pub(crate) async fn bridge_account_info_request(
 
     let address = match preprocess_request(&params) {
         Ok(tup) => tup,
-        Err(err_rsp) => return err_rsp,
+        Err(err_rsp) => return *err_rsp,
     };
 
     let snapshot = storage.latest_snapshot();
@@ -223,7 +223,7 @@ pub(crate) async fn bridge_account_last_tx_hash_request(
 
     let address = match preprocess_request(&params) {
         Ok(tup) => tup,
-        Err(err_rsp) => return err_rsp,
+        Err(err_rsp) => return *err_rsp,
     };
 
     // use latest snapshot, as this is a query for latest tx
@@ -271,7 +271,7 @@ pub(crate) async fn bridge_account_last_tx_hash_request(
     }
 }
 
-fn preprocess_request(params: &[(String, String)]) -> Result<Address, response::Query> {
+fn preprocess_request(params: &[(String, String)]) -> Result<Address, Box<response::Query>> {
     let Some(address) = params
         .iter()
         .find_map(|(k, v)| (k == "address").then_some(v))
@@ -280,7 +280,8 @@ fn preprocess_request(params: &[(String, String)]) -> Result<Address, response::
             None,
             AbciErrorCode::INVALID_PARAMETER,
             "path did not contain address parameter",
-        ));
+        )
+        .into());
     };
     let address = address
         .parse()

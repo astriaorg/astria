@@ -135,7 +135,6 @@ impl RollupTransactions {
             transactions,
             proof,
         } = self;
-        let transactions = transactions.into_iter().map(Into::into).collect();
         raw::RollupTransactions {
             rollup_id: Some(rollup_id.into_raw()),
             transactions,
@@ -161,7 +160,6 @@ impl RollupTransactions {
         let raw_proof = proof.ok_or_else(|| RollupTransactionsError::field_not_set("proof"))?;
         let proof = merkle::Proof::try_from_raw(raw_proof)
             .map_err(RollupTransactionsError::proof_invalid)?;
-        let transactions = transactions.into_iter().map(Into::into).collect();
         Ok(Self {
             rollup_id,
             transactions,
@@ -989,7 +987,7 @@ impl SequencerBlock {
             let id = id.into();
             if let Some(rollup_transactions) = self.rollup_transactions.shift_remove(&id) {
                 filtered_rollup_transactions.insert(id, rollup_transactions);
-            };
+            }
         }
 
         FilteredSequencerBlock {
@@ -1017,7 +1015,7 @@ impl SequencerBlock {
             let id = id.into();
             if let Some(rollup_transactions) = self.rollup_transactions.get(&id).cloned() {
                 filtered_rollup_transactions.insert(id, rollup_transactions);
-            };
+            }
         }
 
         FilteredSequencerBlock {
@@ -1091,7 +1089,7 @@ impl SequencerBlock {
             .verify(&Sha256::digest(header.rollup_transactions_root), data_hash)
         {
             return Err(SequencerBlockError::invalid_rollup_transactions_root());
-        };
+        }
 
         if !are_rollup_txs_included(&rollup_transactions, &rollup_transactions_proof, data_hash) {
             return Err(SequencerBlockError::rollup_transactions_not_in_sequencer_block());
@@ -2300,7 +2298,7 @@ impl ExtendedCommitInfoWithProof {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Price {
     currency_pair: CurrencyPair,
-    price: crate::oracles::price_feed::types::v2::Price,
+    value: crate::oracles::price_feed::types::v2::Price,
     decimals: u8,
 }
 
@@ -2313,7 +2311,7 @@ impl Price {
     ) -> Self {
         Self {
             currency_pair,
-            price,
+            value: price,
             decimals,
         }
     }
@@ -2325,7 +2323,7 @@ impl Price {
 
     #[must_use]
     pub fn price(&self) -> crate::oracles::price_feed::types::v2::Price {
-        self.price
+        self.value
     }
 
     #[must_use]
@@ -2337,7 +2335,7 @@ impl Price {
     pub fn into_raw(self) -> raw::Price {
         let Self {
             currency_pair,
-            price,
+            value: price,
             decimals,
         } = self;
         raw::Price {
@@ -2372,7 +2370,7 @@ impl Price {
             .map_err(|_| PriceError::decimals_too_large())?;
         Ok(Self {
             currency_pair,
-            price,
+            value: price,
             decimals,
         })
     }
