@@ -79,7 +79,7 @@ use tracing::{
     instrument,
     Level,
 };
-
+use astria_core::upgrades::v1::blackburn::{Blackburn, Ics20TransferActionChange};
 use crate::{
     accounts::StateWriteExt as _,
     address::StateReadExt as _,
@@ -91,6 +91,7 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
+    fees::StateReadExt as _,
     ibc::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -427,6 +428,16 @@ impl AppHandlerExecute for Ics20Transfer {
     }
 }
 
+async fn is_post_blackburn<S: StateRead>(state: &S) -> Result<bool> {
+    Ok(state
+        .get_upgrade_change_info(&Blackburn::NAME, &Ics20TransferActionChange::NAME)
+        .await
+        .wrap_err(
+            "failed to read upgrade change info for ics20 transfer action change from storage",
+        )?
+        .is_some())
+}
+
 #[async_trait::async_trait]
 impl AppHandler for Ics20Transfer {}
 
@@ -484,6 +495,19 @@ async fn receive_tokens<S: StateWrite>(mut state: S, packet: &Packet) -> Result<
         .expect(
             "dest port and channel are valid prefix segments, so this concatenation must be a \
              valid denom",
+        );
+    }
+
+    // Only allow ics20 transfers of fee assets post-Blackburn upgrade
+    if is_post_blackburn(state).await.wrap_err("failed to get blackburn upgrade status")? {
+        ensure!(
+            state
+                .is_allowed_fee_asset(&asset)
+                .await
+                .wrap_err("failed to check if asset is allowed fee asset")?,
+            "denom `{}` is not an allowed asset for ics20 transfer post blackburn \
+             upgrade; only allowed fee assets can be transferred using ics20 transfers",
+            asset
         );
     }
 

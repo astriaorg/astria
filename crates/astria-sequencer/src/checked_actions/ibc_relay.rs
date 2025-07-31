@@ -96,50 +96,6 @@ impl CheckedIbcRelay {
             "transaction signer not authorized to execute IBC actions"
         );
 
-        // Only allow ics20 transfers of fee assets post-Blackburn upgrade
-        if !use_pre_blackburn_ics20_transfer(&state)
-            .await
-            .wrap_err("failed to get blackburn upgrade status")?
-        {
-            if let IbcRelay::RecvPacket(msg_recv_packet) = &self.action {
-                let packet_data: FungibleTokenPacketData =
-                    serde_json::from_slice(&msg_recv_packet.packet.data)
-                        .wrap_err("failed to deserialize fungible token packet data")?;
-                let mut asset = parse_asset(&state, &packet_data.denom)
-                    .await
-                    .wrap_err_with(|| {
-                        format!(
-                            "failed reading asset `{}` from packet data",
-                            packet_data.denom
-                        )
-                    })?;
-                let is_source = is_transfer_source_zone(
-                    &asset,
-                    &msg_recv_packet.packet.port_on_a,
-                    &msg_recv_packet.packet.chan_on_a,
-                );
-                if is_source {
-                    asset.pop_leading_port_and_channel();
-                } else {
-                    asset = format!(
-                        "{destination_port}/{destination_channel}/{asset}",
-                        destination_port = &msg_recv_packet.packet.port_on_b,
-                        destination_channel = &msg_recv_packet.packet.chan_on_b,
-                    )
-                    .parse()
-                    .wrap_err("failed to parse destination asset from packet data")?;
-                }
-                ensure!(
-                    state
-                        .is_allowed_fee_asset(&asset)
-                        .await
-                        .wrap_err("failed to check if asset is allowed fee asset")?,
-                    "denom `{}` is not an allowed asset for ics20 transfer post blackburn \
-                     upgrade; only allowed fee assets can be transferred using ics20 transfers",
-                    asset
-                );
-            }
-        }
         Ok(())
     }
 
@@ -171,16 +127,6 @@ impl Debug for CheckedIbcRelay {
             .field("tx_signer", &self.tx_signer)
             .finish()
     }
-}
-
-async fn use_pre_blackburn_ics20_transfer<S: StateRead>(state: &S) -> Result<bool> {
-    Ok(state
-        .get_upgrade_change_info(&Blackburn::NAME, &Ics20TransferActionChange::NAME)
-        .await
-        .wrap_err(
-            "failed to read upgrade change info for ics20 transfer action change from storage",
-        )?
-        .is_none())
 }
 
 #[cfg(test)]
