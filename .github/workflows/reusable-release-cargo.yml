@@ -16,7 +16,7 @@ jobs:
     outputs: 
       release-cut: ${{ steps.output.outputs.release_cut }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: git fetch --all --tags
       - name: Check Release Version
         id: release_version
