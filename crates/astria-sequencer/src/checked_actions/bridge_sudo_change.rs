@@ -122,7 +122,8 @@ impl CheckedBridgeSudoChange {
                 .wrap_err("failed to write bridge account withdrawer address to storage")?;
         }
 
-        if self.action.disable_deposits {
+        // Only set the disabled deposits flag if the upgrade is active.
+        if accounts_are_disableable(&state).await? {
             state
                 .put_bridge_account_disabled_status(
                     &self.action.bridge_address,

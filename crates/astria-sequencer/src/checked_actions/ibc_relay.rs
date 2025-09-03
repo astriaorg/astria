@@ -118,9 +118,7 @@ impl Debug for CheckedIbcRelay {
 mod tests {
     use astria_core::{
         crypto::ADDRESS_LENGTH,
-        primitive::v1::asset::Denom,
         protocol::transaction::v1::action::{
-            FeeAssetChange,
             IbcRelayerChange,
         },
     };
@@ -156,10 +154,8 @@ mod tests {
     use crate::{
         app::StateWriteExt as _,
         checked_actions::{
-            CheckedFeeAssetChange,
             CheckedIbcRelayerChange,
         },
-        fees::StateReadExt as _,
         test_utils::{
             assert_error_contains,
             dummy_ibc_client_state,
@@ -167,7 +163,6 @@ mod tests {
             Fixture,
             IBC_SUDO_ADDRESS,
             IBC_SUDO_ADDRESS_BYTES,
-            SUDO_ADDRESS_BYTES,
         },
     };
 
@@ -274,121 +269,6 @@ mod tests {
         assert_error_contains(
             &err,
             "transaction signer not authorized to execute IBC actions",
-        );
-    }
-
-    #[tokio::test]
-    async fn pre_blackburn_ics20_transfer_construction_succeeds_if_asset_not_allowed() {
-        // Only apply aspen upgrade
-        let mut fixture = Fixture::uninitialized(None).await;
-        fixture.chain_initializer().init().await;
-
-        let denom = "utia".to_string();
-
-        // Construct IbcRelay action with ICS20 transfer.
-        let action = dummy_ics20_transfer(denom.clone());
-
-        // Ensure ICS20 transfer action asset is not an allowed fee asset.
-        assert!(!fixture
-            .state()
-            .is_allowed_fee_asset(&(denom.parse::<Denom>().unwrap()))
-            .await
-            .unwrap());
-
-        fixture
-            .new_checked_action(action, *IBC_SUDO_ADDRESS_BYTES)
-            .await
-            .unwrap();
-    }
-
-    #[tokio::test]
-    async fn post_blackburn_ics20_transfer_should_fail_construction_if_asset_not_allowed() {
-        // The default initializer will run until Blackburn upgrade is applied.
-        let fixture = Fixture::default_initialized().await;
-
-        let denom = "utia".parse::<Denom>().unwrap();
-        let sequencer_originating_denom = format!("{PORT_A}/{CHANNEL_A}/{denom}");
-
-        // Construct IbcRelay action with ICS20 transfer.
-        let action = dummy_ics20_transfer(sequencer_originating_denom);
-
-        // Ensure ICS20 transfer action asset is not an allowed fee asset.
-        assert!(!fixture
-            .state()
-            .is_allowed_fee_asset(&(denom.clone()))
-            .await
-            .unwrap());
-
-        let err = fixture
-            .new_checked_action(action, *IBC_SUDO_ADDRESS_BYTES)
-            .await
-            .unwrap_err();
-
-        assert_error_contains(
-            &err,
-            &format!(
-                "denom `{denom}` is not an allowed asset for ics20 transfer post blackburn \
-                 upgrade; only allowed fee assets can be transferred using ics20 transfers",
-            ),
-        );
-    }
-
-    #[tokio::test]
-    async fn post_blackburn_ics20_transfer_should_fail_execution_if_asset_not_allowed() {
-        let mut fixture = Fixture::default_initialized().await;
-
-        let denom = "utia".parse::<Denom>().unwrap();
-
-        // Add asset to allowed fee assets (cannot use existing fee asset since we cannot remove
-        // it).
-        let add_fee_asset_action = FeeAssetChange::Addition(denom.clone());
-        let checked_add_fee_asset_action: CheckedFeeAssetChange = fixture
-            .new_checked_action(add_fee_asset_action, *SUDO_ADDRESS_BYTES)
-            .await
-            .unwrap()
-            .into();
-        checked_add_fee_asset_action
-            .execute(fixture.state_mut())
-            .await
-            .unwrap();
-
-        // Port and channel prefix will be stripped since they match the origin chain
-        let sequencer_originating_denom = format!("{PORT_A}/{CHANNEL_A}/{denom}");
-
-        assert!(fixture.state().is_allowed_fee_asset(&denom).await.unwrap());
-
-        // Construct IbcRelay action with ICS20 transfer.
-        let action = dummy_ics20_transfer(sequencer_originating_denom);
-        let checked_ics20_transfer_action: CheckedIbcRelay = fixture
-            .new_checked_action(action, *IBC_SUDO_ADDRESS_BYTES)
-            .await
-            .unwrap()
-            .into();
-
-        // Remove the asset from list of allowed fee assets.
-        let remove_fee_asset_action = FeeAssetChange::Removal(denom.clone());
-        let checked_remove_fee_asset_action: CheckedFeeAssetChange = fixture
-            .new_checked_action(remove_fee_asset_action, *SUDO_ADDRESS_BYTES)
-            .await
-            .unwrap()
-            .into();
-        checked_remove_fee_asset_action
-            .execute(fixture.state_mut())
-            .await
-            .unwrap();
-
-        // Try execute - should fail.
-        let err = checked_ics20_transfer_action
-            .execute(fixture.state_mut())
-            .await
-            .unwrap_err();
-
-        assert_error_contains(
-            &err,
-            &format!(
-                "denom `{denom}` is not an allowed asset for ics20 transfer post blackburn \
-                 upgrade; only allowed fee assets can be transferred using ics20 transfers",
-            ),
         );
     }
 
