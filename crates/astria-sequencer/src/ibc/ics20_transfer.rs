@@ -505,7 +505,7 @@ async fn receive_tokens<S: StateWrite>(mut state: S, packet: &Packet) -> Result<
     }
 
     // Only allow ics20 transfers of fee assets post-Blackburn upgrade
-    if is_post_blackburn(state)
+    if is_post_blackburn(&state)
         .await
         .wrap_err("failed to get blackburn upgrade status")?
     {

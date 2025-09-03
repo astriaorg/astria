@@ -24,7 +24,7 @@ impl Display for DisabledStatus {
     }
 }
 
-impl From<u64> for DisabledStatus {
+impl From<bool> for DisabledStatus {
     fn from(disabled: bool) -> Self {
         DisabledStatus(disabled)
     }

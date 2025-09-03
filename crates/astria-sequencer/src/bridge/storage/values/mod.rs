@@ -89,7 +89,7 @@ mod tests {
         );
         assert_snapshot!(
             "value_impl_disabled_status",
-            borsh_then_hex(&ValueImpl::DisabledStatus(DisabledStatus(true)))
+            borsh_then_hex(&ValueImpl::DisabledStatus(true.into()))
         );
     }
 

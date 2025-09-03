@@ -54,6 +54,9 @@ impl Blackburn {
         Some(&self.ics20_transfer_action_change as &dyn Change)
             .into_iter()
             .chain(Some(&self.allow_ibc_relay_to_fail as &dyn Change))
+            .chain(Some(
+                &self.disableable_bridge_account_deposits as &dyn Change,
+            ))
     }
 }
 

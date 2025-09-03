@@ -4,15 +4,9 @@ use std::fmt::{
     Formatter,
 };
 
-use astria_core::{
-    primitive::v1::{
-        asset::IbcPrefixed,
-        ADDRESS_LEN,
-    },
-    upgrades::v1::blackburn::{
-        Blackburn,
-        Ics20TransferActionChange,
-    },
+use astria_core::primitive::v1::{
+    asset::IbcPrefixed,
+    ADDRESS_LEN,
 };
 use astria_eyre::{
     anyhow_to_eyre,
@@ -26,7 +20,6 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
-use ibc_proto::ibc::apps::transfer::v2::FungibleTokenPacketData;
 use penumbra_ibc::{
     IbcRelay,
     IbcRelayWithHandlers,
@@ -40,18 +33,10 @@ use super::{
     AssetTransfer,
     TransactionSignerAddressBytes,
 };
-use crate::{
-    fees::StateReadExt as _,
-    ibc::{
-        host_interface::AstriaHost,
-        ics20_transfer::{
-            is_transfer_source_zone,
-            parse_asset,
-            Ics20Transfer,
-        },
-        StateReadExt as _,
-    },
-    upgrades::StateReadExt as _,
+use crate::ibc::{
+    host_interface::AstriaHost,
+    ics20_transfer::Ics20Transfer,
+    StateReadExt as _,
 };
 
 pub(crate) struct CheckedIbcRelay {
@@ -139,7 +124,10 @@ mod tests {
             IbcRelayerChange,
         },
     };
-    use ibc_proto::google::protobuf::Any;
+    use ibc_proto::{
+        google::protobuf::Any,
+        ibc::apps::transfer::v2::FungibleTokenPacketData,
+    };
     use ibc_types::{
         core::{
             channel::{
@@ -171,6 +159,7 @@ mod tests {
             CheckedFeeAssetChange,
             CheckedIbcRelayerChange,
         },
+        fees::StateReadExt as _,
         test_utils::{
             assert_error_contains,
             dummy_ibc_client_state,

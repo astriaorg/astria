@@ -79,6 +79,9 @@ impl UpgradesBuilder {
                 }),
                 ics20_transfer_action_change: Some(raw::blackburn::Ics20TransferActionChange {}),
                 allow_ibc_relay_to_fail: Some(raw::blackburn::AllowIbcRelayToFail {}),
+                disableable_bridge_account_deposits: Some(
+                    raw::blackburn::DisableableBridgeAccountDeposits {},
+                ),
             });
         let raw_upgrades = raw::Upgrades {
             aspen,

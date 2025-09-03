@@ -19,7 +19,6 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
-use prost::Name;
 use tracing::{
     instrument,
     Level,
@@ -90,10 +89,10 @@ impl CheckedBridgeSudoChange {
 
         if !accounts_are_disableable(state).await? {
             ensure!(
-                self.action.disable_deposits == false,
+                !self.action.disable_deposits,
                 "bridge account deposits cannot be disabled before the disableable bridge account \
                  deposits upgrade is activated",
-            )
+            );
         }
 
         ensure!(
@@ -125,7 +124,7 @@ impl CheckedBridgeSudoChange {
 
         if self.action.disable_deposits {
             state
-                .put_bridge_account_deposits_disabled(
+                .put_bridge_account_disabled_status(
                     &self.action.bridge_address,
                     self.action.disable_deposits,
                 )
