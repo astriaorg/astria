@@ -126,6 +126,10 @@ pub struct Blackburn {
     >,
     #[prost(message, optional, tag = "3")]
     pub allow_ibc_relay_to_fail: ::core::option::Option<blackburn::AllowIbcRelayToFail>,
+    #[prost(message, optional, tag = "4")]
+    pub disableable_bridge_account_deposits: ::core::option::Option<
+        blackburn::DisableableBridgeAccountDeposits,
+    >,
 }
 /// Nested message and enum types in `Blackburn`.
 pub mod blackburn {
@@ -151,6 +155,18 @@ pub mod blackburn {
         }
         fn type_url() -> ::prost::alloc::string::String {
             "/astria.upgrades.v1.Blackburn.AllowIbcRelayToFail".into()
+        }
+    }
+    #[derive(Clone, Copy, PartialEq, ::prost::Message)]
+    pub struct DisableableBridgeAccountDeposits {}
+    impl ::prost::Name for DisableableBridgeAccountDeposits {
+        const NAME: &'static str = "DisableableBridgeAccountDeposits";
+        const PACKAGE: &'static str = "astria.upgrades.v1";
+        fn full_name() -> ::prost::alloc::string::String {
+            "astria.upgrades.v1.Blackburn.DisableableBridgeAccountDeposits".into()
+        }
+        fn type_url() -> ::prost::alloc::string::String {
+            "/astria.upgrades.v1.Blackburn.DisableableBridgeAccountDeposits".into()
         }
     }
 }

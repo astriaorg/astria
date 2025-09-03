@@ -141,6 +141,15 @@ impl<const PURE_LOCK: bool> CheckedBridgeLockImpl<PURE_LOCK> {
             bail!("bridge accounts cannot send bridge locks");
         }
 
+        let bridge_disabled = state
+            .is_bridge_account_disabled(&self.action.to)
+            .await
+            .wrap_err("failed to read whether bridge account deposits are disabled from storage")?;
+        ensure!(
+            !bridge_disabled,
+            "bridge account deposits are currently disabled, cannot process ics20 withdrawal"
+        );
+
         Ok(())
     }
 

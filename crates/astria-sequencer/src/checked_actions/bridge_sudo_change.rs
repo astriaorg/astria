@@ -4,6 +4,10 @@ use astria_core::{
         ADDRESS_LEN,
     },
     protocol::transaction::v1::action::BridgeSudoChange,
+    upgrades::v1::blackburn::{
+        Blackburn,
+        DisableableBridgeAccountDeposits,
+    },
 };
 use astria_eyre::eyre::{
     bail,
@@ -15,6 +19,7 @@ use cnidarium::{
     StateRead,
     StateWrite,
 };
+use prost::Name;
 use tracing::{
     instrument,
     Level,
@@ -30,6 +35,7 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
+    upgrades::StateReadExt as _,
 };
 
 #[derive(Debug)]
@@ -82,6 +88,14 @@ impl CheckedBridgeSudoChange {
             bail!("bridge account does not have an associated sudo address in storage");
         };
 
+        if !accounts_are_disableable(state).await? {
+            ensure!(
+                self.action.disable_deposits == false,
+                "bridge account deposits cannot be disabled before the disableable bridge account \
+                 deposits upgrade is activated",
+            )
+        }
+
         ensure!(
             &sudo_address == self.tx_signer.as_bytes(),
             "transaction signer not authorized to change bridge sudo address",
@@ -109,12 +123,28 @@ impl CheckedBridgeSudoChange {
                 .wrap_err("failed to write bridge account withdrawer address to storage")?;
         }
 
+        if self.action.disable_deposits {
+            state
+                .put_bridge_account_deposits_disabled(
+                    &self.action.bridge_address,
+                    self.action.disable_deposits,
+                )
+                .wrap_err("failed to write bridge account deposits disabled flag to storage")?;
+        }
+
         Ok(())
     }
 
     pub(super) fn action(&self) -> &BridgeSudoChange {
         &self.action
     }
+}
+
+async fn accounts_are_disableable<S: StateRead>(state: S) -> Result<bool> {
+    Ok(state
+        .get_upgrade_change_info(&Blackburn::NAME, &DisableableBridgeAccountDeposits::NAME)
+        .await?
+        .is_some())
 }
 
 impl AssetTransfer for CheckedBridgeSudoChange {

@@ -46,6 +46,15 @@ pub(in crate::bridge) fn bridge_account_withdrawer_address<T: AddressBytes>(addr
     AccountPrefixer::new(BRIDGE_ACCOUNT_WITHDRAWER_PREFIX, address).to_string()
 }
 
+/// Example: `bridge/account/gGhH....zZ4=/disabled`.
+///                         |base64 chars|
+pub(in crate::bridge) fn bridge_account_disabled<T: AddressBytes>(address: &T) -> String {
+    format!(
+        "{}/disabled",
+        AccountPrefixer::new(BRIDGE_ACCOUNT_PREFIX, address)
+    )
+}
+
 /// Example: `bridge/account/gGhH....zZ4=/withdrawal_event/<event id>`.
 ///                         |base64 chars|                |UTF-8 chars|
 pub(in crate::bridge) fn bridge_account_withdrawal_event<T: AddressBytes>(
