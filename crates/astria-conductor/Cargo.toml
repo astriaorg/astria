@@ -73,7 +73,11 @@ celestia-rpc = "0.12.1"
 # tendermint = { version = "0.40.0" }
 celestia-types = { workspace = true }
 http = "1.2.0"
-jsonrpsee = { workspace = true, features = ["client-core", "macros", "http-client"] }
+jsonrpsee = { workspace = true, features = [
+  "client-core",
+  "macros",
+  "http-client",
+] }
 
 [dev-dependencies]
 astria-core = { path = "../astria-core", features = [
