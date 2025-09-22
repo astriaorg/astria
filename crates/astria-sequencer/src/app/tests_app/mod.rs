@@ -1,3 +1,5 @@
+#![expect(clippy::large_stack_arrays, reason = "tests only")]
+
 mod mempool;
 mod upgrades;
 
@@ -639,6 +641,7 @@ async fn app_prepare_proposal_cometbft_max_bytes_overflow_ok() {
     let height = fixture.block_height().await.increment();
 
     // create txs which will cause cometBFT overflow
+
     let tx_pass = fixture
         .checked_tx_builder()
         .with_action(RollupDataSubmission {

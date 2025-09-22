@@ -993,6 +993,7 @@ dependencies = [
  "impl-serde",
  "jsonrpsee",
  "rand 0.8.5",
+ "serde_json",
  "tokio",
  "tokio-test",
  "tracing",
