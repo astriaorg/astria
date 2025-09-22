@@ -40,11 +40,6 @@
   Address = "0.0.0.0"
   Port = "26658"
 
-[Gateway]
-  Address = "0.0.0.0"
-  Port = "26659"
-  Enabled = false
-
 [Share]
   BlockStoreCacheSize = 128
   UseShareExchange = true

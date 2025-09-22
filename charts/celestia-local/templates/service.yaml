@@ -7,9 +7,6 @@ spec:
   selector:
     app: celestia-local-network
   ports:
-    - name: bridge-rest
-      port: {{ .Values.ports.bridgeHTTP }}
-      targetPort: bridge-rest
     - name: bridge-jsonrpc
       port: {{ .Values.ports.bridgeRPC }}
       targetPort: bridge-jsonrpc
