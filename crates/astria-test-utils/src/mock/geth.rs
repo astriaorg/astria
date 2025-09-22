@@ -209,7 +209,8 @@ impl GethServer for GethImpl {
                             break Err("mock received abort command".into());
                         }
                         SubscriptionCommand::Send(tx) => {
-                            let () = sink.send(SubscriptionMessage::from_json(&tx)?).await?;
+                            let raw_value = serde_json::value::to_raw_value(&tx)?;
+                            let () = sink.send(SubscriptionMessage::from(raw_value)).await?;
                         }
                     }
                 }
@@ -258,10 +259,16 @@ impl Geth {
     pub async fn spawn_with_pending_txs(
         pending_txs: BTreeMap<H160, BTreeMap<String, Transaction>>,
     ) -> Self {
-        use jsonrpsee::server::Server;
-        let server = Server::builder()
+        use jsonrpsee::server::{
+            Server,
+            ServerConfig,
+        };
+        let server_config = ServerConfig::builder()
             .ws_only()
             .set_id_provider(RandomU256IdProvider)
+            .build();
+        let server = Server::builder()
+            .set_config(server_config)
             .build("127.0.0.1:0")
             .await
             .expect("should be able to start a jsonrpsee server bound to a 0 port");

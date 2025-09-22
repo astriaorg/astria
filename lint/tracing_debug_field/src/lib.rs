@@ -107,7 +107,7 @@ fn first_span_in_crate(arg: &Expr<'_>) -> Span {
         } = arg
         {
             break 'get_span *span;
-        };
+        }
         // Case 2: fields like foo = tracing::field::debug(bar) or the shorthand ?bar.
         // These either point to the actual source as they are evaluated eagerly (first case),
         // or are expanded inside the tracing::event! macro (short case).

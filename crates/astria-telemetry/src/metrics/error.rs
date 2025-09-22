@@ -74,8 +74,4 @@ pub enum Error {
 /// An error while starting the metrics exporter server.
 #[derive(Error, Debug)]
 #[error(transparent)]
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "the name correctly reflects the type"
-)]
 pub struct StartListeningError(#[from] metrics_exporter_prometheus::BuildError);

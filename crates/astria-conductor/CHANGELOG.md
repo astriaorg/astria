@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Update `celestia-rpc`, `celestia-types` and `jsonrpsee` dependencies [#2250](https://github.com/astriaorg/astria/pull/2250).
+
 ## [2.0.0] - 2025-06-16
 
 ### Added

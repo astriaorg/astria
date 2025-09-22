@@ -66,7 +66,7 @@ impl PreparedBlock {
                 proof,
                 ..
             } = rollup_txs.into_parts();
-            let transactions = transactions.into_iter().map(Bytes::into).collect();
+            let transactions = transactions.into_iter().collect();
             tail.push(SubmittedRollupData {
                 sequencer_block_hash: block_hash,
                 rollup_id,
