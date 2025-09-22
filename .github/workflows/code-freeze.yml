@@ -15,7 +15,7 @@ jobs:
     name: Code Freeze
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Filter Check
         id: filters
         uses: dorny/paths-filter@v3
