@@ -10,4 +10,5 @@ exec celestia-appd start --home "${home_dir}" \
   --api.enabled-unsafe-cors \
   --grpc.enable \
   --grpc-web.enable \
-  --force-no-bbr
+  --force-no-bbr \
+  --log_level "debug"

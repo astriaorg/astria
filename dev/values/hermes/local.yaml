@@ -60,7 +60,7 @@ chains:
       mode: pull
       interval: 1s
     gasDenom: "utia"
-    gasPrice: 0.0026
+    gasPrice: 0.004
     gasMultiplier: 1.2
     defaultGas: "1000000"
     maxGas: "10000000"
