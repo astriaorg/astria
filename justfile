@@ -165,7 +165,7 @@ _fmt-all:
 
 [no-exit-message]
 _fmt-rust:
-  cargo +nightly-2024-10-03 fmt --all
+  cargo +nightly-2025-02-17 fmt --all
 
 [no-exit-message]
 _lint-rust:
@@ -177,7 +177,7 @@ _lint-rust:
 
 [no-exit-message]
 _lint-rust-fmt:
-  cargo +nightly-2024-10-03 fmt --all -- --check
+  cargo +nightly-2025-02-17 fmt --all -- --check
 
 [no-exit-message]
 _lint-rust-clippy:
@@ -189,7 +189,7 @@ _lint-rust-clippy:
 
 [no-exit-message]
 _lint-rust-clippy-custom:
-  cargo +nightly-2024-10-03 clippy --all-targets --all-features \
+  cargo +nightly-2025-02-17 clippy --all-targets --all-features \
           -p tracing_debug_field \
           -- --warn clippy::pedantic --deny warnings
 

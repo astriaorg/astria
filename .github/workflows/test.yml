@@ -252,13 +252,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           # This has to match `rust-toolchain` in the rust-toolchain file of the dylint lints
-          toolchain: nightly-2024-10-03
+          toolchain: nightly-2025-02-17
           components: "clippy, llvm-tools-preview, rustc-dev, rust-src"
       - uses: Swatinem/rust-cache@v2.7.8
         with:
           cache-provider: "buildjet"
       - name: install cargo-dylint and dylint-link
-        run: cargo install cargo-dylint@3.3.0 dylint-link@3.3.0 --locked
+        run: cargo install cargo-dylint@4.1.0 dylint-link@4.1.0 --locked
       - uses: arduino/setup-protoc@v3
         with:
           version: "24.4"

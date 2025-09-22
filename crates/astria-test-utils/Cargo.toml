@@ -31,6 +31,7 @@ geth = [
   "dep:impl-serde",
   "dep:jsonrpsee",
   "dep:rand",
+  "dep:serde_json",
   "dep:tokio",
   "tokio/rt",
   "dep:tracing",
