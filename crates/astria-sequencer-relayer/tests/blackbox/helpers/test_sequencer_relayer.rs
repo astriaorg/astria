@@ -272,32 +272,22 @@ impl TestSequencerRelayer {
             .await
     }
 
-    /// Mounts a Celestia `GetTx` response.
-    ///
-    /// The `debug_name` is assigned to the mock and is output on error to assist with debugging.
-    /// It is also assigned as the `TxHash` in the request and response.
-    pub async fn mount_celestia_app_get_tx_response(
+    /// Mounts a Celestia `TxStatus` response and returns a `wiremock::MockGuard` to allow for
+    /// awaiting its satisfaction.
+    pub async fn mount_celestia_app_tx_status_response_as_scoped(
         &self,
-        celestia_height: i64,
         debug_name: impl Into<String>,
-    ) {
-        self.celestia_app
-            .mount_get_tx_response(celestia_height, debug_name)
-            .await;
-    }
-
-    /// Mounts a Celestia `GetTx` response and returns a `GrpcMockGuard` to allow for waiting for
-    /// the mock to be satisfied.
-    ///
-    /// The `debug_name` is assigned to the mock and is output on error to assist with debugging.
-    /// It is also assigned as the `TxHash` in the request and response.
-    pub async fn mount_celestia_app_get_tx_response_as_scoped(
-        &self,
         celestia_height: i64,
-        debug_name: impl Into<String>,
+        status: &str,
+        number_of_times: u64,
     ) -> GrpcMockGuard {
         self.celestia_app
-            .mount_get_tx_response_as_scoped(celestia_height, debug_name)
+            .mount_tx_status_response_as_scoped(
+                debug_name,
+                status.to_string(),
+                celestia_height,
+                number_of_times,
+            )
             .await
     }
 

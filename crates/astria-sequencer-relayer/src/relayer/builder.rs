@@ -77,8 +77,14 @@ impl Builder {
                 .wrap_err("failed parsing provided celestia app grpc endpoint as Uri")?;
             let celestia_keys = CelestiaKeys::from_path(celestia_app_key_file)
                 .wrap_err("failed to get celestia keys from file")?;
-            CelestiaClientBuilder::new(celestia_chain_id, uri, celestia_keys, state.clone())
-                .wrap_err("failed to create celestia client builder")?
+            CelestiaClientBuilder::new(
+                celestia_chain_id,
+                uri,
+                celestia_keys,
+                state.clone(),
+                metrics,
+            )
+            .wrap_err("failed to create celestia client builder")?
         };
 
         Ok(super::Relayer {

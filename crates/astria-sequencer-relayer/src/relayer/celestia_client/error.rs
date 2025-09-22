@@ -77,26 +77,9 @@ pub(in crate::relayer) enum TrySubmitError {
         namespace: String,
         log: String,
     },
-    /// The celestia app responded with the given error status to a `GetTxRequest`.
-    #[error("failed to get transaction")]
-    FailedToGetTx(#[source] GrpcResponseError),
-    /// The get transaction response was empty.
-    #[error("the get transaction response was empty")]
-    EmptyGetTxResponse,
-    /// The get transaction response contains an error code.
-    #[error(
-        "get transaction response contains error code `{code}`, tx `{tx_hash}`, namespace \
-         `{namespace}`, log: {log}"
-    )]
-    GetTxResponseErrorCode {
-        tx_hash: String,
-        code: u32,
-        namespace: String,
-        log: String,
-    },
-    /// The get transaction response specified a negative block height.
-    #[error("get transaction response specifies a negative block height ({0})")]
-    GetTxResponseNegativeBlockHeight(i64),
+    /// The transaction was either evicted from the mempool or the call to `TxStatus` failed.
+    #[error("failed to confirm transaction submission")]
+    FailedToConfirmSubmission(#[source] ConfirmSubmissionError),
 }
 
 /// A gRPC status representing an error response from an RPC call.
@@ -137,3 +120,25 @@ impl std::error::Error for GrpcResponseError {
 #[derive(Error, Clone, Debug)]
 #[error(transparent)]
 pub(in crate::relayer) struct ProtobufDecodeError(#[from] DecodeError);
+
+/// An error in getting the status of a transaction via RPC `TxStatus`.
+#[derive(Debug, Clone, Error)]
+pub(in crate::relayer) enum TxStatusError {
+    #[error("received unfamiliar response for tx `{tx_hash}` from `TxStatus`: {status}")]
+    UnfamiliarStatus { status: String, tx_hash: String },
+    #[error("failed to get transaction status")]
+    FailedToGetTxStatus(#[source] GrpcResponseError),
+}
+
+/// An error in confirming the submission of a transaction.
+#[derive(Debug, Clone, Error)]
+pub(in crate::relayer) enum ConfirmSubmissionError {
+    #[error("tx `{tx_hash}` evicted from mempool")]
+    Evicted { tx_hash: String },
+    #[error("received `UNKNOWN` status from `TxStatus` for tx: {tx_hash}")]
+    StatusUnknown { tx_hash: String },
+    #[error(transparent)]
+    TxStatus(TxStatusError),
+    #[error("received negative block height from Celestia: {height}")]
+    NegativeHeight { height: i64 },
+}
