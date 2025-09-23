@@ -19,7 +19,7 @@ use crate::utils::submit_transaction;
 #[command(group(clap::ArgGroup::new("new_address")
     .required(true)
     .multiple(true)
-    .args(&["new_sudo_address", "new_withdrawer_address"])))]
+    .args(&["new_sudo_address", "new_withdrawer_address", "disable_deposits"])))]
 pub(crate) struct Command {
     /// The bridge account whose privileges will be modified.
     pub(crate) bridge_address: Address,

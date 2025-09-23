@@ -118,32 +118,12 @@ impl Debug for CheckedIbcRelay {
 mod tests {
     use astria_core::{
         crypto::ADDRESS_LENGTH,
-        protocol::transaction::v1::action::{
-            IbcRelayerChange,
-        },
+        protocol::transaction::v1::action::IbcRelayerChange,
     };
-    use ibc_proto::{
-        google::protobuf::Any,
-        ibc::apps::transfer::v2::FungibleTokenPacketData,
-    };
-    use ibc_types::{
-        core::{
-            channel::{
-                msgs::MsgRecvPacket,
-                packet::Sequence,
-                ChannelId,
-                Packet,
-                PortId,
-                TimeoutHeight,
-            },
-            client::{
-                msgs::MsgCreateClient,
-                ClientId,
-                Height,
-            },
-            commitment::MerkleProof,
-        },
-        timestamp::Timestamp,
+    use ibc_proto::google::protobuf::Any;
+    use ibc_types::core::client::{
+        msgs::MsgCreateClient,
+        ClientId,
     };
     use penumbra_ibc::{
         component::ClientStateReadExt as _,
@@ -153,9 +133,7 @@ mod tests {
     use super::*;
     use crate::{
         app::StateWriteExt as _,
-        checked_actions::{
-            CheckedIbcRelayerChange,
-        },
+        checked_actions::CheckedIbcRelayerChange,
         test_utils::{
             assert_error_contains,
             dummy_ibc_client_state,
@@ -165,39 +143,6 @@ mod tests {
             IBC_SUDO_ADDRESS_BYTES,
         },
     };
-
-    const PORT_A: &str = "port-a";
-    const CHANNEL_A: &str = "channel-a";
-
-    fn dummy_ics20_transfer(denom: String) -> IbcRelay {
-        let packet_data = FungibleTokenPacketData {
-            denom,
-            amount: "1000".to_string(),
-            sender: "sender-address".to_string(),
-            receiver: "receiver-address".to_string(),
-            memo: String::new(),
-        };
-
-        let packet = Packet {
-            sequence: Sequence::default(),
-            port_on_a: PortId(PORT_A.to_string()),
-            chan_on_a: ChannelId(CHANNEL_A.to_string()),
-            port_on_b: PortId("port-b".to_string()),
-            chan_on_b: ChannelId("channel-b".to_string()),
-            data: serde_json::to_vec(&packet_data).unwrap(),
-            timeout_height_on_b: TimeoutHeight::default(),
-            timeout_timestamp_on_b: Timestamp::default(),
-        };
-
-        IbcRelay::RecvPacket(MsgRecvPacket {
-            packet,
-            proof_commitment_on_a: MerkleProof {
-                proofs: vec![],
-            },
-            proof_height_on_a: Height::new(1, 1).unwrap(),
-            signer: "signer-address".to_string(),
-        })
-    }
 
     #[tokio::test]
     async fn should_fail_construction_if_stateless_checks_fail() {

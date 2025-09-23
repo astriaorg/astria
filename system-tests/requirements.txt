@@ -4,5 +4,5 @@ google>=3.0.0
 google-api-core>=2.15.0
 grpcio>=1.71.0
 python-on-whales>=0.67.0
-protobuf>=6.31.1
+protobuf>=6.32.1
 termcolor>=3.0.1

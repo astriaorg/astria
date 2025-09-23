@@ -295,6 +295,8 @@ time.sleep(10)
 print(colored(f"running post-upgrade checks specific to {upgrade_name}", "blue"))
 if upgrade_name == "aspen":
     aspen_upgrade_checks.assert_post_upgrade_conditions(nodes, upgrade_activation_height)
+if upgrade_name == "blackburn":
+    blackburn_upgrade_checks.assert_post_upgrade_conditions(cli, nodes, upgrade_activation_height)
 print(colored(f"passed {upgrade_name}-specific post-upgrade checks", "green"))
 
 # Perform a bridge out.
@@ -321,6 +323,8 @@ evm.send_raw_tx(
     "7dd18a599a2a3e14679f"
 )
 expected_evm_balance = 9000000000000000000
+if upgrade_name == "blackburn":
+    expected_evm_balance = 19000000000000000000 # account for extra bridge lock made in blackburn upgrade checks
 evm.wait_until_balance(EVM_DESTINATION_ADDRESS, expected_evm_balance, timeout_secs=60)
 print(colored("bridge out evm success", "green"))
 expected_balance = 1000000000
