@@ -149,14 +149,6 @@ class Cli:
         except Exception as error:
             raise SystemExit(error)
 
-    def bridge_unlock(self, sequencer_name, bridge_address=SEQUENCER_BRIDGE_ADDRESS, private_key=SEQUENCER_BRIDGE_SIGNING_KEY):
-        try:
-            self._try_exec_sequencer_command(*cmd,
-                sequencer_name=sequencer_name,
-            )
-        except Exception as error:
-            raise SystemExit(error)
-
     def _try_get_balance(self, account, sequencer_name, asset):
         """
         Tries to get the given account's balance by calling `astria-cli sequencer account balance`.
