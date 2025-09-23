@@ -11,4 +11,5 @@ exec celestia-appd start --home "${home_dir}" \
   --grpc.enable \
   --grpc-web.enable \
   --force-no-bbr \
-  --log_level "debug"
+  --log_level "debug" \
+  --minimum-gas-prices "0.002utia"

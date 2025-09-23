@@ -430,10 +430,21 @@ fn min_gas_price_from_response(
     response: Result<Response<MinGasPriceResponse>, Status>,
 ) -> Result<f64, TrySubmitError> {
     const UNITS_SUFFIX: &str = "utia";
+    const DEFAULT_MIN_GAS_PRICE: f64 = 0.002;
+
     let min_gas_price_with_suffix = response
         .map_err(|status| TrySubmitError::FailedToGetMinGasPrice(GrpcResponseError::from(status)))?
         .into_inner()
         .minimum_gas_price;
+
+    if min_gas_price_with_suffix.is_empty() {
+        warn!(
+            "celestia app was configured without a minimum gas price, using default value of \
+             {DEFAULT_MIN_GAS_PRICE}"
+        );
+        return Ok(DEFAULT_MIN_GAS_PRICE);
+    }
+
     let min_gas_price_str = min_gas_price_with_suffix
         .strip_suffix(UNITS_SUFFIX)
         .ok_or_else(|| TrySubmitError::MinGasPriceBadSuffix {
