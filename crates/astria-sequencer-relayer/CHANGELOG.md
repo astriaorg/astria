@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Update `celestia-types` dependency [#2250](https://github.com/astriaorg/astria/pull/2250).
+- Update `celestia-types` dependency [#2253](https://github.com/astriaorg/astria/pull/2253).
 
 ## [1.0.1] - 2025-03-06
 
