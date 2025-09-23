@@ -26,7 +26,6 @@ members = [
   "crates/astria-sequencer-utils",
   "crates/astria-telemetry",
   "crates/astria-test-utils",
-  "lint/*",
 ]
 # Specify default members so that cargo invocations in github actions will
 # not act on lints
@@ -56,9 +55,6 @@ default-members = [
   "crates/astria-test-utils",
 ]
 resolver = "2"
-
-[workspace.metadata.dylint]
-libraries = [{ path = "lint/tracing_debug_field" }]
 
 [workspace.dependencies]
 async-trait = "0.1.52"

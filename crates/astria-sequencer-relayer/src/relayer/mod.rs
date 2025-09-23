@@ -363,11 +363,7 @@ async fn fetch_sequencer_chain_id(
     use sequencer_client::Client as _;
 
     let response = sequencer_cometbft_client.status().await;
-    // trace-level logging, so using Debug format is ok.
-    #[cfg_attr(dylint_lib = "tracing_debug_field", allow(tracing_debug_field))]
-    {
-        trace!(?response);
-    }
+    trace!(?response);
     response.map(|status_response| status_response.node_info.network.to_string())
 }
 

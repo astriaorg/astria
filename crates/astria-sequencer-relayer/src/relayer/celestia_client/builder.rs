@@ -135,11 +135,7 @@ impl Builder {
     async fn fetch_celestia_chain_id(&self) -> Result<String, BuilderError> {
         let mut node_info_client = NodeInfoClient::new(self.grpc_channel.clone());
         let response = node_info_client.get_node_info(GetNodeInfoRequest {}).await;
-        // trace-level logging, so using Debug format is ok.
-        #[cfg_attr(dylint_lib = "tracing_debug_field", allow(tracing_debug_field))]
-        {
-            trace!(?response);
-        }
+        trace!(?response);
         let chain_id = response
             .map_err(|status| BuilderError::FailedToGetNodeInfo(GrpcResponseError::from(status)))?
             .into_inner()

@@ -245,11 +245,7 @@ impl CelestiaClient {
             address: self.address.0.clone(),
         };
         let response = auth_query_client.account(request).await;
-        // trace-level logging, so using Debug format is ok.
-        #[cfg_attr(dylint_lib = "tracing_debug_field", allow(tracing_debug_field))]
-        {
-            trace!(?response);
-        }
+        trace!(?response);
         account_from_response(response)
     }
 
@@ -257,11 +253,7 @@ impl CelestiaClient {
     async fn fetch_blob_params(&self) -> Result<BlobParams, TrySubmitError> {
         let mut blob_query_client = BlobQueryClient::new(self.grpc_channel.clone());
         let response = blob_query_client.params(QueryBlobParamsRequest {}).await;
-        // trace-level logging, so using Debug format is ok.
-        #[cfg_attr(dylint_lib = "tracing_debug_field", allow(tracing_debug_field))]
-        {
-            trace!(?response);
-        }
+        trace!(?response);
         response
             .map_err(|status| {
                 TrySubmitError::FailedToGetBlobParams(GrpcResponseError::from(status))
@@ -275,11 +267,7 @@ impl CelestiaClient {
     async fn fetch_auth_params(&self) -> Result<AuthParams, TrySubmitError> {
         let mut auth_query_client = AuthQueryClient::new(self.grpc_channel.clone());
         let response = auth_query_client.params(QueryAuthParamsRequest {}).await;
-        // trace-level logging, so using Debug format is ok.
-        #[cfg_attr(dylint_lib = "tracing_debug_field", allow(tracing_debug_field))]
-        {
-            trace!(?response);
-        }
+        trace!(?response);
         response
             .map_err(|status| {
                 TrySubmitError::FailedToGetAuthParams(GrpcResponseError::from(status))
@@ -293,11 +281,7 @@ impl CelestiaClient {
     async fn fetch_min_gas_price(&self) -> Result<f64, TrySubmitError> {
         let mut min_gas_price_client = MinGasPriceClient::new(self.grpc_channel.clone());
         let response = min_gas_price_client.config(MinGasPriceRequest {}).await;
-        // trace-level logging, so using Debug format is ok.
-        #[cfg_attr(dylint_lib = "tracing_debug_field", allow(tracing_debug_field))]
-        {
-            trace!(?response);
-        }
+        trace!(?response);
         min_gas_price_from_response(response)
     }
 
@@ -314,11 +298,7 @@ impl CelestiaClient {
             mode: i32::from(BroadcastMode::Sync),
         };
         let response = self.tx_client.broadcast_tx(request).await;
-        // trace-level logging, so using Debug format is ok.
-        #[cfg_attr(dylint_lib = "tracing_debug_field", allow(tracing_debug_field))]
-        {
-            trace!(?response);
-        }
+        trace!(?response);
         lowercase_hex_encoded_tx_hash_from_response(response)
     }
 
@@ -330,11 +310,7 @@ impl CelestiaClient {
             hash: hex_encoded_tx_hash,
         };
         let response = self.tx_client.get_tx(request).await;
-        // trace-level logging, so using Debug format is ok.
-        #[cfg_attr(dylint_lib = "tracing_debug_field", allow(tracing_debug_field))]
-        {
-            trace!(?response);
-        }
+        trace!(?response);
         block_height_from_response(response)
     }
 
@@ -502,11 +478,7 @@ fn block_height_from_response(
     let ok_response = match response {
         Ok(resp) => resp,
         Err(status) => {
-            // trace-level logging, so using Debug format is ok.
-            #[cfg_attr(dylint_lib = "tracing_debug_field", allow(tracing_debug_field))]
-            {
-                trace!(?status);
-            }
+            trace!(?status);
             if status.code() == tonic::Code::NotFound {
                 trace!(msg = status.message(), "transaction still pending");
                 return Ok(None);
