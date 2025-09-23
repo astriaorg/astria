@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `CheckedTransaction`, `CheckedAction` and `Checked...` wrappers for all
   action types [#2142](https://github.com/astriaorg/astria/pull/2142).
 - Add `Blackburn` upgrade [#2228](https://github.com/astriaorg/astria/pull/2228).
+- Add `disable_deposits` field to `BridgeSudoChange` action [#2245](https://github.com/astriaorg/astria/pull/2245).
 
 ### Changed
 
