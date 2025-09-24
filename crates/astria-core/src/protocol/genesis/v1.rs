@@ -958,7 +958,7 @@ mod tests {
                 other => panic!(
                     "expected: `GenesisAppStateErrorKind::AddressDoesNotMatchBase\ngot: {other:?}`"
                 ),
-            };
+            }
         }
         assert_bad_prefix(
             raw::GenesisAppState {

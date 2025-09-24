@@ -529,7 +529,7 @@ async fn app_execution_results_match_proposal_vs_after_proposal() {
         proposer_address: [0u8; 20].to_vec().try_into().unwrap(),
         txs: transactions_with_extended_commit_info_and_commitments(
             height,
-            &[tx.clone()],
+            std::slice::from_ref(&tx),
             Some(deposits),
         ),
         decided_last_commit: CommitInfo {
@@ -1275,7 +1275,7 @@ async fn app_proposal_fingerprint_triggers_update() {
     let block_hash = Hash::Sha256(raw_hash);
     let txs_with_commitments = transactions_with_extended_commit_info_and_commitments(
         height,
-        &[tx.clone()],
+        std::slice::from_ref(&tx),
         Some(deposits.clone()),
     );
 

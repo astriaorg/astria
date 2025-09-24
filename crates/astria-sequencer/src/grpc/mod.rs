@@ -243,7 +243,7 @@ async fn perform_shutdown(mut background_tasks: BackgroundTasks) {
             "background tasks did not finish during shutdown window and will be aborted",
         );
         background_tasks.abort_all();
-    };
+    }
 
     info!("reached shutdown target");
 }

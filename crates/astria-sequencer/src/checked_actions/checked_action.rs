@@ -917,6 +917,6 @@ mod tests {
                 assert_eq!(amount, expected_fees.1);
             }
             _ => panic!("should be fee error, got {error:?}"),
-        };
+        }
     }
 }

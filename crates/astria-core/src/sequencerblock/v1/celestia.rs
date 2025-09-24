@@ -598,7 +598,7 @@ impl SubmittedMetadata {
 
     /// Returns the rollup IDs.
     #[must_use]
-    pub fn rollup_ids(&self) -> RollupIdIter {
+    pub fn rollup_ids(&self) -> RollupIdIter<'_> {
         RollupIdIter(self.rollup_ids.iter())
     }
 

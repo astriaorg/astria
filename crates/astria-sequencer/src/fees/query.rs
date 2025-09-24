@@ -201,7 +201,7 @@ pub(crate) async fn transaction_fee_request(
 
     let tx = match preprocess_fees_request(&request) {
         Ok(tx) => tx,
-        Err(err_rsp) => return err_rsp,
+        Err(err_rsp) => return *err_rsp,
     };
 
     // use latest snapshot, as this is a query for a transaction fee
@@ -275,11 +275,13 @@ pub(crate) async fn transaction_fee_request(
     }
 }
 
-fn preprocess_fees_request(request: &request::Query) -> Result<TransactionBody, response::Query> {
+fn preprocess_fees_request(
+    request: &request::Query,
+) -> Result<TransactionBody, Box<response::Query>> {
     let tx = match RawBody::decode(&*request.data) {
         Ok(tx) => tx,
         Err(err) => {
-            return Err(response::Query {
+            return Err(Box::new(response::Query {
                 code: Code::Err(AbciErrorCode::BAD_REQUEST.value()),
                 info: AbciErrorCode::BAD_REQUEST.info(),
                 log: format!(
@@ -287,14 +289,14 @@ fn preprocess_fees_request(request: &request::Query) -> Result<TransactionBody, 
                     RawBody::full_name()
                 ),
                 ..response::Query::default()
-            });
+            }));
         }
     };
 
     let tx = match TransactionBody::try_from_raw(tx) {
         Ok(tx) => tx,
         Err(err) => {
-            return Err(response::Query {
+            return Err(Box::new(response::Query {
                 code: Code::Err(AbciErrorCode::BAD_REQUEST.value()),
                 info: AbciErrorCode::BAD_REQUEST.info(),
                 log: format!(
@@ -302,7 +304,7 @@ fn preprocess_fees_request(request: &request::Query) -> Result<TransactionBody, 
                      transaction: {err:#}"
                 ),
                 ..response::Query::default()
-            });
+            }));
         }
     };
 

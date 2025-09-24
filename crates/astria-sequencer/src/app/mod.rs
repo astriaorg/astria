@@ -1017,7 +1017,7 @@ impl App {
     /// Returns the encoded upgrade change hashes if an upgrade was executed.
     ///
     /// This *must* be called any time before a block's txs are executed, whether it's
-    /// during the proposal phase, or finalize_block phase.
+    /// during the proposal phase, or `finalize_block` phase.
     #[instrument(name = "App::pre_execute_transactions", skip_all, err(level = Level::WARN))]
     async fn pre_execute_transactions(&mut self, block_data: BlockData) -> Result<Vec<ChangeHash>> {
         let mut delta_delta = StateDelta::new(self.state.clone());
@@ -1118,7 +1118,7 @@ impl App {
     /// `SequencerBlock`.
     ///
     /// this must be called after a block's transactions are executed.
-    /// FIXME: don't return sequencer block but grab the block from state delta https://github.com/astriaorg/astria/issues/1436
+    /// FIXME: don't return sequencer block but grab the block from state delta <https://github.com/astriaorg/astria/issues/1436>
     #[instrument(name = "App::post_execute_transactions", skip_all, err(level = Level::WARN))]
     async fn post_execute_transactions(
         &mut self,
@@ -1163,8 +1163,10 @@ impl App {
         let injected_tx_count = expanded_block_data.injected_transaction_count();
         let mut finalize_block_tx_results: Vec<ExecTxResult> =
             Vec::with_capacity(expanded_block_data.user_submitted_transactions.len());
-        finalize_block_tx_results
-            .extend(std::iter::repeat(ExecTxResult::default()).take(injected_tx_count));
+        finalize_block_tx_results.extend(std::iter::repeat_n(
+            ExecTxResult::default(),
+            injected_tx_count,
+        ));
         finalize_block_tx_results.extend(
             executed_txs
                 .iter()
@@ -1399,8 +1401,10 @@ impl App {
         // transaction, not the injected ones.
         let mut finalize_block_tx_results: Vec<ExecTxResult> =
             Vec::with_capacity(tx_results.len().saturating_add(injected_tx_count));
-        finalize_block_tx_results
-            .extend(std::iter::repeat(ExecTxResult::default()).take(injected_tx_count));
+        finalize_block_tx_results.extend(std::iter::repeat_n(
+            ExecTxResult::default(),
+            injected_tx_count,
+        ));
         finalize_block_tx_results.extend(tx_results.iter().map(|(_, tx_result)| tx_result.clone()));
 
         // prepare the `WriteBatch` for a later commit.

@@ -540,7 +540,7 @@ impl RunningReader {
             Err(mpsc::error::TrySendError::Closed(_)) => {
                 bail!("exiting because executor channel is closed");
             }
-        };
+        }
         Ok(())
     }
 

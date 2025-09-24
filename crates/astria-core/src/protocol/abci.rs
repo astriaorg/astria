@@ -9,27 +9,27 @@ pub struct AbciErrorCode(NonZeroU32);
 
 #[rustfmt::skip]
 impl AbciErrorCode {
-    pub const UNKNOWN_PATH: Self = Self(unsafe { NonZeroU32::new_unchecked(1) });
-    pub const INVALID_PARAMETER: Self = Self(unsafe { NonZeroU32::new_unchecked(2) });
-    pub const INTERNAL_ERROR: Self = Self(unsafe { NonZeroU32::new_unchecked(3) });
-    pub const INVALID_NONCE: Self = Self(unsafe { NonZeroU32::new_unchecked(4) });
-    pub const TRANSACTION_TOO_LARGE: Self = Self(unsafe { NonZeroU32::new_unchecked(5) });
-    pub const INSUFFICIENT_FUNDS: Self = Self(unsafe { NonZeroU32::new_unchecked(6) });
-    pub const INVALID_CHAIN_ID: Self = Self(unsafe { NonZeroU32::new_unchecked(7) });
-    pub const VALUE_NOT_FOUND: Self = Self(unsafe { NonZeroU32::new_unchecked(8) });
-    pub const TRANSACTION_EXPIRED: Self = Self(unsafe { NonZeroU32::new_unchecked(9) });
-    pub const TRANSACTION_FAILED_EXECUTION: Self = Self(unsafe { NonZeroU32::new_unchecked(10) });
-    pub const TRANSACTION_INSERTION_FAILED: Self = Self(unsafe { NonZeroU32::new_unchecked(11) });
-    pub const LOWER_NONCE_INVALIDATED: Self = Self(unsafe { NonZeroU32::new_unchecked(12) });
-    pub const BAD_REQUEST: Self = Self(unsafe { NonZeroU32::new_unchecked(13) });
-    pub const ALREADY_PRESENT: Self = Self(unsafe { NonZeroU32::new_unchecked(14) });
-    pub const NONCE_TAKEN: Self = Self(unsafe { NonZeroU32::new_unchecked(15) });
-    pub const ACCOUNT_SIZE_LIMIT: Self = Self(unsafe { NonZeroU32::new_unchecked(16) });
-    pub const PARKED_FULL: Self = Self(unsafe { NonZeroU32::new_unchecked(17) });
-    pub const TRANSACTION_INCLUDED_IN_BLOCK: Self = Self(unsafe { NonZeroU32::new_unchecked(18) });
-    pub const TRANSACTION_FAILED_CHECK_TX: Self = Self(unsafe { NonZeroU32::new_unchecked(19) });
-    pub const INVALID_TRANSACTION_BYTES: Self = Self(unsafe { NonZeroU32::new_unchecked(20) });
-    pub const INVALID_TRANSACTION: Self = Self(unsafe { NonZeroU32::new_unchecked(21) });
+    pub const UNKNOWN_PATH: Self = Self(NonZeroU32::new(1).unwrap());
+    pub const INVALID_PARAMETER: Self = Self(NonZeroU32::new(2).unwrap());
+    pub const INTERNAL_ERROR: Self = Self(NonZeroU32::new(3).unwrap());
+    pub const INVALID_NONCE: Self = Self(NonZeroU32::new(4).unwrap());
+    pub const TRANSACTION_TOO_LARGE: Self = Self(NonZeroU32::new(5).unwrap());
+    pub const INSUFFICIENT_FUNDS: Self = Self(NonZeroU32::new(6).unwrap());
+    pub const INVALID_CHAIN_ID: Self = Self(NonZeroU32::new(7).unwrap());
+    pub const VALUE_NOT_FOUND: Self = Self(NonZeroU32::new(8).unwrap());
+    pub const TRANSACTION_EXPIRED: Self = Self(NonZeroU32::new(9).unwrap());
+    pub const TRANSACTION_FAILED_EXECUTION: Self = Self(NonZeroU32::new(10).unwrap());
+    pub const TRANSACTION_INSERTION_FAILED: Self = Self(NonZeroU32::new(11).unwrap());
+    pub const LOWER_NONCE_INVALIDATED: Self = Self(NonZeroU32::new(12).unwrap());
+    pub const BAD_REQUEST: Self = Self(NonZeroU32::new(13).unwrap());
+    pub const ALREADY_PRESENT: Self = Self(NonZeroU32::new(14).unwrap());
+    pub const NONCE_TAKEN: Self = Self(NonZeroU32::new(15).unwrap());
+    pub const ACCOUNT_SIZE_LIMIT: Self = Self(NonZeroU32::new(16).unwrap());
+    pub const PARKED_FULL: Self = Self(NonZeroU32::new(17).unwrap());
+    pub const TRANSACTION_INCLUDED_IN_BLOCK: Self = Self(NonZeroU32::new(18).unwrap());
+    pub const TRANSACTION_FAILED_CHECK_TX: Self = Self(NonZeroU32::new(19).unwrap());
+    pub const INVALID_TRANSACTION_BYTES: Self = Self(NonZeroU32::new(20).unwrap());
+    pub const INVALID_TRANSACTION: Self = Self(NonZeroU32::new(21).unwrap());
     // NOTE: When adding a new code, ensure it is added to `ALL_CODES` in the `tests` module below.
 }
 

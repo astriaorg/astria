@@ -65,7 +65,7 @@ pub struct ExecutionSession {
     /// An ID for the session.
     session_id: String,
     /// The configuration for the execution session.
-    execution_session_parameters: ExecutionSessionParameters,
+    parameters: ExecutionSessionParameters,
     /// The commitment state for executing client to start from.
     commitment_state: CommitmentState,
 }
@@ -78,7 +78,7 @@ impl ExecutionSession {
 
     #[must_use]
     pub fn execution_session_parameters(&self) -> &ExecutionSessionParameters {
-        &self.execution_session_parameters
+        &self.parameters
     }
 
     #[must_use]
@@ -110,7 +110,7 @@ impl Protobuf for ExecutionSession {
             .map_err(Self::Error::commitment_state)?;
         Ok(Self {
             session_id: session_id.clone(),
-            execution_session_parameters,
+            parameters: execution_session_parameters,
             commitment_state,
         })
     }
@@ -118,7 +118,7 @@ impl Protobuf for ExecutionSession {
     fn to_raw(&self) -> Self::Raw {
         let Self {
             session_id,
-            execution_session_parameters,
+            parameters: execution_session_parameters,
             commitment_state,
         } = self;
         let execution_session_parameters = execution_session_parameters.to_raw();

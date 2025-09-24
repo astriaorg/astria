@@ -211,7 +211,7 @@ impl RegisteringBuilder {
         &mut self,
         name: &'static str,
         description: &'static str,
-    ) -> Result<CounterFactory, Error> {
+    ) -> Result<CounterFactory<'_>, Error> {
         if !self.counters.insert(name.to_string()) {
             return Err(Error::MetricAlreadyRegistered {
                 metric_type: CounterFactory::metric_type(),
@@ -233,7 +233,7 @@ impl RegisteringBuilder {
         &mut self,
         name: &'static str,
         description: &'static str,
-    ) -> Result<GaugeFactory, Error> {
+    ) -> Result<GaugeFactory<'_>, Error> {
         if !self.gauges.insert(name.to_string()) {
             return Err(Error::MetricAlreadyRegistered {
                 metric_type: GaugeFactory::metric_type(),
@@ -255,7 +255,7 @@ impl RegisteringBuilder {
         &mut self,
         name: &'static str,
         description: &'static str,
-    ) -> Result<HistogramFactory, Error> {
+    ) -> Result<HistogramFactory<'_>, Error> {
         if !self.histograms.insert(name.to_string()) {
             return Err(Error::MetricAlreadyRegistered {
                 metric_type: HistogramFactory::metric_type(),
