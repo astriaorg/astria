@@ -80,7 +80,8 @@
       "appVersion": "{{ .baseInfo.appVersion }}"
     },
     "ics20TransferActionChange": {},
-    "allowIbcRelayToFail": {}
+    "allowIbcRelayToFail": {},
+    "disableableBridgeAccountDeposits": {}
   }
   {{- end }}
   {{- end }}

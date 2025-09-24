@@ -44,8 +44,10 @@ message Aspen {
 message Blackburn {
   message Ics20TransferActionChange {}
   message AllowIbcRelayToFail {}
+  message DisableableBridgeAccountDeposits {}
 
   BaseUpgradeInfo base_info = 1;
   Ics20TransferActionChange ics20_transfer_action_change = 2;
   AllowIbcRelayToFail allow_ibc_relay_to_fail = 3;
+  DisableableBridgeAccountDeposits disableable_bridge_account_deposits = 4;
 }

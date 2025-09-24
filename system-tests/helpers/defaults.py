@@ -14,6 +14,8 @@ TRANSFER_AMOUNT = 10
 # corresponds to destination address in bridge_tx_bytes
 SEQUENCER_WITHDRAWER_ADDRESS = "astria17w0adeg64ky0daxwd2ugyuneellmjgnxl39504"
 SEQUENCER_IBC_TRANSFER_DESTINATION_ADDRESS = "astria1mg49ywffq0tt7rkunfmd7paxcvrtvqn5yr53rq"
+SEQUENCER_FUNDS_SIGNING_KEY = "934ab488f9e1900f6a08f50605ce1409ca9d95ebdc400dafc2e8a4306419fd52"
+SEQUENCER_BRIDGE_ADDRESS = "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
 
 # EVM Defaults
 ###############
@@ -31,7 +33,8 @@ UPGRADE_CHANGES = {
     ],
     "blackburn": [
         "ics20_transfer_action_change",
-        "allow_ibc_relay_to_fail"
+        "allow_ibc_relay_to_fail",
+        "disableable_bridge_account_deposits"
     ]
 }
 

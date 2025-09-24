@@ -644,6 +644,7 @@ mod tests {
             new_sudo_address: None,
             new_withdrawer_address: Some(new_withdrawer_address),
             fee_asset: "test".parse().unwrap(),
+            disable_deposits: false,
         };
         let checked_bridge_sudo_change: CheckedBridgeSudoChange = fixture
             .new_checked_action(bridge_sudo_change, *SUDO_ADDRESS_BYTES)

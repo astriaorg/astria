@@ -217,6 +217,9 @@ message BridgeSudoChange {
   astria.primitive.v1.Address new_withdrawer_address = 3;
   // the asset used to pay the transaction fee
   string fee_asset = 4;
+  // if true, disables deposits (BridgeLock, BridgeTransfer, Ics20Transfers) to
+  // this bridge account
+  bool disable_deposits = 5;
 }
 
 message BridgeTransfer {

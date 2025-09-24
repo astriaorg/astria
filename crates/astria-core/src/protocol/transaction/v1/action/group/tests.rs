@@ -203,6 +203,7 @@ fn from_list_of_actions_unbundleable_general() {
         bridge_address: address,
         new_withdrawer_address: Some(address),
         fee_asset: asset.clone(),
+        disable_deposits: false,
     };
 
     let actions = vec![init_bridge_account_action.clone().into()];

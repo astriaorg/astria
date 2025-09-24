@@ -218,6 +218,7 @@ pub(crate) fn dummy_bridge_sudo_change() -> BridgeSudoChange {
         new_sudo_address: Some(astria_address(&[98; ADDRESS_LENGTH])),
         new_withdrawer_address: Some(astria_address(&[97; ADDRESS_LENGTH])),
         fee_asset: "test".parse().unwrap(),
+        disable_deposits: false,
     }
 }
 

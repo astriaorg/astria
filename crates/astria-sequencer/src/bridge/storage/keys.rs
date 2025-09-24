@@ -46,6 +46,15 @@ pub(in crate::bridge) fn bridge_account_withdrawer_address<T: AddressBytes>(addr
     AccountPrefixer::new(BRIDGE_ACCOUNT_WITHDRAWER_PREFIX, address).to_string()
 }
 
+/// Example: `bridge/account/gGhH....zZ4=/disabled`.
+///                         |base64 chars|
+pub(in crate::bridge) fn bridge_account_disabled<T: AddressBytes>(address: &T) -> String {
+    format!(
+        "{}/disabled",
+        AccountPrefixer::new(BRIDGE_ACCOUNT_PREFIX, address)
+    )
+}
+
 /// Example: `bridge/account/gGhH....zZ4=/withdrawal_event/<event id>`.
 ///                         |base64 chars|                |UTF-8 chars|
 pub(in crate::bridge) fn bridge_account_withdrawal_event<T: AddressBytes>(
@@ -111,6 +120,10 @@ mod tests {
             "last_tx_id_for_bridge_acct_key",
             last_transaction_id_for_bridge_account(&address())
         );
+        insta::assert_snapshot!(
+            "bridge_account_disabled_key",
+            bridge_account_disabled(&address())
+        );
     }
 
     #[test]
@@ -125,6 +138,7 @@ mod tests {
         );
         assert!(deposit(&[1; 32], &RollupId::new([2; 32])).starts_with(COMPONENT_PREFIX));
         assert!(last_transaction_id_for_bridge_account(&address()).starts_with(COMPONENT_PREFIX));
+        assert!(bridge_account_disabled(&address()).starts_with(COMPONENT_PREFIX));
     }
 
     #[test]
@@ -136,5 +150,6 @@ mod tests {
         assert!(
             last_transaction_id_for_bridge_account(&address()).starts_with(BRIDGE_ACCOUNT_PREFIX)
         );
+        assert!(bridge_account_disabled(&address()).starts_with(BRIDGE_ACCOUNT_PREFIX));
     }
 }

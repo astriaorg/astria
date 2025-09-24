@@ -1920,6 +1920,7 @@ pub struct BridgeSudoChange {
     pub new_sudo_address: Option<Address>,
     pub new_withdrawer_address: Option<Address>,
     pub fee_asset: asset::Denom,
+    pub disable_deposits: bool,
 }
 
 impl Protobuf for BridgeSudoChange {
@@ -1933,6 +1934,7 @@ impl Protobuf for BridgeSudoChange {
             new_sudo_address: self.new_sudo_address.map(Address::into_raw),
             new_withdrawer_address: self.new_withdrawer_address.map(Address::into_raw),
             fee_asset: self.fee_asset.to_string(),
+            disable_deposits: self.disable_deposits,
         }
     }
 
@@ -1943,6 +1945,7 @@ impl Protobuf for BridgeSudoChange {
             new_sudo_address: self.new_sudo_address.as_ref().map(Address::to_raw),
             new_withdrawer_address: self.new_withdrawer_address.as_ref().map(Address::to_raw),
             fee_asset: self.fee_asset.to_string(),
+            disable_deposits: self.disable_deposits,
         }
     }
 
@@ -1981,6 +1984,7 @@ impl Protobuf for BridgeSudoChange {
             new_sudo_address,
             new_withdrawer_address,
             fee_asset,
+            disable_deposits: proto.disable_deposits,
         })
     }
 

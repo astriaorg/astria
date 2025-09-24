@@ -1,6 +1,7 @@
 mod address_bytes;
 mod block_height;
 mod deposits;
+mod disabled_status;
 mod ibc_prefixed_denom;
 mod rollup_id;
 mod transaction_id;
@@ -14,6 +15,7 @@ pub(in crate::bridge) use self::{
     address_bytes::AddressBytes,
     block_height::BlockHeight,
     deposits::Deposits,
+    disabled_status::DisabledStatus,
     ibc_prefixed_denom::IbcPrefixedDenom,
     rollup_id::RollupId,
     transaction_id::TransactionId,
@@ -30,6 +32,7 @@ enum ValueImpl<'a> {
     BlockHeight(BlockHeight),
     Deposits(Deposits<'a>),
     TransactionId(TransactionId<'a>),
+    DisabledStatus(DisabledStatus),
 }
 
 #[cfg(test)]
@@ -83,6 +86,10 @@ mod tests {
             borsh_then_hex(&ValueImpl::TransactionId(
                 (&DomainTransactionId::new([0; TRANSACTION_ID_LEN])).into()
             ))
+        );
+        assert_snapshot!(
+            "value_impl_disabled_status",
+            borsh_then_hex(&ValueImpl::DisabledStatus(true.into()))
         );
     }
 

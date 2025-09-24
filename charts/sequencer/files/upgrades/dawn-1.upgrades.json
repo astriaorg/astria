@@ -24,6 +24,7 @@
       "appVersion": "4"
     },
     "ics20TransferActionChange": {},
-    "allowIbcRelayToFail": {}
+    "allowIbcRelayToFail": {},
+    "disableableBridgeAccountDeposits": {}
   }
 }

@@ -337,6 +337,7 @@ async fn app_legacy_execute_transactions_with_every_action_snapshot() {
             new_sudo_address: Some(bob_address),
             new_withdrawer_address: Some(bob_address),
             fee_asset: nria().into(),
+            disable_deposits: false,
         })
         .with_nonce(1)
         .with_signer(bridge.clone())

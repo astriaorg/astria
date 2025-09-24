@@ -19,7 +19,7 @@ use crate::utils::submit_transaction;
 #[command(group(clap::ArgGroup::new("new_address")
     .required(true)
     .multiple(true)
-    .args(&["new_sudo_address", "new_withdrawer_address"])))]
+    .args(&["new_sudo_address", "new_withdrawer_address", "disable_deposits"])))]
 pub(crate) struct Command {
     /// The bridge account whose privileges will be modified.
     pub(crate) bridge_address: Address,
@@ -47,6 +47,9 @@ pub(crate) struct Command {
     /// The asset to pay the transfer fees with.
     #[arg(long, default_value = "nria")]
     pub(crate) fee_asset: asset::Denom,
+    /// Disable deposits to the bridge account.
+    #[arg(long, short)]
+    pub(crate) disable_deposits: bool,
 }
 
 impl Command {
@@ -61,6 +64,7 @@ impl Command {
                 new_sudo_address: self.new_sudo_address,
                 new_withdrawer_address: self.new_withdrawer_address,
                 fee_asset: self.fee_asset.clone(),
+                disable_deposits: self.disable_deposits,
             }),
         )
         .await

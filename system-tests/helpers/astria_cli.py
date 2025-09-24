@@ -3,14 +3,14 @@ from python_on_whales.exceptions import DockerException
 from .defaults import (
     BASE_AMOUNT,
     TRANSFER_AMOUNT,
-    EVM_DESTINATION_ADDRESS
+    EVM_DESTINATION_ADDRESS,
+    SEQUENCER_FUNDS_SIGNING_KEY,
+    SEQUENCER_BRIDGE_ADDRESS
 )
 from .utils import Retryer
 
 SEQUENCER_RPC_POD_PORT = 26657
-SEQUENCER_BRIDGE_ADDRESS = "astria13ahqz4pjqfmynk9ylrqv4fwe4957x2p0h5782u"
 SEQUENCER_BRIDGE_SIGNING_KEY = "dfa7108e38ab71f89f356c72afc38600d5758f11a8c337164713e4471411d2e0"
-SEQUENCER_FUNDS_SIGNING_KEY = "934ab488f9e1900f6a08f50605ce1409ca9d95ebdc400dafc2e8a4306419fd52"
 
 class Cli:
     """
@@ -125,6 +125,26 @@ class Cli:
                 "--prefix=astria",
                 sequencer_name=sequencer_name,
                 use_sequencer_url=False,
+            )
+        except Exception as error:
+            raise SystemExit(error)
+
+    def bridge_sudo_change(self, sequencer_name, bridge_address=SEQUENCER_BRIDGE_ADDRESS, new_sudo_address=None, new_withdrawer_address=None, disable_deposits=False, private_key=SEQUENCER_BRIDGE_SIGNING_KEY):
+        try:
+            cmd = [
+                "bridge-sudo-change",
+                bridge_address,
+                f"--private-key={private_key}",
+                "--sequencer.chain-id=sequencer-test-chain-0",
+            ]
+            if new_sudo_address:
+                cmd.append(f"--new-sudo-address={new_sudo_address}")
+            if new_withdrawer_address:
+                cmd.append(f"--new-withdrawer-address={new_withdrawer_address}")
+            if disable_deposits:
+                cmd.append("--disable-deposits")
+            self._try_exec_sequencer_command(*cmd,
+                sequencer_name=sequencer_name,
             )
         except Exception as error:
             raise SystemExit(error)

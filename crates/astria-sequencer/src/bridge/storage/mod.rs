@@ -6,6 +6,7 @@ pub(super) use values::{
     AddressBytes,
     BlockHeight,
     Deposits,
+    DisabledStatus,
     IbcPrefixedDenom,
     RollupId,
     TransactionId,

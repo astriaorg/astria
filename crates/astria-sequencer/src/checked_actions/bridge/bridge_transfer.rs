@@ -437,6 +437,7 @@ pub(super) mod tests {
             new_sudo_address: None,
             new_withdrawer_address: Some(astria_address(&[2; 20])),
             fee_asset: nria().into(),
+            disable_deposits: false,
         };
         let checked_bridge_sudo_change: CheckedBridgeSudoChange = fixture
             .new_checked_action(bridge_sudo_change, *SUDO_ADDRESS_BYTES)
@@ -541,6 +542,70 @@ pub(super) mod tests {
             .await
             .unwrap_err();
         assert_error_contains(&err, "failed to decrease bridge account balance");
+    }
+
+    #[tokio::test]
+    async fn should_fail_if_bridge_deposits_disabled() {
+        let mut fixture = Fixture::default_initialized().await;
+
+        // Construct the checked bridge transfer while the account has insufficient balance to
+        // ensure balance checks are only part of execution.
+        let action = dummy_bridge_transfer();
+        let rollup_id = RollupId::new([7; 32]);
+        let asset = nria();
+        fixture
+            .bridge_initializer(action.bridge_address)
+            .with_asset(asset.clone())
+            .init()
+            .await;
+        fixture
+            .bridge_initializer(action.to)
+            .with_rollup_id(rollup_id)
+            .init()
+            .await;
+        let checked_action: CheckedBridgeTransfer = fixture
+            .new_checked_action(action.clone(), *SUDO_ADDRESS_BYTES)
+            .await
+            .unwrap()
+            .into();
+
+        // Provide the bridge account with sufficient balance.
+        fixture
+            .state_mut()
+            .increase_balance(&action.bridge_address, &nria(), action.amount)
+            .await
+            .unwrap();
+
+        // Disable Deposits of the into transfer bridge.
+        let bridge_sudo_change = BridgeSudoChange {
+            bridge_address: action.to,
+            new_sudo_address: None,
+            new_withdrawer_address: None,
+            fee_asset: nria().into(),
+            disable_deposits: true,
+        };
+        let checked_bridge_sudo_change: CheckedBridgeSudoChange = fixture
+            .new_checked_action(bridge_sudo_change, *SUDO_ADDRESS_BYTES)
+            .await
+            .unwrap()
+            .into();
+        checked_bridge_sudo_change
+            .execute(fixture.state_mut())
+            .await
+            .unwrap();
+
+        // Check the balances are correct before execution.
+        assert_eq!(
+            fixture.get_nria_balance(&action.bridge_address).await,
+            action.amount
+        );
+        assert_eq!(fixture.get_nria_balance(&action.to).await, 0);
+
+        let err = checked_action
+            .execute(fixture.state_mut())
+            .await
+            .unwrap_err();
+        assert_error_contains(&err, "bridge account deposits are currently disabled");
     }
 
     #[tokio::test]

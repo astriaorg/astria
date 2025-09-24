@@ -141,6 +141,15 @@ impl<const PURE_LOCK: bool> CheckedBridgeLockImpl<PURE_LOCK> {
             bail!("bridge accounts cannot send bridge locks");
         }
 
+        let bridge_disabled = state
+            .is_bridge_account_disabled(&self.action.to)
+            .await
+            .wrap_err("failed to read whether bridge account deposits are disabled from storage")?;
+        ensure!(
+            !bridge_disabled,
+            "bridge account deposits are currently disabled"
+        );
+
         Ok(())
     }
 
@@ -205,12 +214,14 @@ mod tests {
         assets::StateWriteExt as _,
         checked_actions::{
             test_utils::address_with_prefix,
+            CheckedBridgeSudoChange,
             CheckedInitBridgeAccount,
         },
         test_utils::{
             assert_error_contains,
             astria_address,
             dummy_bridge_lock,
+            nria,
             Fixture,
             ASTRIA_PREFIX,
             SUDO_ADDRESS_BYTES,
@@ -362,6 +373,58 @@ mod tests {
             .await
             .unwrap_err();
         assert_error_contains(&err, "failed to decrease signer account balance");
+    }
+
+    #[tokio::test]
+    async fn should_fail_when_bridge_desposits_disabled() {
+        let mut fixture = Fixture::default_initialized().await;
+
+        // Construct the checked bridge lock while the account has insufficient balance to ensure
+        // balance checks are only part of execution.
+        let action = dummy_bridge_lock();
+        let rollup_id = RollupId::new([10; 32]);
+        fixture
+            .bridge_initializer(action.to)
+            .with_rollup_id(rollup_id)
+            .init()
+            .await;
+        let tx_signer = [2; ADDRESS_LENGTH];
+        let checked_action: CheckedBridgeLock = fixture
+            .new_checked_action(action.clone(), tx_signer)
+            .await
+            .unwrap()
+            .into();
+
+        // Provide the signer account with sufficient balance.
+        fixture
+            .state_mut()
+            .increase_balance(&tx_signer, &action.asset, action.amount)
+            .await
+            .unwrap();
+
+        // Disable Deposits of the into transfer bridge.
+        let bridge_sudo_change = BridgeSudoChange {
+            bridge_address: action.to,
+            new_sudo_address: None,
+            new_withdrawer_address: None,
+            fee_asset: nria().into(),
+            disable_deposits: true,
+        };
+        let checked_bridge_sudo_change: CheckedBridgeSudoChange = fixture
+            .new_checked_action(bridge_sudo_change, *SUDO_ADDRESS_BYTES)
+            .await
+            .unwrap()
+            .into();
+        checked_bridge_sudo_change
+            .execute(fixture.state_mut())
+            .await
+            .unwrap();
+
+        let err = checked_action
+            .execute(fixture.state_mut())
+            .await
+            .unwrap_err();
+        assert_error_contains(&err, "bridge account deposits are currently disabled");
     }
 
     #[tokio::test]

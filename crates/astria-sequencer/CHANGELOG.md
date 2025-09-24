@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add cache of recent execution results to mempool [#2163](https://github.com/astriaorg/astria/pull/2163).
 - Add tx result to `Executed` transaction status [#2159](https://github.com/astriaorg/astria/pull/2159).
 - Add `Blackburn` upgrade [#2228](https://github.com/astriaorg/astria/pull/2228).
+- Allow disabling deposits to bridge accounts post-Blackburn upgrade [#2245](https://github.com/astriaorg/astria/pull/2245).
 
 ### Changed
 

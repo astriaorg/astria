@@ -414,6 +414,10 @@ pub struct BridgeSudoChange {
     /// the asset used to pay the transaction fee
     #[prost(string, tag = "4")]
     pub fee_asset: ::prost::alloc::string::String,
+    /// if true, disables deposits (BridgeLock, BridgeTransfer, Ics20Transfers) to
+    /// this bridge account
+    #[prost(bool, tag = "5")]
+    pub disable_deposits: bool,
 }
 impl ::prost::Name for BridgeSudoChange {
     const NAME: &'static str = "BridgeSudoChange";

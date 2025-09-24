@@ -506,6 +506,7 @@ mod tests {
             new_sudo_address: None,
             new_withdrawer_address: Some(astria_address(&[2; 20])),
             fee_asset: nria().into(),
+            disable_deposits: false,
         };
         let checked_bridge_sudo_change: CheckedBridgeSudoChange = fixture
             .new_checked_action(bridge_sudo_change, *SUDO_ADDRESS_BYTES)

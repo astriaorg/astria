@@ -512,6 +512,9 @@ impl serde::Serialize for BridgeSudoChange {
         if !self.fee_asset.is_empty() {
             len += 1;
         }
+        if self.disable_deposits {
+            len += 1;
+        }
         let mut struct_ser = serializer.serialize_struct("astria.protocol.transaction.v1.BridgeSudoChange", len)?;
         if let Some(v) = self.bridge_address.as_ref() {
             struct_ser.serialize_field("bridgeAddress", v)?;
@@ -524,6 +527,9 @@ impl serde::Serialize for BridgeSudoChange {
         }
         if !self.fee_asset.is_empty() {
             struct_ser.serialize_field("feeAsset", &self.fee_asset)?;
+        }
+        if self.disable_deposits {
+            struct_ser.serialize_field("disableDeposits", &self.disable_deposits)?;
         }
         struct_ser.end()
     }
@@ -543,6 +549,8 @@ impl<'de> serde::Deserialize<'de> for BridgeSudoChange {
             "newWithdrawerAddress",
             "fee_asset",
             "feeAsset",
+            "disable_deposits",
+            "disableDeposits",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -551,6 +559,7 @@ impl<'de> serde::Deserialize<'de> for BridgeSudoChange {
             NewSudoAddress,
             NewWithdrawerAddress,
             FeeAsset,
+            DisableDeposits,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -576,6 +585,7 @@ impl<'de> serde::Deserialize<'de> for BridgeSudoChange {
                             "newSudoAddress" | "new_sudo_address" => Ok(GeneratedField::NewSudoAddress),
                             "newWithdrawerAddress" | "new_withdrawer_address" => Ok(GeneratedField::NewWithdrawerAddress),
                             "feeAsset" | "fee_asset" => Ok(GeneratedField::FeeAsset),
+                            "disableDeposits" | "disable_deposits" => Ok(GeneratedField::DisableDeposits),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -599,6 +609,7 @@ impl<'de> serde::Deserialize<'de> for BridgeSudoChange {
                 let mut new_sudo_address__ = None;
                 let mut new_withdrawer_address__ = None;
                 let mut fee_asset__ = None;
+                let mut disable_deposits__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::BridgeAddress => {
@@ -625,6 +636,12 @@ impl<'de> serde::Deserialize<'de> for BridgeSudoChange {
                             }
                             fee_asset__ = Some(map_.next_value()?);
                         }
+                        GeneratedField::DisableDeposits => {
+                            if disable_deposits__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("disableDeposits"));
+                            }
+                            disable_deposits__ = Some(map_.next_value()?);
+                        }
                     }
                 }
                 Ok(BridgeSudoChange {
@@ -632,6 +649,7 @@ impl<'de> serde::Deserialize<'de> for BridgeSudoChange {
                     new_sudo_address: new_sudo_address__,
                     new_withdrawer_address: new_withdrawer_address__,
                     fee_asset: fee_asset__.unwrap_or_default(),
+                    disable_deposits: disable_deposits__.unwrap_or_default(),
                 })
             }
         }
