@@ -120,6 +120,10 @@ mod tests {
             "last_tx_id_for_bridge_acct_key",
             last_transaction_id_for_bridge_account(&address())
         );
+        insta::assert_snapshot!(
+            "bridge_account_disabled_key",
+            bridge_account_disabled(&address())
+        );
     }
 
     #[test]
@@ -134,6 +138,7 @@ mod tests {
         );
         assert!(deposit(&[1; 32], &RollupId::new([2; 32])).starts_with(COMPONENT_PREFIX));
         assert!(last_transaction_id_for_bridge_account(&address()).starts_with(COMPONENT_PREFIX));
+        assert!(bridge_account_disabled(&address()).starts_with(COMPONENT_PREFIX));
     }
 
     #[test]
@@ -145,5 +150,6 @@ mod tests {
         assert!(
             last_transaction_id_for_bridge_account(&address()).starts_with(BRIDGE_ACCOUNT_PREFIX)
         );
+        assert!(bridge_account_disabled(&address()).starts_with(BRIDGE_ACCOUNT_PREFIX));
     }
 }

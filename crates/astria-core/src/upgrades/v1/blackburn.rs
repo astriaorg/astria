@@ -50,6 +50,11 @@ impl Blackburn {
         &self.allow_ibc_relay_to_fail
     }
 
+    #[must_use]
+    pub fn disableable_bridge_account_deposits(&self) -> &DisableableBridgeAccountDeposits {
+        &self.disableable_bridge_account_deposits
+    }
+
     pub fn changes(&self) -> impl Iterator<Item = &'_ dyn Change> {
         Some(&self.ics20_transfer_action_change as &dyn Change)
             .into_iter()

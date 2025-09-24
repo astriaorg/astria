@@ -47,10 +47,11 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
     }
 
     async fn is_bridge_account_disabled<T: AddressBytes>(&self, address: &T) -> Result<bool> {
-        match self.get_bridge_account_disabled_status(address).await? {
-            Some(disabled) => Ok(disabled),
-            None => Ok(false), // Not disabled if no status is set
-        }
+        // Not disabled if no status is set
+        Ok(self
+            .get_bridge_account_disabled_status(address)
+            .await?
+            .unwrap_or(false))
     }
 
     #[instrument(skip_all, fields(address = %address.display_address()))]
