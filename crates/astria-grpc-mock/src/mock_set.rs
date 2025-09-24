@@ -69,7 +69,7 @@ impl MockSet {
                 continue;
             }
             match mock.match_and_respond::<U>(rpc, &erased) {
-                (MockResult::NoMatch, _) => continue,
+                (MockResult::NoMatch, _) => (),
                 (MockResult::BadResponse(status), _) => {
                     mock_response.replace(Err(status));
                     break;

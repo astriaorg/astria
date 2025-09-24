@@ -157,7 +157,7 @@ async fn handle_check_tx_request<S: StateRead>(
                 metrics.increment_check_tx_removed_failed_execution();
             }
             _ => {}
-        };
+        }
         mempool.remove_from_removal_cache(&tx_id).await;
         reason.into()
     } else {

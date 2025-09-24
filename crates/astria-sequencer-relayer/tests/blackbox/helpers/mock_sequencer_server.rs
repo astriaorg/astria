@@ -107,6 +107,10 @@ impl MockSequencerServer {
     }
 }
 
+#[expect(
+    clippy::large_enum_variant,
+    reason = "test util, mem consumption not an issue"
+)]
 pub enum SequencerBlockToMount {
     GoodAtHeight(u32),
     BadAtHeight(u32),

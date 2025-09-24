@@ -4,7 +4,7 @@ env:
   RUSTFLAGS: "-D warnings -D unreachable-pub --cfg tokio_unstable"
 
   # This must match the entry in rust-toolchain.toml at the repository root
-  RUSTUP_TOOLCHAIN: "1.85.0"
+  RUSTUP_TOOLCHAIN: "1.90.0"
 on:
   pull_request:
   merge_group:

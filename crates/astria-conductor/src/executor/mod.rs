@@ -192,7 +192,7 @@ impl Executor {
             }
             .build();
             reader_tasks.spawn(ReaderKind::Soft, sequencer_reader.run_until_stopped());
-        };
+        }
 
         Ok(Initialized {
             config: self.config,

@@ -223,7 +223,7 @@ impl Geth {
                      submitted transactions",
                 );
             });
-        };
+        }
 
         // Create a cache for existing pending transactions to avoid sending the same transaction if
         // it is also streamed via `new_tx_stream`.
@@ -254,7 +254,7 @@ impl Geth {
                             }
                             // update value in cache to represent that it has already been sent
                             existing_pending_tx_cache.insert(tx.hash.0, true);
-                        };
+                        }
 
                         txs_received_counter.increment(1);
 

@@ -302,7 +302,7 @@ where
                     .parse()
                     .map_err(BuildError::parse_ics20_asset_source_channel)?,
             );
-        };
+        }
 
         let contract =
             i_astria_withdrawer::IAstriaWithdrawer::new(contract_address, provider.clone());

@@ -507,7 +507,7 @@ impl Proof {
     ///     .perform());
     /// ```
     #[must_use = "an audit must be performed to be useful"]
-    pub fn audit(&self) -> Audit {
+    pub fn audit(&self) -> Audit<'_> {
         Audit::new(self)
     }
 

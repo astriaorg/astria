@@ -3,7 +3,8 @@ use std::{
         BTreeMap,
         HashMap,
     },
-    io::Write,
+    fmt::Write as _,
+    io::Write as _,
     net::{
         IpAddr,
         SocketAddr,
@@ -142,7 +143,7 @@ pub async fn spawn_composer(
         let geth = Geth::spawn_with_pending_txs(pending_map).await;
         let execution_url = format!("ws://{}", geth.local_addr());
         rollup_nodes.insert((*id).to_string(), geth);
-        rollups.push_str(&format!("{id}::{execution_url},"));
+        write!(rollups, "{id}::{execution_url},").unwrap();
     }
     let sequencer = mock_abci_sequencer::start(sequencer_chain_id).await;
     let grpc_server = MockGrpcSequencer::spawn().await;

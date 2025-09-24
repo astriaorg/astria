@@ -20,7 +20,7 @@ impl From<key::Key> for Signer {
 
 enum SignerInner {
     Key(Box<key::Key>),
-    Frost(frost::Frost),
+    Frost(Box<frost::Frost>),
 }
 
 impl Signer {
@@ -86,7 +86,7 @@ impl Builder {
                     })?,
             ))
         } else {
-            SignerInner::Frost(
+            SignerInner::Frost(Box::new(
                 frost::Builder {
                     frost_min_signers,
                     frost_participant_endpoints,
@@ -95,7 +95,7 @@ impl Builder {
                 }
                 .try_build()
                 .wrap_err("failed to construct frost threshold signer")?,
-            )
+            ))
         };
         Ok(Signer {
             inner,

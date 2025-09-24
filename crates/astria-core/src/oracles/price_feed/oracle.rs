@@ -374,7 +374,6 @@ pub mod v2 {
             }
         }
 
-        #[must_use]
         fn into_raw(self) -> raw::GenesisState {
             raw::GenesisState {
                 currency_pair_genesis: self

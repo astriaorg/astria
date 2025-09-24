@@ -34,7 +34,7 @@ pub(crate) async fn denom_request(
     let snapshot = storage.latest_snapshot();
     let asset = match preprocess_request(&params) {
         Ok(asset) => asset,
-        Err(err_rsp) => return err_rsp,
+        Err(err_rsp) => return *err_rsp,
     };
 
     let height = match snapshot.get_block_height().await {
@@ -88,23 +88,27 @@ pub(crate) async fn denom_request(
     }
 }
 
-fn preprocess_request(params: &[(String, String)]) -> Result<asset::IbcPrefixed, response::Query> {
+fn preprocess_request(
+    params: &[(String, String)],
+) -> Result<asset::IbcPrefixed, Box<response::Query>> {
     let Some(asset_id) = params.iter().find_map(|(k, v)| (k == "id").then_some(v)) else {
-        return Err(response::Query {
+        return Err(Box::new(response::Query {
             code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
             info: AbciErrorCode::INVALID_PARAMETER.info(),
             log: "path did not contain asset ID parameter".into(),
             ..response::Query::default()
-        });
+        }));
     };
     let asset = <[u8; 32]>::from_hex(asset_id)
         .wrap_err("failed decoding hex encoded bytes")
         .map(asset::IbcPrefixed::new)
-        .map_err(|err| response::Query {
-            code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
-            info: AbciErrorCode::INVALID_PARAMETER.info(),
-            log: format!("asset ID could not be constructed from provided parameter: {err:#}"),
-            ..response::Query::default()
+        .map_err(|err| {
+            Box::new(response::Query {
+                code: Code::Err(AbciErrorCode::INVALID_PARAMETER.value()),
+                info: AbciErrorCode::INVALID_PARAMETER.info(),
+                log: format!("asset ID could not be constructed from provided parameter: {err:#}"),
+                ..response::Query::default()
+            })
         })?;
     Ok(asset)
 }

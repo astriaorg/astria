@@ -379,7 +379,7 @@ mod tests {
             .await
             .unwrap();
 
-        let process_proposal = new_process_proposal_request(&[tx.clone()]);
+        let process_proposal = new_process_proposal_request(std::slice::from_ref(&tx));
         let expected_txs: Vec<Bytes> = process_proposal.txs.clone();
 
         assert_eq!(

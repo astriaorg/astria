@@ -159,6 +159,10 @@ mod __rpc_traits {
 }
 
 #[derive(Clone, Debug)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "test util, mem consumption not an issue"
+)]
 pub enum SubscriptionCommand {
     Abort,
     Send(Transaction),
@@ -303,6 +307,10 @@ impl Geth {
     /// # Errors
     ///
     /// Returns the same error as tokio's [`Sender::send`].
+    #[expect(
+        clippy::result_large_err,
+        reason = "test util, mem consumption not an issue"
+    )]
     pub fn cancel_subscriptions(&self) -> Result<usize, SendError<SubscriptionCommand>> {
         self.command.send(SubscriptionCommand::Abort)
     }
@@ -316,6 +324,10 @@ impl Geth {
     /// # Errors
     ///
     /// Returns the same error as tokio's [`Sender::send`].
+    #[expect(
+        clippy::result_large_err,
+        reason = "test util, mem consumption not an issue"
+    )]
     pub fn push_tx(&self, tx: Transaction) -> Result<usize, SendError<SubscriptionCommand>> {
         self.command.send(tx.into())
     }

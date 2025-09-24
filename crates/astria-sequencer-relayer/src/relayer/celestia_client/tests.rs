@@ -66,7 +66,7 @@ fn new_msg_pay_for_blobs_should_fail_for_large_blob() {
         clippy::manual_assert,
         reason = "`assert!(matches!(..))` provides poor feedback on failure"
     )]
-    if !matches!(error, TrySubmitError::BlobTooLarge { byte_count } if byte_count == u32::MAX as usize + 1)
+    if !matches!(*error, TrySubmitError::BlobTooLarge { byte_count } if byte_count == u32::MAX as usize + 1)
     {
         panic!("expected `Error::BlobTooLarge` with byte_count == u32::MAX + 1, got {error:?}");
     }
@@ -100,7 +100,7 @@ fn account_from_bad_response_should_fail() {
         clippy::manual_assert,
         reason = "`assert!(matches!(..))` provides poor feedback on failure"
     )]
-    if !matches!(error, TrySubmitError::FailedToGetAccountInfo(_)) {
+    if !matches!(*error, TrySubmitError::FailedToGetAccountInfo(_)) {
         panic!("expected `Error::FailedToGetAccountInfo`, got {error:?}");
     }
 
@@ -113,7 +113,7 @@ fn account_from_bad_response_should_fail() {
         clippy::manual_assert,
         reason = "`assert!(matches!(..))` provides poor feedback on failure"
     )]
-    if !matches!(error, TrySubmitError::EmptyAccountInfo) {
+    if !matches!(*error, TrySubmitError::EmptyAccountInfo) {
         panic!("expected `Error::EmptyAccountInfo`, got {error:?}");
     }
 
@@ -128,7 +128,7 @@ fn account_from_bad_response_should_fail() {
         account: Some(bad_url_account),
     }));
     let error = account_from_response(response).unwrap_err();
-    match error {
+    match *error {
         TrySubmitError::AccountInfoTypeMismatch {
             expected,
             received,
@@ -152,7 +152,7 @@ fn account_from_bad_response_should_fail() {
         clippy::manual_assert,
         reason = "`assert!(matches!(..))` provides poor feedback on failure"
     )]
-    if !matches!(error, TrySubmitError::DecodeAccountInfo(_)) {
+    if !matches!(*error, TrySubmitError::DecodeAccountInfo(_)) {
         panic!("expected `Error::DecodeAccountInfo`, got {error:?}");
     }
 }
@@ -196,7 +196,7 @@ fn min_gas_price_from_bad_response_should_fail() {
         clippy::manual_assert,
         reason = "`assert!(matches!(..))` provides poor feedback on failure"
     )]
-    if !matches!(error, TrySubmitError::FailedToGetMinGasPrice(_)) {
+    if !matches!(*error, TrySubmitError::FailedToGetMinGasPrice(_)) {
         panic!("expected `Error::FailedToGetMinGasPrice`, got {error:?}");
     }
 
@@ -207,7 +207,7 @@ fn min_gas_price_from_bad_response_should_fail() {
         minimum_gas_price: bad_suffix.to_string(),
     }));
     let error = min_gas_price_from_response(response).unwrap_err();
-    match error {
+    match *error {
         TrySubmitError::MinGasPriceBadSuffix {
             min_gas_price,
             expected_suffix,
@@ -225,7 +225,7 @@ fn min_gas_price_from_bad_response_should_fail() {
         minimum_gas_price: format!("{bad_value}utia"),
     }));
     let error = min_gas_price_from_response(response).unwrap_err();
-    match error {
+    match *error {
         TrySubmitError::FailedToParseMinGasPrice {
             min_gas_price, ..
         } => {
@@ -313,7 +313,7 @@ fn tx_hash_from_bad_response_should_fail() {
         clippy::manual_assert,
         reason = "`assert!(matches!(..))` provides poor feedback on failure"
     )]
-    if !matches!(error, TrySubmitError::FailedToBroadcastTx(_)) {
+    if !matches!(*error, TrySubmitError::FailedToBroadcastTx(_)) {
         panic!("expected `Error::FailedToBroadcastTx`, got {error:?}");
     }
 
@@ -326,7 +326,7 @@ fn tx_hash_from_bad_response_should_fail() {
         clippy::manual_assert,
         reason = "`assert!(matches!(..))` provides poor feedback on failure"
     )]
-    if !matches!(error, TrySubmitError::EmptyBroadcastTxResponse) {
+    if !matches!(*error, TrySubmitError::EmptyBroadcastTxResponse) {
         panic!("expected `Error::EmptyBroadcastTxResponse`, got {error:?}");
     }
 
@@ -346,7 +346,7 @@ fn tx_hash_from_bad_response_should_fail() {
         tx_response: Some(tx_response),
     }));
     let error = lowercase_hex_encoded_tx_hash_from_response(response).unwrap_err();
-    match error {
+    match *error {
         TrySubmitError::BroadcastTxResponseErrorCode {
             tx_hash: received_tx_hash,
             code: received_code,
@@ -383,7 +383,7 @@ fn block_height_from_bad_response_should_fail() {
         clippy::manual_assert,
         reason = "`assert!(matches!(..))` provides poor feedback on failure"
     )]
-    if !matches!(error, TrySubmitError::FailedToGetTx(_)) {
+    if !matches!(*error, TrySubmitError::FailedToGetTx(_)) {
         panic!("expected `Error::FailedToGetTx`, got {error:?}");
     }
 
@@ -397,7 +397,7 @@ fn block_height_from_bad_response_should_fail() {
         clippy::manual_assert,
         reason = "`assert!(matches!(..))` provides poor feedback on failure"
     )]
-    if !matches!(error, TrySubmitError::EmptyGetTxResponse) {
+    if !matches!(*error, TrySubmitError::EmptyGetTxResponse) {
         panic!("expected `Error::EmptyGetTxResponse`, got {error:?}");
     }
 
@@ -417,7 +417,7 @@ fn block_height_from_bad_response_should_fail() {
         tx_response: Some(tx_response),
     }));
     let error = block_height_from_response(response).unwrap_err();
-    match error {
+    match *error {
         TrySubmitError::GetTxResponseErrorCode {
             tx_hash: received_tx_hash,
             code: received_code,
@@ -443,7 +443,7 @@ fn block_height_from_response_with_negative_height_should_fail() {
     });
 
     let error = block_height_from_response(Ok(response)).unwrap_err();
-    match error {
+    match *error {
         TrySubmitError::GetTxResponseNegativeBlockHeight(received_height) => {
             assert_eq!(height, received_height);
         }

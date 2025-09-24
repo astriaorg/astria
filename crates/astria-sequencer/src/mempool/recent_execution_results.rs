@@ -118,7 +118,7 @@ impl RecentExecutionResults {
                 );
             } else {
                 self.timestamped_ids.push_back((tx_id, now));
-            };
+            }
         }
     }
 
@@ -135,7 +135,7 @@ impl RecentExecutionResults {
                     "transaction ID {tx_id} not found in recent execution results cache, not \
                      removing it"
                 );
-            };
+            }
         }
     }
 }

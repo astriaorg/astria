@@ -165,7 +165,7 @@ _fmt-all:
 
 [no-exit-message]
 _fmt-rust:
-  cargo +nightly-2025-02-17 fmt --all
+  cargo +nightly-2025-09-14 fmt --all
 
 [no-exit-message]
 _lint-rust:
@@ -175,7 +175,7 @@ _lint-rust:
 
 [no-exit-message]
 _lint-rust-fmt:
-  cargo +nightly-2025-02-17 fmt --all -- --check
+  cargo +nightly-2025-09-14 fmt --all -- --check
 
 [no-exit-message]
 _lint-rust-clippy:

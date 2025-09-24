@@ -383,5 +383,9 @@ impl ResponseTemplate {
 ///
 /// This trait can also be implemented to use custom response logic.
 pub trait Respond: Send + Sync {
+    #[expect(
+        clippy::result_large_err,
+        reason = "mock response only, mem consumption not an issue"
+    )]
     fn respond(&self, req: &tonic::Request<AnyMessage>) -> ResponseResult;
 }

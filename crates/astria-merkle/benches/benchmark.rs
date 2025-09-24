@@ -160,7 +160,9 @@ fn verify_leaf_ct_merkle(bencher: Bencher, leaf_count: usize, input_sizes: Input
         .with_inputs(|| {
             let raw_leaves = raw_leaves(leaf_count, input_sizes);
             let mut tree = CtMerkleTree::<Sha256, Vec<u8>>::new();
-            raw_leaves.iter().for_each(|value| tree.push(value.clone()));
+            for value in &raw_leaves {
+                tree.push(value.clone());
+            }
             let root = tree.root();
             let leaves_and_proofs =
                 raw_leaves

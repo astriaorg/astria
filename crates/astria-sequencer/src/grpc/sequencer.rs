@@ -98,7 +98,7 @@ impl SequencerService for SequencerServer {
         Ok(Response::new(block.into_raw()))
     }
 
-    /// Given a block height and set of rollup ids, returns a SequencerBlock which
+    /// Given a block height and set of rollup ids, returns a `SequencerBlock` which
     /// is filtered to contain only the transactions that are relevant to the given rollup.
     #[instrument(skip_all)]
     async fn get_filtered_sequencer_block(
