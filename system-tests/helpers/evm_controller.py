@@ -140,6 +140,7 @@ class EvmController:
             "charts/evm-stack",
             f"--values=dev/values/rollup/{values}.yaml",
             "--set=evm-rollup.geth.softAsFirm=true",
+            "--set=evm-rollup.conductor.executionCommitLevel=SoftOnly",
             "--set=blockscout-stack.enabled=false",
             "--set=postgresql.enabled=false",
             "--set=evm-faucet.enabled=false",

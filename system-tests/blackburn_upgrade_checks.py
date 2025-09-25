@@ -11,8 +11,8 @@ RETRIES = 10
 def assert_pre_upgrade_conditions(cli, nodes):
     _check_balance_post_ics20_transfer(cli, nodes, 53000)
 
-def assert_post_upgrade_conditions(cli, nodes, upgrade_activation_height):
-    _check_balance_post_ics20_transfer(cli, nodes, 106000)
+def assert_post_upgrade_conditions(cli, nodes, balance):
+    _check_balance_post_ics20_transfer(cli, nodes, balance)
 
 def _check_balance_post_ics20_transfer(cli, nodes, expected_balance):
     delay = 1

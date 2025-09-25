@@ -17,6 +17,7 @@ import blackburn_upgrade_checks
 import time
 from concurrent.futures import FIRST_EXCEPTION
 from helpers.astria_cli import Cli
+from helpers.celestia_controller import CelestiaController
 from helpers.defaults import (
     EVM_DESTINATION_ADDRESS,
     SEQUENCER_IBC_TRANSFER_DESTINATION_ADDRESS,
@@ -83,8 +84,9 @@ for chart in ("sequencer", "evm-stack"):
 # supermajority are participating.
 nodes = [SequencerController(f"node{i}") for i in range(NUM_NODES - 1)]
 evm = EvmController()
+celestia = CelestiaController()
 print(colored(f"starting {len(nodes)} sequencers, evm rollup, and local celestia network", "blue"))
-executor = concurrent.futures.ThreadPoolExecutor(NUM_NODES + 1)
+executor = concurrent.futures.ThreadPoolExecutor(NUM_NODES + 2)
 
 deploy_sequencer_fn = lambda seq_node: seq_node.deploy_sequencer(
     pre_upgrade_image_controller,
@@ -93,10 +95,16 @@ deploy_sequencer_fn = lambda seq_node: seq_node.deploy_sequencer(
     upgrade_name=upgrade_name,
 )
 futures = [executor.submit(deploy_sequencer_fn, node) for node in nodes]
+futures.append(executor.submit(lambda: celestia.deploy_celestia()))
 futures.append(executor.submit(lambda: evm.deploy_rollup(pre_upgrade_image_controller)))
 done, _ = concurrent.futures.wait(futures, return_when=FIRST_EXCEPTION)
 for completed_future in done:
     completed_future.result()
+
+# Hermes doesn't play well with parallel deployment, so deploy it last.
+print(colored("deploying hermes", "blue"))
+hermes = HermesController("local")
+hermes.deploy_hermes(pre_upgrade_image_controller)
 
 # Instantiate CLI
 cli = Cli(upgrade_image_tag)
@@ -137,6 +145,10 @@ for node in nodes:
     node.power += 1
     cli.validator_update(node.name, node.pub_key, node.power)
 
+# Submit pre-upgrade ICS20 transfer
+print(colored("submitting pre-upgrade ICS20 transfer to Celestia", "blue"))
+celestia.do_ibc_transfer(SEQUENCER_IBC_TRANSFER_DESTINATION_ADDRESS)
+
 # Give time for validator updates and ICS20 transfer to land
 time.sleep(10)
 
@@ -144,8 +156,8 @@ time.sleep(10)
 print(colored(f"running pre-upgrade checks specific to {upgrade_name}", "blue"))
 if upgrade_name == "aspen":
     aspen_upgrade_checks.assert_pre_upgrade_conditions(nodes)
-# if upgrade_name == "blackburn":
-    # blackburn_upgrade_checks.assert_pre_upgrade_conditions(cli, nodes)
+if upgrade_name == "blackburn":
+    blackburn_upgrade_checks.assert_pre_upgrade_conditions(cli, nodes)
 print(colored(f"passed {upgrade_name}-specific pre-upgrade checks", "green"))
 
 
@@ -272,6 +284,10 @@ print(colored("running post-upgrade validator updates", "blue"))
 for node in nodes:
     cli.validator_update(node.name, node.pub_key, node.power)
 
+# Submit post-upgrade ICS20 transfer
+print(colored("submitting post-upgrade ICS20 transfer to Celestia", "blue"))
+celestia.do_ibc_transfer(SEQUENCER_IBC_TRANSFER_DESTINATION_ADDRESS)
+
 # Give time for validator updates and ICS20 transfer to land
 time.sleep(10)
 
@@ -279,6 +295,25 @@ time.sleep(10)
 print(colored(f"running post-upgrade checks specific to {upgrade_name}", "blue"))
 if upgrade_name == "aspen":
     aspen_upgrade_checks.assert_post_upgrade_conditions(nodes, upgrade_activation_height)
+if upgrade_name == "blackburn":
+    # non fee asset ICS20 transfer should have failed post blackburn.
+    blackburn_upgrade_checks.assert_post_upgrade_conditions(cli, nodes, 53000)
+
+    print(colored("adding utia asset to sequencer", "blue"))
+    cli.add_utia_asset()
+    print(colored("utia asset added to sequencer", "green"))
+
+    print(colored("submitting post-upgrade ICS20 transfe of fee-asset to Celestia", "blue"))
+    celestia.do_ibc_transfer(SEQUENCER_IBC_TRANSFER_DESTINATION_ADDRESS)
+
+    # Give time for ICS20 transfer to land
+    time.sleep(10)
+
+    blackburn_upgrade_checks.assert_post_upgrade_conditions(cli, nodes, 106000)
+
+
+
+
 print(colored(f"passed {upgrade_name}-specific post-upgrade checks", "green"))
 
 # Perform a bridge out.
