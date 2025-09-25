@@ -132,6 +132,7 @@ geth:
   archiveNode: false
   # Set to true to clear the mempool on startup/restart
   purgeMempool: false
+  softAsFirm: false
   snapshot:
     # Load from snapshot
     restore:
@@ -222,6 +223,9 @@ geth:
       value: "{{ range $index, $module := .Values.geth.moduleLogLevels }}{{- if $index }},{{- end }}{{- $module.module }}={{- $module.level }}{{- end }}"
     log.debug:
       condition: "{{ gt (int .Values.geth.logLevel) 3 }}"
+    execution.soft-as-firm:
+      value: "{{ .Values.geth.softAsFirm }}"
+
 
 conductor:
   # This is a rust log configuration, see https://docs.rs/env_logger/latest/env_logger/#enabling-logging

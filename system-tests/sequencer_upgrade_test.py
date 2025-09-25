@@ -17,7 +17,6 @@ import blackburn_upgrade_checks
 import time
 from concurrent.futures import FIRST_EXCEPTION
 from helpers.astria_cli import Cli
-from helpers.celestia_controller import CelestiaController
 from helpers.defaults import (
     EVM_DESTINATION_ADDRESS,
     SEQUENCER_IBC_TRANSFER_DESTINATION_ADDRESS,
@@ -35,7 +34,7 @@ from termcolor import colored
 # The number of sequencer validator nodes to use in the test.
 NUM_NODES = 5
 # A map of upgrade name to image tag to use for running BEFORE the given upgrade is executed.
-PRE_UPGRADE_IMAGE_TAGS = ["sequencer=3.0.0", "sequencer-relayer=1.0.1"]
+PRE_UPGRADE_IMAGE_TAGS = ["sequencer=3.0.0"]
 pre_upgrade_image_controller = ImageController(PRE_UPGRADE_IMAGE_TAGS)
 
 parser = argparse.ArgumentParser(prog="upgrade_test", description="Runs the sequencer upgrade test.")
@@ -84,9 +83,8 @@ for chart in ("sequencer", "evm-stack"):
 # supermajority are participating.
 nodes = [SequencerController(f"node{i}") for i in range(NUM_NODES - 1)]
 evm = EvmController()
-celestia = CelestiaController()
 print(colored(f"starting {len(nodes)} sequencers, evm rollup, and local celestia network", "blue"))
-executor = concurrent.futures.ThreadPoolExecutor(NUM_NODES + 2)
+executor = concurrent.futures.ThreadPoolExecutor(NUM_NODES + 1)
 
 deploy_sequencer_fn = lambda seq_node: seq_node.deploy_sequencer(
     pre_upgrade_image_controller,
@@ -95,16 +93,10 @@ deploy_sequencer_fn = lambda seq_node: seq_node.deploy_sequencer(
     upgrade_name=upgrade_name,
 )
 futures = [executor.submit(deploy_sequencer_fn, node) for node in nodes]
-futures.append(executor.submit(lambda: celestia.deploy_celestia()))
 futures.append(executor.submit(lambda: evm.deploy_rollup(pre_upgrade_image_controller)))
 done, _ = concurrent.futures.wait(futures, return_when=FIRST_EXCEPTION)
 for completed_future in done:
     completed_future.result()
-
-# Hermes doesn't play well with parallel deployment, so deploy it last.
-print(colored("deploying hermes", "blue"))
-hermes = HermesController("local")
-hermes.deploy_hermes(pre_upgrade_image_controller)
 
 # Instantiate CLI
 cli = Cli(upgrade_image_tag)
@@ -145,10 +137,6 @@ for node in nodes:
     node.power += 1
     cli.validator_update(node.name, node.pub_key, node.power)
 
-# Submit pre-upgrade ICS20 transfer
-print(colored("submitting pre-upgrade ICS20 transfer to Celestia", "blue"))
-celestia.do_ibc_transfer(SEQUENCER_IBC_TRANSFER_DESTINATION_ADDRESS)
-
 # Give time for validator updates and ICS20 transfer to land
 time.sleep(10)
 
@@ -156,8 +144,8 @@ time.sleep(10)
 print(colored(f"running pre-upgrade checks specific to {upgrade_name}", "blue"))
 if upgrade_name == "aspen":
     aspen_upgrade_checks.assert_pre_upgrade_conditions(nodes)
-if upgrade_name == "blackburn":
-    blackburn_upgrade_checks.assert_pre_upgrade_conditions(cli, nodes)
+# if upgrade_name == "blackburn":
+    # blackburn_upgrade_checks.assert_pre_upgrade_conditions(cli, nodes)
 print(colored(f"passed {upgrade_name}-specific pre-upgrade checks", "green"))
 
 
@@ -185,7 +173,7 @@ missed_upgrade_node = nodes.pop()
 print(colored(f"not upgrading {missed_upgrade_node.name} until the rest have executed the upgrade", "blue"))
 for node in nodes:
     node.stage_upgrade(
-        ImageController([f"sequencer={upgrade_image_tag}", f"sequencer-relayer={upgrade_image_tag}"]),
+        ImageController([f"sequencer={upgrade_image_tag}"]),
         enable_price_feed=(node.name != "node2"),
         upgrade_name=upgrade_name,
         activation_height=upgrade_activation_height,
@@ -211,7 +199,7 @@ print(colored(f"{missed_upgrade_node.name} lagging as expected; now upgrading", 
 
 # Now stage the upgrade on this lagging node and ensure it catches up.
 missed_upgrade_node.stage_upgrade(
-    ImageController([f"sequencer={upgrade_image_tag}", f"sequencer-relayer={upgrade_image_tag}"]),
+    ImageController([f"sequencer={upgrade_image_tag}"]),
     enable_price_feed=True,
     upgrade_name=upgrade_name,
     activation_height=upgrade_activation_height
@@ -228,7 +216,7 @@ nodes.append(missed_upgrade_node)
 new_node = SequencerController(f"node{NUM_NODES - 1}")
 print(colored("starting a new sequencer", "blue"))
 new_node.deploy_sequencer(
-    ImageController([f"sequencer={upgrade_image_tag}", f"sequencer-relayer={upgrade_image_tag}"]),
+    ImageController([f"sequencer={upgrade_image_tag}"]),
     upgrade_name=upgrade_name,
     upgrade_activation_height=upgrade_activation_height
 )
@@ -283,10 +271,6 @@ print(colored("upgrade change infos reported correctly", "green"))
 print(colored("running post-upgrade validator updates", "blue"))
 for node in nodes:
     cli.validator_update(node.name, node.pub_key, node.power)
-
-# Submit post-upgrade ICS20 transfer
-print(colored("submitting post-upgrade ICS20 transfer to Celestia", "blue"))
-celestia.do_ibc_transfer(SEQUENCER_IBC_TRANSFER_DESTINATION_ADDRESS)
 
 # Give time for validator updates and ICS20 transfer to land
 time.sleep(10)

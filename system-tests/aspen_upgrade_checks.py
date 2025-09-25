@@ -72,7 +72,7 @@ def _check_validator_powers(nodes):
             validator = _find_validator_in_set(validators, node.address)
             if int(validator["voting_power"]) != node.power:
                 raise SystemExit(
-                    f"{node.name}: validator power {validator["voting_power"]}, expected {node.power}"
+                    f"{node.name}: validator power {validator['voting_power']}, expected {node.power}"
                 )
         except Exception as error:
             raise SystemExit(
