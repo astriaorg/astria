@@ -303,7 +303,7 @@ if upgrade_name == "blackburn":
     cli.add_utia_asset()
     print(colored("utia asset added to sequencer", "green"))
 
-    print(colored("submitting post-upgrade ICS20 transfe of fee-asset to Celestia", "blue"))
+    print(colored("submitting post-upgrade ICS20 transfer of fee-asset to Celestia", "blue"))
     celestia.do_ibc_transfer(SEQUENCER_IBC_TRANSFER_DESTINATION_ADDRESS)
 
     # Give time for ICS20 transfer to land
