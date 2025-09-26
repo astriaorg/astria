@@ -342,19 +342,16 @@ class SequencerController:
             f"--values=dev/values/validators/{self.name}.yml",
             f"--set=sequencer.priceFeed.enabled={enable_price_feed}",
             "--set=sequencer.abciUDS=false",
+            "--set=sequencer-relayer.enabled=false",
         ]
         sequencer_image_tag = image_controller.sequencer_image_tag()
         if sequencer_image_tag is not None:
             args.append(f"--set=images.sequencer.tag={sequencer_image_tag}")
-        relayer_image_tag = image_controller.sequencer_relayer_image_tag()
-        if relayer_image_tag is not None:
-            args.append(f"--set=sequencer-relayer.images.sequencerRelayer.tag={relayer_image_tag}")
         if subcommand == "install":
             args.append("--create-namespace")
         if upgrade_name:
             # This is an upgrade test.
             args.append("--set=storage.enabled=true")
-            args.append("--set=sequencer-relayer.storage.enabled=true")
             args.append(f"--values=dev/values/validators/{upgrade_name}.upgrade.yml")
             # If we know the activation height of the upgrade, add it to the relevant upgrade's
             # settings for inclusion in the upgrades.json file.

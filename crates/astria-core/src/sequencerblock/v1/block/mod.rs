@@ -135,7 +135,7 @@ impl RollupTransactions {
             transactions,
             proof,
         } = self;
-        let transactions = transactions.into_iter().map(Into::into).collect();
+        let transactions = transactions.into_iter().collect();
         raw::RollupTransactions {
             rollup_id: Some(rollup_id.into_raw()),
             transactions,
@@ -161,7 +161,7 @@ impl RollupTransactions {
         let raw_proof = proof.ok_or_else(|| RollupTransactionsError::field_not_set("proof"))?;
         let proof = merkle::Proof::try_from_raw(raw_proof)
             .map_err(RollupTransactionsError::proof_invalid)?;
-        let transactions = transactions.into_iter().map(Into::into).collect();
+        let transactions = transactions.into_iter().collect();
         Ok(Self {
             rollup_id,
             transactions,

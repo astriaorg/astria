@@ -23,4 +23,11 @@ ignore = [
   # `paste` is Unmaintained. It is a transient dependency of many crates including several penumbra
   # ones, so cannot easily be replaced.
   "RUSTSEC-2024-0436",
+  # `tracing-subscriber`: Logging user input may result in poisoning logs with ANSI escape
+  # sequences. Cannot easily be updated as this is deep in the penumbra deps stack.
+  "RUSTSEC-2025-0055",
+  # `atomic-polyfill` is Unmaintained.
+  "RUSTSEC-2023-0089",
+  # `fxhash` is Unmaintained.
+  "RUSTSEC-2025-0057",
 ]

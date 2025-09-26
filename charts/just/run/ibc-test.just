@@ -365,10 +365,10 @@ Usage:
       ADDRESS= celestia_dev_account_address (see 'ibc-test.just')
       NAMESPACE= 'astria-dev-cluster'
 ")]
-get-celestia-balance address=celestia_dev_account_address namespace=defaultNamespace:
+get-celestia-balance address=celestia_dev_account_address namespace=defaultNamespace home=defaultCelestiaHome denom=defaultCelestiaDenom:
   #!/usr/bin/env bash
   balance=$(kubectl exec -n {{namespace}} pods/celestia-local-0 celestia-app -- /bin/bash -c \
-  'celestia-appd query bank balances --denom utia --output json {{address}}' | jq '.amount')
+  'celestia-appd query bank balance --home {{home}} --output json {{address}} {{denom}}' | jq '.balance.amount')
   # remove quotes
   balance=${balance//\"/}
   echo $balance
@@ -381,10 +381,10 @@ Obtains the current height of the local Celestia network.
 Usage:
   just run ibc-test get-celestia-height <NAMESPACE> (default: 'astria-dev-cluster')
 ")]
-get-celestia-height namespace=defaultNamespace:
+get-celestia-height namespace=defaultNamespace home=defaultCelestiaHome:
   #!/usr/bin/env bash
   height=$(kubectl exec -n {{namespace}} pods/celestia-local-0 celestia-app -- /bin/bash -c \
-  'celestia-appd query block' | jq '.block.header.height')
+  'celestia-appd query block --home {{home}} -o json' | tail -n +2 | jq '.header.height')
   # remove quotes
   height=${height//\"/}
   echo $height

@@ -11,7 +11,9 @@ celestia bridge init \
   --node.store "$home_dir/bridge" \
   --core.ip 127.0.0.1 \
   --core.port $celestia_app_grpc_port \
-  --gateway.port $bridge_host_port
+  --rpc.addr 0.0.0.0 \
+  --rpc.port "$bridge_rpc_port"
+
 cp -r "$home_dir/keyring-test" "$home_dir/bridge/keys/"
 
 sed -i 's/PeersLimit = 5/PeersLimit = 1/' $home_dir/bridge/config.toml

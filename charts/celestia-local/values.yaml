@@ -15,8 +15,8 @@ storage:
       persistentVolumeName: "celestia-shared-storage"
       path: "/data/celestia-data"
 
-celestiaAppImage: "ghcr.io/celestiaorg/celestia-app:v3.8.1"
-celestiaNodeImage: "ghcr.io/celestiaorg/celestia-node:v0.22.1"
+celestiaAppImage: "ghcr.io/celestiaorg/celestia-app:v5.0.9"
+celestiaNodeImage: "ghcr.io/celestiaorg/celestia-node:v0.26.1-mocha"
 
 podSecurityContext:
   runAsUser: 10001
@@ -57,7 +57,6 @@ ports:
   celestiaAppGrpcPort: 9090
   celestiaAppRestPort: 1317
   bridgeRPC: 26658
-  bridgeHTTP: 26659
 
 ingress:
   labels: {}
@@ -74,15 +73,6 @@ ingress:
         name: celestia-service
         port:
           name: bridge-jsonrpc
-    bridgeRest:
-      hosts:
-        - rest.node.celestia.{{ .Values.ingress.hostname }}
-      path: /
-      pathType: Prefix
-      service:
-        name: celestia-service
-        port:
-          name: bridge-rest
     token:
       hosts:
         - token.node.celestia.{{ .Values.ingress.hostname }}

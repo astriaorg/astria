@@ -1,3 +1,5 @@
+#![expect(clippy::large_stack_arrays, reason = "tests only")]
+
 mod mempool;
 mod upgrades;
 

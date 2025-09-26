@@ -174,6 +174,21 @@ fn min_gas_price_from_good_response_should_succeed() {
 }
 
 #[test]
+fn min_gas_price_from_empty_response_should_return_default() {
+    let response = Response::new(MinGasPriceResponse {
+        minimum_gas_price: String::new(),
+    });
+    let extracted_price = min_gas_price_from_response(Ok(response)).unwrap();
+    #[expect(
+        clippy::float_cmp,
+        reason = "this floating point comparison should be ok due to the hard-coded values chosen"
+    )]
+    {
+        assert_eq!(0.002_f64, extracted_price);
+    }
+}
+
+#[test]
 fn min_gas_price_from_bad_response_should_fail() {
     // Should return `FailedToGetMinGasPrice` if outer response is an error.
     let error = min_gas_price_from_response(Err(Status::internal(""))).unwrap_err();

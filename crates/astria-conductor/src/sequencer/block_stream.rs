@@ -53,7 +53,7 @@ impl Heights {
         let height_exists_on_sequencer = potential_height <= latest_observed_sequencer_height;
         let stop_height_reached = self
             .stop_height
-            .map_or(false, |stop_height| potential_height > stop_height.into());
+            .is_some_and(|stop_height| potential_height > stop_height.into());
 
         if not_too_far_ahead && height_exists_on_sequencer && !stop_height_reached {
             Some(potential_height)
@@ -68,7 +68,7 @@ impl Heights {
     fn set_greatest_if_greater(&mut self, height: u64) -> bool {
         let greater = self
             .greatest_requested_height
-            .map_or(true, |old| height > old);
+            .is_none_or(|old| height > old);
         if greater {
             self.greatest_requested_height.replace(height);
         }
@@ -82,7 +82,7 @@ impl Heights {
         let new = new.value();
         let is_greater = self
             .latest_observed_sequencer_height
-            .map_or(true, |old| new > old);
+            .is_none_or(|old| new > old);
         if is_greater {
             self.latest_observed_sequencer_height.replace(new);
         }

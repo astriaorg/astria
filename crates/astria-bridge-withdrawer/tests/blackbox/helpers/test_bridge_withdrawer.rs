@@ -249,7 +249,6 @@ impl TestBridgeWithdrawer {
     }
 }
 
-#[expect(clippy::module_name_repetitions, reason = "naming is for clarity here")]
 pub struct TestBridgeWithdrawerConfig {
     /// Configures the rollup's withdrawal smart contract to either native or ERC20.
     pub ethereum_config: TestEthereumConfig,

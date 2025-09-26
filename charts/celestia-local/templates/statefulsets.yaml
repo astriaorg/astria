@@ -77,14 +77,11 @@ spec:
             - configMapRef:
                 name: celestia-local-env
           ports:
-            - containerPort: {{ .Values.ports.bridgeHTTP }}
-              name: bridge-rest
             - containerPort: {{ .Values.ports.bridgeRPC }}
               name: bridge-jsonrpc
           startupProbe:
-            httpGet:
-              path: /head
-              port: bridge-rest
+            tcpSocket:
+              port: bridge-jsonrpc
             failureThreshold: 30
             periodSeconds: 10
           resources:
