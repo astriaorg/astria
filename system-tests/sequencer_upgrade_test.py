@@ -12,7 +12,6 @@ For details on running the test, see the README.md file in `/system-tests`.
 
 import argparse
 import concurrent
-import aspen_upgrade_checks
 import blackburn_upgrade_checks
 import time
 from concurrent.futures import FIRST_EXCEPTION
@@ -51,7 +50,7 @@ parser.add_argument(
 parser.add_argument(
     "-n", "--upgrade-name",
     help="The name of the upgrade to apply.",
-    choices=("aspen", "blackburn"),
+    choices=("blackburn"),
     required=True
 )
 args = vars(parser.parse_args())
@@ -154,8 +153,6 @@ time.sleep(10)
 
 # Run pre-upgrade checks specific to this upgrade.
 print(colored(f"running pre-upgrade checks specific to {upgrade_name}", "blue"))
-if upgrade_name == "aspen":
-    aspen_upgrade_checks.assert_pre_upgrade_conditions(nodes)
 if upgrade_name == "blackburn":
     blackburn_upgrade_checks.assert_pre_upgrade_conditions(cli, nodes)
 print(colored(f"passed {upgrade_name}-specific pre-upgrade checks", "green"))
@@ -293,8 +290,6 @@ time.sleep(10)
 
 # Run post-upgrade checks specific to this upgrade.
 print(colored(f"running post-upgrade checks specific to {upgrade_name}", "blue"))
-if upgrade_name == "aspen":
-    aspen_upgrade_checks.assert_post_upgrade_conditions(nodes, upgrade_activation_height)
 if upgrade_name == "blackburn":
     # non fee asset ICS20 transfer should have failed post blackburn.
     blackburn_upgrade_checks.assert_post_upgrade_conditions(cli, nodes, 53000)
@@ -310,9 +305,6 @@ if upgrade_name == "blackburn":
     time.sleep(10)
 
     blackburn_upgrade_checks.assert_post_upgrade_conditions(cli, nodes, 106000)
-
-
-
 
 print(colored(f"passed {upgrade_name}-specific post-upgrade checks", "green"))
 
