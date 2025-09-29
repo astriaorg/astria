@@ -100,21 +100,19 @@ impl StateSnapshot {
     }
 
     fn set_last_rollup_height_submitted(&mut self, height: u64) -> bool {
-        let changed = self
-            .last_rollup_height_submitted
-            .map_or(true, |h| h != height);
+        let changed = self.last_rollup_height_submitted != Some(height);
         self.last_rollup_height_submitted = Some(height);
         changed
     }
 
     fn set_last_sequencer_height(&mut self, height: u64) -> bool {
-        let changed = self.last_sequencer_block.map_or(true, |h| h != height);
+        let changed = self.last_sequencer_block != Some(height);
         self.last_sequencer_block = Some(height);
         changed
     }
 
     fn set_last_sequencer_tx_hash(&mut self, hash: tendermint::Hash) -> bool {
-        let changed = self.last_sequencer_tx_hash.map_or(true, |h| h != hash);
+        let changed = self.last_sequencer_tx_hash != Some(hash);
         self.last_sequencer_tx_hash = Some(hash);
         changed
     }

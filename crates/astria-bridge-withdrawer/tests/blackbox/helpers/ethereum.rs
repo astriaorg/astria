@@ -31,10 +31,6 @@ use super::test_bridge_withdrawer::{
     default_native_asset,
 };
 
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "want the name to reflect this is a test config"
-)]
 pub struct TestEthereum {
     contract_address: ethers::types::Address,
     provider: Arc<Provider<Ws>>,

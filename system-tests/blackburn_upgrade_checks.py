@@ -18,9 +18,23 @@ RETRIES = 10
 def assert_pre_upgrade_conditions(cli, nodes):
     _check_balance_post_ics20_transfer(cli, nodes, 53000)
 
-def assert_post_upgrade_conditions(cli, nodes, upgrade_activation_height):
+def assert_post_upgrade_conditions(cli, celestia, nodes, upgrade_activation_height):
     _check_balance_post_ics20_transfer(cli, nodes, 53000) # should not change since utia should be blocked from depositing
+    print(colored("adding utia asset to sequencer", "blue"))
+    cli.add_utia_asset()
+    print(colored("utia asset added to sequencer", "green"))
+
+    print(colored("submitting post-upgrade ICS20 transfer of fee-asset to Celestia", "blue"))
+    celestia.do_ibc_transfer(SEQUENCER_IBC_TRANSFER_DESTINATION_ADDRESS)
+
+    # Give time for ICS20 transfer to land
+    time.sleep(10)
+
+    print(colored("checking balance after post-upgrade ICS20 transfer of fee-asset", "blue"))
+    _check_balance_post_ics20_transfer(cli, nodes, 106000)
+
     _check_bridge_account_deposits_disabled(cli, nodes)
+
 
 def _check_bridge_account_deposits_disabled(cli, nodes):
     # we can't check the actual error string since stderr isn't captured, so we

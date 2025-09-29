@@ -30,7 +30,7 @@ chains:
 
   celestia-local-0:
     type: CosmosSdk
-    compatMode: "0.34"
+    compatMode: "0.38"
     rpcAddr: http://celestia-app-service.astria-dev-cluster.svc.cluster.local:26657
     grpcAddr: http://celestia-app-service.astria-dev-cluster.svc.cluster.local:9090
     rpcTimeout: 15s

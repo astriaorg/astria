@@ -30,6 +30,7 @@ data:
   {{- if not .Values.global.dev }}
   ASTRIA_SEQUENCER_RELAYER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   {{- else }}
+  ASTRIA_SEQUENCER_RELAYER_CELESTIA_DEFAULT_MIN_GAS_PRICE: "{{ .Values.config.relayer.celestiaDefaultMinGasPrice }}"
   {{- end }}
 ---
 apiVersion: v1

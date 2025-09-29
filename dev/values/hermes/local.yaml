@@ -36,7 +36,7 @@ chains:
 
   celestia-local-0:
     type: CosmosSdk
-    compatMode: "0.34"
+    compatMode: "0.38"
     rpcAddr: http://celestia-app-service.astria-dev-cluster.svc.cluster.local:26657
     grpcAddr: http://celestia-app-service.astria-dev-cluster.svc.cluster.local:9090
     rpcTimeout: 15s
@@ -60,7 +60,7 @@ chains:
       mode: pull
       interval: 1s
     gasDenom: "utia"
-    gasPrice: 0.0026
+    gasPrice: 0.004
     gasMultiplier: 1.2
     defaultGas: "1000000"
     maxGas: "10000000"

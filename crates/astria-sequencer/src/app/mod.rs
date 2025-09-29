@@ -1692,9 +1692,7 @@ impl App {
         self.upgrades_handler
             .upgrades()
             .aspen()
-            .map_or(false, |aspen| {
-                block_height.value() >= aspen.activation_height()
-            })
+            .is_some_and(|aspen| block_height.value() >= aspen.activation_height())
     }
 
     /// Returns `true` if vote extensions are enabled for the block at the given height, i.e. if

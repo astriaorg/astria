@@ -4,7 +4,7 @@ env:
   RUSTFLAGS: "-D warnings -D unreachable-pub --cfg tokio_unstable"
 
   # This must match the entry in rust-toolchain.toml at the repository root
-  RUSTUP_TOOLCHAIN: "1.83.0"
+  RUSTUP_TOOLCHAIN: "1.85.0"
 on:
   pull_request:
   merge_group:
@@ -100,10 +100,7 @@ jobs:
           version: "24.4"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Check that each crate compiles individually (circumventing workspace wide dependency resolution)
-        run: |
-          : # exclude all lints because cargo-hack ignores default-members and operates on all workspace members
-          cargo hack check --workspace --all-targets --all-features \
-          --exclude tracing_debug_field
+        run: cargo hack check --workspace --all-targets --all-features
 
   lockfile:
     runs-on: ubuntu-22.04
@@ -239,47 +236,9 @@ jobs:
         run: |
           just lint rust-clippy-tools
 
-  custom-lints:
-    runs-on: depot-ubuntu-24.04-8
-    needs: run_checker
-    if: needs.run_checker.outputs.run_tests == 'true' && needs.run_checker.outputs.run_lint_rust == 'true'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: 'true'
-      - name: Install just
-        uses: taiki-e/install-action@just
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          # This has to match `rust-toolchain` in the rust-toolchain file of the dylint lints
-          toolchain: nightly-2024-10-03
-          components: "clippy, llvm-tools-preview, rustc-dev, rust-src"
-      - uses: Swatinem/rust-cache@v2.7.8
-        with:
-          cache-provider: "buildjet"
-      - name: install cargo-dylint and dylint-link
-        run: cargo install cargo-dylint@3.3.0 dylint-link@3.3.0 --locked
-      - uses: arduino/setup-protoc@v3
-        with:
-          version: "24.4"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: run clippy against custom lints
-        run: |
-          : # list all lint packages here to have clippy explicitly test them
-          : # uses the same nightly installed above to work around the entry in rust-toolchain.toml 
-          just lint rust-clippy-custom
-      - name: run dylint clippy on workspace crates
-        env:
-          # set the dylint driver path to the target/ directory so that it's hopefully cached by rust-cache
-          DYLINT_DRIVER_PATH: ${{ github.workspace }}/target/dylint_drivers/
-          DYLINT_RUSTFLAGS: "-D warnings"
-        run: |
-          mkdir -p "$DYLINT_DRIVER_PATH"
-          just lint rust-dylint
-
   test:
     if: ${{ always() && !cancelled() }}
-    needs: [compiles, protos-compiled, solidity-contracts-compiled, rust, doctest, clippy, lockfile, custom-lints]
+    needs: [compiles, protos-compiled, solidity-contracts-compiled, rust, doctest, clippy, lockfile]
     uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}

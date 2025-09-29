@@ -84,7 +84,7 @@ markdown.
 
 ```sh
 # Install rustfmt
-rustup +nightly-2024-02-07 component add rustfmt
+rustup +nightly-2025-02-17 component add rustfmt
 # Run rustfmt
 just fmt rust
 ```
