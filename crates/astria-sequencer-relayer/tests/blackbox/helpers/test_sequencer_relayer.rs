@@ -720,6 +720,7 @@ impl TestSequencerRelayerConfig {
             no_metrics: false,
             metrics_http_listener_addr: "127.0.0.1:9000".to_string(),
             submission_state_path: submission_state_file.path().to_owned(),
+            celestia_default_min_gas_price: 0.002,
         };
 
         let (metrics, metrics_handle) = metrics::ConfigBuilder::new()

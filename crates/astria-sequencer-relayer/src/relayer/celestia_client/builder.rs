@@ -69,6 +69,7 @@ pub(in crate::relayer) struct Bech32EncodeError(#[from] bech32::EncodeError);
 #[derive(Clone)]
 pub(in crate::relayer) struct Builder {
     configured_celestia_chain_id: String,
+    default_min_gas_price: f64,
     /// The inner `tonic` gRPC channel shared by the various generated gRPC clients.
     grpc_channel: Channel,
     /// The crypto keys associated with our Celestia account.
@@ -83,6 +84,7 @@ impl Builder {
     /// Returns a new `Builder`, or an error if Bech32-encoding the `signing_keys` address fails.
     pub(in crate::relayer) fn new(
         configured_celestia_chain_id: String,
+        default_min_gas_price: f64,
         uri: Uri,
         signing_keys: CelestiaKeys,
         state: Arc<State>,
@@ -91,6 +93,7 @@ impl Builder {
         let address = bech32_encode(&signing_keys.address)?;
         Ok(Self {
             configured_celestia_chain_id,
+            default_min_gas_price,
             grpc_channel,
             signing_keys,
             address,
@@ -105,6 +108,7 @@ impl Builder {
 
         let Self {
             configured_celestia_chain_id,
+            default_min_gas_price,
             grpc_channel,
             signing_keys,
             address,
@@ -128,6 +132,7 @@ impl Builder {
             signing_keys,
             address,
             chain_id: received_celestia_chain_id,
+            default_min_gas_price,
         })
     }
 

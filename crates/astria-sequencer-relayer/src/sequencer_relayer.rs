@@ -64,6 +64,7 @@ impl SequencerRelayer {
             block_time,
             api_addr,
             submission_state_path,
+            celestia_default_min_gas_price,
             ..
         } = cfg;
 
@@ -71,6 +72,7 @@ impl SequencerRelayer {
             relayer_shutdown_token: shutdown_handle.token.child_token(),
             sequencer_chain_id,
             celestia_chain_id,
+            celestia_default_min_gas_price,
             celestia_app_grpc_endpoint,
             celestia_app_key_file,
             cometbft_endpoint,

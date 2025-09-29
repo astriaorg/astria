@@ -139,6 +139,8 @@ pub(super) struct CelestiaClient {
     address: Bech32Address,
     /// The Celestia network ID.
     chain_id: String,
+    /// The default minimum gas price for Celestia transactions.
+    default_min_gas_price: f64,
 }
 
 impl CelestiaClient {
@@ -282,7 +284,7 @@ impl CelestiaClient {
         let mut min_gas_price_client = MinGasPriceClient::new(self.grpc_channel.clone());
         let response = min_gas_price_client.config(MinGasPriceRequest {}).await;
         trace!(?response);
-        min_gas_price_from_response(response)
+        min_gas_price_from_response(response, self.default_min_gas_price)
     }
 
     /// Returns the tx hash if the tx is successfully placed into the node's mempool.
@@ -428,9 +430,9 @@ fn account_from_response(
 /// Extracts the minimum gas price from the given response.
 fn min_gas_price_from_response(
     response: Result<Response<MinGasPriceResponse>, Status>,
+    default_min_gas_price: f64,
 ) -> Result<f64, TrySubmitError> {
     const UNITS_SUFFIX: &str = "utia";
-    const DEFAULT_MIN_GAS_PRICE: f64 = 0.002;
 
     let min_gas_price_with_suffix = response
         .map_err(|status| TrySubmitError::FailedToGetMinGasPrice(GrpcResponseError::from(status)))?
@@ -439,10 +441,10 @@ fn min_gas_price_from_response(
 
     if min_gas_price_with_suffix.is_empty() {
         warn!(
-            "celestia app was configured without a minimum gas price, using default value of \
-             {DEFAULT_MIN_GAS_PRICE}"
+            default_min_gas_price,
+            "celestia app was configured without a minimum gas price, using default value"
         );
-        return Ok(DEFAULT_MIN_GAS_PRICE);
+        return Ok(default_min_gas_price);
     }
 
     let min_gas_price_str = min_gas_price_with_suffix
