@@ -12,7 +12,6 @@ For details on running the test, see the README.md file in `/system-tests`.
 
 import argparse
 import concurrent
-import aspen_upgrade_checks
 import blackburn_upgrade_checks
 import time
 from concurrent.futures import FIRST_EXCEPTION
@@ -35,7 +34,7 @@ from termcolor import colored
 # The number of sequencer validator nodes to use in the test.
 NUM_NODES = 5
 # A map of upgrade name to image tag to use for running BEFORE the given upgrade is executed.
-PRE_UPGRADE_IMAGE_TAGS = ["sequencer=3.0.0", "sequencer-relayer=1.0.1"]
+PRE_UPGRADE_IMAGE_TAGS = ["sequencer=3.0.0"]
 pre_upgrade_image_controller = ImageController(PRE_UPGRADE_IMAGE_TAGS)
 
 parser = argparse.ArgumentParser(prog="upgrade_test", description="Runs the sequencer upgrade test.")
@@ -51,7 +50,7 @@ parser.add_argument(
 parser.add_argument(
     "-n", "--upgrade-name",
     help="The name of the upgrade to apply.",
-    choices=("aspen", "blackburn"),
+    choices=("blackburn"),
     required=True
 )
 args = vars(parser.parse_args())
@@ -154,8 +153,6 @@ time.sleep(10)
 
 # Run pre-upgrade checks specific to this upgrade.
 print(colored(f"running pre-upgrade checks specific to {upgrade_name}", "blue"))
-if upgrade_name == "aspen":
-    aspen_upgrade_checks.assert_pre_upgrade_conditions(nodes)
 if upgrade_name == "blackburn":
     blackburn_upgrade_checks.assert_pre_upgrade_conditions(cli, nodes)
 print(colored(f"passed {upgrade_name}-specific pre-upgrade checks", "green"))
@@ -185,7 +182,7 @@ missed_upgrade_node = nodes.pop()
 print(colored(f"not upgrading {missed_upgrade_node.name} until the rest have executed the upgrade", "blue"))
 for node in nodes:
     node.stage_upgrade(
-        ImageController([f"sequencer={upgrade_image_tag}", f"sequencer-relayer={upgrade_image_tag}"]),
+        ImageController([f"sequencer={upgrade_image_tag}"]),
         enable_price_feed=(node.name != "node2"),
         upgrade_name=upgrade_name,
         activation_height=upgrade_activation_height,
@@ -211,7 +208,7 @@ print(colored(f"{missed_upgrade_node.name} lagging as expected; now upgrading", 
 
 # Now stage the upgrade on this lagging node and ensure it catches up.
 missed_upgrade_node.stage_upgrade(
-    ImageController([f"sequencer={upgrade_image_tag}", f"sequencer-relayer={upgrade_image_tag}"]),
+    ImageController([f"sequencer={upgrade_image_tag}"]),
     enable_price_feed=True,
     upgrade_name=upgrade_name,
     activation_height=upgrade_activation_height
@@ -228,7 +225,7 @@ nodes.append(missed_upgrade_node)
 new_node = SequencerController(f"node{NUM_NODES - 1}")
 print(colored("starting a new sequencer", "blue"))
 new_node.deploy_sequencer(
-    ImageController([f"sequencer={upgrade_image_tag}", f"sequencer-relayer={upgrade_image_tag}"]),
+    ImageController([f"sequencer={upgrade_image_tag}"]),
     upgrade_name=upgrade_name,
     upgrade_activation_height=upgrade_activation_height
 )
@@ -293,8 +290,22 @@ time.sleep(10)
 
 # Run post-upgrade checks specific to this upgrade.
 print(colored(f"running post-upgrade checks specific to {upgrade_name}", "blue"))
-if upgrade_name == "aspen":
-    aspen_upgrade_checks.assert_post_upgrade_conditions(nodes, upgrade_activation_height)
+if upgrade_name == "blackburn":
+    # non fee asset ICS20 transfer should have failed post blackburn.
+    blackburn_upgrade_checks.assert_post_upgrade_conditions(cli, nodes, 53000)
+
+    print(colored("adding utia asset to sequencer", "blue"))
+    cli.add_utia_asset()
+    print(colored("utia asset added to sequencer", "green"))
+
+    print(colored("submitting post-upgrade ICS20 transfer of fee-asset to Celestia", "blue"))
+    celestia.do_ibc_transfer(SEQUENCER_IBC_TRANSFER_DESTINATION_ADDRESS)
+
+    # Give time for ICS20 transfer to land
+    time.sleep(10)
+
+    blackburn_upgrade_checks.assert_post_upgrade_conditions(cli, nodes, 106000)
+
 print(colored(f"passed {upgrade_name}-specific post-upgrade checks", "green"))
 
 # Perform a bridge out.

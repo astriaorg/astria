@@ -138,7 +138,7 @@ pub(crate) async fn allowed_fee_assets_request(
 
     let payload = AllowedFeeAssetsResponse {
         height,
-        fee_assets: fee_assets.into_iter().map(Into::into).collect(),
+        fee_assets: fee_assets.into_iter().collect(),
     }
     .into_raw()
     .encode_to_vec()

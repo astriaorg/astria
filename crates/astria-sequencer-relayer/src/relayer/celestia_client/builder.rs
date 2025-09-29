@@ -69,6 +69,7 @@ pub(in crate::relayer) struct Bech32EncodeError(#[from] bech32::EncodeError);
 #[derive(Clone)]
 pub(in crate::relayer) struct Builder {
     configured_celestia_chain_id: String,
+    default_min_gas_price: f64,
     /// The inner `tonic` gRPC channel shared by the various generated gRPC clients.
     grpc_channel: Channel,
     /// The crypto keys associated with our Celestia account.
@@ -83,6 +84,7 @@ impl Builder {
     /// Returns a new `Builder`, or an error if Bech32-encoding the `signing_keys` address fails.
     pub(in crate::relayer) fn new(
         configured_celestia_chain_id: String,
+        default_min_gas_price: f64,
         uri: Uri,
         signing_keys: CelestiaKeys,
         state: Arc<State>,
@@ -91,6 +93,7 @@ impl Builder {
         let address = bech32_encode(&signing_keys.address)?;
         Ok(Self {
             configured_celestia_chain_id,
+            default_min_gas_price,
             grpc_channel,
             signing_keys,
             address,
@@ -105,6 +108,7 @@ impl Builder {
 
         let Self {
             configured_celestia_chain_id,
+            default_min_gas_price,
             grpc_channel,
             signing_keys,
             address,
@@ -128,6 +132,7 @@ impl Builder {
             signing_keys,
             address,
             chain_id: received_celestia_chain_id,
+            default_min_gas_price,
         })
     }
 
@@ -135,11 +140,7 @@ impl Builder {
     async fn fetch_celestia_chain_id(&self) -> Result<String, BuilderError> {
         let mut node_info_client = NodeInfoClient::new(self.grpc_channel.clone());
         let response = node_info_client.get_node_info(GetNodeInfoRequest {}).await;
-        // trace-level logging, so using Debug format is ok.
-        #[cfg_attr(dylint_lib = "tracing_debug_field", allow(tracing_debug_field))]
-        {
-            trace!(?response);
-        }
+        trace!(?response);
         let chain_id = response
             .map_err(|status| BuilderError::FailedToGetNodeInfo(GrpcResponseError::from(status)))?
             .into_inner()

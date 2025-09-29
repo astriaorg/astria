@@ -7,6 +7,8 @@ use prost::bytes::Bytes;
 
 use super::*;
 
+const TEST_DEFAULT_MIN_GAS_PRICE: f64 = 0.002;
+
 #[test]
 fn new_msg_pay_for_blobs_should_succeed() {
     let blobs: Vec<_> = (0..5)
@@ -163,7 +165,8 @@ fn min_gas_price_from_good_response_should_succeed() {
     let response = Response::new(MinGasPriceResponse {
         minimum_gas_price: format!("{min_gas_price}utia"),
     });
-    let extracted_price = min_gas_price_from_response(Ok(response)).unwrap();
+    let extracted_price =
+        min_gas_price_from_response(Ok(response), TEST_DEFAULT_MIN_GAS_PRICE).unwrap();
     #[expect(
         clippy::float_cmp,
         reason = "this floating point comparison should be ok due to the hard-coded values chosen"
@@ -174,9 +177,26 @@ fn min_gas_price_from_good_response_should_succeed() {
 }
 
 #[test]
+fn min_gas_price_from_empty_response_should_return_default() {
+    let response = Response::new(MinGasPriceResponse {
+        minimum_gas_price: String::new(),
+    });
+    let extracted_price =
+        min_gas_price_from_response(Ok(response), TEST_DEFAULT_MIN_GAS_PRICE).unwrap();
+    #[expect(
+        clippy::float_cmp,
+        reason = "this floating point comparison should be ok due to the hard-coded values chosen"
+    )]
+    {
+        assert_eq!(TEST_DEFAULT_MIN_GAS_PRICE, extracted_price);
+    }
+}
+
+#[test]
 fn min_gas_price_from_bad_response_should_fail() {
     // Should return `FailedToGetMinGasPrice` if outer response is an error.
-    let error = min_gas_price_from_response(Err(Status::internal(""))).unwrap_err();
+    let error = min_gas_price_from_response(Err(Status::internal("")), TEST_DEFAULT_MIN_GAS_PRICE)
+        .unwrap_err();
     #[expect(
         clippy::manual_assert,
         reason = "`assert!(matches!(..))` provides poor feedback on failure"
@@ -191,7 +211,7 @@ fn min_gas_price_from_bad_response_should_fail() {
     let response = Ok(Response::new(MinGasPriceResponse {
         minimum_gas_price: bad_suffix.to_string(),
     }));
-    let error = min_gas_price_from_response(response).unwrap_err();
+    let error = min_gas_price_from_response(response, TEST_DEFAULT_MIN_GAS_PRICE).unwrap_err();
     match error {
         TrySubmitError::MinGasPriceBadSuffix {
             min_gas_price,
@@ -209,7 +229,7 @@ fn min_gas_price_from_bad_response_should_fail() {
     let response = Ok(Response::new(MinGasPriceResponse {
         minimum_gas_price: format!("{bad_value}utia"),
     }));
-    let error = min_gas_price_from_response(response).unwrap_err();
+    let error = min_gas_price_from_response(response, TEST_DEFAULT_MIN_GAS_PRICE).unwrap_err();
     match error {
         TrySubmitError::FailedToParseMinGasPrice {
             min_gas_price, ..
