@@ -46,6 +46,37 @@ pub(crate) trait StateReadExt: StateRead + address::StateReadExt {
         Ok(maybe_id.is_some())
     }
 
+    async fn is_bridge_account_disabled<T: AddressBytes>(&self, address: &T) -> Result<bool> {
+        // Not disabled if no status is set
+        Ok(self
+            .get_bridge_account_disabled_status(address)
+            .await?
+            .unwrap_or(false))
+    }
+
+    #[instrument(skip_all, fields(address = %address.display_address()))]
+    async fn get_bridge_account_disabled_status<T: AddressBytes>(
+        &self,
+        address: &T,
+    ) -> Result<Option<bool>> {
+        let key = keys::bridge_account_disabled(address);
+        let Some(bytes) = self
+            .get_raw(&key)
+            .await
+            .map_err(anyhow_to_eyre)
+            .wrap_err("failed reading raw bridge account disabled status from state")?
+        else {
+            // Key does not exist, so the account is not disabled.
+            return Ok(None);
+        };
+        StoredValue::deserialize(&bytes)
+            .and_then(|value| {
+                storage::DisabledStatus::try_from(value)
+                    .map(|stored_bool| Some(bool::from(stored_bool)))
+            })
+            .wrap_err("invalid bridge account disabled status bytes")
+    }
+
     #[instrument(skip_all, fields(address = %address.display_address()), err(level = Level::WARN))]
     async fn get_bridge_account_rollup_id<T: AddressBytes>(
         &self,
@@ -220,6 +251,18 @@ pub(crate) trait StateWriteExt: StateWrite {
             .serialize()
             .context("failed to serialize bridge account rollup id")?;
         self.put_raw(keys::rollup_id(address), bytes);
+        Ok(())
+    }
+
+    fn put_bridge_account_disabled_status<T: AddressBytes>(
+        &mut self,
+        address: &T,
+        disabled: bool,
+    ) -> Result<()> {
+        let bytes = StoredValue::from(storage::DisabledStatus::from(disabled))
+            .serialize()
+            .context("failed to serialize bridge account disabled status")?;
+        self.put_raw(keys::bridge_account_disabled(address), bytes);
         Ok(())
     }
 

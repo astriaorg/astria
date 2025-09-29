@@ -531,6 +531,9 @@ impl serde::Serialize for Blackburn {
         if self.allow_ibc_relay_to_fail.is_some() {
             len += 1;
         }
+        if self.disableable_bridge_account_deposits.is_some() {
+            len += 1;
+        }
         let mut struct_ser = serializer.serialize_struct("astria.upgrades.v1.Blackburn", len)?;
         if let Some(v) = self.base_info.as_ref() {
             struct_ser.serialize_field("baseInfo", v)?;
@@ -540,6 +543,9 @@ impl serde::Serialize for Blackburn {
         }
         if let Some(v) = self.allow_ibc_relay_to_fail.as_ref() {
             struct_ser.serialize_field("allowIbcRelayToFail", v)?;
+        }
+        if let Some(v) = self.disableable_bridge_account_deposits.as_ref() {
+            struct_ser.serialize_field("disableableBridgeAccountDeposits", v)?;
         }
         struct_ser.end()
     }
@@ -557,6 +563,8 @@ impl<'de> serde::Deserialize<'de> for Blackburn {
             "ics20TransferActionChange",
             "allow_ibc_relay_to_fail",
             "allowIbcRelayToFail",
+            "disableable_bridge_account_deposits",
+            "disableableBridgeAccountDeposits",
         ];
 
         #[allow(clippy::enum_variant_names)]
@@ -564,6 +572,7 @@ impl<'de> serde::Deserialize<'de> for Blackburn {
             BaseInfo,
             Ics20TransferActionChange,
             AllowIbcRelayToFail,
+            DisableableBridgeAccountDeposits,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
             fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
@@ -588,6 +597,7 @@ impl<'de> serde::Deserialize<'de> for Blackburn {
                             "baseInfo" | "base_info" => Ok(GeneratedField::BaseInfo),
                             "ics20TransferActionChange" | "ics20_transfer_action_change" => Ok(GeneratedField::Ics20TransferActionChange),
                             "allowIbcRelayToFail" | "allow_ibc_relay_to_fail" => Ok(GeneratedField::AllowIbcRelayToFail),
+                            "disableableBridgeAccountDeposits" | "disableable_bridge_account_deposits" => Ok(GeneratedField::DisableableBridgeAccountDeposits),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
                         }
                     }
@@ -610,6 +620,7 @@ impl<'de> serde::Deserialize<'de> for Blackburn {
                 let mut base_info__ = None;
                 let mut ics20_transfer_action_change__ = None;
                 let mut allow_ibc_relay_to_fail__ = None;
+                let mut disableable_bridge_account_deposits__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::BaseInfo => {
@@ -630,12 +641,19 @@ impl<'de> serde::Deserialize<'de> for Blackburn {
                             }
                             allow_ibc_relay_to_fail__ = map_.next_value()?;
                         }
+                        GeneratedField::DisableableBridgeAccountDeposits => {
+                            if disableable_bridge_account_deposits__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("disableableBridgeAccountDeposits"));
+                            }
+                            disableable_bridge_account_deposits__ = map_.next_value()?;
+                        }
                     }
                 }
                 Ok(Blackburn {
                     base_info: base_info__,
                     ics20_transfer_action_change: ics20_transfer_action_change__,
                     allow_ibc_relay_to_fail: allow_ibc_relay_to_fail__,
+                    disableable_bridge_account_deposits: disableable_bridge_account_deposits__,
                 })
             }
         }
@@ -711,6 +729,77 @@ impl<'de> serde::Deserialize<'de> for blackburn::AllowIbcRelayToFail {
             }
         }
         deserializer.deserialize_struct("astria.upgrades.v1.Blackburn.AllowIbcRelayToFail", FIELDS, GeneratedVisitor)
+    }
+}
+impl serde::Serialize for blackburn::DisableableBridgeAccountDeposits {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let len = 0;
+        let struct_ser = serializer.serialize_struct("astria.upgrades.v1.Blackburn.DisableableBridgeAccountDeposits", len)?;
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for blackburn::DisableableBridgeAccountDeposits {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+        ];
+
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(deserializer: D) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+
+                impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+                    type Value = GeneratedField;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", &FIELDS)
+                    }
+
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(self, value: &str) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                            Err(serde::de::Error::unknown_field(value, FIELDS))
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = blackburn::DisableableBridgeAccountDeposits;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("struct astria.upgrades.v1.Blackburn.DisableableBridgeAccountDeposits")
+            }
+
+            fn visit_map<V>(self, mut map_: V) -> std::result::Result<blackburn::DisableableBridgeAccountDeposits, V::Error>
+                where
+                    V: serde::de::MapAccess<'de>,
+            {
+                while map_.next_key::<GeneratedField>()?.is_some() {
+                    let _ = map_.next_value::<serde::de::IgnoredAny>()?;
+                }
+                Ok(blackburn::DisableableBridgeAccountDeposits {
+                })
+            }
+        }
+        deserializer.deserialize_struct("astria.upgrades.v1.Blackburn.DisableableBridgeAccountDeposits", FIELDS, GeneratedVisitor)
     }
 }
 impl serde::Serialize for blackburn::Ics20TransferActionChange {

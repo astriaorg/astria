@@ -1,0 +1,5 @@
+---
+source: crates/astria-sequencer/src/bridge/storage/keys.rs
+expression: bridge_account_disabled(&address())
+---
+bridge/account/HAxJDxtVKNgXPF3kbRMRYOSywMM=/disabled

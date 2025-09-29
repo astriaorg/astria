@@ -25,9 +25,15 @@ use astria_core::{
         Ics20WithdrawalFromRollup,
     },
     sequencerblock::v1::block::Deposit,
-    upgrades::v1::aspen::{
-        Aspen,
-        IbcAcknowledgementFailureChange,
+    upgrades::v1::{
+        aspen::{
+            Aspen,
+            IbcAcknowledgementFailureChange,
+        },
+        blackburn::{
+            Blackburn,
+            Ics20TransferActionChange,
+        },
     },
 };
 use astria_eyre::{
@@ -91,6 +97,7 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
+    fees::StateReadExt as _,
     ibc::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -427,6 +434,16 @@ impl AppHandlerExecute for Ics20Transfer {
     }
 }
 
+async fn is_post_blackburn<S: StateRead>(state: &S) -> Result<bool> {
+    Ok(state
+        .get_upgrade_change_info(&Blackburn::NAME, &Ics20TransferActionChange::NAME)
+        .await
+        .wrap_err(
+            "failed to read upgrade change info for ics20 transfer action change from storage",
+        )?
+        .is_some())
+}
+
 #[async_trait::async_trait]
 impl AppHandler for Ics20Transfer {}
 
@@ -487,8 +504,25 @@ async fn receive_tokens<S: StateWrite>(mut state: S, packet: &Packet) -> Result<
         );
     }
 
-    // If `recipient` is a bridge account then create a deposit event to signal to
-    // its associated rollup that funds were received.
+    // Only allow ics20 transfers of fee assets post-Blackburn upgrade
+    if is_post_blackburn(&state)
+        .await
+        .wrap_err("failed to get blackburn upgrade status")?
+    {
+        ensure!(
+            state
+                .is_allowed_fee_asset(&asset)
+                .await
+                .wrap_err("failed to check if asset is allowed fee asset")?,
+            "denom `{}` is not an allowed asset for ics20 transfer post blackburn upgrade; only \
+             allowed fee assets can be transferred using ics20 transfers",
+            asset
+        );
+    }
+
+    // If `recipient` is a bridge account, validate that the bridge account does not have
+    // deposits disabled then create a deposit event to signal to its associated rollup
+    // that funds were received.
     //
     // `recipient` is a bridge account if it has an associated rollup identified by its ID.
     if state
@@ -497,6 +531,15 @@ async fn receive_tokens<S: StateWrite>(mut state: S, packet: &Packet) -> Result<
         .context("failed to get bridge account rollup ID from state")?
         .is_some()
     {
+        let bridge_disabled = state
+            .is_bridge_account_disabled(&recipient)
+            .await
+            .wrap_err("failed to read whether bridge account deposits are disabled from storage")?;
+        ensure!(
+            !bridge_disabled,
+            "bridge account deposits are currently disabled, cannot process ics20 withdrawal"
+        );
+
         emit_bridge_lock_deposit(&mut state, recipient, &asset, amount, &packet_data.memo)
             .await
             .context("failed to execute ics20 transfer to bridge account")?;

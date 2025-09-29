@@ -290,22 +290,10 @@ time.sleep(10)
 
 # Run post-upgrade checks specific to this upgrade.
 print(colored(f"running post-upgrade checks specific to {upgrade_name}", "blue"))
+if upgrade_name == "aspen":
+    aspen_upgrade_checks.assert_post_upgrade_conditions(nodes, upgrade_activation_height)
 if upgrade_name == "blackburn":
-    # non fee asset ICS20 transfer should have failed post blackburn.
-    blackburn_upgrade_checks.assert_post_upgrade_conditions(cli, nodes, 53000)
-
-    print(colored("adding utia asset to sequencer", "blue"))
-    cli.add_utia_asset()
-    print(colored("utia asset added to sequencer", "green"))
-
-    print(colored("submitting post-upgrade ICS20 transfer of fee-asset to Celestia", "blue"))
-    celestia.do_ibc_transfer(SEQUENCER_IBC_TRANSFER_DESTINATION_ADDRESS)
-
-    # Give time for ICS20 transfer to land
-    time.sleep(10)
-
-    blackburn_upgrade_checks.assert_post_upgrade_conditions(cli, nodes, 106000)
-
+    blackburn_upgrade_checks.assert_post_upgrade_conditions(cli, celestia, nodes, upgrade_activation_height)
 print(colored(f"passed {upgrade_name}-specific post-upgrade checks", "green"))
 
 # Perform a bridge out.
@@ -332,6 +320,8 @@ evm.send_raw_tx(
     "7dd18a599a2a3e14679f"
 )
 expected_evm_balance = 9000000000000000000
+if upgrade_name == "blackburn":
+    expected_evm_balance = 19000000000000000000 # account for extra bridge lock made in blackburn upgrade checks
 evm.wait_until_balance(EVM_DESTINATION_ADDRESS, expected_evm_balance, timeout_secs=60)
 print(colored("bridge out evm success", "green"))
 expected_balance = 1000000000

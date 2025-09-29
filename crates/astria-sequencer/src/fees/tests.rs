@@ -188,6 +188,7 @@ async fn ensure_correct_block_fees_bridge_sudo_change() {
             new_sudo_address: None,
             new_withdrawer_address: None,
             fee_asset: nria().into(),
+            disable_deposits: false,
         })
         .build()
         .await;

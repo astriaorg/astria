@@ -9,6 +9,7 @@ use crate::{
     generated::upgrades::v1::{
         blackburn::{
             AllowIbcRelayToFail as RawAllowIbcRelayToFail,
+            DisableableBridgeAccountDeposits as RawDisableableBridgeAccountDeposits,
             Ics20TransferActionChange as RawIcs20TransferActionChange,
         },
         BaseUpgradeInfo as RawBaseUpgradeInfo,
@@ -23,6 +24,7 @@ pub struct Blackburn {
     app_version: u64,
     ics20_transfer_action_change: Ics20TransferActionChange,
     allow_ibc_relay_to_fail: AllowIbcRelayToFail,
+    disableable_bridge_account_deposits: DisableableBridgeAccountDeposits,
 }
 
 impl Blackburn {
@@ -48,10 +50,18 @@ impl Blackburn {
         &self.allow_ibc_relay_to_fail
     }
 
+    #[must_use]
+    pub fn disableable_bridge_account_deposits(&self) -> &DisableableBridgeAccountDeposits {
+        &self.disableable_bridge_account_deposits
+    }
+
     pub fn changes(&self) -> impl Iterator<Item = &'_ dyn Change> {
         Some(&self.ics20_transfer_action_change as &dyn Change)
             .into_iter()
             .chain(Some(&self.allow_ibc_relay_to_fail as &dyn Change))
+            .chain(Some(
+                &self.disableable_bridge_account_deposits as &dyn Change,
+            ))
     }
 }
 
@@ -73,6 +83,10 @@ impl Protobuf for Blackburn {
             return Err(Error::no_allow_ibc_relay_to_fail());
         }
 
+        if raw.disableable_bridge_account_deposits.is_none() {
+            return Err(Error::no_disableable_bridge_account_deposits());
+        }
+
         let ics20_transfer_action_change = Ics20TransferActionChange {
             activation_height,
             app_version,
@@ -83,11 +97,17 @@ impl Protobuf for Blackburn {
             app_version,
         };
 
+        let disableable_bridge_account_deposits = DisableableBridgeAccountDeposits {
+            activation_height,
+            app_version,
+        };
+
         Ok(Self {
             activation_height,
             app_version,
             ics20_transfer_action_change,
             allow_ibc_relay_to_fail,
+            disableable_bridge_account_deposits,
         })
     }
 
@@ -100,7 +120,32 @@ impl Protobuf for Blackburn {
             base_info,
             ics20_transfer_action_change: Some(RawIcs20TransferActionChange {}),
             allow_ibc_relay_to_fail: Some(RawAllowIbcRelayToFail {}),
+            disableable_bridge_account_deposits: Some(RawDisableableBridgeAccountDeposits {}),
         }
+    }
+}
+
+#[derive(Clone, Debug, BorshSerialize)]
+pub struct DisableableBridgeAccountDeposits {
+    activation_height: u64,
+    app_version: u64,
+}
+
+impl DisableableBridgeAccountDeposits {
+    pub const NAME: ChangeName = ChangeName::new("disableable_bridge_account_deposits");
+}
+
+impl Change for DisableableBridgeAccountDeposits {
+    fn name(&self) -> ChangeName {
+        Self::NAME.clone()
+    }
+
+    fn activation_height(&self) -> u64 {
+        self.activation_height
+    }
+
+    fn app_version(&self) -> u64 {
+        self.app_version
     }
 }
 
@@ -172,6 +217,12 @@ impl Error {
 
     fn no_allow_ibc_relay_to_fail() -> Self {
         Self(ErrorKind::FieldNotSet("allow_ibc_relay_to_fail"))
+    }
+
+    fn no_disableable_bridge_account_deposits() -> Self {
+        Self(ErrorKind::FieldNotSet(
+            "disableable_bridge_account_deposits",
+        ))
     }
 }
 
