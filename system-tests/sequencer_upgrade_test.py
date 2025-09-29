@@ -293,7 +293,7 @@ print(colored(f"running post-upgrade checks specific to {upgrade_name}", "blue")
 if upgrade_name == "aspen":
     aspen_upgrade_checks.assert_post_upgrade_conditions(nodes, upgrade_activation_height)
 if upgrade_name == "blackburn":
-    blackburn_upgrade_checks.assert_post_upgrade_conditions(cli, nodes, upgrade_activation_height)
+    blackburn_upgrade_checks.assert_post_upgrade_conditions(cli, celestia, nodes, upgrade_activation_height)
 print(colored(f"passed {upgrade_name}-specific post-upgrade checks", "green"))
 
 # Perform a bridge out.
