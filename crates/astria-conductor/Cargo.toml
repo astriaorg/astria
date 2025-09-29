@@ -68,12 +68,16 @@ moka = { version = "0.12.5", features = ["future"] }
 # The same can happen with tendermint, which is used for interacting with
 # Astria and Celestia both. If there is a version mismatch, the version
 # required for celestia needs to be imported under an alias.
-celestia-rpc = "0.10.0"
+celestia-rpc = "0.12.1"
 # Alias import in case celestia lags behind upstream.
 # tendermint = { version = "0.40.0" }
 celestia-types = { workspace = true }
 http = "1.2.0"
-jsonrpsee = { version = "0.24.2", features = ["client-core", "macros"] }
+jsonrpsee = { workspace = true, features = [
+  "client-core",
+  "macros",
+  "http-client",
+] }
 
 [dev-dependencies]
 astria-core = { path = "../astria-core", features = [

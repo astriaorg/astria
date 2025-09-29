@@ -62,10 +62,6 @@ impl TryFrom<&[u8]> for ChangeHash {
 
 #[derive(Debug, Error)]
 #[error(transparent)]
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "following our naming conventions"
-)]
 pub struct ChangeHashError(ChangeHashErrorKind);
 
 #[derive(Debug, Error)]

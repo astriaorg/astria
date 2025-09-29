@@ -38,10 +38,6 @@ use tonic::{
     Status,
 };
 
-#[expect(
-    clippy::module_name_repetitions,
-    reason = "naming is helpful for clarity here"
-)]
 pub struct MockBridgeSignerServer {
     _server: JoinHandle<eyre::Result<()>>,
     pub(crate) mock_server: MockServer,

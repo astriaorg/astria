@@ -288,6 +288,7 @@ fn calculated_base_deposit_fee_matches_expected_value() {
 
     // Ensure calculated length is as expected with absurd string
     // lengths (have tested up to 99999999, but this makes testing very slow)
+    #[expect(clippy::large_stack_arrays, reason = "test only")]
     let absurd_string: String = ['a'; u16::MAX as usize].iter().collect();
     assert_correct_base_deposit_fee(&Deposit {
         asset: absurd_string.parse().unwrap(),

@@ -36,9 +36,6 @@ exec celestia bridge start \
   --node.store "$home_dir/bridge" \
   --core.ip 0.0.0.0 \
   --core.port "$celestia_app_grpc_port" \
-  --gateway \
-  --gateway.addr 0.0.0.0 \
-  --gateway.port "$bridge_host_port" \
   --rpc.addr 0.0.0.0 \
   --rpc.port "$bridge_rpc_port" \
   --keyring.keyname "$validator_key_name" \

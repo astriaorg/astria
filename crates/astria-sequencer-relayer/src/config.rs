@@ -45,6 +45,8 @@ pub struct Config {
     pub metrics_http_listener_addr: String,
     /// The path to which relayer will write its state while submitting to Celestia.
     pub submission_state_path: PathBuf,
+    /// The default minimum gas price for Celestia transactions.
+    pub celestia_default_min_gas_price: f64,
 }
 
 impl Config {
