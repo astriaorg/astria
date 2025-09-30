@@ -79,7 +79,6 @@ impl Protobuf for Action {
     type Error = Error;
     type Raw = raw::Action;
 
-    #[must_use]
     fn to_raw(&self) -> Self::Raw {
         use raw::action::Value;
         let kind = match self {
@@ -535,7 +534,6 @@ impl Protobuf for RollupDataSubmission {
     type Error = RollupDataSubmissionError;
     type Raw = raw::RollupDataSubmission;
 
-    #[must_use]
     fn to_raw(&self) -> raw::RollupDataSubmission {
         let Self {
             rollup_id,
@@ -590,7 +588,6 @@ impl Protobuf for Transfer {
     type Error = TransferError;
     type Raw = raw::Transfer;
 
-    #[must_use]
     fn to_raw(&self) -> raw::Transfer {
         let Self {
             to,
@@ -831,7 +828,6 @@ impl Protobuf for ValidatorUpdate {
         Self::try_from_raw(raw.clone())
     }
 
-    #[must_use]
     fn to_raw(&self) -> Self::Raw {
         use crate::generated::astria_vendored::tendermint::crypto::{
             public_key,
@@ -893,7 +889,6 @@ impl Protobuf for SudoAddressChange {
         }
     }
 
-    #[must_use]
     fn to_raw(&self) -> raw::SudoAddressChange {
         let Self {
             new_address,
@@ -963,7 +958,6 @@ impl Protobuf for IbcSudoChange {
         }
     }
 
-    #[must_use]
     fn to_raw(&self) -> raw::IbcSudoChange {
         raw::IbcSudoChange {
             new_address: Some(self.new_address.to_raw()),
@@ -1112,7 +1106,6 @@ impl Protobuf for Ics20Withdrawal {
     type Error = Ics20WithdrawalError;
     type Raw = raw::Ics20Withdrawal;
 
-    #[must_use]
     fn to_raw(&self) -> raw::Ics20Withdrawal {
         raw::Ics20Withdrawal {
             amount: Some(self.amount.into()),
@@ -1129,7 +1122,6 @@ impl Protobuf for Ics20Withdrawal {
         }
     }
 
-    #[must_use]
     fn into_raw(self) -> raw::Ics20Withdrawal {
         raw::Ics20Withdrawal {
             amount: Some(self.amount.into()),
@@ -1358,7 +1350,6 @@ impl Protobuf for IbcRelayerChange {
     type Error = IbcRelayerChangeError;
     type Raw = raw::IbcRelayerChange;
 
-    #[must_use]
     fn to_raw(&self) -> raw::IbcRelayerChange {
         match self {
             IbcRelayerChange::Addition(address) => raw::IbcRelayerChange {
@@ -1432,7 +1423,6 @@ impl Protobuf for FeeAssetChange {
     type Error = FeeAssetChangeError;
     type Raw = raw::FeeAssetChange;
 
-    #[must_use]
     fn to_raw(&self) -> raw::FeeAssetChange {
         match self {
             FeeAssetChange::Addition(asset) => raw::FeeAssetChange {
@@ -1513,7 +1503,6 @@ impl Protobuf for InitBridgeAccount {
     type Error = InitBridgeAccountError;
     type Raw = raw::InitBridgeAccount;
 
-    #[must_use]
     fn into_raw(self) -> raw::InitBridgeAccount {
         raw::InitBridgeAccount {
             rollup_id: Some(self.rollup_id.to_raw()),
@@ -1524,7 +1513,6 @@ impl Protobuf for InitBridgeAccount {
         }
     }
 
-    #[must_use]
     fn to_raw(&self) -> raw::InitBridgeAccount {
         raw::InitBridgeAccount {
             rollup_id: Some(self.rollup_id.to_raw()),
@@ -1658,7 +1646,6 @@ impl Protobuf for BridgeLock {
     type Error = BridgeLockError;
     type Raw = raw::BridgeLock;
 
-    #[must_use]
     fn into_raw(self) -> raw::BridgeLock {
         raw::BridgeLock {
             to: Some(self.to.to_raw()),
@@ -1669,7 +1656,6 @@ impl Protobuf for BridgeLock {
         }
     }
 
-    #[must_use]
     fn to_raw(&self) -> raw::BridgeLock {
         raw::BridgeLock {
             to: Some(self.to.to_raw()),
@@ -1791,7 +1777,6 @@ impl Protobuf for BridgeUnlock {
     type Error = BridgeUnlockError;
     type Raw = raw::BridgeUnlock;
 
-    #[must_use]
     fn into_raw(self) -> raw::BridgeUnlock {
         raw::BridgeUnlock {
             to: Some(self.to.into_raw()),
@@ -1804,7 +1789,6 @@ impl Protobuf for BridgeUnlock {
         }
     }
 
-    #[must_use]
     fn to_raw(&self) -> raw::BridgeUnlock {
         raw::BridgeUnlock {
             to: Some(self.to.to_raw()),
@@ -1927,7 +1911,6 @@ impl Protobuf for BridgeSudoChange {
     type Error = BridgeSudoChangeError;
     type Raw = raw::BridgeSudoChange;
 
-    #[must_use]
     fn into_raw(self) -> raw::BridgeSudoChange {
         raw::BridgeSudoChange {
             bridge_address: Some(self.bridge_address.to_raw()),
@@ -1938,7 +1921,6 @@ impl Protobuf for BridgeSudoChange {
         }
     }
 
-    #[must_use]
     fn to_raw(&self) -> raw::BridgeSudoChange {
         raw::BridgeSudoChange {
             bridge_address: Some(self.bridge_address.to_raw()),
@@ -2067,7 +2049,6 @@ impl Protobuf for BridgeTransfer {
     type Error = BridgeTransferError;
     type Raw = raw::BridgeTransfer;
 
-    #[must_use]
     fn into_raw(self) -> raw::BridgeTransfer {
         raw::BridgeTransfer {
             to: Some(self.to.into_raw()),
@@ -2080,7 +2061,6 @@ impl Protobuf for BridgeTransfer {
         }
     }
 
-    #[must_use]
     fn to_raw(&self) -> raw::BridgeTransfer {
         raw::BridgeTransfer {
             to: Some(self.to.to_raw()),
@@ -2255,7 +2235,6 @@ impl Protobuf for FeeChange {
     type Error = FeeChangeError;
     type Raw = raw::FeeChange;
 
-    #[must_use]
     fn to_raw(&self) -> raw::FeeChange {
         raw::FeeChange {
             fee_components: Some(match &self {
@@ -2524,7 +2503,6 @@ impl Protobuf for RecoverIbcClient {
     type Error = RecoverIbcClientError;
     type Raw = raw::RecoverIbcClient;
 
-    #[must_use]
     fn into_raw(self) -> raw::RecoverIbcClient {
         raw::RecoverIbcClient {
             client_id: self.client_id.to_string(),
@@ -2532,7 +2510,6 @@ impl Protobuf for RecoverIbcClient {
         }
     }
 
-    #[must_use]
     fn to_raw(&self) -> raw::RecoverIbcClient {
         raw::RecoverIbcClient {
             client_id: self.client_id.clone().to_string(),
@@ -2592,7 +2569,6 @@ impl Protobuf for CurrencyPairsChange {
     type Error = CurrencyPairsChangeError;
     type Raw = raw::CurrencyPairsChange;
 
-    #[must_use]
     fn into_raw(self) -> Self::Raw {
         let raw = match self {
             CurrencyPairsChange::Addition(pairs) => {
@@ -2611,7 +2587,6 @@ impl Protobuf for CurrencyPairsChange {
         }
     }
 
-    #[must_use]
     fn to_raw(&self) -> Self::Raw {
         self.clone().into_raw()
     }

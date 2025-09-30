@@ -52,7 +52,7 @@ pub mod tests;
 /// The error that is returned if reading a config from the environment fails.
 #[derive(Clone, Debug)]
 pub struct Error {
-    inner: figment::Error,
+    inner: Box<figment::Error>,
 }
 
 impl Display for Error {
@@ -70,7 +70,7 @@ impl std::error::Error for Error {
 impl From<figment::Error> for Error {
     fn from(inner: figment::Error) -> Self {
         Self {
-            inner,
+            inner: Box::new(inner),
         }
     }
 }
@@ -120,22 +120,19 @@ pub trait Config: ::core::fmt::Debug + DeserializeOwned {
     /// # Errors
     /// Returns an error if a config field could not be read from the environment.
     fn get() -> Result<Self, Error> {
-        Ok(Self::get_with_prefix(Self::PREFIX, _internal::Internal)?)
+        Self::get_with_prefix(Self::PREFIX, _internal::Internal)
     }
 
     #[doc(hidden)]
-    fn get_with_prefix(
-        prefix: &str,
-        _internal: _internal::Internal,
-    ) -> Result<Self, figment::Error> {
+    fn get_with_prefix(prefix: &str, _internal: _internal::Internal) -> Result<Self, Error> {
         use figment::{
             providers::Env as FigmentEnv,
             Figment,
         };
-        Figment::new()
+        Ok(Figment::new()
             .merge(FigmentEnv::prefixed("RUST_").split("_").only(&["log"]))
             .merge(FigmentEnv::prefixed(prefix))
-            .extract()
+            .extract()?)
     }
 }
 

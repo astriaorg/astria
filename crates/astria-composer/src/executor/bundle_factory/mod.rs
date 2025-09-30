@@ -248,7 +248,7 @@ impl BundleFactory {
     ///
     /// The bundle is only removed from the factory on calling [`NextFinishedBundle::pop`].
     /// This method primarily exists to work around async cancellation.
-    pub(super) fn next_finished(&mut self) -> Option<NextFinishedBundle> {
+    pub(super) fn next_finished(&mut self) -> Option<NextFinishedBundle<'_>> {
         if self.finished.is_empty() {
             None
         } else {

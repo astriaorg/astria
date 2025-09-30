@@ -468,6 +468,12 @@ enum SubmissionError {
     BroadcastTxTimedOut(PreparedSubmission),
 }
 
+impl From<Box<TrySubmitError>> for SubmissionError {
+    fn from(error: Box<TrySubmitError>) -> Self {
+        SubmissionError::TrySubmit(*error)
+    }
+}
+
 #[instrument(skip_all)]
 async fn submit_with_retry(
     client: CelestiaClient,
@@ -580,7 +586,11 @@ async fn try_submit(
         .map_err(|error| SubmissionError::Unrecoverable(Arc::new(error)))?;
 
     let fee = blob_tx_and_fee.fee;
-    match client.try_submit(blob_tx_hash, blob_tx_and_fee.tx).await {
+    match client
+        .try_submit(blob_tx_hash, blob_tx_and_fee.tx)
+        .await
+        .map_err(|error| *error)
+    {
         Ok(celestia_height) => prepared_submission
             .into_started(celestia_height)
             .await

@@ -263,7 +263,7 @@ fn from_list_of_actions_mixed() {
 fn from_list_of_actions_empty() {
     let error_kind = Actions::try_from_list_of_actions(vec![]).unwrap_err().0;
     assert!(
-        matches!(error_kind, ErrorKind::Empty { .. }),
+        matches!(error_kind, ErrorKind::Empty),
         "expected ErrorKind::Empty, got {error_kind:?}"
     );
 }

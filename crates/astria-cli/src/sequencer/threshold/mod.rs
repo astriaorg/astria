@@ -39,6 +39,7 @@ enum SubCommand {
 // from penumbra `ActualTerminal`
 pub(crate) async fn read_line_raw() -> eyre::Result<String> {
     use std::io::{
+        BufReader,
         Read as _,
         Write as _,
     };
@@ -54,7 +55,7 @@ pub(crate) async fn read_line_raw() -> eyre::Result<String> {
     let mut stdout = std::io::stdout().into_raw_mode()?;
 
     let mut bytes = Vec::with_capacity(8192);
-    for b in std::io::stdin().bytes() {
+    for b in BufReader::new(std::io::stdin()).bytes() {
         let b = b?;
         // In raw mode, we need to handle control characters ourselves
         if b == 3 || b == 4 {

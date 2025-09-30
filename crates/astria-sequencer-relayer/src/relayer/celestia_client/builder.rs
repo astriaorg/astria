@@ -88,7 +88,7 @@ impl Builder {
         uri: Uri,
         signing_keys: CelestiaKeys,
         state: Arc<State>,
-    ) -> Result<Self, BuilderError> {
+    ) -> Result<Self, Box<BuilderError>> {
         let grpc_channel = Endpoint::from(uri).timeout(REQUEST_TIMEOUT).connect_lazy();
         let address = bech32_encode(&signing_keys.address)?;
         Ok(Self {
@@ -151,15 +151,17 @@ impl Builder {
     }
 }
 
-fn bech32_encode(address: &AccountId) -> Result<Bech32Address, BuilderError> {
+fn bech32_encode(address: &AccountId) -> Result<Bech32Address, Box<BuilderError>> {
     // From https://github.com/celestiaorg/celestia-app/blob/v1.4.0/app/app.go#L104
     const ACCOUNT_ADDRESS_PREFIX: bech32::Hrp = bech32::Hrp::parse_unchecked("celestia");
 
     let encoded_address =
         bech32::encode::<bech32::Bech32>(ACCOUNT_ADDRESS_PREFIX, address.as_bytes()).map_err(
-            |error| BuilderError::EncodeAddress {
-                address: *address,
-                source: Bech32EncodeError::from(error),
+            |error| {
+                Box::new(BuilderError::EncodeAddress {
+                    address: *address,
+                    source: Bech32EncodeError::from(error),
+                })
             },
         )?;
     Ok(Bech32Address(encoded_address))
