@@ -176,9 +176,7 @@ enum VerificationMetaError {
         height: SequencerHeight,
         source: tendermint_rpc::Error,
     },
-    #[error(
-        "failed fetching Sequencer validators at height `{height}`"
-    )]
+    #[error("failed fetching Sequencer validators at height `{height}`")]
     FetchValidators {
         height: SequencerHeight,
         source: tendermint_rpc::Error,
@@ -402,12 +400,8 @@ fn should_retry(error: &tendermint_rpc::Error) -> bool {
 }
 
 enum VerificationRequest {
-    Commit {
-        height: SequencerHeight,
-    },
-    Validators {
-        height: SequencerHeight,
-    },
+    Commit { height: SequencerHeight },
+    Validators { height: SequencerHeight },
 }
 
 #[derive(Debug)]
