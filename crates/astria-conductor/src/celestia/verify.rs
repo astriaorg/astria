@@ -229,7 +229,7 @@ impl VerificationMeta {
         )
         .map_err(|source| VerificationMetaError::NoQuorum {
             height_of_commit: height,
-            height_of_validator_set: prev_height,
+            height_of_validator_set: height,
             source,
         })?;
 
@@ -359,7 +359,7 @@ async fn fetch_validators_with_retry(
         let client = client.clone();
         async move {
             client
-                .validators(prev_height, tendermint_rpc::Paging::Default)
+                .validators(height, tendermint_rpc::Paging::Default)
                 .await
         }
     })

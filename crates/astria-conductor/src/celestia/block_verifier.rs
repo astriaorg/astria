@@ -88,8 +88,7 @@ pub(super) fn ensure_commit_has_quorum(
     validator_set: &tendermint_rpc::endpoint::validators::Response,
     chain_id: &tendermint::chain::Id,
 ) -> Result<(), QuorumError> {
-    // Validator set at Block N-1 is used for block N
-    let expected_height = validator_set.block_height.increment();
+    let expected_height = validator_set.block_height;
     let actual_height = commit.height;
     if expected_height != actual_height {
         return Err(QuorumError::CommitHeightMismatch {
