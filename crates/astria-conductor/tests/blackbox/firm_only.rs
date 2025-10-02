@@ -88,7 +88,7 @@ async fn simple() {
         height: 3u32,
     );
 
-    mount_sequencer_validator_set!(test_conductor, height: 2u32);
+    mount_sequencer_validator_set!(test_conductor, height: 3u32);
 
     let execute_block = mount_execute_block!(
         test_conductor,
@@ -171,14 +171,14 @@ async fn submits_two_heights_in_succession() {
         height: 3u32,
     );
 
-    mount_sequencer_validator_set!(test_conductor, height: 2u32);
+    mount_sequencer_validator_set!(test_conductor, height: 3u32);
 
     mount_sequencer_commit!(
         test_conductor,
         height: 4u32,
     );
 
-    mount_sequencer_validator_set!(test_conductor, height: 3u32);
+    mount_sequencer_validator_set!(test_conductor, height: 4u32);
 
     let execute_block_number_2 = mount_execute_block!(
         test_conductor,
@@ -289,7 +289,7 @@ async fn skips_already_executed_heights() {
         height: 7u32,
     );
 
-    mount_sequencer_validator_set!(test_conductor, height: 6u32);
+    mount_sequencer_validator_set!(test_conductor, height: 7u32);
 
     let execute_block = mount_execute_block!(
         test_conductor,
@@ -372,7 +372,7 @@ async fn fetch_from_later_celestia_height() {
         height: 3u32,
     );
 
-    mount_sequencer_validator_set!(test_conductor, height: 2u32);
+    mount_sequencer_validator_set!(test_conductor, height: 3u32);
 
     let execute_block = mount_execute_block!(
         test_conductor,
@@ -579,8 +579,8 @@ async fn restarts_after_reaching_stop_block_height() {
         test_conductor,
         height: 4u32,
     );
-    mount_sequencer_validator_set!(test_conductor, height: 2u32);
     mount_sequencer_validator_set!(test_conductor, height: 3u32);
+    mount_sequencer_validator_set!(test_conductor, height: 4u32);
 
     let execute_block_1 = mount_execute_block!(
         test_conductor,

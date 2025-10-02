@@ -177,11 +177,9 @@ enum VerificationMetaError {
         source: tendermint_rpc::Error,
     },
     #[error(
-        "failed fetching Sequencer validators at height `{prev_height}` (to validate a \
-         Celestia-derived Sequencer block at height `{height}`)"
+        "failed fetching Sequencer validators at height `{height}`"
     )]
     FetchValidators {
-        prev_height: SequencerHeight,
         height: SequencerHeight,
         source: tendermint_rpc::Error,
     },
@@ -212,15 +210,9 @@ impl VerificationMeta {
         if height.value() == 0 {
             return Err(VerificationMetaError::CantVerifyHeightZero.into());
         }
-        let prev_height = SequencerHeight::try_from(height.value().saturating_sub(1)).expect(
-            "BUG: should always be able to convert a decremented cometbft height back to its \
-             original type; if this is not the case then some fundamentals of cometbft or \
-             tendermint-rs/cometbft-rs no longer hold (or this code has been running several \
-             decades and the chain's height is greater u32::MAX)",
-        );
         let (commit_response, validators_response) = tokio::try_join!(
             client.clone().get_commit(height),
-            client.clone().get_validators(prev_height, height),
+            client.clone().get_validators(height),
         )?;
         super::ensure_commit_has_quorum(
             &commit_response.signed_header.commit,
@@ -335,7 +327,6 @@ async fn fetch_commit_with_retry(
 #[instrument(skip_all, err)]
 async fn fetch_validators_with_retry(
     client: SequencerClient,
-    prev_height: SequencerHeight,
     height: SequencerHeight,
 ) -> Result<VerificationResponse, VerificationMetaError> {
     let retry_config = RetryFutureConfig::new(u32::MAX)
@@ -368,7 +359,6 @@ async fn fetch_validators_with_retry(
     .map(Into::into)
     .map_err(|source| VerificationMetaError::FetchValidators {
         height,
-        prev_height,
         source,
     })
 }
@@ -416,7 +406,6 @@ enum VerificationRequest {
         height: SequencerHeight,
     },
     Validators {
-        prev_height: SequencerHeight,
         height: SequencerHeight,
     },
 }
@@ -472,7 +461,6 @@ impl RateLimitedVerificationClient {
     #[instrument(skip_all, err)]
     async fn get_validators(
         mut self,
-        prev_height: SequencerHeight,
         height: SequencerHeight,
     ) -> Result<Box<tendermint_rpc::endpoint::validators::Response>, BoxError> {
         #[expect(
@@ -485,7 +473,6 @@ impl RateLimitedVerificationClient {
             .ready()
             .await?
             .call(VerificationRequest::Validators {
-                prev_height,
                 height,
             })
             .await?
@@ -520,9 +507,8 @@ impl RateLimitedVerificationClient {
                         height,
                     } => fetch_commit_with_retry(client, height).await,
                     VerificationRequest::Validators {
-                        prev_height,
                         height,
-                    } => fetch_validators_with_retry(client, prev_height, height).await,
+                    } => fetch_validators_with_retry(client, height).await,
                 }
             }
         });

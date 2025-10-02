@@ -314,7 +314,7 @@ mod tests {
         };
 
         (
-            validators::Response::new(height.checked_sub(1).unwrap().into(), vec![validator], 1),
+            validators::Response::new(height.into(), vec![validator], 1),
             address,
             commit,
         )
@@ -480,7 +480,7 @@ mod tests {
         // curl http://localhost:26657/validators
         // curl http://localhost:26657/commit?height=79
         let validator_set_str = r#"{
-            "block_height":"78",
+            "block_height":"79",
             "validators":[
                 {
                     "address":"D223B03AE01B4A0296053E01A41AE1E2F9CDEBC9",
@@ -529,7 +529,7 @@ mod tests {
             Engine as _,
         };
         let validator_set = validators::Response::new(
-            78u32.into(),
+            79u32.into(),
             vec![Validator {
                 name: None,
                 address: "D223B03AE01B4A0296053E01A41AE1E2F9CDEBC9"
