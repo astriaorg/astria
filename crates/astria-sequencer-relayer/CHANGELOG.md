@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0]
+
 ### Changed
 
 - Update `celestia-types` dependency [#2253](https://github.com/astriaorg/astria/pull/2253).
@@ -278,7 +280,8 @@ address [#721](https://github.com/astriaorg/astria/pull/721).
 
 - Initial release.
 
-[unreleased]: https://github.com/astriaorg/astria/compare/sequencer-relayer-v1.0.1...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/sequencer-relayer-v2.0.0...HEAD
+[2.0.0]: https://github.com/astriaorg/astria/compare/sequencer-relayer-v1.0.1...sequencer-relayer-v2.0.0
 [1.0.1]: https://github.com/astriaorg/astria/compare/sequencer-relayer-v1.0.0...sequencer-relayer-v1.0.1
 [1.0.0]: https://github.com/astriaorg/astria/compare/sequencer-relayer-v1.0.0-rc.2...sequencer-relayer-v1.0.0
 [1.0.0-rc.2]: https://github.com/astriaorg/astria/compare/sequencer-relayer-v1.0.0-rc.1...sequencer-relayer-v1.0.0-rc.2

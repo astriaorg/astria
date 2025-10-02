@@ -30,7 +30,6 @@ data:
   OTEL_EXPORTER_OTLP_TRACE_HEADERS: "{{ tpl .Values.otel.traceHeaders . }}"
   OTEL_SERVICE_NAME: "{{ tpl .Values.otel.serviceName . }}"
   {{- if not .Values.global.dev }}
-  ASTRIA_COMPOSER_PRETTY_PRINT: "{{ .Values.global.useTTY }}"
   {{- else }}
   {{- end }}
 ---
