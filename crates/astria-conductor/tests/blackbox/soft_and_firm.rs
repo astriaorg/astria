@@ -124,7 +124,7 @@ async fn executes_soft_first_then_updates_firm() {
         height: 3u32,
     );
 
-    mount_sequencer_validator_set!(test_conductor, height: 2u32);
+    mount_sequencer_validator_set!(test_conductor, height: 3u32);
 
     let update_commitment_state_firm = mount_update_commitment_state!(
         test_conductor,
@@ -219,7 +219,7 @@ async fn executes_firm_then_soft_at_next_height() {
         height: 3u32,
     );
 
-    mount_sequencer_validator_set!(test_conductor, height: 2u32);
+    mount_sequencer_validator_set!(test_conductor, height: 3u32);
 
     let execute_block = mount_execute_block!(
         test_conductor,
@@ -387,7 +387,7 @@ async fn missing_block_is_fetched_for_updating_firm_commitment() {
         height: 3u32,
     );
 
-    mount_sequencer_validator_set!(test_conductor, height: 2u32);
+    mount_sequencer_validator_set!(test_conductor, height: 3u32);
 
     let update_commitment_state_firm = mount_update_commitment_state!(
         test_conductor,
@@ -509,7 +509,7 @@ async fn restarts_on_permission_denied() {
         height: 3u32,
     );
 
-    mount_sequencer_validator_set!(test_conductor, height: 2u32);
+    mount_sequencer_validator_set!(test_conductor, height: 3u32);
 
     mount_abci_info!(
         test_conductor,
@@ -673,8 +673,8 @@ async fn restarts_after_reaching_soft_stop_height_first() {
         test_conductor,
         height: 4u32,
     );
-    mount_sequencer_validator_set!(test_conductor, height: 2u32);
     mount_sequencer_validator_set!(test_conductor, height: 3u32);
+    mount_sequencer_validator_set!(test_conductor, height: 4u32);
 
     let execute_block_1 = mount_execute_block!(
         test_conductor,
@@ -897,8 +897,8 @@ async fn restarts_after_reaching_firm_stop_height_first() {
         test_conductor,
         height: 4u32,
     );
-    mount_sequencer_validator_set!(test_conductor, height: 2u32);
     mount_sequencer_validator_set!(test_conductor, height: 3u32);
+    mount_sequencer_validator_set!(test_conductor, height: 4u32);
 
     let execute_block_1 = mount_execute_block!(
         test_conductor,

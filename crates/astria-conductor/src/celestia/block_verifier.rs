@@ -88,8 +88,7 @@ pub(super) fn ensure_commit_has_quorum(
     validator_set: &tendermint_rpc::endpoint::validators::Response,
     chain_id: &tendermint::chain::Id,
 ) -> Result<(), QuorumError> {
-    // Validator set at Block N-1 is used for block N
-    let expected_height = validator_set.block_height.increment();
+    let expected_height = validator_set.block_height;
     let actual_height = commit.height;
     if expected_height != actual_height {
         return Err(QuorumError::CommitHeightMismatch {
@@ -315,7 +314,7 @@ mod tests {
         };
 
         (
-            validators::Response::new(height.checked_sub(1).unwrap().into(), vec![validator], 1),
+            validators::Response::new(height.into(), vec![validator], 1),
             address,
             commit,
         )
@@ -481,7 +480,7 @@ mod tests {
         // curl http://localhost:26657/validators
         // curl http://localhost:26657/commit?height=79
         let validator_set_str = r#"{
-            "block_height":"78",
+            "block_height":"79",
             "validators":[
                 {
                     "address":"D223B03AE01B4A0296053E01A41AE1E2F9CDEBC9",
@@ -530,7 +529,7 @@ mod tests {
             Engine as _,
         };
         let validator_set = validators::Response::new(
-            78u32.into(),
+            79u32.into(),
             vec![Validator {
                 name: None,
                 address: "D223B03AE01B4A0296053E01A41AE1E2F9CDEBC9"
