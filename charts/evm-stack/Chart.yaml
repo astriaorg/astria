@@ -19,7 +19,7 @@ version: 4.0.1
 
 dependencies:
   - name: celestia-node
-    version: 0.6.0
+    version: 0.7.0
     repository: "file://../celestia-node"
     condition: celestia-node.enabled
   - name: evm-rollup
