@@ -609,7 +609,7 @@ dependencies = [
 
 [[package]]
 name = "astria-conductor"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "astria-build-info",
  "astria-config",
@@ -873,7 +873,7 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer-relayer"
-version = "1.0.1"
+version = "2.0.0"
 dependencies = [
  "assert-json-diff",
  "astria-build-info",

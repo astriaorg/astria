@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0]
+
 ### Changed
 
 - Update `celestia-rpc`, `celestia-types` and `jsonrpsee` dependencies [#2253](https://github.com/astriaorg/astria/pull/2253).
@@ -407,7 +409,8 @@ address [#721](https://github.com/astriaorg/astria/pull/721).
 
 - Initial release.
 
-[unreleased]: https://github.com/astriaorg/astria/compare/conductor-v2.0.0...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/conductor-v3.0.0...HEAD
+[3.0.0]: https://github.com/astriaorg/astria/compare/conductor-v2.0.0...v3.0.0
 [2.0.0]: https://github.com/astriaorg/astria/compare/conductor-v1.1.0...v2.0.0
 [2.0.0-rc.2]: https://github.com/astriaorg/astria/compare/conductor-v2.0.0-rc.1...conductor-v2.0.0-rc.2
 [2.0.0-rc.1]: https://github.com/astriaorg/astria/compare/conductor-v1.1.0...conductor-v2.0.0-rc.1
