@@ -78,6 +78,14 @@
           "addressPrefix": "astria",
           "startHeight": 7654779
         }
+      },
+      "celestia_update": {
+        "height": 19282943,
+        "celestia":  {
+          "chainId": "mocha-4",
+          "startHeight": 8299669,
+          "searchHeightMaxLookAhead": 129600
+        }
       }
     },
     "forma": {
