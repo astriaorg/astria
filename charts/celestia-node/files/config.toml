@@ -15,7 +15,8 @@
 [State]
   DefaultKeyName = "my_celes_key"
   DefaultBackendName = "test"
-
+  EstimatorAddress = ""	
+  EnableEstimatorTLS = false
 [P2P]
   ListenAddresses = ["/ip4/0.0.0.0/udp/2121/quic-v1", "/ip6/::/udp/2121/quic-v1", "/ip4/0.0.0.0/tcp/2121", "/ip6/::/tcp/2121"]
   AnnounceAddresses = []
@@ -45,15 +46,12 @@
   UseShareExchange = true
   [Share.EDSStoreParams]
     RecentBlocksCacheSize = 10
-  [Share.ShrExEDSParams]
-    ServerReadTimeout = "5s"
-    ServerWriteTimeout = "1m0s"
-    HandleRequestTimeout = "1m0s"
-    ConcurrencyLimit = 10
-    BufferSize = 32768
-  [Share.ShrExNDParams]
-    ServerReadTimeout = "5s"
-    ServerWriteTimeout = "1m0s"
+  [Share.ShrexClient]	
+    ReadTimeout = "2m0s"	
+    WriteTimeout = "5s"	
+  [Share.ShrexServer]	
+    ReadTimeout = "5s"	
+    WriteTimeout = "1m0s"
     HandleRequestTimeout = "1m0s"
     ConcurrencyLimit = 10
   [Share.PeerManagerParams]
@@ -70,28 +68,28 @@
     AdvertiseInterval = "22h0m0s"
 
 [Header]
-  TrustedHash = {{ .Values.config.trustedHash | quote }}
   TrustedPeers = []
   [Header.Store]
     StoreCacheSize = 4096
     IndexCacheSize = 16384
     WriteBatchSize = 2048
   [Header.Syncer]
-    TrustingPeriod = "168h0m0s"
+    SyncFromHash = {{ .Values.config.trustedHash | quote }}
+    SyncFromHeight = {{ toString .Values.config.startHeight | replace "\"" "" }}
+    PruningWindow = "337h0m0s"
   [Header.Server]
     WriteDeadline = "8s"
     ReadDeadline = "1m0s"
-    RangeRequestTimeout = "10s"
+    RequestTimeout = "10s"
 {{- if ne .Values.config.type "bridge" }}
   [Header.Client]
     MaxHeadersPerRangeRequest = 64
-    RangeRequestTimeout = "8s"
+    RequestTimeout = "8s"
 {{- end }}
 
 [DASer]
   SamplingRange = 100
   BackgroundStoreInterval = "10m0s"
-  SampleFrom = {{ toString .Values.config.startHeight | replace "\"" "" }}
 {{- if eq .Values.config.type "light" }}
   ConcurrencyLimit = 16
   SampleTimeout = "4m0s"
@@ -100,6 +98,3 @@
   ConcurrencyLimit = 6
   SampleTimeout = "3m0s"  
 {{- end }}
-
-[Pruner]
-  EnableService = {{ .Values.config.enablePruner }}
