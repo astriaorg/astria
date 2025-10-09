@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.0-rc.2]
+
+### Added
+
+- Allow disabling deposits to bridge accounts post-Blackburn upgrade [#2245](https://github.com/astriaorg/astria/pull/2245).
+
 ## [4.0.0-rc.1] - 2025-07-28
 
 ### Added
@@ -16,7 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add cache of recent execution results to mempool [#2163](https://github.com/astriaorg/astria/pull/2163).
 - Add tx result to `Executed` transaction status [#2159](https://github.com/astriaorg/astria/pull/2159).
 - Add `Blackburn` upgrade [#2228](https://github.com/astriaorg/astria/pull/2228).
-- Allow disabling deposits to bridge accounts post-Blackburn upgrade [#2245](https://github.com/astriaorg/astria/pull/2245).
 
 ### Changed
 
@@ -686,7 +691,8 @@ address [#721](https://github.com/astriaorg/astria/pull/721).
 
 - Initial release.
 
-[unreleased]: https://github.com/astriaorg/astria/compare/sequencer-v4.0.0-rc.1...HEAD
+[unreleased]: https://github.com/astriaorg/astria/compare/sequencer-v4.0.0-rc.2...HEAD
+[4.0.0-rc.2]: https://github.com/astriaorg/astria/compare/sequencer-v4.0.0-rc.1...sequencer-v4.0.0-rc.2
 [4.0.0-rc.1]: https://github.com/astriaorg/astria/compare/sequencer-v3.0.0...sequencer-v4.0.0-rc.1
 [3.0.0]: https://github.com/astriaorg/astria/compare/sequencer-v2.0.1...sequencer-v3.0.0
 [3.0.0-rc.2]: https://github.com/astriaorg/astria/compare/sequencer-v3.0.0-rc.1...sequencer-v3.0.0-rc.2
