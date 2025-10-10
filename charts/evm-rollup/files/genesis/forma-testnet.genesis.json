@@ -23,7 +23,11 @@
         "height": 1,
         "extraDataOverride": "0xdb8f666f726d612d736b6574636870616483027100831a6cd8825460",
         "feeCollector": "0xBd2949362b3087E7BCc442A19CeC9F921385f846",
-        "eip1559Params": { "minBaseFee": 45000000000, "elasticityMultiplier": 2, "baseFeeChangeDenominator": 8 },
+        "eip1559Params": {
+          "minBaseFee": 45000000000,
+          "elasticityMultiplier": 2,
+          "baseFeeChangeDenominator": 8
+        },
         "sequencer": {
           "chainId": "astria-dusk-5",
           "addressPrefix": "astria",
@@ -68,7 +72,11 @@
       "canvasReduceFees": {
         "height": 809300,
         "extraDataOverride": "0xdb8f666f726d612d736b6574636870616483027100831a6cd8825460",
-        "eip1559Params": { "minBaseFee": 18000000000, "elasticityMultiplier": 2, "baseFeeChangeDenominator": 8 }
+        "eip1559Params": {
+          "minBaseFee": 18000000000,
+          "elasticityMultiplier": 2,
+          "baseFeeChangeDenominator": 8
+        }
       },
       "palette": {
         "height": 13763210,
@@ -80,8 +88,8 @@
         }
       },
       "celestia_update": {
-        "height": 19282943,
-        "celestia":  {
+        "height": 19282944,
+        "celestia": {
           "chainId": "mocha-4",
           "startHeight": 8299669,
           "searchHeightMaxLookAhead": 129600
