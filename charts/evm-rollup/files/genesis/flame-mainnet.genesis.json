@@ -136,6 +136,10 @@
           "startHeight": 5203606,
           "searchHeightMaxLookAhead": 43200
         }
+      },
+      "end": {
+        "height": 12832467,
+        "halt": true
       }
     }
   },
