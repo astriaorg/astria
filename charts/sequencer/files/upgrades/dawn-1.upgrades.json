@@ -17,5 +17,14 @@
     },
     "validatorUpdateActionChange": {},
     "ibcAcknowledgementFailureChange": {}
+  },
+  "blackburn": {
+    "baseInfo": {
+      "activationHeight": "13443288",
+      "appVersion": "4"
+    },
+    "ics20TransferActionChange": {},
+    "allowIbcRelayToFail": {},
+    "disableableBridgeAccountDeposits": {}
   }
 }
