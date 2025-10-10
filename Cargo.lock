@@ -791,7 +791,7 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer"
-version = "4.0.0-rc.2"
+version = "4.0.0"
 dependencies = [
  "assert-json-diff",
  "astria-build-info",

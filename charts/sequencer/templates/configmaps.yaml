@@ -67,6 +67,7 @@ data:
   ASTRIA_SEQUENCER_DB_FILEPATH: "/sequencer/penumbra.db"
   ASTRIA_SEQUENCER_UPGRADES_FILEPATH: "/sequencer-upgrades/upgrades.json"
   ASTRIA_SEQUENCER_MEMPOOL_PARKED_MAX_TX_COUNT: "{{ .Values.sequencer.mempool.parked.maxTxCount }}"
+  ASTRIA_SEQUENCER_EXECUTION_RESULTS_CACHE_SIZE: "{{ .Values.sequencer.mempool.executionResultsCacheSize }}"
   ASTRIA_SEQUENCER_ABCI_LISTEN_URL: "{{ include "sequencer.abci_url" . }}"
   ASTRIA_SEQUENCER_COMETBFT_RPC_ADDR: "http://127.0.0.1:{{ .Values.ports.cometbftRpc }}"
   ASTRIA_SEQUENCER_NO_PRICE_FEED: "{{ not .Values.sequencer.priceFeed.enabled }}"
@@ -94,6 +95,4 @@ data:
   # These are variables which are deprecated and will be removed in future releases.
   {{- else }}
   # These are new env variables which are added in development releases and images.
-  ASTRIA_SEQUENCER_EXECUTION_RESULTS_CACHE_SIZE: "{{ .Values.sequencer.mempool.executionResultsCacheSize }}"
-
   {{- end }}
