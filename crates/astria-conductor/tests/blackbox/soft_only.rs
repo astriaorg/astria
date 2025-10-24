@@ -5,7 +5,13 @@ use astria_conductor::{
     Conductor,
     Config,
 };
-use astria_core::generated::astria::execution::v2::CreateExecutionSessionRequest;
+use astria_core::generated::{
+    astria::execution::v2::CreateExecutionSessionRequest,
+    execution::v2::{
+        CommitmentState,
+        ExecutionSession,
+    },
+};
 use futures::future::{
     join,
     join4,
@@ -14,25 +20,27 @@ use telemetry::metrics;
 use tokio::time::timeout;
 
 use crate::{
-    execution_session,
+    block_metadata,
+    execution_session_parameters,
     helpers::{
         make_config,
         mount_genesis,
         spawn_conductor,
         MockGrpc,
+        EXECUTION_SESSION_ID,
     },
     mount_abci_info,
     mount_create_execution_session,
     mount_execute_block,
     mount_get_filtered_sequencer_block,
     mount_sequencer_genesis,
-    mount_update_commitment_state,
+    mount_soft_update_commitment_state,
     SEQUENCER_CHAIN_ID,
 };
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn simple() {
-    let test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
+    let mut test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
 
     mount_create_execution_session!(
         test_conductor,
@@ -43,16 +51,8 @@ async fn simple() {
             celestia_max_look_ahead: 10,
         ),
         commitment_state: (
-            firm: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
-            soft: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
+            firm_number: 1,
+            soft_number: 1,
             lowest_celestia_search_height: 1,
         )
     );
@@ -72,22 +72,11 @@ async fn simple() {
     let execute_block = mount_execute_block!(
         test_conductor,
         number: 2,
-        hash: "2",
-        parent: "1",
     );
 
-    let update_commitment_state = mount_update_commitment_state!(
+    let update_commitment_state = mount_soft_update_commitment_state!(
         test_conductor,
-        firm: (
-            number: 1,
-            hash: "1",
-            parent: "0",
-        ),
-        soft: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
+        number: 2,
         lowest_celestia_search_height: 1,
     );
 
@@ -107,7 +96,7 @@ async fn simple() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn submits_two_heights_in_succession() {
-    let test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
+    let mut test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
 
     mount_create_execution_session!(
         test_conductor,
@@ -118,16 +107,8 @@ async fn submits_two_heights_in_succession() {
             celestia_max_look_ahead: 10,
         ),
         commitment_state: (
-            firm: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
-            soft: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
+            firm_number: 1,
+            soft_number: 1,
             lowest_celestia_search_height: 1,
         )
     );
@@ -153,23 +134,12 @@ async fn submits_two_heights_in_succession() {
         test_conductor,
         mock_name: "first_execute",
         number: 2,
-        hash: "2",
-        parent: "1",
     );
 
-    let update_commitment_state_number_2 = mount_update_commitment_state!(
+    let update_commitment_state_number_2 = mount_soft_update_commitment_state!(
         test_conductor,
         mock_name: "first_update",
-        firm: (
-            number: 1,
-            hash: "1",
-            parent: "0",
-        ),
-        soft: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
+        number: 2,
         lowest_celestia_search_height: 1,
     );
 
@@ -177,23 +147,12 @@ async fn submits_two_heights_in_succession() {
         test_conductor,
         mock_name: "second_execute",
         number: 3,
-        hash: "3",
-        parent: "2",
     );
 
-    let update_commitment_state_number_3 = mount_update_commitment_state!(
+    let update_commitment_state_number_3 = mount_soft_update_commitment_state!(
         test_conductor,
         mock_name: "second_update",
-        firm: (
-            number: 1,
-            hash: "1",
-            parent: "0",
-        ),
-        soft: (
-            number: 3,
-            hash: "3",
-            parent: "2",
-        ),
+        number: 3,
         lowest_celestia_search_height: 1,
     );
 
@@ -215,7 +174,7 @@ async fn submits_two_heights_in_succession() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn skips_already_executed_heights() {
-    let test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
+    let mut test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
 
     mount_create_execution_session!(
         test_conductor,
@@ -226,16 +185,8 @@ async fn skips_already_executed_heights() {
             celestia_max_look_ahead: 10,
         ),
         commitment_state: (
-            firm: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
-            soft: (
-                number: 5,
-                hash: "1",
-                parent: "0",
-            ),
+            firm_number: 1,
+            soft_number: 5,
             lowest_celestia_search_height: 1,
         )
     );
@@ -255,22 +206,11 @@ async fn skips_already_executed_heights() {
     let execute_block = mount_execute_block!(
         test_conductor,
         number: 6,
-        hash: "2",
-        parent: "1",
     );
 
-    let update_commitment_state = mount_update_commitment_state!(
+    let update_commitment_state = mount_soft_update_commitment_state!(
         test_conductor,
-        firm: (
-            number: 1,
-            hash: "1",
-            parent: "0",
-        ),
-        soft: (
-            number: 6,
-            hash: "2",
-            parent: "1",
-        ),
+        number: 6,
         lowest_celestia_search_height: 1,
     );
 
@@ -290,7 +230,7 @@ async fn skips_already_executed_heights() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn requests_from_later_genesis_height() {
-    let test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
+    let mut test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
 
     mount_create_execution_session!(
         test_conductor,
@@ -301,16 +241,8 @@ async fn requests_from_later_genesis_height() {
             celestia_max_look_ahead: 10,
         ),
         commitment_state: (
-            firm: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
-            soft: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
+            firm_number: 1,
+            soft_number: 1,
             lowest_celestia_search_height: 1,
         )
     );
@@ -330,22 +262,11 @@ async fn requests_from_later_genesis_height() {
     let execute_block = mount_execute_block!(
         test_conductor,
         number: 2,
-        hash: "2",
-        parent: "1",
     );
 
-    let update_commitment_state = mount_update_commitment_state!(
+    let update_commitment_state = mount_soft_update_commitment_state!(
         test_conductor,
-        firm: (
-            number: 1,
-            hash: "1",
-            parent: "0",
-        ),
-        soft: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
+        number: 2,
         lowest_celestia_search_height: 1
     );
 
@@ -403,27 +324,28 @@ async fn exits_on_sequencer_chain_id_mismatch() {
         "create_execution_session",
         matcher::message_type::<CreateExecutionSessionRequest>(),
     )
-    .respond_with(GrpcResponse::constant_response(execution_session!(
-        execution_session_parameters: (
+    .respond_with(GrpcResponse::constant_response(ExecutionSession {
+        session_id: EXECUTION_SESSION_ID.to_string(),
+        execution_session_parameters: Some(execution_session_parameters!(
             rollup_start_block_number: 2,
             rollup_end_block_number: 9,
             sequencer_start_block_height: 3,
             celestia_max_look_ahead: 10,
-        ),
-        commitment_state: (
-            firm: (
+        )),
+        commitment_state: Some(CommitmentState {
+            firm_executed_block_metadata: Some(block_metadata!(
                 number: 1,
                 hash: "1",
                 parent: "0",
-            ),
-            soft: (
+            )),
+            soft_executed_block_metadata: Some(block_metadata!(
                 number: 1,
                 hash: "1",
                 parent: "0",
-            ),
+            )),
             lowest_celestia_search_height: 1,
-        ),
-    )))
+        }),
+    }))
     .expect(0..)
     .mount(&mock_grpc.mock_server)
     .await;
@@ -468,13 +390,9 @@ async fn exits_on_sequencer_chain_id_mismatch() {
 ///    start block number of 2, reflecting that the first block has already been executed.
 /// 5. Mount `execute_block` and `update_commitment_state` mocks for the soft block at height 4,
 ///    awaiting their satisfaction.
-#[expect(
-    clippy::too_many_lines,
-    reason = "All lines reasonably necessary for the thoroughness of this test"
-)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn restarts_after_reaching_stop_block_height() {
-    let test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
+    let mut test_conductor = spawn_conductor(CommitLevel::SoftOnly).await;
 
     mount_create_execution_session!(
         test_conductor,
@@ -485,16 +403,8 @@ async fn restarts_after_reaching_stop_block_height() {
             celestia_max_look_ahead: 10,
         ),
         commitment_state: (
-            firm: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
-            soft: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
+            firm_number: 1,
+            soft_number: 1,
             lowest_celestia_search_height: 1,
         ),
         up_to_n_times: 1, // We need a new execution session after restart
@@ -521,24 +431,13 @@ async fn restarts_after_reaching_stop_block_height() {
         test_conductor,
         mock_name: "execute_block_1",
         number: 2,
-        hash: "2",
-        parent: "1",
         expected_calls: 1,
     );
 
-    let update_commitment_state_1 = mount_update_commitment_state!(
+    let update_commitment_state_1 = mount_soft_update_commitment_state!(
         test_conductor,
         mock_name: "update_commitment_state_1",
-        firm: (
-            number: 1,
-            hash: "1",
-            parent: "0",
-        ),
-        soft: (
-            number: 2,
-            hash: "2",
-            parent: "1",
-        ),
+        number: 2,
         lowest_celestia_search_height: 1,
         expected_calls: 1,
     );
@@ -565,16 +464,8 @@ async fn restarts_after_reaching_stop_block_height() {
             celestia_max_look_ahead: 10,
         ),
         commitment_state: (
-            firm: (
-                number: 1,
-                hash: "1",
-                parent: "0",
-            ),
-            soft: (
-                number: 2,
-                hash: "2",
-                parent: "1",
-            ),
+            firm_number: 1,
+            soft_number: 2,
             lowest_celestia_search_height: 1,
         ),
     );
@@ -583,24 +474,13 @@ async fn restarts_after_reaching_stop_block_height() {
         test_conductor,
         mock_name: "execute_block_2",
         number: 3,
-        hash: "3",
-        parent: "2",
         expected_calls: 1,
     );
 
-    let update_commitment_state_2 = mount_update_commitment_state!(
+    let update_commitment_state_2 = mount_soft_update_commitment_state!(
         test_conductor,
         mock_name: "update_commitment_state_2",
-        firm: (
-            number: 1,
-            hash: "1",
-            parent: "0",
-        ),
-        soft: (
-            number: 3,
-            hash: "3",
-            parent: "2",
-        ),
+        number: 3,
         lowest_celestia_search_height: 1,
         expected_calls: 1,
     );
