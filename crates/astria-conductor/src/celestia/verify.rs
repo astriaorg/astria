@@ -384,8 +384,8 @@ impl<'a> BackoffStrategy<'a, tendermint_rpc::Error> for CometBftRetryStrategy {
             RetryPolicy::Delay(prev_delay)
         } else {
             debug!(
+                error = error as &dyn std::error::Error,
                 "not retrying failed request to CometBFT; error is not retryable",
-                error,
             );
             RetryPolicy::Break
         }
