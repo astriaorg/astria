@@ -34,6 +34,7 @@ use tower::{
     ServiceExt as _,
 };
 use tracing::{
+    debug,
     info,
     instrument,
     warn,
@@ -294,7 +295,7 @@ async fn fetch_commit_with_retry(
 ) -> Result<VerificationResponse, VerificationMetaError> {
     let retry_config = RetryFutureConfig::new(u32::MAX)
         .custom_backoff(CometBftRetryStrategy::new(Duration::from_millis(100)))
-        .max_delay(Duration::from_secs(10))
+        .max_delay(Duration::from_secs(300))
         .on_retry(
             |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
                 let wait_duration = next_delay
@@ -329,7 +330,7 @@ async fn fetch_validators_with_retry(
 ) -> Result<VerificationResponse, VerificationMetaError> {
     let retry_config = RetryFutureConfig::new(u32::MAX)
         .custom_backoff(CometBftRetryStrategy::new(Duration::from_millis(100)))
-        .max_delay(Duration::from_secs(10))
+        .max_delay(Duration::from_secs(300))
         .on_retry(
             |attempt: u32, next_delay: Option<Duration>, error: &tendermint_rpc::Error| {
                 let wait_duration = next_delay
@@ -382,6 +383,10 @@ impl<'a> BackoffStrategy<'a, tendermint_rpc::Error> for CometBftRetryStrategy {
             self.delay = self.delay.saturating_mul(2);
             RetryPolicy::Delay(prev_delay)
         } else {
+            debug!(
+                "not retrying failed request to CometBFT; error is not retryable",
+                error,
+            );
             RetryPolicy::Break
         }
     }
