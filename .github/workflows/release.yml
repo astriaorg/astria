@@ -18,7 +18,7 @@ jobs:
     needs: run_checker
     if: github.event_name != 'merge_group' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && needs.run_checker.outputs.run_release_proto == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: bufbuild/buf-setup-action@v1
         with:
           version: "1.32.0"
@@ -44,11 +44,11 @@ jobs:
     if: github.ref_name == 'main' && needs.run_checker.outputs.run_release_charts == 'true'
     steps:
       - name: Checkout Mono Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: 'mono'
       - name: Checkout Mono Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: astriaorg/charts
           ref: 'main'

@@ -175,7 +175,7 @@ jobs:
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
     runs-on: depot-ubuntu-24.04-8
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install just
         uses: taiki-e/install-action@just
       - name: Install kind
@@ -214,7 +214,7 @@ jobs:
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
     runs-on: depot-ubuntu-24.04-8
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install just
         uses: taiki-e/install-action@just
       - name: Install kind
@@ -259,7 +259,7 @@ jobs:
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
     runs-on: depot-ubuntu-24.04-8
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install just
         uses: taiki-e/install-action@just
       - name: Install kind
@@ -298,7 +298,7 @@ jobs:
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
     runs-on: depot-ubuntu-24.04-8
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install just
         uses: taiki-e/install-action@just
       - name: Install kind
@@ -330,7 +330,7 @@ jobs:
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
     runs-on: depot-ubuntu-24.04-8
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install just
         uses: taiki-e/install-action@just
       - name: Install kind
@@ -362,7 +362,7 @@ jobs:
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
     runs-on: depot-ubuntu-24.04-8
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install just
         uses: taiki-e/install-action@just
       - name: Install kind
@@ -394,7 +394,7 @@ jobs:
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
     runs-on: depot-ubuntu-24.04-8
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install just
         uses: taiki-e/install-action@just
       - name: Install kind
@@ -426,7 +426,7 @@ jobs:
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == 'astriaorg/astria') && (github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true')
     runs-on: depot-ubuntu-24.04-8
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install just
         uses: taiki-e/install-action@just
       - name: Install kind

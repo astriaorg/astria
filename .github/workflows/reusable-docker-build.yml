@@ -41,7 +41,7 @@ jobs:
     if: inputs.force || startsWith(inputs.tag, inputs.binary-name) || !inputs.tag && (startsWith(github.ref, format('refs/tags/{0}-v', inputs.binary-name)) || github.ref == 'refs/heads/main' || github.event_name == 'pull_request' || github.event_name == 'merge_group')
     steps:
       # Checking out the repo
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.tag }}
           submodules: 'true'

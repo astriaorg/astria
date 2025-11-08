@@ -24,7 +24,7 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install `buf` protobuf manager
         uses: bufbuild/buf-setup-action@v1
         with:
@@ -56,7 +56,7 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
@@ -83,7 +83,7 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: 'true'
       - uses: dtolnay/rust-toolchain@master
@@ -107,7 +107,7 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
@@ -122,7 +122,7 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_audit == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
@@ -135,7 +135,7 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: 'true'
       - uses: dtolnay/rust-toolchain@master
@@ -165,7 +165,7 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: 'true'
       - uses: dtolnay/rust-toolchain@master
@@ -192,7 +192,7 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: 'true'
       - uses: dtolnay/rust-toolchain@master
@@ -213,7 +213,7 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true' && needs.run_checker.outputs.run_lint_rust == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: 'true'
       - name: Install just
