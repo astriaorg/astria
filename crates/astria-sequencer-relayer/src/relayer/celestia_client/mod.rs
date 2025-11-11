@@ -22,14 +22,21 @@ use std::{
 };
 
 use astria_core::generated::{
-    celestia::v1::{
+celestia::{
+    core::v1::tx::{
+        TxStatusRequest,
+        TxStatusResponse,
+        tx_client::TxClient as BlobTxClient
+    },
+    v1::{
         query_client::QueryClient as BlobQueryClient,
         MsgPayForBlobs,
         Params as BlobParams,
         QueryParamsRequest as QueryBlobParamsRequest,
     },
-    cosmos::{
-        auth::v1beta1::{
+},
+cosmos::{
+auth::v1beta1::{
             query_client::QueryClient as AuthQueryClient,
             BaseAccount,
             Params as AuthParams,
@@ -57,7 +64,6 @@ use astria_core::generated::{
             BroadcastTxRequest,
             BroadcastTxResponse,
             Fee,
-            GetTxRequest,
             GetTxResponse,
             ModeInfo,
             SignDoc,
@@ -133,6 +139,8 @@ pub(super) struct CelestiaClient {
     grpc_channel: Channel,
     /// A gRPC client to broadcast and get transactions.
     tx_client: TxClient<Channel>,
+    /// A gRPC client to query blob tx submissions.
+    blob_tx_client: BlobTxClient<Channel>,
     /// The crypto keys associated with our Celestia account.
     signing_keys: CelestiaKeys,
     /// The Bech32-encoded address of our Celestia account.
@@ -315,12 +323,12 @@ impl CelestiaClient {
         &mut self,
         hex_encoded_tx_hash: String,
     ) -> Result<Option<u64>, Box<TrySubmitError>> {
-        let request = GetTxRequest {
-            hash: hex_encoded_tx_hash,
+        let request = TxStatusRequest {
+            tx_id: hex_encoded_tx_hash.clone(),
         };
-        let response = self.tx_client.get_tx(request).await;
+        let response = self.blob_tx_client.tx_status(request).await;
         trace!(?response);
-        block_height_from_response(response)
+        block_height_from_status_response(hex_encoded_tx_hash, response)
     }
 
     /// Repeatedly sends `GetTx` until a successful response is received.  Returns the height of the
@@ -501,6 +509,49 @@ fn lowercase_hex_encoded_tx_hash_from_response(
     }
     tx_response.txhash.make_ascii_lowercase();
     Ok(tx_response.txhash)
+}
+
+fn block_height_from_status_response(
+    tx_hash: String,
+    response: Result<Response<TxStatusResponse>, Status>,
+) -> Result<Option<u64>, Box<TrySubmitError>> {
+    let ok_response = match response {
+        Ok(resp) => resp,
+        Err(status) => {
+            trace!(?status);
+            if status.code() == tonic::Code::NotFound {
+                trace!(msg = status.message(), "transaction still pending");
+                return Ok(None);
+            }
+            return Err(Box::new(TrySubmitError::FailedToGetTx(
+                GrpcResponseError::from(status),
+            )));
+        }
+    };
+    let tx_response = ok_response
+        .into_inner();
+    if tx_response.execution_code != 0 {
+        let error = Box::new(TrySubmitError::GetTxResponseErrorCode {
+            tx_hash,
+            code: tx_response.execution_code,
+            namespace: tx_response.codespace,
+            log: tx_response.error,
+        });
+        return Err(error);
+    }
+    if tx_response.height == 0 || tx_response.status != "COMMITTED" {
+        trace!(tx_hash = %tx_hash, status = %tx_response.status, "transaction not committed");
+        return Ok(None);
+    }
+
+    let height = u64::try_from(tx_response.height).map_err(|_| {
+        Box::new(TrySubmitError::GetTxResponseNegativeBlockHeight(
+            tx_response.height,
+        ))
+    })?;
+
+    debug!(tx_hash = %tx_hash, height, "transaction succeeded");
+    Ok(Some(height))
 }
 
 /// Extracts the block height from the given response if available, or `None` if the transaction is

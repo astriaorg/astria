@@ -3,12 +3,15 @@ use std::{
     time::Duration,
 };
 
-use astria_core::generated::cosmos::{
-    base::tendermint::v1beta1::{
-        service_client::ServiceClient as NodeInfoClient,
-        GetNodeInfoRequest,
-    },
-    tx::v1beta1::service_client::ServiceClient as TxClient,
+use astria_core::generated::{
+    celestia::core::v1::tx::tx_client::TxClient as BlobTxClient,
+    cosmos::{
+        base::tendermint::v1beta1::{
+            service_client::ServiceClient as NodeInfoClient,
+            GetNodeInfoRequest,
+        },
+        tx::v1beta1::service_client::ServiceClient as TxClient,
+    }
 };
 use http::Uri;
 use tendermint::account::Id as AccountId;
@@ -126,9 +129,11 @@ impl Builder {
         state.set_celestia_connected(true);
 
         let tx_client = TxClient::new(grpc_channel.clone());
+        let blob_tx_client = BlobTxClient::new(grpc_channel.clone());
         Ok(CelestiaClient {
             grpc_channel,
             tx_client,
+            blob_tx_client,
             signing_keys,
             address,
             chain_id: received_celestia_chain_id,

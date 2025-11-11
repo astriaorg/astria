@@ -270,6 +270,20 @@ pub mod celestia {
             include!("celestia.blob.v1.serde.rs");
         }
     }
+
+    pub mod core {
+        pub mod v1 {
+            pub mod tx {
+                include!("celestia.core.v1.tx.rs");
+
+                #[cfg(feature = "serde")]
+                mod _serde_impl {
+                    use super::*;
+                    include!("celestia.core.v1.tx.serde.rs");
+                }
+            }
+        }
+    }
 }
 
 use price_feed as connect;
