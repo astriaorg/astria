@@ -31,12 +31,17 @@ jobs:
           steps.release_version.outputs.versionChanged == 'true' &&
           github.event_name == 'pull_request' &&
           github.base_ref == 'main'
+        env:
+          PACKAGE_NAME: ${{ inputs.package-name }}
+          DISPLAY_NAME: ${{ inputs.display-name }}
+          RAW_VERSION: ${{ steps.release_version.outputs.rawVersion }}
+          RELEASE_VERSION: ${{ steps.release_version.outputs.releaseVersion }}
         run: |
-          FILE="${{ format('crates/astria-{0}/Cargo.toml', inputs.package-name) }}"
-          TITLE="New ${{ inputs.display-name}} Release"
-          MESSAGE=("This PR updates the version of ${{ inputs.package-name }}."
-                   "After merging a new release ${{steps.release_version.outputs.rawVersion}}"
-                   "will be created with tag ${{ steps.release_version.outputs.releaseVersion }}."
+          FILE="crates/astria-${PACKAGE_NAME}/Cargo.toml"
+          TITLE="New ${DISPLAY_NAME} Release"
+          MESSAGE=("This PR updates the version of ${PACKAGE_NAME}."
+                   "After merging a new release ${RAW_VERSION}"
+                   "will be created with tag ${RELEASE_VERSION}."
                    )
           echo "::warning file=$FILE,title=$TITLE::${MESSAGE[*]}"
       # Actually release when version has changed on a push to main
